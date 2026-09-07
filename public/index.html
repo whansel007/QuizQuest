@@ -72,17 +72,25 @@
   </style>
 </head>
 <body>
+  <!-- "You are Px" with your color swatch, filled in by client.js -->
   <div id="youLabel"></div>
   <div id="frame">
+    <!-- The shared world is a fixed 900x600 canvas. The server owns the
+         coordinates; JS only draws what the server broadcasts. -->
     <canvas id="game" width="900" height="600"></canvas>
+    <!-- Join overlay: sits on top of the canvas until the player clicks
+         Join, then it hides for the rest of the session. -->
     <div id="overlay">
       <div style="font-size: 26px; font-weight: 800;">Circle Tag</div>
       <button id="joinBtn">Join</button>
       <div id="hint">First circle starts as "IT". Touch the other circle to tag them.</div>
     </div>
+    <!-- Big "P1 TAGGED P2" message, shown briefly on the 'tag' event -->
     <div id="banner"></div>
   </div>
   <div id="status">Press Join to start</div>
+  <!-- socket.io.js is served automatically by the Socket.IO server on the
+       SAME port; it defines the global `io()` we call in client.js -->
   <script src="/socket.io/socket.io.js"></script>
   <script src="/client.js"></script>
 </body>

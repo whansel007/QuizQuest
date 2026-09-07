@@ -1,19 +1,51 @@
+// ============================================================
+// QuizQuest - Circle Tag server
+// ------------------------------------------------------------
+// This file replaces what "express + static pages" gave you.
+//
+// In a static Express app you had:
+//     GET /page  -> browser asks, server replies, connection closes.
+// That is "request/response": the browser does the talking.
+//
+// Here the model is inverted: a WebSocket is a two-way pipe
+// that STAYS OPEN. The server can push messages to the browser
+// (game state, 60x a second) without the browser asking.
+//
+// Think of the server as the single referee that owns the truth:
+//     - who is connected
+//     - where every circle is
+//     - who is "IT"
+// The browsers are just screens that paint whatever the server says.
+// ============================================================
+
+// "http" and "fs"/"path" do the same job express.static used to do
+// for us: serve the index.html and client.js files. We keep the copy
+// here so the WHOLE server is one dependency lighter (no express).
 const http = require('http');
 const fs = require('fs');
 const path = require('path');
+// Socket.IO is the realtime layer. It manages the persistent two-way
+// pipe with every connected browser and gives us "rooms" and events.
 const { Server } = require('socket.io');
 
+// --- Game constants (the "rules" of our world) ----------------
+// The arena is a fixed 900x600 coordinate grid. Every player shares
+// these coordinates, which is what makes positions comparable.
 const ARENA = { w: 900, h: 600 };
-const RADIUS = 24;
-const SPEED = 280;
-const COLORS = ['#ff5252', '#448aff', '#00c853', '#ffd740'];
-const TAG_COOLDOWN = 1000;
+const RADIUS = 24;          // circle radius in px. Two circles touch
+                            // when their centers are < 2*RADIUS apart.
+const SPEED = 280;          // px per second a circle can move
+const COLORS = ['#ff5252', '#448aff', '#00c853', '#ffd740']; // P1..P4
+const TAG_COOLDOWN = 1000;  // ms to ignore collisions right after a tag
+                            // (stops the banner flickering every frame)
 const SPAWNS = [
+  // Where each player starts, so they don't spawn on top of each other
   { x: 200, y: 300 },
   { x: ARENA.w - 200, y: 300 },
   { x: 200, y: 150 },
   { x: ARENA.w - 200, y: 450 },
 ];
+// Tiny mime lookup so the plain http server knows what each file is.
 const MIME = {
   '.html': 'text/html',
   '.js': 'application/javascript',
@@ -23,16 +55,28 @@ const MIME = {
   '.svg': 'image/svg+xml',
 };
 
+// start(port) boots the whole game. Calling it with port 0 (used by
+// the test) makes the OS pick a free port. If server.js is run directly
+// it uses process.env.PORT (Render injects that) or 3000 locally.
 function start(port) {
+  // ------ Live game state (in-memory, lives ONLY while running) ---
+  // players: socket.id -> player object. This is the "database" of
+  // the live game. Unlike Mongo it is volatile: if the server restarts,
+  // everyone is disconnected and the board resets. Mongo is for things
+  // that must survive (scores); this Map is for things that must be
+  // fast (20 updates per frame, no disk I/O allowed).
   const players = new Map();
-  const taken = new Set();
-  let currentIt = null;
-  let cooldownUntil = 0;
+  const taken = new Set();   // which player slots (1-4) are occupied
+  let currentIt = null;      // which slot is "IT" right now (null = nobody)
+  let cooldownUntil = 0;     // timestamp after which collisions count again
 
+  // ------ Serve the static files (the part you already know) ------
   const publicDir = path.join(__dirname, 'public');
   const httpServer = http.createServer((req, res) => {
+    // "/" resolves to index.html, exactly like express.static would
     const urlPath = req.url === '/' ? '/index.html' : req.url.split('?')[0];
     const file = path.join(publicDir, urlPath);
+    // Guard against path traversal attempts like GET /../server.js
     if (!file.startsWith(publicDir)) {
       res.writeHead(403);
       return res.end();
@@ -47,8 +91,13 @@ function start(port) {
     });
   });
 
+  // ------ Attach Socket.IO to the same HTTP server ------
+  // Socket.IO listens on the SAME port as the static files. The browser
+  // loads index.html over HTTP, then upgrades that page to the persistent
+  // realtime channel. One port for everything.
   const io = new Server(httpServer, { cors: { origin: '*' } });
 
+  // Smallest free slot (1..4). Slot = the player's identity: P1, P2...
   function freeSlot() {
     for (let i = 1; i <= COLORS.length; i++) {
       if (!taken.has(i)) return i;
@@ -56,32 +105,50 @@ function start(port) {
     return null;
   }
 
+  // Shortcut: all players currently connected, as an array
   function online() {
     return [...players.values()];
   }
 
+  // ------ Wiring up realtime events (the NEW mental model) ------
+  // "connection" fires every time ANY browser opens a socket to us.
+  // Each one gets its own `socket` object = its own private pipe.
   io.on('connection', (socket) => {
+    // The browser clicks "Join" -> client.js emits 'join'.
+    // NOTE: connecting the socket and JOINING the game are two events.
+    // Connecting just means the pipe exists; joining means we assign
+    // a slot, a color, a starting position.
     socket.on('join', () => {
-      if (players.has(socket.id)) return;
+      if (players.has(socket.id)) return; // already joined, ignore
       const slot = freeSlot();
       if (!slot) {
-        socket.emit('full');
+        socket.emit('full'); // 4 players already -> tell them politely
         return;
       }
       const spawn = SPAWNS[slot - 1];
+      // Build the player record the game loop will act on every frame
       const p = { id: socket.id, slot, color: COLORS[slot - 1], x: spawn.x, y: spawn.y, keys: {} };
       players.set(socket.id, p);
       taken.add(slot);
+      // First player in an empty room becomes IT by default
       if (currentIt === null) currentIt = slot;
+      // Tell THIS browser who it is (individual, not everyone)
       socket.emit('welcome', { slot, color: p.color, arena: ARENA, radius: RADIUS, it: currentIt === slot });
+      // Tell everyone how many people are in (used for "waiting for player 2")
       socket.emit('lobby', { count: players.size });
     });
 
+    // The browser sends its held keys. We do NOT trust the browser to
+    // say "I am at x:400 y:300" - that would let a cheater teleport.
+    // Instead the browser says "I am holding Right" and WE compute the
+    // position. This is "server-authoritative" movement.
     socket.on('input', (keys) => {
       const p = players.get(socket.id);
       if (p) p.keys = keys || {};
     });
 
+    // Browser tab closed / lost network. Remove the player, free the
+    // slot, and if IT left, pass IT to someone still in the room.
     socket.on('disconnect', () => {
       const p = players.get(socket.id);
       if (p) {
@@ -96,29 +163,46 @@ function start(port) {
     });
   });
 
+  // ------- THE GAME LOOP ---------------------------------------
+  // setInterval runs ~60x per second. One full "tick" of the world:
+  //   1. move every player according to their held keys
+  //   2. check collisions -> decide if a tag happened
+  //   3. broadcast the honest new world state to everyone
+  // This is the whole game. Everything below is that cycle.
   setInterval(() => {
     const list = online();
-    const step = SPEED / 60;
+    const step = SPEED / 60; // distance covered in ONE frame (1/60 s)
+
+    // 1) MOVE ------------------------------------------------
     for (const p of list) {
+      // direction: -1 / 0 / +1 on each axis from the held keys
       const dx = (p.keys.right ? 1 : 0) - (p.keys.left ? 1 : 0);
       const dy = (p.keys.down ? 1 : 0) - (p.keys.up ? 1 : 0);
       if (dx || dy) {
-        const len = Math.hypot(dx, dy);
+        const len = Math.hypot(dx, dy); // normalise so diagonal isn't faster
+        // clamp inside the arena walls: min/max keep the center inside
         p.x = Math.min(ARENA.w - RADIUS, Math.max(RADIUS, p.x + (dx / len) * step));
         p.y = Math.min(ARENA.h - RADIUS, Math.max(RADIUS, p.y + (dy / len) * step));
       }
     }
 
+    // 2) COLLIDE / TAG ---------------------------------------
     const now = Date.now();
+    // Need >=2 players, IT must exist, and the cooldown must have passed
     if (list.length >= 2 && now >= cooldownUntil && currentIt !== null) {
-      outer: for (let a = 0; a < list.length; a++) {
+      outer: // label so we can "break outer" after one tag per frame
+      for (let a = 0; a < list.length; a++) {
         for (let b = a + 1; b < list.length; b++) {
           const A = list[a];
           const B = list[b];
           const d = Math.hypot(B.x - A.x, B.y - A.y);
+          // Classic circle collision test: centers closer than the
+          // sum of radii (= 2*RADIUS) means the circles overlap.
           if (d < RADIUS * 2) {
             let tagger = null;
             let victim = null;
+            // Only IT can tag. If IT collided with somebody, that
+            // somebody becomes the new IT (tag = pass the role on).
             if (currentIt === A.slot) {
               tagger = A;
               victim = B;
@@ -128,25 +212,33 @@ function start(port) {
             }
             if (tagger) {
               currentIt = victim.slot;
+              // Start the no-retag grace period
               cooldownUntil = now + TAG_COOLDOWN;
-              const nx = d ? (B.x - A.x) / d : 1;
+              // Push the overlapping circles apart so they don't sit
+              // glued together and re-trigger next frame.
+              const nx = d ? (B.x - A.x) / d : 1; // unit vector A->B
               const ny = d ? (B.y - A.y) / d : 0;
-              const push = (RADIUS * 2 - d) / 2;
+              const push = (RADIUS * 2 - d) / 2;  // overlap amount, half each
               for (const [p, dir] of [
-                [A, -1],
-                [B, 1],
+                [A, -1], // A moves backwards (away from B)
+                [B, 1],  // B moves forwards
               ]) {
                 p.x = Math.min(ARENA.w - RADIUS, Math.max(RADIUS, p.x + nx * dir * push));
                 p.y = Math.min(ARENA.h - RADIUS, Math.max(RADIUS, p.y + ny * dir * push));
               }
+              // Tell every browser: "P{tagger} TAGGED P{victim}"
               io.emit('tag', { tagger: tagger.slot, victim: victim.slot });
-              break outer;
+              break outer; // one tag per tick is enough
             }
           }
         }
       }
     }
 
+    // 3) BROADCAST STATE --------------------------------------
+    // The single source of truth, sent to every browser each frame.
+    // Browsers do no simulation - they just paint this. Rounding to
+    // whole pixels keeps the packet small for over-the-internet play.
     io.emit('state', {
       players: list.map((p) => ({
         slot: p.slot,
@@ -156,16 +248,20 @@ function start(port) {
         it: p.slot === currentIt,
       })),
     });
-  }, 1000 / 60);
+  }, 1000 / 60); // 60 ticks per second
 
   httpServer.listen(port);
   return { io, httpServer };
 }
 
+// If run directly (`npm start` / `node server.js`) this is the entry
+// point. The check also lets the test file `require('./server')` and
+// call start() itself to boot its own throwaway server on port 0.
 if (require.main === module) {
   const port = process.env.PORT || 3000;
   start(port);
   console.log('listening on http://localhost:' + port);
 }
 
+// What the headless test imports so it can run the real game loop
 module.exports = { start, ARENA, RADIUS, SPEED };
