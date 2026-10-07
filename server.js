@@ -321,7 +321,10 @@ if (require.main === module) {
   })().catch((err) => {
     // Startup errors are configuration problems; the message says what to fix
     console.error('[startup]', err.message);
-    process.exit(1);
+    // exitCode instead of process.exit(): exiting while network handles are
+    // still closing crashes Node on Windows (UV_HANDLE_CLOSING assertion)
+    process.exitCode = 1;
+    setTimeout(() => process.exit(1), 2000).unref();
   });
 }
 
