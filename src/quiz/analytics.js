@@ -8,6 +8,8 @@
 // teaching - never an automatic grade or label.
 // ============================================================
 
+const { TYPE_LABELS } = require('./formats');
+
 const DAY = 86400000;
 
 function quantile(sorted, p) {
@@ -35,6 +37,7 @@ function classAnalytics(db, classId, now = Date.now()) {
     active7d: active7.size,
     sessionsCompleted: sessions.filter((s) => s.completedAt).length,
     attempts: attempts.length,
+    worldAttempts: attempts.filter((a) => a.context === 'world').length,
   };
 
   const byTopic = topics.map((t) => {
@@ -58,23 +61,27 @@ function classAnalytics(db, classId, now = Date.now()) {
   for (const q of db.questions.filter((x) => x.courseId === cls.courseId)) {
     const list = attempts.filter((a) => a.questionId === q.id);
     if (!list.length) continue;
-    const first = list.filter((a) => a.first);
     const v = q.versions.find((x) => x.v === q.publishedVersion) || q.versions.at(-1);
-    // Which wrong option is most popular? Often reveals a misconception
-    // or an ambiguous distractor. Counted on the CURRENT version only,
-    // since options may have changed between versions.
-    const wrongCounts = {};
-    for (const a of list) if (!a.correct && a.choice !== null && a.version === v.v) wrongCounts[a.choice] = (wrongCounts[a.choice] || 0) + 1;
-    const topWrong = Object.entries(wrongCounts).sort((x, y) => y[1] - x[1])[0];
+    // Most popular wrong option often reveals a misconception or an
+    // ambiguous distractor. Only meaningful for fixed-option questions,
+    // counted on the CURRENT version since options may have changed.
+    let topWrong = null;
+    if (v.type === 'mcq' || v.type === 'tf' || v.type === undefined) {
+      const counts = {};
+      for (const a of list) if (!a.correct && Number.isInteger(a.choice) && a.version === v.v) counts[a.choice] = (counts[a.choice] || 0) + 1;
+      const top = Object.entries(counts).sort((x, y) => y[1] - x[1])[0];
+      if (top) topWrong = { option: v.options[Number(top[0])], count: top[1] };
+    }
     qStats.push({
       questionId: q.id,
       stem: v.stem,
+      type: TYPE_LABELS[v.type || 'mcq'],
       topic: topics.find((t) => t.id === q.topicId)?.name,
       status: q.status,
       versionsAttempted: [...new Set(list.map((a) => a.version))].sort(),
-      first: rate(first),
+      first: rate(list.filter((a) => a.first)),
       retry: rate(list.filter((a) => !a.first)),
-      topWrong: topWrong ? { option: v.options[Number(topWrong[0])], count: topWrong[1] } : null,
+      topWrong,
       openReports: q.reports.filter((r) => !r.resolved).length,
     });
   }
@@ -83,7 +90,17 @@ function classAnalytics(db, classId, now = Date.now()) {
     .sort((a, b) => a.first.accuracy - b.first.accuracy)
     .slice(0, 5);
 
-  return { class: { id: cls.id, name: cls.name }, participation, byTopic, commonlyMissed, minN: MIN_N };
+  // Opt-in only: per-student participation points
+  let points = null;
+  if (cls.settings.participation?.enabled) {
+    points = enrolled.map((sid) => ({
+      studentId: sid,
+      name: db.users.find((u) => u.id === sid).name,
+      points: db.participation.filter((p) => p.classId === classId && p.studentId === sid).length,
+    }));
+  }
+
+  return { class: { id: cls.id, name: cls.name, settings: cls.settings }, participation, byTopic, commonlyMissed, minN: MIN_N, points };
 }
 
 module.exports = { classAnalytics };
