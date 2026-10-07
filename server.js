@@ -27,6 +27,8 @@ const path = require('path');
 // Socket.IO is the realtime layer. It manages the persistent two-way
 // pipe with every connected browser and gives us "rooms" and events.
 const { Server } = require('socket.io');
+// The quiz app's JSON API (/api/*). See src/quiz/api.js and PROTOTYPE.md.
+const { createQuizApi } = require('./src/quiz/api');
 
 // --- Game constants (the "rules" of our world) ----------------
 // The arena is a fixed 900x600 coordinate grid. Every player shares
@@ -58,7 +60,9 @@ const MIME = {
 // start(port) boots the whole game. Calling it with port 0 (used by
 // the test) makes the OS pick a free port. If server.js is run directly
 // it uses process.env.PORT (Render injects that) or 3000 locally.
-function start(port) {
+// opts.dataFile: where the quiz app keeps its JSON database (null = in-memory).
+function start(port, opts = {}) {
+  const quiz = createQuizApi({ dataFile: opts.dataFile !== undefined ? opts.dataFile : path.join(__dirname, 'data', 'db.json') });
   // ------ Live game state (in-memory, lives ONLY while running) ---
   // players: socket.id -> player object. This is the "database" of
   // the live game. Unlike Mongo it is volatile: if the server restarts,
@@ -72,9 +76,13 @@ function start(port) {
 
   // ------ Serve the static files (the part you already know) ------
   const publicDir = path.join(__dirname, 'public');
-  const httpServer = http.createServer((req, res) => {
-    // "/" resolves to index.html, exactly like express.static would
-    const urlPath = req.url === '/' ? '/index.html' : req.url.split('?')[0];
+  // Friendly routes: the quiz app is the home page, Circle Tag lives at /tag
+  const ROUTES = { '/': '/app/index.html', '/tag': '/index.html' };
+  const httpServer = http.createServer(async (req, res) => {
+    // JSON API for the quiz app
+    if (await quiz.handle(req, res)) return;
+    const pathname = req.url.split('?')[0];
+    const urlPath = ROUTES[pathname] || pathname;
     const file = path.join(publicDir, urlPath);
     // Guard against path traversal attempts like GET /../server.js
     if (!file.startsWith(publicDir)) {
@@ -86,7 +94,13 @@ function start(port) {
         res.writeHead(404);
         return res.end('not found');
       }
-      res.writeHead(200, { 'Content-Type': MIME[path.extname(file)] || 'application/octet-stream' });
+      res.writeHead(200, {
+        'Content-Type': MIME[path.extname(file)] || 'application/octet-stream',
+        // Basic hardening: only load scripts/styles from this server
+        'Content-Security-Policy': "default-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self' ws: wss:",
+        'X-Content-Type-Options': 'nosniff',
+        'Referrer-Policy': 'no-referrer',
+      });
       res.end(data);
     });
   });
@@ -169,7 +183,7 @@ function start(port) {
   //   2. check collisions -> decide if a tag happened
   //   3. broadcast the honest new world state to everyone
   // This is the whole game. Everything below is that cycle.
-  setInterval(() => {
+  const loop = setInterval(() => {
     const list = online();
     const step = SPEED / 60; // distance covered in ONE frame (1/60 s)
 
@@ -250,8 +264,10 @@ function start(port) {
     });
   }, 1000 / 60); // 60 ticks per second
 
+  // Stop the game loop when the server shuts down (lets tests exit cleanly)
+  httpServer.on('close', () => clearInterval(loop));
   httpServer.listen(port);
-  return { io, httpServer };
+  return { io, httpServer, quiz };
 }
 
 // If run directly (`npm start` / `node server.js`) this is the entry
@@ -260,7 +276,7 @@ function start(port) {
 if (require.main === module) {
   const port = process.env.PORT || 3000;
   start(port);
-  console.log('listening on http://localhost:' + port);
+  console.log('QuizQuest on http://localhost:' + port + '  (Circle Tag at /tag)');
 }
 
 // What the headless test imports so it can run the real game loop

@@ -5,12 +5,17 @@
   "main": "server.js",
   "scripts": {
     "start": "node server.js",
-    "test": "node test/tag-test.js"
+    "start:ai": "node --env-file=.env server.js",
+    "test": "node --test test/tag-test.js test/quiz-test.js",
+    "reset-data": "node -e \"require('fs').rmSync('data',{recursive:true,force:true})\""
   },
   "dependencies": {
     "socket.io": "^4.8.1"
   },
   "devDependencies": {
     "socket.io-client": "^4.8.1"
+  },
+  "engines": {
+    "node": ">=20.6"
   }
 }
