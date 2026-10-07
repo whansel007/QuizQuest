@@ -213,9 +213,9 @@ async function createSyncedStore({ adapter, seedData = seed, saveDelay = SAVE_DE
 // security on, that key can read nothing (and the app would think the
 // database is empty).
 async function connectSupabaseStore(env = process.env) {
-  const url = env.SUPABASE_URL;
   const key = env.SUPABASE_SECRET_KEY || env.SUPABASE_SERVICE_ROLE_KEY;
-  if (!url || !key) throw new Error('Set SUPABASE_URL and SUPABASE_SECRET_KEY in .env (see .env.example).');
+  if (!env.SUPABASE_URL || !key) throw new Error('Set SUPABASE_URL and SUPABASE_SECRET_KEY in .env (see .env.example).');
+  const url = projectUrl(env.SUPABASE_URL);
   if (key.startsWith('sb_publishable_') || jwtRole(key) === 'anon') {
     throw new Error('SUPABASE_SECRET_KEY is a publishable/anon key. The server needs the secret (service role) key; keep it server-side only.');
   }
@@ -224,6 +224,22 @@ async function connectSupabaseStore(env = process.env) {
   const store = await createSyncedStore({ adapter: supabaseAdapter(client) });
   store.handleSignals();
   return store;
+}
+
+// SUPABASE_URL must be the project's base address. The dashboard also
+// shows the REST endpoint (.../rest/v1); supabase-js adds that path itself,
+// so a copied endpoint becomes /rest/v1/rest/v1 (PostgREST error PGRST125).
+function projectUrl(raw) {
+  let u;
+  try {
+    u = new URL(raw.trim());
+  } catch {
+    throw new Error('SUPABASE_URL is not a valid URL. Use the Project URL, e.g. https://your-project-ref.supabase.co');
+  }
+  if (u.pathname !== '/' || u.search || u.hash) {
+    console.warn(`[supabase] SUPABASE_URL should be just ${u.origin} (without ${u.pathname}); using that.`);
+  }
+  return u.origin;
 }
 
 // Legacy Supabase keys are JWTs whose payload says which role they are
@@ -235,4 +251,4 @@ function jwtRole(key) {
   }
 }
 
-module.exports = { createSyncedStore, supabaseAdapter, connectSupabaseStore };
+module.exports = { createSyncedStore, supabaseAdapter, connectSupabaseStore, projectUrl };

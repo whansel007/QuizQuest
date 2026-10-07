@@ -10,7 +10,7 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const { openPglite, pgliteAdapter, normalize, quiet } = require('./support/pglite');
-const { createSyncedStore, connectSupabaseStore } = require('../src/db/supabase-store');
+const { createSyncedStore, connectSupabaseStore, projectUrl } = require('../src/db/supabase-store');
 
 const open = async (pg, opts = {}) => createSyncedStore({ adapter: pgliteAdapter(pg, opts), logger: opts.logger || quiet(), saveDelay: 10 });
 
@@ -87,4 +87,18 @@ test('the server refuses browser (publishable/anon) keys', async () => {
   await assert.rejects(connectSupabaseStore({ SUPABASE_URL: 'https://example.supabase.co', SUPABASE_SECRET_KEY: 'sb_publishable_x' }), /publishable\/anon/);
   const anonJwt = ['e30', Buffer.from(JSON.stringify({ role: 'anon' })).toString('base64url'), 'sig'].join('.');
   await assert.rejects(connectSupabaseStore({ SUPABASE_URL: 'https://example.supabase.co', SUPABASE_SECRET_KEY: anonJwt }), /publishable\/anon/);
+});
+
+test('SUPABASE_URL copied as the REST endpoint is reduced to the project URL', () => {
+  const warn = console.warn;
+  console.warn = () => {};
+  try {
+    assert.equal(projectUrl('https://abc.supabase.co'), 'https://abc.supabase.co');
+    assert.equal(projectUrl('https://abc.supabase.co/'), 'https://abc.supabase.co');
+    assert.equal(projectUrl(' https://abc.supabase.co/rest/v1/ '), 'https://abc.supabase.co');
+    assert.equal(projectUrl('http://127.0.0.1:54321'), 'http://127.0.0.1:54321');
+  } finally {
+    console.warn = warn;
+  }
+  assert.throws(() => projectUrl('abc.supabase.co'), /not a valid URL/);
 });

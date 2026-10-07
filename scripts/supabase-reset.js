@@ -4,7 +4,7 @@
 // without --confirm, because it cannot be undone.
 const { createClient } = require('@supabase/supabase-js');
 const { TABLES } = require('../src/db/schema');
-const { connectSupabaseStore } = require('../src/db/supabase-store');
+const { connectSupabaseStore, projectUrl } = require('../src/db/supabase-store');
 
 (async () => {
   if (!process.argv.includes('--confirm')) {
@@ -15,7 +15,7 @@ const { connectSupabaseStore } = require('../src/db/supabase-store');
   const url = process.env.SUPABASE_URL;
   const key = process.env.SUPABASE_SECRET_KEY || process.env.SUPABASE_SERVICE_ROLE_KEY;
   if (!url || !key) throw new Error('Set SUPABASE_URL and SUPABASE_SECRET_KEY in .env (see .env.example).');
-  const client = createClient(url, key, { auth: { persistSession: false, autoRefreshToken: false } });
+  const client = createClient(projectUrl(url), key, { auth: { persistSession: false, autoRefreshToken: false } });
   // children before parents (foreign keys), the marker first
   for (const table of ['app_meta', ...TABLES.map((t) => t.table).reverse()]) {
     const keyCol = table === 'app_meta' ? 'key' : TABLES.find((t) => t.table === table).key[0];
