@@ -4,12 +4,13 @@
   "private": true,
   "main": "server.js",
   "scripts": {
-    "start": "node server.js",
-    "start:ai": "node --env-file=.env server.js",
-    "test": "node --test test/tag-test.js test/quiz-test.js",
+    "dev": "node --watch server.js",
+    "dev:ai": "node --watch --env-file=.env server.js",
+    "test": "node --test test/tag-test.js test/quiz-test.js test/world-test.js",
     "reset-data": "node -e \"require('fs').rmSync('data',{recursive:true,force:true})\""
   },
   "dependencies": {
+    "pdfjs-dist": "^6.4.299",
     "socket.io": "^4.8.1"
   },
   "devDependencies": {
