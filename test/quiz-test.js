@@ -71,8 +71,22 @@ async function playSession(token, classId, length, pick) {
   return { id: s.body.id, results };
 }
 
+// QQ_STORE=pglite runs this whole suite against the Supabase schema
+// (supabase/migrations applied to PGlite, an in-process Postgres) through
+// the Supabase store. quiz-pglite-test.js does that as part of `npm test`.
+const PGLITE = process.env.QQ_STORE === 'pglite';
+let pg = null;
+let pgLog = null;
 test.before(async () => {
-  srv = start(0, { dataFile: null });
+  let opts = { dataFile: null };
+  if (PGLITE) {
+    const { openPglite, pgliteAdapter, quiet } = require('./support/pglite');
+    const { createSyncedStore } = require('../src/db/supabase-store');
+    pg = await openPglite();
+    pgLog = quiet();
+    opts = { store: await createSyncedStore({ adapter: pgliteAdapter(pg), logger: pgLog, saveDelay: 20 }) };
+  }
+  srv = start(0, opts);
   await new Promise((r) => srv.httpServer.once('listening', r));
   base = 'http://localhost:' + srv.httpServer.address().port;
 });
@@ -541,4 +555,17 @@ test('a maths template that fails to generate is skipped, not a stuck session', 
     await call(t, 'POST', `/api/student/sessions/${s.body.id}/answer`, { index: st.body.question.index, choice: 0 });
   }
   q.versions[0].constraint = saved;
+});
+
+// ---------------- Supabase schema (QQ_STORE=pglite only) ----------------
+test('Supabase: everything the suite wrote survives a reload from Postgres', { skip: !PGLITE && 'runs in quiz-pglite-test.js' }, async () => {
+  const { pgliteAdapter, normalize, quiet } = require('./support/pglite');
+  const { createSyncedStore } = require('../src/db/supabase-store');
+  await srv.quiz.store.flush();
+  assert.deepEqual(pgLog.errors, [], 'no failed writes');
+  const calls = [];
+  const reloaded = await createSyncedStore({ adapter: pgliteAdapter(pg, { calls }), logger: quiet() });
+  assert.deepEqual(normalize(reloaded.db), normalize(db()));
+  await reloaded.flush();
+  assert.deepEqual(calls, [], 'a freshly loaded store has nothing to write');
 });

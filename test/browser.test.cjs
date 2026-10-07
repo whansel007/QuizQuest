@@ -4,7 +4,8 @@ const { chromium } = require('playwright');
 const { start } = require('../server');
 let srv, browser, base;
 test.before(async () => {
-  srv = start(0, { dataFile: null });
+  // DIST_DIR lets parallel builds test their own output (default: dist/)
+  srv = start(0, { dataFile: null, distDir: process.env.DIST_DIR ? require('path').resolve(process.env.DIST_DIR) : undefined });
   await new Promise((r) => srv.httpServer.once('listening', r));
   base = `http://localhost:${srv.httpServer.address().port}`;
   browser = await chromium.launch({ headless: true, ...(process.env.BROWSER_CHANNEL ? { channel: process.env.BROWSER_CHANNEL } : {}) });
