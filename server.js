@@ -29,6 +29,9 @@ const path = require('path');
 const { Server } = require('socket.io');
 // The quiz app's JSON API (/api/*). See src/quiz/api.js and PROTOTYPE.md.
 const { createQuizApi } = require('./src/quiz/api');
+// The multiplayer World (/world Socket.IO namespace), built on the same
+// ideas as this file's tag game. See src/world/world.js.
+const { attachWorld } = require('./src/world/world');
 
 // --- Game constants (the "rules" of our world) ----------------
 // The arena is a fixed 900x600 coordinate grid. Every player shares
@@ -51,6 +54,7 @@ const SPAWNS = [
 const MIME = {
   '.html': 'text/html',
   '.js': 'application/javascript',
+  '.mjs': 'application/javascript',
   '.css': 'text/css',
   '.json': 'application/json',
   '.png': 'image/png',
@@ -78,14 +82,28 @@ function start(port, opts = {}) {
   const publicDir = path.join(__dirname, 'public');
   // Friendly routes: the quiz app is the home page, Circle Tag lives at /tag
   const ROUTES = { '/': '/app/index.html', '/tag': '/index.html' };
+  // The only files served from node_modules: the PDF reader the
+  // professor's "upload PDF" feature runs in the browser.
+  const VENDOR = {
+    '/vendor/pdfjs/pdf.min.mjs': path.join(__dirname, 'node_modules', 'pdfjs-dist', 'build', 'pdf.min.mjs'),
+    '/vendor/pdfjs/pdf.worker.min.mjs': path.join(__dirname, 'node_modules', 'pdfjs-dist', 'build', 'pdf.worker.min.mjs'),
+  };
   const httpServer = http.createServer(async (req, res) => {
-    // JSON API for the quiz app
-    if (await quiz.handle(req, res)) return;
+    // JSON API for the quiz app. A thrown error here must never take the
+    // whole server (and everyone's game) down, so it becomes a 500.
+    try {
+      if (await quiz.handle(req, res)) return;
+    } catch (err) {
+      console.error('[http] unhandled error:', err && err.message);
+      if (!res.headersSent) res.writeHead(500);
+      return res.end();
+    }
     const pathname = req.url.split('?')[0];
     const urlPath = ROUTES[pathname] || pathname;
-    const file = path.join(publicDir, urlPath);
+    const file = VENDOR[pathname] || path.join(publicDir, urlPath);
     // Guard against path traversal attempts like GET /../server.js
-    if (!file.startsWith(publicDir)) {
+    // (the trailing separator stops a sibling folder like "public-old" matching)
+    if (!VENDOR[pathname] && !file.startsWith(publicDir + path.sep)) {
       res.writeHead(403);
       return res.end();
     }
@@ -97,7 +115,8 @@ function start(port, opts = {}) {
       res.writeHead(200, {
         'Content-Type': MIME[path.extname(file)] || 'application/octet-stream',
         // Basic hardening: only load scripts/styles from this server
-        'Content-Security-Policy': "default-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self' ws: wss:",
+        // ('wasm-unsafe-eval' lets the PDF reader decode some scanned-image formats)
+        'Content-Security-Policy': "default-src 'self'; script-src 'self' 'wasm-unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; connect-src 'self' ws: wss:",
         'X-Content-Type-Options': 'nosniff',
         'Referrer-Policy': 'no-referrer',
       });
@@ -110,6 +129,8 @@ function start(port, opts = {}) {
   // loads index.html over HTTP, then upgrades that page to the persistent
   // realtime channel. One port for everything.
   const io = new Server(httpServer, { cors: { origin: '*' } });
+  // The quiz World lives on its own namespace ('/world'); tag keeps '/'
+  const world = attachWorld(io, quiz.services);
 
   // Smallest free slot (1..4). Slot = the player's identity: P1, P2...
   function freeSlot() {
@@ -265,17 +286,21 @@ function start(port, opts = {}) {
   }, 1000 / 60); // 60 ticks per second
 
   // Stop the game loop when the server shuts down (lets tests exit cleanly)
-  httpServer.on('close', () => clearInterval(loop));
+  httpServer.on('close', () => {
+    clearInterval(loop);
+    world.stop();
+  });
   httpServer.listen(port);
-  return { io, httpServer, quiz };
+  return { io, httpServer, quiz, world };
 }
 
-// If run directly (`npm start` / `node server.js`) this is the entry
+// If run directly (`npm run dev` / `node server.js`) this is the entry
 // point. The check also lets the test file `require('./server')` and
 // call start() itself to boot its own throwaway server on port 0.
 if (require.main === module) {
   const port = process.env.PORT || 3000;
-  start(port);
+  // QUIZ_DATA_FILE lets you point a second copy at separate demo data
+  start(port, process.env.QUIZ_DATA_FILE ? { dataFile: process.env.QUIZ_DATA_FILE } : {});
   console.log('QuizQuest on http://localhost:' + port + '  (Circle Tag at /tag)');
 }
 
