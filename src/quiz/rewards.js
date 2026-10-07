@@ -92,6 +92,7 @@ function inventory(db, studentId) {
     inv = { studentId, pets: [{ id: 'chick', dupes: 0 }], items: [], equippedPet: 'chick', equippedItem: null };
     db.inventory.push(inv);
   }
+  inv.resources = inv.resources || { wood: 0, crystal: 0, herb: 0 };
   return inv;
 }
 
