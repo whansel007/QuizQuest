@@ -4,21 +4,29 @@
   "private": true,
   "main": "server.js",
   "scripts": {
-    "dev": "node --watch server.js",
-    "dev:ai": "node --watch --env-file=.env server.js",
+    "dev": "node scripts/dev.js",
+    "build": "vite build",
+    "start": "node --env-file-if-exists=.env server.js",
     "test": "node --test test/*-test.js",
-    "reset-data": "node -e \"require('fs').rmSync('data',{recursive:true,force:true})\"",
-    "start": "node server.js",
     "check": "node scripts/check.js",
-    "test:browser": "node --test test/browser.test.cjs"
+    "pretest:browser": "vite build",
+    "test:browser": "node --test test/browser.test.cjs",
+    "reset-data": "node -e \"require('fs').rmSync('data',{recursive:true,force:true})\"",
+    "db:reset": "node --env-file-if-exists=.env scripts/supabase-reset.js"
   },
   "dependencies": {
+    "@supabase/supabase-js": "^2.117.3",
+    "axios": "^1.20.0",
     "pdfjs-dist": "^6.4.299",
-    "socket.io": "^4.8.1"
+    "socket.io": "^4.8.1",
+    "socket.io-client": "^4.8.4",
+    "vue": "^3.5.43"
   },
   "devDependencies": {
+    "@electric-sql/pglite": "^0.5.8",
+    "@vitejs/plugin-vue": "^6.0.9",
     "playwright": "1.62.1",
-    "socket.io-client": "^4.8.1"
+    "vite": "^8.3.3"
   },
   "engines": {
     "node": ">=22.13.0"
