@@ -7,8 +7,9 @@
   <link rel="stylesheet" href="/app/app.css" />
 </head>
 <body>
-  <!-- Everything below is built by app.js. The server owns all data,
-       answer keys and coins; this page only displays what the API returns. -->
+  <!-- Everything below is built by the modules in /app. The server owns all
+       data, answer keys, coins and the World; this page only displays what
+       the API and the /world socket send. -->
   <header id="top">
     <div class="brand">Quiz<span>Quest</span> <small>prototype</small></div>
     <nav id="tabs"></nav>
@@ -18,8 +19,10 @@
   <div id="toast" role="status" aria-live="polite"></div>
   <footer>
     Demo build with synthetic users and demo course content only. Do not enter real student data.
-    · <a href="/tag">Circle Tag (multiplayer experiment)</a>
+    · <a href="/tag">Circle Tag (the original multiplayer experiment)</a>
   </footer>
-  <script src="/app/app.js"></script>
+  <!-- Socket.IO client (served by the Socket.IO server itself), used by the World -->
+  <script src="/socket.io/socket.io.js"></script>
+  <script type="module" src="/app/main.js"></script>
 </body>
 </html>

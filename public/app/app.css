@@ -262,3 +262,64 @@ th { font-size: 12px; text-transform: uppercase; letter-spacing: 0.4px; color: v
   .fighter .sprite { font-size: 42px; }
   .hp { width: 100px; }
 }
+
+/* ---------- formats ---------- */
+.options.two { grid-template-columns: 1fr 1fr; }
+.options button[aria-pressed="true"] { border-color: var(--accent); background: var(--accent-soft); }
+code { font-family: ui-monospace, SFMono-Regular, Consolas, monospace; font-size: 13px; background: var(--bg); padding: 1px 5px; border-radius: 4px; border: 1px solid var(--line); }
+.faces .btn { font-size: 22px; padding: 4px 14px; }
+
+/* ---------- kingdom ---------- */
+.kingdom {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  grid-template-areas: "a . b" ". c ." "d . e";
+  gap: 12px;
+  padding: 16px;
+  border-radius: var(--radius);
+  background: radial-gradient(circle at 50% 50%, #7cbf5c 0%, #4f8f3c 70%);
+}
+.kingdom > :nth-child(1) { grid-area: a; }
+.kingdom > :nth-child(2) { grid-area: b; }
+.kingdom > :nth-child(3) { grid-area: c; }
+.kingdom > :nth-child(4) { grid-area: d; }
+.kingdom > :nth-child(5) { grid-area: e; }
+.plot, .castle {
+  text-align: center;
+  padding: 10px;
+  border-radius: var(--radius);
+  background: rgba(255, 255, 255, 0.88);
+  color: #1d2433;
+}
+.plot .muted, .castle .muted { color: #555c6a; }
+.plot.empty { background: rgba(255, 255, 255, 0.6); }
+.plot .sprite, .castle .sprite { font-size: 40px; line-height: 1.2; }
+.castle .sprite { font-size: 56px; }
+.stars { color: #c48a00; letter-spacing: 2px; }
+@media (max-width: 640px) {
+  .kingdom { grid-template-columns: 1fr 1fr; grid-template-areas: "c c" "a b" "d e"; }
+}
+
+/* ---------- world ---------- */
+canvas.world { width: 100%; height: auto; display: block; border-radius: var(--radius); border: 1px solid var(--line); background: #468a40; touch-action: none; }
+.world-side { width: 340px; max-width: 100%; }
+.world-panel .stem { font-size: 16px; }
+.feed { list-style: none; padding: 0; margin: 0; font-size: 13px; }
+.feed li { padding: 3px 0; border-bottom: 1px solid var(--line); }
+.dpad { display: grid; grid-template-columns: repeat(3, 44px); grid-template-rows: repeat(2, 40px); gap: 4px; }
+.dpad .btn { padding: 0; user-select: none; touch-action: none; }
+.dpad .pad-up { grid-column: 2; grid-row: 1; }
+.dpad .pad-left { grid-column: 1; grid-row: 2; }
+.dpad .pad-down { grid-column: 2; grid-row: 2; }
+.dpad .pad-right { grid-column: 3; grid-row: 2; }
+@media (min-width: 900px) and (hover: hover) { .dpad { display: none; } }
+@media (max-width: 900px) { .world-side { width: 100%; } }
+
+/* ---------- review fixes ---------- */
+/* option / variable rows wrap instead of pushing the page sideways on phones */
+.opt-row { flex-wrap: wrap; }
+.opt-row input[type="text"] { flex: 1 1 120px; width: auto; min-width: 0; }
+/* text marker added next to colour for right/wrong answers */
+.options .mark { font-size: 13px; font-weight: 700; }
+.options .right .mark { color: var(--good); }
+.options .wrong .mark { color: var(--bad); }
