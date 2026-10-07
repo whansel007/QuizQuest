@@ -158,7 +158,7 @@ than a hand-rolled WebSocket.
 
 ```bash
 npm install
-npm start          # http://localhost:3000
+npm run dev        # http://localhost:3000
 ```
 Open **two tabs** of `http://localhost:3000` and click Join in both. P1 starts
 with the yellow dashed ring (IT). Touch the other circle → big banner + IT
