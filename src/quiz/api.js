@@ -99,8 +99,11 @@ const csvCell = (v) => {
   return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
 };
 
-function createQuizApi({ dataFile = null, now = () => Date.now(), drafter = null } = {}) {
-  const { db, save } = createStore(dataFile);
+// store: an already-loaded { db, save } (e.g. src/db/supabase-store.js);
+// otherwise the JSON file store (dataFile = null keeps it in memory).
+function createQuizApi({ dataFile = null, store = null, now = () => Date.now(), drafter = null } = {}) {
+  store = store || createStore(dataFile);
+  const { db, save } = store;
   const tokens = new Map(); // token -> { userId, expires }
   const grading = new Set(); // "sessionId:index" answers currently being graded
 
@@ -935,7 +938,7 @@ function createQuizApi({ dataFile = null, now = () => Date.now(), drafter = null
     return true;
   }
 
-  return { handle, db, services, GEN };
+  return { handle, db, store, services, GEN };
 }
 
 module.exports = { createQuizApi };
