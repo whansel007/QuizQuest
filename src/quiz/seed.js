@@ -8,8 +8,13 @@
 // ============================================================
 
 const { award, inventory, REWARDS } = require('./rewards');
+const { grantResources, createTrade } = require('./economy');
+
+// Resources for finishing a practice session (also used by api.js)
+const SESSION_RESOURCES = { wood: 2, herb: 1 };
 
 const DAY = 86400000;
+const SCHEMA = 2; // bump when the data shape changes; store.js re-seeds old files
 
 // Tiny deterministic PRNG so every fresh seed looks the same
 function mulberry32(a) {
@@ -78,7 +83,7 @@ const SKILL = {
 function seed(now = Date.now()) {
   const rand = mulberry32(42);
   const db = {
-    schema: 1,
+    schema: SCHEMA,
     users: [
       { id: 't-a', name: 'Prof. Demo A', role: 'teacher' },
       { id: 't-b', name: 'Prof. Demo B', role: 'teacher' },
@@ -102,8 +107,8 @@ function seed(now = Date.now()) {
         { id: 'lo-stats-1', text: 'Compute and compare measures of centre' }] },
     ],
     classes: [
-      { id: 'cl-a', courseId: 'c-comp', name: 'Computing - Tutorial Group A', teacherIds: ['t-a'] },
-      { id: 'cl-b', courseId: 'c-stats', name: 'Statistics - Tutorial Group B', teacherIds: ['t-b'] },
+      { id: 'cl-a', courseId: 'c-comp', name: 'Computing - Tutorial Group A', teacherIds: ['t-a'], settings: { tradingEnabled: true, participation: { enabled: false } } },
+      { id: 'cl-b', courseId: 'c-stats', name: 'Statistics - Tutorial Group B', teacherIds: ['t-b'], settings: { tradingEnabled: true, participation: { enabled: false } } },
     ],
     enrolments: [
       ...['01', '02', '03', '04', '05', '06'].map((n) => ({ classId: 'cl-a', studentId: 's-' + n })),
@@ -117,22 +122,31 @@ function seed(now = Date.now()) {
     ledger: [],
     inventory: [],
     generationLog: [],
+    kingdoms: [],
+    trades: [],
+    resourceLog: [],
+    participation: [],
   };
 
+  // Hand-written questions: "prep time" is a plausible synthetic baseline
+  // for writing a question by hand, so the Evaluation tab has something
+  // to compare AI drafts against.
+  const published = (id, courseId, topicId, outcomeId, by, version) => ({
+    id, courseId, topicId, outcomeId, status: 'published', origin: 'manual', generationId: null,
+    createdAt: now - 30 * DAY, createdBy: by, publishedVersion: 1, reports: [],
+    editCount: 0, prepSeconds: 240 + Math.floor(rand() * 480), reviewedAt: now - 30 * DAY, reviewedBy: by,
+    versions: [{ v: 1, warnings: [], editedAt: now - 30 * DAY, editedBy: by, publishedAt: now - 30 * DAY, ...version }],
+  });
   for (const [id, topicId, outcomeId, difficulty, stem, options, answerIndex, explanation, src] of QUESTIONS) {
     const courseId = topicId === 'tp-stats' ? 'c-stats' : 'c-comp';
     const by = courseId === 'c-comp' ? 't-a' : 't-b';
-    db.questions.push({
-      id, courseId, topicId, outcomeId, status: 'published', origin: 'manual', generationId: null,
-      createdAt: now - 30 * DAY, createdBy: by, publishedVersion: 1, reports: [],
-      versions: [{ v: 1, stem, options, answerIndex, explanation, difficulty, sourceIds: [src], warnings: [], editedAt: now - 30 * DAY, editedBy: by, publishedAt: now - 30 * DAY }],
-    });
+    db.questions.push(published(id, courseId, topicId, outcomeId, by, { type: 'mcq', stem, options, answerIndex, explanation, difficulty, sourceIds: [src] }));
   }
   // One draft waiting for review, and one student report to triage
   db.questions.push({
     id: 'q-draft1', courseId: 'c-comp', topicId: 'tp-net', outcomeId: 'lo-net-2', status: 'draft', origin: 'manual', generationId: null,
-    createdAt: now - DAY, createdBy: 't-a', publishedVersion: null, reports: [],
-    versions: [{ v: 1, stem: 'Which protocol guarantees ordered and reliable delivery of data?', options: ['UDP', 'TCP', 'DNS', 'HTTP'], answerIndex: 1, explanation: 'TCP is connection-oriented and guarantees ordered, reliable delivery.', difficulty: 'easy', sourceIds: ['p-net-2'], warnings: [], editedAt: now - DAY, editedBy: 't-a' }],
+    createdAt: now - DAY, createdBy: 't-a', publishedVersion: null, reports: [], editCount: 0, prepSeconds: 0,
+    versions: [{ v: 1, type: 'mcq', stem: 'Which protocol guarantees ordered and reliable delivery of data?', options: ['UDP', 'TCP', 'DNS', 'HTTP'], answerIndex: 1, explanation: 'TCP is connection-oriented and guarantees ordered, reliable delivery.', difficulty: 'easy', sourceIds: ['p-net-2'], warnings: [], editedAt: now - DAY, editedBy: 't-a' }],
   });
   db.questions.find((q) => q.id === 'q-n2').reports.push({ id: 'r-seed1', studentId: 's-03', reason: '"Sharp picture" made me think bandwidth was the issue, the wording is confusing.', at: now - 2 * DAY, resolved: false });
 
@@ -154,17 +168,34 @@ function seed(now = Date.now()) {
         const ms = 6000 + Math.floor(rand() * (q.topicId === 'tp-data' ? 40000 : 22000));
         t += ms + 2000;
         const first = !db.attempts.some((a) => a.studentId === studentId && a.questionId === q.id);
-        db.attempts.push({ id: `at-${session.id}-${q.id}`, sessionId: session.id, studentId, classId: 'cl-a', courseId: 'c-comp', questionId: q.id, version: 1, topicId: q.topicId, choice, correct, ms, timedOut: false, first, at: t });
+        db.attempts.push({ id: `at-${session.id}-${q.id}`, sessionId: session.id, studentId, classId: 'cl-a', courseId: 'c-comp', questionId: q.id, version: 1, topicId: q.topicId, type: 'mcq', choice, correct, score: correct ? 1 : 0, ms, timedOut: false, first, context: 'practice', at: t });
         session.items.push({ qid: q.id, v: 1, servedAt: t - ms, result: { correct, choice } });
         if (correct) award(db, studentId, REWARDS.firstCorrect, 'Correct on a new question', `correct:${studentId}:${q.id}`, t);
       }
       session.completedAt = t;
       award(db, studentId, REWARDS.sessionComplete, 'Completed a practice session', `session:${session.id}`, t);
+      grantResources(db, studentId, SESSION_RESOURCES, 'Completed a practice session', `sessionres:${session.id}`, t);
       db.sessions.push(session);
     }
   }
   for (const u of db.users) if (u.role === 'student') inventory(db, u.id);
+
+  // Newer formats, added after the synthetic history (so nobody has
+  // answered them yet)
+  const TYPED = [
+    ['q-x1', 'c-comp', 'tp-net', 'lo-net-2', 't-a', { type: 'multi', difficulty: 'medium', stem: 'Select ALL statements that are true about UDP.', options: ['It is connectionless', 'It guarantees delivery of every packet', 'It suits live video and games', 'It translates domain names into IP addresses'], answerIndexes: [0, 2], explanation: 'UDP is connectionless and does not guarantee delivery, which suits live video and games. Translating names is DNS.', sourceIds: ['p-net-2'] }],
+    ['q-x2', 'c-comp', 'tp-sec', 'lo-sec-2', 't-a', { type: 'tf', difficulty: 'easy', stem: 'True or false: a backup should be stored separately from the original data so it can be restored after an attack.', options: ['True', 'False'], answerIndex: 0, explanation: 'True. A backup stored in the same place can be lost or encrypted along with the original.', sourceIds: ['p-sec-2'] }],
+    ['q-x3', 'c-comp', 'tp-net', 'lo-net-2', 't-a', { type: 'short', difficulty: 'hard', stem: 'In one or two sentences, explain why a live online game might use UDP instead of TCP.', modelAnswer: 'UDP does not wait to guarantee or reorder delivery, so updates arrive with less delay. In a live game, fresh data matters more than a late or lost packet.', keyPoints: ['UDP does not guarantee delivery', 'less delay or lower latency', 'fresh data matters more than late packets'], explanation: 'Guaranteed, ordered delivery (TCP) can hold back new data while old data is resent. Games prefer the newest state, so UDP fits.', sourceIds: ['p-net-2'] }],
+    ['q-x4', 'c-comp', 'tp-data', 'lo-data-1', 't-a', { type: 'numeric', difficulty: 'easy', stem: 'Convert the binary number 1101 to decimal.', answer: 13, tolerance: 0, unit: '', explanation: '1101 = 8 + 4 + 0 + 1 = 13.', sourceIds: ['p-data-1'] }],
+    ['q-x5', 'c-comp', 'tp-data', 'lo-data-1', 't-a', { type: 'param', difficulty: 'medium', stem: 'How many different values can be represented with {n} bits?', variables: [{ name: 'n', min: 3, max: 12, step: 1 }], answerExpr: '2^n', distractorExprs: ['2*n', '2^n - 1', 'n^2'], constraint: '', decimals: 0, unit: '', explanation: 'Each extra bit doubles the number of combinations, so {n} bits give 2^{n} = {answer} values. (2^{n} - 1 is the largest value, not the count.)', sourceIds: ['p-data-1'] }],
+    ['q-x6', 'c-stats', 'tp-stats', 'lo-stats-1', 't-b', { type: 'param', difficulty: 'easy', stem: 'What is the mean of {a}, {b}, {c} and {d}?', variables: ['a', 'b', 'c', 'd'].map((name) => ({ name, min: 1, max: 20, step: 1 })), answerExpr: '(a + b + c + d) / 4', distractorExprs: ['(a + b + c + d) / 3', 'a + b + c + d', '(max(a, b, c, d) + min(a, b, c, d)) / 2'], constraint: '', decimals: 2, unit: '', explanation: 'Add the four values and divide by 4: ({a} + {b} + {c} + {d}) / 4 = {answer}.', sourceIds: ['p-stats-1'] }],
+    ['q-x7', 'c-stats', 'tp-stats', 'lo-stats-1', 't-b', { type: 'numeric', difficulty: 'easy', stem: 'What is the range of 4, 9, 15, 2, 11?', answer: 13, tolerance: 0, unit: '', explanation: 'Range = largest - smallest = 15 - 2 = 13.', sourceIds: ['p-stats-1'] }],
+  ];
+  for (const [id, courseId, topicId, outcomeId, by, version] of TYPED) db.questions.push(published(id, courseId, topicId, outcomeId, by, version));
+
+  // One open trade offer so the class market isn't empty
+  createTrade(db, { cls: db.classes[0], studentId: 's-03', give: { wood: 3 }, want: { herb: 2 }, now: now - DAY });
   return db;
 }
 
-module.exports = { seed };
+module.exports = { seed, SCHEMA, SESSION_RESOURCES };
