@@ -9,18 +9,78 @@ See `AUDIT.md` for the implementation audit, fixes, checks and limitations.
 
 ```bash
 npm install
-npm run dev          # http://localhost:3000, restarts when you edit code (Circle Tag at /tag)
-npm test             # tag + quiz API + multiplayer World tests
-npm run check        # syntax-check Node and browser modules
-npm run test:browser # Playwright browser regressions (install Chromium first)
-npm start            # run without watch mode
-npm run reset-data   # wipe data/ and re-seed on next start
+npm run dev          # open http://localhost:5173 (Vue app, hot reload); API + World on :3000
+npm test             # tag + quiz API (in memory AND on the Supabase schema) + World + store tests
+npm run check        # syntax-check Node and browser JS modules
+npm run build        # build the Vue app into dist/ (served by the Node server)
+npm start            # production mode: http://localhost:3000 serves dist/ (build first)
+npm run test:browser # builds, then runs the Playwright browser regressions
+npm run reset-data   # wipe data/ and re-seed on next start (file store only)
+npm run db:reset -- --confirm   # wipe the Supabase project and re-seed (Supabase only)
 ```
 
-For browser tests, run `npx playwright install chromium` once. Alternatively,
-use an installed Edge browser: `$env:BROWSER_CHANNEL='msedge'` in PowerShell,
-then `npm run test:browser`. Tests use synthetic, in-memory data and do not
-call a live AI provider; leave `GEMINI_API_KEY` unset when running them.
+For browser tests, run `npx playwright install chromium` once (re-run it after
+upgrading Playwright). Alternatively, use an installed Edge browser:
+`$env:BROWSER_CHANNEL='msedge'` in PowerShell, then `npm run test:browser`.
+Tests use synthetic data and do not call a live AI provider or a live
+Supabase project; leave `GEMINI_API_KEY` unset when running them.
+
+## Architecture
+
+```
+Browser: Vue 3 app (web/src, built by Vite)
+   |  axios -> /api/*            socket.io-client -> /world
+   v
+Node server (server.js): grading, coins, access checks, AI calls, World loop
+   |  supabase-js with the SECRET key (server-side only)
+   v
+Supabase Postgres (supabase/migrations), row level security on, no policies
+```
+
+- **Frontend:** Vue 3 single-file components in `web/src` (`teacher/`,
+  `student/`, shared `components/`). `web/src/api.js` is the axios client:
+  it adds this tab's token, ignores responses meant for a user who has since
+  switched, and signs out on 401. Templates escape all text; `v-html` is not
+  used anywhere.
+- **Backend:** unchanged rules. The browser still never receives answer keys
+  and never decides correctness or rewards.
+- **Database:** with `SUPABASE_URL` set, `src/db/supabase-store.js` loads
+  every table at startup and writes back **only changed rows**, batched
+  every 250 ms. Without it, the JSON file store in `data/` is used as before.
+  The field-to-column mapping is in `src/db/schema.js`.
+- **Stepping stone:** run **one** server instance per Supabase project. The
+  long-term design queries Postgres per request, with coin, shop and trade
+  updates as database transactions. The schema (unique `ref_key` on both
+  ledgers, foreign keys, indexes) is already designed for that. Migrate one
+  area at a time: coins, shop and trades first.
+
+## Supabase setup
+
+1. Create a project in the **Southeast Asia (Singapore)** region (PDPA; the
+   region can't be changed later).
+2. Apply `supabase/migrations/*.sql`, either in the dashboard's SQL editor or
+   with the Supabase CLI (`supabase link` then `supabase db push`).
+3. Copy `.env.example` to `.env` and set `SUPABASE_URL` and
+   `SUPABASE_SECRET_KEY`. The secret key is for the Node server only: never
+   put it in `web/`, in a `VITE_*` variable or in git. If it leaks, rotate it.
+4. `npm run dev`. On first start against an empty project, the server writes
+   the synthetic demo data. It refuses to seed over existing rows.
+
+Row level security is enabled on every table with no policies, so the
+browser-facing (publishable/anon) key can read nothing. The server rejects
+that key if it is configured by mistake. The free plan pauses inactive
+projects and has no backups. See `docs/API_RECOMMENDATIONS.md` for the plan
+upgrade and other services.
+
+## Hosting
+
+The server needs a long-running process (World game loop, WebSockets), so
+use a platform such as Render, Fly.io, DigitalOcean App Platform, Cloud Run
+(min instances 1) or Azure App Service, in a Singapore region. Run
+**exactly one instance** while the stepping-stone store is in use. The build
+command is `npm ci && npm run build` and the start command is `npm start`.
+Set `SUPABASE_URL`, `SUPABASE_SECRET_KEY` and (optionally) `GEMINI_API_KEY`
+as the host's secret environment variables.
 
 Unfinished practice sessions can be resumed from Practice after refreshing or
 switching tabs. The original server-side timer is preserved. Published question
@@ -80,11 +140,11 @@ Logins are per browser tab. Good demo users:
 - **Vouchers.** They have real-world value, need budget/procurement and
   fraud controls, and the proposal says the prototype has no payment
   functionality. They stay a team decision.
-- **Supabase / Cloudflare / React migration.** It needs your accounts and keys,
-  and it's a rewrite, not a feature. The prototype keeps a JSON file store
-  and plain JS so it runs anywhere with `npm run dev`. `api.js` is organised
-  so each route maps onto a Supabase table + row-level-security policy later.
-- **Real login.** Still "pick a demo user". The World uses the same token.
+- **Per-request database queries and multiple server instances.** See
+  *Architecture* above: Supabase is the database, but the server still keeps
+  a working copy in memory (one instance only).
+- **Real login.** Still "pick a demo user" (users are stored in Supabase).
+  Supabase Auth is the next step. The World uses the same token.
 
 ## AI features
 
@@ -98,7 +158,7 @@ GEMINI_API_KEY=...
 GEMINI_MODEL=gemini-2.5-flash   # optional; check the current model name
 ```
 
-then `npm run dev:ai`. Models only receive course material or an
+then `npm run dev` (`.env` is loaded automatically). Models only receive course material or an
 anonymous answer, wrapped as data with instructions to ignore embedded
 instructions; all output goes through code checks and human review.
 The Gemini paths are written against the documented REST API but have
@@ -111,7 +171,8 @@ The Gemini paths are written against the documented REST API but have
 - Uploaded PDFs are processed in the professor's browser; only the extracted
   text (and, for scans, page images sent to Gemini) leave it. The retention
   rules the proposal mentions still need defining. Passages can be deleted.
-- The JSON store is single-process. Move to Postgres before more than a demo.
+- Supabase is supported, but the store is single-instance (see *Architecture*).
+  Move to per-request queries and Supabase Auth before real users.
 
 ## Why the grid/tag game is still separate
 
