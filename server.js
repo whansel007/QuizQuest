@@ -59,14 +59,18 @@ const MIME = {
   '.json': 'application/json',
   '.png': 'image/png',
   '.svg': 'image/svg+xml',
+  '.ico': 'image/x-icon',
+  '.woff2': 'font/woff2',
+  '.wasm': 'application/wasm',
 };
 
 // start(port) boots the whole game. Calling it with port 0 (used by
 // the test) makes the OS pick a free port. If server.js is run directly
 // it uses process.env.PORT (Render injects that) or 3000 locally.
 // opts.dataFile: where the quiz app keeps its JSON database (null = in-memory).
+// opts.store: an already-loaded store (e.g. the Supabase one) instead of a file.
 function start(port, opts = {}) {
-  const quiz = createQuizApi({ dataFile: opts.dataFile !== undefined ? opts.dataFile : path.join(__dirname, 'data', 'db.json') });
+  const quiz = createQuizApi(opts.store ? { store: opts.store } : { dataFile: opts.dataFile !== undefined ? opts.dataFile : path.join(__dirname, 'data', 'db.json') });
   // ------ Live game state (in-memory, lives ONLY while running) ---
   // players: socket.id -> player object. This is the "database" of
   // the live game. Unlike Mongo it is volatile: if the server restarts,
@@ -79,15 +83,11 @@ function start(port, opts = {}) {
   let cooldownUntil = 0;     // timestamp after which collisions count again
 
   // ------ Serve the static files (the part you already know) ------
+  // The quiz app is the Vue build in dist/ (`npm run build`); Circle Tag
+  // still lives in public/ at /tag.
   const publicDir = path.join(__dirname, 'public');
-  // Friendly routes: the quiz app is the home page, Circle Tag lives at /tag
-  const ROUTES = { '/': '/app/index.html', '/tag': '/index.html' };
-  // The only files served from node_modules: the PDF reader the
-  // professor's "upload PDF" feature runs in the browser.
-  const VENDOR = {
-    '/vendor/pdfjs/pdf.min.mjs': path.join(__dirname, 'node_modules', 'pdfjs-dist', 'build', 'pdf.min.mjs'),
-    '/vendor/pdfjs/pdf.worker.min.mjs': path.join(__dirname, 'node_modules', 'pdfjs-dist', 'build', 'pdf.worker.min.mjs'),
-  };
+  const distDir = opts.distDir || path.join(__dirname, 'dist');
+  const TAG = { '/tag': path.join(publicDir, 'index.html'), '/client.js': path.join(publicDir, 'client.js') };
   const httpServer = http.createServer(async (req, res) => {
     // JSON API for the quiz app. A thrown error here must never take the
     // whole server (and everyone's game) down, so it becomes a 500.
@@ -99,13 +99,16 @@ function start(port, opts = {}) {
       return res.end();
     }
     const pathname = req.url.split('?')[0];
-    const urlPath = ROUTES[pathname] || pathname;
-    const file = VENDOR[pathname] || path.join(publicDir, urlPath);
+    const file = TAG[pathname] || path.join(distDir, pathname === '/' ? 'index.html' : pathname);
     // Guard against path traversal attempts like GET /../server.js
-    // (the trailing separator stops a sibling folder like "public-old" matching)
-    if (!VENDOR[pathname] && !file.startsWith(publicDir + path.sep)) {
+    // (the trailing separator stops a sibling folder like "dist-old" matching)
+    if (!TAG[pathname] && !file.startsWith(distDir + path.sep)) {
       res.writeHead(403);
       return res.end();
+    }
+    if (pathname === '/' && !fs.existsSync(file)) {
+      res.writeHead(503, { 'Content-Type': 'text/plain; charset=utf-8' });
+      return res.end('The Vue app has not been built yet. Run `npm run build` (or use `npm run dev` and open http://localhost:5173).');
     }
     fs.readFile(file, (err, data) => {
       if (err) {
@@ -299,9 +302,27 @@ function start(port, opts = {}) {
 // call start() itself to boot its own throwaway server on port 0.
 if (require.main === module) {
   const port = process.env.PORT || 3000;
-  // QUIZ_DATA_FILE lets you point a second copy at separate demo data
-  start(port, process.env.QUIZ_DATA_FILE ? { dataFile: process.env.QUIZ_DATA_FILE } : {});
-  console.log('QuizQuest on http://localhost:' + port + '  (Circle Tag at /tag)');
+  (async () => {
+    // Data lives in Supabase when SUPABASE_URL is set (see .env.example),
+    // otherwise in data/db.json. QUIZ_DATA_FILE points a second copy at
+    // separate demo data.
+    let opts = {};
+    let where = 'data/db.json';
+    if (process.env.SUPABASE_URL) {
+      const { connectSupabaseStore } = require('./src/db/supabase-store');
+      opts = { store: await connectSupabaseStore() };
+      where = 'Supabase';
+    } else if (process.env.QUIZ_DATA_FILE) {
+      opts = { dataFile: process.env.QUIZ_DATA_FILE };
+      where = process.env.QUIZ_DATA_FILE;
+    }
+    start(port, opts);
+    console.log(`QuizQuest API on http://localhost:${port}  (data: ${where}; Circle Tag at /tag)`);
+  })().catch((err) => {
+    // Startup errors are configuration problems; the message says what to fix
+    console.error('[startup]', err.message);
+    process.exit(1);
+  });
 }
 
 // What the headless test imports so it can run the real game loop
