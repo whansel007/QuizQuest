@@ -1,4 +1,7 @@
 # Two Girls, One Socket
+
+> Historical companion to the Circle Tag tutorial, not a current requirements
+> document. Circle Tag now runs at `/tag`; see `PROTOTYPE.md` for QuizQuest.
 ### a totally serious technical analysis (in fanfic form)
 
 > Companion piece to `HOW_THIS_WORKS.md`. Same content, except the tutorial is

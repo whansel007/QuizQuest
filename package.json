@@ -4,13 +4,23 @@
   "private": true,
   "main": "server.js",
   "scripts": {
+    "dev": "node --watch server.js",
+    "dev:ai": "node --watch --env-file=.env server.js",
+    "test": "node --test test/*-test.js",
+    "reset-data": "node -e \"require('fs').rmSync('data',{recursive:true,force:true})\"",
     "start": "node server.js",
-    "test": "node test/tag-test.js"
+    "check": "node scripts/check.js",
+    "test:browser": "node --test test/browser.test.cjs"
   },
   "dependencies": {
+    "pdfjs-dist": "^6.4.299",
     "socket.io": "^4.8.1"
   },
   "devDependencies": {
+    "playwright": "1.62.1",
     "socket.io-client": "^4.8.1"
+  },
+  "engines": {
+    "node": ">=22.13.0"
   }
 }

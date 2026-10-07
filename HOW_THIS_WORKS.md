@@ -1,5 +1,10 @@
 # HOW_THIS_WORKS
 
+> Historical Circle Tag tutorial: the current app opens at `/`, while Circle
+> Tag is at `/tag`. Use two `/tag` tabs for the examples below. The file/line
+> references describe the earlier proof of concept; `PROTOTYPE.md` documents
+> the current quiz application and persistence model.
+
 A plain-English tour of the Circle Tag proof-of-concept, written for someone
 coming from building **static pages with Express**. If you've never touched
 WebSockets before, start here.
@@ -158,7 +163,7 @@ than a hand-rolled WebSocket.
 
 ```bash
 npm install
-npm start          # http://localhost:3000
+npm run dev        # http://localhost:3000
 ```
 Open **two tabs** of `http://localhost:3000` and click Join in both. P1 starts
 with the yellow dashed ring (IT). Touch the other circle → big banner + IT

@@ -35,7 +35,7 @@ function connect(port, slot) {
 
 async function main() {
   // Boot a throwaway server on a random port (clean-up at the end)
-  const srv = start(0);
+  const srv = start(0, { dataFile: null }); // in-memory quiz DB: don't touch data/
   await once(srv.httpServer, 'listening');
   const port = srv.httpServer.address().port;
 
