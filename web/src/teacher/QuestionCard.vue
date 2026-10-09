@@ -35,7 +35,7 @@ const resolve = (r) => async () => {
 </script>
 
 <template>
-  <div class="panel qcard">
+  <div :id="'qcard-' + q.id" class="panel qcard" tabindex="-1">
     <div class="meta">
       <span :class="'badge ' + q.status">{{ q.status }}</span>
       <span class="badge">{{ q.typeLabel }}</span>

@@ -2,7 +2,7 @@
 // ============================================================
 // Question bank & review
 // ============================================================
-import { ref, computed, onMounted } from 'vue';
+import { ref, computed, onMounted, nextTick } from 'vue';
 import { S, api } from '../api.js';
 import Heading from '../components/Heading.vue';
 import CoursePicker from './CoursePicker.vue';
@@ -24,10 +24,28 @@ onMounted(async () => {
       [questions.value, passages.value] = await Promise.all([api('GET', `/api/teacher/courses/${course.value.id}/questions`), api('GET', `/api/teacher/courses/${course.value.id}/passages`)]);
     }
     loaded.value = true;
+    await focusRequested();
   } catch (err) {
     error.value = err.message;
   }
 });
+
+// Opened from the dashboard: show the question's filter, scroll to it and
+// highlight it briefly (once)
+async function focusRequested() {
+  const id = S.focusQuestionId;
+  S.focusQuestionId = null;
+  const q = id && questions.value.find((x) => x.id === id);
+  if (!q) return;
+  S.qFilter = q.status === 'draft' ? 'draft' : q.status;
+  await nextTick();
+  const card = document.getElementById('qcard-' + id);
+  if (!card) return;
+  card.scrollIntoView({ block: 'center' });
+  card.focus({ preventScroll: true });
+  card.classList.add('flash');
+  setTimeout(() => card.classList.remove('flash'), 2500);
+}
 
 const filters = [
   ['draft', 'Needs review', (q) => q.status === 'draft'],
