@@ -225,7 +225,7 @@ onUnmounted(() => {
         </tbody>
       </table>
       <div class="spacer"></div>
-      <div v-if="summary.wallet.earnedToday >= summary.wallet.dailyCap" class="note warn small">You reached today's coin cap. You can keep practising; coins reset tomorrow.</div>
+      <div v-if="summary.wallet.earnedToday >= summary.wallet.dailyCap" class="note warn small">You reached today's coin cap. You can keep practising; coins reset at midnight.</div>
       <div v-if="!summary.feedbackGiven">
         <div v-if="fbDone" class="note good small">Thanks - this helps improve the app.</div>
         <div v-else class="panel" style="background: var(--bg)">
