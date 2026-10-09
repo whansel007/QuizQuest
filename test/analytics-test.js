@@ -8,7 +8,7 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const { seed } = require('../src/quiz/seed');
-const { classAnalytics, questionInsights } = require('../src/quiz/analytics');
+const { classAnalytics, questionInsights, courseComparison, parsePeriod } = require('../src/quiz/analytics');
 const { start } = require('../server');
 
 const DAY = 86400000;
@@ -187,6 +187,94 @@ test('question detail: option counts on the current version, no student names', 
   assert.equal(questionInsights(db, 'cl-a', 'q-st1', NOW), null);
 });
 
+test('custom periods: validated, whole local days, daily buckets up to 14 days', () => {
+  const get = (q) => (k) => q[k];
+  assert.deepEqual(parsePeriod(get({ range: 'custom', from: '2026-10-01', to: '2026-10-07' })), { range: 'custom', from: '2026-10-01', to: '2026-10-07' });
+  assert.match(parsePeriod(get({ range: 'custom', from: '2026-10-07', to: '2026-10-01' })).error, /on or before/);
+  assert.match(parsePeriod(get({ range: 'custom', from: '2025-01-01', to: '2026-10-01' })).error, /at most/);
+  assert.match(parsePeriod(get({ range: 'custom', from: 'yesterday', to: '2026-10-01' })).error, /start and end/);
+  assert.match(parsePeriod(get({ range: '1y' })).error, /Unknown period/);
+  const { db, add } = setup();
+  db.attempts = db.attempts.filter((a) => a.classId !== 'cl-a');
+  const sg = (month, day, hour) => Date.UTC(2026, month - 1, day, hour - 8); // Singapore wall clock
+  add({ at: sg(10, 1, 0) }); // first hour of 1 Oct: in
+  add({ at: sg(10, 7, 23) }); // last hour of 7 Oct: in
+  add({ at: sg(10, 8, 0) }); // 8 Oct: after the window
+  add({ at: sg(9, 30, 12) }); // 30 Sep: the previous 7 days (24-30 Sep)
+  add({ at: sg(9, 23, 12) }); // 23 Sep: before both
+  const week = classAnalytics(db, 'cl-a', NOW, { range: 'custom', from: '2026-10-01', to: '2026-10-07' });
+  assert.equal(week.participation.attempts, 2);
+  assert.equal(week.days, 7);
+  assert.equal(week.previous.attempts, 1);
+  assert.equal(week.trend.bucket, 'day');
+  assert.equal(week.trend.points.length, 7);
+  const month = classAnalytics(db, 'cl-a', NOW, { range: 'custom', from: '2026-09-01', to: '2026-10-07' });
+  assert.equal(month.trend.bucket, 'week');
+});
+
+test('difficulty tags are checked against results', () => {
+  const { db, add } = setup();
+  db.attempts = db.attempts.filter((a) => a.classId !== 'cl-a');
+  for (let i = 0; i < 5; i++) add({ questionId: 'q-d1', correct: i === 0 }); // tagged easy, 20% right
+  for (let i = 0; i < 5; i++) add({ questionId: 'q-d6', correct: true }); // tagged hard, 100% right
+  for (let i = 0; i < 4; i++) add({ questionId: 'q-d4', correct: false }); // easy, wrong, but too few answers
+  const { difficulty } = classAnalytics(db, 'cl-a', NOW).quality;
+  assert.deepEqual(difficulty.map((d) => [d.questionId, d.verdict]), [['q-d1', 'harder than tagged'], ['q-d6', 'easier than tagged']]);
+  assert.equal(questionInsights(db, 'cl-a', 'q-d1', NOW).difficultyVerdict, 'harder than tagged');
+});
+
+test('wrong options almost nobody picks are flagged (not true/false)', () => {
+  const { db, add } = setup();
+  db.attempts = db.attempts.filter((a) => a.classId !== 'cl-a');
+  // q-n2: options 0..3, answer 1. In 20 answers, option 2 is picked once (5% is the limit: 1/20 is
+  // not under it) and option 3 never.
+  for (let i = 0; i < 20; i++) add({ questionId: 'q-n2', topicId: 'tp-net', choice: i < 9 ? 0 : i < 19 ? 1 : 2, correct: i >= 9 && i < 19 });
+  // q-n1 has only 19 answers: too few to judge, even with unpicked options
+  for (let i = 0; i < 19; i++) add({ questionId: 'q-n1', topicId: 'tp-net', choice: 1, correct: true });
+  // q-x2 is true/false: never flagged
+  for (let i = 0; i < 20; i++) add({ questionId: 'q-x2', topicId: 'tp-sec', type: 'tf', choice: 0, correct: true });
+  const { unusedOptions } = classAnalytics(db, 'cl-a', NOW).quality;
+  assert.deepEqual(unusedOptions.map((u) => [u.questionId, u.options.map((o) => o.text)]), [['q-n2', ['Too many switches']]]);
+  const detail = questionInsights(db, 'cl-a', 'q-n2', NOW).answers.options;
+  assert.deepEqual(detail.map((o) => o.rarelyChosen), [false, false, false, true]);
+});
+
+test('when students practise: weekday x 3-hour blocks in local time', () => {
+  const { db, add } = setup();
+  db.attempts = db.attempts.filter((a) => a.classId !== 'cl-a');
+  add({ at: Date.UTC(2026, 9, 8, 17) }); // Fri 01:00 Singapore -> Fri 00:00-03:00
+  add({ at: Date.UTC(2026, 9, 5, 11) }); // Mon 19:00 Singapore -> Mon 18:00-21:00
+  add({ at: Date.UTC(2026, 9, 5, 12) }); // Mon 20:00 Singapore
+  const { counts, blockHours } = classAnalytics(db, 'cl-a', NOW).when;
+  assert.equal(blockHours, 3);
+  assert.equal(counts[4][0], 1, 'Friday, first block');
+  assert.equal(counts[0][6], 2, 'Monday 18:00-21:00');
+  assert.equal(counts.flat().reduce((a, b) => a + b, 0), 3);
+});
+
+test('practice and World accuracy are compared per topic', () => {
+  const { db, add } = setup();
+  db.attempts = db.attempts.filter((a) => a.classId !== 'cl-a');
+  add({ context: 'practice', correct: true });
+  add({ context: 'practice', correct: false });
+  add({ context: 'world', correct: true });
+  add({ context: 'world', correct: true, needsReview: true }); // not confirmed: left out
+  const c = classAnalytics(db, 'cl-a', NOW).contexts;
+  assert.deepEqual([c.practice.n, c.practice.accuracy, c.world.n, c.world.accuracy], [2, 0.5, 1, 1]);
+  assert.equal(c.byTopic.find((t) => t.topicId === 'tp-data').world.n, 1);
+});
+
+test('classes of one course are compared side by side', () => {
+  const { db } = setup();
+  // the demo seed has a second Computing group (C) for the same professor
+  const rows = courseComparison(db, ['cl-a', 'cl-c'], NOW, { range: 'all' });
+  assert.deepEqual(rows.map((r) => [r.classId, r.enrolled]), [['cl-a', 6], ['cl-c', 4]]);
+  const own = (id) => db.attempts.filter((a) => a.classId === id).length;
+  assert.deepEqual(rows.map((r) => r.attempts), [own('cl-a'), own('cl-c')]);
+  assert.equal(rows[1].activeEver, 3, 'Student 12 has not practised yet');
+  assert.ok(!/Student \d|s-\d\d/.test(JSON.stringify(rows)), 'no student names or ids');
+});
+
 test('the analytics route checks the period and the professor', async () => {
   const srv = start(0, { dataFile: null });
   await new Promise((r) => srv.httpServer.once('listening', r));
@@ -214,6 +302,20 @@ test('the analytics route checks the period and the professor', async () => {
     assert.equal(srv.quiz.db.classes.find((c) => c.id === 'cl-a').settings.tradingEnabled, true, 'nothing changed');
     assert.equal((await put({ timezone: 'Europe/London' })).status, 200);
     assert.equal((await call(prof, '/api/teacher/classes/cl-a/analytics')).body.timezone, 'Europe/London');
+    // custom dates through the API, and their validation
+    assert.equal((await call(prof, '/api/teacher/classes/cl-a/analytics?range=custom&from=2026-10-01&to=2026-10-07')).status, 200);
+    assert.equal((await call(prof, '/api/teacher/classes/cl-a/analytics?range=custom&from=2026-10-07&to=2026-10-01')).status, 400);
+    // class comparison: own course only
+    assert.equal((await call(prof, '/api/teacher/courses/c-comp/compare?range=30d')).status, 200);
+    assert.equal((await call(await login('t-b'), '/api/teacher/courses/c-comp/compare')).status, 404);
+    // cached between changes: an answer slipped into memory without a save
+    // is not seen, the next real change (any save) refreshes the numbers
+    const url = '/api/teacher/classes/cl-a/analytics?range=all';
+    const before = (await call(prof, url)).body.participation.attempts;
+    srv.quiz.db.attempts.push({ id: 'at-cache', sessionId: null, studentId: 's-01', classId: 'cl-a', courseId: 'c-comp', questionId: 'q-d1', version: 1, topicId: 'tp-data', type: 'mcq', choice: 1, correct: true, score: 1, ms: 1000, timedOut: false, first: true, context: 'practice', at: Date.now() });
+    assert.equal((await call(prof, url)).body.participation.attempts, before, 'served from the cache');
+    assert.equal((await put({ timezone: 'Asia/Singapore' })).status, 200);
+    assert.equal((await call(prof, url)).body.participation.attempts, before + 1, 'refreshed after a change');
   } finally {
     srv.io.close();
   }

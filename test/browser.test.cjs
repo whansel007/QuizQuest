@@ -227,4 +227,17 @@ test('dashboard: period filter, question detail, and a jump to the Question bank
   await page.getByRole('heading', { name: 'Question bank', exact: true }).waitFor();
   await page.locator('#qcard-q-n2.flash').waitFor();
   assert.equal(await page.getByRole('button', { name: /^Published/ }).getAttribute('aria-pressed'), 'true');
+  // custom dates, section links, and the period is remembered after a reload
+  await page.locator('#tabs').getByRole('button', { name: 'Analytics', exact: true }).click();
+  await page.getByLabel('Period').selectOption('custom');
+  await page.getByLabel('From', { exact: true }).fill('2026-01-01');
+  await page.getByLabel('To', { exact: true }).fill('2026-01-05');
+  await page.getByRole('button', { name: 'Apply' }).click();
+  await page.getByText('No answers in 1 Jan 2026 to 5 Jan 2026', { exact: false }).waitFor();
+  await page.getByRole('navigation', { name: 'Dashboard sections' }).getByRole('button', { name: 'Quality' }).click();
+  await page.getByRole('heading', { name: 'Question quality' }).waitFor();
+  await page.reload();
+  await page.locator('#tabs').getByRole('button', { name: 'Analytics', exact: true }).click();
+  await page.getByRole('heading', { name: 'Needs attention' }).waitFor();
+  assert.equal(await page.getByLabel('Period').inputValue(), 'custom');
 });
