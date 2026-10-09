@@ -193,6 +193,7 @@ test('custom periods: validated, whole local days, daily buckets up to 14 days',
   assert.match(parsePeriod(get({ range: 'custom', from: '2026-10-07', to: '2026-10-01' })).error, /on or before/);
   assert.match(parsePeriod(get({ range: 'custom', from: '2025-01-01', to: '2026-10-01' })).error, /at most/);
   assert.match(parsePeriod(get({ range: 'custom', from: 'yesterday', to: '2026-10-01' })).error, /start and end/);
+  assert.match(parsePeriod(get({ range: 'custom', from: '2026-02-30', to: '2026-03-05' })).error, /valid/, '30 February is not a date');
   assert.match(parsePeriod(get({ range: '1y' })).error, /Unknown period/);
   const { db, add } = setup();
   db.attempts = db.attempts.filter((a) => a.classId !== 'cl-a');
@@ -218,6 +219,8 @@ test('difficulty tags are checked against results', () => {
   for (let i = 0; i < 5; i++) add({ questionId: 'q-d1', correct: i === 0 }); // tagged easy, 20% right
   for (let i = 0; i < 5; i++) add({ questionId: 'q-d6', correct: true }); // tagged hard, 100% right
   for (let i = 0; i < 4; i++) add({ questionId: 'q-d4', correct: false }); // easy, wrong, but too few answers
+  // retries come after the explanation: they don't make q-d1 look easier
+  for (let i = 0; i < 10; i++) add({ questionId: 'q-d1', correct: true, first: false });
   const { difficulty } = classAnalytics(db, 'cl-a', NOW).quality;
   assert.deepEqual(difficulty.map((d) => [d.questionId, d.verdict]), [['q-d1', 'harder than tagged'], ['q-d6', 'easier than tagged']]);
   assert.equal(questionInsights(db, 'cl-a', 'q-d1', NOW).difficultyVerdict, 'harder than tagged');
@@ -273,6 +276,34 @@ test('classes of one course are compared side by side', () => {
   assert.deepEqual(rows.map((r) => r.attempts), [own('cl-a'), own('cl-c')]);
   assert.equal(rows[1].activeEver, 3, 'Student 12 has not practised yet');
   assert.ok(!/Student \d|s-\d\d/.test(JSON.stringify(rows)), 'no student names or ids');
+});
+
+test('review fixes: local 7 days, all-time trend cap, full commonly-missed list, big classes', () => {
+  const { db, add } = setup();
+  db.attempts = db.attempts.filter((a) => a.classId !== 'cl-a');
+  // "active in the last 7 days" = the same 7 local days as the 7-day period:
+  // Sat 3 Oct 08:00 Singapore is inside (today is Fri 9 Oct), Fri 2 Oct 23:00 is not
+  add({ studentId: 's-02', at: Date.UTC(2026, 9, 3, 0) });
+  add({ studentId: 's-03', at: Date.UTC(2026, 9, 2, 15) });
+  const a = classAnalytics(db, 'cl-a', NOW, { range: '7d' });
+  assert.equal(a.participation.active7d, a.participation.activeEver);
+  assert.equal(a.participation.active7d, 1);
+  // all time charts at most 12 weeks, and says so
+  add({ at: NOW - 200 * DAY });
+  const all = classAnalytics(db, 'cl-a', NOW, { range: 'all' });
+  assert.equal(all.trend.capped, true);
+  assert.equal(all.trend.points.length, all.trend.maxWeeks);
+  assert.equal(all.participation.attempts, 3, 'tiles still count everything');
+  // commonly missed lists every question with enough first attempts (the page paginates)
+  const full = setup().db;
+  const missed = classAnalytics(full, 'cl-a', NOW, { range: 'all' }).commonlyMissed;
+  assert.ok(missed.length > 5);
+  for (let i = 1; i < missed.length; i++) assert.ok(missed[i - 1].first.accuracy <= missed[i].first.accuracy, 'lowest accuracy first');
+  // a big class: 200,000 answers over a year must not overflow the call stack
+  const big = setup().db;
+  const base = big.attempts.find((x) => x.classId === 'cl-a');
+  for (let i = 0; i < 200000; i++) big.attempts.push({ ...base, id: `big${i}`, at: NOW - 365 * DAY + i * 150000 });
+  assert.doesNotThrow(() => classAnalytics(big, 'cl-a', NOW, { range: 'all' }));
 });
 
 test('the analytics route checks the period and the professor', async () => {

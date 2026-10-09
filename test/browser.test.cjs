@@ -215,6 +215,19 @@ test('dashboard: period filter, question detail, and a jump to the Question bank
   // the period filter refetches and the charts switch to days
   await page.getByLabel('Period').selectOption('7d');
   await page.getByRole('img', { name: /Accuracy by topic per day/ }).waitFor();
+  // long lists are paged, 10 per page. The total depends on what earlier
+  // tests answered (they share the server), so read it from the pager.
+  const timePager = page.getByRole('navigation', { name: 'Time and accuracy pages' });
+  const count = timePager.getByText(/^Showing \d+–\d+ of \d+ questions$/);
+  const total = Number((await count.innerText()).match(/of (\d+)/)[1]);
+  assert.ok(total > 10, 'more than one page');
+  assert.equal(await count.innerText(), `Showing 1–10 of ${total} questions`);
+  assert.equal(await page.locator('#dash-time tbody tr').count(), 10);
+  const lastPage = Math.ceil(total / 10);
+  await timePager.getByRole('button', { name: `Page ${lastPage}`, exact: true }).click();
+  await timePager.getByText(`Showing ${(lastPage - 1) * 10 + 1}–${total} of ${total} questions`).waitFor();
+  assert.equal(await page.locator('#dash-time tbody tr').count(), total - (lastPage - 1) * 10);
+  assert.equal(await timePager.getByRole('button', { name: 'Next page' }).isDisabled(), true);
   // learning outcomes open under a topic
   await page.getByRole('button', { name: 'Show learning outcomes for Data representation' }).click();
   await page.getByText('Convert between binary, decimal and hexadecimal', { exact: true }).waitFor();
