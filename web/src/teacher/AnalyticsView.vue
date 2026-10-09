@@ -16,6 +16,8 @@ import { pct, secs } from '../ui.js';
 import Heading from '../components/Heading.vue';
 import Meter from '../components/Meter.vue';
 import AsyncButton from '../components/AsyncButton.vue';
+import Pager from '../components/Pager.vue';
+import { usePaged } from '../components/paged.js';
 import ClassPicker from './ClassPicker.vue';
 import LineChart from './charts/LineChart.vue';
 import ColumnChart from './charts/ColumnChart.vue';
@@ -215,10 +217,12 @@ function toggleTopic(id) {
   openTopics.value = next;
 }
 
+// ---- long lists are paged (the charts and CSV exports still use everything)
+const markingPages = usePaged(() => marking.value, 5);
+const timePages = usePaged(() => a.value?.time.questions, 10);
+const missedPages = usePaged(() => a.value?.commonlyMissed, 5);
+
 // ---- time vs accuracy
-const TOP = 10;
-const showAllTimes = ref(false);
-const times = computed(() => (showAllTimes.value ? a.value.time.questions : a.value.time.questions.slice(0, TOP)));
 const scatter = computed(() => a.value.time.questions.map((q) => ({ id: q.questionId, label: q.stem, x: q.meanMs, y: q.accuracy.accuracy, n: q.n, flagged: q.confusing })));
 
 // ---- CSV exports (no student names in any of these)
@@ -325,7 +329,7 @@ function missedCsv() {
         <div v-if="marking.length" id="dash-marking" class="panel no-print" style="border-color: var(--warn)">
           <h3 tabindex="-1">Answers to mark ({{ marking.length }})</h3>
           <p class="small muted">Free-response answers get a provisional automatic mark. Confirm or change it; marking an answer correct pays the usual first-correct coins. Answers are shown without student names.</p>
-          <div v-for="m in marking" :key="m.attemptId" style="padding: 10px 0; border-bottom: 1px solid var(--line)">
+          <div v-for="m in markingPages.items" :key="m.attemptId" style="padding: 10px 0; border-bottom: 1px solid var(--line)">
             <div style="font-weight: 600">{{ m.stem }}</div>
             <div class="small muted">Key points: {{ m.keyPoints.map((k, i) => (m.coveredPoints.includes(i) ? `✓ ${k}` : `○ ${k}`)).join(' · ') }}</div>
             <div class="panel" style="background: var(--bg); margin: 6px 0; padding: 10px; white-space: pre-wrap">{{ m.text || '(blank)' }}</div>
@@ -335,11 +339,12 @@ function missedCsv() {
               <AsyncButton class="btn small bad" :run="mark(m, false)">Mark not correct</AsyncButton>
             </div>
           </div>
+          <Pager :paged="markingPages" label="Answers to mark pages" noun="answers" />
         </div>
 
         <div id="dash-trends" class="panel">
           <h3 tabindex="-1">Trends</h3>
-          <p class="small muted">Per {{ per }}, {{ period }}. Accuracy counts every confirmed answer (first attempts and retries); hollow points rest on fewer than {{ a.trend.lowN }} answers, so read them with care.</p>
+          <p class="small muted">Per {{ per }}, {{ a.trend.capped ? `the last ${a.trend.maxWeeks} weeks (tiles and tables below cover all time)` : period }}. Accuracy counts every confirmed answer (first attempts and retries); hollow points rest on fewer than {{ a.trend.lowN }} answers, so read them with care.</p>
           <div class="charts">
             <div v-if="combined">
               <div class="chart-title">Accuracy by topic</div>
@@ -433,14 +438,14 @@ function missedCsv() {
             <h3 class="grow" tabindex="-1">Time and accuracy per question</h3>
             <button v-if="a.time.questions.length" class="btn small no-print" @click="timeCsv">Download CSV</button>
           </div>
-          <p class="small muted">Average time students spent on each question ({{ period }}), from the question appearing to the answer arriving, measured by the server. Each student counts once, and timed-out answers are left out; times include reading and are not a measure of ability. A question that is both <b>slow</b> (slower than three quarters of questions) and <b>mostly wrong</b> (under {{ pct(a.time.maxAccuracy) }}, at least {{ a.time.minN }} answers) is flagged as possibly confusing: worth rereading. Click a dot or a question for details.</p>
+          <p class="small muted">Average time students spent on each question ({{ period }}), from the question appearing to the answer arriving, measured by the server. Each student counts once, and timed-out answers are left out; times include reading and are not a measure of ability. A question that is both <b>slow</b> (slower than three quarters of questions) and <b>mostly wrong</b> (under {{ pct(a.time.maxAccuracy) }}, at least {{ a.time.minN }} answers) is flagged as possibly confusing: worth rereading. Slowest first. Click a dot or a question for details.</p>
           <template v-if="a.time.questions.length">
             <ScatterChart :points="scatter" :slow-ms="a.time.slowMs" :max-accuracy="a.time.maxAccuracy" :low-n="a.time.minN" label="Average time against accuracy, one dot per question" @open="openQuestion" />
             <div class="table-wrap" style="margin-top: 12px">
               <table class="dash-table">
                 <thead><tr><th>Question</th><th>Topic</th><th>Students</th><th>Answers</th><th>Average time</th><th>Median</th><th>Accuracy</th></tr></thead>
                 <tbody>
-                  <tr v-for="q in times" :key="q.questionId">
+                  <tr v-for="q in timePages.items" :key="q.questionId">
                     <td class="q">
                       <button class="linklike" @click="openQuestion(q.questionId)">{{ q.stem }}</button>
                       <span class="badge plain">{{ q.type }}</span>
@@ -456,9 +461,7 @@ function missedCsv() {
                 </tbody>
               </table>
             </div>
-            <button v-if="a.time.questions.length > TOP" class="btn small no-print" style="margin-top: 8px" @click="showAllTimes = !showAllTimes">
-              {{ showAllTimes ? `Show the ${TOP} slowest only` : `Show all ${a.time.questions.length} questions` }}
-            </button>
+            <Pager :paged="timePages" label="Time and accuracy pages" noun="questions" />
           </template>
           <p v-else class="muted small">No answers in this period.</p>
         </div>
@@ -468,11 +471,11 @@ function missedCsv() {
             <h3 class="grow">Commonly missed questions</h3>
             <button v-if="a.commonlyMissed.length" class="btn small no-print" @click="missedCsv">Download CSV</button>
           </div>
-          <p class="small muted">Lowest first-attempt accuracy, questions with at least {{ a.minN }} confirmed first attempts. Low accuracy is a reason to look closer: it can mean a difficult concept, an ambiguous question, or a gap in coverage. Click a question for its answer breakdown.</p>
+          <p class="small muted">Every question with at least {{ a.minN }} confirmed first attempts, lowest first-attempt accuracy first. Low accuracy is a reason to look closer: it can mean a difficult concept, an ambiguous question, or a gap in coverage. Click a question for its answer breakdown.</p>
           <template v-if="a.commonlyMissed.length">
-            <div v-for="(q, i) in a.commonlyMissed" :key="i" style="padding: 10px 0; border-bottom: 1px solid var(--line)">
+            <div v-for="q in missedPages.items" :key="q.questionId" style="padding: 10px 0; border-bottom: 1px solid var(--line)">
               <div class="row">
-                <button class="linklike grow" style="font-weight: 600; text-align: left" @click="openQuestion(q.questionId)">{{ q.stem }}</button>
+                <button class="linklike grow missed-title" style="font-weight: 600; text-align: left" @click="openQuestion(q.questionId)">{{ q.stem }}</button>
                 <span class="badge plain">{{ q.type }}</span>
                 <span :class="'badge ' + q.status">{{ q.status }}</span>
               </div>
@@ -480,6 +483,7 @@ function missedCsv() {
               <div v-if="q.topWrong" class="small">Most chosen wrong answer: <b>"{{ q.topWrong.option }}"</b> ({{ q.topWrong.count }}x)</div>
               <div v-if="q.openReports" class="small" style="color: var(--bad)">⚑ {{ q.openReports }} open student report(s) - see Question bank → Reported</div>
             </div>
+            <Pager :paged="missedPages" label="Commonly missed questions pages" noun="questions" />
           </template>
           <p v-else class="muted small">Not enough data yet.</p>
         </div>

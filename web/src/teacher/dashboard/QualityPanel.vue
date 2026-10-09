@@ -4,11 +4,16 @@
 // students did, and wrong options almost nobody picks.
 // ============================================================
 import { pct } from '../../ui.js';
+import Pager from '../../components/Pager.vue';
+import { usePaged } from '../../components/paged.js';
 
-defineProps({
+const props = defineProps({
   tags: { type: Object, required: true },
   quality: { type: Object, required: true },
 });
+const tagPages = usePaged(() => props.tags.issues, 5);
+const difficultyPages = usePaged(() => props.quality.difficulty, 5);
+const unusedPages = usePaged(() => props.quality.unusedOptions, 5);
 const emit = defineEmits(['open-question', 'open-in-bank']);
 const frac = (r) => `${pct(r.accuracy)} (${r.correct}/${r.n})`;
 </script>
@@ -24,7 +29,7 @@ const frac = (r) => `${pct(r.accuracy)} (${r.correct}/${r.n})`;
       <table class="dash-table">
         <thead><tr><th>Question</th><th>Status</th><th>Missing or invalid</th><th></th></tr></thead>
         <tbody>
-          <tr v-for="q in tags.issues" :key="q.questionId">
+          <tr v-for="q in tagPages.items" :key="q.questionId">
             <td class="q">{{ q.stem }}</td>
             <td><span :class="'badge ' + q.status">{{ q.status }}</span></td>
             <td>{{ q.missing.join(', ') }}</td>
@@ -33,15 +38,16 @@ const frac = (r) => `${pct(r.accuracy)} (${r.correct}/${r.n})`;
         </tbody>
       </table>
     </div>
+    <Pager :paged="tagPages" label="Tag issue pages" noun="questions" />
 
     <h4>Difficulty check</h4>
-    <p class="small muted">Compares each question's difficulty tag with how students actually did (at least {{ quality.difficultyCheck.minN }} confirmed answers): "easy" questions under {{ pct(quality.difficultyCheck.easyBelow) }} correct, or "hard" ones over {{ pct(quality.difficultyCheck.hardAbove) }} correct. Re-tagging keeps adaptive practice and reports honest.</p>
+    <p class="small muted">Compares each question's difficulty tag with how students actually did (at least {{ quality.difficultyCheck.minN }} confirmed first attempts; retries come after the explanation, so they don't count): "easy" questions under {{ pct(quality.difficultyCheck.easyBelow) }} correct, or "hard" ones over {{ pct(quality.difficultyCheck.hardAbove) }} correct. Re-tagging keeps adaptive practice and reports honest.</p>
     <div v-if="!quality.difficulty.length" class="note good">✓ No mismatches in this period.</div>
     <div v-else class="table-wrap">
       <table class="dash-table">
-        <thead><tr><th>Question</th><th>Topic</th><th>Tagged</th><th>Correct</th><th>Looks</th></tr></thead>
+        <thead><tr><th>Question</th><th>Topic</th><th>Tagged</th><th>First-attempt correct</th><th>Looks</th></tr></thead>
         <tbody>
-          <tr v-for="q in quality.difficulty" :key="q.questionId">
+          <tr v-for="q in difficultyPages.items" :key="q.questionId">
             <td class="q"><button class="linklike" @click="emit('open-question', q.questionId)">{{ q.stem }}</button></td>
             <td class="label">{{ q.topic }}</td>
             <td>{{ q.tagged }}</td>
@@ -51,6 +57,7 @@ const frac = (r) => `${pct(r.accuracy)} (${r.correct}/${r.n})`;
         </tbody>
       </table>
     </div>
+    <Pager :paged="difficultyPages" label="Difficulty check pages" noun="questions" />
 
     <h4>Rarely chosen wrong options</h4>
     <p class="small muted">Wrong options picked by under {{ pct(quality.unused.maxShare) }} of answers (questions with at least {{ quality.unused.minAnswers }} answers to the current version). An option nobody picks doesn't test anything: a more plausible distractor makes the question more useful. True/false questions are left out.</p>
@@ -59,7 +66,7 @@ const frac = (r) => `${pct(r.accuracy)} (${r.correct}/${r.n})`;
       <table class="dash-table">
         <thead><tr><th>Question</th><th>Rarely chosen</th><th>Answers</th></tr></thead>
         <tbody>
-          <tr v-for="q in quality.unusedOptions" :key="q.questionId">
+          <tr v-for="q in unusedPages.items" :key="q.questionId">
             <td class="q"><button class="linklike" @click="emit('open-question', q.questionId)">{{ q.stem }}</button></td>
             <td>{{ q.options.map((o) => `"${o.text}" (${o.count})`).join(', ') }}</td>
             <td class="num">{{ q.answered }}</td>
@@ -67,5 +74,6 @@ const frac = (r) => `${pct(r.accuracy)} (${r.correct}/${r.n})`;
         </tbody>
       </table>
     </div>
+    <Pager :paged="unusedPages" label="Rarely chosen option pages" noun="questions" />
   </div>
 </template>
