@@ -47,9 +47,15 @@ function instantOf(date, tz = APP_TZ) {
 }
 const mondayOf = (date) => date - ((new Date(date).getUTCDay() + 6) % 7) * DAY;
 
+// Day of week (0 = Monday) and hour (0-23) on the local clock
+function weekdayHour(t, tz = APP_TZ) {
+  const w = new Date(wallClock(t, tz));
+  return { weekday: (w.getUTCDay() + 6) % 7, hour: w.getUTCHours() };
+}
+
 // 'YYYY-MM-DD' keys for "same day" / "same week" checks
 const iso = (date) => new Date(date).toISOString().slice(0, 10);
 const dayKey = (t, tz = APP_TZ) => iso(localDate(t, tz));
 const weekKey = (t, tz = APP_TZ) => iso(mondayOf(localDate(t, tz))); // the Monday that starts the week
 
-module.exports = { DAY, DEFAULT_TZ, APP_TZ, isValidTimeZone, localDate, instantOf, mondayOf, dayKey, weekKey };
+module.exports = { DAY, DEFAULT_TZ, APP_TZ, isValidTimeZone, localDate, instantOf, mondayOf, weekdayHour, dayKey, weekKey };

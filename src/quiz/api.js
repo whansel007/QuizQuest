@@ -24,7 +24,7 @@ const { createStore } = require('./store');
 const { validateQuestion } = require('./validate');
 const { generate, GEN } = require('./generator');
 const { ADAPTIVE, topicStats, planSession } = require('./adaptive');
-const { classAnalytics, questionInsights, isValidTimeZone, RANGES: ANALYTICS_RANGES } = require('./analytics');
+const { classAnalytics, courseComparison, questionInsights, parsePeriod, isValidTimeZone } = require('./analytics');
 const { courseEvaluation } = require('./evaluation');
 const { TYPES, TYPE_LABELS, studentView, newInstance, instantiate, gradeSync, isEmpty } = require('./formats');
 const { grade } = require('./grading');
@@ -103,7 +103,14 @@ const csvCell = (v) => {
 // otherwise the JSON file store (dataFile = null keeps it in memory).
 function createQuizApi({ dataFile = null, store = null, now = () => Date.now(), drafter = null } = {}) {
   store = store || createStore(dataFile);
-  const { db, save } = store;
+  const { db } = store;
+  // Every change goes through save(), so counting saves tells us whether
+  // the data has changed (used to cache dashboard numbers).
+  let dataVersion = 0;
+  const save = () => {
+    dataVersion++;
+    store.save();
+  };
   const tokens = new Map(); // token -> { userId, expires }
   const grading = new Set(); // "sessionId:index" answers currently being graded
 
@@ -569,19 +576,39 @@ function createQuizApi({ dataFile = null, store = null, now = () => Date.now(), 
   });
 
   // ---------------- teacher: analytics & evaluation ----------------
+  // Dashboard numbers are cached briefly per class + period: with
+  // auto-refresh every 30 s, an unchanged class costs nothing to re-serve.
+  // Any save() (new answer, mark, edit...) or 60 s passing refreshes it.
+  const ANALYTICS_TTL = 60000;
+  const analyticsCache = new Map();
+  const period = (query) => {
+    const p = parsePeriod((k) => query.get(k));
+    if (p.error) fail(400, p.error);
+    return p;
+  };
   route('GET', '/api/teacher/classes/:classId/analytics', 'teacher', ({ user, params, query }) => {
     teacherClass(user, params.classId);
-    const range = query.get('range') || 'all';
-    if (!Object.hasOwn(ANALYTICS_RANGES, range)) fail(400, 'Unknown period.');
-    return classAnalytics(db, params.classId, now(), { range });
+    const p = period(query);
+    const key = `${params.classId}|${p.range}|${p.from || ''}|${p.to || ''}`;
+    const hit = analyticsCache.get(key);
+    if (hit && hit.version === dataVersion && now() - hit.at < ANALYTICS_TTL) return hit.value;
+    const value = classAnalytics(db, params.classId, now(), p);
+    if (analyticsCache.size > 200) analyticsCache.clear(); // bounded: a few entries per class
+    analyticsCache.set(key, { version: dataVersion, at: now(), value });
+    return value;
   });
 
   // One question in detail (dashboard drill-down), for this class's answers
   route('GET', '/api/teacher/classes/:classId/questions/:qid/insights', 'teacher', ({ user, params, query }) => {
     teacherClass(user, params.classId);
-    const range = query.get('range') || 'all';
-    if (!Object.hasOwn(ANALYTICS_RANGES, range)) fail(400, 'Unknown period.');
-    return questionInsights(db, params.classId, params.qid, now(), { range }) || fail(404, 'Not found.');
+    return questionInsights(db, params.classId, params.qid, now(), period(query)) || fail(404, 'Not found.');
+  });
+
+  // The professor's classes of one course side by side (no student names)
+  route('GET', '/api/teacher/courses/:cid/compare', 'teacher', ({ user, params, query }) => {
+    const c = teacherCourse(user, params.cid);
+    const ids = db.classes.filter((cl) => cl.courseId === c.id && cl.teacherIds.includes(user.id)).map((cl) => cl.id);
+    return courseComparison(db, ids, now(), period(query));
   });
 
   route('GET', '/api/teacher/classes/:classId/participation.csv', 'teacher', ({ user, params }) => {
