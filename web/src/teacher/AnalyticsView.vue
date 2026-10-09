@@ -249,38 +249,44 @@ function missedCsv() {
 
 <template>
   <div v-if="error && !a" class="note bad">{{ error }}</div>
-  <p v-else-if="!loaded" class="muted">Loading analytics…</p>
+  <div v-else-if="!loaded" class="dash" aria-busy="true">
+    <p class="muted">Loading analytics…</p>
+    <div class="tiles" aria-hidden="true"><div v-for="i in 4" :key="i" class="tile skeleton"></div></div>
+    <div v-for="i in 2" :key="i" class="panel skeleton tall" aria-hidden="true"></div>
+  </div>
   <template v-else>
     <p v-if="!classes.length">You have no classes.</p>
-    <template v-else-if="a">
+    <div v-else-if="a" class="dash">
       <!-- shown on paper only -->
       <div class="print-only">
         <h1 style="font-size: 20px; margin: 0">QuizQuest class report</h1>
         <p>{{ className }} · {{ period }} · {{ a.timezone.replace('_', ' ') }} time · generated {{ printedAt }}</p>
       </div>
 
-      <Heading title="Analytics">
-        <ClassPicker :classes="classes" />
-        <select v-model="choice" style="width: auto" aria-label="Period" @change="pickPeriod">
-          <option v-for="[id, name] in PERIODS" :key="id" :value="id">{{ name }}</option>
-        </select>
-        <button class="btn no-print" @click="printReport">Print report</button>
-      </Heading>
-      <form v-if="choice === 'custom'" class="row custom-dates no-print" @submit.prevent="applyCustom">
-        <label class="small" style="margin: 0">From <input v-model="custom.from" type="date" required :max="custom.to" /></label>
-        <label class="small" style="margin: 0">To <input v-model="custom.to" type="date" required :min="custom.from" /></label>
-        <button class="btn small primary" type="submit">Apply</button>
-      </form>
-      <div class="row small muted no-print" style="margin: -6px 0 10px">
-        <span class="grow">Updated {{ clock(updatedAt) }} · days and weeks in {{ a.timezone.replace('_', ' ') }} time (change in Settings)</span>
-        <label style="margin: 0; font-weight: 400; color: inherit"><input v-model="auto" type="checkbox" @change="setAuto" /> Auto-refresh every 30 seconds</label>
-      </div>
-      <nav class="dash-nav no-print" aria-label="Dashboard sections">
-        <button v-for="[id, label] in sections" :key="id" class="btn small" @click="goTo(id)">{{ label }}</button>
-      </nav>
+      <section class="dash-hero">
+        <Heading title="Analytics">
+          <ClassPicker :classes="classes" />
+          <select v-model="choice" style="width: auto" aria-label="Period" @change="pickPeriod">
+            <option v-for="[id, name] in PERIODS" :key="id" :value="id">{{ name }}</option>
+          </select>
+          <button class="btn no-print" @click="printReport">Print report</button>
+        </Heading>
+        <form v-if="choice === 'custom'" class="row custom-dates no-print" @submit.prevent="applyCustom">
+          <label class="small" style="margin: 0">From <input v-model="custom.from" type="date" required :max="custom.to" /></label>
+          <label class="small" style="margin: 0">To <input v-model="custom.to" type="date" required :min="custom.from" /></label>
+          <button class="btn small primary" type="submit">Apply</button>
+        </form>
+        <div class="row small muted no-print" style="margin: -6px 0 10px">
+          <span class="grow">Updated {{ clock(updatedAt) }} · days and weeks in {{ a.timezone.replace('_', ' ') }} time (change in Settings)</span>
+          <label style="margin: 0; font-weight: 400; color: inherit"><input v-model="auto" type="checkbox" @change="setAuto" /> Auto-refresh every 30 seconds</label>
+        </div>
+        <nav class="dash-nav no-print" aria-label="Dashboard sections">
+          <button v-for="[id, label] in sections" :key="id" class="btn small" @click="goTo(id)">{{ label }}</button>
+        </nav>
+      </section>
       <div v-if="error" class="note bad">{{ error }}</div>
 
-      <div :class="{ refetching }">
+      <div class="dash-body" :class="{ refetching }">
         <!-- a brand-new class, or a quiet period -->
         <div v-if="!a.participation.allTimeAttempts" class="panel note-panel">
           <h3>No answers yet</h3>
@@ -329,14 +335,16 @@ function missedCsv() {
         <div v-if="marking.length" id="dash-marking" class="panel no-print" style="border-color: var(--warn)">
           <h3 tabindex="-1">Answers to mark ({{ marking.length }})</h3>
           <p class="small muted">Free-response answers get a provisional automatic mark. Confirm or change it; marking an answer correct pays the usual first-correct coins. Answers are shown without student names.</p>
-          <div v-for="m in markingPages.items" :key="m.attemptId" style="padding: 10px 0; border-bottom: 1px solid var(--line)">
-            <div style="font-weight: 600">{{ m.stem }}</div>
-            <div class="small muted">Key points: {{ m.keyPoints.map((k, i) => (m.coveredPoints.includes(i) ? `✓ ${k}` : `○ ${k}`)).join(' · ') }}</div>
-            <div class="panel" style="background: var(--bg); margin: 6px 0; padding: 10px; white-space: pre-wrap">{{ m.text || '(blank)' }}</div>
-            <div class="row">
-              <span class="small">Auto ({{ m.method }}): <b>{{ m.autoCorrect ? 'correct' : 'not correct' }}</b> · {{ pct(m.score) }} of key points</span>
-              <AsyncButton class="btn small good" :run="mark(m, true)">Mark correct</AsyncButton>
-              <AsyncButton class="btn small bad" :run="mark(m, false)">Mark not correct</AsyncButton>
+          <div :key="markingPages.page" class="page-in">
+            <div v-for="m in markingPages.items" :key="m.attemptId" class="list-item">
+              <div style="font-weight: 600">{{ m.stem }}</div>
+              <div class="small muted">Key points: {{ m.keyPoints.map((k, i) => (m.coveredPoints.includes(i) ? `✓ ${k}` : `○ ${k}`)).join(' · ') }}</div>
+              <div class="panel" style="background: var(--bg); margin: 6px 0; padding: 10px; white-space: pre-wrap">{{ m.text || '(blank)' }}</div>
+              <div class="row">
+                <span class="small">Auto ({{ m.method }}): <b>{{ m.autoCorrect ? 'correct' : 'not correct' }}</b> · {{ pct(m.score) }} of key points</span>
+                <AsyncButton class="btn small good" :run="mark(m, true)">Mark correct</AsyncButton>
+                <AsyncButton class="btn small bad" :run="mark(m, false)">Mark not correct</AsyncButton>
+              </div>
             </div>
           </div>
           <Pager :paged="markingPages" label="Answers to mark pages" noun="answers" />
@@ -401,7 +409,7 @@ function missedCsv() {
                 <template v-for="t in a.byTopic" :key="t.topicId">
                   <tr>
                     <td style="width: 1%">
-                      <button class="btn small" :aria-expanded="openTopics.has(t.topicId) ? 'true' : 'false'" :aria-label="`${openTopics.has(t.topicId) ? 'Hide' : 'Show'} learning outcomes for ${t.name}`" @click="toggleTopic(t.topicId)">{{ openTopics.has(t.topicId) ? '▾' : '▸' }}</button>
+                      <button class="btn small" :aria-expanded="openTopics.has(t.topicId) ? 'true' : 'false'" :aria-label="`${openTopics.has(t.topicId) ? 'Hide' : 'Show'} learning outcomes for ${t.name}`" @click="toggleTopic(t.topicId)"><span class="chev" aria-hidden="true">▸</span></button>
                     </td>
                     <td class="label"><b>{{ t.name }}</b></td>
                     <td class="num">{{ frac(t.first) }}</td>
@@ -412,7 +420,7 @@ function missedCsv() {
                     <td class="num">{{ `${secs(t.medianMs)} / ${secs(t.p75Ms)}` }}</td>
                     <td class="num">{{ t.timeouts }}</td>
                   </tr>
-                  <tr v-for="o in openTopics.has(t.topicId) ? t.outcomes : []" :key="o.outcomeId" class="subrow">
+                  <tr v-for="o in openTopics.has(t.topicId) ? t.outcomes : []" :key="o.outcomeId" class="subrow subrow-in">
                     <td></td>
                     <td class="label small">{{ o.text }}</td>
                     <td class="num small">{{ frac(o.first) }}</td>
@@ -444,7 +452,7 @@ function missedCsv() {
             <div class="table-wrap" style="margin-top: 12px">
               <table class="dash-table">
                 <thead><tr><th>Question</th><th>Topic</th><th>Students</th><th>Answers</th><th>Average time</th><th>Median</th><th>Accuracy</th></tr></thead>
-                <tbody>
+                <tbody :key="timePages.page" class="page-in">
                   <tr v-for="q in timePages.items" :key="q.questionId">
                     <td class="q">
                       <button class="linklike" @click="openQuestion(q.questionId)">{{ q.stem }}</button>
@@ -473,15 +481,17 @@ function missedCsv() {
           </div>
           <p class="small muted">Every question with at least {{ a.minN }} confirmed first attempts, lowest first-attempt accuracy first. Low accuracy is a reason to look closer: it can mean a difficult concept, an ambiguous question, or a gap in coverage. Click a question for its answer breakdown.</p>
           <template v-if="a.commonlyMissed.length">
-            <div v-for="q in missedPages.items" :key="q.questionId" style="padding: 10px 0; border-bottom: 1px solid var(--line)">
-              <div class="row">
-                <button class="linklike grow missed-title" style="font-weight: 600; text-align: left" @click="openQuestion(q.questionId)">{{ q.stem }}</button>
-                <span class="badge plain">{{ q.type }}</span>
-                <span :class="'badge ' + q.status">{{ q.status }}</span>
+            <div :key="missedPages.page" class="page-in">
+              <div v-for="q in missedPages.items" :key="q.questionId" class="list-item">
+                <div class="row">
+                  <button class="linklike grow missed-title" style="font-weight: 600; text-align: left" @click="openQuestion(q.questionId)">{{ q.stem }}</button>
+                  <span class="badge plain">{{ q.type }}</span>
+                  <span :class="'badge ' + q.status">{{ q.status }}</span>
+                </div>
+                <div class="small muted">{{ `${q.topic} · first attempts ${frac(q.first)} · retries ${frac(q.retry)} · versions answered: ${q.versionsAttempted.map((v) => 'v' + v).join(', ')}` }}</div>
+                <div v-if="q.topWrong" class="small">Most chosen wrong answer: <b>"{{ q.topWrong.option }}"</b> ({{ q.topWrong.count }}x)</div>
+                <div v-if="q.openReports" class="small" style="color: var(--bad)">⚑ {{ q.openReports }} open student report(s) - see Question bank → Reported</div>
               </div>
-              <div class="small muted">{{ `${q.topic} · first attempts ${frac(q.first)} · retries ${frac(q.retry)} · versions answered: ${q.versionsAttempted.map((v) => 'v' + v).join(', ')}` }}</div>
-              <div v-if="q.topWrong" class="small">Most chosen wrong answer: <b>"{{ q.topWrong.option }}"</b> ({{ q.topWrong.count }}x)</div>
-              <div v-if="q.openReports" class="small" style="color: var(--bad)">⚑ {{ q.openReports }} open student report(s) - see Question bank → Reported</div>
             </div>
             <Pager :paged="missedPages" label="Commonly missed questions pages" noun="questions" />
           </template>
@@ -520,6 +530,6 @@ function missedCsv() {
       </div>
       <p class="small muted">These are practice indicators to support teaching judgement. They are not grades, and the platform does not label individual students.</p>
       <QuestionInsight ref="insight" @open-in-bank="openInBank" />
-    </template>
+    </div>
   </template>
 </template>

@@ -482,3 +482,165 @@ dialog.insight::backdrop { background: rgba(10, 12, 20, 0.45); }
   .missed-title { flex-basis: 100%; }
   .pager-count { flex-basis: 100%; }
 }
+
+/* ---------- dashboard: look and motion ---------- */
+/* Everything here is scoped to the Analytics tab (.dash) or to dashboard-only
+   classes. Animations only run FROM a hidden state (fill-mode backwards), so
+   the resting styles are always the finished look: print, reduced motion and
+   auto-refresh (which does not remount) all show the final state. */
+@keyframes dash-rise { from { opacity: 0; transform: translateY(10px); } }
+@keyframes dash-fade { from { opacity: 0; } }
+@keyframes dash-pop { from { opacity: 0; transform: scale(0.3); } }
+@keyframes dash-grow-x { from { transform: scaleX(0); } }
+@keyframes dash-grow-y { from { transform: scaleY(0); } }
+@keyframes dash-draw { from { stroke-dashoffset: 1; } }
+@keyframes dash-dialog { from { opacity: 0; transform: translateY(12px) scale(0.98); } }
+@keyframes dash-shimmer { to { background-position: -200% 0; } }
+@keyframes dash-sweep { from { background-position: -40% 0; } to { background-position: 140% 0; } }
+
+.dash { --ease: cubic-bezier(0.2, 0.7, 0.2, 1); }
+
+/* header card: title, filters, section links */
+.dash-hero {
+  background: linear-gradient(135deg, var(--accent-soft), var(--panel) 70%);
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  padding: 18px 18px 14px;
+  margin-bottom: 16px;
+  box-shadow: var(--shadow);
+  animation: dash-rise 0.4s var(--ease) backwards;
+}
+.dash-hero h2 { font-size: 24px; font-weight: 800; letter-spacing: -0.4px; }
+.dash-hero .dash-nav { margin: 4px 0 0; }
+.dash select, .dash input[type="date"] { border-radius: 10px; transition: border-color 0.15s, box-shadow 0.15s; }
+.dash select:hover, .dash input[type="date"]:hover { border-color: var(--accent); }
+.dash-nav .btn { border-radius: 99px; background: var(--panel); }
+.dash-nav .btn:hover { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); }
+
+/* buttons and links: smooth state changes, a small press */
+.dash .btn { transition: background-color 0.15s, border-color 0.15s, color 0.15s, transform 0.1s, box-shadow 0.15s; }
+.dash .btn:active:not(:disabled) { transform: scale(0.97); }
+.dash .btn.primary:hover { box-shadow: 0 4px 14px color-mix(in srgb, var(--accent) 35%, transparent); }
+.dash .linklike { transition: color 0.15s, text-decoration-color 0.15s; text-decoration-color: color-mix(in srgb, var(--accent) 40%, transparent); }
+.dash .linklike:hover { text-decoration-color: var(--accent); }
+
+/* panels: rounder, lift on hover, cascade in on load */
+.dash-body { position: relative; }
+.dash-body > .panel { border-radius: 14px; transition: box-shadow 0.2s, border-color 0.2s; }
+.dash-body > .panel:hover { box-shadow: 0 2px 4px rgba(20, 24, 40, 0.05), 0 10px 28px rgba(20, 24, 40, 0.08); }
+.dash-body > *, .dash .tiles > * { animation: dash-rise 0.45s var(--ease) backwards; }
+.dash-body > :nth-child(2) { animation-delay: 0.05s; }
+.dash-body > :nth-child(3) { animation-delay: 0.1s; }
+.dash-body > :nth-child(4) { animation-delay: 0.15s; }
+.dash-body > :nth-child(5) { animation-delay: 0.2s; }
+.dash-body > :nth-child(6) { animation-delay: 0.25s; }
+.dash-body > :nth-child(n + 7) { animation-delay: 0.3s; }
+.dash .tiles > :nth-child(2) { animation-delay: 0.1s; }
+.dash .tiles > :nth-child(3) { animation-delay: 0.14s; }
+.dash .tiles > :nth-child(4) { animation-delay: 0.18s; }
+.dash .tiles > :nth-child(n + 5) { animation-delay: 0.22s; }
+.dash [id^="dash-"] { scroll-margin-top: 76px; }
+.dash-body > .panel > h3::before, .dash-body > .panel > .row > h3::before {
+  content: ""; display: inline-block; width: 4px; height: 0.95em; border-radius: 2px;
+  background: var(--accent); margin-right: 8px; vertical-align: -2px;
+}
+
+/* stat tiles */
+.dash .tile { position: relative; overflow: hidden; border-radius: 14px; padding: 14px 16px; box-shadow: var(--shadow); transition: transform 0.2s var(--ease), box-shadow 0.2s, border-color 0.2s; }
+.dash .tile::before { content: ""; position: absolute; inset: 0 0 auto; height: 3px; background: linear-gradient(90deg, var(--accent), color-mix(in srgb, var(--accent) 30%, transparent)); }
+.dash .tile:hover { transform: translateY(-2px); border-color: color-mix(in srgb, var(--accent) 40%, var(--line)); box-shadow: 0 8px 22px rgba(20, 24, 40, 0.09); }
+.dash .tile .v { font-size: 28px; letter-spacing: -0.6px; font-variant-numeric: tabular-nums; }
+.dash .tile .delta { display: inline-block; margin-top: 6px; padding: 1px 8px; border-radius: 99px; font-weight: 600; }
+.dash .tile .delta.up { background: var(--good-soft); }
+.dash .tile .delta.down { background: var(--bad-soft); }
+.dash .tile .delta.flat { background: var(--bg); }
+
+/* needs attention: each item a clickable row */
+.dash .attention { border-left: 4px solid var(--accent); }
+.dash .attention li { align-items: center; padding: 7px 10px; border-radius: 10px; background: var(--bg); transition: background-color 0.15s, transform 0.15s var(--ease); animation: dash-rise 0.35s var(--ease) backwards; }
+.dash .attention li:hover { background: var(--accent-soft); transform: translateX(3px); }
+.dash .attention li:nth-child(2) { animation-delay: 0.08s; }
+.dash .attention li:nth-child(3) { animation-delay: 0.12s; }
+.dash .attention li:nth-child(4) { animation-delay: 0.16s; }
+.dash .attention li:nth-child(n + 5) { animation-delay: 0.2s; }
+.dash .attention .icon { display: grid; place-items: center; width: 26px; height: 26px; flex: 0 0 26px; border-radius: 50%; background: var(--accent-soft); color: var(--accent); font-size: 13px; }
+.dash .attention li:hover .icon { background: var(--panel); }
+
+/* tables */
+.dash .dash-table thead th { background: var(--bg); }
+.dash .dash-table thead th:first-child { border-radius: 8px 0 0 8px; }
+.dash .dash-table thead th:last-child { border-radius: 0 8px 8px 0; }
+.dash .dash-table tbody tr { transition: background-color 0.15s; }
+.dash .dash-table tbody tr:hover { background: color-mix(in srgb, var(--accent-soft) 60%, transparent); }
+.dash .chev { display: inline-block; transition: transform 0.2s var(--ease); }
+.dash [aria-expanded="true"] > .chev { transform: rotate(90deg); }
+.dash .subrow-in > td { animation: dash-rise 0.3s var(--ease) backwards; }
+.dash .page-in > * { animation: dash-fade 0.3s ease backwards; }
+.dash .list-item { padding: 10px 8px; border-bottom: 1px solid var(--line); border-radius: 8px; transition: background-color 0.15s; }
+.dash .list-item:hover { background: var(--bg); }
+
+/* meters and option bars grow in, and slide when values refresh */
+.dash .meter { background: var(--bg); }
+.dash .meter > div {
+  transform-origin: left; transition: width 0.5s var(--ease);
+  background: linear-gradient(90deg, color-mix(in srgb, var(--accent) 65%, var(--panel)), var(--accent));
+  animation: dash-grow-x 0.7s var(--ease) 0.2s backwards;
+}
+.dash .optbar-fill { transform-origin: left; transition: width 0.4s var(--ease); animation: dash-grow-x 0.55s var(--ease) backwards; animation-delay: calc(var(--d, 0) * 60ms); }
+
+/* charts */
+.viz .line { stroke-dasharray: 1; animation: dash-draw 1s var(--ease, ease-out) backwards; }
+.viz .dot { transform-box: fill-box; transform-origin: center; transition: stroke-width 0.15s; animation: dash-pop 0.35s var(--ease, ease-out) backwards; animation-delay: calc(0.45s + var(--d, 0) * 20ms); }
+.viz .bar { transform-box: fill-box; transform-origin: 50% 100%; transition: opacity 0.15s; animation: dash-grow-y 0.6s var(--ease, ease-out) backwards; animation-delay: calc(var(--d, 0) * 25ms); }
+.viz .crosshair { animation: dash-fade 0.15s ease; }
+.viz-tip { transition: left 0.12s ease, top 0.12s ease; border-radius: 10px; }
+.tip-enter-active, .tip-leave-active { transition: opacity 0.15s ease, transform 0.15s ease; }
+.tip-enter-from, .tip-leave-to { opacity: 0; transform: translateY(4px); }
+.heat-cell { transition: transform 0.15s var(--ease, ease-out), box-shadow 0.15s; animation: dash-fade 0.4s ease backwards; animation-delay: calc(var(--d, 0) * 18ms); }
+.heat-cell:hover, .heat-cell:focus-visible { transform: scale(1.08); box-shadow: 0 3px 10px rgba(20, 24, 40, 0.15); z-index: 1; }
+.heat-cell .fill { transition: opacity 0.4s ease; }
+
+/* "show as a table" disclosures */
+.dash details.viz-table summary { list-style: none; display: inline-block; padding: 3px 0; transition: color 0.15s; }
+.dash details.viz-table summary::-webkit-details-marker { display: none; }
+.dash details.viz-table summary::before { content: "▸"; display: inline-block; margin-right: 6px; transition: transform 0.2s var(--ease); }
+.dash details.viz-table summary:hover { color: var(--accent); }
+.dash details.viz-table[open] summary::before { transform: rotate(90deg); }
+.dash details.viz-table[open] > :not(summary) { animation: dash-rise 0.3s var(--ease) backwards; }
+
+/* refreshing: keep the dim, add a moving bar along the top */
+.dash-body.refetching::before {
+  content: ""; position: absolute; z-index: 3; top: -8px; left: 0; right: 0; height: 3px; border-radius: 3px;
+  background: linear-gradient(90deg, transparent, var(--accent), transparent) no-repeat;
+  background-size: 40% 100%;
+  animation: dash-sweep 1s linear infinite;
+}
+.refetching { transition: opacity 0.2s; }
+
+/* pager */
+.dash .pager .btn[aria-current="page"] { box-shadow: 0 2px 8px color-mix(in srgb, var(--accent) 30%, transparent); }
+
+/* question detail dialog */
+dialog.insight { border-radius: 16px; }
+dialog.insight[open] { animation: dash-dialog 0.22s var(--ease, ease-out); }
+dialog.insight[open]::backdrop { animation: dash-fade 0.2s ease; backdrop-filter: blur(2px); }
+
+/* loading skeleton */
+.dash .skeleton {
+  min-height: 84px;
+  background: linear-gradient(90deg, var(--panel) 30%, var(--bg) 50%, var(--panel) 70%);
+  background-size: 200% 100%;
+  animation: dash-shimmer 1.3s linear infinite;
+}
+.dash .skeleton.tall { min-height: 220px; }
+.dash .skeleton::before { display: none; }
+
+@media (prefers-reduced-motion: reduce) {
+  .dash *, .dash, dialog.insight { animation-delay: 0s !important; }
+  .dash .tile:hover, .dash .attention li:hover, .heat-cell:hover, .heat-cell:focus-visible { transform: none; }
+}
+@media print {
+  .dash, .dash *, .dash *::before { animation: none !important; transition: none !important; }
+  .dash-hero { background: none; border: 0; box-shadow: none; padding: 0; }
+  .dash .tile::before, .dash-body.refetching::before { display: none; }
+}

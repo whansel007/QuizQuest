@@ -78,7 +78,7 @@ function openInBank() {
                 <span v-else-if="o.rarelyChosen" class="badge draft">rarely chosen</span>
               </div>
               <div class="optbar-track">
-                <div class="optbar-fill" :style="{ width: (100 * o.count) / maxCount + '%' }"></div>
+                <div class="optbar-fill" :style="{ width: (100 * o.count) / maxCount + '%', '--d': i }"></div>
                 <span class="num small">{{ o.count }} ({{ pct(share(o.count, q.answers.answered)) }})</span>
               </div>
             </div>
@@ -101,7 +101,7 @@ function openInBank() {
             <div v-for="(k, i) in q.answers.keyPoints" :key="i" class="optbar">
               <div class="optbar-label"><span>{{ k.text }}</span></div>
               <div class="optbar-track">
-                <div class="optbar-fill" :style="{ width: (100 * k.covered) / maxCount + '%' }"></div>
+                <div class="optbar-fill" :style="{ width: (100 * k.covered) / maxCount + '%', '--d': i }"></div>
                 <span class="num small">{{ k.covered }} ({{ pct(share(k.covered, q.answers.answered)) }})</span>
               </div>
             </div>

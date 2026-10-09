@@ -75,19 +75,21 @@ const describe = (p) => `${p.label}. Average ${secs(p.x)}, accuracy ${pct(p.y)} 
           <text class="tick" :x="x(slowMs) + 4" :y="M.top + 10">slow</text>
         </template>
         <line class="refline" :x1="M.left" :x2="M.left + plotW" :y1="y(maxAccuracy)" :y2="y(maxAccuracy)" />
-        <circle v-for="p in shown" :key="p.id" :cx="x(p.x)" :cy="y(p.y)" r="4.5"
+        <circle v-for="(p, i) in shown" :key="p.id" class="dot" :style="{ '--d': Math.min(i, 30) }" :cx="x(p.x)" :cy="y(p.y)" r="4.5"
           :fill="p.n < lowN ? 'var(--panel)' : color(p)" :stroke="p.n < lowN ? color(p) : 'var(--panel)'" stroke-width="2"
           :class="{ lifted: active === p }" />
         <circle v-for="p in shown" :key="'h' + p.id" class="hit" :cx="x(p.x)" :cy="y(p.y)" r="12" tabindex="0" role="button" :aria-label="describe(p)"
           @pointerenter="active = p" @focus="active = p" @blur="active = null" @click="emit('open', p.id)" @keydown.enter.prevent="emit('open', p.id)" @keydown.space.prevent="emit('open', p.id)" />
       </svg>
-      <div v-if="tip" class="viz-tip" :style="{ left: tip.left + 'px', top: tip.top + 'px' }">
-        <div class="t">{{ tip.p.label }}</div>
-        <div class="r"><b>{{ secs(tip.p.x) }}</b><span>average time</span></div>
-        <div class="r"><b>{{ pct(tip.p.y) }}</b><span>correct</span><span class="muted">(n={{ tip.p.n }})</span></div>
-        <div v-if="tip.p.flagged" class="r"><span>⚠ possibly confusing</span></div>
-        <div class="muted">Click for details</div>
-      </div>
+      <Transition name="tip">
+        <div v-if="tip" class="viz-tip" :style="{ left: tip.left + 'px', top: tip.top + 'px' }">
+          <div class="t">{{ tip.p.label }}</div>
+          <div class="r"><b>{{ secs(tip.p.x) }}</b><span>average time</span></div>
+          <div class="r"><b>{{ pct(tip.p.y) }}</b><span>correct</span><span class="muted">(n={{ tip.p.n }})</span></div>
+          <div v-if="tip.p.flagged" class="r"><span>⚠ possibly confusing</span></div>
+          <div class="muted">Click for details</div>
+        </div>
+      </Transition>
     </div>
   </div>
 </template>

@@ -43,7 +43,7 @@ const describe = (d, b) => `${DAYS[d]} ${blockLabel(blocks.value[b])}: ${props.w
         <div v-for="b in blocks" :key="b.from" class="heat-col">{{ hh(b.from) }}</div>
         <template v-for="(row, d) in when.counts" :key="d">
           <div class="heat-row">{{ DAYS[d] }}</div>
-          <div v-for="(n, b) in row" :key="b" class="heat-cell" tabindex="0" :aria-label="describe(d, b)"
+          <div v-for="(n, b) in row" :key="b" class="heat-cell" tabindex="0" :aria-label="describe(d, b)" :style="{ '--d': d + b }"
             :class="{ active: active && active.d === d && active.b === b }"
             @pointerenter="active = { d, b }" @pointerleave="active = null" @focus="active = { d, b }" @blur="active = null">
             <span class="fill" :style="{ opacity: shade(n) }"></span>

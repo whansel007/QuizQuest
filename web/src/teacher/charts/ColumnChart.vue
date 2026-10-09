@@ -63,7 +63,7 @@ const describe = (r) => `${r.label}: ${fmt(r.value)} ${props.unit}. ${r.detail |
           <line class="gridline" :x1="M.left" :x2="M.left + plotW" :y1="y(t)" :y2="y(t)" />
           <text class="tick" :x="M.left - 6" :y="y(t) + 4" text-anchor="end">{{ fmt(t) }}</text>
         </template>
-        <path v-for="(r, i) in rows" :key="'b' + i" class="bar" :class="{ active: active === i }" :d="bar(i, r.value)" fill="var(--series-1)" />
+        <path v-for="(r, i) in rows" :key="'b' + i" class="bar" :class="{ active: active === i }" :style="{ '--d': Math.min(i, 30) }" :d="bar(i, r.value)" fill="var(--series-1)" />
         <line class="baseline" :x1="M.left" :x2="M.left + plotW" :y1="y(0)" :y2="y(0)" />
         <template v-for="(r, i) in rows" :key="'x' + i">
           <text v-if="i % step === 0" class="tick" :x="cx(i)" :y="height - 8" text-anchor="middle">{{ r.label }}</text>
@@ -71,11 +71,13 @@ const describe = (r) => `${r.label}: ${fmt(r.value)} ${props.unit}. ${r.detail |
         <rect v-for="(r, i) in rows" :key="'h' + i" class="hit" :x="M.left + band * i" :y="M.top" :width="band" :height="plotH"
           tabindex="0" :aria-label="describe(r)" @pointerenter="active = i" @focus="active = i" @blur="active = null" />
       </svg>
-      <div v-if="active !== null" class="viz-tip" :style="{ left: tipLeft + 'px', top: M.top + 'px' }">
-        <div class="t">{{ rows[active].label }}</div>
-        <div class="r"><b>{{ fmt(rows[active].value) }}</b><span>{{ unit }}</span></div>
-        <div v-if="rows[active].detail" class="muted">{{ rows[active].detail }}</div>
-      </div>
+      <Transition name="tip">
+        <div v-if="active !== null" class="viz-tip" :style="{ left: tipLeft + 'px', top: M.top + 'px' }">
+          <div class="t">{{ rows[active].label }}</div>
+          <div class="r"><b>{{ fmt(rows[active].value) }}</b><span>{{ unit }}</span></div>
+          <div v-if="rows[active].detail" class="muted">{{ rows[active].detail }}</div>
+        </div>
+      </Transition>
     </div>
   </div>
 </template>

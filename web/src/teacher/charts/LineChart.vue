@@ -82,22 +82,24 @@ const describe = (r) => `${r.label}: ` + props.series.map((s) => {
           <text v-if="i % step === 0" class="tick" :x="x(i)" :y="height - 8" text-anchor="middle">{{ r.label }}</text>
         </template>
         <line v-if="active !== null" class="crosshair" :x1="x(active)" :x2="x(active)" :y1="M.top" :y2="M.top + plotH" />
-        <path v-for="p in paths" :key="p.s.id" :d="p.d" fill="none" :stroke="color(p.s)" stroke-width="2" stroke-linejoin="round" stroke-linecap="round" />
-        <circle v-for="d in dots" :key="d.key" :cx="d.cx" :cy="d.cy" r="4"
+        <path v-for="p in paths" :key="p.s.id" class="line" pathLength="1" :d="p.d" fill="none" :stroke="color(p.s)" stroke-width="2" stroke-linejoin="round" stroke-linecap="round" />
+        <circle v-for="(d, i) in dots" :key="d.key" class="dot" :style="{ '--d': Math.min(i, 30) }" :cx="d.cx" :cy="d.cy" r="4"
           :fill="d.low ? 'var(--panel)' : color(d.s)" :stroke="d.low ? color(d.s) : 'var(--panel)'" stroke-width="2" />
         <!-- hit areas: the whole column of each x, focusable for keyboard users -->
         <rect v-for="(r, i) in rows" :key="'h' + i" class="hit" :x="M.left + band * i" :y="M.top" :width="band" :height="plotH"
           tabindex="0" :aria-label="describe(r)" @pointerenter="active = i" @focus="active = i" @blur="active = null" />
       </svg>
-      <div v-if="active !== null" class="viz-tip" :style="{ left: tipLeft + 'px', top: M.top + 'px' }">
-        <div class="t">{{ rows[active].label }}</div>
-        <div v-for="s in series" :key="s.id" class="r">
-          <span class="k" :style="{ background: color(s) }"></span>
-          <b>{{ cell(rows[active], s).value === null ? '-' : pct(cell(rows[active], s).value) }}</b>
-          <span>{{ s.name }}</span>
-          <span class="muted">(n={{ cell(rows[active], s).n }})</span>
+      <Transition name="tip">
+        <div v-if="active !== null" class="viz-tip" :style="{ left: tipLeft + 'px', top: M.top + 'px' }">
+          <div class="t">{{ rows[active].label }}</div>
+          <div v-for="s in series" :key="s.id" class="r">
+            <span class="k" :style="{ background: color(s) }"></span>
+            <b>{{ cell(rows[active], s).value === null ? '-' : pct(cell(rows[active], s).value) }}</b>
+            <span>{{ s.name }}</span>
+            <span class="muted">(n={{ cell(rows[active], s).n }})</span>
+          </div>
         </div>
-      </div>
+      </Transition>
     </div>
   </div>
 </template>
