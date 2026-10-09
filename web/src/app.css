@@ -403,3 +403,37 @@ button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible
 .dash-table .label { overflow-wrap: normal; word-break: normal; min-width: 96px; }
 /* question text keeps a readable width; the table scrolls sideways instead */
 .dash-table .q { min-width: 220px; overflow-wrap: normal; }
+
+/* ---------- dashboard: attention strip, deltas, drill-downs ---------- */
+.attention ul { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
+.attention li { display: flex; gap: 8px; align-items: baseline; font-size: 14px; }
+.attention .icon { width: 1.2em; flex: 0 0 1.2em; text-align: center; color: var(--muted); }
+.linklike { background: none; border: 0; padding: 0; font: inherit; color: var(--accent); text-align: left; cursor: pointer; text-decoration: underline; text-underline-offset: 2px; }
+.linklike:hover { text-decoration-thickness: 2px; }
+.tile .delta { font-size: 12px; margin-top: 4px; font-variant-numeric: tabular-nums; }
+.tile .delta.up { color: var(--good); }
+.tile .delta.down { color: var(--bad); }
+.tile .delta.flat { color: var(--muted); }
+.chart-title { font-size: 13px; font-weight: 600; margin-bottom: 4px; }
+.multiples { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(240px, 100%), 1fr)); gap: 12px; }
+.viz .refline { stroke: var(--muted); stroke-width: 1; opacity: 0.6; }
+.viz .lifted { stroke-width: 3; }
+.viz-legend .k.dot { width: 9px; height: 9px; border-radius: 50%; }
+.subrow { background: var(--bg); }
+.subrow .label { padding-left: 14px; min-width: 180px; }
+h3[tabindex="-1"]:focus { outline: none; }
+.qcard.flash { outline: 3px solid var(--accent); outline-offset: 2px; transition: outline-color 0.3s; }
+.qcard:focus { outline: none; }
+.qcard.flash:focus { outline: 3px solid var(--accent); }
+
+/* question detail dialog */
+dialog.insight { width: min(720px, calc(100vw - 32px)); max-height: calc(100vh - 48px); padding: 0; border: 1px solid var(--line); border-radius: var(--radius); background: var(--panel); color: var(--ink); box-shadow: 0 10px 40px rgba(0, 0, 0, 0.25); }
+dialog.insight::backdrop { background: rgba(10, 12, 20, 0.45); }
+.insight-body { padding: 18px 20px; overflow-wrap: anywhere; }
+.insight-body h4 { margin: 14px 0 6px; font-size: 14px; }
+.optbars { display: grid; gap: 8px; }
+.optbar-label { display: flex; gap: 8px; align-items: baseline; justify-content: space-between; font-size: 13px; }
+.optbar-track { display: flex; align-items: center; gap: 8px; }
+.optbar-fill { height: 10px; min-width: 2px; background: var(--series-1, #2a78d6); border-radius: 0 4px 4px 0; }
+.right-answer { color: var(--good); font-size: 12px; white-space: nowrap; }
+@media (prefers-color-scheme: dark) { .optbar-fill { background: #3987e5; } }
