@@ -79,6 +79,14 @@ const SKILL = {
   's-05': { 'tp-data': 0.9, 'tp-net': 0.6, 'tp-sec': 0.9 },
   's-06': { 'tp-data': 0.6, 'tp-net': 0.45, 'tp-sec': 0.7 },
 };
+// A second Computing tutorial group (Group C, same professor) with a
+// different pattern - stronger at Networking, weaker at Cyber hygiene - so
+// the dashboard's "Compare your classes" has something to show.
+const SKILL_C = {
+  's-09': { 'tp-data': 0.7, 'tp-net': 0.8, 'tp-sec': 0.45 },
+  's-10': { 'tp-data': 0.55, 'tp-net': 0.75, 'tp-sec': 0.5 },
+  's-11': { 'tp-data': 0.8, 'tp-net': 0.85, 'tp-sec': 0.6 },
+};
 
 function seed(now = Date.now()) {
   const rand = mulberry32(42);
@@ -87,7 +95,7 @@ function seed(now = Date.now()) {
     users: [
       { id: 't-a', name: 'Prof. Demo A', role: 'teacher' },
       { id: 't-b', name: 'Prof. Demo B', role: 'teacher' },
-      ...['01', '02', '03', '04', '05', '06', '07', '08'].map((n) => ({ id: 's-' + n, name: 'Student ' + n, role: 'student' })),
+      ...['01', '02', '03', '04', '05', '06', '07', '08', '09', '10', '11', '12'].map((n) => ({ id: 's-' + n, name: 'Student ' + n, role: 'student' })),
     ],
     courses: [
       { id: 'c-comp', title: 'Intro to Computing (demo)', teacherIds: ['t-a'], coverageTarget: 4, promptConfig: 'Prefer short applied scenarios over pure recall. Use plain British English.' },
@@ -109,11 +117,13 @@ function seed(now = Date.now()) {
     classes: [
       { id: 'cl-a', courseId: 'c-comp', name: 'Computing - Tutorial Group A', teacherIds: ['t-a'], settings: { tradingEnabled: true, participation: { enabled: false } } },
       { id: 'cl-b', courseId: 'c-stats', name: 'Statistics - Tutorial Group B', teacherIds: ['t-b'], settings: { tradingEnabled: true, participation: { enabled: false } } },
+      { id: 'cl-c', courseId: 'c-comp', name: 'Computing - Tutorial Group C', teacherIds: ['t-a'], settings: { tradingEnabled: true, participation: { enabled: false } } },
     ],
     enrolments: [
       ...['01', '02', '03', '04', '05', '06'].map((n) => ({ classId: 'cl-a', studentId: 's-' + n })),
       { classId: 'cl-b', studentId: 's-07' },
       { classId: 'cl-b', studentId: 's-08' },
+      ...['09', '10', '11', '12'].map((n) => ({ classId: 'cl-c', studentId: 's-' + n })),
     ],
     passages: PASSAGES.map(([id, courseId, topicId, outcomeId, title, text]) => ({ id, courseId, topicId, outcomeId, title, text, createdBy: courseId === 'c-comp' ? 't-a' : 't-b', createdAt: now - 30 * DAY })),
     questions: [],
@@ -150,34 +160,37 @@ function seed(now = Date.now()) {
   });
   db.questions.find((q) => q.id === 'q-n2').reports.push({ id: 'r-seed1', studentId: 's-03', reason: '"Sharp picture" made me think bandwidth was the issue, the wording is confusing.', at: now - 2 * DAY, resolved: false });
 
-  // --- Synthetic practice history for students 02-06 ---------------
+  // --- Synthetic practice history ---------------------------------
   const compQs = db.questions.filter((q) => q.courseId === 'c-comp' && q.status === 'published');
-  for (const [studentId, skill] of Object.entries(SKILL)) {
-    for (const daysAgo of [9, 5, 2]) {
-      const start = now - daysAgo * DAY - Math.floor(rand() * 6) * 3600000;
-      const picked = [...compQs].sort(() => rand() - 0.5).slice(0, 8);
-      const session = { id: `ses-seed-${studentId}-${daysAgo}`, studentId, classId: 'cl-a', courseId: 'c-comp', createdAt: start, timerSec: 0, mode: 'seed', plan: { weakTopicIds: [], notes: [] }, items: [], cursor: picked.length, npc: { name: 'Fog of Confusion', emoji: '👾', maxHp: 50, hp: 0 }, completedAt: null };
-      let t = start;
-      for (const q of picked) {
-        const v = q.versions[0];
-        // q-n2 is deliberately tricky: most wrong answers pick "Low bandwidth"
-        const p = q.id === 'q-n2' ? skill[q.topicId] * 0.5 : skill[q.topicId];
-        const correct = rand() < p;
-        const wrong = v.options.map((_, i) => i).filter((i) => i !== v.answerIndex);
-        const choice = correct ? v.answerIndex : q.id === 'q-n2' && rand() < 0.8 ? 0 : wrong[Math.floor(rand() * wrong.length)];
-        const ms = 6000 + Math.floor(rand() * (q.topicId === 'tp-data' ? 40000 : 22000));
-        t += ms + 2000;
-        const first = !db.attempts.some((a) => a.studentId === studentId && a.questionId === q.id);
-        db.attempts.push({ id: `at-${session.id}-${q.id}`, sessionId: session.id, studentId, classId: 'cl-a', courseId: 'c-comp', questionId: q.id, version: 1, topicId: q.topicId, type: 'mcq', choice, correct, score: correct ? 1 : 0, ms, timedOut: false, first, context: 'practice', at: t });
-        session.items.push({ qid: q.id, v: 1, servedAt: t - ms, result: { correct, choice } });
-        if (correct) award(db, studentId, REWARDS.firstCorrect, 'Correct on a new question', `correct:${studentId}:${q.id}`, t);
+  function history(classId, skills, daysAgoList) {
+    for (const [studentId, skill] of Object.entries(skills)) {
+      for (const daysAgo of daysAgoList) {
+        const start = now - daysAgo * DAY - Math.floor(rand() * 6) * 3600000;
+        const picked = [...compQs].sort(() => rand() - 0.5).slice(0, 8);
+        const session = { id: `ses-seed-${studentId}-${daysAgo}`, studentId, classId, courseId: 'c-comp', createdAt: start, timerSec: 0, mode: 'seed', plan: { weakTopicIds: [], notes: [] }, items: [], cursor: picked.length, npc: { name: 'Fog of Confusion', emoji: '👾', maxHp: 50, hp: 0 }, completedAt: null };
+        let t = start;
+        for (const q of picked) {
+          const v = q.versions[0];
+          // q-n2 is deliberately tricky: most wrong answers pick "Low bandwidth"
+          const p = q.id === 'q-n2' ? skill[q.topicId] * 0.5 : skill[q.topicId];
+          const correct = rand() < p;
+          const wrong = v.options.map((_, i) => i).filter((i) => i !== v.answerIndex);
+          const choice = correct ? v.answerIndex : q.id === 'q-n2' && rand() < 0.8 ? 0 : wrong[Math.floor(rand() * wrong.length)];
+          const ms = 6000 + Math.floor(rand() * (q.topicId === 'tp-data' ? 40000 : 22000));
+          t += ms + 2000;
+          const first = !db.attempts.some((a) => a.studentId === studentId && a.questionId === q.id);
+          db.attempts.push({ id: `at-${session.id}-${q.id}`, sessionId: session.id, studentId, classId, courseId: 'c-comp', questionId: q.id, version: 1, topicId: q.topicId, type: 'mcq', choice, correct, score: correct ? 1 : 0, ms, timedOut: false, first, context: 'practice', at: t });
+          session.items.push({ qid: q.id, v: 1, servedAt: t - ms, result: { correct, choice } });
+          if (correct) award(db, studentId, REWARDS.firstCorrect, 'Correct on a new question', `correct:${studentId}:${q.id}`, t);
+        }
+        session.completedAt = t;
+        award(db, studentId, REWARDS.sessionComplete, 'Completed a practice session', `session:${session.id}`, t);
+        grantResources(db, studentId, SESSION_RESOURCES, 'Completed a practice session', `sessionres:${session.id}`, t);
+        db.sessions.push(session);
       }
-      session.completedAt = t;
-      award(db, studentId, REWARDS.sessionComplete, 'Completed a practice session', `session:${session.id}`, t);
-      grantResources(db, studentId, SESSION_RESOURCES, 'Completed a practice session', `sessionres:${session.id}`, t);
-      db.sessions.push(session);
     }
   }
+  history('cl-a', SKILL, [9, 5, 2]);
   for (const u of db.users) if (u.role === 'student') inventory(db, u.id);
 
   // Newer formats, added after the synthetic history (so nobody has
@@ -195,6 +208,9 @@ function seed(now = Date.now()) {
 
   // One open trade offer so the class market isn't empty
   createTrade(db, { cls: db.classes[0], studentId: 's-03', give: { wood: 3 }, want: { herb: 2 }, now: now - DAY });
+  // Group C last (Student 12 has no history yet), so Group A's data above
+  // stays exactly as it was before Group C existed
+  history('cl-c', SKILL_C, [8, 4, 1]);
   return db;
 }
 
