@@ -51,13 +51,15 @@ const currentVersion = (q) => q.versions.find((x) => x.v === q.publishedVersion)
 // ---------------- the period ----------------
 // parsePeriod(query) -> { range, from, to } or { error }
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
+// a real calendar date: Date.parse would roll 2026-02-30 over to 2 March
+const isDate = (d) => DATE_RE.test(d || '') && !Number.isNaN(Date.parse(d)) && new Date(Date.parse(d)).toISOString().slice(0, 10) === d;
 function parsePeriod(get) {
   const range = get('range') || 'all';
   if (!Object.hasOwn(RANGES, range)) return { error: 'Unknown period.' };
   if (range !== 'custom') return { range };
   const from = get('from');
   const to = get('to');
-  if (!DATE_RE.test(from || '') || !DATE_RE.test(to || '') || Number.isNaN(Date.parse(from)) || Number.isNaN(Date.parse(to))) return { error: 'Pick a start and end date.' };
+  if (!isDate(from) || !isDate(to)) return { error: 'Pick a valid start and end date.' };
   const days = (Date.parse(to) - Date.parse(from)) / DAY + 1;
   if (days < 1) return { error: 'The start date must be on or before the end date.' };
   if (days > MAX_CUSTOM_DAYS) return { error: `Pick at most ${MAX_CUSTOM_DAYS} days.` };
@@ -70,6 +72,7 @@ function context(db, classId, now, period) {
   const topics = db.topics.filter((t) => t.courseId === cls.courseId);
   const enrolled = db.enrolments.filter((e) => e.classId === classId).map((e) => e.studentId);
   const today = localDate(now, tz);
+  const last7 = instantOf(today - 6 * DAY, tz); // today and the 6 days before it
   // windows are whole local days: "last 7 days" = today and the 6 days before it
   let since = -Infinity;
   let until = Infinity;
@@ -89,7 +92,7 @@ function context(db, classId, now, period) {
   const enrolledSet = new Set(enrolled);
   const classAttempts = db.attempts.filter((a) => a.classId === classId && enrolledSet.has(a.studentId));
   return {
-    cls, tz, topics, enrolled, since, until, days, prev, classAttempts,
+    cls, tz, topics, enrolled, since, until, days, prev, last7, classAttempts,
     attempts: classAttempts.filter((a) => a.at >= since && a.at < until),
     bucket: days !== null && days <= DAILY_BUCKETS_UP_TO ? 'day' : 'week',
   };
@@ -102,8 +105,12 @@ function trend(classAttempts, topics, { range, since, until, now, tz, bucket }) 
   const step = bucket === 'day' ? 1 : 7;
   const align = bucket === 'day' ? (d) => d : mondayOf;
   const last = align(localDate(Math.min(now, until - 1), tz));
-  let first = align(localDate(range === 'all' ? Math.min(now, ...classAttempts.map((a) => a.at)) : since, tz));
-  if (range === 'all') first = Math.max(first, last - (MAX_WEEKS - 1) * 7 * DAY);
+  let earliest = now;
+  if (range === 'all') for (const a of classAttempts) if (a.at < earliest) earliest = a.at;
+  let first = align(localDate(range === 'all' ? earliest : since, tz));
+  // all time: at most the last MAX_WEEKS weeks are charted (tiles/tables still cover everything)
+  const capped = range === 'all' && first < last - (MAX_WEEKS - 1) * 7 * DAY;
+  if (capped) first = last - (MAX_WEEKS - 1) * 7 * DAY;
   const points = [];
   for (let date = first; date <= last; date += step * DAY) {
     const start = instantOf(date, tz);
@@ -118,7 +125,7 @@ function trend(classAttempts, topics, { range, since, until, now, tz, bucket }) 
       topics: Object.fromEntries(topics.map((t) => [t.id, rate(byTopic.get(t.id) || [])])),
     });
   }
-  return { bucket, lowN: LOW_N, topics: topics.map((t) => ({ id: t.id, name: t.name })), points };
+  return { bucket, lowN: LOW_N, capped, maxWeeks: MAX_WEEKS, topics: topics.map((t) => ({ id: t.id, name: t.name })), points };
 }
 
 // Every live question should carry a topic, a learning outcome from that
@@ -194,7 +201,8 @@ function quality(courseQs, byQuestion, topics) {
     const list = byQuestion.get(q.id);
     if (!list) continue;
     const v = currentVersion(q);
-    const r = rate(list.filter((a) => !a.needsReview));
+    // first attempts only: a retry right after the explanation says little about difficulty
+    const r = rate(list.filter((a) => !a.needsReview && a.first));
     const meta = { questionId: q.id, stem: v.stem, type: TYPE_LABELS[v.type || 'mcq'], topic: topics.find((t) => t.id === q.topicId)?.name };
     if (r.n >= DIFFICULTY_CHECK.minN) {
       if (v.difficulty === 'easy' && r.accuracy < DIFFICULTY_CHECK.easyBelow) difficulty.push({ ...meta, tagged: 'easy', accuracy: r, verdict: 'harder than tagged' });
@@ -240,7 +248,7 @@ function activity(attempts, sessions, from, to) {
 
 function classAnalytics(db, classId, now = Date.now(), period = { range: 'all' }) {
   const ctx = context(db, classId, now, period);
-  const { cls, tz, topics, enrolled, since, until, prev, classAttempts, attempts } = ctx;
+  const { cls, tz, topics, enrolled, since, until, prev, last7, classAttempts, attempts } = ctx;
   const confirmed = attempts.filter((a) => !a.needsReview);
   const sessions = db.sessions.filter((s) => s.classId === classId);
   const courseQs = db.questions.filter((x) => x.courseId === cls.courseId);
@@ -254,7 +262,7 @@ function classAnalytics(db, classId, now = Date.now(), period = { range: 'all' }
   const participation = {
     enrolled: enrolled.length,
     ...activity(attempts, sessions, since, until),
-    active7d: new Set(classAttempts.filter((a) => a.at > now - 7 * DAY).map((a) => a.studentId)).size,
+    active7d: new Set(classAttempts.filter((a) => a.at >= last7).map((a) => a.studentId)).size,
     worldAttempts: attempts.filter((a) => a.context === 'world').length,
     awaitingMarking: attempts.length - confirmed.length,
     allTimeAttempts: classAttempts.length,
@@ -322,10 +330,10 @@ function classAnalytics(db, classId, now = Date.now(), period = { range: 'all' }
       openReports: q.reports.filter((r) => !r.resolved).length,
     });
   }
+  // lowest first-attempt accuracy first; ties: more evidence first
   const commonlyMissed = qStats
     .filter((s) => s.first.n >= MIN_N)
-    .sort((a, b) => a.first.accuracy - b.first.accuracy)
-    .slice(0, 5);
+    .sort((a, b) => a.first.accuracy - b.first.accuracy || b.first.n - a.first.n);
 
   // Opt-in only: per-student participation points
   let points = null;
@@ -412,7 +420,7 @@ function questionInsights(db, classId, questionId, now = Date.now(), period = { 
     answers = { kind: 'varies', answered: current.length }; // maths templates: options differ per student
   }
 
-  const r = rate(confirmed);
+  const r = rate(confirmed.filter((a) => a.first));
   let difficultyVerdict = null;
   if (r.n >= DIFFICULTY_CHECK.minN) {
     if (v.difficulty === 'easy' && r.accuracy < DIFFICULTY_CHECK.easyBelow) difficultyVerdict = 'harder than tagged';
