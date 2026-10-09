@@ -15,6 +15,7 @@
 // ============================================================
 
 const crypto = require('crypto');
+const { dayKey } = require('./time');
 
 const REWARDS = {
   firstCorrect: 10,       // first time a student gets a given question right
@@ -23,7 +24,7 @@ const REWARDS = {
   milestone: 30,          // topic practice indicator reaches the target (once per topic)
   milestoneAccuracy: 0.8,
   milestoneMinN: 5,
-  dailyCap: 150,          // max coins EARNED per UTC day (purchases don't count)
+  dailyCap: 150,          // max coins EARNED per local day (purchases don't count; see time.js)
   eggCost: 50,
   duplicateRefund: 20,    // drawing a pet you already own refunds this much
 };
@@ -47,7 +48,6 @@ const ITEMS = [
 // Disclosed to students before they spend anything. Out of 1000.
 const EGG_ODDS = { common: 600, rare: 300, epic: 100 };
 
-const dayKey = (t) => new Date(t).toISOString().slice(0, 10);
 
 function balance(db, studentId) {
   let total = 0;

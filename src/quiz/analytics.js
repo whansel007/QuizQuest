@@ -18,10 +18,9 @@
 // ============================================================
 
 const { TYPE_LABELS } = require('./formats');
+const { DAY, DEFAULT_TZ, isValidTimeZone, localDate, instantOf, mondayOf } = require('./time');
 
-const DAY = 86400000;
 const RANGES = { '7d': 7, '30d': 30, all: null };
-const DEFAULT_TZ = 'Asia/Singapore';
 const MIN_N = 3; // first attempts before a question can be "commonly missed"
 const LOW_N = 5; // trend points / per-question figures from fewer answers are flagged
 const MAX_WEEKS = 12; // all-time trend shows at most this many recent weeks
@@ -39,35 +38,6 @@ function rate(list) {
   const correct = list.filter((a) => a.correct).length;
   return { n: list.length, correct, accuracy: list.length ? correct / list.length : null };
 }
-
-// ---------------- time zones ----------------
-// A "local date" is the calendar date in the class's zone, encoded as UTC
-// midnight of that date, so date arithmetic is plain day steps.
-function isValidTimeZone(tz) {
-  if (typeof tz !== 'string' || !tz) return false;
-  try {
-    new Intl.DateTimeFormat('en-US', { timeZone: tz });
-    return true;
-  } catch {
-    return false;
-  }
-}
-const formatters = new Map();
-function wallClock(t, tz) {
-  if (!formatters.has(tz)) {
-    formatters.set(tz, new Intl.DateTimeFormat('en-US', { timeZone: tz, hourCycle: 'h23', year: 'numeric', month: 'numeric', day: 'numeric', hour: 'numeric', minute: 'numeric', second: 'numeric' }));
-  }
-  const p = Object.fromEntries(formatters.get(tz).formatToParts(new Date(t)).map((x) => [x.type, Number(x.value)]));
-  return Date.UTC(p.year, p.month - 1, p.day, p.hour, p.minute, p.second);
-}
-const offset = (t, tz) => wallClock(t, tz) - Math.floor(t / 1000) * 1000;
-const localDate = (t, tz) => Math.floor(wallClock(t, tz) / DAY) * DAY;
-// local midnight of a local date -> the real instant
-function instantOf(date, tz) {
-  const guess = date - offset(date, tz);
-  return date - offset(guess, tz);
-}
-const mondayOf = (date) => date - ((new Date(date).getUTCDay() + 6) % 7) * DAY;
 
 // ---------------- pieces ----------------
 

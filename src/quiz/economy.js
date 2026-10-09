@@ -12,13 +12,15 @@
 
 const crypto = require('crypto');
 const { inventory } = require('./rewards');
+// local days/weeks (app time zone, Singapore by default), not UTC
+const { dayKey, weekKey } = require('./time');
 
 const RESOURCES = {
   wood: { name: 'Wood', emoji: '🪵' },
   crystal: { name: 'Crystal', emoji: '💎' },
   herb: { name: 'Herb', emoji: '🌿' },
 };
-const RESOURCE_DAILY_CAP = 60; // units earned per UTC day
+const RESOURCE_DAILY_CAP = 60; // units earned per local day (see time.js)
 
 // Each building has 3 levels; cost of reaching level 1, 2, 3
 const BUILDINGS = {
@@ -32,14 +34,6 @@ const TRADE = { maxOpenPerStudent: 3, maxUnitsPerSide: 20, maxCompletedPerDay: 5
 const PARTICIPATION = { minQuestions: 5, weeklyCap: 3 };
 
 const newId = (p) => p + '-' + crypto.randomUUID().slice(0, 8);
-const dayKey = (t) => new Date(t).toISOString().slice(0, 10);
-// ISO-ish week key: Monday-based week number, good enough for a weekly cap
-const weekKey = (t) => {
-  const d = new Date(t);
-  const monday = new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate() - ((d.getUTCDay() + 6) % 7)));
-  return monday.toISOString().slice(0, 10);
-};
-
 function resources(db, studentId) {
   const inv = inventory(db, studentId);
   inv.resources = inv.resources || { wood: 0, crystal: 0, herb: 0 };

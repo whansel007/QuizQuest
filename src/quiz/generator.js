@@ -21,6 +21,7 @@ const crypto = require('crypto');
 const { validateQuestion, normalise } = require('./validate');
 const { retrieve } = require('./retrieval');
 const gemini = require('./gemini');
+const { dayKey } = require('./time');
 
 const GEN = {
   maxBatch: 5,
@@ -202,9 +203,9 @@ async function generate({ db, course, topic, outcome, count, format = 'mcq', foc
   // One drafting job per course at a time: the cap below is checked before
   // the (slow) model call, so parallel requests would otherwise all pass it.
   if (inFlight.has(course.id)) return { status: 409, body: { error: 'Questions are already being drafted for this course. Try again when that finishes.' } };
-  const today = new Date(now).toISOString().slice(0, 10);
+  const today = dayKey(now); // local day (app time zone), like the other daily limits
   // every model call counts, including retries
-  const callsToday = db.generationLog.filter((g) => g.courseId === course.id && new Date(g.at).toISOString().slice(0, 10) === today).reduce((n, g) => n + (g.calls || 1), 0);
+  const callsToday = db.generationLog.filter((g) => g.courseId === course.id && dayKey(g.at) === today).reduce((n, g) => n + (g.calls || 1), 0);
   if (callsToday >= GEN.dailyCallsPerCourse) {
     return { status: 429, body: { error: `Daily generation limit (${GEN.dailyCallsPerCourse} drafting calls) reached for this course. Students can keep practising from the existing bank.` } };
   }
