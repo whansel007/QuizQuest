@@ -24,7 +24,7 @@ const { createStore } = require('./store');
 const { validateQuestion } = require('./validate');
 const { generate, GEN } = require('./generator');
 const { ADAPTIVE, topicStats, planSession } = require('./adaptive');
-const { classAnalytics, RANGES: ANALYTICS_RANGES } = require('./analytics');
+const { classAnalytics, questionInsights, isValidTimeZone, RANGES: ANALYTICS_RANGES } = require('./analytics');
 const { courseEvaluation } = require('./evaluation');
 const { TYPES, TYPE_LABELS, studentView, newInstance, instantiate, gradeSync, isEmpty } = require('./formats');
 const { grade } = require('./grading');
@@ -350,6 +350,8 @@ function createQuizApi({ dataFile = null, store = null, now = () => Date.now(), 
 
   route('PUT', '/api/teacher/classes/:classId/settings', 'teacher', ({ user, params, body }) => {
     const cls = teacherClass(user, params.classId);
+    // validate everything before changing anything
+    if (body.timezone !== undefined && !isValidTimeZone(body.timezone)) fail(400, 'Unknown time zone.');
     if (typeof body.tradingEnabled === 'boolean') {
       cls.settings.tradingEnabled = body.tradingEnabled;
       if (!body.tradingEnabled) {
@@ -358,6 +360,8 @@ function createQuizApi({ dataFile = null, store = null, now = () => Date.now(), 
       }
     }
     if (typeof body.participationEnabled === 'boolean') cls.settings.participation = { enabled: body.participationEnabled };
+    // the time zone the dashboard uses for "today", days and weeks
+    if (body.timezone !== undefined) cls.settings.timezone = body.timezone;
     save();
     return cls.settings;
   });
@@ -570,6 +574,14 @@ function createQuizApi({ dataFile = null, store = null, now = () => Date.now(), 
     const range = query.get('range') || 'all';
     if (!Object.hasOwn(ANALYTICS_RANGES, range)) fail(400, 'Unknown period.');
     return classAnalytics(db, params.classId, now(), { range });
+  });
+
+  // One question in detail (dashboard drill-down), for this class's answers
+  route('GET', '/api/teacher/classes/:classId/questions/:qid/insights', 'teacher', ({ user, params, query }) => {
+    teacherClass(user, params.classId);
+    const range = query.get('range') || 'all';
+    if (!Object.hasOwn(ANALYTICS_RANGES, range)) fail(400, 'Unknown period.');
+    return questionInsights(db, params.classId, params.qid, now(), { range }) || fail(404, 'Not found.');
   });
 
   route('GET', '/api/teacher/classes/:classId/participation.csv', 'teacher', ({ user, params }) => {

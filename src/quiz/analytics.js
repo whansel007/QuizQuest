@@ -5,24 +5,29 @@
 // separate from retries (a retry right after seeing the explanation
 // says less about understanding). Low accuracy is a prompt to
 // investigate - student difficulty, an ambiguous question, or a gap in
-// teaching - never an automatic grade or label.
+// teaching - never an automatic grade or label. Nothing here names or
+// ranks individual students (opt-in participation points aside).
 //
 // Short answers still waiting for the professor's mark are left out of
 // every accuracy figure (their automatic mark is only provisional) and
 // counted separately as "awaiting marking".
 //
-// A period filter (last 7 days / 30 days / all time) scopes everything:
-// tiles, tables, trends and response times.
+// A period filter (last 7 days / 30 days / all time) scopes everything.
+// Days and weeks follow the class's time zone (default Singapore), so an
+// answer at 7am on Tuesday counts on Tuesday.
 // ============================================================
 
 const { TYPE_LABELS } = require('./formats');
 
 const DAY = 86400000;
 const RANGES = { '7d': 7, '30d': 30, all: null };
+const DEFAULT_TZ = 'Asia/Singapore';
 const MIN_N = 3; // first attempts before a question can be "commonly missed"
-const LOW_N = 5; // trend points / averages from fewer answers are flagged
+const LOW_N = 5; // trend points / per-question figures from fewer answers are flagged
 const MAX_WEEKS = 12; // all-time trend shows at most this many recent weeks
 const DIFFICULTIES = ['easy', 'medium', 'hard'];
+// "Possibly confusing": slow (top quarter of question times) AND mostly wrong
+const CONFUSING = { slowQuantile: 0.75, maxAccuracy: 0.5 };
 
 function quantile(sorted, p) {
   if (!sorted.length) return null;
@@ -35,24 +40,50 @@ function rate(list) {
   return { n: list.length, correct, accuracy: list.length ? correct / list.length : null };
 }
 
-// UTC day / Monday-week boundaries (the same day keys the rewards use)
-const dayStart = (t) => Math.floor(t / DAY) * DAY;
-const weekStart = (t) => {
-  const d = new Date(dayStart(t));
-  return d.getTime() - ((d.getUTCDay() + 6) % 7) * DAY;
-};
+// ---------------- time zones ----------------
+// A "local date" is the calendar date in the class's zone, encoded as UTC
+// midnight of that date, so date arithmetic is plain day steps.
+function isValidTimeZone(tz) {
+  if (typeof tz !== 'string' || !tz) return false;
+  try {
+    new Intl.DateTimeFormat('en-US', { timeZone: tz });
+    return true;
+  } catch {
+    return false;
+  }
+}
+const formatters = new Map();
+function wallClock(t, tz) {
+  if (!formatters.has(tz)) {
+    formatters.set(tz, new Intl.DateTimeFormat('en-US', { timeZone: tz, hourCycle: 'h23', year: 'numeric', month: 'numeric', day: 'numeric', hour: 'numeric', minute: 'numeric', second: 'numeric' }));
+  }
+  const p = Object.fromEntries(formatters.get(tz).formatToParts(new Date(t)).map((x) => [x.type, Number(x.value)]));
+  return Date.UTC(p.year, p.month - 1, p.day, p.hour, p.minute, p.second);
+}
+const offset = (t, tz) => wallClock(t, tz) - Math.floor(t / 1000) * 1000;
+const localDate = (t, tz) => Math.floor(wallClock(t, tz) / DAY) * DAY;
+// local midnight of a local date -> the real instant
+function instantOf(date, tz) {
+  const guess = date - offset(date, tz);
+  return date - offset(guess, tz);
+}
+const mondayOf = (date) => date - ((new Date(date).getUTCDay() + 6) % 7) * DAY;
+
+// ---------------- pieces ----------------
 
 // Accuracy per topic and activity, bucketed by day (7-day view) or week
-function trend(attempts, topics, { range, since, now }) {
+function trend(attempts, topics, { range, since, now, tz }) {
   const bucket = range === '7d' ? 'day' : 'week';
-  const size = bucket === 'day' ? DAY : 7 * DAY;
-  const startOf = bucket === 'day' ? dayStart : weekStart;
-  let first = startOf(range === 'all' ? Math.min(now, ...attempts.map((a) => a.at)) : since);
-  const last = startOf(now);
-  if (range === 'all') first = Math.max(first, last - (MAX_WEEKS - 1) * size);
+  const step = bucket === 'day' ? 1 : 7;
+  const align = bucket === 'day' ? (d) => d : mondayOf;
+  const last = align(localDate(now, tz));
+  let first = align(localDate(range === 'all' ? Math.min(now, ...attempts.map((a) => a.at)) : since, tz));
+  if (range === 'all') first = Math.max(first, last - (MAX_WEEKS - 1) * 7 * DAY);
   const points = [];
-  for (let start = first; start <= last; start += size) {
-    const list = attempts.filter((a) => a.at >= start && a.at < start + size && a.at >= since);
+  for (let date = first; date <= last; date += step * DAY) {
+    const start = instantOf(date, tz);
+    const end = instantOf(date + step * DAY, tz);
+    const list = attempts.filter((a) => a.at >= start && a.at < end && a.at >= since);
     const confirmed = list.filter((a) => !a.needsReview);
     points.push({
       start,
@@ -81,49 +112,82 @@ function tagCheck(db, courseId, topics) {
   return { total: qs.length, complete: qs.length - issues.length, issues };
 }
 
-// Average time students spend on each question. Time is measured by the
-// server from serving the question to receiving the answer; timed-out
-// answers have no answering time and are left out. Each student counts
-// once (the average of their own times), so one student answering many
-// times can't skew it. Only class-level figures are returned: no names
-// or per-student times.
-function timeByQuestion(db, attempts, topics) {
-  const timed = attempts.filter((a) => !a.timedOut && Number.isFinite(a.ms));
-  const out = [];
-  for (const [qid, list] of Map.groupBy(timed, (a) => a.questionId)) {
-    const q = db.questions.find((x) => x.id === qid);
-    if (!q) continue;
-    const v = q.versions.find((x) => x.v === q.publishedVersion) || q.versions.at(-1);
-    const perStudent = [...Map.groupBy(list, (a) => a.studentId).values()].map((mine) => mean(mine.map((a) => a.ms)));
-    out.push({
-      questionId: qid, stem: v.stem, type: TYPE_LABELS[v.type || 'mcq'], topic: topics.find((t) => t.id === q.topicId)?.name,
-      n: list.length, students: perStudent.length, meanMs: mean(perStudent), medianMs: quantile(list.map((a) => a.ms).sort((x, y) => x - y), 0.5),
-    });
-  }
-  return out.sort((a, b) => b.meanMs - a.meanMs);
+// Average time per answer: each student counts once (the average of their
+// own times), so one student answering many times can't skew it.
+// Timed-out answers have no answering time. Class-level figures only.
+function timing(list) {
+  const timed = list.filter((a) => !a.timedOut && Number.isFinite(a.ms));
+  const perStudent = [...Map.groupBy(timed, (a) => a.studentId).values()].map((mine) => mean(mine.map((a) => a.ms)));
+  return { n: timed.length, students: perStudent.length, meanMs: mean(perStudent), medianMs: quantile(timed.map((a) => a.ms).sort((x, y) => x - y), 0.5) };
 }
 
-function classAnalytics(db, classId, now = Date.now(), { range = 'all' } = {}) {
+const currentVersion = (q) => q.versions.find((x) => x.v === q.publishedVersion) || q.versions.at(-1);
+
+// Time and accuracy per question, with the "possibly confusing" flag:
+// slower than most questions AND mostly answered wrongly, on enough answers.
+function timeByQuestion(db, attempts, topics) {
+  const out = [];
+  for (const [qid, list] of Map.groupBy(attempts, (a) => a.questionId)) {
+    const q = db.questions.find((x) => x.id === qid);
+    if (!q) continue;
+    const t = timing(list);
+    if (!t.n) continue;
+    const v = currentVersion(q);
+    out.push({
+      questionId: qid, stem: v.stem, type: TYPE_LABELS[v.type || 'mcq'], topic: topics.find((x) => x.id === q.topicId)?.name,
+      ...t, accuracy: rate(list.filter((a) => !a.needsReview)),
+    });
+  }
+  const enough = out.filter((q) => q.n >= LOW_N);
+  const slowMs = quantile(enough.map((q) => q.meanMs).sort((x, y) => x - y), CONFUSING.slowQuantile);
+  for (const q of out) {
+    q.confusing = Boolean(slowMs !== null && q.n >= LOW_N && q.meanMs >= slowMs && q.accuracy.n && q.accuracy.accuracy < CONFUSING.maxAccuracy);
+  }
+  return { questions: out.sort((a, b) => b.meanMs - a.meanMs), slowMs, maxAccuracy: CONFUSING.maxAccuracy, minN: LOW_N };
+}
+
+// Who answered, how many sessions and answers - for the tiles
+function activity(attempts, sessions, from, to) {
+  const inWindow = attempts.filter((a) => a.at >= from && a.at < to);
+  return {
+    activeEver: new Set(inWindow.map((a) => a.studentId)).size,
+    sessionsCompleted: sessions.filter((s) => s.completedAt && s.completedAt >= from && s.completedAt < to).length,
+    attempts: inWindow.length,
+  };
+}
+
+function context(db, classId, now, range) {
   const cls = db.classes.find((c) => c.id === classId);
+  const tz = isValidTimeZone(cls.settings.timezone) ? cls.settings.timezone : DEFAULT_TZ;
   const topics = db.topics.filter((t) => t.courseId === cls.courseId);
   const enrolled = db.enrolments.filter((e) => e.classId === classId).map((e) => e.studentId);
   const days = RANGES[range];
-  // whole UTC days: "last 7 days" = today and the 6 days before it
-  const since = days ? dayStart(now) - (days - 1) * DAY : -Infinity;
+  // whole local days: "last 7 days" = today and the 6 days before it
+  const today = localDate(now, tz);
+  const since = days ? instantOf(today - (days - 1) * DAY, tz) : -Infinity;
+  const prevSince = days ? instantOf(today - (2 * days - 1) * DAY, tz) : null;
   const classAttempts = db.attempts.filter((a) => a.classId === classId && enrolled.includes(a.studentId));
-  const attempts = classAttempts.filter((a) => a.at >= since);
+  return { cls, tz, topics, enrolled, since, prevSince, classAttempts, attempts: classAttempts.filter((a) => a.at >= since) };
+}
+
+// ---------------- the dashboard ----------------
+
+function classAnalytics(db, classId, now = Date.now(), { range = 'all' } = {}) {
+  const { cls, tz, topics, enrolled, since, prevSince, classAttempts, attempts } = context(db, classId, now, range);
   const confirmed = attempts.filter((a) => !a.needsReview);
   const sessions = db.sessions.filter((s) => s.classId === classId);
+  const courseQs = db.questions.filter((x) => x.courseId === cls.courseId);
+  const outcomeOf = new Map(courseQs.map((q) => [q.id, q.outcomeId]));
 
   const participation = {
     enrolled: enrolled.length,
-    activeEver: new Set(attempts.map((a) => a.studentId)).size, // in the selected period
+    ...activity(attempts, sessions, since, Infinity),
     active7d: new Set(classAttempts.filter((a) => a.at > now - 7 * DAY).map((a) => a.studentId)).size,
-    sessionsCompleted: sessions.filter((s) => s.completedAt && s.completedAt >= since).length,
-    attempts: attempts.length,
     worldAttempts: attempts.filter((a) => a.context === 'world').length,
     awaitingMarking: attempts.length - confirmed.length,
   };
+  // the same window just before this one, for "vs previous" changes
+  const previous = prevSince === null ? null : activity(classAttempts, sessions, prevSince, since);
 
   const byTopic = topics.map((t) => {
     const all = attempts.filter((a) => a.topicId === t.id);
@@ -134,20 +198,33 @@ function classAnalytics(db, classId, now = Date.now(), { range = 'all' } = {}) {
       name: t.name,
       first: rate(list.filter((a) => a.first)),
       retry: rate(list.filter((a) => !a.first)),
+      all: rate(list),
       awaitingMarking: all.length - list.length,
       students: new Set(all.map((a) => a.studentId)).size,
       medianMs: quantile(answered, 0.5),
       p75Ms: quantile(answered, 0.75),
       timeouts: all.filter((a) => a.timedOut).length,
+      // learning outcomes inside the topic, with how many questions cover each
+      outcomes: t.outcomes.map((o) => {
+        const mine = list.filter((a) => outcomeOf.get(a.questionId) === o.id);
+        return {
+          outcomeId: o.id,
+          text: o.text,
+          first: rate(mine.filter((a) => a.first)),
+          retry: rate(mine.filter((a) => !a.first)),
+          awaitingMarking: all.filter((a) => a.needsReview && outcomeOf.get(a.questionId) === o.id).length,
+          published: courseQs.filter((q) => q.outcomeId === o.id && q.status === 'published').length,
+        };
+      }),
     };
   });
 
   // Per-question view: commonly missed (enough first attempts to mean something)
   const qStats = [];
-  for (const q of db.questions.filter((x) => x.courseId === cls.courseId)) {
+  for (const q of courseQs) {
     const list = confirmed.filter((a) => a.questionId === q.id);
     if (!list.length) continue;
-    const v = q.versions.find((x) => x.v === q.publishedVersion) || q.versions.at(-1);
+    const v = currentVersion(q);
     // Most popular wrong option often reveals a misconception or an
     // ambiguous distractor. Only meaningful for fixed-option questions,
     // counted on the CURRENT version since options may have changed.
@@ -189,15 +266,81 @@ function classAnalytics(db, classId, now = Date.now(), { range = 'all' } = {}) {
   return {
     class: { id: cls.id, name: cls.name, settings: cls.settings },
     range,
+    timezone: tz,
     participation,
+    previous,
     byTopic,
     commonlyMissed,
     minN: MIN_N,
-    trend: trend(classAttempts, topics, { range, since, now }),
+    trend: trend(classAttempts, topics, { range, since, now, tz }),
     tags: tagCheck(db, cls.courseId, topics),
-    timeByQuestion: timeByQuestion(db, attempts, topics),
+    time: timeByQuestion(db, attempts, topics),
+    openReports: courseQs.reduce((n, q) => n + q.reports.filter((r) => !r.resolved).length, 0),
     points,
   };
 }
 
-module.exports = { classAnalytics, RANGES };
+// ---------------- one question in detail ----------------
+// How the class answered one question in the period: option choices,
+// first vs retry accuracy, time, and reports (without reporter names).
+// Choice counts use the CURRENT version only, since options may have
+// changed between versions.
+function questionInsights(db, classId, questionId, now = Date.now(), { range = 'all' } = {}) {
+  const { cls, topics, attempts: inRange } = context(db, classId, now, range);
+  const q = db.questions.find((x) => x.id === questionId && x.courseId === cls.courseId);
+  if (!q) return null;
+  const v = currentVersion(q);
+  const type = v.type || 'mcq';
+  const topic = topics.find((t) => t.id === q.topicId);
+  const all = inRange.filter((a) => a.questionId === q.id);
+  const confirmed = all.filter((a) => !a.needsReview);
+  const current = all.filter((a) => a.version === v.v && !a.timedOut);
+
+  let answers = null;
+  if (type === 'mcq' || type === 'tf' || type === 'multi') {
+    const correct = new Set(type === 'multi' ? v.answerIndexes : [v.answerIndex]);
+    const counts = v.options.map(() => 0);
+    for (const a of current) {
+      const picks = type === 'multi' ? a.choices || [] : [a.choice];
+      for (const i of picks) if (Number.isInteger(i) && i >= 0 && i < counts.length) counts[i]++;
+    }
+    answers = { kind: 'options', multi: type === 'multi', answered: current.length, options: v.options.map((text, i) => ({ text, count: counts[i], correct: correct.has(i) })) };
+  } else if (type === 'numeric') {
+    const wrong = new Map();
+    for (const a of current) if (!a.correct && Number.isFinite(a.value)) wrong.set(a.value, (wrong.get(a.value) || 0) + 1);
+    answers = {
+      kind: 'numeric', answered: current.length, answer: v.answer, tolerance: v.tolerance, unit: v.unit || '',
+      commonWrong: [...wrong].sort((x, y) => y[1] - x[1]).slice(0, 5).map(([value, count]) => ({ value, count })),
+    };
+  } else if (type === 'short') {
+    answers = {
+      kind: 'keyPoints', answered: current.length,
+      keyPoints: (v.keyPoints || []).map((text, i) => ({ text, covered: current.filter((a) => (a.coveredPoints || []).includes(i)).length })),
+    };
+  } else {
+    answers = { kind: 'varies', answered: current.length }; // maths templates: options differ per student
+  }
+
+  return {
+    questionId: q.id,
+    stem: v.stem,
+    type: TYPE_LABELS[type],
+    topic: topic?.name || null,
+    outcome: topic?.outcomes.find((o) => o.id === q.outcomeId)?.text || null,
+    difficulty: v.difficulty || null,
+    status: q.status,
+    version: v.v,
+    olderVersionAnswers: all.filter((a) => a.version !== v.v).length,
+    first: rate(confirmed.filter((a) => a.first)),
+    retry: rate(confirmed.filter((a) => !a.first)),
+    awaitingMarking: all.length - confirmed.length,
+    timeouts: all.filter((a) => a.timedOut).length,
+    time: timing(all),
+    answers,
+    explanation: v.explanation || '',
+    reports: q.reports.map((r) => ({ reason: r.reason, at: r.at, resolved: r.resolved })).reverse(),
+    range,
+  };
+}
+
+module.exports = { classAnalytics, questionInsights, isValidTimeZone, RANGES, DEFAULT_TZ };
