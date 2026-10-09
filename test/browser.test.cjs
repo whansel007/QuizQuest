@@ -206,3 +206,25 @@ test('PDF upload extracts text locally and saves reviewed source material', asyn
   await page.getByText('Passage saved', { exact: true }).waitFor();
   assert.ok(srv.quiz.db.passages.some((p) => p.title === 'network-test' && p.text.includes(text)));
 });
+
+test('dashboard: period filter, question detail, and a jump to the Question bank', async (t) => {
+  const page = await pageFor(t, 'Prof. Demo A');
+  await page.locator('#tabs').getByRole('button', { name: 'Analytics', exact: true }).click();
+  await page.getByRole('heading', { name: 'Needs attention' }).waitFor();
+  await page.getByRole('img', { name: /Accuracy by topic per week/ }).waitFor();
+  // the period filter refetches and the charts switch to days
+  await page.getByLabel('Period').selectOption('7d');
+  await page.getByRole('img', { name: /Accuracy by topic per day/ }).waitFor();
+  // learning outcomes open under a topic
+  await page.getByRole('button', { name: 'Show learning outcomes for Data representation' }).click();
+  await page.getByText('Convert between binary, decimal and hexadecimal', { exact: true }).waitFor();
+  // question detail opens in a dialog with the answer breakdown
+  await page.getByRole('button', { name: /sharp picture but responses feel delayed/ }).first().click();
+  const dialog = page.getByRole('dialog');
+  await dialog.getByText('✓ correct answer').waitFor();
+  assert.equal(await dialog.getByText(/Student \d/).count(), 0, 'no student names');
+  await dialog.getByRole('button', { name: 'Open in Question bank' }).click();
+  await page.getByRole('heading', { name: 'Question bank', exact: true }).waitFor();
+  await page.locator('#qcard-q-n2.flash').waitFor();
+  assert.equal(await page.getByRole('button', { name: /^Published/ }).getAttribute('aria-pressed'), 'true');
+});
