@@ -29,7 +29,9 @@ onMounted(async () => {
     course.value = c;
     if (c) {
       [coverage.value, history.value] = await Promise.all([api('GET', `/api/teacher/courses/${c.id}/coverage`), api('GET', `/api/teacher/courses/${c.id}/generations`)]);
-      Object.assign(tags, initialTags(c));
+      // opened from the dashboard's "Draft questions": start on that outcome
+      Object.assign(tags, initialTags(c, S.draftTarget || {}));
+      S.draftTarget = null;
       // like a plain <select>: the first format that isn't disabled
       format.value = c.formats.all.find((f) => c.formats.drafter.includes(f)) ?? null;
     }

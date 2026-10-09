@@ -5,7 +5,7 @@
 // the selected period - no student names.
 // ============================================================
 import { ref, computed, nextTick } from 'vue';
-import { S, api } from '../api.js';
+import { S, api, periodQuery } from '../api.js';
 import { pct, secs, when } from '../ui.js';
 
 const dlg = ref(null);
@@ -19,7 +19,7 @@ async function open(questionId) {
   error.value = '';
   if (!dlg.value.open) dlg.value.showModal();
   try {
-    const data = await api('GET', `/api/teacher/classes/${S.classId}/questions/${questionId}/insights?range=${S.range}`);
+    const data = await api('GET', `/api/teacher/classes/${S.classId}/questions/${questionId}/insights?${periodQuery()}`);
     if (mine === seq) q.value = data;
   } catch (err) {
     if (mine === seq) error.value = err.message;
@@ -56,6 +56,7 @@ function openInBank() {
           <span class="badge plain">{{ q.type }}</span>
           <span :class="'badge ' + q.status">{{ q.status }}</span>
           <span v-if="q.difficulty" class="badge plain">{{ q.difficulty }}</span>
+          <span v-if="q.difficultyVerdict" class="badge draft">⚠ {{ q.difficultyVerdict }}</span>
           <span class="muted">{{ q.topic }}<template v-if="q.outcome"> · {{ q.outcome }}</template> · version {{ q.version }}</span>
         </div>
 
@@ -74,6 +75,7 @@ function openInBank() {
               <div class="optbar-label">
                 <span>{{ o.text }}</span>
                 <b v-if="o.correct" class="right-answer">✓ correct answer</b>
+                <span v-else-if="o.rarelyChosen" class="badge draft">rarely chosen</span>
               </div>
               <div class="optbar-track">
                 <div class="optbar-fill" :style="{ width: (100 * o.count) / maxCount + '%' }"></div>
@@ -82,6 +84,7 @@ function openInBank() {
             </div>
           </div>
           <p v-else class="muted small">No answers to this version in the period.</p>
+          <p v-if="q.answers.options.some((o) => o.rarelyChosen)" class="small muted">"Rarely chosen" wrong options were picked by under {{ Math.round(q.answers.unused.maxShare * 100) }}% of answers: they may be too obviously wrong to test understanding. Consider a more plausible distractor.</p>
         </template>
         <template v-else-if="q.answers.kind === 'numeric'">
           <h4>Answers given <span class="muted small">({{ q.answers.answered }} answers)</span></h4>

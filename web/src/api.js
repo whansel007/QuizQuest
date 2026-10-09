@@ -21,6 +21,34 @@ const saved = () => {
   }
 };
 
+// Dashboard preferences (period, auto-refresh) remembered in this browser.
+// A convenience only: storage may be blocked, and then defaults apply.
+const DASH_KEY = 'qq-dashboard';
+export function dashPrefs() {
+  try {
+    const p = JSON.parse(localStorage.getItem(DASH_KEY));
+    return p && typeof p === 'object' ? p : {};
+  } catch {
+    return {};
+  }
+}
+export function saveDashPrefs(changes) {
+  try {
+    localStorage.setItem(DASH_KEY, JSON.stringify({ ...dashPrefs(), ...changes }));
+  } catch {
+    // storage blocked: the choice lasts until the tab is closed
+  }
+}
+const DATE = /^\d{4}-\d{2}-\d{2}$/;
+function savedPeriod() {
+  const p = dashPrefs();
+  if (['7d', '30d', 'all'].includes(p.range)) return { range: p.range, from: null, to: null };
+  if (p.range === 'custom' && DATE.test(p.from) && DATE.test(p.to)) return { range: 'custom', from: p.from, to: p.to };
+  return { range: '30d', from: null, to: null };
+}
+// ?range=... for the analytics endpoints
+export const periodQuery = () => (S.range === 'custom' ? `range=custom&from=${S.from}&to=${S.to}` : `range=${S.range}`);
+
 export const S = reactive({
   token: saved(),
   me: null,
@@ -28,8 +56,10 @@ export const S = reactive({
   courseId: null,
   classId: null,
   qFilter: 'draft',
-  range: '30d', // Analytics period: '7d' | '30d' | 'all'
+  // Analytics period: '7d' | '30d' | 'all' | 'custom' (from/to: local dates)
+  ...savedPeriod(),
   focusQuestionId: null, // Question bank scrolls to (and highlights) this question once
+  draftTarget: null, // AI drafting opens with this { topicId, outcomeId } once
   // bump to remount the current view (replaces the old rerender())
   viewKey: 0,
 });
@@ -121,7 +151,7 @@ function clearSession() {
   } catch {
     // storage blocked: the token only lived in memory anyway
   }
-  Object.assign(S, { token: null, me: null, tab: null, courseId: null, classId: null, qFilter: 'draft', range: '30d', focusQuestionId: null });
+  Object.assign(S, { token: null, me: null, tab: null, courseId: null, classId: null, qFilter: 'draft', ...savedPeriod(), focusQuestionId: null, draftTarget: null });
   rerender();
 }
 
