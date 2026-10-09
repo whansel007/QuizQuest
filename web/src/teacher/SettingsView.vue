@@ -55,6 +55,22 @@ const toggles = (cl) => [
   ['Allow resource trading between classmates', 'tradingEnabled', cl.settings.tradingEnabled, 'Students post offers to the whole class (no private targeting), with limits on open offers, size and daily trades. Turning this off refunds every open offer.'],
   ['Award participation points', 'participationEnabled', !!cl.settings.participation?.enabled, 'Needs team decision (proposal §5). One point per completed session of 5+ questions, max 3/week, regardless of score. Points are visible to students and exportable as CSV. Off by default.'],
 ];
+// Time zone for the Analytics dashboard's days and weeks (default Singapore)
+const DEFAULT_TZ = 'Asia/Singapore';
+const ZONES = typeof Intl.supportedValuesOf === 'function' ? Intl.supportedValuesOf('timeZone') : [DEFAULT_TZ, 'UTC'];
+const zoneOf = (cl) => cl.settings.timezone || DEFAULT_TZ;
+const zonesFor = (cl) => [...new Set([zoneOf(cl), DEFAULT_TZ, ...ZONES])].sort();
+const setZone = (cl) => action(async (e) => {
+  const select = e.target;
+  try {
+    await api('PUT', `/api/teacher/classes/${cl.id}/settings`, { timezone: select.value });
+  } catch (err) {
+    select.value = zoneOf(cl); // failed: show the setting as it really is
+    throw err;
+  }
+  toast('Saved');
+  rerender();
+});
 const statusClass = (t) => 'badge ' + (t.status === 'accepted' ? 'published' : t.status === 'open' ? 'draft' : 'plain');
 const targetId = useId();
 </script>
@@ -81,6 +97,13 @@ const targetId = useId();
           <input type="checkbox" :checked="checked" @change="toggle(cl, key)($event)" /> <b>{{ label }}</b>
           <div class="small muted" style="margin-left: 24px">{{ help }}</div>
         </label>
+        <div class="row" style="margin: 12px 0 2px">
+          <label :for="'tz-' + cl.id" style="margin: 0"><b>Time zone for analytics</b></label>
+          <select :id="'tz-' + cl.id" style="width: auto" :value="zoneOf(cl)" @change="setZone(cl)($event)">
+            <option v-for="z in zonesFor(cl)" :key="z" :value="z">{{ z.replace(/_/g, ' ') }}</option>
+          </select>
+        </div>
+        <div class="small muted">Decides when a "day" and a "week" start on the Analytics dashboard, so an answer at 7am counts on the right day.</div>
         <details style="margin-top: 10px">
           <summary>Trade log ({{ classTrades[cl.id].length }})</summary>
           <div v-if="classTrades[cl.id].length" class="table-wrap">
