@@ -28,6 +28,7 @@ export const S = reactive({
   courseId: null,
   classId: null,
   qFilter: 'draft',
+  range: '30d', // Analytics period: '7d' | '30d' | 'all'
   // bump to remount the current view (replaces the old rerender())
   viewKey: 0,
 });
@@ -119,7 +120,7 @@ function clearSession() {
   } catch {
     // storage blocked: the token only lived in memory anyway
   }
-  Object.assign(S, { token: null, me: null, tab: null, courseId: null, classId: null, qFilter: 'draft' });
+  Object.assign(S, { token: null, me: null, tab: null, courseId: null, classId: null, qFilter: 'draft', range: '30d' });
   rerender();
 }
 
