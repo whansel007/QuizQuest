@@ -24,7 +24,7 @@ const { createStore } = require('./store');
 const { validateQuestion } = require('./validate');
 const { generate, GEN } = require('./generator');
 const { ADAPTIVE, topicStats, planSession } = require('./adaptive');
-const { classAnalytics } = require('./analytics');
+const { classAnalytics, RANGES: ANALYTICS_RANGES } = require('./analytics');
 const { courseEvaluation } = require('./evaluation');
 const { TYPES, TYPE_LABELS, studentView, newInstance, instantiate, gradeSync, isEmpty } = require('./formats');
 const { grade } = require('./grading');
@@ -565,9 +565,11 @@ function createQuizApi({ dataFile = null, store = null, now = () => Date.now(), 
   });
 
   // ---------------- teacher: analytics & evaluation ----------------
-  route('GET', '/api/teacher/classes/:classId/analytics', 'teacher', ({ user, params }) => {
+  route('GET', '/api/teacher/classes/:classId/analytics', 'teacher', ({ user, params, query }) => {
     teacherClass(user, params.classId);
-    return classAnalytics(db, params.classId, now());
+    const range = query.get('range') || 'all';
+    if (!Object.hasOwn(ANALYTICS_RANGES, range)) fail(400, 'Unknown period.');
+    return classAnalytics(db, params.classId, now(), { range });
   });
 
   route('GET', '/api/teacher/classes/:classId/participation.csv', 'teacher', ({ user, params }) => {
