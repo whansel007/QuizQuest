@@ -116,7 +116,7 @@ Logins are per browser tab. Good demo users:
 | 2. Controlled generation | `generator.js`, `retrieval.js`, `validate.js`, *AI drafting* tab | Retrieve chunks → draft → structure checks → **drafts only**. Identical inputs are cached; daily cap; retries capped. Shows which chunks were sent and why. |
 | 3. Adaptive algorithm | `adaptive.js` | Broad until each topic has 3 attempts, then 70/30 weak/other. Short bank is **disclosed**, never padded. |
 | 4. Analytics | `analytics.js`, *Analytics* tab (`web/src/teacher/AnalyticsView.vue`, `charts/`) | Denominators everywhere, first attempts vs retries, most-chosen wrong option, World answers counted. Period filter (7/30 days, all time) with change vs the previous period; days and weeks in the class time zone (Singapore by default, set in *Settings*). "Needs attention" summary; trend charts (small multiples past 4 topics) with a table view; learning-outcome breakdown with question coverage; time vs accuracy per question with a "possibly confusing" flag; question detail dialog (answer breakdown, reports) linking to the Question bank; tag check; CSV exports; auto-refresh every 30 s. Answers awaiting marking are left out of accuracy. No student names except opt-in participation points. |
-| 5. Gamification | `rewards.js`, *Pets & shop* | Server-side coins, once per question ever, unique ledger keys, daily cap, disclosed egg odds. |
+| 5. Gamification | `rewards.js`, *Pets & shop* | Server-side coins, once per question ever, unique ledger keys, daily cap, disclosed egg odds. Daily limits (coins, resources, trades, AI drafting) reset at local midnight and participation weeks start Monday 00:00, in `APP_TIMEZONE` (default Singapore) - see `time.js`. |
 
 ### Later stages (now built)
 
