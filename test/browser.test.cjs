@@ -180,6 +180,36 @@ test('an egg purchase with a lost response reuses its purchase key', async (t) =
   assert.equal(srv.quiz.db.ledger.filter((r) => r.refKey?.startsWith('egg:s-02:') && r.kind === 'spend').length, spent);
 });
 
+test('kingdom builds drop new blocks in place and the egg reveal hands over the pet', async (t) => {
+  const page = await pageFor(t, 'Student 03');
+  const R = require('../src/quiz/rewards');
+  R.inventory(srv.quiz.db, 's-03').resources = { wood: 40, crystal: 40, herb: 40 };
+  await page.locator('#tabs').getByRole('button', { name: 'Kingdom' }).click();
+  const scene = page.getByRole('img', { name: /Your kingdom: castle level 0/ });
+  await scene.waitFor();
+  await page.getByRole('button', { name: /^Build: / }).first().hover();
+  assert.ok(await page.locator('.iso .vx.ghost').count() > 0, 'hovering Build previews ghost blocks');
+  await page.getByRole('button', { name: /^Build: / }).first().click();
+  await page.getByRole('img', { name: /Library level 1/ }).waitFor();
+  assert.ok(await page.locator('.iso .vx.drop').count() > 0, 'new blocks drop in without remounting the view');
+  assert.equal(await page.locator('.tile .v').first().innerText(), '🪵 35');
+
+  srv.quiz.db.ledger.push({ id: 'test-funds-3', studentId: 's-03', amount: 100, kind: 'refund', refKey: 'test-funds-3', at: Date.now() });
+  const draw = R.drawPet;
+  R.drawPet = () => R.PETS.find((p) => p.id === 'owl');
+  t.after(() => { R.drawPet = draw; });
+  await page.locator('#tabs').getByRole('button', { name: 'Pets & shop' }).click();
+  await page.getByRole('button', { name: /Open an egg/ }).click();
+  const dialog = page.getByRole('dialog');
+  await dialog.waitFor();
+  await dialog.click(); // skip the wobble
+  await dialog.getByRole('heading', { name: /Owl/ }).waitFor();
+  await dialog.getByRole('button', { name: 'Equip Owl' }).click();
+  await dialog.waitFor({ state: 'detached' });
+  await page.locator('.pet-card.equipped', { hasText: 'Owl' }).waitFor();
+  await page.getByRole('cell', { name: 'Opened an egg' }).waitFor();
+});
+
 test('PDF upload extracts text locally and saves reviewed source material', async (t) => {
   const page = await pageFor(t, 'Prof. Demo A');
   await page.locator('#tabs').getByRole('button', { name: 'Source material' }).click();
