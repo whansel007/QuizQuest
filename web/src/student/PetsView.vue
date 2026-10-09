@@ -7,14 +7,15 @@ import { api, rerender, retryablePost } from '../api.js';
 import { pct, when, toast, action } from '../ui.js';
 import Heading from '../components/Heading.vue';
 import AsyncButton from '../components/AsyncButton.vue';
-import { store, loadHome } from './home.js';
+import { store, loadHome, updateBalances } from './home.js';
 import WalletBadge from './WalletBadge.vue';
+import GachaMachine from './gacha/GachaMachine.vue';
+import PrizeReveal from './gacha/PrizeReveal.vue';
 
 const error = ref('');
 const ledger = ref(null);
-const eggResult = ref(null);
+const prize = ref(null); // server result of the last egg, shown in the reveal
 let alive = true;
-let eggTimer = null;
 
 const home = computed(() => store.home);
 const inv = computed(() => home.value.inventory);
@@ -30,10 +31,7 @@ onMounted(async () => {
     if (alive) error.value = err.message;
   }
 });
-onUnmounted(() => {
-  alive = false;
-  clearTimeout(eggTimer);
-});
+onUnmounted(() => (alive = false));
 
 // One purchase key per thing until the purchase is acknowledged, so a
 // retry after a lost response can't charge twice.
@@ -56,10 +54,33 @@ async function buyItem(it) {
   await buyer(it.id)();
   rerender();
 }
-async function egg() {
-  const r = await openEgg();
-  eggResult.value = r;
-  eggTimer = setTimeout(() => alive && rerender(), 1600); // only if still on this tab
+// The machine animates, then hands over the result. Only now does the
+// page learn the new totals, so the collection behind the reveal can't
+// spoil the surprise.
+function showPrize(r) {
+  if (!alive) return;
+  prize.value = r;
+  store.home.inventory = r.inventory;
+  updateBalances({ wallet: r.wallet });
+}
+async function closePrize() {
+  prize.value = null;
+  try {
+    const l = await api('GET', '/api/student/ledger');
+    if (alive) ledger.value = l;
+  } catch {
+    // the coin history just stays as it was
+  }
+}
+async function equipPrize() {
+  const p = prize.value.pet;
+  try {
+    store.home.inventory = await api('POST', '/api/student/equip', { petId: p.id });
+    toast(`${p.name} equipped`);
+  } catch (err) {
+    if (!err.shown) toast(err.message, true);
+  }
+  closePrize();
 }
 </script>
 
@@ -88,21 +109,22 @@ async function egg() {
     </div>
     <div class="row top">
       <div class="panel grow" style="min-width: 260px">
-        <h3>🥚 Mystery egg - {{ catalog.eggCost }} 🪙</h3>
-        <p class="small muted">Odds are fixed and shown before you open:</p>
-        <table>
-          <tbody>
-            <tr v-for="(w, r) in catalog.eggOdds" :key="r">
-              <td><span class="rarity" :class="r">{{ r }}</span></td>
-              <td>{{ ((w / oddsTotal) * 100).toFixed(0) }}%</td>
-              <td class="small muted">{{ catalog.pets.filter((p) => p.rarity === r).map((p) => p.name).join(', ') }}</td>
-            </tr>
-          </tbody>
-        </table>
-        <p class="small muted" style="margin-top: 8px">A duplicate refunds {{ catalog.duplicateRefund }} 🪙.</p>
-        <AsyncButton class="btn primary" :disabled="home.wallet.balance < catalog.eggCost" :run="egg">Open an egg</AsyncButton>
-        <div>
-          <div v-if="eggResult" class="note good" style="margin-top: 10px; font-size: 16px">{{ `${eggResult.pet.emoji} ${eggResult.pet.name} (${eggResult.pet.rarity})` }}{{ eggResult.duplicatePet ? ` - duplicate, +${catalog.duplicateRefund} 🪙 back` : ' - new!' }}</div>
+        <h3>🥚 Egg machine</h3>
+        <div class="egg-shop">
+          <GachaMachine :cost="catalog.eggCost" :disabled="home.wallet.balance < catalog.eggCost" :open="openEgg" @prize="showPrize" />
+          <div class="egg-odds">
+            <p class="small muted">Odds are fixed and shown before you open:</p>
+            <table>
+              <tbody>
+                <tr v-for="(w, r) in catalog.eggOdds" :key="r">
+                  <td><span class="rarity" :class="r">{{ r }}</span></td>
+                  <td>{{ ((w / oddsTotal) * 100).toFixed(0) }}%</td>
+                  <td class="small muted">{{ catalog.pets.filter((p) => p.rarity === r).map((p) => p.name).join(', ') }}</td>
+                </tr>
+              </tbody>
+            </table>
+            <p class="small muted" style="margin-top: 8px">A duplicate refunds {{ catalog.duplicateRefund }} 🪙. Rare eggs drop blue, epic eggs drop gold.</p>
+          </div>
         </div>
       </div>
       <div class="panel grow" style="min-width: 260px">
@@ -150,5 +172,6 @@ async function egg() {
         <p v-else class="muted small">No resources yet. Complete sessions or gather in the World.</p>
       </div>
     </div>
+    <PrizeReveal v-if="prize" :result="prize" :refund="catalog.duplicateRefund" :equipped="inv.equippedPet === prize.pet.id" @close="closePrize" @equip="equipPrize" />
   </template>
 </template>

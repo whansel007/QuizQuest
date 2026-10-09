@@ -133,7 +133,7 @@ Existing `data/db.json` or Supabase data keeps the old demo set; run `npm run re
 | **Subject-specific prompts** (§6) | *Settings* | Per-course "subject guidance" is added to every drafting prompt. |
 | **Multiplayer combat** (§5 future) | `src/world/world.js`, *World* tab | Built on Circle Tag's engine. One world per class (Socket.IO room), token-checked handshake, co-op only (no PvP, no chat, emotes only). Correct answers near the boss damage it; every contributor shares the victory reward. |
 | **Resource gathering** (§5 future) | *World* + `economy.js` | Answer a question at a node to gather; nodes are reserved while you answer; daily resource cap. |
-| **Kingdoms** (§5 future) | *Kingdom* tab | Spend resources on 4 buildings × 3 levels; castle grows with them. Cosmetic only. |
+| **Kingdoms** (§5 future) | *Kingdom* tab | Spend resources on 4 buildings × 3 levels, drawn as an isometric block scene: new blocks drop in when you build, and hovering a Build button previews them. The castle grows with them. Cosmetic only. |
 | **Trading** (§5 future) | *Kingdom → Class market*, *Settings → Trade log* | Open offers to the whole class only, escrow, size/open/daily limits, no coin trading, professor kill switch (refunds open offers) and trade log. |
 | **Participation points** (§5, team decision) | *Settings*, *Analytics* | **Off by default.** When on: 1 point per completed 5+ question session, max 3/week, never based on score. CSV export (formula-injection safe). |
 | **Evaluation** (Technical section) | `evaluation.js`, *Evaluation* tab | Acceptance/edit rates by source, preparation time (editor time, capped), recommendation behaviour (focus share, follow-up accuracy), usability (completion, duration, 3-face survey). Descriptive only. |

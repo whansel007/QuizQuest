@@ -12,8 +12,9 @@ import { S, api, rerender, retryablePost } from '../api.js';
 import { when, toast, fmtBundle } from '../ui.js';
 import Heading from '../components/Heading.vue';
 import AsyncButton from '../components/AsyncButton.vue';
-import { loadHome } from './home.js';
+import { loadHome, updateBalances } from './home.js';
 import ClassPicker from './ClassPicker.vue';
+import IsoKingdom from './kingdom/IsoKingdom.vue';
 
 const error = ref('');
 const loaded = ref(false);
@@ -46,9 +47,9 @@ onMounted(async () => {
 onUnmounted(() => (alive = false));
 
 const R = computed(() => k.value.catalog.resources);
-// --- the kingdom map: castle in the middle, four buildings around it
-const castle = computed(() => ['⛺', '🏠', '🏯', '🏰'][k.value.castleLevel]);
+// --- the kingdom: a block castle in the middle, four buildings around it
 const upgraders = {};
+const preview = ref(null); // building whose next level is shown as ghost blocks
 function plot(id) {
   const def = k.value.catalog.buildings[id];
   const lvl = k.value.buildings[id];
@@ -56,12 +57,18 @@ function plot(id) {
   const affordable = !!cost && Object.entries(cost).every(([r, v]) => (k.value.resources[r] || 0) >= v);
   return { id, def, lvl, cost, affordable };
 }
-const layout = computed(() => ['library', 'workshop', 'castle', 'garden', 'tower'].map((id) => (id === 'castle' ? { id } : plot(id))));
+const plots = computed(() => Object.keys(k.value.catalog.buildings).map(plot));
+const summary = computed(() => `Your kingdom: castle level ${k.value.castleLevel} of 3, ` + plots.value.map((p) => `${p.def.name} level ${p.lvl}`).join(', '));
 async function upgrade(p) {
   // the same build key is reused until the server confirms the build
-  await (upgraders[p.id] ||= retryablePost('/api/student/kingdom/build', { building: p.id }))();
-  toast(`${p.def.name} upgraded!`);
-  rerender();
+  const r = await (upgraders[p.id] ||= retryablePost('/api/student/kingdom/build', { building: p.id }))();
+  // update in place (no remount) so the new blocks drop into the scene
+  const grew = r.castleLevel > k.value.castleLevel;
+  Object.assign(k.value, { buildings: r.buildings, castleLevel: r.castleLevel, resources: r.resources });
+  market.value.resources = r.resources;
+  updateBalances({ resources: r.resources });
+  preview.value = null;
+  toast(grew ? `${p.def.name} upgraded - your castle grew!` : `${p.def.name} upgraded!`);
 }
 
 // --- trading
@@ -102,22 +109,24 @@ async function post() {
         </div>
       </div>
       <div class="panel">
-        <div class="kingdom">
-          <template v-for="p in layout" :key="p.id">
-            <div v-if="p.id === 'castle'" class="castle">
-              <div class="sprite">{{ castle }}</div>
-              <div style="font-weight: 700">Castle level {{ k.castleLevel }}</div>
-              <div class="small muted">Grows when every building does</div>
-            </div>
-            <div v-else class="plot" :class="{ empty: !p.lvl }">
-              <div class="sprite">{{ p.lvl ? p.def.emoji : '🟫' }}</div>
-              <div style="font-weight: 700">{{ p.def.name }}</div>
-              <div class="stars" :aria-label="`level ${p.lvl} of 3`">{{ '★'.repeat(p.lvl) + '☆'.repeat(3 - p.lvl) }}</div>
-              <AsyncButton v-if="p.cost" class="btn small" :class="{ primary: p.affordable }" :disabled="!p.affordable" :run="() => upgrade(p)">{{ p.lvl ? 'Upgrade' : 'Build' }}: {{ fmtBundle(p.cost, R) }}</AsyncButton>
-              <div v-else class="small muted">Max level</div>
-            </div>
-          </template>
+        <div class="iso-wrap">
+          <IsoKingdom :buildings="k.buildings" :castle-level="k.castleLevel" :preview="preview" :label="summary" />
+          <div class="iso-castle">🏯 Castle level {{ k.castleLevel }} / 3 <span class="muted">· grows when every building does</span></div>
         </div>
+        <div class="build-grid">
+          <div v-for="p in plots" :key="p.id" class="build-card" :class="{ previewing: preview === p.id }" @mouseenter="p.cost && (preview = p.id)" @mouseleave="preview === p.id && (preview = null)">
+            <div class="row" style="gap: 8px; flex-wrap: nowrap">
+              <span class="build-icon" aria-hidden="true">{{ p.def.emoji }}</span>
+              <div class="grow">
+                <div style="font-weight: 700">{{ p.def.name }}</div>
+                <div class="stars" :aria-label="`level ${p.lvl} of 3`">{{ '★'.repeat(p.lvl) + '☆'.repeat(3 - p.lvl) }}</div>
+              </div>
+            </div>
+            <AsyncButton v-if="p.cost" class="btn small" :class="{ primary: p.affordable }" :disabled="!p.affordable" :run="() => upgrade(p)" @focus="preview = p.id" @blur="preview === p.id && (preview = null)">{{ p.lvl ? 'Upgrade' : 'Build' }}: {{ fmtBundle(p.cost, R) }}</AsyncButton>
+            <div v-else class="small muted">Max level</div>
+          </div>
+        </div>
+        <p class="small muted" style="margin: 8px 0 0">Hover or focus a button to preview the blocks it adds.</p>
       </div>
 
       <div v-if="!market.enabled" class="panel">
