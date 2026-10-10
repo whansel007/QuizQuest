@@ -15,9 +15,9 @@ test.before(async () => {
   browser = await engine.launch({ headless: true, ...(process.env.BROWSER_CHANNEL ? { channel: process.env.BROWSER_CHANNEL } : {}) });
 });
 test.after(async () => { await browser?.close(); srv?.io.close(); });
-async function pageFor(t, name, viewport = { width: 1280, height: 900 }) {
+async function pageFor(t, name, viewport = { width: 1280, height: 900 }, options = {}) {
   // a Singapore locale everywhere, so dates read the same in every engine
-  const page = await browser.newPage({ viewport, locale: 'en-SG' });
+  const page = await browser.newPage({ viewport, locale: 'en-SG', ...options });
   const errors = [];
   page.on('pageerror', (e) => errors.push(e.message));
   t.after(async () => { await page.close(); assert.deepEqual(errors, [], 'no unhandled browser errors'); });
@@ -470,4 +470,21 @@ test('dashboard: placeholders while loading, tile trends, a sticky section bar, 
   assert.equal(await panel.getByRole('columnheader', { name: /Points/ }).getAttribute('aria-sort'), 'descending');
   await panel.getByRole('button', { name: /^Points/ }).click();
   assert.equal(await panel.getByRole('columnheader', { name: /Points/ }).getAttribute('aria-sort'), 'ascending');
+});
+
+test('with reduced motion, nothing keeps looping (the shortened animations would flicker)', async (t) => {
+  const page = await pageFor(t, 'Student 04', undefined, { reducedMotion: 'reduce' });
+  const running = () => page.evaluate(() => document.getAnimations().filter((a) => a.playState === 'running').map((a) => a.animationName || a.constructor.name));
+  const settle = () => page.waitForTimeout(300);
+  // the egg machine idles with a wiggling callout; the kingdom previews pulse
+  await page.locator('#tabs').getByRole('button', { name: 'Pets & shop' }).click();
+  await page.getByRole('button', { name: /Open an egg/ }).waitFor();
+  await settle();
+  assert.deepEqual(await running(), [], 'Pets & shop');
+  const R = require('../src/quiz/rewards');
+  R.inventory(srv.quiz.db, 's-04').resources = { wood: 40, crystal: 40, herb: 40 };
+  await page.locator('#tabs').getByRole('button', { name: 'Kingdom' }).click();
+  await page.getByRole('button', { name: /^Build: / }).first().hover();
+  await settle();
+  assert.deepEqual(await running(), [], 'Kingdom build preview');
 });

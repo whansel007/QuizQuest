@@ -56,3 +56,23 @@ test('participation weeks start on Monday at local midnight', () => {
   // ...and Monday 00:30 in Singapore is a new week (still Sunday in UTC)
   assert.deepEqual(E.awardParticipation(db, { cls, studentId: 's-01', session: session('mon'), now: sg(2026, 10, 12, 0, 30) }), { point: 1 });
 });
+
+test('the fast local clock matches Intl exactly, across DST and odd offsets', () => {
+  // zones with DST, a 30-minute DST shift, 30/45-minute offsets, and a date-line jump
+  const zones = ['Asia/Singapore', 'Europe/London', 'America/New_York', 'Australia/Lord_Howe', 'Asia/Kathmandu', 'Asia/Kolkata', 'Pacific/Chatham', 'Pacific/Apia'];
+  const start = Date.UTC(2025, 0, 1);
+  let seedN = 7;
+  const random = () => ((seedN = (seedN * 1103515245 + 12345) % 2147483648) / 2147483648);
+  for (const tz of zones) {
+    // random instants over two years (with milliseconds)...
+    for (let i = 0; i < 400; i++) {
+      const t = start + Math.floor(random() * 730 * T.DAY);
+      assert.equal(T.wallClock(t, tz), T.exactWallClock(t, tz), `${tz} at ${new Date(t).toISOString()}`);
+    }
+    // ...and every minute around each change of offset
+    for (let t = start; t < start + 730 * T.DAY; t += 3600000) {
+      if (T.exactWallClock(t, tz) - t === T.exactWallClock(t + 3600000, tz) - (t + 3600000)) continue;
+      for (let m = 0; m <= 60; m++) assert.equal(T.wallClock(t + m * 60000 + 999, tz), T.exactWallClock(t + m * 60000 + 999, tz), `${tz} near a change`);
+    }
+  }
+});
