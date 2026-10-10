@@ -1,0 +1,39 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Hero test field</title>
+</head>
+<body>
+  <h1>Hero test field</h1>
+  <p>Select a hero to enter the empty world. Move with WASD or the arrow keys; aim with the mouse. Press E for skill and Q for ultimate.</p>
+
+  <section aria-labelledby="hero-selector-heading">
+    <h2 id="hero-selector-heading">Hero selector</h2>
+    <ul id="hero-list"></ul>
+  </section>
+
+  <section aria-labelledby="world-heading">
+    <h2 id="world-heading">World</h2>
+    <p id="world-message">Choose a hero to drop into the world.</p>
+    <canvas
+      id="world"
+      width="800"
+      height="500"
+      aria-label="Empty test world. Move with WASD or arrow keys and aim with the mouse."
+      hidden
+    ></canvas>
+    <div id="hero-details" hidden>
+      <h3>Hero stats</h3>
+      <ul id="hero-stats"></ul>
+      <h3>Test actions</h3>
+      <div id="actions"></div>
+      <h3>Action log</h3>
+      <ul id="action-log" aria-live="polite"></ul>
+    </div>
+  </section>
+
+  <script type="module" src="/hero-lab/main.js"></script>
+</body>
+</html>

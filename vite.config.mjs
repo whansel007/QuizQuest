@@ -19,6 +19,7 @@ export default defineConfig({
       '/socket.io': { target: node, ws: true },
       '^/tag$': node,
       '/client.js': node,
+      '/hero-lab': node,
     },
   },
 });

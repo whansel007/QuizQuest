@@ -138,6 +138,12 @@ Existing `data/db.json` or Supabase data keeps the old demo set; run `npm run re
 | **Participation points** (§5, team decision) | *Settings*, *Analytics* | **Off by default.** When on: 1 point per completed 5+ question session, max 3/week, never based on score. CSV export (formula-injection safe). |
 | **Evaluation** (Technical section) | `evaluation.js`, *Evaluation* tab | Acceptance/edit rates by source, preparation time (editor time, capped), recommendation behaviour (focus share, follow-up accuracy), usability (completion, duration, 3-face survey). Descriptive only. |
 
+The standalone `/hero-lab` route is an isolated test field in
+`public/hero-lab/`.
+Select a hero, move with WASD or the arrow keys, aim with the mouse, and test
+its weapon, skill (E), ultimate (Q), and talent without joining the
+multiplayer World. See `public/hero-lab/README.md` for how it works.
+
 ### Deliberately not built
 
 - **Vouchers.** They have real-world value, need budget/procurement and

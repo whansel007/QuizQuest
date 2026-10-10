@@ -86,6 +86,7 @@ function start(port, opts = {}) {
   // The quiz app is the Vue build in dist/ (`npm run build`); Circle Tag
   // still lives in public/ at /tag.
   const publicDir = path.join(__dirname, 'public');
+  const heroLabDir = path.join(publicDir, 'hero-lab');
   const distDir = opts.distDir || path.join(__dirname, 'dist');
   const TAG = { '/tag': path.join(publicDir, 'index.html'), '/client.js': path.join(publicDir, 'client.js') };
   const httpServer = http.createServer(async (req, res) => {
@@ -99,10 +100,17 @@ function start(port, opts = {}) {
       return res.end();
     }
     const pathname = req.url.split('?')[0];
-    const file = TAG[pathname] || path.join(distDir, pathname === '/' ? 'index.html' : pathname);
+    const isHeroLabPath = pathname === '/hero-lab' || pathname.startsWith('/hero-lab/');
+    const file = TAG[pathname] || (isHeroLabPath
+      ? path.resolve(heroLabDir, pathname === '/hero-lab' ? 'index.html' : '.' + pathname.slice('/hero-lab'.length))
+      : path.join(distDir, pathname === '/' ? 'index.html' : pathname));
+    if (isHeroLabPath && file !== heroLabDir && !file.startsWith(heroLabDir + path.sep)) {
+      res.writeHead(403);
+      return res.end();
+    }
     // Guard against path traversal attempts like GET /../server.js
     // (the trailing separator stops a sibling folder like "dist-old" matching)
-    if (!TAG[pathname] && !file.startsWith(distDir + path.sep)) {
+    if (!TAG[pathname] && !isHeroLabPath && !file.startsWith(distDir + path.sep)) {
       res.writeHead(403);
       return res.end();
     }

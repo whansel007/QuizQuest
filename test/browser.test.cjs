@@ -89,6 +89,35 @@ test('login network errors show a retry button', async (t) => {
   await page.getByRole('button', { name: 'Student 01' }).waitFor();
 });
 
+test('hero lab selects heroes and allows movement, aiming, and action tests', async (t) => {
+  const page = await browser.newPage();
+  t.after(() => page.close());
+  await page.goto(`${base}/hero-lab`);
+  await page.getByRole('heading', { name: 'Hero test field' }).waitFor();
+  assert.equal(await page.getByRole('heading', { name: 'Hero stats' }).count(), 0);
+  await page.getByRole('button', { name: '🏹 Ranger' }).click();
+  await page.getByRole('heading', { name: 'Hero stats' }).waitFor();
+  await page.getByRole('button', { name: 'Test weapon' }).click();
+  await page.getByText(/Ranger tested Longbow/).waitFor();
+  await page.keyboard.press('e');
+  await page.getByText(/Ranger tested Volley/).waitFor();
+  await page.keyboard.press('q');
+  await page.getByText(/Ranger tested Starfall/).waitFor();
+  await page.getByRole('button', { name: 'Test talent' }).click();
+  await page.getByText(/Ranger tested Keen Eye/).waitFor();
+  const before = await page.locator('canvas').evaluate((canvas) => canvas.toDataURL());
+  await page.locator('canvas').hover({ position: { x: 200, y: 100 } });
+  await page.waitForTimeout(50);
+  const aimed = await page.locator('canvas').evaluate((canvas) => canvas.toDataURL());
+  assert.notEqual(aimed, before, 'aim arrow follows the pointer');
+  await page.keyboard.down('ArrowRight');
+  await page.waitForTimeout(100);
+  await page.keyboard.up('ArrowRight');
+  assert.notEqual(await page.locator('canvas').evaluate((canvas) => canvas.toDataURL()), aimed, 'hero moves in the world');
+  await page.getByRole('button', { name: '🛡️ Guardian' }).click();
+  await page.getByText(/Weapon: Iron Mace/).waitFor();
+});
+
 test('refreshing a timed quiz offers resume without resetting the server deadline', async (t) => {
   const page = await pageFor(t, 'Student 01');
   await page.getByLabel('Timer', { exact: true }).selectOption('30');
