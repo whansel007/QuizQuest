@@ -361,8 +361,8 @@ button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible
   position: relative;
   --viz-grid: #e8e6df;
   --viz-axis: #c3c2b7;
-  --series-1: #2a78d6; --series-2: #eb6834; --series-3: #1baf7a; --series-4: #eda100;
-  --series-5: #e87ba4; --series-6: #008300; --series-7: #4a3aa7; --series-8: #e34948;
+  --series-1: #2a78d6; --series-2: #eb6834; --series-3: #05a873; --series-4: #cd8300;
+  --series-5: #dc709a; --series-6: #008300; --series-7: #4a3aa7; --series-8: #e34948;
 }
 @media (prefers-color-scheme: dark) {
   .viz {
@@ -382,9 +382,17 @@ button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible
 .viz .hit:focus { outline: none; }
 .viz .hit:focus-visible { stroke: var(--accent); stroke-width: 2; }
 .viz .bar.active { opacity: 0.8; }
+/* a day or week only partly in the period (today so far): lighter, and the legend and tooltip say so */
+.viz .bar.partial { opacity: 0.45; }
+.viz-legend .k.swatch { width: 10px; height: 10px; border-radius: 2px; background: var(--series-1); }
+.viz-legend .k.swatch.partial { opacity: 0.45; }
+/* one tab stop per chart (arrow keys move inside) */
+.viz svg:focus, .heat:focus { outline: none; }
+.viz svg:focus-visible, .heat:focus-visible { outline: 2px solid var(--accent); outline-offset: 4px; border-radius: 4px; }
 .viz-legend { display: flex; flex-wrap: wrap; gap: 4px 14px; font-size: 12px; color: var(--muted); margin: 0 0 6px; padding: 0; list-style: none; }
 .viz-legend .k, .viz-tip .k { display: inline-block; width: 14px; height: 2px; border-radius: 1px; vertical-align: middle; margin-right: 6px; }
 .viz-legend li { white-space: nowrap; }
+.viz-legend li.wrap { white-space: normal; }
 .viz-legend .k.hollow { box-sizing: border-box; width: 10px; height: 10px; border-radius: 50%; border: 2px solid var(--muted); background: var(--panel); }
 .viz-tip {
   position: absolute; z-index: 2; pointer-events: none; min-width: 150px; max-width: 240px;
@@ -502,9 +510,15 @@ dialog.insight::backdrop { background: rgba(10, 12, 20, 0.45); }
     --accent: #3343b8; --accent-soft: #eef0fb; --good: #1f7a45; --bad: #b33232; --warn: #8a5a00;
     --good-soft: #eaf5ee; --bad-soft: #fbeeee; --warn-soft: #fdf3df; --shadow: none;
   }
-  .viz { --viz-grid: #e5e5e5; --viz-axis: #bbbbbb; --series-1: #2a78d6; --series-2: #eb6834; --series-3: #1baf7a; --series-4: #eda100; --series-5: #e87ba4; --series-6: #008300; --series-7: #4a3aa7; --series-8: #e34948; }
+  .viz { --viz-grid: #e5e5e5; --viz-axis: #bbbbbb; --series-1: #2a78d6; --series-2: #eb6834; --series-3: #05a873; --series-4: #cd8300; --series-5: #dc709a; --series-6: #008300; --series-7: #4a3aa7; --series-8: #e34948; }
   body { background: #fff; color: #111; font-size: 12px; }
   header#top, footer, .no-print, dialog, details.viz-table, .viz-tip, #toast { display: none !important; }
+  /* charts are drawn for the screen's width: scale them to the page's (they carry a viewBox) */
+  .viz svg { height: auto; }
+  /* paper is a snapshot: rows opened for printing must not be caught mid-fade */
+  *, *::before, *::after { animation: none !important; transition: none !important; }
+  /* colour carries meaning here (keys, meters, heat), so keep it even with "background graphics" off */
+  .viz, .meter, .heat, .badge { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
   .print-only { display: block; margin-bottom: 12px; }
   main { max-width: none; padding: 0; }
   .panel, .tile { break-inside: avoid; box-shadow: none; }

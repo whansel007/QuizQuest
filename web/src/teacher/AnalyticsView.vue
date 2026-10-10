@@ -19,7 +19,7 @@ import Heading from '../components/Heading.vue';
 import Meter from '../components/Meter.vue';
 import AsyncButton from '../components/AsyncButton.vue';
 import Pager from '../components/Pager.vue';
-import { usePaged } from '../components/paged.js';
+import { usePaged, printing } from '../components/paged.js';
 import ClassPicker from './ClassPicker.vue';
 import LineChart from './charts/LineChart.vue';
 import ColumnChart from './charts/ColumnChart.vue';
@@ -241,8 +241,9 @@ const attention = computed(() => {
   const confusing = a.value.time.questions.filter((q) => q.confusing).length;
   if (confusing) out.push({ icon: '⚠', text: `${plural(confusing, 'question')} possibly confusing (slow and mostly wrong)`, go: () => goTo('dash-time') });
   if (a.value.quality.difficulty.length) out.push({ icon: '⚖', text: `${plural(a.value.quality.difficulty.length, 'difficulty tag')} not matching results`, go: () => goTo('dash-quality') });
-  const weakest = a.value.byTopic.filter((t) => t.all.n >= a.value.trend.lowN).sort((x, y) => x.all.accuracy - y.all.accuracy)[0];
-  if (weakest && weakest.all.accuracy < 0.7) out.push({ icon: '↓', text: `Weakest topic: ${weakest.name}, ${pct(weakest.all.accuracy)} correct (${weakest.all.n} answers)`, go: () => goTo('dash-topics') });
+  // first attempts, like the By topic table it links to
+  const weakest = a.value.byTopic.filter((t) => t.first.n >= a.value.trend.lowN).sort((x, y) => x.first.accuracy - y.first.accuracy)[0];
+  if (weakest && weakest.first.accuracy < 0.7) out.push({ icon: '↓', text: `Weakest topic: ${weakest.name}, ${pct(weakest.first.accuracy)} correct on first attempts (${weakest.first.n} answers)`, go: () => goTo('dash-topics') });
   const uncovered = a.value.byTopic.flatMap((t) => t.outcomes).filter((o) => !o.published).length;
   if (uncovered) out.push({ icon: '○', text: `${plural(uncovered, 'learning outcome')} with no published questions`, go: () => goTo('dash-topics') });
   const idle = a.value.participation.enrolled - a.value.participation.active7d;
@@ -255,7 +256,8 @@ function delta(key) {
   const prev = a.value.previous;
   if (!prev) return null;
   const d = a.value.participation[key] - prev[key];
-  const vs = `vs previous ${a.value.days} days`;
+  // a period still running is compared up to the same point of the previous one
+  const vs = `vs previous ${a.value.days} days${prev.partial ? ', to the same point' : ''}`;
   if (d === 0) return { cls: 'flat', text: `no change ${vs}` };
   return d > 0 ? { cls: 'up', text: `▲ ${d} ${vs}` } : { cls: 'down', text: `▼ ${-d} ${vs}` };
 }
@@ -286,8 +288,11 @@ const activityRows = computed(() => a.value.trend.points.map((p) => ({
   label: bucketLabel(p.start, a.value.trend.bucket),
   value: p.answers,
   detail: `${p.students} student${p.students === 1 ? '' : 's'} active`,
+  partial: p.partial,
 })));
 const per = computed(() => (a.value.trend.bucket === 'week' ? 'week' : 'day'));
+// days are only ever partial when it's today; weeks also at the period's start
+const partialNote = computed(() => (per.value === 'day' ? 'today, so far' : 'part of a week: not over yet, or partly outside the period'));
 
 // ---- by topic: expandable learning outcomes
 const openTopics = ref(new Set());
@@ -342,7 +347,7 @@ function missedCsv() {
       <!-- shown on paper only -->
       <div class="print-only">
         <h1 style="font-size: 20px; margin: 0">QuizQuest class report</h1>
-        <p>{{ className }} · {{ period }} · {{ a.timezone.replace('_', ' ') }} time · generated {{ printedAt }}</p>
+        <p>{{ className }} · {{ period }} · {{ a.timezone.replaceAll('_', ' ') }} time · generated {{ printedAt }}</p>
       </div>
 
       <Heading title="Analytics">
@@ -358,7 +363,7 @@ function missedCsv() {
         <button class="btn small primary" type="submit">Apply</button>
       </form>
       <div class="row small muted no-print" style="margin: -6px 0 10px">
-        <span class="grow">Updated {{ clock(updatedAt) }} · days and weeks in {{ a.timezone.replace('_', ' ') }} time (change in Settings)</span>
+        <span class="grow">Updated {{ clock(updatedAt) }} · days and weeks in {{ a.timezone.replaceAll('_', ' ') }} time (change in Settings)</span>
         <span role="status" class="stale">
           <template v-if="refreshFailedAt">
             ⚠ Couldn't refresh at {{ clock(refreshFailedAt) }}, so these numbers may be out of date.{{ auto ? ' Trying again shortly.' : '' }}
@@ -438,7 +443,7 @@ function missedCsv() {
             </div>
             <div>
               <div class="chart-title">Answers submitted</div>
-              <ColumnChart :key="drawKey" :rows="activityRows" unit="answers" :label="`Answers submitted per ${per}`" />
+              <ColumnChart :key="drawKey" :rows="activityRows" unit="answers" :partial-note="partialNote" :label="`Answers submitted per ${per}`" />
             </div>
           </div>
           <template v-if="!combined">
@@ -463,7 +468,7 @@ function missedCsv() {
                 </thead>
                 <tbody>
                   <tr v-for="(p, i) in a.trend.points" :key="p.start">
-                    <td>{{ accuracyRows[i].label }}</td>
+                    <td>{{ accuracyRows[i].label }}<span v-if="p.partial" class="muted"> ({{ per === 'day' ? 'so far' : 'part-week' }})</span></td>
                     <td class="num">{{ p.answers }}</td>
                     <td class="num">{{ p.students }}</td>
                     <td v-for="s in series" :key="s.id" class="num">{{ frac(p.topics[s.id]) }}</td>
@@ -498,7 +503,8 @@ function missedCsv() {
                     <td class="num">{{ `${secs(t.medianMs)} / ${secs(t.p75Ms)}` }}</td>
                     <td class="num">{{ t.timeouts }}</td>
                   </tr>
-                  <tr v-for="o in openTopics.has(t.topicId) ? t.outcomes : []" :key="o.outcomeId" class="subrow">
+                  <!-- on paper every topic is open -->
+                  <tr v-for="o in printing || openTopics.has(t.topicId) ? t.outcomes : []" :key="o.outcomeId" class="subrow">
                     <td></td>
                     <td class="label small">{{ o.text }}</td>
                     <td class="num small">{{ frac(o.first) }}</td>

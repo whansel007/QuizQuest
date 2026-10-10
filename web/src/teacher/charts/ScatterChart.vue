@@ -5,11 +5,13 @@
 // "slow" threshold and 50% accuracy; dots in the slow + mostly-wrong
 // corner are flagged "possibly confusing" (second colour + legend + the
 // flag in the table, never colour alone). Dots from few answers are
-// hollow. Every dot has a 24px hover/focus target and opens the question.
-// Dots pop in when the chart mounts.
+// hollow. Every dot has a 24px hover target and opens the question. One
+// tab stop: arrow keys step through the dots fastest to slowest, Enter
+// opens the one shown (keys.js). Dots pop in when the chart mounts.
 // ============================================================
 import { ref, computed } from 'vue';
 import { useWidth } from './useWidth.js';
+import { stepKey } from './keys.js';
 import { pct, secs } from '../../ui.js';
 
 const props = defineProps({
@@ -41,7 +43,10 @@ const y = (v) => M.top + plotH.value * (1 - v);
 const shown = computed(() => props.points.filter((p) => p.y !== null));
 const color = (p) => (p.flagged ? 'var(--series-2)' : 'var(--series-1)');
 
-const active = ref(null);
+// the shown question's id (a ref would wrap a point object in a proxy, and
+// then it would never equal the plain point it came from)
+const activeId = ref(null);
+const active = computed(() => shown.value.find((p) => p.id === activeId.value) || null);
 const tip = computed(() => {
   const p = active.value;
   if (!p) return null;
@@ -49,17 +54,31 @@ const tip = computed(() => {
   return { p, left, top: Math.max(0, y(p.y) - 20) };
 });
 const describe = (p) => `${p.label}. Average ${secs(p.x)}, accuracy ${pct(p.y)} of ${p.n} answers${p.flagged ? ', possibly confusing' : ''}. Press Enter for details.`;
+// keyboard order: left to right (fastest first)
+const order = computed(() => [...shown.value].sort((a, b) => a.x - b.x));
+function onFocus() {
+  if (!active.value) activeId.value = order.value[0]?.id ?? null;
+}
+function onKey(e) {
+  if ((e.key === 'Enter' || e.key === ' ') && active.value) {
+    e.preventDefault();
+    return emit('open', active.value.id);
+  }
+  const next = stepKey(e, active.value ? order.value.indexOf(active.value) : null, order.value.length);
+  if (next !== null) activeId.value = order.value[next].id;
+}
 </script>
 
 <template>
-  <div ref="el" class="viz" @pointerleave="active = null">
+  <div ref="el" class="viz" @pointerleave="activeId = null">
     <ul class="viz-legend">
       <li><span class="k dot" style="background: var(--series-1)"></span>Question</li>
       <li><span class="k dot" style="background: var(--series-2)"></span>Possibly confusing (slow and mostly wrong)</li>
       <li><span class="k hollow"></span>fewer than {{ lowN }} answers</li>
     </ul>
     <div class="viz-plot">
-      <svg :height="height" role="img" :aria-label="label">
+      <svg :height="height" :viewBox="`0 0 ${width} ${height}`" role="img" :aria-label="`${label}. Arrow keys move between ${shown.length} questions; Enter opens one.`" tabindex="0"
+        @focus="onFocus" @blur="activeId = null" @keydown="onKey">
         <template v-for="t in yTicks" :key="'y' + t">
           <line class="gridline" :x1="M.left" :x2="M.left + plotW" :y1="y(t)" :y2="y(t)" />
           <text class="tick" :x="M.left - 6" :y="y(t) + 4" text-anchor="end">{{ pct(t) }}</text>
@@ -78,10 +97,10 @@ const describe = (p) => `${p.label}. Average ${secs(p.x)}, accuracy ${pct(p.y)} 
         <line class="refline" :x1="M.left" :x2="M.left + plotW" :y1="y(maxAccuracy)" :y2="y(maxAccuracy)" />
         <circle v-for="p in shown" :key="p.id" class="pop" :cx="x(p.x)" :cy="y(p.y)" r="4.5"
           :fill="p.n < lowN ? 'var(--panel)' : color(p)" :stroke="p.n < lowN ? color(p) : 'var(--panel)'" stroke-width="2"
-          :class="{ lifted: active === p }" />
-        <circle v-for="p in shown" :key="'h' + p.id" class="hit" :cx="x(p.x)" :cy="y(p.y)" r="12" tabindex="0" role="button" :aria-label="describe(p)"
-          @pointerenter="active = p" @focus="active = p" @blur="active = null" @click="emit('open', p.id)" @keydown.enter.prevent="emit('open', p.id)" @keydown.space.prevent="emit('open', p.id)" />
+          :class="{ lifted: activeId === p.id }" />
+        <circle v-for="p in shown" :key="'h' + p.id" class="hit" :cx="x(p.x)" :cy="y(p.y)" r="12" @pointerenter="activeId = p.id" @click="emit('open', p.id)" />
       </svg>
+      <p class="sr-only" aria-live="polite">{{ active ? describe(active) : '' }}</p>
       <div v-if="tip" class="viz-tip" :style="{ left: tip.left + 'px', top: tip.top + 'px' }">
         <div class="t">{{ tip.p.label }}</div>
         <div class="r"><b>{{ secs(tip.p.x) }}</b><span>average time</span></div>

@@ -7,9 +7,11 @@
 // - the parent shows a table view, so no value needs hovering to read
 // - lines draw in when the chart mounts (the parent remounts it for a new
 //   period, not for background refreshes)
+// - one tab stop: arrow keys move the crosshair (see keys.js)
 // ============================================================
 import { ref, computed } from 'vue';
 import { useWidth, labelStep } from './useWidth.js';
+import { stepKey } from './keys.js';
 import { pct } from '../../ui.js';
 
 const props = defineProps({
@@ -65,6 +67,14 @@ const describe = (r) => `${r.label}: ` + props.series.map((s) => {
   const c = cell(r, s);
   return `${s.name} ${c.value !== null ? `${pct(c.value)} of ${c.n}` : 'no answers'}`;
 }).join(', ');
+// keyboard focus starts on the latest point
+function onFocus() {
+  if (active.value === null) active.value = props.rows.length - 1;
+}
+function onKey(e) {
+  const next = stepKey(e, active.value, props.rows.length);
+  if (next !== null) active.value = next;
+}
 </script>
 
 <template>
@@ -74,7 +84,8 @@ const describe = (r) => `${r.label}: ` + props.series.map((s) => {
       <li><span class="k hollow"></span>fewer than {{ lowN }} answers</li>
     </ul>
     <div class="viz-plot">
-      <svg :height="height" role="img" :aria-label="label">
+      <svg :height="height" :viewBox="`0 0 ${width} ${height}`" role="img" :aria-label="`${label}. Arrow keys move between ${rows.length} points.`" tabindex="0"
+        @focus="onFocus" @blur="active = null" @keydown="onKey">
         <template v-for="t in ticks" :key="t">
           <line class="gridline" :x1="M.left" :x2="M.left + plotW" :y1="y(t)" :y2="y(t)" />
           <text class="tick" :x="M.left - 6" :y="y(t) + 4" text-anchor="end">{{ pct(t) }}</text>
@@ -87,10 +98,10 @@ const describe = (r) => `${r.label}: ` + props.series.map((s) => {
         <path v-for="p in paths" :key="p.s.id" class="line" pathLength="1" :d="p.d" fill="none" :stroke="color(p.s)" stroke-width="2" stroke-linejoin="round" stroke-linecap="round" />
         <circle v-for="d in dots" :key="d.key" class="pop" :cx="d.cx" :cy="d.cy" r="4"
           :fill="d.low ? 'var(--panel)' : color(d.s)" :stroke="d.low ? color(d.s) : 'var(--panel)'" stroke-width="2" />
-        <!-- hit areas: the whole column of each x, focusable for keyboard users -->
-        <rect v-for="(r, i) in rows" :key="'h' + i" class="hit" :x="M.left + band * i" :y="M.top" :width="band" :height="plotH"
-          tabindex="0" :aria-label="describe(r)" @pointerenter="active = i" @focus="active = i" @blur="active = null" />
+        <!-- hover areas: the whole column of each x -->
+        <rect v-for="(r, i) in rows" :key="'h' + i" class="hit" :x="M.left + band * i" :y="M.top" :width="band" :height="plotH" @pointerenter="active = i" />
       </svg>
+      <p class="sr-only" aria-live="polite">{{ active !== null && rows[active] ? describe(rows[active]) : '' }}</p>
       <div v-if="active !== null" class="viz-tip" :style="{ left: tipLeft + 'px', top: M.top + 'px' }">
         <div class="t">{{ rows[active].label }}</div>
         <div v-for="s in series" :key="s.id" class="r">

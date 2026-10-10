@@ -9,7 +9,7 @@ function pick(e) {
 </script>
 
 <template>
-  <select style="width: auto" :value="S.classId" @change="pick">
+  <select style="width: auto" aria-label="Class" :value="S.classId" @change="pick">
     <option v-for="c in classes" :key="c.id" :value="c.id">{{ c.name }}</option>
   </select>
 </template>

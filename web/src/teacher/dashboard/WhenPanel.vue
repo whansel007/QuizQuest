@@ -2,7 +2,8 @@
 // ============================================================
 // When the class practises: answers per weekday x 3-hour block, in the
 // class time zone. One hue, light -> dark with the count (sequential),
-// a scale legend, hover/focus tooltips and a table view.
+// a scale legend, hover/focus tooltips and a table view. One tab stop:
+// arrow keys move around the grid (left/right = time, up/down = day).
 // ============================================================
 import { ref, computed } from 'vue';
 
@@ -31,27 +32,39 @@ const busiest = computed(() => {
 
 const active = ref(null);
 const describe = (d, b) => `${DAYS[d]} ${blockLabel(blocks.value[b])}: ${props.when.counts[d][b]} answers`;
+function onFocus() {
+  if (!active.value) active.value = { d: 0, b: 0 };
+}
+function onKey(e) {
+  const move = { ArrowLeft: [0, -1], ArrowRight: [0, 1], ArrowUp: [-1, 0], ArrowDown: [1, 0] }[e.key];
+  if (!move) return;
+  e.preventDefault();
+  const { d, b } = active.value || { d: 0, b: 0 };
+  const clamp = (v, n) => Math.max(0, Math.min(n - 1, v));
+  active.value = { d: clamp(d + move[0], 7), b: clamp(b + move[1], blocks.value.length) };
+}
 </script>
 
 <template>
   <div>
-    <p class="small muted">Answers submitted per day of the week and time of day ({{ timezone.replace('_', ' ') }} time). Useful for timing reminders and quizzes.<template v-if="busiest"> Busiest: <b>{{ busiest }}</b>.</template></p>
+    <p class="small muted">Answers submitted per day of the week and time of day ({{ timezone.replaceAll('_', ' ') }} time). Useful for timing reminders and quizzes.<template v-if="busiest"> Busiest: <b>{{ busiest }}</b>.</template></p>
     <p v-if="!total" class="muted small">No answers in this period.</p>
     <div v-else class="viz">
-      <div class="heat" role="img" :aria-label="`Answers by day and time. Busiest: ${busiest}.`">
+      <div class="heat" role="img" :aria-label="`Answers by day and time. Busiest: ${busiest}. Arrow keys move between cells.`" tabindex="0"
+        @focus="onFocus" @blur="active = null" @keydown="onKey">
         <div></div>
         <div v-for="b in blocks" :key="b.from" class="heat-col">{{ hh(b.from) }}</div>
         <template v-for="(row, d) in when.counts" :key="d">
           <div class="heat-row">{{ DAYS[d] }}</div>
-          <div v-for="(n, b) in row" :key="b" class="heat-cell" tabindex="0" :aria-label="describe(d, b)"
+          <div v-for="(n, b) in row" :key="b" class="heat-cell"
             :class="{ active: active && active.d === d && active.b === b }"
-            @pointerenter="active = { d, b }" @pointerleave="active = null" @focus="active = { d, b }" @blur="active = null">
+            @pointerenter="active = { d, b }" @pointerleave="active = null">
             <span class="fill" :style="{ opacity: shade(n) }"></span>
           </div>
         </template>
       </div>
       <div class="heat-foot">
-        <span class="small muted">{{ active ? describe(active.d, active.b) : 'Hover or tab to a cell for its count.' }}</span>
+        <span class="small muted no-print" aria-live="polite">{{ active ? describe(active.d, active.b) : 'Hover a cell, or tab here and use the arrow keys, for its count.' }}</span>
         <span class="heat-scale small muted">0 <span class="ramp"></span> {{ max }}</span>
       </div>
       <details class="viz-table">
