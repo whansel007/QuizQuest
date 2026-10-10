@@ -425,3 +425,49 @@ test('dashboard: a refused or failed period never locks the page, marks already 
   await page.emulateMedia({ media: 'print' });
   assert.equal(await panel.isVisible(), true);
 });
+
+test('dashboard: placeholders while loading, tile trends, a sticky section bar, and sortable participation points', async (t) => {
+  const setting = (on) => page.evaluate((v) => fetch('/api/teacher/classes/cl-a/settings', { method: 'PUT', headers: { 'content-type': 'application/json', authorization: 'Bearer ' + sessionStorage.getItem('qq-token') }, body: JSON.stringify({ participationEnabled: v }) }), on);
+  t.after(() => setting(false)); // registered first, so it runs before the page closes
+  const page = await pageFor(t, 'Prof. Demo A');
+  await setting(true);
+  // placeholders hold the layout until the numbers arrive
+  let release;
+  const held = new Promise((r) => (release = r));
+  await page.route('**/analytics?**', async (r) => { await held; await r.continue(); });
+  await page.locator('#tabs').getByRole('button', { name: 'Analytics', exact: true }).click();
+  await page.getByRole('status').filter({ hasText: 'Loading analytics' }).waitFor();
+  assert.ok(await page.locator('.dash-skeleton .tile').count() >= 4);
+  release();
+  await page.getByRole('heading', { name: 'Needs attention' }).waitFor();
+  await page.unroute('**/analytics?**');
+
+  // tiles carry the period's shape
+  await page.locator('.tiles').getByRole('img', { name: /^Answers per week, last 30 days: [\d, ]+/ }).waitFor();
+
+  // the section bar stays in view and marks where you are
+  const nav = page.getByRole('navigation', { name: 'Dashboard sections' });
+  assert.equal(await nav.getByRole('button', { name: 'Overview' }).getAttribute('aria-current'), 'location');
+  await nav.getByRole('button', { name: 'Commonly missed' }).click();
+  await page.waitForFunction(() => document.querySelector('[data-section="dash-missed"]')?.getAttribute('aria-current') === 'location');
+  const navBox = await nav.boundingBox();
+  const headerBox = await page.locator('header#top').boundingBox();
+  assert.ok(Math.abs(navBox.y - (headerBox.y + headerBox.height)) < 2, 'stuck under the top bar');
+  const heading = await page.getByRole('heading', { name: 'Commonly missed questions' }).boundingBox();
+  assert.ok(heading.y >= navBox.y + navBox.height, 'the heading is not hidden under the bar');
+
+  // participation points: sorted by name, then by points (highest first), and back
+  await nav.getByRole('button', { name: 'Participation' }).click();
+  const panel = page.locator('#dash-points');
+  const names = () => panel.locator('tbody td.label').allInnerTexts();
+  const points = async () => (await panel.locator('tbody td.num').allInnerTexts()).map(Number);
+  const byName = await names();
+  assert.deepEqual(byName, [...byName].sort((x, y) => x.localeCompare(y)));
+  assert.equal(await panel.getByRole('columnheader', { name: /Student/ }).getAttribute('aria-sort'), 'ascending');
+  await panel.getByRole('button', { name: /^Points/ }).click();
+  const most = await points();
+  assert.deepEqual(most, [...most].sort((x, y) => y - x));
+  assert.equal(await panel.getByRole('columnheader', { name: /Points/ }).getAttribute('aria-sort'), 'descending');
+  await panel.getByRole('button', { name: /^Points/ }).click();
+  assert.equal(await panel.getByRole('columnheader', { name: /Points/ }).getAttribute('aria-sort'), 'ascending');
+});
