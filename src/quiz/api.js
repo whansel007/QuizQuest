@@ -593,11 +593,21 @@ function createQuizApi({ dataFile = null, store = null, now = () => Date.now(), 
   });
 
   // ---------------- teacher: analytics & evaluation ----------------
-  // Dashboard numbers are cached briefly per class + period: with
-  // auto-refresh every 30 s, an unchanged class costs nothing to re-serve.
-  // A save touching this class (or everything), or 60 s passing, refreshes it.
+  // Dashboard numbers are cached briefly (per class or course, and period):
+  // with auto-refresh every 30 s, an unchanged class costs nothing to
+  // re-serve. A save touching the class (or everything), or 60 s passing,
+  // refreshes it. Each of these reads every answer, so this matters.
   const ANALYTICS_TTL = 60000;
   const analyticsCache = new Map();
+  function cached(key, version, compute) {
+    const hit = analyticsCache.get(key);
+    if (hit && hit.version === version && now() - hit.at < ANALYTICS_TTL) return hit.value;
+    const value = compute();
+    if (analyticsCache.size > 500) analyticsCache.clear(); // bounded: a few entries per class
+    analyticsCache.set(key, { version, at: now(), value });
+    return value;
+  }
+  const periodKey = (p) => `${p.range}|${p.from || ''}|${p.to || ''}`;
   const period = (query) => {
     const p = parsePeriod((k) => query.get(k));
     if (p.error) fail(400, p.error);
@@ -606,27 +616,24 @@ function createQuizApi({ dataFile = null, store = null, now = () => Date.now(), 
   route('GET', '/api/teacher/classes/:classId/analytics', 'teacher', ({ user, params, query }) => {
     teacherClass(user, params.classId);
     const p = period(query);
-    const key = `${params.classId}|${p.range}|${p.from || ''}|${p.to || ''}`;
-    const version = versionOfClass(params.classId);
-    const hit = analyticsCache.get(key);
-    if (hit && hit.version === version && now() - hit.at < ANALYTICS_TTL) return hit.value;
-    const value = classAnalytics(db, params.classId, now(), p);
-    if (analyticsCache.size > 200) analyticsCache.clear(); // bounded: a few entries per class
-    analyticsCache.set(key, { version, at: now(), value });
-    return value;
+    return cached(`class|${params.classId}|${periodKey(p)}`, versionOfClass(params.classId), () => classAnalytics(db, params.classId, now(), p));
   });
 
   // One question in detail (dashboard drill-down), for this class's answers
   route('GET', '/api/teacher/classes/:classId/questions/:qid/insights', 'teacher', ({ user, params, query }) => {
     teacherClass(user, params.classId);
-    return questionInsights(db, params.classId, params.qid, now(), period(query)) || fail(404, 'Not found.');
+    const p = period(query);
+    const key = `question|${params.classId}|${params.qid}|${periodKey(p)}`;
+    return cached(key, versionOfClass(params.classId), () => questionInsights(db, params.classId, params.qid, now(), p)) || fail(404, 'Not found.');
   });
 
   // The professor's classes of one course side by side (no student names)
   route('GET', '/api/teacher/courses/:cid/compare', 'teacher', ({ user, params, query }) => {
     const c = teacherCourse(user, params.cid);
     const ids = db.classes.filter((cl) => cl.courseId === c.id && cl.teacherIds.includes(user.id)).map((cl) => cl.id);
-    return courseComparison(db, ids, now(), period(query));
+    const p = period(query);
+    // fresh while none of these classes has changed
+    return cached(`compare|${ids.join(',')}|${periodKey(p)}`, ids.map(versionOfClass).join('/'), () => courseComparison(db, ids, now(), p));
   });
 
   route('GET', '/api/teacher/classes/:classId/participation.csv', 'teacher', ({ user, params }) => {
