@@ -351,7 +351,9 @@ button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible
   #who { flex-wrap: wrap; }
 }
 @media (prefers-reduced-motion: reduce) {
-  *, *::before, *::after { animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; }
+  /* run once, at once: a looping animation shortened to 0.01ms would flicker,
+     and a delayed one would still hold things back or stagger them in */
+  *, *::before, *::after { animation-duration: 0.01ms !important; animation-iteration-count: 1 !important; animation-delay: 0s !important; transition-duration: 0.01ms !important; }
 }
 
 /* ---------- dashboard charts ---------- */
@@ -467,10 +469,6 @@ button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible
 .marked-leave-active { position: absolute; left: 0; right: 0; }
 .marked-leave-to { opacity: 0; transform: translateX(32px); }
 .stale { color: var(--warn); }
-@media (prefers-reduced-motion: reduce) {
-  /* the global rule shortens animations, but delays would still hold things back */
-  .viz .line ~ .pop, .viz .bar { animation-delay: 0s; }
-}
 h3[tabindex="-1"]:focus { outline: none; }
 .qcard.flash { outline: 3px solid var(--accent); outline-offset: 2px; transition: outline-color 0.3s; }
 .qcard:focus { outline: none; }
