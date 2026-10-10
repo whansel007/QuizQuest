@@ -384,8 +384,11 @@ test('the analytics route checks the period and the professor', async () => {
     // is not seen, the next real change (any save) refreshes the numbers
     const url = '/api/teacher/classes/cl-a/analytics?range=all';
     const before = (await call(prof, url)).body.participation.attempts;
+    const compared = async () => (await call(prof, '/api/teacher/courses/c-comp/compare?range=all')).body.find((r) => r.classId === 'cl-a').attempts;
+    const comparedBefore = await compared();
     srv.quiz.db.attempts.push({ id: 'at-cache', sessionId: null, studentId: 's-01', classId: 'cl-a', courseId: 'c-comp', questionId: 'q-d1', version: 1, topicId: 'tp-data', type: 'mcq', choice: 1, correct: true, score: 1, ms: 1000, timedOut: false, first: true, context: 'practice', at: Date.now() });
     assert.equal((await call(prof, url)).body.participation.attempts, before, 'served from the cache');
+    assert.equal(await compared(), comparedBefore, 'class comparison served from the cache too');
     // a change the dashboard doesn't show (a student equipping an item) keeps the cache
     const student = await login('s-01');
     const equip = await fetch(base + '/api/student/equip', { method: 'POST', headers: { 'content-type': 'application/json', authorization: 'Bearer ' + student }, body: JSON.stringify({ itemId: null }) });
@@ -393,6 +396,7 @@ test('the analytics route checks the period and the professor', async () => {
     assert.equal((await call(prof, url)).body.participation.attempts, before, 'still served from the cache');
     assert.equal((await put({ timezone: 'Asia/Singapore' })).status, 200);
     assert.equal((await call(prof, url)).body.participation.attempts, before + 1, 'refreshed after a change');
+    assert.equal(await compared(), comparedBefore + 1, 'comparison refreshed too');
   } finally {
     srv.io.close();
   }

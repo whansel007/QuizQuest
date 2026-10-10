@@ -362,12 +362,14 @@ test('short answers are provisional; the professor\'s mark wins and pays once', 
   assert.equal(attempt.correct, false);
   const prof = await login('t-a');
   // the queue: every pending answer from current class members, with a total
-  db().attempts.push({ ...attempt, id: 'at-left-class', studentId: 's-left' });
+  // s-07 is a real student who isn't (or is no longer) in cl-a
+  db().attempts.push({ ...attempt, id: 'at-left-class', studentId: 's-07' });
   const queue = (await call(prof, 'GET', '/api/teacher/classes/cl-a/marking')).body;
-  assert.equal(queue.total, db().attempts.filter((a) => a.classId === 'cl-a' && a.needsReview && a.studentId !== 's-left').length);
+  assert.equal(queue.total, db().attempts.filter((a) => a.classId === 'cl-a' && a.needsReview && a.studentId !== 's-07').length);
   assert.equal(queue.items.length, Math.min(50, queue.total));
   assert.ok(!queue.items.some((m) => m.attemptId === 'at-left-class'), 'not from students who left the class');
   db().attempts.splice(db().attempts.findIndex((a) => a.id === 'at-left-class'), 1);
+  srv.quiz.services.save(); // in case a background save already stored it
   const entry = queue.items.find((m) => m.attemptId === attempt.id);
   assert.ok(entry);
   assert.ok(!JSON.stringify(entry).includes('s-06'), 'marking queue is anonymous');

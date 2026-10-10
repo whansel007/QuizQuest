@@ -1,6 +1,6 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { chromium } = require('playwright');
+const playwright = require('playwright');
 const { start } = require('../server');
 let srv, browser, base;
 test.before(async () => {
@@ -8,11 +8,16 @@ test.before(async () => {
   srv = start(0, { dataFile: null, distDir: process.env.DIST_DIR ? require('path').resolve(process.env.DIST_DIR) : undefined });
   await new Promise((r) => srv.httpServer.once('listening', r));
   base = `http://localhost:${srv.httpServer.address().port}`;
-  browser = await chromium.launch({ headless: true, ...(process.env.BROWSER_CHANNEL ? { channel: process.env.BROWSER_CHANNEL } : {}) });
+  // BROWSER=webkit|firefox runs the same tests in another engine (default chromium);
+  // BROWSER_CHANNEL=msedge|chrome uses an installed Chromium-based browser instead
+  const engine = playwright[process.env.BROWSER || 'chromium'];
+  if (!engine) throw new Error(`Unknown BROWSER ${process.env.BROWSER}: use chromium, firefox or webkit`);
+  browser = await engine.launch({ headless: true, ...(process.env.BROWSER_CHANNEL ? { channel: process.env.BROWSER_CHANNEL } : {}) });
 });
 test.after(async () => { await browser?.close(); srv?.io.close(); });
 async function pageFor(t, name, viewport = { width: 1280, height: 900 }) {
-  const page = await browser.newPage({ viewport });
+  // a Singapore locale everywhere, so dates read the same in every engine
+  const page = await browser.newPage({ viewport, locale: 'en-SG' });
   const errors = [];
   page.on('pageerror', (e) => errors.push(e.message));
   t.after(async () => { await page.close(); assert.deepEqual(errors, [], 'no unhandled browser errors'); });
