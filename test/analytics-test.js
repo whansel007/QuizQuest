@@ -161,6 +161,25 @@ test('slow and mostly-wrong questions are flagged as possibly confusing', () => 
   const flagged = questions.filter((q) => q.confusing).map((q) => q.questionId);
   assert.deepEqual(flagged, ['q-d1']);
   assert.equal(questions.find((q) => q.questionId === 'q-d1').accuracy.accuracy, 0.2);
+
+  // a slow short-answer question with one marked (wrong) answer and five
+  // still waiting: 0% of 1 is not "mostly wrong" yet
+  const short = (needsReview) => db.attempts.push({ id: `c${++n}`, sessionId: null, studentId: `s-0${(n % 5) + 1}`, classId: 'cl-a', courseId: 'c-comp', questionId: 'q-x3', version: 1, topicId: 'tp-net', type: 'short', text: 'x', correct: false, score: 0, ms: 90000, timedOut: false, first: true, context: 'practice', at: NOW - n * 1000, needsReview });
+  for (let i = 0; i < 6; i++) short(i > 0);
+  const x3 = () => classAnalytics(db, 'cl-a', NOW, { range: 'all' }).time.questions.find((q) => q.questionId === 'q-x3');
+  assert.equal(x3().n, 6);
+  assert.equal(x3().accuracy.n, 1);
+  assert.equal(x3().confusing, false, 'not enough marked answers');
+  for (const a of db.attempts.filter((a) => a.questionId === 'q-x3')) a.needsReview = false;
+  assert.equal(x3().confusing, true, 'flagged once enough are marked');
+});
+
+test('participation points (opt-in) name students but carry no student ids', () => {
+  const { db } = setup();
+  db.classes.find((c) => c.id === 'cl-a').settings.participation = { enabled: true };
+  const { points } = classAnalytics(db, 'cl-a', NOW, { range: 'all' });
+  assert.ok(points.length > 0);
+  for (const p of points) assert.deepEqual(Object.keys(p).sort(), ['name', 'points']);
 });
 
 test('question detail: option counts on the current version, no student names', () => {

@@ -290,11 +290,14 @@ test('dashboard: marking keeps the page in place, background refreshes keep the 
   const db = srv.quiz.db;
   const ids = Array.from({ length: 6 }, (_, i) => `at-mark-${i}`);
   ids.forEach((id, i) => db.attempts.push({ id, sessionId: null, studentId: `s-0${i + 1}`, classId: 'cl-a', courseId: 'c-comp', questionId: 'q-x3', version: 1, topicId: 'tp-net', type: 'short', text: `marking answer ${i}`, correct: false, score: 0, ms: 20000, timedOut: false, first: true, context: 'practice', at: Date.now() - 1000 * (i + 1), needsReview: true }));
-  t.after(() => { db.attempts = db.attempts.filter((a) => !ids.includes(a.id)); });
+  t.after(() => { for (const id of ids) db.attempts.splice(db.attempts.findIndex((a) => a.id === id), 1); });
 
   const page = await pageFor(t, 'Prof. Demo A');
   await page.locator('#tabs').getByRole('button', { name: 'Analytics', exact: true }).click();
-  await page.getByRole('heading', { name: 'Answers to mark (6)' }).waitFor();
+  // earlier tests may have left short answers of their own waiting
+  const pending = () => db.attempts.filter((a) => a.classId === 'cl-a' && a.needsReview).length;
+  const n = pending();
+  await page.getByRole('heading', { name: `Answers to mark (${n})` }).waitFor();
   await page.getByRole('button', { name: 'Show learning outcomes for Data representation' }).click();
   const outcome = page.getByText('Convert between binary, decimal and hexadecimal', { exact: true });
   await outcome.waitFor();
@@ -303,9 +306,9 @@ test('dashboard: marking keeps the page in place, background refreshes keep the 
   // marking removes the answer in place: no reload, the open topic stays open
   const marking = page.locator('#dash-marking');
   await marking.getByRole('button', { name: 'Mark not correct' }).first().click();
-  await page.getByRole('heading', { name: 'Answers to mark (5)' }).waitFor();
+  await page.getByRole('heading', { name: `Answers to mark (${n - 1})` }).waitFor();
   assert.equal(await outcome.isVisible(), true, 'open topic survives marking');
-  assert.equal(await page.evaluate(() => document.activeElement?.textContent), 'Answers to mark (5)');
+  assert.equal(await page.evaluate(() => document.activeElement?.textContent), `Answers to mark (${n - 1})`);
   // the background refresh changed "awaiting marking", so that tile glows; the charts were not redrawn
   await page.locator('.tile.pulse').filter({ hasText: 'awaiting marking' }).waitFor();
   assert.equal(await line.evaluate((e) => e.isConnected), true, 'background refresh keeps the chart');
@@ -323,4 +326,58 @@ test('dashboard: marking keeps the page in place, background refreshes keep the 
   // a new period redraws the charts
   await page.getByLabel('Period').selectOption('30d');
   await page.waitForFunction((e) => !e.isConnected, line);
+});
+
+test('dashboard: a refused or failed period never locks the page, marks already made stand, and names stay off paper', async (t) => {
+  const db = srv.quiz.db;
+  const ids = ['at-race-0', 'at-race-1'];
+  ids.forEach((id, i) => db.attempts.push({ id, sessionId: null, studentId: `s-0${i + 1}`, classId: 'cl-a', courseId: 'c-comp', questionId: 'q-x3', version: 1, topicId: 'tp-net', type: 'short', text: `race answer ${i}`, correct: false, score: 0, ms: 20000, timedOut: false, first: true, context: 'practice', at: Date.now() - 1000 * (i + 1), needsReview: true }));
+  const setting = (participationEnabled) => page.evaluate((on) => fetch('/api/teacher/classes/cl-a/settings', { method: 'PUT', headers: { 'content-type': 'application/json', authorization: 'Bearer ' + sessionStorage.getItem('qq-token') }, body: JSON.stringify({ participationEnabled: on }) }), participationEnabled);
+  t.after(async () => {
+    for (const id of ids) db.attempts.splice(db.attempts.findIndex((a) => a.id === id), 1);
+    await setting(false);
+  });
+
+  const page = await pageFor(t, 'Prof. Demo A');
+  await setting(true);
+  // a custom range the server would refuse (over 366 days), saved by an older version, is ignored
+  await page.evaluate(() => localStorage.setItem('qq-dashboard', JSON.stringify({ range: 'custom', from: '2024-01-01', to: '2026-01-01' })));
+  await page.reload();
+  // ...and if the first load fails anyway, the page offers a way out
+  await page.route('**/analytics?**', (r) => r.abort());
+  await page.locator('#tabs').getByRole('button', { name: 'Analytics', exact: true }).click();
+  await page.getByRole('button', { name: 'Try again' }).waitFor();
+  assert.equal(await page.getByLabel('Period').count(), 0);
+  await page.unroute('**/analytics?**');
+  await page.getByRole('button', { name: 'Try again' }).click();
+  await page.getByRole('heading', { name: 'Needs attention' }).waitFor();
+  assert.equal(await page.getByLabel('Period').inputValue(), '30d');
+  // too long a custom range is caught before it is sent or saved
+  await page.getByLabel('Period').selectOption('custom');
+  await page.getByLabel('From', { exact: true }).fill('2023-01-01');
+  await page.getByLabel('To', { exact: true }).fill('2025-01-01');
+  await page.getByRole('button', { name: 'Apply' }).click();
+  await page.getByText('Pick at most 366 days.').waitFor();
+  assert.notEqual(JSON.parse(await page.evaluate(() => localStorage.getItem('qq-dashboard'))).from, '2023-01-01', 'not saved');
+
+  // a co-teacher marked this one while the list was open: their mark stands
+  const item = page.locator('.marking-item').filter({ hasText: 'race answer 0' });
+  await item.waitFor();
+  const raced = db.attempts.find((a) => a.id === 'at-race-0');
+  Object.assign(raced, { needsReview: false, correct: true, score: 1 });
+  await item.getByRole('button', { name: 'Mark not correct' }).click();
+  await page.getByText('Someone else already marked this answer, so their mark stands.').waitFor();
+  await item.waitFor({ state: 'detached' });
+  assert.equal(raced.correct, true);
+
+  // participation points (they name students) print only when asked
+  const panel = page.locator('.panel').filter({ has: page.getByRole('heading', { name: 'Participation points' }) });
+  await panel.waitFor();
+  await page.emulateMedia({ media: 'print' });
+  assert.equal(await panel.isVisible(), false);
+  assert.equal(await page.getByText('Participation points are left out of this report').isVisible(), true);
+  await page.emulateMedia({ media: 'screen' });
+  await panel.getByLabel(/Include in printed report/).check();
+  await page.emulateMedia({ media: 'print' });
+  assert.equal(await panel.isVisible(), true);
 });

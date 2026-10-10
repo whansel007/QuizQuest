@@ -361,8 +361,14 @@ test('short answers are provisional; the professor\'s mark wins and pays once', 
   assert.equal(attempt.needsReview, true);
   assert.equal(attempt.correct, false);
   const prof = await login('t-a');
+  // the queue: every pending answer from current class members, with a total
+  db().attempts.push({ ...attempt, id: 'at-left-class', studentId: 's-left' });
   const queue = (await call(prof, 'GET', '/api/teacher/classes/cl-a/marking')).body;
-  const entry = queue.find((m) => m.attemptId === attempt.id);
+  assert.equal(queue.total, db().attempts.filter((a) => a.classId === 'cl-a' && a.needsReview && a.studentId !== 's-left').length);
+  assert.equal(queue.items.length, Math.min(50, queue.total));
+  assert.ok(!queue.items.some((m) => m.attemptId === 'at-left-class'), 'not from students who left the class');
+  db().attempts.splice(db().attempts.findIndex((a) => a.id === 'at-left-class'), 1);
+  const entry = queue.items.find((m) => m.attemptId === attempt.id);
   assert.ok(entry);
   assert.ok(!JSON.stringify(entry).includes('s-06'), 'marking queue is anonymous');
   const w = (await call(t, 'GET', '/api/student/home')).body.wallet;
@@ -371,6 +377,10 @@ test('short answers are provisional; the professor\'s mark wins and pays once', 
   const m2 = await call(prof, 'POST', `/api/teacher/attempts/${attempt.id}/mark`, { correct: true });
   assert.equal(m2.body.paid, 0, 'marking twice does not pay twice');
   assert.equal(attempt.needsReview, false);
+  // from the queue (expectPending), an answer someone already marked is refused
+  const m3 = await call(prof, 'POST', `/api/teacher/attempts/${attempt.id}/mark`, { correct: false, expectPending: true });
+  assert.equal(m3.status, 409);
+  assert.equal(attempt.correct, true, 'the first mark stands');
 });
 
 // ---------------- economy ----------------
