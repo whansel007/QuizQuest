@@ -87,7 +87,9 @@ Run **one server at a time** per Supabase project. See
 | `npm run db:reset -- --confirm` | Wipe and re-seed the Supabase project |
 
 For browser tests, run `npx playwright install chromium` once, or use Edge with
-`$env:BROWSER_CHANNEL='msedge'` (PowerShell).
+`$env:BROWSER_CHANNEL='msedge'` (PowerShell). To check Safari's and Firefox's
+engines too, install them (`npx playwright install webkit firefox`) and set
+`$env:BROWSER='webkit'` or `'firefox'` before `npm run test:browser`.
 
 ## Project structure
 
