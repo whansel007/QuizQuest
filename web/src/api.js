@@ -39,11 +39,22 @@ export function saveDashPrefs(changes) {
     // storage blocked: the choice lasts until the tab is closed
   }
 }
-const DATE = /^\d{4}-\d{2}-\d{2}$/;
+// The same rules as the server's parsePeriod, so a bad range is caught
+// before it is sent (or restored from an older save): null when fine.
+const DAY = 86400000;
+const MAX_CUSTOM_DAYS = 366;
+const isDate = (d) => /^\d{4}-\d{2}-\d{2}$/.test(d || '') && !Number.isNaN(Date.parse(d)) && new Date(Date.parse(d)).toISOString().slice(0, 10) === d;
+export function customPeriodError(from, to) {
+  if (!isDate(from) || !isDate(to)) return 'Pick a valid start and end date.';
+  const days = (Date.parse(to) - Date.parse(from)) / DAY + 1;
+  if (days < 1) return 'The start date must be on or before the end date.';
+  if (days > MAX_CUSTOM_DAYS) return `Pick at most ${MAX_CUSTOM_DAYS} days.`;
+  return null;
+}
 function savedPeriod() {
   const p = dashPrefs();
   if (['7d', '30d', 'all'].includes(p.range)) return { range: p.range, from: null, to: null };
-  if (p.range === 'custom' && DATE.test(p.from) && DATE.test(p.to)) return { range: 'custom', from: p.from, to: p.to };
+  if (p.range === 'custom' && !customPeriodError(p.from, p.to)) return { range: 'custom', from: p.from, to: p.to };
   return { range: '30d', from: null, to: null };
 }
 // ?range=... for the analytics endpoints

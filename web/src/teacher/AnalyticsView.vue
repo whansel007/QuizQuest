@@ -13,7 +13,7 @@
 // page names individual students (opt-in participation points aside).
 // ============================================================
 import { ref, computed, nextTick, onMounted, onUnmounted } from 'vue';
-import { S, api, download, setTab, periodQuery, dashPrefs, saveDashPrefs } from '../api.js';
+import { S, api, download, setTab, periodQuery, dashPrefs, saveDashPrefs, customPeriodError } from '../api.js';
 import { pct, secs, toast } from '../ui.js';
 import Heading from '../components/Heading.vue';
 import Meter from '../components/Meter.vue';
@@ -43,18 +43,22 @@ const courses = ref([]);
 const classes = ref([]);
 const courseOfClass = new Map(); // so links into other tabs open the right course
 const a = ref(null);
-const marking = ref([]);
+const marking = ref([]); // the newest answers waiting for a mark
+const markingTotal = ref(0); // all of them (the list above may be capped)
 const updatedAt = ref(null);
 const stamp = ref(0); // bumps on every load, so side panels reload too
 const auto = ref(dashPrefs().auto !== false);
 const insight = ref(null);
+const printNames = ref(false); // participation points on paper: opt-in, never remembered
 const refreshFailedAt = ref(null); // a background refresh failed: the numbers are stale
 const drawKey = ref(0); // bumps on foreground loads only: charts remount and draw in
 const pulse = ref({}); // tile key -> count, bumps when a background refresh changes that tile
 let seq = 0;
 let triedAt = 0;
 
-// quiet = background refresh: don't dim the page, don't redraw the charts
+// quiet = background refresh: don't dim the page, don't redraw the charts.
+// Resolves true when loaded, false when it failed, undefined when a newer
+// load took over.
 async function load({ quiet = false } = {}) {
   const mine = ++seq; // a slower, older request must not overwrite a newer one
   triedAt = Date.now();
@@ -68,15 +72,18 @@ async function load({ quiet = false } = {}) {
     if (quiet && a.value) notice(a.value.participation, analytics.participation);
     else drawKey.value++;
     a.value = analytics;
-    marking.value = queue;
+    marking.value = queue.items;
+    markingTotal.value = queue.total;
     error.value = '';
     refreshFailedAt.value = null;
     updatedAt.value = Date.now();
     stamp.value++;
+    return true;
   } catch (err) {
     if (mine !== seq) return;
     if (quiet) refreshFailedAt.value = Date.now();
     else error.value = err.message;
+    return false;
   } finally {
     if (mine === seq) refetching.value = false;
   }
@@ -91,7 +98,8 @@ function notice(before, after) {
 
 // auto-refresh: only while this browser tab is visible
 let timer = null;
-onMounted(async () => {
+async function init() {
+  error.value = '';
   try {
     courses.value = await loadCourses();
     classes.value = courses.value.flatMap((c) => c.classes);
@@ -105,6 +113,16 @@ onMounted(async () => {
   } catch (err) {
     error.value = err.message;
   }
+}
+// the first load failed with nothing on screen: offer a way out
+function resetPeriod() {
+  Object.assign(S, { range: '30d', from: null, to: null });
+  choice.value = '30d';
+  saveDashPrefs({ range: '30d' });
+  init();
+}
+onMounted(async () => {
+  await init();
   // counted from the last try, so a server that is down isn't asked every 5 seconds
   timer = setInterval(() => {
     if (auto.value && a.value && document.visibilityState === 'visible' && Date.now() - triedAt >= REFRESH_MS) load({ quiet: true });
@@ -117,17 +135,26 @@ const setAuto = () => saveDashPrefs({ auto: auto.value });
 const isoDay = (d) => new Date(d.getTime() - d.getTimezoneOffset() * 60000).toISOString().slice(0, 10);
 const custom = ref({ from: isoDay(new Date(Date.now() - 13 * 86400000)), to: isoDay(new Date()) });
 const choice = ref(S.range);
+// A period is remembered only once it has loaded, so a range the server
+// refuses can't come back on every visit; a failed switch puts the old one back.
+async function switchPeriod(next) {
+  const before = { range: S.range, from: S.from, to: S.to };
+  Object.assign(S, next);
+  const ok = await load();
+  if (ok) saveDashPrefs(next);
+  else if (ok === false) {
+    Object.assign(S, before);
+    if (next.range !== 'custom') choice.value = before.range;
+  }
+}
 function pickPeriod() {
   if (choice.value === 'custom') return; // shown below; nothing loads until applied
-  S.range = choice.value;
-  saveDashPrefs({ range: S.range });
-  load();
+  switchPeriod({ range: choice.value });
 }
 function applyCustom() {
-  if (!custom.value.from || !custom.value.to) return (error.value = 'Pick a start and end date.');
-  Object.assign(S, { range: 'custom', from: custom.value.from, to: custom.value.to });
-  saveDashPrefs({ range: 'custom', from: S.from, to: S.to });
-  load();
+  const bad = customPeriodError(custom.value.from, custom.value.to);
+  if (bad) return (error.value = bad);
+  switchPeriod({ range: 'custom', from: custom.value.from, to: custom.value.to });
 }
 const fmtDate = (iso) => new Date(iso + 'T00:00:00Z').toLocaleDateString([], { day: 'numeric', month: 'short', year: 'numeric', timeZone: 'UTC' });
 const period = computed(() => {
@@ -140,12 +167,20 @@ const frac = (r) => (r && r.n ? `${pct(r.accuracy)} (${r.correct}/${r.n})` : '-'
 // The marked answer leaves the list at once and the numbers refresh in
 // the background: no reload, so scroll position, open topics and pages stay.
 const sliding = ref(false); // only a marked answer slides out, not a page turn
+// If a co-teacher (or another tab) marked it first, their mark stands.
 const mark = (m, correct) => async () => {
-  await api('POST', `/api/teacher/attempts/${m.attemptId}/mark`, { correct });
+  let taken = false;
+  try {
+    await api('POST', `/api/teacher/attempts/${m.attemptId}/mark`, { correct, expectPending: true });
+  } catch (err) {
+    if (err.status !== 409) throw err;
+    taken = true;
+  }
   sliding.value = true;
   setTimeout(() => (sliding.value = false), 400);
   marking.value = marking.value.filter((x) => x.attemptId !== m.attemptId);
-  toast(`Marked ${correct ? 'correct' : 'not correct'}`);
+  markingTotal.value = Math.max(0, markingTotal.value - 1);
+  toast(taken ? 'Someone else already marked this answer, so their mark stands.' : `Marked ${correct ? 'correct' : 'not correct'}`, taken);
   await nextTick(); // the clicked button is gone: keep keyboard focus nearby
   document.querySelector(marking.value.length ? '#dash-marking h3' : '#dash-overview h3')?.focus({ preventScroll: true });
   load({ quiet: true });
@@ -200,7 +235,7 @@ const attention = computed(() => {
   if (!a.value) return [];
   const out = [];
   const plural = (n, one, many = one + 's') => `${n} ${n === 1 ? one : many}`;
-  if (marking.value.length) out.push({ icon: '✎', text: `${plural(marking.value.length, 'answer')} waiting for your mark`, go: () => goTo('dash-marking') });
+  if (markingTotal.value) out.push({ icon: '✎', text: `${plural(markingTotal.value, 'answer')} waiting for your mark`, go: () => goTo('dash-marking') });
   if (a.value.tags.issues.length) out.push({ icon: '⚠', text: `${plural(a.value.tags.issues.length, 'question')} missing tags`, go: () => goTo('dash-quality') });
   if (a.value.openReports) out.push({ icon: '⚑', text: `${plural(a.value.openReports, 'open student report')}`, go: () => toBank({ filter: 'reported' }) });
   const confusing = a.value.time.questions.filter((q) => q.confusing).length;
@@ -231,7 +266,7 @@ const tiles = computed(() => {
     { key: 'active7d', value: `${p.active7d} / ${p.enrolled}`, label: 'active in the last 7 days' },
     { key: 'sessionsCompleted', value: p.sessionsCompleted, label: 'sessions completed', delta: delta('sessionsCompleted') },
     { key: 'attempts', value: p.attempts, label: `answers submitted (${p.worldAttempts} in World)`, delta: delta('attempts') },
-    ...(p.awaitingMarking ? [{ key: 'awaitingMarking', value: p.awaitingMarking, label: 'answers awaiting marking (left out of accuracy)' }] : []),
+    ...(p.awaitingMarking ? [{ key: 'awaitingMarking', value: p.awaitingMarking, label: 'answers in this period awaiting marking (left out of accuracy)' }] : []),
   ];
 });
 
@@ -269,7 +304,8 @@ const timePages = usePaged(() => a.value?.time.questions, 10);
 const missedPages = usePaged(() => a.value?.commonlyMissed, 5);
 
 // ---- time vs accuracy
-const scatter = computed(() => a.value.time.questions.map((q) => ({ id: q.questionId, label: q.stem, x: q.meanMs, y: q.accuracy.accuracy, n: q.n, flagged: q.confusing })));
+// n = marked answers (what the accuracy rests on), not every timed answer
+const scatter = computed(() => a.value.time.questions.map((q) => ({ id: q.questionId, label: q.stem, x: q.meanMs, y: q.accuracy.accuracy, n: q.accuracy.n, flagged: q.confusing })));
 
 // ---- CSV exports (no student names in any of these)
 const file = (what) => `${what}-${S.classId}-${a.value.range === 'custom' ? `${a.value.from}_${a.value.to}` : a.value.range}.csv`;
@@ -294,7 +330,11 @@ function missedCsv() {
 </script>
 
 <template>
-  <div v-if="error && !a" class="note bad">{{ error }}</div>
+  <div v-if="error && !a" class="note bad">
+    {{ error }}
+    <button class="linklike" @click="init">Try again</button>
+    <template v-if="S.range !== '30d'"> · <button class="linklike" @click="resetPeriod">Show the last 30 days instead</button></template>
+  </div>
   <p v-else-if="!loaded" class="muted">Loading analytics…</p>
   <template v-else>
     <p v-if="!classes.length">You have no classes.</p>
@@ -370,8 +410,9 @@ function missedCsv() {
         </div>
 
         <div v-if="marking.length" id="dash-marking" class="panel no-print" style="border-color: var(--warn)">
-          <h3 tabindex="-1">Answers to mark ({{ marking.length }})</h3>
-          <p class="small muted">Free-response answers get a provisional automatic mark. Confirm or change it; marking an answer correct pays the usual first-correct coins. Answers are shown without student names.</p>
+          <h3 tabindex="-1">Answers to mark ({{ markingTotal }})</h3>
+          <p class="small muted">Free-response answers get a provisional automatic mark. Confirm or change it; marking an answer correct pays the usual first-correct coins. Answers are shown without student names. This list covers every period.</p>
+          <p v-if="markingTotal > marking.length" class="small">Showing the newest {{ marking.length }} of {{ markingTotal }}; older ones appear as you mark these.</p>
           <TransitionGroup tag="div" :name="sliding ? 'marked' : 'none'" class="marking-list">
             <div v-for="m in markingPages.items" :key="m.attemptId" class="marking-item">
               <div style="font-weight: 600">{{ m.stem }}</div>
@@ -550,9 +591,11 @@ function missedCsv() {
           <ComparePanel :course-id="courseId" :stamp="stamp" />
         </div>
 
-        <div v-if="a.points" class="panel">
+        <!-- names students, so it stays off paper unless asked for -->
+        <div v-if="a.points" class="panel" :class="{ 'no-print': !printNames }">
           <div class="row">
             <h3 class="grow">Participation points</h3>
+            <label class="small no-print" style="margin: 0; font-weight: 400"><input v-model="printNames" type="checkbox" /> Include in printed report (shows student names)</label>
             <AsyncButton class="btn small no-print" :run="participationCsv">Download CSV</AsyncButton>
           </div>
           <p class="small muted">One point per completed practice session of 5+ questions (max 3 per week), regardless of score. Turned on in Settings.</p>
@@ -563,6 +606,7 @@ function missedCsv() {
           </table>
         </div>
       </div>
+      <p v-if="a.points && !printNames" class="print-only small">Participation points are left out of this report because they name students.</p>
       <p class="small muted">These are practice indicators to support teaching judgement. They are not grades, and the platform does not label individual students.</p>
       <QuestionInsight ref="insight" @open-in-bank="openInBank" />
     </template>

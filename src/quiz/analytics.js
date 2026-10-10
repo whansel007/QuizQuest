@@ -171,8 +171,10 @@ function timeByQuestion(questionsById, byQuestion, topics) {
   }
   const enough = out.filter((q) => q.n >= LOW_N);
   const slowMs = quantile(enough.map((q) => q.meanMs).sort((x, y) => x - y), CONFUSING.slowQuantile);
+  // "mostly wrong" needs enough MARKED answers: unmarked short answers count
+  // towards the time but not the accuracy
   for (const q of out) {
-    q.confusing = Boolean(slowMs !== null && q.n >= LOW_N && q.meanMs >= slowMs && q.accuracy.n && q.accuracy.accuracy < CONFUSING.maxAccuracy);
+    q.confusing = Boolean(slowMs !== null && q.n >= LOW_N && q.meanMs >= slowMs && q.accuracy.n >= LOW_N && q.accuracy.accuracy < CONFUSING.maxAccuracy);
   }
   return { questions: out.sort((a, b) => b.meanMs - a.meanMs), slowMs, maxAccuracy: CONFUSING.maxAccuracy, minN: LOW_N };
 }
@@ -339,7 +341,6 @@ function classAnalytics(db, classId, now = Date.now(), period = { range: 'all' }
   let points = null;
   if (cls.settings.participation?.enabled) {
     points = enrolled.map((sid) => ({
-      studentId: sid,
       name: db.users.find((u) => u.id === sid).name,
       points: db.participation.filter((p) => p.classId === classId && p.studentId === sid).length,
     }));

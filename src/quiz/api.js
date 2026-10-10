@@ -509,14 +509,19 @@ function createQuizApi({ dataFile = null, store = null, now = () => Date.now(), 
   });
 
   // ---------------- teacher: marking free-response answers ----------------
+  // Every answer still waiting for a mark from a current class member, any
+  // period (it's a to-do list): the total, and the newest MARKING_SHOWN.
+  const MARKING_SHOWN = 50;
   route('GET', '/api/teacher/classes/:classId/marking', 'teacher', ({ user, params }) => {
     const cls = teacherClass(user, params.classId);
-    return db.attempts.filter((a) => a.classId === cls.id && a.needsReview).slice(-50).reverse().map((a) => {
+    const members = new Set(db.enrolments.filter((e) => e.classId === cls.id).map((e) => e.studentId));
+    const pending = db.attempts.filter((a) => a.classId === cls.id && a.needsReview && members.has(a.studentId));
+    return { total: pending.length, items: pending.slice(-MARKING_SHOWN).reverse().map((a) => {
       const q = db.questions.find((x) => x.id === a.questionId);
       const v = versionOf(q, a.version);
       // the answer text is shown without the student's identity
       return { attemptId: a.id, at: a.at, stem: v.stem, modelAnswer: v.modelAnswer, keyPoints: v.keyPoints, text: a.text, coveredPoints: a.coveredPoints || [], method: a.method, autoCorrect: a.correct, score: a.score };
-    });
+    }) };
   });
 
   route('POST', '/api/teacher/attempts/:aid/mark', 'teacher', ({ user, params, body }) => {
@@ -524,6 +529,10 @@ function createQuizApi({ dataFile = null, store = null, now = () => Date.now(), 
     teacherClass(user, a.classId);
     if (typeof body.correct !== 'boolean') fail(400, 'Choose correct or not correct.');
     if (a.type !== 'short') fail(400, 'Only short answers can be manually marked.');
+    // the marking queue sends expectPending: a co-teacher (or another tab)
+    // may have marked it since the list loaded, and that mark must not be
+    // silently flipped. Changing a mark on purpose leaves it out.
+    if (body.expectPending === true && !a.needsReview) fail(409, 'This answer has already been marked.');
     a.correct = body.correct;
     a.score = body.correct ? 1 : 0;
     a.needsReview = false;
