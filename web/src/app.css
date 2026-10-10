@@ -151,6 +151,7 @@ th, td { text-align: left; padding: 8px 6px; border-bottom: 1px solid var(--line
 th { font-size: 12px; text-transform: uppercase; letter-spacing: 0.4px; color: var(--muted); }
 .table-wrap { overflow-x: auto; }
 .table-wrap table { min-width: 440px; }
+.table-wrap table.compact { min-width: 0; } /* two or three short columns fit any screen */
 .table-wrap .btn { white-space: nowrap; overflow-wrap: normal; }
 
 .meter { height: 8px; background: var(--bg); border: 1px solid var(--line); border-radius: 99px; overflow: hidden; min-width: 80px; }
@@ -488,7 +489,27 @@ dialog.insight::backdrop { background: rgba(10, 12, 20, 0.45); }
 @media (prefers-color-scheme: dark) { .optbar-fill { background: #3987e5; } }
 
 /* ---------- dashboard: navigation, custom dates, heatmap ---------- */
-.dash-nav { display: flex; flex-wrap: wrap; gap: 6px; margin: 0 0 14px; }
+/* sticks under the top bar (its top is set from the bar's height) and marks the section in view */
+.dash-nav { display: flex; flex-wrap: wrap; gap: 6px; margin: 0 0 14px; padding: 6px 0; position: sticky; z-index: 4; background: var(--bg); }
+.dash-nav .btn[aria-current] { background: var(--accent-soft); border-color: var(--accent); color: var(--accent); }
+@media (max-width: 640px) {
+  /* one row that scrolls sideways, so it doesn't eat the screen */
+  .dash-nav { flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; }
+  .dash-nav .btn { flex: 0 0 auto; white-space: nowrap; }
+}
+/* sortable table headers */
+.dash-table th button.sort { background: none; border: 0; padding: 0; font: inherit; color: inherit; text-transform: inherit; letter-spacing: inherit; cursor: pointer; }
+.dash-table th button.sort:hover { color: var(--accent); }
+/* tile sparkline */
+.viz.spark { margin-top: 6px; }
+/* loading placeholders */
+.sk { border-radius: 6px; background: linear-gradient(90deg, var(--line) 25%, var(--bg) 50%, var(--line) 75%); background-size: 200% 100%; animation: sk-shimmer 1.4s linear infinite; }
+.sk-title { height: 26px; width: 160px; margin: 4px 0 18px; }
+.sk-num { height: 24px; width: 55%; margin-bottom: 8px; }
+.sk-line { height: 12px; width: 80%; margin-bottom: 8px; }
+.sk-block { height: 160px; margin-top: 12px; }
+@keyframes sk-shimmer { to { background-position: -200% 0; } }
+@media (prefers-reduced-motion: reduce) { .sk { animation: none; } }
 .custom-dates { margin: -6px 0 12px; gap: 10px; }
 .custom-dates input { width: auto; margin-left: 4px; }
 .dash-table tr.current td { background: var(--accent-soft); }

@@ -24,6 +24,7 @@ import ClassPicker from './ClassPicker.vue';
 import LineChart from './charts/LineChart.vue';
 import ColumnChart from './charts/ColumnChart.vue';
 import ScatterChart from './charts/ScatterChart.vue';
+import Sparkline from './charts/Sparkline.vue';
 import QuestionInsight from './QuestionInsight.vue';
 import WhenPanel from './dashboard/WhenPanel.vue';
 import ContextsPanel from './dashboard/ContextsPanel.vue';
@@ -129,6 +130,48 @@ onMounted(async () => {
   }, 5000);
 });
 onUnmounted(() => clearInterval(timer));
+
+// ---- the section bar sticks under the top bar and marks the section in view
+const navEl = ref(null);
+const barHeight = ref(0); // the sticky top bar's height (it wraps on phones)
+const currentSection = ref('dash-overview');
+const topOffset = () => barHeight.value + (navEl.value?.offsetHeight || 0);
+let spyFrame = 0;
+function spy() {
+  cancelAnimationFrame(spyFrame);
+  spyFrame = requestAnimationFrame(() => {
+    const line = topOffset() + 24;
+    let current = sections.value[0][0];
+    for (const [id] of sections.value) {
+      const el = document.getElementById(id);
+      if (el && el.getBoundingClientRect().top <= line) current = id;
+    }
+    // scrolled to the bottom: a short last section can't reach the top
+    if (window.innerHeight + window.scrollY >= document.documentElement.scrollHeight - 2) current = sections.value.at(-1)[0];
+    currentSection.value = current;
+    // on a phone the bar scrolls sideways: keep the current button in view
+    const btn = navEl.value?.querySelector(`[data-section="${current}"]`);
+    if (btn && navEl.value.scrollWidth > navEl.value.clientWidth) navEl.value.scrollTo({ left: btn.offsetLeft - 16 });
+  });
+}
+let headerRo = null;
+onMounted(() => {
+  const header = document.querySelector('header#top');
+  const measure = () => (barHeight.value = header?.offsetHeight || 0);
+  measure();
+  if (header && typeof ResizeObserver !== 'undefined') {
+    headerRo = new ResizeObserver(measure);
+    headerRo.observe(header);
+  }
+  window.addEventListener('scroll', spy, { passive: true });
+  window.addEventListener('resize', spy);
+});
+onUnmounted(() => {
+  headerRo?.disconnect();
+  cancelAnimationFrame(spyFrame);
+  window.removeEventListener('scroll', spy);
+  window.removeEventListener('resize', spy);
+});
 const setAuto = () => saveDashPrefs({ auto: auto.value });
 
 // ---- the period: presets load at once; custom dates wait for "Apply"
@@ -210,9 +253,8 @@ function draftFor(topicId, outcomeId) {
 function goTo(id) {
   const el = document.getElementById(id);
   if (!el) return;
-  // land below the sticky top bar (its height changes when it wraps on phones)
-  const bar = document.querySelector('header#top')?.offsetHeight || 0;
-  window.scrollTo({ top: el.getBoundingClientRect().top + window.scrollY - bar - 8, behavior: 'smooth' });
+  // land below the sticky top bar and section bar
+  window.scrollTo({ top: el.getBoundingClientRect().top + window.scrollY - topOffset() - 8, behavior: 'smooth' });
   el.querySelector('h3')?.focus({ preventScroll: true });
   // a brief outline shows where the jump landed (restarted if clicked again)
   el.classList.remove('jumped');
@@ -220,14 +262,18 @@ function goTo(id) {
   el.classList.add('jumped');
   setTimeout(() => el.classList.remove('jumped'), 1600);
 }
+// in page order (the section bar marks the last one scrolled past)
 const sections = computed(() => [
   ['dash-overview', 'Overview'],
+  ...(markingTotal.value ? [['dash-marking', 'To mark']] : []),
   ['dash-trends', 'Trends'],
   ['dash-topics', 'Topics'],
   ['dash-time', 'Questions'],
+  ['dash-missed', 'Commonly missed'],
   ['dash-activity', 'Activity'],
   ['dash-quality', 'Quality'],
   ...(sameCourseClasses.value >= 2 ? [['dash-compare', 'Compare classes']] : []),
+  ...(a.value?.points ? [['dash-points', 'Participation']] : []),
 ]);
 
 // ---- "needs attention": the few things worth acting on, each linked
@@ -261,13 +307,23 @@ function delta(key) {
   if (d === 0) return { cls: 'flat', text: `no change ${vs}` };
   return d > 0 ? { cls: 'up', text: `▲ ${d} ${vs}` } : { cls: 'down', text: `▼ ${-d} ${vs}` };
 }
+// the shape of a tile's number over the period, from the Trends buckets
+function spark(field, what) {
+  const pts = a.value.trend.points;
+  if (pts.length < 2) return null;
+  const span = a.value.trend.capped ? `the last ${a.value.trend.maxWeeks} weeks` : period.value;
+  return {
+    points: pts.map((x) => ({ value: x[field], partial: x.partial })),
+    label: `${what} per ${per.value}, ${span}: ${pts.map((x) => x[field]).join(', ')}${pts.at(-1).partial ? ' (the last so far)' : ''}`,
+  };
+}
 const tiles = computed(() => {
   const p = a.value.participation;
   return [
-    { key: 'activeEver', value: `${p.activeEver} / ${p.enrolled}`, label: `students who practised (${period.value})`, delta: delta('activeEver') },
+    { key: 'activeEver', value: `${p.activeEver} / ${p.enrolled}`, label: `students who practised (${period.value})`, delta: delta('activeEver'), spark: spark('students', 'Students active') },
     { key: 'active7d', value: `${p.active7d} / ${p.enrolled}`, label: 'active in the last 7 days' },
     { key: 'sessionsCompleted', value: p.sessionsCompleted, label: 'sessions completed', delta: delta('sessionsCompleted') },
-    { key: 'attempts', value: p.attempts, label: `answers submitted (${p.worldAttempts} in World)`, delta: delta('attempts') },
+    { key: 'attempts', value: p.attempts, label: `answers submitted (${p.worldAttempts} in World)`, delta: delta('attempts'), spark: spark('answers', 'Answers') },
     ...(p.awaitingMarking ? [{ key: 'awaitingMarking', value: p.awaitingMarking, label: 'answers in this period awaiting marking (left out of accuracy)' }] : []),
   ];
 });
@@ -305,6 +361,21 @@ function toggleTopic(id) {
 
 // ---- long lists are paged (the charts and CSV exports still use everything)
 const markingPages = usePaged(() => marking.value, 5);
+
+// ---- participation points: sortable by name or points, paged
+const pointsSort = ref({ key: 'name', dir: 1 });
+const sortedPoints = computed(() => {
+  const { key, dir } = pointsSort.value;
+  const byName = (x, y) => x.name.localeCompare(y.name);
+  return [...(a.value?.points || [])].sort((x, y) => (key === 'name' ? byName(x, y) * dir : (x.points - y.points) * dir || byName(x, y)));
+});
+function sortPoints(key) {
+  const now = pointsSort.value;
+  // a new column starts in its natural order: names A-Z, points highest first
+  pointsSort.value = { key, dir: now.key === key ? -now.dir : key === 'points' ? -1 : 1 };
+}
+const ariaSort = (key) => (pointsSort.value.key !== key ? 'none' : pointsSort.value.dir > 0 ? 'ascending' : 'descending');
+const pointsPages = usePaged(() => sortedPoints.value, 10);
 const timePages = usePaged(() => a.value?.time.questions, 10);
 const missedPages = usePaged(() => a.value?.commonlyMissed, 5);
 
@@ -340,7 +411,15 @@ function missedCsv() {
     <button class="linklike" @click="init">Try again</button>
     <template v-if="S.range !== '30d'"> · <button class="linklike" @click="resetPeriod">Show the last 30 days instead</button></template>
   </div>
-  <p v-else-if="!loaded" class="muted">Loading analytics…</p>
+  <!-- placeholders in the dashboard's own shape, so nothing jumps when it arrives -->
+  <div v-else-if="!loaded" class="dash-skeleton" role="status">
+    <span class="sr-only">Loading analytics…</span>
+    <div class="sk sk-title"></div>
+    <div class="tiles">
+      <div v-for="i in 4" :key="i" class="tile"><div class="sk sk-num"></div><div class="sk sk-line"></div></div>
+    </div>
+    <div v-for="i in 2" :key="i" class="panel"><div class="sk sk-line" style="width: 30%"></div><div class="sk sk-block"></div></div>
+  </div>
   <template v-else>
     <p v-if="!classes.length">You have no classes.</p>
     <template v-else-if="a">
@@ -372,8 +451,8 @@ function missedCsv() {
         </span>
         <label style="margin: 0; font-weight: 400; color: inherit"><input v-model="auto" type="checkbox" @change="setAuto" /> Auto-refresh every 30 seconds</label>
       </div>
-      <nav class="dash-nav no-print" aria-label="Dashboard sections">
-        <button v-for="[id, label] in sections" :key="id" class="btn small" @click="goTo(id)">{{ label }}</button>
+      <nav ref="navEl" class="dash-nav no-print" aria-label="Dashboard sections" :style="{ top: barHeight + 'px' }">
+        <button v-for="[id, label] in sections" :key="id" class="btn small" :data-section="id" :aria-current="currentSection === id ? 'location' : null" @click="goTo(id)">{{ label }}</button>
       </nav>
       <div v-if="error" class="note bad">{{ error }}</div>
 
@@ -411,6 +490,7 @@ function missedCsv() {
           <div v-for="t in tiles" :key="`${t.key}:${pulse[t.key] || 0}`" class="tile" :class="{ pulse: pulse[t.key] }">
             <div class="v">{{ t.value }}</div><div class="l">{{ t.label }}</div>
             <div v-if="t.delta" :class="'delta ' + t.delta.cls">{{ t.delta.text }}</div>
+            <Sparkline v-if="t.spark" :key="drawKey" :points="t.spark.points" :label="t.spark.label" />
           </div>
         </div>
 
@@ -558,9 +638,9 @@ function missedCsv() {
           <p v-else class="muted small">No answers in this period.</p>
         </div>
 
-        <div class="panel">
+        <div id="dash-missed" class="panel">
           <div class="row">
-            <h3 class="grow">Commonly missed questions</h3>
+            <h3 class="grow" tabindex="-1">Commonly missed questions</h3>
             <button v-if="a.commonlyMissed.length" class="btn small no-print" @click="missedCsv">Download CSV</button>
           </div>
           <p class="small muted">Every question with at least {{ a.minN }} confirmed first attempts, lowest first-attempt accuracy first. Low accuracy is a reason to look closer: it can mean a difficult concept, an ambiguous question, or a gap in coverage. Click a question for its answer breakdown.</p>
@@ -598,18 +678,28 @@ function missedCsv() {
         </div>
 
         <!-- names students, so it stays off paper unless asked for -->
-        <div v-if="a.points" class="panel" :class="{ 'no-print': !printNames }">
+        <div v-if="a.points" id="dash-points" class="panel" :class="{ 'no-print': !printNames }">
           <div class="row">
-            <h3 class="grow">Participation points</h3>
-            <label class="small no-print" style="margin: 0; font-weight: 400"><input v-model="printNames" type="checkbox" /> Include in printed report (shows student names)</label>
+            <h3 class="grow" tabindex="-1">Participation points</h3>
             <AsyncButton class="btn small no-print" :run="participationCsv">Download CSV</AsyncButton>
           </div>
           <p class="small muted">One point per completed practice session of 5+ questions (max 3 per week), regardless of score. Turned on in Settings.</p>
-          <table>
-            <tbody>
-              <tr v-for="(p, i) in a.points" :key="i"><td>{{ p.name }}</td><td>{{ p.points }}</td></tr>
-            </tbody>
-          </table>
+          <label class="small no-print" style="font-weight: 400"><input v-model="printNames" type="checkbox" /> Include in printed report (shows student names)</label>
+          <div class="table-wrap">
+            <table class="dash-table compact">
+              <thead>
+                <tr>
+                  <th :aria-sort="ariaSort('name')"><button class="sort" @click="sortPoints('name')">Student <span aria-hidden="true">{{ pointsSort.key === 'name' ? (pointsSort.dir > 0 ? '▲' : '▼') : '' }}</span></button></th>
+                  <th :aria-sort="ariaSort('points')"><button class="sort" @click="sortPoints('points')">Points <span aria-hidden="true">{{ pointsSort.key === 'points' ? (pointsSort.dir > 0 ? '▲' : '▼') : '' }}</span></button></th>
+                </tr>
+              </thead>
+              <tbody>
+                <!-- no ids are sent (names only), and two students can share a name -->
+                <tr v-for="(p, i) in pointsPages.items" :key="i"><td class="label">{{ p.name }}</td><td class="num">{{ p.points }}</td></tr>
+              </tbody>
+            </table>
+          </div>
+          <Pager :paged="pointsPages" label="Participation points pages" noun="students" />
         </div>
       </div>
       <p v-if="a.points && !printNames" class="print-only small">Participation points are left out of this report because they name students.</p>
