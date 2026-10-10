@@ -105,12 +105,20 @@ function createQuizApi({ dataFile = null, store = null, now = () => Date.now(), 
   store = store || createStore(dataFile);
   const { db } = store;
   // Every change goes through save(), so counting saves tells us whether
-  // the data has changed (used to cache dashboard numbers).
+  // the data has changed (used to cache dashboard numbers). A save can say
+  // what it touched, so one class practising doesn't keep throwing away
+  // every other class's numbers:
+  //   save()                      anything: every class's numbers refresh
+  //   save({ classId })           one class's answers, sessions or marks
+  //   save({ analytics: false })  nothing the dashboard shows (shop, pets, trades)
   let dataVersion = 0;
-  const save = () => {
-    dataVersion++;
+  const classVersions = new Map();
+  const save = ({ classId = null, analytics = true } = {}) => {
+    if (classId) classVersions.set(classId, (classVersions.get(classId) || 0) + 1);
+    else if (analytics) dataVersion++;
     store.save();
   };
+  const versionOfClass = (classId) => `${dataVersion}.${classVersions.get(classId) || 0}`;
   const tokens = new Map(); // token -> { userId, expires }
   const grading = new Set(); // "sessionId:index" answers currently being graded
 
@@ -550,7 +558,7 @@ function createQuizApi({ dataFile = null, store = null, now = () => Date.now(), 
       item.result.npc = { ...session.npc };
       if (paid) item.result.rewards.push({ reason: 'Confirmed by professor', granted: paid, capped: false });
     }
-    save();
+    save({ classId: a.classId });
     return { ok: true, paid };
   });
 
@@ -587,7 +595,7 @@ function createQuizApi({ dataFile = null, store = null, now = () => Date.now(), 
   // ---------------- teacher: analytics & evaluation ----------------
   // Dashboard numbers are cached briefly per class + period: with
   // auto-refresh every 30 s, an unchanged class costs nothing to re-serve.
-  // Any save() (new answer, mark, edit...) or 60 s passing refreshes it.
+  // A save touching this class (or everything), or 60 s passing, refreshes it.
   const ANALYTICS_TTL = 60000;
   const analyticsCache = new Map();
   const period = (query) => {
@@ -599,11 +607,12 @@ function createQuizApi({ dataFile = null, store = null, now = () => Date.now(), 
     teacherClass(user, params.classId);
     const p = period(query);
     const key = `${params.classId}|${p.range}|${p.from || ''}|${p.to || ''}`;
+    const version = versionOfClass(params.classId);
     const hit = analyticsCache.get(key);
-    if (hit && hit.version === dataVersion && now() - hit.at < ANALYTICS_TTL) return hit.value;
+    if (hit && hit.version === version && now() - hit.at < ANALYTICS_TTL) return hit.value;
     const value = classAnalytics(db, params.classId, now(), p);
     if (analyticsCache.size > 200) analyticsCache.clear(); // bounded: a few entries per class
-    analyticsCache.set(key, { version: dataVersion, at: now(), value });
+    analyticsCache.set(key, { version, at: now(), value });
     return value;
   });
 
@@ -693,7 +702,7 @@ function createQuizApi({ dataFile = null, store = null, now = () => Date.now(), 
       cursor: 0, npc: { name: 'Fog of Confusion', emoji: '👾', maxHp: npcHp, hp: npcHp }, coins: 0, completedAt: null,
     };
     db.sessions.push(session);
-    save();
+    save({ classId: session.classId });
     return [201, { id: session.id }];
   });
 
@@ -708,7 +717,7 @@ function createQuizApi({ dataFile = null, store = null, now = () => Date.now(), 
       if (s.items.length !== before) {
         if (!s.plan.notes.some((n) => n.includes('withdrawn'))) s.plan.notes.push('A question was withdrawn by your professor during this session, so it was skipped.');
         if (s.cursor >= s.items.length) finishSession(s, user);
-        save();
+        save({ classId: s.classId });
       }
     }
     // Prepare the current item (first view only). A maths template may
@@ -726,7 +735,7 @@ function createQuizApi({ dataFile = null, store = null, now = () => Date.now(), 
       } else {
         it.servedAt = now(); // response time is measured on the server
       }
-      save();
+      save({ classId: s.classId });
     }
     const out = { id: s.id, total: s.items.length, cursor: s.cursor, npc: s.npc, timerSec: s.timerSec, mode: s.mode, notes: s.plan.notes, done: !!s.completedAt, coins: s.coins };
     if (s.completedAt) return out;
@@ -778,7 +787,7 @@ function createQuizApi({ dataFile = null, store = null, now = () => Date.now(), 
       attack: out.result.correct ? { pet: pet.emoji, move: pet.move, damage: 10 } : null,
       done: !!s.completedAt, resources: extras.resources, participation: extras.participation,
     };
-    save();
+    save({ classId: s.classId });
     return item.result;
   });
 
@@ -809,7 +818,7 @@ function createQuizApi({ dataFile = null, store = null, now = () => Date.now(), 
     if (![1, 2, 3].includes(body.rating)) fail(400, 'Pick a rating.');
     const comment = typeof body.comment === 'string' ? body.comment.trim().slice(0, 300) : '';
     s.feedback = { rating: body.rating, comment, at: now() };
-    save();
+    save({ classId: s.classId });
     return { ok: true };
   });
 
@@ -841,7 +850,7 @@ function createQuizApi({ dataFile = null, store = null, now = () => Date.now(), 
       if (pet) inv.pets.push({ id: pet.id, dupes: 0 });
       else inv.items.push(item.id);
     }
-    save();
+    save({ analytics: false });
     return { inventory: inv, wallet: wallet(user.id) };
   });
 
@@ -862,7 +871,7 @@ function createQuizApi({ dataFile = null, store = null, now = () => Date.now(), 
       inv.pets.push({ id: pet.id, dupes: 0 });
     }
     db.ledger.find((t) => t.refKey === refKey).meta = { petId: pet.id, dupe: !!owned };
-    save();
+    save({ analytics: false });
     return { pet, duplicatePet: !!owned, inventory: inv, wallet: wallet(user.id) };
   });
 
@@ -877,7 +886,7 @@ function createQuizApi({ dataFile = null, store = null, now = () => Date.now(), 
       if (body.itemId !== null && !inv.items.includes(body.itemId)) fail(400, 'You do not own that item.');
       inv.equippedItem = body.itemId;
     }
-    save();
+    save({ analytics: false });
     return inv;
   });
 
@@ -899,7 +908,7 @@ function createQuizApi({ dataFile = null, store = null, now = () => Date.now(), 
   route('POST', '/api/student/kingdom/build', 'student', ({ user, body }) => {
     const r = E.build(db, user.id, body.building, requestId(body.requestId), now());
     if (!r.ok) fail(400, r.error);
-    save();
+    save({ analytics: false });
     return { buildings: r.kingdom.buildings, castleLevel: E.castleLevel(r.kingdom), resources: E.resources(db, user.id) };
   });
 
@@ -922,7 +931,7 @@ function createQuizApi({ dataFile = null, store = null, now = () => Date.now(), 
     const cls = studentClass(user, params.classId);
     const r = E.createTrade(db, { cls, studentId: user.id, give: body.give, want: body.want, now: now() });
     if (!r.ok) fail(400, r.error);
-    save();
+    save({ analytics: false });
     return [201, { id: r.trade.id }];
   });
 
@@ -931,7 +940,7 @@ function createQuizApi({ dataFile = null, store = null, now = () => Date.now(), 
     const cls = studentClass(user, t.classId); // must be in the same class
     const r = E.acceptTrade(db, { cls, trade: t, studentId: user.id, now: now() });
     if (!r.ok) fail(409, r.error);
-    save();
+    save({ analytics: false });
     return { ok: true, resources: E.resources(db, user.id) };
   });
 
@@ -939,7 +948,7 @@ function createQuizApi({ dataFile = null, store = null, now = () => Date.now(), 
     const t = db.trades.find((x) => x.id === params.tid && x.fromId === user.id) || fail(404, 'Not found.');
     const r = E.cancelTrade(db, { trade: t, now: now() });
     if (!r.ok) fail(409, r.error);
-    save();
+    save({ analytics: false });
     return { ok: true, resources: E.resources(db, user.id) };
   });
 

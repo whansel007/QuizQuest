@@ -87,8 +87,16 @@ function context(db, classId, now, period) {
     days = RANGES[period.range];
     since = instantOf(today - (days - 1) * DAY, tz);
   }
-  // the window of the same length just before, for "vs previous" changes
-  const prev = days === null ? null : { since: instantOf(localDate(since, tz) - days * DAY, tz), until: since };
+  // the window of the same length just before, for "vs previous" changes.
+  // While the period is still running (it includes now), the previous one is
+  // cut at the same point: Thursday 9am is compared with last Thursday 9am,
+  // not with a whole day the current period hasn't had yet.
+  let prev = null;
+  if (days !== null) {
+    const prevSince = instantOf(localDate(since, tz) - days * DAY, tz);
+    const running = now < until;
+    prev = { since: prevSince, until: running ? Math.min(since, prevSince + (now - since)) : since, partial: running };
+  }
   const enrolledSet = new Set(enrolled);
   const classAttempts = db.attempts.filter((a) => a.classId === classId && enrolledSet.has(a.studentId));
   return {
@@ -120,6 +128,9 @@ function trend(classAttempts, topics, { range, since, until, now, tz, bucket }) 
     const byTopic = group(confirmed, (a) => a.topicId);
     points.push({
       start,
+      // only part of this day/week counts: it began before the period, or
+      // hasn't finished yet (today, this week), so its count looks low
+      partial: start < since || end > Math.min(until, now),
       answers: list.length,
       students: new Set(list.map((a) => a.studentId)).size,
       topics: Object.fromEntries(topics.map((t) => [t.id, rate(byTopic.get(t.id) || [])])),
@@ -269,7 +280,8 @@ function classAnalytics(db, classId, now = Date.now(), period = { range: 'all' }
     awaitingMarking: attempts.length - confirmed.length,
     allTimeAttempts: classAttempts.length,
   };
-  const previous = prev && activity(classAttempts, sessions, prev.since, prev.until);
+  // partial: both sides stop at the same point of the period (it is still running)
+  const previous = prev && { ...activity(classAttempts, sessions, prev.since, prev.until), partial: prev.partial };
 
   const topicRows = topics.map((t) => {
     const all = byTopic.get(t.id) || [];
@@ -325,7 +337,7 @@ function classAnalytics(db, classId, now = Date.now(), period = { range: 'all' }
       type: TYPE_LABELS[v.type || 'mcq'],
       topic: topics.find((t) => t.id === q.topicId)?.name,
       status: q.status,
-      versionsAttempted: [...new Set(list.map((a) => a.version))].sort(),
+      versionsAttempted: [...new Set(list.map((a) => a.version))].sort((x, y) => x - y),
       first: rate(list.filter((a) => a.first)),
       retry: rate(list.filter((a) => !a.first)),
       topWrong,

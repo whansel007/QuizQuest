@@ -89,7 +89,7 @@ function attachWorld(io, services) {
       const ch = p.challenge;
       // Record an abandoned/expired challenge as a miss, as documented.
       services.answerQuestion({ user: { id: p.userId }, cls: services.classOf(world.classId), q: ch.q, v: ch.v, instance: ch.instance, submission: {}, servedAt: ch.servedAt, timerSec: CHALLENGE_TTL / 1000, context: 'world' })
-        .then(() => services.save()).catch((err) => console.error('[world] could not record abandoned challenge:', err.message));
+        .then(() => services.save({ classId: world.classId })).catch((err) => console.error('[world] could not record abandoned challenge:', err.message));
     }
     if (p.challenge && p.challenge.nodeId) {
       const n = world.nodes.find((x) => x.id === p.challenge.nodeId);
@@ -261,7 +261,7 @@ function attachWorld(io, services) {
         }
       }
       if (!result.correct) cooldown(user.id);
-      services.save();
+      services.save({ classId: world.classId });
       p.lastResult = { id, kind: ch.kind, ...result, effect, balances: services.balances(user.id) };
       socket.emit('result', p.lastResult);
     }));
