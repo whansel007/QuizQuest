@@ -5,6 +5,8 @@
 // - points from fewer than `lowN` answers are drawn hollow
 // - a crosshair + tooltip lists every series at the hovered/focused x
 // - the parent shows a table view, so no value needs hovering to read
+// - lines draw in when the chart mounts (the parent remounts it for a new
+//   period, not for background refreshes)
 // ============================================================
 import { ref, computed } from 'vue';
 import { useWidth, labelStep } from './useWidth.js';
@@ -82,8 +84,8 @@ const describe = (r) => `${r.label}: ` + props.series.map((s) => {
           <text v-if="i % step === 0" class="tick" :x="x(i)" :y="height - 8" text-anchor="middle">{{ r.label }}</text>
         </template>
         <line v-if="active !== null" class="crosshair" :x1="x(active)" :x2="x(active)" :y1="M.top" :y2="M.top + plotH" />
-        <path v-for="p in paths" :key="p.s.id" :d="p.d" fill="none" :stroke="color(p.s)" stroke-width="2" stroke-linejoin="round" stroke-linecap="round" />
-        <circle v-for="d in dots" :key="d.key" :cx="d.cx" :cy="d.cy" r="4"
+        <path v-for="p in paths" :key="p.s.id" class="line" pathLength="1" :d="p.d" fill="none" :stroke="color(p.s)" stroke-width="2" stroke-linejoin="round" stroke-linecap="round" />
+        <circle v-for="d in dots" :key="d.key" class="pop" :cx="d.cx" :cy="d.cy" r="4"
           :fill="d.low ? 'var(--panel)' : color(d.s)" :stroke="d.low ? color(d.s) : 'var(--panel)'" stroke-width="2" />
         <!-- hit areas: the whole column of each x, focusable for keyboard users -->
         <rect v-for="(r, i) in rows" :key="'h' + i" class="hit" :x="M.left + band * i" :y="M.top" :width="band" :height="plotH"

@@ -2,7 +2,8 @@
 // ============================================================
 // Single-series column chart (e.g. answers per day/week). One colour
 // (slot 1), so no legend: the panel title names it. Each column is its
-// own hover/focus target with a tooltip.
+// own hover/focus target with a tooltip. Columns grow in, left to
+// right, when the chart mounts.
 // ============================================================
 import { ref, computed } from 'vue';
 import { useWidth, labelStep } from './useWidth.js';
@@ -63,7 +64,7 @@ const describe = (r) => `${r.label}: ${fmt(r.value)} ${props.unit}. ${r.detail |
           <line class="gridline" :x1="M.left" :x2="M.left + plotW" :y1="y(t)" :y2="y(t)" />
           <text class="tick" :x="M.left - 6" :y="y(t) + 4" text-anchor="end">{{ fmt(t) }}</text>
         </template>
-        <path v-for="(r, i) in rows" :key="'b' + i" class="bar" :class="{ active: active === i }" :d="bar(i, r.value)" fill="var(--series-1)" />
+        <path v-for="(r, i) in rows" :key="'b' + i" class="bar" :class="{ active: active === i }" :style="{ '--i': i }" :d="bar(i, r.value)" fill="var(--series-1)" />
         <line class="baseline" :x1="M.left" :x2="M.left + plotW" :y1="y(0)" :y2="y(0)" />
         <template v-for="(r, i) in rows" :key="'x' + i">
           <text v-if="i % step === 0" class="tick" :x="cx(i)" :y="height - 8" text-anchor="middle">{{ r.label }}</text>

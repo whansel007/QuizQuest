@@ -422,8 +422,46 @@ button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible
 .viz .refline { stroke: var(--muted); stroke-width: 1; opacity: 0.6; }
 .viz .lifted { stroke-width: 3; }
 .viz-legend .k.dot { width: 9px; height: 9px; border-radius: 50%; }
-.subrow { background: var(--bg); }
+.subrow { background: var(--bg); animation: dash-fade 0.25s ease-out; }
 .subrow .label { padding-left: 14px; min-width: 180px; }
+
+/* ---------- dashboard motion ----------
+   Entrances run when an element mounts: charts are remounted for a new
+   period but not for the 30-second background refresh, so a class
+   practising live doesn't make the page keep re-drawing. Fill mode is
+   "backwards" (never "both") so later value changes still transition. */
+@keyframes dash-fade { from { opacity: 0; } }
+.viz .line { stroke-dasharray: 1; animation: line-draw 0.8s cubic-bezier(0.3, 0, 0.2, 1) backwards; }
+@keyframes line-draw { from { stroke-dashoffset: 1; } }
+.viz .pop { transform-box: fill-box; transform-origin: center; animation: dot-pop 0.3s ease-out backwards; }
+.viz .line ~ .pop { animation-delay: 0.45s; } /* line-chart points land as the line arrives */
+@keyframes dot-pop { from { opacity: 0; transform: scale(0.2); } }
+.viz .bar { transform-box: fill-box; transform-origin: bottom; animation: bar-grow 0.5s cubic-bezier(0.2, 0.7, 0.3, 1) backwards; animation-delay: calc(min(var(--i, 0), 20) * 18ms); }
+@keyframes bar-grow { from { transform: scaleY(0); } }
+.viz-tip { animation: tip-in 0.12s ease-out; }
+@keyframes tip-in { from { opacity: 0; transform: translateY(3px); } }
+.meter > div { transition: width 0.5s ease; animation: meter-grow 0.6s ease-out; }
+@keyframes meter-grow { from { width: 0; } }
+.heat-cell .fill { transition: opacity 0.4s; }
+/* a tile whose number changed in a background refresh glows briefly */
+.tile.pulse { animation: tile-glow 1.8s ease-out; }
+.tile.pulse .v { animation: tile-num 0.7s ease-out; }
+@keyframes tile-glow { from { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); } }
+@keyframes tile-num { from { color: var(--accent); transform: translateY(-4px); } }
+/* where a section link landed */
+.panel.jumped { animation: panel-jump 1.5s ease-out; }
+@keyframes panel-jump { from { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); } }
+/* answers to mark: a marked one slides out, the rest move up */
+.marking-list { position: relative; }
+.marking-item { padding: 10px 0; border-bottom: 1px solid var(--line); }
+.marked-move, .marked-leave-active { transition: transform 0.3s ease, opacity 0.3s ease; }
+.marked-leave-active { position: absolute; left: 0; right: 0; }
+.marked-leave-to { opacity: 0; transform: translateX(32px); }
+.stale { color: var(--warn); }
+@media (prefers-reduced-motion: reduce) {
+  /* the global rule shortens animations, but delays would still hold things back */
+  .viz .line ~ .pop, .viz .bar { animation-delay: 0s; }
+}
 h3[tabindex="-1"]:focus { outline: none; }
 .qcard.flash { outline: 3px solid var(--accent); outline-offset: 2px; transition: outline-color 0.3s; }
 .qcard:focus { outline: none; }

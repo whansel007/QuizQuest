@@ -6,13 +6,15 @@
 // numbers load, the old ones stay on screen (dimmed when you changed the
 // period), so the layout never jumps. The page refreshes itself every
 // 30 seconds while it is visible, so it keeps up with a class that is
-// practising right now. The period and auto-refresh choices are
-// remembered in this browser. Nothing on this page names individual
-// students (opt-in participation points aside).
+// practising right now: tiles that changed glow briefly, and a failed
+// refresh says so instead of quietly going stale. Charts draw in when a
+// period loads, but not on background refreshes. The period and
+// auto-refresh choices are remembered in this browser. Nothing on this
+// page names individual students (opt-in participation points aside).
 // ============================================================
-import { ref, computed, onMounted, onUnmounted } from 'vue';
-import { S, api, rerender, download, setTab, periodQuery, dashPrefs, saveDashPrefs } from '../api.js';
-import { pct, secs } from '../ui.js';
+import { ref, computed, nextTick, onMounted, onUnmounted } from 'vue';
+import { S, api, download, setTab, periodQuery, dashPrefs, saveDashPrefs } from '../api.js';
+import { pct, secs, toast } from '../ui.js';
 import Heading from '../components/Heading.vue';
 import Meter from '../components/Meter.vue';
 import AsyncButton from '../components/AsyncButton.vue';
@@ -46,11 +48,16 @@ const updatedAt = ref(null);
 const stamp = ref(0); // bumps on every load, so side panels reload too
 const auto = ref(dashPrefs().auto !== false);
 const insight = ref(null);
+const refreshFailedAt = ref(null); // a background refresh failed: the numbers are stale
+const drawKey = ref(0); // bumps on foreground loads only: charts remount and draw in
+const pulse = ref({}); // tile key -> count, bumps when a background refresh changes that tile
 let seq = 0;
+let triedAt = 0;
 
-// quiet = background refresh: don't dim the page
+// quiet = background refresh: don't dim the page, don't redraw the charts
 async function load({ quiet = false } = {}) {
   const mine = ++seq; // a slower, older request must not overwrite a newer one
+  triedAt = Date.now();
   if (!quiet) refetching.value = true;
   try {
     const [analytics, queue] = await Promise.all([
@@ -58,16 +65,28 @@ async function load({ quiet = false } = {}) {
       api('GET', `/api/teacher/classes/${S.classId}/marking`),
     ]);
     if (mine !== seq) return;
+    if (quiet && a.value) notice(a.value.participation, analytics.participation);
+    else drawKey.value++;
     a.value = analytics;
     marking.value = queue;
     error.value = '';
+    refreshFailedAt.value = null;
     updatedAt.value = Date.now();
     stamp.value++;
   } catch (err) {
-    if (mine === seq && !quiet) error.value = err.message;
+    if (mine !== seq) return;
+    if (quiet) refreshFailedAt.value = Date.now();
+    else error.value = err.message;
   } finally {
     if (mine === seq) refetching.value = false;
   }
+}
+function notice(before, after) {
+  const next = { ...pulse.value };
+  for (const k of ['activeEver', 'active7d', 'sessionsCompleted', 'attempts', 'awaitingMarking']) {
+    if (before[k] !== after[k]) next[k] = (next[k] || 0) + 1;
+  }
+  pulse.value = next;
 }
 
 // auto-refresh: only while this browser tab is visible
@@ -86,8 +105,9 @@ onMounted(async () => {
   } catch (err) {
     error.value = err.message;
   }
+  // counted from the last try, so a server that is down isn't asked every 5 seconds
   timer = setInterval(() => {
-    if (auto.value && a.value && document.visibilityState === 'visible' && Date.now() - updatedAt.value >= REFRESH_MS) load({ quiet: true });
+    if (auto.value && a.value && document.visibilityState === 'visible' && Date.now() - triedAt >= REFRESH_MS) load({ quiet: true });
   }, 5000);
 });
 onUnmounted(() => clearInterval(timer));
@@ -117,9 +137,18 @@ const period = computed(() => {
 });
 
 const frac = (r) => (r && r.n ? `${pct(r.accuracy)} (${r.correct}/${r.n})` : '-');
+// The marked answer leaves the list at once and the numbers refresh in
+// the background: no reload, so scroll position, open topics and pages stay.
+const sliding = ref(false); // only a marked answer slides out, not a page turn
 const mark = (m, correct) => async () => {
   await api('POST', `/api/teacher/attempts/${m.attemptId}/mark`, { correct });
-  rerender();
+  sliding.value = true;
+  setTimeout(() => (sliding.value = false), 400);
+  marking.value = marking.value.filter((x) => x.attemptId !== m.attemptId);
+  toast(`Marked ${correct ? 'correct' : 'not correct'}`);
+  await nextTick(); // the clicked button is gone: keep keyboard focus nearby
+  document.querySelector(marking.value.length ? '#dash-marking h3' : '#dash-overview h3')?.focus({ preventScroll: true });
+  load({ quiet: true });
 };
 const participationCsv = () => download(`/api/teacher/classes/${S.classId}/participation.csv`, `participation-${S.classId}.csv`);
 const clock = (t) => new Date(t).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
@@ -146,8 +175,15 @@ function draftFor(topicId, outcomeId) {
 function goTo(id) {
   const el = document.getElementById(id);
   if (!el) return;
-  el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  // land below the sticky top bar (its height changes when it wraps on phones)
+  const bar = document.querySelector('header#top')?.offsetHeight || 0;
+  window.scrollTo({ top: el.getBoundingClientRect().top + window.scrollY - bar - 8, behavior: 'smooth' });
   el.querySelector('h3')?.focus({ preventScroll: true });
+  // a brief outline shows where the jump landed (restarted if clicked again)
+  el.classList.remove('jumped');
+  void el.offsetWidth;
+  el.classList.add('jumped');
+  setTimeout(() => el.classList.remove('jumped'), 1600);
 }
 const sections = computed(() => [
   ['dash-overview', 'Overview'],
@@ -188,6 +224,16 @@ function delta(key) {
   if (d === 0) return { cls: 'flat', text: `no change ${vs}` };
   return d > 0 ? { cls: 'up', text: `▲ ${d} ${vs}` } : { cls: 'down', text: `▼ ${-d} ${vs}` };
 }
+const tiles = computed(() => {
+  const p = a.value.participation;
+  return [
+    { key: 'activeEver', value: `${p.activeEver} / ${p.enrolled}`, label: `students who practised (${period.value})`, delta: delta('activeEver') },
+    { key: 'active7d', value: `${p.active7d} / ${p.enrolled}`, label: 'active in the last 7 days' },
+    { key: 'sessionsCompleted', value: p.sessionsCompleted, label: 'sessions completed', delta: delta('sessionsCompleted') },
+    { key: 'attempts', value: p.attempts, label: `answers submitted (${p.worldAttempts} in World)`, delta: delta('attempts') },
+    ...(p.awaitingMarking ? [{ key: 'awaitingMarking', value: p.awaitingMarking, label: 'answers awaiting marking (left out of accuracy)' }] : []),
+  ];
+});
 
 // ---- trends: buckets are days (up to 14 days) or Monday weeks, class time zone
 const bucketLabel = (start, bucket) => {
@@ -273,6 +319,12 @@ function missedCsv() {
       </form>
       <div class="row small muted no-print" style="margin: -6px 0 10px">
         <span class="grow">Updated {{ clock(updatedAt) }} · days and weeks in {{ a.timezone.replace('_', ' ') }} time (change in Settings)</span>
+        <span role="status" class="stale">
+          <template v-if="refreshFailedAt">
+            ⚠ Couldn't refresh at {{ clock(refreshFailedAt) }}, so these numbers may be out of date.{{ auto ? ' Trying again shortly.' : '' }}
+            <button class="linklike" @click="load({ quiet: true })">Try now</button>
+          </template>
+        </span>
         <label style="margin: 0; font-weight: 400; color: inherit"><input v-model="auto" type="checkbox" @change="setAuto" /> Auto-refresh every 30 seconds</label>
       </div>
       <nav class="dash-nav no-print" aria-label="Dashboard sections">
@@ -310,35 +362,28 @@ function missedCsv() {
         </div>
 
         <div class="tiles">
-          <div class="tile">
-            <div class="v">{{ `${a.participation.activeEver} / ${a.participation.enrolled}` }}</div><div class="l">students who practised ({{ period }})</div>
-            <div v-if="delta('activeEver')" :class="'delta ' + delta('activeEver').cls">{{ delta('activeEver').text }}</div>
+          <!-- the key changes when a background refresh changes the value, so the glow replays -->
+          <div v-for="t in tiles" :key="`${t.key}:${pulse[t.key] || 0}`" class="tile" :class="{ pulse: pulse[t.key] }">
+            <div class="v">{{ t.value }}</div><div class="l">{{ t.label }}</div>
+            <div v-if="t.delta" :class="'delta ' + t.delta.cls">{{ t.delta.text }}</div>
           </div>
-          <div class="tile"><div class="v">{{ `${a.participation.active7d} / ${a.participation.enrolled}` }}</div><div class="l">active in the last 7 days</div></div>
-          <div class="tile">
-            <div class="v">{{ a.participation.sessionsCompleted }}</div><div class="l">sessions completed</div>
-            <div v-if="delta('sessionsCompleted')" :class="'delta ' + delta('sessionsCompleted').cls">{{ delta('sessionsCompleted').text }}</div>
-          </div>
-          <div class="tile">
-            <div class="v">{{ a.participation.attempts }}</div><div class="l">answers submitted ({{ a.participation.worldAttempts }} in World)</div>
-            <div v-if="delta('attempts')" :class="'delta ' + delta('attempts').cls">{{ delta('attempts').text }}</div>
-          </div>
-          <div v-if="a.participation.awaitingMarking" class="tile"><div class="v">{{ a.participation.awaitingMarking }}</div><div class="l">answers awaiting marking (left out of accuracy)</div></div>
         </div>
 
         <div v-if="marking.length" id="dash-marking" class="panel no-print" style="border-color: var(--warn)">
           <h3 tabindex="-1">Answers to mark ({{ marking.length }})</h3>
           <p class="small muted">Free-response answers get a provisional automatic mark. Confirm or change it; marking an answer correct pays the usual first-correct coins. Answers are shown without student names.</p>
-          <div v-for="m in markingPages.items" :key="m.attemptId" style="padding: 10px 0; border-bottom: 1px solid var(--line)">
-            <div style="font-weight: 600">{{ m.stem }}</div>
-            <div class="small muted">Key points: {{ m.keyPoints.map((k, i) => (m.coveredPoints.includes(i) ? `✓ ${k}` : `○ ${k}`)).join(' · ') }}</div>
-            <div class="panel" style="background: var(--bg); margin: 6px 0; padding: 10px; white-space: pre-wrap">{{ m.text || '(blank)' }}</div>
-            <div class="row">
-              <span class="small">Auto ({{ m.method }}): <b>{{ m.autoCorrect ? 'correct' : 'not correct' }}</b> · {{ pct(m.score) }} of key points</span>
-              <AsyncButton class="btn small good" :run="mark(m, true)">Mark correct</AsyncButton>
-              <AsyncButton class="btn small bad" :run="mark(m, false)">Mark not correct</AsyncButton>
+          <TransitionGroup tag="div" :name="sliding ? 'marked' : 'none'" class="marking-list">
+            <div v-for="m in markingPages.items" :key="m.attemptId" class="marking-item">
+              <div style="font-weight: 600">{{ m.stem }}</div>
+              <div class="small muted">Key points: {{ m.keyPoints.map((k, i) => (m.coveredPoints.includes(i) ? `✓ ${k}` : `○ ${k}`)).join(' · ') }}</div>
+              <div class="panel" style="background: var(--bg); margin: 6px 0; padding: 10px; white-space: pre-wrap">{{ m.text || '(blank)' }}</div>
+              <div class="row">
+                <span class="small">Auto ({{ m.method }}): <b>{{ m.autoCorrect ? 'correct' : 'not correct' }}</b> · {{ pct(m.score) }} of key points</span>
+                <AsyncButton class="btn small good" :run="mark(m, true)">Mark correct</AsyncButton>
+                <AsyncButton class="btn small bad" :run="mark(m, false)">Mark not correct</AsyncButton>
+              </div>
             </div>
-          </div>
+          </TransitionGroup>
           <Pager :paged="markingPages" label="Answers to mark pages" noun="answers" />
         </div>
 
@@ -348,18 +393,18 @@ function missedCsv() {
           <div class="charts">
             <div v-if="combined">
               <div class="chart-title">Accuracy by topic</div>
-              <LineChart :series="series" :rows="accuracyRows" :low-n="a.trend.lowN" :label="`Accuracy by topic per ${per}`" />
+              <LineChart :key="drawKey" :series="series" :rows="accuracyRows" :low-n="a.trend.lowN" :label="`Accuracy by topic per ${per}`" />
             </div>
             <div>
               <div class="chart-title">Answers submitted</div>
-              <ColumnChart :rows="activityRows" unit="answers" :label="`Answers submitted per ${per}`" />
+              <ColumnChart :key="drawKey" :rows="activityRows" unit="answers" :label="`Answers submitted per ${per}`" />
             </div>
           </div>
           <template v-if="!combined">
             <div class="chart-title" style="margin-top: 14px">Accuracy by topic <span class="muted">(one chart per topic, same scale)</span></div>
             <div class="multiples">
               <div v-for="s in series" :key="s.id">
-                <LineChart :series="[{ ...s, slot: 1 }]" :rows="accuracyRows" :low-n="a.trend.lowN" :height="150" :label="`${s.name}: accuracy per ${per}`" />
+                <LineChart :key="drawKey" :series="[{ ...s, slot: 1 }]" :rows="accuracyRows" :low-n="a.trend.lowN" :height="150" :label="`${s.name}: accuracy per ${per}`" />
               </div>
             </div>
           </template>
@@ -440,7 +485,7 @@ function missedCsv() {
           </div>
           <p class="small muted">Average time students spent on each question ({{ period }}), from the question appearing to the answer arriving, measured by the server. Each student counts once, and timed-out answers are left out; times include reading and are not a measure of ability. A question that is both <b>slow</b> (slower than three quarters of questions) and <b>mostly wrong</b> (under {{ pct(a.time.maxAccuracy) }}, at least {{ a.time.minN }} answers) is flagged as possibly confusing: worth rereading. Slowest first. Click a dot or a question for details.</p>
           <template v-if="a.time.questions.length">
-            <ScatterChart :points="scatter" :slow-ms="a.time.slowMs" :max-accuracy="a.time.maxAccuracy" :low-n="a.time.minN" label="Average time against accuracy, one dot per question" @open="openQuestion" />
+            <ScatterChart :key="drawKey" :points="scatter" :slow-ms="a.time.slowMs" :max-accuracy="a.time.maxAccuracy" :low-n="a.time.minN" label="Average time against accuracy, one dot per question" @open="openQuestion" />
             <div class="table-wrap" style="margin-top: 12px">
               <table class="dash-table">
                 <thead><tr><th>Question</th><th>Topic</th><th>Students</th><th>Answers</th><th>Average time</th><th>Median</th><th>Accuracy</th></tr></thead>

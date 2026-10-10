@@ -6,6 +6,7 @@
 // corner are flagged "possibly confusing" (second colour + legend + the
 // flag in the table, never colour alone). Dots from few answers are
 // hollow. Every dot has a 24px hover/focus target and opens the question.
+// Dots pop in when the chart mounts.
 // ============================================================
 import { ref, computed } from 'vue';
 import { useWidth } from './useWidth.js';
@@ -75,7 +76,7 @@ const describe = (p) => `${p.label}. Average ${secs(p.x)}, accuracy ${pct(p.y)} 
           <text class="tick" :x="x(slowMs) + 4" :y="M.top + 10">slow</text>
         </template>
         <line class="refline" :x1="M.left" :x2="M.left + plotW" :y1="y(maxAccuracy)" :y2="y(maxAccuracy)" />
-        <circle v-for="p in shown" :key="p.id" :cx="x(p.x)" :cy="y(p.y)" r="4.5"
+        <circle v-for="p in shown" :key="p.id" class="pop" :cx="x(p.x)" :cy="y(p.y)" r="4.5"
           :fill="p.n < lowN ? 'var(--panel)' : color(p)" :stroke="p.n < lowN ? color(p) : 'var(--panel)'" stroke-width="2"
           :class="{ lifted: active === p }" />
         <circle v-for="p in shown" :key="'h' + p.id" class="hit" :cx="x(p.x)" :cy="y(p.y)" r="12" tabindex="0" role="button" :aria-label="describe(p)"
