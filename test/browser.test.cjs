@@ -328,6 +328,45 @@ test('dashboard: marking keeps the page in place, background refreshes keep the 
   await page.waitForFunction((e) => !e.isConnected, line);
 });
 
+test('dashboard: printing shows every row and open topic, and charts are one tab stop each', async (t) => {
+  const page = await pageFor(t, 'Prof. Demo A');
+  await page.locator('#tabs').getByRole('button', { name: 'Analytics', exact: true }).click();
+  await page.getByRole('heading', { name: 'Needs attention' }).waitFor();
+  await Promise.all([page.waitForResponse(/analytics\?range=all/), page.getByLabel('Period').selectOption('all')]);
+  await page.locator('.refetching').waitFor({ state: 'detached' }); // the all-time numbers are on screen
+  const timePager = page.getByRole('navigation', { name: 'Time and accuracy pages' });
+  const total = Number((await timePager.getByText(/^Showing/).innerText()).match(/of (\d+)/)[1]);
+  const outcome = page.getByText('Convert between binary, decimal and hexadecimal', { exact: true });
+  assert.equal(await outcome.count(), 0, 'topics start closed');
+  // paper can't turn pages: everything is listed while printing, then back
+  await page.evaluate(() => window.dispatchEvent(new Event('beforeprint')));
+  await outcome.waitFor();
+  assert.equal(await page.locator('#dash-time tbody tr').count(), total);
+  await page.evaluate(() => window.dispatchEvent(new Event('afterprint')));
+  await outcome.waitFor({ state: 'detached' });
+  assert.equal(await page.locator('#dash-time tbody tr').count(), 10);
+
+  // keyboard: Tab lands on the chart once, arrows move, Enter opens the question
+  const scatter = page.getByRole('img', { name: /Average time against accuracy/ });
+  await scatter.focus();
+  const tip = page.locator('#dash-time .viz-tip');
+  await tip.waitFor();
+  const first = await tip.locator('.t').innerText();
+  await page.keyboard.press('ArrowRight');
+  assert.notEqual(await tip.locator('.t').innerText(), first, 'moved to the next dot');
+  const shown = await tip.locator('.t').innerText();
+  await page.keyboard.press('Enter');
+  await page.getByRole('dialog').getByText(shown, { exact: false }).first().waitFor();
+  await page.keyboard.press('Escape');
+  // the heatmap is one stop too
+  const heat = page.getByRole('img', { name: /Answers by day and time/ });
+  await heat.focus();
+  await page.getByText(/^Mon 00:00–03:00: \d+ answers$/).waitFor();
+  await page.keyboard.press('ArrowDown');
+  await page.getByText(/^Tue 00:00–03:00: \d+ answers$/).waitFor();
+  assert.equal(await page.locator('.heat-cell[tabindex], .viz .hit[tabindex]').count(), 0, 'no per-point tab stops');
+});
+
 test('dashboard: a refused or failed period never locks the page, marks already made stand, and names stay off paper', async (t) => {
   const db = srv.quiz.db;
   const ids = ['at-race-0', 'at-race-1'];

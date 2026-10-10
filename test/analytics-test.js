@@ -136,6 +136,28 @@ test('tiles compare with the previous period of the same length', () => {
   assert.equal(classAnalytics(db, 'cl-a', NOW, { range: 'all' }).previous, null, 'no comparison for all time');
 });
 
+test('a running period is compared up to the same point, and partial buckets are marked', () => {
+  const { db, add } = setup();
+  db.attempts = db.attempts.filter((a) => a.classId !== 'cl-a');
+  // NOW is Fri 9 Oct 20:00 in Singapore, so "today" has 4 hours left
+  add({ at: NOW - 7 * DAY - 3600000, studentId: 's-01' }); // last Friday 19:00: before the same point
+  add({ at: NOW - 7 * DAY + 3600000, studentId: 's-02' }); // last Friday 21:00: after it, left out
+  const week = classAnalytics(db, 'cl-a', NOW, { range: '7d' });
+  assert.equal(week.previous.attempts, 1);
+  assert.equal(week.previous.partial, true);
+  // only today is partial in a 7-day view
+  assert.deepEqual(week.trend.points.map((p) => p.partial), [false, false, false, false, false, false, true]);
+  // weeks: the first starts before the period, the last isn't over
+  const month = classAnalytics(db, 'cl-a', NOW, { range: '30d' });
+  assert.equal(month.trend.points[0].partial, true);
+  assert.equal(month.trend.points.at(-1).partial, true);
+  assert.ok(month.trend.points.slice(1, -1).every((p) => !p.partial));
+  // a finished custom period compares whole periods
+  const past = classAnalytics(db, 'cl-a', NOW, { range: 'custom', from: '2026-09-28', to: '2026-10-04' });
+  assert.equal(past.previous.partial, false);
+  assert.ok(past.trend.points.every((p) => !p.partial));
+});
+
 test('topics break down into learning outcomes with question coverage', () => {
   const { db } = setup();
   const data = topic(classAnalytics(db, 'cl-a', NOW, { range: 'all' }), 'tp-data');
@@ -364,6 +386,11 @@ test('the analytics route checks the period and the professor', async () => {
     const before = (await call(prof, url)).body.participation.attempts;
     srv.quiz.db.attempts.push({ id: 'at-cache', sessionId: null, studentId: 's-01', classId: 'cl-a', courseId: 'c-comp', questionId: 'q-d1', version: 1, topicId: 'tp-data', type: 'mcq', choice: 1, correct: true, score: 1, ms: 1000, timedOut: false, first: true, context: 'practice', at: Date.now() });
     assert.equal((await call(prof, url)).body.participation.attempts, before, 'served from the cache');
+    // a change the dashboard doesn't show (a student equipping an item) keeps the cache
+    const student = await login('s-01');
+    const equip = await fetch(base + '/api/student/equip', { method: 'POST', headers: { 'content-type': 'application/json', authorization: 'Bearer ' + student }, body: JSON.stringify({ itemId: null }) });
+    assert.equal(equip.status, 200);
+    assert.equal((await call(prof, url)).body.participation.attempts, before, 'still served from the cache');
     assert.equal((await put({ timezone: 'Asia/Singapore' })).status, 200);
     assert.equal((await call(prof, url)).body.participation.attempts, before + 1, 'refreshed after a change');
   } finally {
