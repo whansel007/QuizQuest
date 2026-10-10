@@ -284,3 +284,43 @@ test('dashboard: period filter, question detail, and a jump to the Question bank
   await page.getByRole('heading', { name: 'Needs attention' }).waitFor();
   assert.equal(await page.getByLabel('Period').inputValue(), 'custom');
 });
+
+test('dashboard: marking keeps the page in place, background refreshes keep the charts, and a failed refresh says so', async (t) => {
+  // six free-response answers waiting for a mark (the demo data has none)
+  const db = srv.quiz.db;
+  const ids = Array.from({ length: 6 }, (_, i) => `at-mark-${i}`);
+  ids.forEach((id, i) => db.attempts.push({ id, sessionId: null, studentId: `s-0${i + 1}`, classId: 'cl-a', courseId: 'c-comp', questionId: 'q-x3', version: 1, topicId: 'tp-net', type: 'short', text: `marking answer ${i}`, correct: false, score: 0, ms: 20000, timedOut: false, first: true, context: 'practice', at: Date.now() - 1000 * (i + 1), needsReview: true }));
+  t.after(() => { db.attempts = db.attempts.filter((a) => !ids.includes(a.id)); });
+
+  const page = await pageFor(t, 'Prof. Demo A');
+  await page.locator('#tabs').getByRole('button', { name: 'Analytics', exact: true }).click();
+  await page.getByRole('heading', { name: 'Answers to mark (6)' }).waitFor();
+  await page.getByRole('button', { name: 'Show learning outcomes for Data representation' }).click();
+  const outcome = page.getByText('Convert between binary, decimal and hexadecimal', { exact: true });
+  await outcome.waitFor();
+  const line = await page.locator('#dash-trends path.line').first().elementHandle();
+
+  // marking removes the answer in place: no reload, the open topic stays open
+  const marking = page.locator('#dash-marking');
+  await marking.getByRole('button', { name: 'Mark not correct' }).first().click();
+  await page.getByRole('heading', { name: 'Answers to mark (5)' }).waitFor();
+  assert.equal(await outcome.isVisible(), true, 'open topic survives marking');
+  assert.equal(await page.evaluate(() => document.activeElement?.textContent), 'Answers to mark (5)');
+  // the background refresh changed "awaiting marking", so that tile glows; the charts were not redrawn
+  await page.locator('.tile.pulse').filter({ hasText: 'awaiting marking' }).waitFor();
+  assert.equal(await line.evaluate((e) => e.isConnected), true, 'background refresh keeps the chart');
+
+  // a failed background refresh is reported, and "Try now" recovers
+  await page.route('**/analytics?**', (r) => r.abort());
+  await marking.getByRole('button', { name: 'Mark not correct' }).first().click();
+  const stale = page.getByRole('status').filter({ hasText: "Couldn't refresh" });
+  await stale.waitFor();
+  await page.unroute('**/analytics?**');
+  await stale.getByRole('button', { name: 'Try now' }).click();
+  await stale.waitFor({ state: 'detached' });
+  assert.equal(ids.filter((id) => db.attempts.find((a) => a.id === id).needsReview).length, 4);
+
+  // a new period redraws the charts
+  await page.getByLabel('Period').selectOption('30d');
+  await page.waitForFunction((e) => !e.isConnected, line);
+});
