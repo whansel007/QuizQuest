@@ -8,6 +8,13 @@ const heroDetails = document.querySelector('#hero-details');
 const heroStats = document.querySelector('#hero-stats');
 const actions = document.querySelector('#actions');
 const actionLog = document.querySelector('#action-log');
+const fullscreenBtn = document.querySelector('#fullscreen-btn');
+const testAiBtn = document.querySelector('#test-ai-btn');
+
+// --- NVIDIA API Configuration ---
+// Put your NVIDIA API key here (e.g. 'nvapi-...'), or put NVIDIA_API_KEY=nvapi-... in .env
+const NVIDIA_API_KEY = '';
+
 const keys = new Set();
 const moveKeys = new Set(['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'KeyW', 'KeyA', 'KeyS', 'KeyD']);
 const actionButtons = [
@@ -19,6 +26,64 @@ const actionButtons = [
 
 let selectedHero = null;
 let previousFrame = 0;
+
+async function testAi() {
+  console.log('[AI] Requesting multiple choice question from NVIDIA (deepseek-ai/deepseek-v4.1-flash)...');
+  try {
+    const res = await fetch('/api/hero-lab/test-ai', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        apiKey: NVIDIA_API_KEY || undefined,
+        prompt: 'Make a multiple choice question about what AI is.',
+      }),
+    });
+    const data = await res.json();
+    if (!res.ok) {
+      console.error('[AI] Request failed:', data.error || data);
+      return;
+    }
+    console.log('[AI] Model answer:\n' + data.answer);
+  } catch (err) {
+    console.error('[AI] Error calling AI endpoint:', err);
+  }
+}
+
+if (testAiBtn) {
+  testAiBtn.addEventListener('click', testAi);
+}
+
+function toggleFullscreen() {
+  if (!document.fullscreenElement) {
+    if (canvas.requestFullscreen) {
+      canvas.requestFullscreen().catch((err) => console.error('Fullscreen request failed:', err));
+    } else if (canvas.webkitRequestFullscreen) {
+      canvas.webkitRequestFullscreen();
+    }
+  } else {
+    if (document.exitFullscreen) {
+      document.exitFullscreen().catch((err) => console.error('Exit fullscreen failed:', err));
+    } else if (document.webkitExitFullscreen) {
+      document.webkitExitFullscreen();
+    }
+  }
+}
+
+function fireWeapon(mode) {
+  if (!selectedHero) return;
+  const status = selectedHero.fire?.(mode) || {
+    status: 'activated',
+    mode,
+    hero: selectedHero.name,
+    weapon: selectedHero.weapon.name,
+    aim: { ...selectedHero.aim },
+    position: { ...selectedHero.position },
+    timestamp: Date.now(),
+  };
+  console.log(`[Weapon] ${mode === 'primary' ? 'Primary' : 'Secondary'} fire status:`, status);
+  addListItem(actionLog, `${selectedHero.name} activated ${mode} fire (${selectedHero.weapon.name})`);
+  while (actionLog.children.length > 8) actionLog.firstElementChild.remove();
+}
 
 function addListItem(list, text) {
   const item = document.createElement('li');
@@ -32,6 +97,7 @@ function selectHero(hero) {
   hero.aim = { x: 1, y: 0 };
   worldMessage.textContent = `Playing as ${hero.emoji} ${hero.name}. Aim follows your mouse.`;
   canvas.hidden = false;
+  if (fullscreenBtn) fullscreenBtn.hidden = false;
   heroDetails.hidden = false;
   heroStats.replaceChildren();
   actionLog.replaceChildren();
@@ -90,6 +156,19 @@ function onKeyDown(event) {
     testAction('skill');
   } else if (event.code === 'KeyQ' && !event.repeat) {
     testAction('ultimate');
+  } else if (event.code === 'KeyF' && !event.repeat) {
+    toggleFullscreen();
+  }
+}
+
+function onPointerDown(event) {
+  if (!selectedHero) return;
+  onPointerMove(event);
+  if (event.button === 0) {
+    fireWeapon('primary');
+  } else if (event.button === 2) {
+    event.preventDefault();
+    fireWeapon('secondary');
   }
 }
 
@@ -143,6 +222,17 @@ function draw(timestamp = 0) {
 }
 
 canvas.addEventListener('pointermove', onPointerMove);
+canvas.addEventListener('pointerdown', onPointerDown);
+canvas.addEventListener('contextmenu', (event) => event.preventDefault());
+canvas.addEventListener('dblclick', toggleFullscreen);
+if (fullscreenBtn) {
+  fullscreenBtn.addEventListener('click', toggleFullscreen);
+}
+document.addEventListener('fullscreenchange', () => {
+  if (fullscreenBtn) {
+    fullscreenBtn.textContent = document.fullscreenElement === canvas ? 'Exit fullscreen' : 'Fullscreen';
+  }
+});
 addEventListener('keydown', onKeyDown);
 addEventListener('keyup', onKeyUp);
 addEventListener('blur', () => keys.clear());

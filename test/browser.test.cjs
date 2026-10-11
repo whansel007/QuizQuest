@@ -116,6 +116,17 @@ test('hero lab selects heroes and allows movement, aiming, and action tests', as
   assert.notEqual(await page.locator('canvas').evaluate((canvas) => canvas.toDataURL()), aimed, 'hero moves in the world');
   await page.getByRole('button', { name: '🛡️ Guardian' }).click();
   await page.getByText(/Weapon: Iron Mace/).waitFor();
+  const consoleMessages = [];
+  page.on('console', (msg) => consoleMessages.push(msg.text()));
+  await page.getByRole('button', { name: 'Fullscreen' }).waitFor();
+  await page.locator('canvas').click({ button: 'left' });
+  await page.getByText(/Guardian activated primary fire/).waitFor();
+  await page.locator('canvas').click({ button: 'right' });
+  await page.getByText(/Guardian activated secondary fire/).waitFor();
+  assert.ok(consoleMessages.some((msg) => msg.includes('[Weapon] Primary fire status:')), 'logged primary fire status');
+  assert.ok(consoleMessages.some((msg) => msg.includes('[Weapon] Secondary fire status:')), 'logged secondary fire status');
+  await page.getByRole('button', { name: 'Test AI' }).click();
+  assert.ok(consoleMessages.some((msg) => msg.includes('[AI] Requesting multiple choice question from NVIDIA')), 'logged AI request initiation');
 });
 
 test('refreshing a timed quiz offers resume without resetting the server deadline', async (t) => {

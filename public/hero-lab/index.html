@@ -4,10 +4,22 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Hero test field</title>
+  <style>
+    #world:fullscreen {
+      background-color: #ffffff;
+      max-width: 100vw;
+      max-height: 100vh;
+      aspect-ratio: 800 / 500;
+      margin: auto;
+    }
+    #world::backdrop {
+      background-color: #111111;
+    }
+  </style>
 </head>
 <body>
   <h1>Hero test field</h1>
-  <p>Select a hero to enter the empty world. Move with WASD or the arrow keys; aim with the mouse. Press E for skill and Q for ultimate.</p>
+  <p>Select a hero to enter the empty world. Move with WASD or the arrow keys; aim with the mouse. Left-click for primary fire, right-click for secondary fire. Press E for skill, Q for ultimate, or F for fullscreen.</p>
 
   <section aria-labelledby="hero-selector-heading">
     <h2 id="hero-selector-heading">Hero selector</h2>
@@ -17,6 +29,10 @@
   <section aria-labelledby="world-heading">
     <h2 id="world-heading">World</h2>
     <p id="world-message">Choose a hero to drop into the world.</p>
+    <p>
+      <button id="fullscreen-btn" type="button" hidden>Fullscreen</button>
+      <button id="test-ai-btn" type="button">Test AI</button>
+    </p>
     <canvas
       id="world"
       width="800"

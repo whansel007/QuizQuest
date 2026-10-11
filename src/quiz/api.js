@@ -325,6 +325,44 @@ function createQuizApi({ dataFile = null, store = null, now = () => Date.now(), 
     return { ok: true };
   });
 
+  // ---------------- hero-lab AI test (NVIDIA DeepSeek 4.1 Flash) ----------------
+  route('POST', '/api/hero-lab/test-ai', null, async ({ body }) => {
+    const apiKey = (body?.apiKey || process.env.NVIDIA_API_KEY || '').trim();
+    if (!apiKey) {
+      fail(400, 'NVIDIA API key not found. Please set NVIDIA_API_KEY in your .env file or set NVIDIA_API_KEY in public/hero-lab/main.js.');
+    }
+    const model = process.env.NVIDIA_MODEL || 'deepseek-ai/deepseek-v4.1-flash';
+    const prompt = body?.prompt || 'Make a multiple choice question about what AI is.';
+
+    try {
+      const upstream = await fetch('https://integrate.api.nvidia.com/v1/chat/completions', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${apiKey}`,
+        },
+        body: JSON.stringify({
+          model,
+          messages: [{ role: 'user', content: prompt }],
+          temperature: 0.6,
+          max_tokens: 1024,
+        }),
+      });
+
+      if (!upstream.ok) {
+        const text = await upstream.text();
+        fail(upstream.status, `NVIDIA API error (${upstream.status}): ${text}`);
+      }
+
+      const data = await upstream.json();
+      const answer = data?.choices?.[0]?.message?.content || '';
+      return { ok: true, model, answer, raw: data };
+    } catch (err) {
+      if (err instanceof HttpError) throw err;
+      fail(502, `Failed to reach NVIDIA API: ${err.message}`);
+    }
+  });
+
   route('GET', '/api/me', 'any', ({ user }) => user);
 
   // ---------------- teacher: courses & settings ----------------

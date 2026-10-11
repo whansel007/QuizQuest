@@ -23,6 +23,18 @@ export class Hero {
     return `${this.name} tested ${ability.name}: ${ability.description}`;
   }
 
+  fire(mode = 'primary') {
+    return {
+      status: 'activated',
+      mode,
+      hero: this.name,
+      weapon: this.weapon.name,
+      aim: { ...this.aim },
+      position: { ...this.position },
+      timestamp: Date.now(),
+    };
+  }
+
   setAimFromPointer(pointer) {
     const dx = pointer.x - this.position.x;
     const dy = pointer.y - this.position.y;
