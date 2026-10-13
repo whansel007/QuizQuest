@@ -62,6 +62,7 @@ const MIME = {
   '.ico': 'image/x-icon',
   '.woff2': 'font/woff2',
   '.wasm': 'application/wasm',
+  '.md': 'text/markdown; charset=utf-8',
 };
 
 // start(port) boots the whole game. Calling it with port 0 (used by
@@ -84,11 +85,11 @@ function start(port, opts = {}) {
 
   // ------ Serve the static files (the part you already know) ------
   // The quiz app is the Vue build in dist/ (`npm run build`); Circle Tag
-  // still lives in public/ at /tag.
+  // still lives in public/tag at /tag.
   const publicDir = path.join(__dirname, 'public');
   const heroLabDir = path.join(publicDir, 'hero-lab');
+  const tagDir = path.join(publicDir, 'tag');
   const distDir = opts.distDir || path.join(__dirname, 'dist');
-  const TAG = { '/tag': path.join(publicDir, 'index.html'), '/client.js': path.join(publicDir, 'client.js') };
   const httpServer = http.createServer(async (req, res) => {
     // JSON API for the quiz app. A thrown error here must never take the
     // whole server (and everyone's game) down, so it becomes a 500.
@@ -101,16 +102,25 @@ function start(port, opts = {}) {
     }
     const pathname = req.url.split('?')[0];
     const isHeroLabPath = pathname === '/hero-lab' || pathname.startsWith('/hero-lab/');
-    const file = TAG[pathname] || (isHeroLabPath
+    const isTagPath = pathname === '/tag' || pathname.startsWith('/tag/');
+    const file = pathname === '/client.js'
+      ? path.join(tagDir, 'client.js')
+      : isTagPath
+      ? path.resolve(tagDir, pathname === '/tag' || pathname === '/tag/' ? 'index.html' : '.' + pathname.slice('/tag'.length))
+      : isHeroLabPath
       ? path.resolve(heroLabDir, pathname === '/hero-lab' ? 'index.html' : '.' + pathname.slice('/hero-lab'.length))
-      : path.join(distDir, pathname === '/' ? 'index.html' : pathname));
+      : path.join(distDir, pathname === '/' ? 'index.html' : pathname);
+    if (isTagPath && file !== tagDir && !file.startsWith(tagDir + path.sep)) {
+      res.writeHead(403);
+      return res.end();
+    }
     if (isHeroLabPath && file !== heroLabDir && !file.startsWith(heroLabDir + path.sep)) {
       res.writeHead(403);
       return res.end();
     }
     // Guard against path traversal attempts like GET /../server.js
     // (the trailing separator stops a sibling folder like "dist-old" matching)
-    if (!TAG[pathname] && !isHeroLabPath && !file.startsWith(distDir + path.sep)) {
+    if (!isTagPath && pathname !== '/client.js' && !isHeroLabPath && !file.startsWith(distDir + path.sep)) {
       res.writeHead(403);
       return res.end();
     }

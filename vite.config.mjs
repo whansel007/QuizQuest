@@ -17,7 +17,7 @@ export default defineConfig({
     proxy: {
       '/api': node,
       '/socket.io': { target: node, ws: true },
-      '^/tag$': node,
+      '/tag': node,
       '/client.js': node,
       '/hero-lab': node,
     },
