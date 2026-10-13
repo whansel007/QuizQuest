@@ -6,7 +6,7 @@ practise in adaptive sessions that focus on their weaker topics, and earn coins,
 pets, kingdom buildings and loot in a co-op multiplayer World.
 
 > **Prototype with synthetic data only.** Demo users and course content are
-> made up. Login is a passwordless "pick a demo user" screen. Do not enter real
+> made up, and every demo account shares a public password. Do not enter real
 > student data.
 
 ## Features
@@ -51,11 +51,39 @@ npm run dev
 Open **http://localhost:5173**. This runs the Vue app (with hot reload) and the
 Node server on port 3000 together. Stop both with Ctrl + C.
 
-Try it: pick **Prof. Demo A** in one tab, **Student 02** in another and
-**Student 03** in a third. Then open **World** in both student tabs to play
-together.
+Try it: sign in as `prof.a@quizquest.demo` in one tab, `student02@quizquest.demo`
+in another and `student03@quizquest.demo` in a third (password `quizquest` for
+all three). Then open **World** in both student tabs to play together. Each tab
+keeps its own login.
 
 Without any configuration, data is stored in `data/db.json`.
+
+## Signing in
+
+Users sign in with **email and password**. Passwords are hashed with scrypt
+(Node's built-in `crypto`, see `src/quiz/passwords.js`) and the hash never
+leaves the server.
+
+| Account | Email | Password |
+|---|---|---|
+| Prof. Demo A | `prof.a@quizquest.demo` | `quizquest` |
+| Prof. Demo B | `prof.b@quizquest.demo` | `quizquest` |
+| Student 01 to 12 | `student01@quizquest.demo` … `student12@quizquest.demo` | `quizquest` |
+
+- Data created before passwords were added (an old `data/db.json`, or an existing
+  Supabase project) gets these demo emails and the demo password automatically
+  when the server starts. No migration or reset is needed.
+- A wrong email and a wrong password get the same error message. After 5 wrong
+  passwords, that email is locked for 15 minutes.
+- Login sessions are kept in server memory for 8 hours, so restarting the server
+  signs everyone out.
+- **Test accounts page:** the small **Test accounts** button under the form (or
+  `/#test-accounts`) lists every demo user. Click one to sign in without a
+  password, or **Fill form** to try the normal sign-in with that email. It is for
+  development and testing only, and is switched off when the server runs with
+  `NODE_ENV=production`.
+
+There is no sign-up page yet: only the seeded accounts can sign in.
 
 ## Using Supabase (optional)
 
@@ -79,7 +107,7 @@ Run **one server at a time** per Supabase project. See
 |---|---|
 | `npm run dev` | Development: Vue app on :5173 and server on :3000, with auto-reload |
 | `npm run build` | Build the Vue app into `dist/` |
-| `npm start` | Production: server on :3000 serving `dist/` (build first) |
+| `npm start` | Production: server on :3000 serving `dist/` (build first). Set `NODE_ENV=production` to turn off the passwordless demo picker |
 | `npm test` | API, database, World and store tests |
 | `npm run test:browser` | Builds, then runs the Playwright browser tests |
 | `npm run check` | Syntax-check the JavaScript files |
@@ -99,7 +127,7 @@ web/                Vue app (built by Vite)
   src/student/      student screens and the World
   src/api.js        axios client
 server.js           HTTP server, static files, Circle Tag game
-src/quiz/           API routes, grading, adaptive engine, rewards, AI
+src/quiz/           API routes, sign-in, grading, adaptive engine, rewards, AI
 src/world/          multiplayer World (Socket.IO)
 src/db/             Supabase store and table mapping
 supabase/           database migration (SQL)

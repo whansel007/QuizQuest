@@ -36,6 +36,9 @@ const current = computed(() => {
 </script>
 
 <template>
+  <!-- signed out: the sign-in page fills the screen, with its own logo and footer -->
+  <LoginView v-if="ready && !S.me" :key="'login' + S.viewKey" />
+  <template v-else-if="ready">
   <header id="top">
     <div class="brand">Quiz<span>Quest</span> <small>prototype</small></div>
     <nav id="tabs">
@@ -49,16 +52,14 @@ const current = computed(() => {
     </div>
   </header>
   <main id="main">
-    <template v-if="ready">
-      <LoginView v-if="!S.me" :key="'login' + S.viewKey" />
-      <!-- the key remounts the view on tab switch, user switch or rerender(),
-           so each view starts fresh and releases sockets/timers on unmount -->
-      <component :is="current[2]" v-else :key="current[0] + ':' + S.viewKey + ':' + S.token" />
-    </template>
+    <!-- the key remounts the view on tab switch, user switch or rerender(),
+         so each view starts fresh and releases sockets/timers on unmount -->
+    <component :is="current[2]" :key="current[0] + ':' + S.viewKey + ':' + S.token" />
   </main>
-  <div id="toast" role="status" aria-live="polite" :class="{ show: toastState.show, bad: toastState.bad }">{{ toastState.msg }}</div>
   <footer>
     Demo build with synthetic users and demo course content only. Do not enter real student data.
     · <a href="/tag">Circle Tag (the original multiplayer experiment)</a>
   </footer>
+  </template>
+  <div id="toast" role="status" aria-live="polite" :class="{ show: toastState.show, bad: toastState.bad }">{{ toastState.msg }}</div>
 </template>

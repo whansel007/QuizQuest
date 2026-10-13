@@ -97,7 +97,9 @@ If `data/db.json` was written by an older version, it is renamed to
 `db.v1.bak.json` and fresh demo data is seeded. `QUIZ_DATA_FILE=...` points the
 server at a different data file (handy for running two copies).
 
-Logins are per browser tab. Good demo users:
+Logins are per browser tab. Sign in with the user's demo email (`prof.a@quizquest.demo`,
+`student02@quizquest.demo`, ...) and the password `quizquest`, or pick one on the
+**Test accounts** page (see [README.md](README.md#signing-in)). Good demo users:
 
 | User | Why |
 |---|---|
@@ -147,8 +149,10 @@ Existing `data/db.json` or Supabase data keeps the old demo set; run `npm run re
 - **Per-request database queries and multiple server instances.** See
   *Architecture* above: Supabase is the database, but the server still keeps
   a working copy in memory (one instance only).
-- **Real login.** Still "pick a demo user" (users are stored in Supabase).
-  Supabase Auth is the next step. The World uses the same token.
+- **Sign-up and account management.** Email + password sign-in works, but only
+  for the seeded demo accounts: there is no sign-up, password reset or admin
+  screen for assigning professor access yet. Login sessions live in server
+  memory (lost on restart). The World uses the same token.
 
 ## AI features
 
