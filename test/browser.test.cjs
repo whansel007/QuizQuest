@@ -21,7 +21,8 @@ async function pageFor(t, name, viewport = { width: 1280, height: 900 }, options
   const errors = [];
   page.on('pageerror', (e) => errors.push(e.message));
   t.after(async () => { await page.close(); assert.deepEqual(errors, [], 'no unhandled browser errors'); });
-  await page.goto(base);
+  // the test accounts page: one click signs in (and "Switch user" comes back here)
+  await page.goto(base + '/#test-accounts');
   await page.getByRole('button', { name, exact: false }).click();
   await page.getByRole('button', { name: 'Switch user', exact: true }).waitFor();
   return page;
@@ -85,12 +86,53 @@ test('practice Next recovers from a failed request and the session finishes', as
   }
   await page.getByRole('button', { name: 'Back to practice' }).waitFor();
 });
+test('signing in with email and password', async (t) => {
+  const page = await browser.newPage();
+  t.after(() => page.close());
+  await page.goto(base);
+  // step 1: email (checked in the browser before moving on)
+  await page.getByLabel('Email', { exact: true }).fill('not-an-email');
+  await page.getByRole('button', { name: 'Continue' }).click();
+  await page.getByRole('alert').getByText("That doesn't look like an email address.").waitFor();
+  await page.getByLabel('Email', { exact: true }).fill('prof.a@quizquest.demo');
+  await page.getByLabel('Email', { exact: true }).press('Enter');
+  // step 2: password, with the email shown on a chip
+  const password = page.getByLabel('Password', { exact: true });
+  await password.fill('wrong-password');
+  await page.getByRole('button', { name: 'Show password' }).click();
+  assert.equal(await password.getAttribute('type'), 'text', 'the password can be shown');
+  await page.getByRole('button', { name: 'Sign in', exact: true }).click();
+  await page.getByRole('alert').getByText('Email or password is incorrect.').waitFor();
+  assert.equal(await password.inputValue(), '', 'a failed attempt clears the password');
+  // "Change" goes back to the email step, keeping the email
+  await page.getByRole('button', { name: 'Change email (prof.a@quizquest.demo)' }).click();
+  assert.equal(await page.getByLabel('Email', { exact: true }).inputValue(), 'prof.a@quizquest.demo');
+  await page.getByRole('button', { name: 'Continue' }).click();
+  await password.fill('quizquest');
+  await password.press('Enter');
+  await page.getByRole('heading', { name: 'Question bank', exact: true }).waitFor();
+});
+test('the test accounts page fills the sign-in form', async (t) => {
+  const page = await browser.newPage();
+  t.after(() => page.close());
+  await page.goto(base);
+  await page.getByRole('button', { name: 'Test accounts' }).click();
+  await page.getByRole('heading', { name: 'Test accounts' }).waitFor();
+  assert.ok(page.url().endsWith('#test-accounts'));
+  await page.getByRole('button', { name: 'Fill the sign-in form with student03@quizquest.demo' }).click();
+  await page.getByRole('button', { name: 'Change email (student03@quizquest.demo)' }).waitFor();
+  const password = page.getByLabel('Password', { exact: true });
+  await password.fill('quizquest');
+  await password.press('Enter');
+  await page.getByRole('heading', { name: 'Practice', exact: true }).waitFor();
+});
 test('login network errors show a retry button', async (t) => {
   const page = await browser.newPage();
   t.after(() => page.close());
   await page.route('**/api/demo-users', (r) => r.fulfill({ status: 503, contentType: 'application/json', body: '{"error":"Unavailable"}' }), { times: 1 });
   await page.goto(base);
-  await page.getByRole('button', { name: 'Retry sign-in' }).click();
+  await page.getByRole('button', { name: 'Test accounts' }).click();
+  await page.getByRole('button', { name: 'Retry loading demo accounts' }).click();
   await page.getByRole('button', { name: 'Student 01' }).waitFor();
 });
 

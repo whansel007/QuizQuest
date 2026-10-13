@@ -166,8 +166,9 @@ function clearSession() {
   rerender();
 }
 
-export async function signIn(userId) {
-  const r = await api('POST', '/api/login', { userId });
+// credentials: { email, password }, or { userId } for the demo picker
+export async function signIn(credentials) {
+  const r = await api('POST', '/api/login', credentials);
   S.token = r.token;
   try {
     sessionStorage.setItem('qq-token', r.token);
