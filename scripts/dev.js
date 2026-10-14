@@ -1,6 +1,6 @@
 // `npm run dev`: the Node API/World server (restarts on change) and the
 // Vite dev server (hot reload for the Vue app) side by side.
-// Open http://localhost:5173 - Vite forwards /api and /socket.io to Node.
+// Open http://localhost:5173 - Vite forwards /api, /socket.io, and /hero-lab to Node.
 const path = require('node:path');
 const { spawn } = require('node:child_process');
 

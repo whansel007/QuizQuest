@@ -1,10 +1,10 @@
 # Hero test field
 
 This folder contains a small, standalone hero sandbox under the existing
-`public/` static-assets directory. It is separate from the main Vue
-application: its HTML, styles (none required), hero objects, and game-loop
-code live here. The shared Node server maps the `/hero-lab` URL to this folder,
-and Vite forwards that URL to the server in development.
+`public/` static-assets directory. Its page and renderer are separate from the
+main Vue application, but its realtime game loop runs on the shared Node
+server. The server maps `/hero-lab` to this folder, and Vite forwards that URL
+to the server in development.
 
 ## Run it
 
@@ -22,18 +22,24 @@ build the app with `npm run build`, run `npm start`, and open
 
 - `index.html` provides a hero list, canvas world, stats, action buttons, and
   action log.
-- `hero.js` defines the shared `Hero` class and three sample hero instances.
-  Each instance has its own stats, weapon, skill, ultimate, talent, and buff
-  slots, along with position and aim direction.
-- `main.js` connects the page to the hero objects. It handles selection,
-  keyboard movement, mouse aiming, canvas rendering, and test action buttons.
+- `hero.js` defines the shared `Hero` class and three sample hero definitions,
+  with stats, weapon, skill, ultimate, talent, and buff slots. The live
+  position and aim used in a game session are held by the server.
+- `main.js` handles hero selection, sends keyboard and aim input over
+  Socket.IO, and draws the latest server snapshot on the canvas.
+- `../../src/hero-lab/world.js` owns the live player state and movement loop.
+  It accepts input, updates positions, and emits snapshots on the `/hero-lab`
+  Socket.IO namespace.
 
-The field has no enemies or combat implementation. Testing an action only
-adds a description to the log. WASD or arrow keys move the selected hero; the
-mouse points an arrow from the hero toward the pointer; left-click activates
-primary fire and right-click activates secondary fire (logged to the console and
-action log); E tests the skill, Q tests the ultimate, and F (or the Fullscreen
-button / double-click) toggles fullscreen mode.
+Open the page in multiple tabs to see each other's heroes. The browser sends
+held-key state and aim direction; the server owns player positions and
+broadcasts the shared state at 30 ticks per second. The browser renders those
+snapshots with `requestAnimationFrame`, similar to the actual multiplayer World
+in `src/world/world.js` and `web/src/student/WorldView.vue`. Hero Lab deliberately
+has no login, class rooms, enemies, or combat resolution. Left/right-click
+fire is acknowledged by the server for demonstration; the skill and ultimate
+buttons only log their descriptions. E tests the skill, Q tests the ultimate,
+and F (or the Fullscreen button / double-click) toggles fullscreen mode.
 
 The "Test AI" button sends a request to NVIDIA NIM (`deepseek-ai/deepseek-v4.1-flash`)
 asking for a multiple choice question about AI and prints the model's response to the

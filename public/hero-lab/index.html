@@ -19,7 +19,7 @@
 </head>
 <body>
   <h1>Hero test field</h1>
-  <p>Select a hero to enter the empty world. Move with WASD or the arrow keys; aim with the mouse. Left-click for primary fire, right-click for secondary fire. Press E for skill, Q for ultimate, or F for fullscreen.</p>
+  <p>Select a hero to join the shared test world. Movement and aiming go to the server; the server broadcasts the state that each browser draws. Open this page in another tab to see both heroes. Move with WASD or the arrow keys; aim with the mouse. Left-click for primary fire, right-click for secondary fire. Press E for skill, Q for ultimate, or F for fullscreen.</p>
 
   <section aria-labelledby="hero-selector-heading">
     <h2 id="hero-selector-heading">Hero selector</h2>
@@ -33,6 +33,7 @@
       <button id="fullscreen-btn" type="button" hidden>Fullscreen</button>
       <button id="test-ai-btn" type="button">Test AI</button>
     </p>
+    <p id="connection-status" role="status">Connecting to the Hero Lab server…</p>
     <canvas
       id="world"
       width="800"
@@ -50,6 +51,7 @@
     </div>
   </section>
 
+  <script src="/socket.io/socket.io.js"></script>
   <script type="module" src="/hero-lab/main.js"></script>
 </body>
 </html>
