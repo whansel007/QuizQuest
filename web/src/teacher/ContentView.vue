@@ -10,6 +10,7 @@ import Field from '../components/Field.vue';
 import AsyncButton from '../components/AsyncButton.vue';
 import CoursePicker from './CoursePicker.vue';
 import TopicOutcomeFields from './TopicOutcomeFields.vue';
+import ImportMaterials from './ImportMaterials.vue';
 import { loadCourses, currentCourse, initialTags } from './courses.js';
 import { loadPdfJs, toBase64 } from './pdf.js';
 
@@ -140,6 +141,7 @@ async function savePassage() {
 }
 
 const deletePassage = (p) => async () => {
+  if (!window.confirm(`Delete "${p.title}"? ${p.usedBy ? 'Questions cite this material and will lose access to its text. ' : ''}This cannot be undone.`)) return;
   await api('DELETE', `/api/teacher/passages/${p.id}`);
   toast('Passage deleted');
   rerender();
@@ -153,6 +155,7 @@ const plainLabel = 'font-weight:400;color:inherit;margin:10px 0';
     <p v-if="!course">You have no assigned courses.</p>
     <template v-else>
       <Heading title="Source material"><CoursePicker :courses="courses" /></Heading>
+      <ImportMaterials :course="course" @saved="async () => { passages = await api('GET', `/api/teacher/courses/${course.id}/passages`); }" />
       <div class="panel">
         <h3>Add material</h3>
         <p class="small muted">Material is stored separately from questions and treated as reference content only: instructions inside it are never followed. Long documents are split into chunks so drafting only uses the relevant parts.</p>

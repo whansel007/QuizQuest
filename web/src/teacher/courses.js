@@ -27,5 +27,5 @@ export function initialTags(course, init = {}) {
   return { topicId: topic?.id, outcomeId: outcome?.id };
 }
 
-export const ORIGIN = { manual: 'written by hand', template: 'offline drafter', ai: 'Gemini draft', custom: 'drafted' };
+export const ORIGIN = { manual: 'written by hand', template: 'offline drafter', ai: 'AI draft', custom: 'drafted' };
 export const RES = { wood: { emoji: '🪵' }, crystal: { emoji: '💎' }, herb: { emoji: '🌿' } };

@@ -126,7 +126,7 @@ test('hero lab selects heroes and allows movement, aiming, and action tests', as
   assert.ok(consoleMessages.some((msg) => msg.includes('[Weapon] Primary fire status:')), 'logged primary fire status');
   assert.ok(consoleMessages.some((msg) => msg.includes('[Weapon] Secondary fire status:')), 'logged secondary fire status');
   await page.getByRole('button', { name: 'Test AI' }).click();
-  assert.ok(consoleMessages.some((msg) => msg.includes('[AI] Requesting multiple choice question from NVIDIA')), 'logged AI request initiation');
+  assert.ok(consoleMessages.some((msg) => msg.includes('[AI] Requesting a multiple choice question from the server Gemini client')), 'logged AI request initiation');
 });
 
 test('refreshing a timed quiz offers resume without resetting the server deadline', async (t) => {

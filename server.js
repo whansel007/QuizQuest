@@ -70,7 +70,7 @@ const MIME = {
 // opts.dataFile: where the quiz app keeps its JSON database (null = in-memory).
 // opts.store: an already-loaded store (e.g. the Supabase one) instead of a file.
 function start(port, opts = {}) {
-  const quiz = createQuizApi(opts.store ? { store: opts.store } : { dataFile: opts.dataFile !== undefined ? opts.dataFile : path.join(__dirname, 'data', 'db.json') });
+  const quiz = createQuizApi({ ...opts, dataFile: opts.dataFile !== undefined ? opts.dataFile : path.join(__dirname, 'data', 'db.json') });
   // ------ Live game state (in-memory, lives ONLY while running) ---
   // players: socket.id -> player object. This is the "database" of
   // the live game. Unlike Mongo it is volatile: if the server restarts,

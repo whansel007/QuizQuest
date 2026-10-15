@@ -18,7 +18,7 @@ const questions = ref([]);
 const passages = ref([]);
 onMounted(async () => {
   try {
-    courses.value = await loadCourses();
+    courses.value = await loadCourses(true);
     course.value = currentCourse();
     if (course.value) {
       [questions.value, passages.value] = await Promise.all([api('GET', `/api/teacher/courses/${course.value.id}/questions`), api('GET', `/api/teacher/courses/${course.value.id}/passages`)]);

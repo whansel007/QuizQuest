@@ -10,13 +10,14 @@
     "test": "node --test test/*-test.js",
     "check": "node scripts/check.js",
     "pretest:browser": "vite build",
-    "test:browser": "node --test test/browser.test.cjs",
+    "test:browser": "node --test test/browser*.test.cjs",
     "reset-data": "node -e \"require('fs').rmSync('data',{recursive:true,force:true})\"",
     "db:reset": "node --env-file-if-exists=.env scripts/supabase-reset.js"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.117.3",
     "axios": "^1.20.0",
+    "fflate": "0.8.2",
     "pdfjs-dist": "^6.4.299",
     "socket.io": "^4.8.1",
     "socket.io-client": "^4.8.4",
