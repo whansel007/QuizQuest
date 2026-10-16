@@ -158,7 +158,7 @@ async function generateJson({
               ? 'The AI response was incomplete. Try a smaller batch.'
               : 'The AI service could not return usable content. Review the selected material.',
           ),
-          { code: 'INCOMPLETE', retryable: false },
+          { code: 'INCOMPLETE', retryable: false, finishReason: String(first?.finishReason || 'NONE') },
         );
       const raw =
         first.content?.parts
