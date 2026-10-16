@@ -4,7 +4,7 @@
 // when they teach two or more). Class-level numbers only.
 // ============================================================
 import { ref, watch } from 'vue';
-import { S, api, periodQuery } from '../../api.js';
+import { S, api, dashQuery } from '../../api.js';
 import { pct } from '../../ui.js';
 
 const props = defineProps({
@@ -18,7 +18,7 @@ let seq = 0;
 async function load() {
   const mine = ++seq;
   try {
-    const data = await api('GET', `/api/teacher/courses/${props.courseId}/compare?${periodQuery()}`);
+    const data = await api('GET', `/api/teacher/courses/${props.courseId}/compare?${dashQuery()}`);
     if (mine === seq) {
       rows.value = data;
       error.value = '';

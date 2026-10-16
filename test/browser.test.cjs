@@ -298,6 +298,17 @@ test('dashboard: period filter, question detail, and a jump to the Question bank
   await timePager.getByText(`Showing ${(lastPage - 1) * 10 + 1}–${total} of ${total} questions`).waitFor();
   assert.equal(await page.locator('#dash-time tbody tr').count(), total - (lastPage - 1) * 10);
   assert.equal(await timePager.getByRole('button', { name: 'Next page' }).isDisabled(), true);
+  // group chips: "All" counts every question; a group filters the table to its questions
+  const chips = page.getByRole('group', { name: 'Question groups' }).getByRole('button');
+  assert.equal(await chips.first().innerText(), `All (${total})`);
+  const group = chips.nth(1);
+  const inGroup = Number((await group.innerText()).match(/\((\d+)\)$/)[1]);
+  const groupName = (await group.innerText()).replace(/^⚠ /, '').replace(/ \(\d+\)$/, '');
+  await group.click();
+  assert.equal(await group.getAttribute('aria-pressed'), 'true');
+  await page.waitForFunction((n) => document.querySelectorAll('#dash-time tbody tr').length === n, Math.min(inGroup, 10));
+  assert.ok((await page.locator('#dash-time tbody td:nth-child(2)').allInnerTexts()).every((g) => g.replace(/^⚠ /, '') === groupName));
+  await chips.first().click();
   // learning outcomes open under a topic
   await page.getByRole('button', { name: 'Show learning outcomes for Data representation' }).click();
   await page.getByText('Convert between binary, decimal and hexadecimal', { exact: true }).waitFor();
@@ -323,4 +334,54 @@ test('dashboard: period filter, question detail, and a jump to the Question bank
   await page.locator('#tabs').getByRole('button', { name: 'Analytics', exact: true }).click();
   await page.getByRole('heading', { name: 'Needs attention' }).waitFor();
   assert.equal(await page.getByLabel('Period').inputValue(), 'custom');
+});
+
+test('weekly topics: narrow the dashboard, follow a next step, and add a topic for uploads', async (t) => {
+  const page = await pageFor(t, 'Prof. Demo A');
+  await page.locator('#tabs').getByRole('button', { name: 'Analytics', exact: true }).click();
+  const weeks = page.locator('#dash-weeks');
+  await weeks.getByRole('heading', { name: 'Weekly topics' }).waitFor();
+  assert.deepEqual(await weeks.locator('tbody tr td:first-child').allInnerTexts(), ['1', '2', '3']);
+  // a topic narrows every section, and the filter shows it
+  await weeks.getByRole('button', { name: 'Show only Networking basics on the dashboard' }).click();
+  await page.getByText('Showing Week 2 · Networking basics only', { exact: false }).waitFor();
+  assert.equal(await page.getByLabel('Weekly topic').inputValue(), 'tp-net');
+  await page.waitForFunction(() => document.querySelectorAll('#dash-topics tbody tr:not(.subrow)').length === 1);
+  assert.deepEqual(await weeks.locator('tbody tr td:first-child').allInnerTexts(), ['2'], 'Weekly topics follows the topic filter');
+  assert.equal(await page.getByText(/Weakest topic/).count(), 0, 'no "weakest topic" when only one topic is shown');
+  assert.ok((await page.locator('#dash-time tbody').innerText()).split('\n').every((line) => !/Data representation|Cyber hygiene/.test(line)));
+  // the outcomes of the chosen topic are open; Week 2's draft is one click away
+  await page.locator('#dash-topics').getByText('Describe how data moves across a network', { exact: true }).waitFor();
+  await weeks.getByRole('button', { name: 'Review 1 draft' }).click();
+  await page.getByRole('heading', { name: 'Question bank', exact: true }).waitFor();
+  assert.equal(await page.getByLabel('Filter by topic').inputValue(), 'tp-net');
+  assert.equal(await page.getByRole('button', { name: /^Needs review/ }).getAttribute('aria-pressed'), 'true');
+  // back on the dashboard, "Show all topics" clears the filter
+  await page.locator('#tabs').getByRole('button', { name: 'Analytics', exact: true }).click();
+  await page.getByRole('button', { name: 'Show all topics' }).click();
+  await page.waitForFunction(() => document.querySelectorAll('#dash-topics tbody tr:not(.subrow)').length === 3);
+  assert.equal(await weeks.locator('tbody tr').count(), 3);
+  // Source material's topic table follows its topic filter too
+  await page.locator('#tabs').getByRole('button', { name: 'Source material', exact: true }).click();
+  await page.getByLabel('Weekly topic').selectOption('tp-sec');
+  await page.getByRole('heading', { name: 'Upload lecture material for Week 3 · Cyber hygiene' }).waitFor();
+  assert.deepEqual(await page.locator('.topic-table tbody tr:not(.subrow) td:first-child').allInnerTexts(), ['3']);
+  await page.getByLabel('Weekly topic').selectOption('');
+  await page.waitForFunction(() => document.querySelectorAll('.topic-table tbody tr:not(.subrow)').length === 3);
+  // Source material: add Week 4; uploads then go into it
+  await page.locator('#tabs').getByRole('button', { name: 'Source material', exact: true }).click();
+  await page.getByRole('button', { name: '+ Add topic' }).click();
+  assert.equal(await page.getByLabel('Week', { exact: true }).inputValue(), '4', 'suggests the week after the latest');
+  await page.getByLabel('Topic name').fill('Operating systems');
+  await page.getByLabel('First learning outcome (optional)').fill('Explain what an operating system manages');
+  await page.getByRole('button', { name: 'Add topic', exact: true }).click();
+  await page.getByRole('heading', { name: 'Upload lecture material for Week 4 · Operating systems' }).waitFor();
+  assert.equal(await page.getByLabel('Weekly topic').inputValue(), srv.quiz.db.topics.find((x) => x.name === 'Operating systems').id);
+  assert.equal(srv.quiz.db.topics.find((x) => x.name === 'Operating systems').week, 4);
+  // the new topic was never used, so it can be deleted again (keeps later tests unchanged)
+  await page.getByRole('button', { name: 'Edit Operating systems' }).click();
+  page.once('dialog', (d) => d.accept());
+  await page.getByRole('button', { name: 'Delete topic' }).click();
+  await page.getByRole('button', { name: 'Edit Operating systems' }).waitFor({ state: 'detached' });
+  assert.ok(!srv.quiz.db.topics.some((x) => x.name === 'Operating systems'));
 });
