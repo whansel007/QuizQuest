@@ -18,7 +18,8 @@ pets, kingdom buildings and loot in a co-op multiplayer World.
   browser, so the PDF itself never leaves the professor's machine.
 - **AI drafting:** questions drafted from retrieved course material, always saved
   as drafts for professor review. An offline drafter works without an AI key.
-- **Adaptive practice:** broad at first, then ~70% weaker topics. Timers, extra
+- **Adaptive practice:** broad at first, then ~70% general / ~30% weaker topics,
+  favouring questions similar to ones the student got wrong. Timers, extra
   time and resume after refresh.
 - **Marking and analytics:** short answers get a provisional grade and the
   professor's mark wins. Class analytics and evaluation dashboards.

@@ -23,7 +23,7 @@ const crypto = require('crypto');
 const { createStore } = require('./store');
 const { validateQuestion } = require('./validate');
 const { generate, GEN } = require('./generator');
-const { ADAPTIVE, topicStats, planSession } = require('./adaptive');
+const { ADAPTIVE, topicStats, planSession, similarToMissed } = require('./adaptive');
 const { classAnalytics, courseComparison, questionInsights, parsePeriod, isValidTimeZone } = require('./analytics');
 const { localIso, APP_TZ } = require('./time');
 const { courseEvaluation } = require('./evaluation');
@@ -338,7 +338,8 @@ function createQuizApi({ dataFile = null, store = null, now = () => Date.now(), 
   }
 
   // Pick a question for a world challenge: published, auto-gradable,
-  // ~70% from the student's weaker topics, avoiding recent repeats.
+  // ~30% from the student's weaker topics (preferring questions similar
+  // to ones they got wrong), the rest general, avoiding recent repeats.
   function pickChallenge(user, cls, rand = Math.random) {
     const topics = topicsOf(cls.courseId);
     const bank = db.questions.filter(
@@ -352,13 +353,17 @@ function createQuizApi({ dataFile = null, store = null, now = () => Date.now(), 
         .slice(0, 10)
         .map((a) => a.questionId),
     );
-    const stats = topicStats(mine, topics)
+    const allStats = topicStats(mine, topics);
+    const stats = allStats
       .filter((s) => s.n >= ADAPTIVE.minPerTopic && s.accuracy < ADAPTIVE.weakBelow)
       .map((s) => s.topicId);
     let pool = bank.filter((q) => !recent.has(q.id));
     if (!pool.length) pool = bank;
     const weak = pool.filter((q) => stats.includes(q.topicId));
-    if (weak.length && rand() < ADAPTIVE.weakShare) pool = weak;
+    if (weak.length && rand() < ADAPTIVE.weakShare) {
+      const similar = similarToMissed(pool, allStats, stats);
+      pool = similar.length ? similar : weak;
+    }
     // a maths template can occasionally fail to make numbers: try another question
     for (let tries = 0; tries < 5; tries++) {
       const q = pool[Math.floor(rand() * pool.length)];

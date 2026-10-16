@@ -355,7 +355,7 @@ Safe professor Markdown rendering is shared through review, preview, edit and re
 
 [PracticeView.vue](../web/src/student/PracticeView.vue) starts/resumes practice; [QuizRunner.vue](../web/src/student/QuizRunner.vue) manages question/result transitions; [QuestionForm.vue](../web/src/student/QuestionForm.vue) supplies type-specific inputs; [ResultBlock.vue](../web/src/student/ResultBlock.vue) shows feedback/rewards.
 
-`POST /api/student/sessions` validates enrollment, length (5/8/10/15), timer (0/30/60/90 seconds), and accommodation multiplier. `planSession()` in [adaptive.js](../src/quiz/adaptive.js) uses published questions only. It samples broadly until enough confirmed history exists, then allocates approximately 70% to weaker topics and avoids recent repeats when possible. Missing bank coverage is disclosed instead of generating questions on demand.
+`POST /api/student/sessions` validates enrollment, length (5/8/10/15), timer (0/30/60/90 seconds), and accommodation multiplier. `planSession()` in [adaptive.js](../src/quiz/adaptive.js) uses published questions only. It samples broadly until enough confirmed history exists, then allocates approximately 70% to general coverage and 30% to weaker topics, preferring questions that share a learning outcome with ones the student recently got wrong, and avoids recent repeats when possible. Missing bank coverage is disclosed instead of generating questions on demand.
 
 A session pins each selected `qid` and published version. Fetching the current session prepares its instance and `servedAt` timestamp once; refreshing does not reset its timer. Withdrawn questions are dropped if not yet served. `studentView()` removes answer keys, model answers and hidden formula details from pre-answer payloads.
 
