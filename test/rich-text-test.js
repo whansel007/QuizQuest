@@ -22,3 +22,9 @@ test('inline formatting, lists, math, entities and unsafe HTML stay safe display
   assert.equal(displayText('&#99999999;'),'&#99999999;');
   assert.deepEqual(richBlocks('<script>run()</script>'),[{tag:'p',text:'<script>run()</script>'}]);
 });
+
+test('an asterisk with a space just inside is literal, as in Markdown', async () => {
+  const { inlineText } = await import('../web/src/components/rich-text.mjs');
+  assert.deepEqual(inlineText('(20px padding * 2) + (5px border * 2)'), [{ tag: 'span', text: '(20px padding * 2) + (5px border * 2)' }]);
+  assert.deepEqual(inlineText('**bold**, *em* and *a*').map((p) => p.tag), ['strong', 'span', 'em', 'span', 'em']);
+});

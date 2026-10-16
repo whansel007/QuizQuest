@@ -8,10 +8,11 @@ export function displayText(value = '') {
   });
 }
 export function inlineText(value) {
-  return displayText(value).split(/(`+[^`\n]+`+|\*\*[^*\n]+\*\*|\*[^*\n]+\*)/g).filter(Boolean).map(text => {
+  // As in Markdown, * with a space just inside (e.g. "padding * 2") is a literal asterisk.
+  return displayText(value).split(/(`+[^`\n]+`+|\*\*(?=\S)[^*\n]*?\S\*\*|\*(?=\S)[^*\n]*?\S\*|\*\S\*)/g).filter(Boolean).map(text => {
     if (/^(`+)[^`\n]+\1$/.test(text)) { const n = text.match(/^`+/)[0].length; return { tag: 'code', text: text.slice(n, -n) }; }
-    if (/^\*\*[^*\n]+\*\*$/.test(text)) return { tag: 'strong', text: text.slice(2, -2) };
-    if (/^\*[^*\n]+\*$/.test(text)) return { tag: 'em', text: text.slice(1, -1) };
+    if (/^\*\*\S(?:[^*\n]*\S)?\*\*$/.test(text)) return { tag: 'strong', text: text.slice(2, -2) };
+    if (/^\*\S(?:[^*\n]*\S)?\*$/.test(text)) return { tag: 'em', text: text.slice(1, -1) };
     return { tag: 'span', text };
   });
 }
