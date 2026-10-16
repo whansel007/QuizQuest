@@ -12,7 +12,7 @@
 // ============================================================
 import { ref, computed, onMounted, onUnmounted } from 'vue';
 import { S, api, rerender, download, setTab, periodQuery, dashPrefs, saveDashPrefs } from '../api.js';
-import { pct, secs } from '../ui.js';
+import { pct, secs, when, clockTime } from '../ui.js';
 import Heading from '../components/Heading.vue';
 import Meter from '../components/Meter.vue';
 import AsyncButton from '../components/AsyncButton.vue';
@@ -122,8 +122,8 @@ const mark = (m, correct) => async () => {
   rerender();
 };
 const participationCsv = () => download(`/api/teacher/classes/${S.classId}/participation.csv`, `participation-${S.classId}.csv`);
-const clock = (t) => new Date(t).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-const printedAt = computed(() => new Date(updatedAt.value).toLocaleString([], { dateStyle: 'medium', timeStyle: 'short' }));
+const clock = (t) => clockTime(t, a.value?.timezone);
+const printedAt = computed(() => when(updatedAt.value, a.value?.timezone));
 const className = computed(() => classes.value.find((c) => c.id === S.classId)?.name || '');
 const courseId = computed(() => courseOfClass.get(S.classId));
 const sameCourseClasses = computed(() => courses.value.find((c) => c.id === courseId.value)?.classes.length || 0);

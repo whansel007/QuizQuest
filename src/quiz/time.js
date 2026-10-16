@@ -53,9 +53,16 @@ function weekdayHour(t, tz = APP_TZ) {
   return { weekday: (w.getUTCDay() + 6) % 7, hour: w.getUTCHours() };
 }
 
+// ISO 8601 on the local clock with its offset, e.g. 2026-10-16T11:52:00+08:00
+function localIso(t, tz = APP_TZ) {
+  const minutes = Math.round(offset(t, tz) / 60000), abs = Math.abs(minutes);
+  const pad = (n) => String(n).padStart(2, '0');
+  return new Date(wallClock(t, tz)).toISOString().slice(0, 19) + (minutes < 0 ? '-' : '+') + pad(Math.floor(abs / 60)) + ':' + pad(abs % 60);
+}
+
 // 'YYYY-MM-DD' keys for "same day" / "same week" checks
 const iso = (date) => new Date(date).toISOString().slice(0, 10);
 const dayKey = (t, tz = APP_TZ) => iso(localDate(t, tz));
 const weekKey = (t, tz = APP_TZ) => iso(mondayOf(localDate(t, tz))); // the Monday that starts the week
 
-module.exports = { DAY, DEFAULT_TZ, APP_TZ, isValidTimeZone, localDate, instantOf, mondayOf, weekdayHour, dayKey, weekKey };
+module.exports = { DAY, DEFAULT_TZ, APP_TZ, isValidTimeZone, localIso, localDate, instantOf, mondayOf, weekdayHour, dayKey, weekKey };
