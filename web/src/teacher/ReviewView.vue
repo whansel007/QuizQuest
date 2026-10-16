@@ -2,12 +2,14 @@
 // ============================================================
 // Question bank & review
 // ============================================================
-import { ref, computed, onMounted, nextTick } from 'vue';
+import { ref, computed, onMounted, nextTick, watch } from 'vue';
 import { S, api } from '../api.js';
 import Heading from '../components/Heading.vue';
 import CoursePicker from './CoursePicker.vue';
 import QuestionCard from './QuestionCard.vue';
 import QuestionEditor from './QuestionEditor.vue';
+import Pager from '../components/Pager.vue';
+import { usePaged } from '../components/paged.js';
 import { loadCourses, currentCourse } from './courses.js';
 
 const error = ref('');
@@ -38,6 +40,9 @@ async function focusRequested() {
   const q = id && questions.value.find((x) => x.id === id);
   if (!q) return;
   S.qFilter = q.status === 'draft' ? 'draft' : q.status;
+  S.qTopic = '';
+  await nextTick();
+  paged.go(Math.floor(shown.value.findIndex((x) => x.id === id) / PAGE_SIZE) + 1);
   await nextTick();
   const card = document.getElementById('qcard-' + id);
   if (!card) return;
@@ -54,7 +59,22 @@ const filters = [
   ['withdrawn', 'Withdrawn', (q) => q.status === 'withdrawn'],
   ['rejected', 'Rejected', (q) => q.status === 'rejected'],
 ];
-const shown = computed(() => questions.value.filter((filters.find((x) => x[0] === S.qFilter) || filters[0])[2]));
+// Topic and status filters combine; status counts follow the chosen topic.
+const topics = computed(() => (course.value?.topics || [])
+  .map((t) => ({ ...t, count: questions.value.filter((q) => q.topicId === t.id).length }))
+  .filter((t) => t.count || t.id === S.qTopic));
+const inTopic = computed(() => (S.qTopic ? questions.value.filter((q) => q.topicId === S.qTopic) : questions.value));
+// Newest first, so new drafts and just-saved questions are on page 1.
+const created = (q) => (typeof q.createdAt === 'number' ? q.createdAt : Date.parse(q.createdAt) || 0);
+const shown = computed(() => inTopic.value.filter((filters.find((x) => x[0] === S.qFilter) || filters[0])[2]).sort((a, b) => created(b) - created(a)));
+const PAGE_SIZE = 10;
+const paged = usePaged(() => shown.value, PAGE_SIZE);
+watch(() => [S.qFilter, S.qTopic], () => paged.go(1));
+const listTop = ref(null);
+function goPage(p) {
+  paged.go(p);
+  listTop.value?.scrollIntoView({ block: 'start' });
+}
 
 // "+ New question" again opens a fresh editor
 const newKey = ref(0);
@@ -78,15 +98,29 @@ function openNew() {
       <div>
         <QuestionEditor v-if="creating" :key="newKey" :course="course" :passages="passages" @close="creating = false" />
       </div>
-      <div class="chips">
-        <button v-for="[id, label, fn] in filters" :key="id" :aria-pressed="S.qFilter === id ? 'true' : 'false'" @click="S.qFilter = id">{{ `${label} (${questions.filter(fn).length})` }}</button>
+      <div class="row" style="align-items: flex-end; margin-bottom: 12px">
+        <label class="field" style="margin: 0; max-width: 360px">Topic
+          <select v-model="S.qTopic" aria-label="Filter by topic">
+            <option value="">All topics ({{ questions.length }})</option>
+            <option v-for="t in topics" :key="t.id" :value="t.id">{{ t.name }} ({{ t.count }})</option>
+          </select>
+        </label>
       </div>
+      <div ref="listTop" class="chips">
+        <button v-for="[id, label, fn] in filters" :key="id" :aria-pressed="S.qFilter === id ? 'true' : 'false'" @click="S.qFilter = id">{{ `${label} (${inTopic.filter(fn).length})` }}</button>
+      </div>
+      <Pager :paged="{ ...paged, go: goPage }" label="Question pages (top)" noun="questions" />
       <div>
         <template v-if="shown.length">
-          <QuestionCard v-for="q in shown" :key="q.id" :q="q" :course="course" :passages="passages" />
+          <QuestionCard v-for="q in paged.items" :key="q.id" :q="q" :course="course" :passages="passages" />
         </template>
-        <p v-else class="muted">Nothing here.</p>
+        <p v-else class="muted">
+          Nothing here{{ S.qTopic ? ' for this topic' : '' }}.
+          <template v-for="[id, label, fn] in filters" :key="id"><button v-if="id !== S.qFilter && inTopic.filter(fn).length" class="btn small" style="margin-left: 8px" @click="S.qFilter = id">{{ label }} ({{ inTopic.filter(fn).length }})</button></template>
+          <button v-if="S.qTopic" class="btn small" style="margin-left: 8px" @click="S.qTopic = ''">Show all topics</button>
+        </p>
       </div>
+      <Pager :paged="{ ...paged, go: goPage }" label="Question pages" noun="questions" />
     </template>
   </template>
 </template>

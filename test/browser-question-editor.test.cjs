@@ -103,6 +103,7 @@ test('four manual formats preserve code, answers and tags through preview, publi
   for(const type of ['numeric','param']) {
     const q=historical.find(q=>q.latest.type===type);assert.ok(q);
     await page.getByRole('button',{name:q.status==='published'?/^Published \(/:/^Needs review \(/}).click();
+    await page.getByLabel('Filter by topic').selectOption(q.topicId); // the list is paged; narrow it like a professor would
     const legacy=page.locator('#qcard-'+q.id);await legacy.getByRole('button',{name:'Edit',exact:true}).click();
     const form=legacy.getByRole('region',{name:'Question editor'});
     assert.equal(await form.getByLabel('Format',{exact:true}).inputValue(),type);
@@ -114,4 +115,30 @@ test('four manual formats preserve code, answers and tags through preview, publi
     await form.getByRole('button',{name:'Cancel',exact:true}).click();
   }
   assert.equal(calls,0,'manual authoring and publication use zero inference');
+});
+
+test('question bank filters by topic and pages long lists',async t=>{
+  const page=await browser.newPage({viewport:{width:1280,height:1000}}),errors=[];
+  page.on('pageerror',e=>errors.push(e.message));
+  t.after(async()=>{await page.close();assert.deepEqual(errors,[]);});
+  const db=srv.quiz.db,template=db.questions.find(q=>q.courseId==='c-comp' && q.topicId==='tp-net');
+  // 14 extra drafts: 12 on Networking basics, 2 on Data representation.
+  for(let i=0;i<14;i++) db.questions.push({...structuredClone(template),id:'q-page-'+i,status:'draft',topicId:i<12?'tp-net':'tp-data'});
+  const drafts=(topic)=>db.questions.filter(q=>q.courseId==='c-comp' && q.status==='draft' && (!topic || q.topicId===topic)).length;
+  await page.goto(base);await page.getByRole('button',{name:'Prof. Demo A',exact:false}).click();
+  await page.getByRole('heading',{name:'Question bank',exact:true}).waitFor();
+  await page.getByRole('button',{name:/^Needs review/}).click();
+  const cards=page.locator('.qcard'),pager=page.getByRole('navigation',{name:'Question pages',exact:true});
+  await pager.getByText(`Showing 1–10 of ${drafts()} questions`).waitFor();
+  assert.equal(await cards.count(),10);
+  await pager.getByRole('button',{name:'Page 2',exact:true}).click();
+  assert.equal(await cards.count(),drafts()-10);
+  // Choosing a topic narrows the list and the status counts, and returns to page 1.
+  await page.getByLabel('Filter by topic').selectOption('tp-data');
+  await page.getByRole('button',{name:`Needs review (${drafts('tp-data')})`,exact:true}).waitFor();
+  assert.equal(await cards.count(),drafts('tp-data'));
+  assert.equal(await pager.count(),0,'one page needs no pager');
+  await page.getByLabel('Filter by topic').selectOption('tp-net');
+  await pager.getByText(`Showing 1–10 of ${drafts('tp-net')} questions`).waitFor();
+  db.questions=db.questions.filter(q=>!q.id.startsWith('q-page-'));
 });

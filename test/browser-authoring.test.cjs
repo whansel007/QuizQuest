@@ -122,14 +122,14 @@ test('PDF/PPTX upload, saved Markdown editing, preview/download, generation and 
     { name: 'networks.pptx', mimeType: 'application/vnd.openxmlformats-officedocument.presentationml.presentation', buffer: pptx() },
     { name: 'notes.txt', mimeType: 'text/plain', buffer: Buffer.from(lecture) },
   ]);
-  await page.getByText('Files ready. All uploaded material will be processed together.', { exact: true }).waitFor();
+  await page.getByText('Files read. Not uploaded yet: tick the confirmation below and click Upload files.', { exact: true }).waitFor();
   assert.equal(await page.getByText('Include this excerpt').count(),0);
   // Local extraction recovery survives a refresh without displaying raw excerpts.
   await page.reload();
   await page.locator('#tabs').getByRole('button', { name: 'AI drafting', exact: true }).click();
   await page.getByText('networks.pptx',{exact:true}).waitFor();
   await page.getByRole('checkbox', { name: /This is authorised course material/ }).check();
-  assert.match(await page.getByLabel('Lecture file upload status').innerText(), /Selected — ready to upload/);
+  assert.match(await page.getByLabel('Lecture file upload status').innerText(), /Read — not uploaded yet/);
   const beforeUpload = inferenceCalls;
   await page.getByRole('button', { name: 'Upload files', exact: true }).click();
   await page.getByText('All uploaded material is saved.', {exact:true}).waitFor();
@@ -157,7 +157,7 @@ test('PDF/PPTX upload, saved Markdown editing, preview/download, generation and 
     { name: 'networks.pdf', mimeType: 'application/pdf', buffer: pdf(26 * 1024 * 1024) },
     { name: 'networks.pptx', mimeType: 'application/vnd.openxmlformats-officedocument.presentationml.presentation', buffer: pptx() },
   ]);
-  await page.getByText('Files ready. All uploaded material will be processed together.', {exact:true}).waitFor();
+  await page.getByText('These files are already listed. Nothing new to upload.', {exact:true}).waitFor();
   assert.equal(await page.getByRole('button',{name:'Upload files',exact:true}).count(),0);
   assert.equal(uploadRequests,0);
   holdNextInference=3000;
@@ -256,6 +256,8 @@ test('PDF/PPTX upload, saved Markdown editing, preview/download, generation and 
   await page.screenshot({ path: 'tmp/authoring-review.png', fullPage: true });
   await page.getByRole('button', { name: 'Review drafts', exact: true }).click();
   const card = page.locator('.qcard').filter({ hasText: stems[0] });
+  await card.waitFor();
+  assert.equal(await page.getByLabel('Filter by topic').inputValue(), tfJob.input.topicId, 'Review drafts opens on the batch topic');
   assert.ok(!(await card.innerText()).includes('Apply delay and bandwidth concepts to diagnose network scenarios.'));
   await card.getByRole('button', { name: 'Edit', exact: true }).click();
   const editor = card.locator('.panel').filter({ has: page.getByRole('heading', { name: 'Edit question', exact: true }) });
@@ -366,12 +368,22 @@ test('partial uploads recover filenames and retry only unsaved excerpts without 
     {name:'recovery-test.pdf',mimeType:'application/pdf',buffer:pdf()},
     {name:'recovery-test.pptx',mimeType:'application/vnd.openxmlformats-officedocument.presentationml.presentation',buffer:pptx()},
   ]);
-  await page.getByText('Files ready. All uploaded material will be processed together.',{exact:true}).waitFor();
+  await page.getByText('Files read. Not uploaded yet: tick the confirmation below and click Upload files.',{exact:true}).waitFor();
   const before=inferenceCalls, count=srv.quiz.db.passages.filter(p=>p.importHash).length;
+  // Cancel stops after the excerpt being saved; the rest stay "not uploaded yet".
+  let release; const held=new Promise(r=>release=r);
+  await page.route('**/import',async route=>{await held;await route.continue();},{times:1});
+  await page.getByRole('checkbox',{name:/This is authorised course material/}).check();
+  await page.getByRole('button',{name:'Upload files',exact:true}).click();
+  await page.locator('p[role=status]',{hasText:'Uploading excerpt 1 of 3'}).getByRole('button',{name:'Cancel',exact:true}).click();
+  release();
+  await page.getByText('Upload stopped: 1 of 3 excerpts saved. Click Upload files to finish, or Remove the file.',{exact:true}).waitFor();
+  await page.getByText('1 file is not uploaded yet.',{exact:false}).waitFor();
+  assert.equal(srv.quiz.db.passages.filter(p=>p.importHash).length,count+1);
   let imports=0;
   await page.route('**/import',async route=>{
     imports++;
-    if(imports===3) await route.fulfill({status:503,contentType:'application/json',body:JSON.stringify({error:'mock storage failure'})});
+    if(imports===2) await route.fulfill({status:503,contentType:'application/json',body:JSON.stringify({error:'mock storage failure'})});
     else await route.continue();
   });
   await page.getByRole('checkbox',{name:/This is authorised course material/}).check();
@@ -413,7 +425,7 @@ test('remove and replace uploads survive recovery, preserve reports, and require
     {name:'remove-me.pdf',mimeType:'application/pdf',buffer:pdf()},
     {name:'replace-me.pptx',mimeType:'application/vnd.openxmlformats-officedocument.presentationml.presentation',buffer:pptx()},
   ]);
-  await page.getByText('Files ready. All uploaded material will be processed together.',{exact:true}).waitFor();
+  await page.getByText('Files read. Not uploaded yet: tick the confirmation below and click Upload files.',{exact:true}).waitFor();
   await page.getByRole('checkbox',{name:/This is authorised course material/}).check();
   await page.getByRole('button',{name:'Upload files',exact:true}).click();
   await page.getByText('All uploaded material is saved.',{exact:true}).waitFor();
@@ -432,6 +444,12 @@ test('remove and replace uploads survive recovery, preserve reports, and require
   await stale.reload();await stale.locator('#tabs').getByRole('button',{name:'AI drafting',exact:true}).click();
   await stale.getByRole('button',{name:'Remove replace-me.pptx',exact:true}).waitFor();
   assert.equal(await stale.getByRole('button',{name:'Remove remove-me.pdf',exact:true}).count(),0);
+  // Replace with the same file re-reads it (e.g. to retry AI descriptions)
+  // instead of silently keeping the old copy.
+  await page.getByRole('button',{name:'Replace replace-me.pptx',exact:true}).click();
+  await page.getByLabel('Replacement lecture file',{exact:true}).setInputFiles({name:'replace-me.pptx',mimeType:'application/vnd.openxmlformats-officedocument.presentationml.presentation',buffer:pptx()});
+  await page.getByLabel('Lecture file upload status').locator('li',{hasText:'replace-me.pptx'}).filter({hasText:'Read — not uploaded yet'}).waitFor();
+  assert.equal(await page.getByRole('button',{name:'Remove replace-me.pptx',exact:true}).count(),1);
   // Extract/validate a replacement before detaching the original.
   await page.getByRole('button',{name:'Replace replace-me.pptx',exact:true}).click();
   await page.getByLabel('Replacement lecture file',{exact:true}).setInputFiles({name:'empty.txt',mimeType:'text/plain',buffer:Buffer.from('')});
@@ -439,7 +457,7 @@ test('remove and replace uploads survive recovery, preserve reports, and require
   assert.equal(await page.getByRole('button',{name:'Remove replace-me.pptx',exact:true}).count(),1);
   await page.getByRole('button',{name:'Replace replace-me.pptx',exact:true}).click();
   await page.getByLabel('Replacement lecture file',{exact:true}).setInputFiles({name:'replacement.pdf',mimeType:'application/pdf',buffer:pdf()});
-  await page.getByText('Files ready. All uploaded material will be processed together.',{exact:true}).waitFor();
+  await page.getByText('Files read. Not uploaded yet: tick the confirmation below and click Upload files.',{exact:true}).waitFor();
   assert.equal(await page.getByRole('button',{name:'Remove replace-me.pptx',exact:true}).count(),0);
   assert.equal(await page.getByRole('button',{name:'Generate report',exact:true}).isDisabled(),true);
   await page.getByRole('checkbox',{name:/This is authorised course material/}).check();
