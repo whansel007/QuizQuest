@@ -3,14 +3,14 @@
   "version": "0.1.0",
   "private": true,
   "main": "server.js",
+  "packageManager": "pnpm@11.25.0",
   "scripts": {
     "dev": "node scripts/dev.js",
     "build": "vite build",
     "start": "node --env-file-if-exists=.env server.js",
     "test": "node --test test/*-test.js",
     "check": "node scripts/check.js",
-    "pretest:browser": "vite build",
-    "test:browser": "node --test test/browser*.test.cjs",
+    "test:browser": "vite build && node --test test/browser*.test.cjs",
     "reset-data": "node -e \"require('fs').rmSync('data',{recursive:true,force:true})\"",
     "db:reset": "node --env-file-if-exists=.env scripts/supabase-reset.js"
   },

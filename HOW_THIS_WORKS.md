@@ -162,12 +162,12 @@ than a hand-rolled WebSocket.
 ## 6. Playing it
 
 ```bash
-npm install
-npm run dev        # http://localhost:3000
+pnpm install
+pnpm dev        # http://localhost:3000
 ```
 Open **two tabs** of `http://localhost:3000` and click Join in both. P1 starts
 with the yellow dashed ring (IT). Touch the other circle → big banner + IT
-swaps. `npm test` runs a headless version: it connects two fake players,
+swaps. `pnpm test` runs a headless version: it connects two fake players,
 drives them into each other, and asserts the tag event fires with the right
 tagger/victim. Useful as a regression check when you extend the game.
 
