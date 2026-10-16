@@ -25,6 +25,7 @@ const { validateQuestion } = require('./validate');
 const { generate, GEN } = require('./generator');
 const { ADAPTIVE, topicStats, planSession } = require('./adaptive');
 const { classAnalytics, courseComparison, questionInsights, parsePeriod, isValidTimeZone } = require('./analytics');
+const { localIso, APP_TZ } = require('./time');
 const { courseEvaluation } = require('./evaluation');
 const { TYPES, TYPE_LABELS, studentView, newInstance, instantiate, gradeSync, isEmpty } = require('./formats');
 const { grade } = require('./grading');
@@ -168,6 +169,7 @@ function createQuizApi({ dataFile = null, store = null, now = () => Date.now(), 
       origin: q.origin,
       generationId: q.generationId,
       publishedVersion: q.publishedVersion,
+      createdAt: q.createdAt,
       latest,
       typeLabel: TYPE_LABELS[latest.type || 'mcq'],
       sample: latest.type === 'param' ? instantiate(latest) : null,
@@ -588,33 +590,38 @@ function createQuizApi({ dataFile = null, store = null, now = () => Date.now(), 
     'teacher',
     async ({ user, params, body }) => {
       const c = teacherCourse(user, params.cid);
-      const { topic, outcome } = topicAndOutcome(c, body.topicId, body.outcomeId);
+      // Uploaded lecture files are course-wide; a topic is optional.
+      const { topic, outcome } = body.topicId == null && body.outcomeId == null ? {} : topicAndOutcome(c, body.topicId, body.outcomeId);
       if (body.confirmNoPersonalData !== true) fail(400, 'Confirm that this is authorised course material without student personal data.');
       if (authoring.jobs(c).some((j) => ['queued', 'running'].includes(j.status))) fail(409, 'Wait for the current authoring job before changing files.');
       const title = str(body.title, 120, 'Title'),
         content = str(body.text, PASSAGE_LIMIT, 'Extracted text');
       const key = crypto
         .createHash('sha256')
-        .update(JSON.stringify([topic.id, outcome.id, title, content]))
+        .update(JSON.stringify([topic?.id ?? null, outcome?.id ?? null, title, content]))
         .digest('hex');
+      const fileName = typeof body.fileName === 'string' && body.fileName.trim() ? body.fileName.trim().slice(0, 255) : null;
+      const documentId = typeof body.documentId === 'string' && /^[a-f0-9]{64}$/.test(body.documentId) ? body.documentId : null;
       const existing = db.passages.find((p) => p.courseId === c.id && p.importHash === key);
       if (existing) {
-        existing.attached = true;
+        // An unchanged excerpt re-uploaded as part of a new version of a file
+        // joins that version, so the file is listed once.
+        Object.assign(existing, { attached: true }, documentId && { documentId }, fileName && { fileName });
         await persist();
         return existing;
       }
       const p = {
         id: newId('p'),
         courseId: c.id,
-        topicId: topic.id,
-        outcomeId: outcome.id,
+        topicId: topic?.id ?? null,
+        outcomeId: outcome?.id ?? null,
         title,
         text: content,
-        origin: ['pdf', 'pptx', 'text'].includes(body.origin) ? body.origin : 'text',
+        origin: ['pdf', 'pptx', 'docx', 'text'].includes(body.origin) ? body.origin : 'text',
         importHash: key,
         attached: true,
-        ...(typeof body.fileName === 'string' && body.fileName.trim() ? { fileName: body.fileName.trim().slice(0, 255) } : {}),
-        ...(typeof body.documentId === 'string' && /^[a-f0-9]{64}$/.test(body.documentId) ? { documentId: body.documentId } : {}),
+        ...(fileName && { fileName }),
+        ...(documentId && { documentId }),
         createdBy: user.id,
         createdAt: now(),
       };
@@ -626,9 +633,10 @@ function createQuizApi({ dataFile = null, store = null, now = () => Date.now(), 
   );
   route('GET', '/api/teacher/courses/:cid/passages', 'teacher', ({ user, params }) => {
     const c = teacherCourse(user, params.cid);
-    return db.passages
-      .filter((p) => p.courseId === c.id)
-      .map((p) => ({ ...p, usedBy: db.questions.filter((q) => q.versions.at(-1).sourceIds.includes(p.id)).length }));
+    // One pass over the questions instead of one per passage.
+    const usedBy = new Map();
+    for (const q of db.questions) for (const id of new Set(q.versions.at(-1).sourceIds)) usedBy.set(id, (usedBy.get(id) || 0) + 1);
+    return db.passages.filter((p) => p.courseId === c.id).map((p) => ({ ...p, usedBy: usedBy.get(p.id) || 0 }));
   });
 
   // Detach uploads without destroying sources referenced by reports/questions.
@@ -971,7 +979,7 @@ function createQuizApi({ dataFile = null, store = null, now = () => Date.now(), 
     if (!cls.settings.participation?.enabled) fail(409, 'Participation points are not enabled for this class.');
     const rows = [['student', 'points', 'week', 'awarded_at']];
     for (const p of db.participation.filter((x) => x.classId === cls.id))
-      rows.push([userName(p.studentId), 1, p.week, new Date(p.at).toISOString()]);
+      rows.push([userName(p.studentId), 1, p.week, localIso(p.at, isValidTimeZone(cls.settings.timezone) ? cls.settings.timezone : APP_TZ)]);
     return {
       __raw: rows.map((r) => r.map(csvCell).join(',')).join('\n') + '\n',
       contentType: 'text/csv; charset=utf-8',

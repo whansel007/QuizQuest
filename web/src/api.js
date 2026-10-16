@@ -56,6 +56,7 @@ export const S = reactive({
   courseId: null,
   classId: null,
   qFilter: 'draft',
+  qTopic: '', // Question bank topic filter ('' = all topics)
   // Analytics period: '7d' | '30d' | 'all' | 'custom' (from/to: local dates)
   ...savedPeriod(),
   focusQuestionId: null, // Question bank scrolls to (and highlights) this question once
@@ -102,6 +103,7 @@ http.interceptors.response.use(
     return res;
   },
   async (err) => {
+    if (axios.isCancel(err)) throw Object.assign(new Error('Cancelled.'), { name: 'AbortError' });
     if (!err.response) throw new Error('Could not reach the server. Check your connection and try again.');
     const { config, status } = err.response;
     if (config.qqToken !== S.token) throw new Error('The active user changed.');
@@ -115,8 +117,9 @@ http.interceptors.response.use(
 );
 
 // api('POST', '/api/...', body) -> parsed JSON, or throws Error(message)
-export async function api(method, url, data) {
-  const res = await http.request({ method, url, data });
+// `options.signal` (an AbortSignal) cancels the request with an AbortError.
+export async function api(method, url, data, options = {}) {
+  const res = await http.request({ method, url, data, signal: options.signal });
   return res.data;
 }
 
@@ -151,7 +154,7 @@ function clearSession() {
   } catch {
     // storage blocked: the token only lived in memory anyway
   }
-  Object.assign(S, { token: null, me: null, tab: null, courseId: null, classId: null, qFilter: 'draft', ...savedPeriod(), focusQuestionId: null, draftTarget: null });
+  Object.assign(S, { token: null, me: null, tab: null, courseId: null, classId: null, qFilter: 'draft', qTopic: '', ...savedPeriod(), focusQuestionId: null, draftTarget: null });
   rerender();
 }
 

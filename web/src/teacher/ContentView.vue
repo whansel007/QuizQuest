@@ -2,9 +2,9 @@
 // ============================================================
 // Source material: paste, PDF, scans & diagrams
 // ============================================================
-import { ref, reactive, markRaw, onMounted } from 'vue';
+import { ref, reactive, computed, markRaw, onMounted } from 'vue';
 import { api, rerender } from '../api.js';
-import { toast, action } from '../ui.js';
+import { toast, action, when } from '../ui.js';
 import Heading from '../components/Heading.vue';
 import Field from '../components/Field.vue';
 import AsyncButton from '../components/AsyncButton.vue';
@@ -147,6 +147,33 @@ const deletePassage = (p) => async () => {
   rerender();
 };
 const plainLabel = 'font-weight:400;color:inherit;margin:10px 0';
+
+// Uploaded lecture files are listed once per file, collapsed. Versions that
+// were replaced or removed stay stored (questions may cite them) but are
+// hidden unless asked for. Topic sections keep hand-added material only.
+const showReplaced = ref(false);
+// The earlier slide/page import saved titles like "deck.pptx — Slide 3" without
+// file tracking; AI drafting does not use those, so they are listed as older imports.
+const legacyImport = (p) => !p.importHash && (p.origin === 'pptx' || p.origin === 'pdf') && / — (Slide|Page) \d+$/.test(p.title);
+const isUpload = (p) => Boolean(p.importHash) || legacyImport(p);
+const uploadFiles = computed(() => {
+  const files = new Map();
+  for (const p of passages.value.filter(isUpload)) {
+    const legacy = legacyImport(p);
+    const name = p.fileName || p.title.split(legacy ? ' — ' : ' · ')[0];
+    const inUse = !legacy && p.attached !== false;
+    // One entry for the version in use; replaced versions stay separate.
+    const key = inUse ? 'in-use:' + name : legacy ? 'legacy:' + name + ':' + p.topicId : 'old:' + (p.documentId || name);
+    if (!files.has(key)) files.set(key, { key, name, inUse, legacy, parts: [], at: 0, usedBy: 0 });
+    const f = files.get(key);
+    f.parts.push(p);
+    f.at = Math.max(f.at, Date.parse(p.createdAt) || p.createdAt || 0);
+    f.usedBy += p.usedBy || 0;
+  }
+  return [...files.values()].sort((a, b) => b.inUse - a.inUse || b.at - a.at);
+});
+const replacedCount = computed(() => uploadFiles.value.filter((f) => !f.inUse).length);
+const manual = (topicId) => passages.value.filter((p) => p.topicId === topicId && !isUpload(p));
 </script>
 
 <template>
@@ -218,9 +245,21 @@ const plainLabel = 'font-weight:400;color:inherit;margin:10px 0';
         </div>
       </div>
 
-      <div v-for="t in course.topics" :key="t.id" class="panel">
-        <h3>{{ t.name }} <span class="badge plain">{{ passages.filter((p) => p.topicId === t.id).length }} passage(s)</span></h3>
-        <details v-for="p in passages.filter((x) => x.topicId === t.id)" :key="p.id" style="margin: 8px 0">
+      <div v-if="uploadFiles.length" class="panel">
+        <h3>Uploaded lecture files <span class="badge plain">{{ uploadFiles.length - replacedCount }} in use</span></h3>
+        <p class="small muted">The text read from each uploaded file. Add, replace or remove files with <b>Upload lecture material</b> above.</p>
+        <label v-if="replacedCount" :style="plainLabel"><input v-model="showReplaced" type="checkbox" /> Show {{ replacedCount }} replaced, removed or older import(s), kept for question history</label>
+        <details v-for="f in uploadFiles.filter((x) => x.inUse || showReplaced)" :key="f.key" style="margin: 8px 0">
+          <summary><b>{{ f.name }}</b> <span class="small muted">· {{ f.parts.length }} excerpt(s) · {{ f.inUse ? 'in use' : f.legacy ? 'older import, not used by AI drafting' : 'replaced or removed' }} · uploaded {{ when(f.at) }} · cited by {{ f.usedBy }} question(s)</span></summary>
+          <details v-for="p in f.parts" :key="p.id" style="margin: 6px 0 6px 16px">
+            <summary>{{ p.title.split(f.legacy ? ' — ' : ' · ').slice(1).join(' · ') || p.title }} <span class="small muted">· {{ p.text.length }} chars · cited by {{ p.usedBy }}</span></summary>
+            <p class="small" style="white-space: pre-wrap; margin-top: 6px; max-height: 240px; overflow: auto">{{ p.text }}</p>
+          </details>
+        </details>
+      </div>
+      <div v-for="t in course.topics.filter((x) => manual(x.id).length)" :key="t.id" class="panel">
+        <h3>{{ t.name }} <span class="badge plain">{{ manual(t.id).length }} passage(s)</span></h3>
+        <details v-for="p in manual(t.id)" :key="p.id" style="margin: 8px 0">
           <summary><b>{{ p.title }}</b> <span class="small muted">{{ `· ${t.outcomes.find((o) => o.id === p.outcomeId)?.text} · ${p.text.length} chars${p.origin && p.origin !== 'paste' ? ' · from ' + p.origin : ''} · cited by ${p.usedBy} question(s)` }}</span></summary>
           <p class="small" style="white-space: pre-wrap; margin-top: 6px; max-height: 240px; overflow: auto">{{ p.text }}</p>
           <AsyncButton class="btn small bad" :run="deletePassage(p)">Delete passage</AsyncButton>

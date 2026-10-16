@@ -59,3 +59,26 @@ test('attachment removal, reattachment and report confirmation preserve history 
   job.status='complete';blocked=true;
   assert.equal((await req('PUT',path+'/imports',body,teacher)).status,503,'do not acknowledge undurable changes');
 });
+
+test('uploads need no topic, and an unchanged excerpt re-uploaded with a new file version joins it',async t=>{
+  const db=seed();
+  const api=createQuizApi({store:{db,save(){},flush:async()=>{},pending:()=>false}});
+  const server=http.createServer((req,res)=>api.handle(req,res));
+  await new Promise(r=>server.listen(0,'127.0.0.1',r));t.after(()=>new Promise(r=>server.close(r)));
+  const base=`http://127.0.0.1:${server.address().port}`,path='/api/teacher/courses/c-comp';
+  async function req(method,url,body,token){const r=await fetch(base+url,{method,headers:{'content-type':'application/json',...(token?{authorization:'Bearer '+token}:{})},...(body?{body:JSON.stringify(body)}:{})});return {status:r.status,body:await r.json()};}
+  const teacher=(await req('POST','/api/login',{userId:'t-a'})).body.token;
+  const upload={confirmNoPersonalData:true,origin:'pptx',documentId:'c'.repeat(64),fileName:'week4.pptx',title:'week4.pptx · Slide 1',text:'Vue binds data to the DOM reactively.'};
+  const first=await req('POST',path+'/import',upload,teacher);
+  assert.equal(first.status,201);
+  assert.deepEqual([first.body.topicId,first.body.outcomeId],[null,null]);
+  // A second version of the file (e.g. with AI image descriptions elsewhere) re-sends this unchanged slide.
+  const again=await req('POST',path+'/import',{...upload,documentId:'d'.repeat(64)},teacher);
+  assert.equal(again.body.id,first.body.id,'no duplicate passage');
+  assert.equal(again.body.documentId,'d'.repeat(64),'joins the new file version');
+  const stored=fromTables(toTables(db,()=>1)).passages.find(p=>p.id===first.body.id);
+  assert.equal(stored.topicId ?? null,null);
+  assert.deepEqual([stored.documentId,stored.fileName],['d'.repeat(64),'week4.pptx']);
+  // A topic, when given, must still be valid.
+  assert.equal((await req('POST',path+'/import',{...upload,topicId:'nope',outcomeId:'nope'},teacher)).status,400);
+});
