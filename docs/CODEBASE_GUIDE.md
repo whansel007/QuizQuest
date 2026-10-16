@@ -194,19 +194,24 @@ Course/class settings endpoints update existing records, including subject guida
 
 ## 8. Lecture upload, extraction, and file management
 
-The main upload control uses [import-materials.js](../web/src/teacher/import-materials.js), `extractFile(file, progress)`:
+The main upload control uses [import-materials.js](../web/src/teacher/import-materials.js), `extractFile(file, progress, { describe })`, which returns `{ pages, note, fingerprint }`:
 
-- PDF: lazily loads PDF.js through `loadPdfJs()` in [pdf.js](../web/src/teacher/pdf.js). A same-origin worker extracts page text; evaluation support is disabled. Scanned/visual pages produce review warnings rather than automatic inference.
-- PPTX: `extractPptx(bytes)` opens selected ZIP entries, follows presentation relationships in slide order, and extracts paragraph text plus linked speaker notes. It flags visuals and unreadable content. It bounds decompressed text to reduce ZIP expansion risk.
-- TXT/Markdown/CSV: decodes text into an excerpt. Other formats are rejected here; images use the separate transcription tool.
+- PDF: lazily loads PDF.js through `loadPdfJs()` in [pdf.js](../web/src/teacher/pdf.js). A same-origin worker extracts page text; evaluation support is disabled. Pages with under 30 characters count as scanned.
+- PowerPoint (`.pptx`, `.pptm`, `.ppsx`, `.ppsm`, `.potx`): `extractPptx(bytes)` follows presentation relationships in slide order. Titles become `##` headings, body placeholders become indented bullets by level, tables become Markdown tables, chart titles/series and SmartArt text are read from their own parts, and speaker notes are appended. Hidden slides and slide-number/date/footer placeholders are skipped. Pictures covering at least 12% of the slide are recorded as unread images.
+- Word (`.docx`): `extractDocx(bytes)` splits at Heading 1/Title into sections and keeps headings, list levels and tables. Large drawings are recorded the same way.
+- TXT/Markdown/CSV: decodes text into an excerpt. Legacy `.ppt`/`.doc` get a Save As instruction; other formats are rejected.
 
-The client limits files to 100 MB each, accepts up to 20 at one selection, and bounds PDFs/PPTX decks to 1,000 pages/slides. It hashes filename plus extracted content to identify a document, splits large excerpts into pieces of at most 70,000 characters, and stores the selected excerpts in IndexedDB.
+Decompressed XML is bounded (10 MB per part, 50 MB total) to reduce ZIP expansion risk. Each file gets a one-line `note` shown in the upload list: unread pictures, scanned pages, skipped images and AI results.
 
-Selection is separate from upload. The UI distinguishes **Selected**, **Partially uploaded**, and **Uploaded** files. After the professor confirms authorization/no student personal data, `save()` sequentially posts excerpts to `/api/teacher/courses/:cid/import`. The backend hashes topic, outcome, title and text for import idempotency; an existing import is reattached rather than duplicated.
+**Optional AI step.** With "Describe images with AI" ticked (shown only when Gemini is configured), the browser sends up to 40 significant pictures per file (deduplicated; GIF/BMP and oversized images re-encoded to JPEG; EMF/WMF skipped) and scanned PDF pages (rendered to JPEG) to `POST .../transcribe`. Results are appended to the slide/page text with an "AI-generated: check against the original" marker; images flagged as containing personal data are skipped; the first failure, such as an exhausted quota, stops the step and keeps what was done. The knowledge-report prompt is told to mark facts resting only on these descriptions.
+
+The client limits files to 100 MB each, accepts up to 20 at one selection, and bounds PDFs/decks to 1,000 pages/slides. It hashes filename plus the pre-AI `fingerprint` (AI output is not deterministic) to identify a document, splits large excerpts into pieces of at most 70,000 characters, and stores the selected excerpts in IndexedDB.
+
+Selection is separate from upload. The UI distinguishes **Selected**, **Partially uploaded**, and **Uploaded** files. After the professor confirms authorization/no student personal data, `save()` sequentially posts excerpts to `/api/teacher/courses/:cid/import`. Uploads are course-wide: the client sends no topic or outcome (both stored as null), although the endpoint still accepts and validates a pair. The backend hashes topic, outcome, title and text for import idempotency; an existing import is reattached rather than duplicated, and takes the new upload's `documentId`/`fileName`, so a re-uploaded file version is listed once. Source material lists uploads once per file (collapsed), hides replaced/removed versions and the earlier `"deck — Slide N"` imports behind a toggle, and keeps topic sections for hand-added passages.
 
 `sync()` reconciles browser recovery data against attached server passages. Remove calls `PUT .../imports` with passage IDs and `attached:false`; it detaches excerpts instead of deleting report versions or questions. Replace extracts the replacement before detaching the prior file. Saved Markdown reports remain snapshots of their original input; changed attachments do not silently reanalyze them.
 
-Uploading, removing and replacing files make **zero Gemini calls**. No original PDF/PPTX binary is sent to Supabase Storage by this workflow. Separately, Source material offers explicit scan/diagram transcription: `vision.transcribe()` accepts PNG/JPEG/WebP images up to 4 MiB, sends image content to Gemini, and returns suggested text for professor review before saving.
+Without the optional AI step, uploading, removing and replacing files make **zero Gemini calls**. No original PDF/PPTX/DOCX binary is sent to Supabase Storage by this workflow. Separately, Source material offers explicit scan/diagram transcription: `vision.transcribe()` accepts PNG/JPEG/WebP images up to 4 MiB, sends image content to Gemini, and returns suggested text for professor review before saving.
 
 ## 9. Knowledge report generation, editing, and versioning
 
@@ -478,7 +483,7 @@ The following functions carry meaningful domain behavior. Arguments listed are t
 
 ## 16. Configuration, Gemini requests, retries, and quotas
 
-[.env.example](../.env.example) documents server configuration. `npm start` and the Node half of `npm run dev` load `.env` through Node's `--env-file-if-exists` option. Merely importing backend modules in tests does not load that file. Do not put secret keys in frontend variables or documentation.
+[.env.example](../.env.example) documents server configuration. `pnpm start` and the Node half of `pnpm dev` load `.env` through Node's `--env-file-if-exists` option. Merely importing backend modules in tests does not load that file. Do not put secret keys in frontend variables or documentation.
 
 | Variable | Behavior in source |
 | --- | --- |
