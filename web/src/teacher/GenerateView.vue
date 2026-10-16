@@ -87,7 +87,7 @@ const outcomeText = (id) => course.value.topics.flatMap((t) => t.outcomes).find(
         <div class="note small">
           <b>Drafter: </b>{{ course.drafter }}. {{ course.geminiEnabled ? '' : 'Set GEMINI_API_KEY in the server environment to use Gemini and unlock every format. ' }}The drafter only sees the retrieved chunks - never student names, grades or tools. Structure checks (and maths sampling) run in code; correctness is your call during review.
         </div>
-        <label>Topic<input v-model="tags.topicText" maxlength="160" /></label><label>Learning outcome<textarea v-model="tags.learningOutcome" maxlength="2000"></textarea></label>
+        <label>Topic<input type="text" v-model="tags.topicText" maxlength="160" /></label><label>Learning outcome<textarea v-model="tags.learningOutcome" maxlength="2000"></textarea></label>
         <div class="row top">
           <Field label="Format" v-slot="{ id }">
             <select :id="id" v-model="format">
