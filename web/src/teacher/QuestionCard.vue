@@ -6,6 +6,7 @@ import AsyncButton from '../components/AsyncButton.vue';
 import QuestionEditor from './QuestionEditor.vue';
 import QuestionDetails from './QuestionDetails.vue';
 import {QUESTION_LABELS} from './question-types.js';
+import { topicLabel } from './courses.js';
 
 const props = defineProps({ q: { type: Object, required: true }, course: { type: Object, required: true }, passages: { type: Array, required: true } });
 const { q, course } = props;
@@ -46,7 +47,7 @@ async function regenerate() {
       <span class="badge">{{ QUESTION_LABELS[type] || q.typeLabel }}</span>
       <span class="badge plain">{{ v.difficulty }}</span>
       <span class="badge plain">v{{ v.v }}{{ q.publishedVersion && q.publishedVersion !== v.v ? ` (live: v${q.publishedVersion})` : '' }}</span>
-      <span class="small muted">{{ topic?.name || q.assessment?.topic }}</span>
+      <span class="small muted">{{ topic ? topicLabel(topic) : q.assessment?.topic }}</span>
     </div>
     <QuestionDetails :value="v" :sample="q.sample" />
     <details class="question-provenance"><summary>Sources &amp; history</summary>

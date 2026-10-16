@@ -3,14 +3,16 @@
 // AI drafting
 // ============================================================
 import { ref, reactive, onMounted, watch } from 'vue';
-import { S, api, setTab } from '../api.js';
+import { S, api, setTab, rerender } from '../api.js';
 import { when } from '../ui.js';
 import Heading from '../components/Heading.vue';
 import Field from '../components/Field.vue';
 import AsyncButton from '../components/AsyncButton.vue';
 import CoursePicker from './CoursePicker.vue';
 import AuthoringWorkflow from './AuthoringWorkflow.vue';
-import { loadCourses, currentCourse, initialTags } from './courses.js';
+import TopicPicker from './TopicPicker.vue';
+import TopicForm from './TopicForm.vue';
+import { loadCourses, currentCourse, initialTags, syncTopic } from './courses.js';
 import { draftStore } from './authoring-draft.js';
 
 const error = ref('');
@@ -23,15 +25,20 @@ const count = ref(3);
 const format = ref(null);
 const focus = ref('');
 const workflowTarget = ref(null);
+const topic = ref(null); // the weekly topic being worked on
+const addingTopic = ref(false);
 onMounted(async () => {
   try {
     courses.value = await loadCourses();
     const c = currentCourse();
     course.value = c;
     if (c) {
+      // opened from the dashboard's "Draft questions": work on that topic
+      if (S.draftTarget?.topicId) S.topicId = S.draftTarget.topicId;
+      topic.value = syncTopic(c, { required: true });
       if (!c.authoringEnabled) history.value = await api('GET', `/api/teacher/courses/${c.id}/generations`);
-      // opened from the dashboard's "Draft questions": start on that outcome
-      Object.assign(tags, initialTags(c, S.draftTarget || {}));
+      // start on the dashboard's outcome, else the selected topic's first
+      Object.assign(tags, initialTags(c, S.draftTarget || { topicId: S.topicId }));
       if(S.draftTarget) workflowTarget.value={...tags,count:3};
       tags.topicText=c.topics.find(t=>t.id===tags.topicId)?.name || '';
       tags.learningOutcome=c.topics.flatMap(t=>t.outcomes).find(o=>o.id===tags.outcomeId)?.text || '';
@@ -81,9 +88,18 @@ const outcomeText = (id) => course.value.topics.flatMap((t) => t.outcomes).find(
   <template v-else-if="loaded">
     <p v-if="!course">You have no assigned courses.</p>
     <template v-else>
-      <Heading title="AI drafting"><CoursePicker :courses="courses" /></Heading>
-      <AuthoringWorkflow v-if="course.authoringEnabled" :course="course" :target="workflowTarget" />
-      <div v-else class="panel">
+      <Heading title="AI drafting">
+        <CoursePicker :courses="courses" />
+        <TopicPicker v-if="course.topics.length" :topics="course.topics" @change="rerender" />
+        <button v-if="!addingTopic" class="btn" @click="addingTopic = true">+ New topic</button>
+      </Heading>
+      <div v-if="addingTopic || !topic" class="panel">
+        <h3>{{ topic ? 'New weekly topic' : 'Add your first weekly topic' }}</h3>
+        <p class="small muted">Lecture files, knowledge reports and questions are grouped by topic, and shared by all your classes for this course.</p>
+        <TopicForm :course="course" @created="rerender" @cancel="addingTopic = false" />
+      </div>
+      <AuthoringWorkflow v-if="course.authoringEnabled && topic" :key="topic.id" :course="course" :topic="topic" :target="workflowTarget" />
+      <div v-else-if="!course.authoringEnabled" class="panel">
         <div class="note small">
           <b>Drafter: </b>{{ course.drafter }}. {{ course.geminiEnabled ? '' : 'Set GEMINI_API_KEY in the server environment to use Gemini and unlock every format. ' }}The drafter only sees the retrieved chunks - never student names, grades or tools. Structure checks (and maths sampling) run in code; correctness is your call during review.
         </div>

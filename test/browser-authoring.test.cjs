@@ -136,6 +136,7 @@ test('PDF/PPTX upload, saved Markdown editing, preview/download, generation and 
   assert.equal(inferenceCalls, beforeUpload, 'uploading alone uses zero inference');
   assert.equal(srv.quiz.db.courses.find(c=>c.id==='c-comp').authoringJobs?.length || 0, 0);
   assert.equal(await page.getByLabel('Lecture file upload status').getByText('Uploaded', {exact:true}).count(), 3);
+  assert.ok(srv.quiz.db.passages.filter(p=>p.importHash).every(p=>p.topicId==='tp-data'),'uploads go into the selected weekly topic');
   // Recover uploaded filenames from server even without browser recovery data.
   await page.evaluate(() => new Promise((resolve, reject) => {
     const r = indexedDB.open('quizquest-authoring', 1);
@@ -194,7 +195,7 @@ test('PDF/PPTX upload, saved Markdown editing, preview/download, generation and 
   const downloadEvent=page.waitForEvent('download');
   await page.getByRole('button',{name:'Download .md',exact:true}).click();
   const download=await downloadEvent;
-  assert.equal(download.suggestedFilename(),'knowledge-report.md');
+  assert.equal(download.suggestedFilename(),'knowledge-report-week-1.md');
   assert.equal(require('node:fs').readFileSync(await download.path(),'utf8'),edited);
   await page.reload();
   await page.locator('#tabs').getByRole('button', { name: 'AI drafting', exact: true }).click();
@@ -227,20 +228,21 @@ test('PDF/PPTX upload, saved Markdown editing, preview/download, generation and 
   assert.equal(await page.getByRole('spinbutton').count(),4);
   assert.equal(await page.getByRole('spinbutton',{name:'Numeric answer quantity',exact:true}).count(),0);
   assert.equal(await page.getByRole('spinbutton',{name:'Maths variation quantity',exact:true}).count(),0);
-  await page.getByLabel('Topic', { exact: true }).fill('Network reasoning');
+  // questions are filed under the selected weekly topic (the first one by default)
+  await page.getByText('Questions are filed under Week 1 · Data representation.',{exact:true}).waitFor();
   await page.getByLabel('Learning outcome', { exact: true }).fill('Apply delay and bandwidth concepts to diagnose network scenarios.');
   assert.equal(await page.getByLabel('Assessment Style',{exact:true}).inputValue(),'both');
   await page.getByLabel('Assessment Style',{exact:true}).selectOption('both');
   await page.waitForTimeout(150);
   await page.evaluate(()=>new Promise((resolve,reject)=>{
-    const r=indexedDB.open('quizquest-authoring',1);r.onsuccess=()=>{const db=r.result,tx=db.transaction('drafts','readwrite'),store=tx.objectStore('drafts'),read=store.get('report-workflow:t-a:c-comp');
-      read.onsuccess=()=>{const draft=read.result;draft.config.quantities.numeric=7;draft.config.quantities.param=2;store.put(draft,'report-workflow:t-a:c-comp');};
+    const r=indexedDB.open('quizquest-authoring',1);r.onsuccess=()=>{const db=r.result,tx=db.transaction('drafts','readwrite'),store=tx.objectStore('drafts'),read=store.get('report-workflow:t-a:c-comp:tp-data');
+      read.onsuccess=()=>{const draft=read.result;draft.config.quantities.numeric=7;draft.config.quantities.param=2;store.put(draft,'report-workflow:t-a:c-comp:tp-data');};
       tx.oncomplete=()=>{db.close();resolve();};tx.onerror=()=>reject(tx.error);};
   }));
   await page.reload();
   await page.locator('#tabs').getByRole('button',{name:'AI drafting',exact:true}).click();
-  await page.getByLabel('Topic',{exact:true}).waitFor();
-  assert.equal(await page.getByLabel('Topic',{exact:true}).inputValue(),'Network reasoning');
+  await page.getByLabel('Learning outcome',{exact:true}).waitFor();
+  assert.equal(await page.getByLabel('Weekly topic',{exact:true}).inputValue(),'tp-data');
   assert.equal(await page.getByLabel('Learning outcome',{exact:true}).inputValue(),'Apply delay and bandwidth concepts to diagnose network scenarios.');
   assert.equal(await page.getByLabel('Assessment Style',{exact:true}).inputValue(),'both');
   assert.equal(await page.getByRole('heading',{name:'Coverage',exact:true}).count(),0);
@@ -250,6 +252,8 @@ test('PDF/PPTX upload, saved Markdown editing, preview/download, generation and 
   await page.getByRole('button', { name: 'Review drafts', exact: true }).waitFor();
   const tfJob=srv.quiz.db.courses.find(c=>c.id==='c-comp').authoringJobs.find(j=>j.kind==='generation');
   assert.equal(tfJob.result.created.length,4);
+  assert.equal(tfJob.input.topicId,'tp-data','drafts are filed under the weekly topic of their report');
+  assert.equal(srv.quiz.db.courses.find(c=>c.id==='c-comp').authoringJobs.find(j=>j.id===tfJob.input.analysisId).input.topicId,'tp-data');
   assert.deepEqual(generationBody.quantities,{mcq:1,tf:1,short:1,multi:1},'recovery cannot submit hidden formats');
   assert.equal(tfJob.result.rejected.length,0,'valid False questions need no replacements');
   assert.equal(tfJob._validation.find(v=>v.candidate.type==='tf').pass,true);
@@ -307,8 +311,7 @@ test('unchanged intentional generation repeats, double clicks deduplicate, and a
   const page=await browser.newPage();t.after(()=>page.close());
   await page.goto(base);await page.getByRole('button',{name:'Prof. Demo A'}).click();
   await page.locator('#tabs').getByRole('button',{name:'AI drafting',exact:true}).click();
-  await page.getByLabel('Topic',{exact:true}).waitFor();
-  await page.getByLabel('Topic',{exact:true}).fill('Network reasoning');
+  await page.getByLabel('Learning outcome',{exact:true}).waitFor();
   await page.getByLabel('Learning outcome',{exact:true}).fill('Apply delay and bandwidth concepts to diagnose network scenarios.');
   await page.getByLabel('Assessment Style',{exact:true}).selectOption('application');
   for(const name of ['True/False','Short Answer','Multi-select'])await page.getByRole('spinbutton',{name:name+' quantity',exact:true}).fill('0');
@@ -506,8 +509,7 @@ test('Application insufficiency is actionable and cannot silently generate conce
   const savedReport=course.authoringJobs.find(j=>j.kind==='analysis' && j.reportSourceId);
   const select=page.getByRole('combobox',{name:'Knowledge report',exact:true});
   if(course.authoringJobs.filter(j=>j.kind==='analysis' && j.input.reportBased).length>1){await select.waitFor();page.once('dialog',d=>d.accept());await select.selectOption(savedReport.id);}
-  await page.getByLabel('Topic',{exact:true}).waitFor();
-  await page.getByLabel('Topic',{exact:true}).fill('Evidence for authentic application');
+  await page.getByLabel('Learning outcome',{exact:true}).waitFor();
   await page.getByLabel('Learning outcome',{exact:true}).fill('Evaluate a novel problem requiring a method missing from this report.');
   await page.getByLabel('Assessment Style',{exact:true}).selectOption('application');
   await page.getByRole('spinbutton',{name:'MCQ quantity',exact:true}).fill('1');

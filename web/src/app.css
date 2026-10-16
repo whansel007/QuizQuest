@@ -432,6 +432,21 @@ button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible
 .viz .refline { stroke: var(--muted); stroke-width: 1; opacity: 0.6; }
 .viz .lifted { stroke-width: 3; }
 .viz-legend .k.dot { width: 9px; height: 9px; border-radius: 50%; }
+/* time vs accuracy: named corners, the shaded "worth rereading" corner, direct labels */
+.viz .zone-shade { fill: var(--warn-soft); }
+.viz .corner { font-size: 11px; fill: var(--muted); font-weight: 600; }
+.viz .corner.warn { fill: var(--warn); }
+.viz .axis-title { font-weight: 600; }
+.viz .direct-label { font-size: 11px; fill: var(--ink); font-weight: 600; paint-order: stroke; stroke: var(--panel); stroke-width: 3px; stroke-linejoin: round; }
+.viz .leader { stroke: var(--muted); stroke-width: 1; }
+.viz .faded { opacity: 0.18; }
+.zone-chips { margin: 4px 0 8px; }
+.zone-chips button.warn { border-color: var(--warn); color: var(--warn); }
+.zone-chips button.warn[aria-pressed="true"] { background: var(--warn); border-color: var(--warn); color: var(--panel); }
+.zone-hint { margin: -2px 0 8px; }
+.how-measured { margin: -4px 0 10px; }
+.how-measured summary { cursor: pointer; }
+.how-measured p { margin: 6px 0 0; }
 .subrow { background: var(--bg); }
 .subrow .label { padding-left: 14px; min-width: 180px; }
 h3[tabindex="-1"]:focus { outline: none; }
@@ -466,6 +481,19 @@ dialog.insight::backdrop { background: rgba(10, 12, 20, 0.45); }
 .heat-foot { display: flex; justify-content: space-between; gap: 10px; flex-wrap: wrap; margin-top: 8px; }
 .heat-scale { display: inline-flex; align-items: center; gap: 6px; }
 .heat-scale .ramp { display: inline-block; width: 90px; height: 10px; border-radius: 3px; background: linear-gradient(90deg, var(--bg), var(--series-1)); }
+
+/* ---------- weekly topics ---------- */
+.topic-form { border: 1px dashed var(--line); border-radius: 8px; padding: 12px 12px 0; margin-bottom: 12px; }
+.field.week-field { min-width: 90px; max-width: 110px; }
+.outcome-list { margin: 0 0 10px; padding-left: 20px; }
+.outcome-picks { gap: 6px; margin: -4px 0 12px; }
+.outcome-picks .btn { text-align: left; white-space: normal; }
+.outcome-picks .btn[aria-pressed="true"] { border-color: var(--accent); background: var(--accent-soft); }
+.unsorted-file { display: flex; flex-wrap: wrap; gap: 8px 12px; align-items: flex-start; padding: 8px 0; border-bottom: 1px solid var(--line); }
+.topic-scope { margin: -6px 0 10px; }
+@media (max-width: 640px) {
+  .field.week-field { max-width: none; flex-basis: 100%; }
+}
 
 /* ---------- printed report (Print report / save as PDF) ---------- */
 @media print {

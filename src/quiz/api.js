@@ -33,6 +33,7 @@ const { transcribe } = require('./vision');
 const gemini = require('./gemini');
 const { createAuthoring } = require('./authoring');
 const { resolveTags, AI_DRAFT_FORMATS } = require('./assessment');
+const T = require('./topics');
 const R = require('./rewards');
 const E = require('./economy');
 const { SESSION_RESOURCES } = require('./seed');
@@ -142,8 +143,15 @@ function createQuizApi({ dataFile = null, store = null, now = () => Date.now(), 
   };
   const studentSession = (user, sid) => db.sessions.find((s) => s.id === sid && s.studentId === user.id) || fail(404, 'Not found.');
 
-  const topicsOf = (courseId) => db.topics.filter((t) => t.courseId === courseId);
+  // in week order, so every list and chart shows the course as it is taught
+  const topicsOf = (courseId) => T.sortTopics(db.topics.filter((t) => t.courseId === courseId));
   const versionOf = (q, v) => q.versions.find((x) => x.v === v);
+  // ?topic=<id> narrows dashboard data to one weekly topic of the course
+  const topicFilter = (query, courseId) => {
+    const id = query.get('topic');
+    if (!id) return null;
+    return topicsOf(courseId).some((t) => t.id === id) ? id : fail(400, 'Unknown topic.');
+  };
   const passageRefs = (ids) =>
     ids.map((id) => {
       const p = db.passages.find((p) => p.id === id);
@@ -524,8 +532,8 @@ function createQuizApi({ dataFile = null, store = null, now = () => Date.now(), 
   });
 
   // ---------------- teacher: content ----------------
-  // Persisted checkpoints use course extras in the existing store.
-  const authoringReply = (fn) => async (ctx) => {
+  // Domain modules (authoring, topics) throw errors carrying an HTTP status.
+  const statusReply = (fn) => async (ctx) => {
     try {
       return await fn(ctx);
     } catch (e) {
@@ -533,6 +541,59 @@ function createQuizApi({ dataFile = null, store = null, now = () => Date.now(), 
       throw e;
     }
   };
+
+  // ---------------- teacher: weekly topics ----------------
+  // Topics belong to the course, so every class of the course shares them.
+  const teacherTopic = (user, tid) => {
+    const t = db.topics.find((x) => x.id === tid) || fail(404, 'Not found.');
+    teacherCourse(user, t.courseId);
+    return t;
+  };
+  route('GET', '/api/teacher/courses/:cid/topics', 'teacher', ({ user, params }) => T.topicSummary(db, teacherCourse(user, params.cid)));
+  route(
+    'POST',
+    '/api/teacher/courses/:cid/topics',
+    'teacher',
+    statusReply(({ user, params, body }) => {
+      const c = teacherCourse(user, params.cid);
+      const name = T.parseName(body.name, topicsOf(c.id));
+      const week = T.parseWeek(body.week) ?? null;
+      const topic = { id: newId('tp'), courseId: c.id, name, outcomes: [], ...(week && { week }) };
+      if (body.outcome !== undefined && body.outcome !== '') topic.outcomes.push({ id: newId('lo'), text: T.parseOutcome(body.outcome, topic) });
+      db.topics.push(topic);
+      save();
+      return [201, topic];
+    }),
+  );
+  route(
+    'PUT',
+    '/api/teacher/topics/:tid',
+    'teacher',
+    statusReply(({ user, params, body }) => {
+      const t = teacherTopic(user, params.tid);
+      // validate everything before changing anything
+      const name = body.name === undefined ? t.name : T.parseName(body.name, topicsOf(t.courseId), t);
+      const week = T.parseWeek(body.week);
+      const outcome = body.addOutcome === undefined ? null : T.parseOutcome(body.addOutcome, t);
+      t.name = name;
+      if (week === null) delete t.week;
+      else if (week !== undefined) t.week = week;
+      if (outcome) t.outcomes.push({ id: newId('lo'), text: outcome });
+      save();
+      return t;
+    }),
+  );
+  // Only a topic nothing refers to yet (no material, questions or answers)
+  route('DELETE', '/api/teacher/topics/:tid', 'teacher', ({ user, params }) => {
+    const t = teacherTopic(user, params.tid);
+    const course = db.courses.find((c) => c.id === t.courseId);
+    if (!T.topicSummary(db, course).topics.find((x) => x.topicId === t.id).empty)
+      fail(409, 'This topic has material, questions or answers. Move or remove them first.');
+    db.topics.splice(db.topics.indexOf(t), 1);
+    save();
+    return { ok: true };
+  });
+
   route('GET', '/api/teacher/courses/:cid/authoring', 'teacher', ({ user, params }) =>
     authoring.jobs(teacherCourse(user, params.cid)).map(({ metrics, key, sourceDigest, _recovery, _validation, reportSnapshot, pendingBatch, _diagnostics, ...j }) => {
       const { parts, synthesis, ...result } = j.result;
@@ -547,7 +608,7 @@ function createQuizApi({ dataFile = null, store = null, now = () => Date.now(), 
     'POST',
     '/api/teacher/courses/:cid/authoring',
     'teacher',
-    authoringReply(async ({ user, params, body }) => {
+    statusReply(async ({ user, params, body }) => {
       const j = authoring.start(teacherCourse(user, params.cid), body.kind, body, user.id);
       await persist();
       return [202, j];
@@ -557,7 +618,7 @@ function createQuizApi({ dataFile = null, store = null, now = () => Date.now(), 
     'POST',
     '/api/teacher/courses/:cid/authoring/:jid/resume',
     'teacher',
-    authoringReply(async ({ user, params }) => {
+    statusReply(async ({ user, params }) => {
       const j = authoring.resume(teacherCourse(user, params.cid), params.jid);
       await persist();
       return [202, j];
@@ -567,14 +628,14 @@ function createQuizApi({ dataFile = null, store = null, now = () => Date.now(), 
     'PUT',
     '/api/teacher/courses/:cid/authoring/:jid/review',
     'teacher',
-    authoringReply(({ user, params, body }) => authoring.review(teacherCourse(user, params.cid), params.jid, body.markdown, body.reportRevision)),
+    statusReply(({ user, params, body }) => authoring.review(teacherCourse(user, params.cid), params.jid, body.markdown, body.reportRevision)),
     { limit: 300 * 1024 },
   );
   route(
     'POST',
     '/api/teacher/questions/:qid/regenerate',
     'teacher',
-    authoringReply(async ({ user, params }) => {
+    statusReply(async ({ user, params }) => {
       const q = teacherQuestion(user, params.qid),
         c = teacherCourse(user, q.courseId);
       const j = authoring.regenerate(c, q, user.id);
@@ -590,8 +651,10 @@ function createQuizApi({ dataFile = null, store = null, now = () => Date.now(), 
     'teacher',
     async ({ user, params, body }) => {
       const c = teacherCourse(user, params.cid);
-      // Uploaded lecture files are course-wide; a topic is optional.
-      const { topic, outcome } = body.topicId == null && body.outcomeId == null ? {} : topicAndOutcome(c, body.topicId, body.outcomeId);
+      // Uploaded lecture files belong to a weekly topic (older uploads may
+      // have none); a learning outcome is optional.
+      const topic = body.topicId == null ? null : topicsOf(c.id).find((t) => t.id === body.topicId) || fail(400, 'Unknown topic.');
+      const outcome = body.outcomeId == null ? null : topic?.outcomes.find((o) => o.id === body.outcomeId) || fail(400, 'Unknown learning outcome.');
       if (body.confirmNoPersonalData !== true) fail(400, 'Confirm that this is authorised course material without student personal data.');
       if (authoring.jobs(c).some((j) => ['queued', 'running'].includes(j.status))) fail(409, 'Wait for the current authoring job before changing files.');
       const title = str(body.title, 120, 'Title'),
@@ -639,15 +702,27 @@ function createQuizApi({ dataFile = null, store = null, now = () => Date.now(), 
     return db.passages.filter((p) => p.courseId === c.id).map((p) => ({ ...p, usedBy: usedBy.get(p.id) || 0 }));
   });
 
-  // Detach uploads without destroying sources referenced by reports/questions.
+  // Detach uploads without destroying sources referenced by reports/questions,
+  // or move an uploaded file to another weekly topic ({ topicId }).
   route('PUT', '/api/teacher/courses/:cid/imports', 'teacher', async ({ user, params, body }) => {
     const c = teacherCourse(user, params.cid);
     if (authoring.jobs(c).some((j) => ['queued', 'running'].includes(j.status))) fail(409, 'Wait for the current authoring job before changing files.');
-    if (!Array.isArray(body.passageIds) || !body.passageIds.length || body.passageIds.length > 1000 || body.attached !== false)
-      fail(400, 'Choose uploaded file excerpts to remove.');
+    const moving = body.topicId !== undefined;
+    if (!Array.isArray(body.passageIds) || !body.passageIds.length || body.passageIds.length > 1000 || (!moving && body.attached !== false))
+      fail(400, 'Choose uploaded file excerpts to remove or move.');
     const parts = body.passageIds.map((id) => db.passages.find((p) => p.id === id && p.courseId === c.id && p.importHash && p.origin !== 'report'));
     if (parts.some((p) => !p)) fail(404, 'Uploaded file not found.');
-    for (const p of parts) p.attached = false;
+    if (!moving) {
+      for (const p of parts) p.attached = false;
+    } else {
+      const topic = body.topicId === null ? null : topicsOf(c.id).find((t) => t.id === body.topicId) || fail(400, 'Unknown topic.');
+      // the import key includes the topic, so re-uploading the file there stays idempotent
+      const keyOf = (p) => crypto.createHash('sha256').update(JSON.stringify([topic?.id ?? null, null, p.title, p.text])).digest('hex');
+      const ids = new Set(parts.map((p) => p.id));
+      if (parts.some((p) => db.passages.some((x) => x.courseId === c.id && !ids.has(x.id) && x.importHash === keyOf(p))))
+        fail(409, 'This file is already uploaded to that topic.');
+      for (const p of parts) Object.assign(p, { topicId: topic?.id ?? null, outcomeId: null, importHash: keyOf(p) });
+    }
     await persist();
     return { ok: true };
   });
@@ -823,10 +898,12 @@ function createQuizApi({ dataFile = null, store = null, now = () => Date.now(), 
   });
 
   // ---------------- teacher: marking free-response answers ----------------
-  route('GET', '/api/teacher/classes/:classId/marking', 'teacher', ({ user, params }) => {
+  // ?topic=<id>: only answers to that weekly topic's questions (dashboard filter)
+  route('GET', '/api/teacher/classes/:classId/marking', 'teacher', ({ user, params, query }) => {
     const cls = teacherClass(user, params.classId);
+    const topicId = topicFilter(query, cls.courseId);
     return db.attempts
-      .filter((a) => a.classId === cls.id && a.needsReview)
+      .filter((a) => a.classId === cls.id && a.needsReview && (!topicId || a.topicId === topicId))
       .slice(-50)
       .reverse()
       .map((a) => {
@@ -836,6 +913,7 @@ function createQuizApi({ dataFile = null, store = null, now = () => Date.now(), 
         return {
           attemptId: a.id,
           at: a.at,
+          topicId: a.topicId,
           stem: v.stem,
           modelAnswer: v.modelAnswer,
           keyPoints: v.keyPoints,
@@ -950,9 +1028,9 @@ function createQuizApi({ dataFile = null, store = null, now = () => Date.now(), 
     return p;
   };
   route('GET', '/api/teacher/classes/:classId/analytics', 'teacher', ({ user, params, query }) => {
-    teacherClass(user, params.classId);
-    const p = period(query);
-    const key = `${params.classId}|${p.range}|${p.from || ''}|${p.to || ''}`;
+    const cls = teacherClass(user, params.classId);
+    const p = { ...period(query), topicId: topicFilter(query, cls.courseId) };
+    const key = `${params.classId}|${p.range}|${p.from || ''}|${p.to || ''}|${p.topicId || ''}`;
     const hit = analyticsCache.get(key);
     if (hit && hit.version === dataVersion && now() - hit.at < ANALYTICS_TTL) return hit.value;
     const value = classAnalytics(db, params.classId, now(), p);
@@ -971,7 +1049,7 @@ function createQuizApi({ dataFile = null, store = null, now = () => Date.now(), 
   route('GET', '/api/teacher/courses/:cid/compare', 'teacher', ({ user, params, query }) => {
     const c = teacherCourse(user, params.cid);
     const ids = db.classes.filter((cl) => cl.courseId === c.id && cl.teacherIds.includes(user.id)).map((cl) => cl.id);
-    return courseComparison(db, ids, now(), period(query));
+    return courseComparison(db, ids, now(), { ...period(query), topicId: topicFilter(query, c.id) });
   });
 
   route('GET', '/api/teacher/classes/:classId/participation.csv', 'teacher', ({ user, params }) => {

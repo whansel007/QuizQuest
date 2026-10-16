@@ -20,7 +20,8 @@ const { course, passages, q } = props;
 
 const openedAt = Date.now(); // preparation-time metric
 const v = q ? q.latest : { type: 'mcq', stem: '', options: ['', '', '', ''], answerIndex: 0, explanation: '', difficulty: 'medium', sourceIds: [] };
-const initial = initialTags(course, q || {});
+// a new question starts in the selected weekly topic
+const initial = initialTags(course, q || { topicId: S.topicId });
 const initialTopic = course.topics.find(t=>t.id===initial.topicId);
 const tags = reactive({...initial, topicText:initialTopic?.name || '', learningOutcome:initialTopic?.outcomes.find(o=>o.id===initial.outcomeId)?.text || ''});
 const formats = [...QUESTION_TYPES];

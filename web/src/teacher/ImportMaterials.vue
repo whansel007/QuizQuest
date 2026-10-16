@@ -1,13 +1,17 @@
-﻿<script setup>
+<script setup>
 import { ref, computed, onMounted, watch } from 'vue';
 import { S, api } from '../api.js';
 import { extractFile, originOf } from './import-materials.js';
 import { toBase64 } from './pdf.js';
 import { draftStore } from './authoring-draft.js';
-const props = defineProps({ course: Object, disabled: Boolean, inWorkflow: Boolean });
+import { topicLabel } from './courses.js';
+// topic: the weekly topic files are uploaded to and listed from (null = older
+// course-wide uploads that are not in a topic).
+const props = defineProps({ course: Object, topic: { type: Object, default: null }, disabled: Boolean, inWorkflow: Boolean });
 const emit = defineEmits(['saved', 'available', 'state']);
 const pages = ref([]), busy = ref(false), loading = ref(true), fileInput = ref(null), message = ref(''), error = ref(''), confirmed = ref(false);
-const key = `import:${S.me.id}:${props.course.id}`;
+const topicId = props.topic?.id ?? null;
+const key = `import:${S.me.id}:${props.course.id}` + (topicId ? `:${topicId}` : '');
 const replaceInput = ref(null), replaceTarget = ref(''), useAi = ref(false), controller = ref(null);
 // File name of every uploaded excerpt, including replaced ones, so reports can name their sources.
 const names = ref({});
@@ -31,7 +35,7 @@ watch([busy, loading, unsaved], emitState);
 async function sync() {
   const all = (await api('GET', `/api/teacher/courses/${props.course.id}/passages`)).filter(p=>p.origin !== 'report');
   names.value = Object.fromEntries(all.map((p) => [p.id, p.fileName || p.title.split(' · ')[0]]));
-  const material = all.filter(p=>p.attached !== false);
+  const material = all.filter(p=>p.attached !== false && (p.topicId ?? null) === topicId);
   const stored = material.filter(p=>p.importHash);
   const matches = (p,s) => s.title===p.title && s.text===p.text && s.documentId===p.documentId;
   // Server attachment state is authoritative for previously uploaded drafts.
@@ -147,7 +151,7 @@ async function save() {
     for (const p of queue) {
       if (ctrl.signal.aborted) break;
       message.value = `Uploading excerpt ${done + 1} of ${queue.length}…`;
-      const saved = await api('POST', `/api/teacher/courses/${props.course.id}/import`, { ...p, confirmNoPersonalData: confirmed.value });
+      const saved = await api('POST', `/api/teacher/courses/${props.course.id}/import`, { ...p, topicId, confirmNoPersonalData: confirmed.value });
       Object.assign(p,saved,{saved:true}); await stash();
       done++;
     }
@@ -162,8 +166,8 @@ async function save() {
 </script>
 <template>
   <div class="panel">
-    <h3>Upload lecture material</h3>
-    <p>Choose PDF, PowerPoint, Word or text files, up to 100 MB each. All uploaded material is included automatically.</p>
+    <h3>Upload lecture material<template v-if="topic"> for {{ topicLabel(topic) }}</template></h3>
+    <p>Choose PDF, PowerPoint, Word or text files, up to 100 MB each. {{ topic ? 'Every file uploaded to this topic is used for its knowledge report.' : 'All uploaded material is included automatically.' }}</p>
     <p class="small muted">Text, tables, charts and speaker notes are read in your browser. Check diagrams, equations and any gaps when editing the report.</p>
     <label v-if="course.geminiEnabled" class="small"><input v-model="useAi" type="checkbox" :disabled="loading || busy || disabled" /> Describe images with AI: sends large slide/document pictures and scanned PDF pages to Google Gemini (up to 40 per file). Use only for authorised course material without student personal data.</label>
     <input ref="fileInput" aria-label="Lecture files" type="file" multiple :accept="ACCEPT" :disabled="loading || busy || disabled" style="display:none" @change="choose" />

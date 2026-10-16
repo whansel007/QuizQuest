@@ -209,20 +209,27 @@ function createAuthoring({ db, persist, ai = gemini.generateJson, drafter }) {
     if (kind === 'analysis') {
       // The upload workflow supplies its attachment set explicitly. Legacy
       // course-material callers can still analyse manually entered sources.
-      const material = reportBased && db.passages.filter((p) => p.courseId === c.id && p.origin !== 'report' && p.attached !== false && (raw.materialIds === undefined || p.importHash));
+      // A weekly topic (topicId) limits the report to that topic's files;
+      // without one, every attached file of the course is used (older reports).
+      const topicId = reportBased && raw.topicId !== undefined ? raw.topicId : undefined;
+      if (topicId !== undefined && !db.topics.some((t) => t.id === topicId && t.courseId === c.id)) error(400, 'Unknown topic.');
+      const material = reportBased && db.passages.filter((p) => p.courseId === c.id && p.origin !== 'report' && p.attached !== false && (raw.materialIds === undefined || p.importHash)
+        && (topicId === undefined || p.topicId === topicId));
       if (reportBased && raw.materialIds !== undefined && !Array.isArray(raw.materialIds)) error(400, 'Choose attached file excerpts.');
       if (reportBased && raw.materialIds && hash([...raw.materialIds].sort()) !== hash(material.map((p) => p.id).sort()))
         error(409, 'Attached files changed. Refresh the upload list before generating a report.');
-      if (reportBased && !material.length) error(400, 'Upload lecture material before generating a knowledge report.');
+      if (reportBased && !material.length) error(400, topicId === undefined ? 'Upload lecture material before generating a knowledge report.' : 'Upload lecture material for this topic before generating a knowledge report.');
       if (reportBased && (material.length > 1000 || material.reduce((n,p)=>n+p.text.length,0) > 3000000))
         error(400, 'There is too much material for one report. Remove older material in Source material, then try again.');
       const pp = sources(c, reportBased ? { passageIds: material.map((p) => p.id) } : raw);
-      input = { passageIds: pp.map((p) => p.id), ...(reportBased ? { reportBased: true } : {}) };
+      input = { passageIds: pp.map((p) => p.id), ...(reportBased ? { reportBased: true } : {}), ...(topicId !== undefined ? { topicId } : {}) };
       sourceDigest = digest(pp);
     } else {
       const a = analysis(c, raw.analysisId);
       tags = resolveTags(db,c,raw);
       const {topic,outcome}=tags;
+      // A weekly topic's report drafts questions for that topic only
+      if (a.input.topicId && topic.id !== a.input.topicId) error(400, 'This report belongs to another topic. Choose its topic, or make a report for this one.');
       const quantities = a.input.reportBased ? raw.quantities : null;
       if (a.input.reportBased && (!quantities || typeof quantities !== 'object' || Array.isArray(quantities) ||
         !Object.keys(quantities).length || Object.entries(quantities).some(([type, n]) => !AI_DRAFT_FORMATS.includes(type) || !Number.isInteger(n) || n < 1 || n > 10)))
@@ -240,8 +247,9 @@ function createAuthoring({ db, persist, ai = gemini.generateJson, drafter }) {
       sourceDigest = hash([a.sourceDigest, a.reviewedText]);
       if (a.input.reportBased) {
         if (raw.assessmentStyle !== undefined && !['conceptual','application','both'].includes(raw.assessmentStyle)) error(400,'Choose Conceptual, Application or Both.');
-        if (raw.topicText !== undefined) { input.topicText=topic.name; input.learningOutcome=outcome.text; }
-        if (raw.assessmentStyle !== undefined || raw.topicText !== undefined) input.assessmentStyle=raw.assessmentStyle ?? 'both';
+        const freeText = raw.topicText !== undefined || raw.learningOutcome !== undefined;
+        if (freeText) { input.topicText=topic.name; input.learningOutcome=outcome.text; }
+        if (raw.assessmentStyle !== undefined || freeText) input.assessmentStyle=raw.assessmentStyle ?? 'both';
         if (kind !== 'generation') error(400, 'Generate questions directly from your saved report.');
         if (!a.reportSourceId) error(409, 'Save the knowledge report first.');
         if (raw.reportRevision !== a.reportRevision) error(409, 'The saved report changed. Refresh it before generating questions.');
@@ -274,7 +282,7 @@ function createAuthoring({ db, persist, ai = gemini.generateJson, drafter }) {
     if (attempt && attempt.key !== key) error(409, 'This generation attempt already uses different settings. Retry its original request or start a new batch.');
     const prior = jobs(c).find((j) => j.key === key);
     if (prior) return prior; // legacy callers retain configuration-based idempotency
-    if (reportBased && jobs(c).some((j) => j.kind === 'analysis' && j.input.reportBased && j.status === 'complete') && raw.confirmMaterialChange !== true)
+    if (reportBased && jobs(c).some((j) => j.kind === 'analysis' && j.input.reportBased && j.input.topicId === input.topicId && j.status === 'complete') && raw.confirmMaterialChange !== true)
       error(409, 'Attached files changed. Confirm generating a new report; existing reports and questions will be kept.');
     if (jobs(c).some((j) => ['queued', 'running'].includes(j.status))) error(409, 'Work is already in progress for this course.');
     const j = {

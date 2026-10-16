@@ -102,16 +102,16 @@ function seed(now = Date.now()) {
       { id: 'c-stats', title: 'Intro to Statistics (demo)', teacherIds: ['t-b'], coverageTarget: 4, promptConfig: 'Show working in explanations.' },
     ],
     topics: [
-      { id: 'tp-data', courseId: 'c-comp', name: 'Data representation', outcomes: [
+      { id: 'tp-data', courseId: 'c-comp', name: 'Data representation', week: 1, outcomes: [
         { id: 'lo-data-1', text: 'Convert between binary, decimal and hexadecimal' },
         { id: 'lo-data-2', text: 'Explain how text and images are encoded' }] },
-      { id: 'tp-net', courseId: 'c-comp', name: 'Networking basics', outcomes: [
+      { id: 'tp-net', courseId: 'c-comp', name: 'Networking basics', week: 2, outcomes: [
         { id: 'lo-net-1', text: 'Describe how data moves across a network' },
         { id: 'lo-net-2', text: 'Distinguish common protocols and their purpose' }] },
-      { id: 'tp-sec', courseId: 'c-comp', name: 'Cyber hygiene', outcomes: [
+      { id: 'tp-sec', courseId: 'c-comp', name: 'Cyber hygiene', week: 3, outcomes: [
         { id: 'lo-sec-1', text: 'Recognise common attacks' },
         { id: 'lo-sec-2', text: 'Apply basic protective practices' }] },
-      { id: 'tp-stats', courseId: 'c-stats', name: 'Descriptive statistics', outcomes: [
+      { id: 'tp-stats', courseId: 'c-stats', name: 'Descriptive statistics', week: 1, outcomes: [
         { id: 'lo-stats-1', text: 'Compute and compare measures of centre' }] },
     ],
     classes: [

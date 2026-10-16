@@ -7,11 +7,14 @@ function resolveTags(db, course, raw) {
     if (!outcome) throw Object.assign(new Error('Choose a topic and learning outcome.'), {status:400});
     return {topic,outcome,commit() {}};
   }
-  const topicText=typeof raw.topicText==='string'?raw.topicText.trim():'';
+  // An existing weekly topic by id, with a typed learning outcome
+  const known = raw.topicText === undefined && typeof raw.topicId === 'string' && db.topics.find(t=>t.id===raw.topicId && t.courseId===course.id);
+  if (raw.topicText === undefined && !known) throw Object.assign(new Error('Choose a topic.'),{status:400});
+  const topicText=known ? known.name : typeof raw.topicText==='string'?raw.topicText.trim():'';
   const learningOutcome=typeof raw.learningOutcome==='string'?raw.learningOutcome.trim():'';
   if (!topicText || topicText.length>160 || !learningOutcome || learningOutcome.length>2000)
     throw Object.assign(new Error('Enter a topic (up to 160 characters) and learning outcome (up to 2,000 characters).'),{status:400});
-  const topic=db.topics.find(t=>t.courseId===course.id && t.name===topicText) || {id:id('topic-',[course.id,topicText]),courseId:course.id,name:topicText,outcomes:[]};
+  const topic=known || db.topics.find(t=>t.courseId===course.id && t.name===topicText) || {id:id('topic-',[course.id,topicText]),courseId:course.id,name:topicText,outcomes:[]};
   const outcome=topic.outcomes.find(o=>o.text===learningOutcome) || {id:id('outcome-',[topic.id,learningOutcome]),text:learningOutcome};
   return {topic,outcome,commit() {
     const saved=db.topics.find(t=>t.id===topic.id);

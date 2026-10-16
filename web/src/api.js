@@ -48,6 +48,8 @@ function savedPeriod() {
 }
 // ?range=... for the analytics endpoints
 export const periodQuery = () => (S.range === 'custom' ? `range=custom&from=${S.from}&to=${S.to}` : `range=${S.range}`);
+// ...plus &topic=... when the dashboard is narrowed to one weekly topic
+export const dashQuery = () => periodQuery() + (S.topicId ? `&topic=${encodeURIComponent(S.topicId)}` : '');
 
 export const S = reactive({
   token: saved(),
@@ -56,7 +58,9 @@ export const S = reactive({
   courseId: null,
   classId: null,
   qFilter: 'draft',
-  qTopic: '', // Question bank topic filter ('' = all topics)
+  // Weekly topic shared by Source material, AI drafting, Question bank and
+  // Analytics, so moving between them keeps the same week ('' = all topics)
+  topicId: '',
   // Analytics period: '7d' | '30d' | 'all' | 'custom' (from/to: local dates)
   ...savedPeriod(),
   focusQuestionId: null, // Question bank scrolls to (and highlights) this question once
@@ -154,7 +158,7 @@ function clearSession() {
   } catch {
     // storage blocked: the token only lived in memory anyway
   }
-  Object.assign(S, { token: null, me: null, tab: null, courseId: null, classId: null, qFilter: 'draft', qTopic: '', ...savedPeriod(), focusQuestionId: null, draftTarget: null });
+  Object.assign(S, { token: null, me: null, tab: null, courseId: null, classId: null, qFilter: 'draft', topicId: '', ...savedPeriod(), focusQuestionId: null, draftTarget: null });
   rerender();
 }
 

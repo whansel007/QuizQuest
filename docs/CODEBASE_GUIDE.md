@@ -155,7 +155,7 @@ All domain modules operate on one in-memory `db` object. [seed.js](../src/quiz/s
 | Domain objects | Meaning and relationships |
 | --- | --- |
 | `users`, `courses`, `classes`, `enrolments` | Synthetic identities; teacher assignments; class-to-course relationship; student membership |
-| `topics[].outcomes` | Course topics with nested learning outcomes, referenced by questions and source passages |
+| `topics[].outcomes` | Weekly course topics (optional `week` 1–52, kept in `extra` in Supabase) with nested learning outcomes, referenced by questions, source passages and reports. Shared by every class of the course; [topics.js](../src/quiz/topics.js) sorts by week and builds the per-topic summary |
 | `passages` | Extracted/pasted material and immutable saved report revisions; includes provenance and attachment metadata |
 | `courses[].authoringJobs` | Durable authoring jobs, configuration, progress, model metrics, recovery and validation audit data |
 | `courses[].analysisCache` | Reusable source-group analysis results |
@@ -207,7 +207,7 @@ Decompressed XML is bounded (10 MB per part, 50 MB total) to reduce ZIP expansio
 
 The client limits files to 100 MB each, accepts up to 20 at one selection, and bounds PDFs/decks to 1,000 pages/slides. It hashes filename plus the pre-AI `fingerprint` (AI output is not deterministic) to identify a document, splits large excerpts into pieces of at most 70,000 characters, and stores the selected excerpts in IndexedDB.
 
-Selection is separate from upload. The UI distinguishes **Selected**, **Partially uploaded**, and **Uploaded** files. After the professor confirms authorization/no student personal data, `save()` sequentially posts excerpts to `/api/teacher/courses/:cid/import`. Uploads are course-wide: the client sends no topic or outcome (both stored as null), although the endpoint still accepts and validates a pair. The backend hashes topic, outcome, title and text for import idempotency; an existing import is reattached rather than duplicated, and takes the new upload's `documentId`/`fileName`, so a re-uploaded file version is listed once. Source material lists uploads once per file (collapsed), hides replaced/removed versions and the earlier `"deck — Slide N"` imports behind a toggle, and keeps topic sections for hand-added passages.
+Selection is separate from upload. The UI distinguishes **Selected**, **Partially uploaded**, and **Uploaded** files. After the professor confirms authorization/no student personal data, `save()` sequentially posts excerpts to `/api/teacher/courses/:cid/import`. Uploads belong to the weekly topic chosen in Source material or AI drafting: the client sends that `topicId` (outcome optional). Uploads made before weekly topics have a null topic; Source material lists them under **Files not in a topic** and moves them with `PUT .../imports {passageIds, topicId}`, which re-keys the import hash and refuses a move onto a copy already in that topic. The backend hashes topic, outcome, title and text for import idempotency; an existing import is reattached rather than duplicated, and takes the new upload's `documentId`/`fileName`, so a re-uploaded file version is listed once. Source material lists uploads once per file (collapsed), hides replaced/removed versions and the earlier `"deck — Slide N"` imports behind a toggle, and keeps topic sections for hand-added passages.
 
 `sync()` reconciles browser recovery data against attached server passages. Remove calls `PUT .../imports` with passage IDs and `attached:false`; it detaches excerpts instead of deleting report versions or questions. Replace extracts the replacement before detaching the prior file. Saved Markdown reports remain snapshots of their original input; changed attachments do not silently reanalyze them.
 
@@ -244,6 +244,8 @@ sequenceDiagram
 ```
 
 [authoring.js](../src/quiz/authoring.js), `createAuthoring()`, owns the single-process durable queue. `start()` maps `kind:'report'` to an analysis job with `input.reportBased:true`. It checks the explicit attachment set, material limits and active course job. Changed attachments after an existing completed report require confirmation. Identical report inputs reuse the earlier job.
+
+A report started with `topicId` reads only that topic's attached uploads, stores `input.topicId`, and asks for material-change confirmation only against earlier reports of the same topic. Reports without a topic (made before weekly topics) remain selectable as "older reports". Generation from a topic report must use that topic (`{topicId, learningOutcome}` form of `resolveTags()`); a new outcome text joins the topic.
 
 `groups()` combines document-aware excerpts into bounded analysis inputs. `execute()` analyzes uncached groups and, if needed, synthesizes intermediate reports in a hierarchy. Group results and synthesis steps are checkpointed. A small upload may require one analysis request; multiple groups/synthesis require more. The generated report is not yet the selected saved assessment source.
 
@@ -402,6 +404,7 @@ Challenges expire after 60 seconds. Submission goes through the same `answerQues
 
 ## 13. Analytics, rewards, and supporting features
 
+- Dashboard filters: class (grouped by course), weekly topic (`?topic=`, narrowing every figure and the class comparison to that topic's questions and answers) and period. `classAnalytics()` also returns `overview`: every topic's files, report, question counts and this class's first-attempt accuracy, shown as the **Weekly topics** table with a next step per topic.
 - [analytics.js](../src/quiz/analytics.js): `classAnalytics()`, `courseComparison()` and `questionInsights()` derive class activity, practice indicators, timing, option/quality and comparison data from stored attempts/questions. Provisional versus confirmed responses are distinguished. The visible-tab analytics auto-refresh runs every 30 seconds and does not generate content.
 - [evaluation.js](../src/quiz/evaluation.js): `courseEvaluation()` summarizes drafting/review behavior, practice and related evaluation measures. These are descriptive prototype metrics, not evidence that learning outcomes have been causally improved.
 - [rewards.js](../src/quiz/rewards.js): coin ledger, first-correct/milestone/completion rewards, caps, inventory, pets and items. Reference keys prevent repeat payment.
@@ -419,9 +422,10 @@ Routes are defined in [src/quiz/api.js](../src/quiz/api.js). Prefix abbreviation
 | `GET /api/demo-users`; `POST /api/login`; `GET /api/me`; `POST /api/logout` | Demo selection, `{userId}` login, bearer restoration, invalidation |
 | `GET T/courses` | Assigned courses, topics/outcomes, classes and capabilities |
 | `PUT C/settings`; `PUT T/classes/:classId/settings` | Update existing course/class configuration |
+| `GET C/topics`; `POST C/topics`; `PUT T/topics/:tid`; `DELETE T/topics/:tid` | Per-topic summary; create `{name, week?, outcome?}`; edit `{name?, week?, addOutcome?}`; delete only a topic nothing refers to |
 | `GET C/passages`; `POST C/passages`; `DELETE T/passages/:pid` | Source listing, authorized text save, explicit deletion; old questions retain source IDs |
 | `POST C/import` | One extracted excerpt with tags/provenance and `confirmNoPersonalData:true`; idempotent import |
-| `PUT C/imports` | `{passageIds, attached:false}` to detach uploaded file excerpts |
+| `PUT C/imports` | `{passageIds, attached:false}` to detach uploaded file excerpts, or `{passageIds, topicId}` to move them to a weekly topic |
 | `POST C/transcribe` | `{imageBase64,mimeType,mode}` to suggested scan/diagram text; inference occurs here |
 | `GET C/authoring`; `GET C/authoring/:jid` | Jobs/progress; no inference; list omits internal audit/diagnostic payloads |
 | `POST C/authoring` | Start/recover `report`, `analysis`, `recommendations` or `generation`; `202` on accepted job |
@@ -433,7 +437,7 @@ Routes are defined in [src/quiz/api.js](../src/quiz/api.js). Prefix abbreviation
 | `POST T/questions/:qid/reports/:rid/resolve` | Resolve a student issue report |
 | `POST C/generate`; `GET C/generations`; `GET C/coverage` | Older direct generator/history and retained coverage API |
 | `GET T/classes/:classId/marking`; `POST T/attempts/:aid/mark` | Provisional answer queue and professor correctness override |
-| `GET T/classes/:classId/analytics`; `GET T/classes/:classId/questions/:qid/insights` | Class and question analytics with period parameters |
+| `GET T/classes/:classId/analytics`; `GET T/classes/:classId/questions/:qid/insights` | Class and question analytics with period parameters; analytics and `C/compare` also take `topic` |
 | `GET C/compare`; `GET C/evaluation`; `GET T/classes/:classId/participation.csv` | Course comparisons, evaluation and escaped CSV export |
 | `GET S/home`; `GET S/classes/:classId/progress` | Student home, available classes, balances and practice indicators |
 | `POST S/sessions`; `GET S/sessions/:sid` | Start a plan and fetch current safe question state |

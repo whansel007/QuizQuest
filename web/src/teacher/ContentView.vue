@@ -1,9 +1,9 @@
 <script setup>
 // ============================================================
-// Source material: paste, PDF, scans & diagrams
+// Source material, grouped by weekly topic: paste, PDF, scans & diagrams
 // ============================================================
 import { ref, reactive, computed, markRaw, onMounted } from 'vue';
-import { api, rerender } from '../api.js';
+import { S, api, rerender } from '../api.js';
 import { toast, action, when } from '../ui.js';
 import Heading from '../components/Heading.vue';
 import Field from '../components/Field.vue';
@@ -11,7 +11,9 @@ import AsyncButton from '../components/AsyncButton.vue';
 import CoursePicker from './CoursePicker.vue';
 import TopicOutcomeFields from './TopicOutcomeFields.vue';
 import ImportMaterials from './ImportMaterials.vue';
-import { loadCourses, currentCourse, initialTags } from './courses.js';
+import TopicManager from './TopicManager.vue';
+import TopicPicker from './TopicPicker.vue';
+import { loadCourses, currentCourse, initialTags, syncTopic, topicLabel } from './courses.js';
 import { loadPdfJs, toBase64 } from './pdf.js';
 
 const error = ref('');
@@ -24,9 +26,10 @@ onMounted(async () => {
   try {
     courses.value = await loadCourses();
     course.value = currentCourse();
+    syncTopic(course.value);
     if (course.value) {
       passages.value = await api('GET', `/api/teacher/courses/${course.value.id}/passages`);
-      Object.assign(tags, initialTags(course.value));
+      Object.assign(tags, initialTags(course.value, { topicId: S.topicId }));
     }
     loaded.value = true;
   } catch (err) {
@@ -148,6 +151,18 @@ const deletePassage = (p) => async () => {
 };
 const plainLabel = 'font-weight:400;color:inherit;margin:10px 0';
 
+// ---- weekly topics: which topic's material is shown and uploaded to
+const topic = computed(() => course.value?.topics.find((t) => t.id === S.topicId) || null);
+const stamp = ref(0); // reloads the topic counts
+async function refresh() {
+  passages.value = await api('GET', `/api/teacher/courses/${course.value.id}/passages`);
+  stamp.value++;
+}
+function selectTopic(id) {
+  S.topicId = id;
+  if (id) tags.topicId = id; // "Add material" follows the chosen topic
+}
+
 // Uploaded lecture files are listed once per file, collapsed. Versions that
 // were replaced or removed stay stored (questions may cite them) but are
 // hidden unless asked for. Topic sections keep hand-added material only.
@@ -163,8 +178,9 @@ const uploadFiles = computed(() => {
     const name = p.fileName || p.title.split(legacy ? ' — ' : ' · ')[0];
     const inUse = !legacy && p.attached !== false;
     // One entry for the version in use; replaced versions stay separate.
-    const key = inUse ? 'in-use:' + name : legacy ? 'legacy:' + name + ':' + p.topicId : 'old:' + (p.documentId || name);
-    if (!files.has(key)) files.set(key, { key, name, inUse, legacy, parts: [], at: 0, usedBy: 0 });
+    const topicId = p.topicId ?? null;
+    const key = inUse ? 'in-use:' + topicId + ':' + name : legacy ? 'legacy:' + name + ':' + topicId : 'old:' + (p.documentId || name);
+    if (!files.has(key)) files.set(key, { key, name, topicId, inUse, legacy, parts: [], at: 0, usedBy: 0 });
     const f = files.get(key);
     f.parts.push(p);
     f.at = Math.max(f.at, Date.parse(p.createdAt) || p.createdAt || 0);
@@ -174,6 +190,21 @@ const uploadFiles = computed(() => {
 });
 const replacedCount = computed(() => uploadFiles.value.filter((f) => !f.inUse).length);
 const manual = (topicId) => passages.value.filter((p) => p.topicId === topicId && !isUpload(p));
+const filesIn = (topicId) => uploadFiles.value.filter((f) => f.topicId === topicId && (f.inUse || showReplaced.value));
+// topics shown below: the chosen one, or every topic that has material
+const shownTopics = computed(() => (topic.value ? [topic.value] : course.value.topics.filter((t) => filesIn(t.id).length || manual(t.id).length)));
+// Files uploaded before weekly topics: move each into the week it belongs to
+const unsorted = computed(() => filesIn(null));
+const moveTo = reactive({});
+const moveFile = (f) => async () => {
+  const target = course.value.topics.find((t) => t.id === (moveTo[f.key] ?? S.topicId));
+  if (!target) throw new Error('Choose a topic first.');
+  await api('PUT', `/api/teacher/courses/${course.value.id}/imports`, { passageIds: f.parts.map((p) => p.id), topicId: target.id });
+  toast(`Moved ${f.name} to ${topicLabel(target)}`);
+  await refresh();
+};
+const fileSummary = (f) => `${f.parts.length} excerpt(s) · ${f.inUse ? 'in use' : f.legacy ? 'older import, not used by AI drafting' : 'replaced or removed'} · uploaded ${when(f.at)} · cited by ${f.usedBy} question(s)`;
+const partLabel = (f, p) => p.title.split(f.legacy ? ' — ' : ' · ').slice(1).join(' · ') || p.title;
 </script>
 
 <template>
@@ -181,8 +212,13 @@ const manual = (topicId) => passages.value.filter((p) => p.topicId === topicId &
   <template v-else-if="loaded">
     <p v-if="!course">You have no assigned courses.</p>
     <template v-else>
-      <Heading title="Source material"><CoursePicker :courses="courses" /></Heading>
-      <ImportMaterials :course="course" @saved="async () => { passages = await api('GET', `/api/teacher/courses/${course.id}/passages`); }" />
+      <Heading title="Source material">
+        <CoursePicker :courses="courses" />
+        <TopicPicker v-if="course.topics.length" :topics="course.topics" allow-all @change="selectTopic" />
+      </Heading>
+      <TopicManager :course="course" :stamp="stamp" @select="selectTopic" />
+      <ImportMaterials v-if="topic" :key="topic.id" :course="course" :topic="topic" @saved="refresh" />
+      <p v-else-if="course.topics.length" class="note small">Choose a weekly topic (top right, or click one above) to upload lecture files into it.</p>
       <div class="panel">
         <h3>Add material</h3>
         <p class="small muted">Material is stored separately from questions and treated as reference content only: instructions inside it are never followed. Long documents are split into chunks so drafting only uses the relevant parts.</p>
@@ -245,25 +281,42 @@ const manual = (topicId) => passages.value.filter((p) => p.topicId === topicId &
         </div>
       </div>
 
-      <div v-if="uploadFiles.length" class="panel">
-        <h3>Uploaded lecture files <span class="badge plain">{{ uploadFiles.length - replacedCount }} in use</span></h3>
-        <p class="small muted">The text read from each uploaded file. Add, replace or remove files with <b>Upload lecture material</b> above.</p>
-        <label v-if="replacedCount" :style="plainLabel"><input v-model="showReplaced" type="checkbox" /> Show {{ replacedCount }} replaced, removed or older import(s), kept for question history</label>
-        <details v-for="f in uploadFiles.filter((x) => x.inUse || showReplaced)" :key="f.key" style="margin: 8px 0">
-          <summary><b>{{ f.name }}</b> <span class="small muted">· {{ f.parts.length }} excerpt(s) · {{ f.inUse ? 'in use' : f.legacy ? 'older import, not used by AI drafting' : 'replaced or removed' }} · uploaded {{ when(f.at) }} · cited by {{ f.usedBy }} question(s)</span></summary>
+      <label v-if="replacedCount" :style="plainLabel"><input v-model="showReplaced" type="checkbox" /> Show {{ replacedCount }} replaced, removed or older import(s), kept for question history</label>
+      <div v-for="t in shownTopics" :key="t.id" class="panel">
+        <h3>{{ topicLabel(t) }} <span class="badge plain">{{ filesIn(t.id).filter((f) => f.inUse).length }} file(s)</span> <span v-if="manual(t.id).length" class="badge plain">{{ manual(t.id).length }} passage(s)</span></h3>
+        <p v-if="!filesIn(t.id).length && !manual(t.id).length" class="small muted">No material in this topic yet.</p>
+        <details v-for="f in filesIn(t.id)" :key="f.key" style="margin: 8px 0">
+          <summary><b>{{ f.name }}</b> <span class="small muted">· {{ fileSummary(f) }}</span></summary>
           <details v-for="p in f.parts" :key="p.id" style="margin: 6px 0 6px 16px">
-            <summary>{{ p.title.split(f.legacy ? ' — ' : ' · ').slice(1).join(' · ') || p.title }} <span class="small muted">· {{ p.text.length }} chars · cited by {{ p.usedBy }}</span></summary>
+            <summary>{{ partLabel(f, p) }} <span class="small muted">· {{ p.text.length }} chars · cited by {{ p.usedBy }}</span></summary>
             <p class="small" style="white-space: pre-wrap; margin-top: 6px; max-height: 240px; overflow: auto">{{ p.text }}</p>
           </details>
         </details>
-      </div>
-      <div v-for="t in course.topics.filter((x) => manual(x.id).length)" :key="t.id" class="panel">
-        <h3>{{ t.name }} <span class="badge plain">{{ manual(t.id).length }} passage(s)</span></h3>
         <details v-for="p in manual(t.id)" :key="p.id" style="margin: 8px 0">
-          <summary><b>{{ p.title }}</b> <span class="small muted">{{ `· ${t.outcomes.find((o) => o.id === p.outcomeId)?.text} · ${p.text.length} chars${p.origin && p.origin !== 'paste' ? ' · from ' + p.origin : ''} · cited by ${p.usedBy} question(s)` }}</span></summary>
+          <summary><b>{{ p.title }}</b> <span class="small muted">{{ `· ${t.outcomes.find((o) => o.id === p.outcomeId)?.text || 'no learning outcome'} · ${p.text.length} chars${p.origin && p.origin !== 'paste' ? ' · from ' + p.origin : ''} · cited by ${p.usedBy} question(s)` }}</span></summary>
           <p class="small" style="white-space: pre-wrap; margin-top: 6px; max-height: 240px; overflow: auto">{{ p.text }}</p>
           <AsyncButton class="btn small bad" :run="deletePassage(p)">Delete passage</AsyncButton>
         </details>
+      </div>
+      <div v-if="unsorted.length" class="panel" style="border-color: var(--warn)">
+        <h3>Files not in a topic <span class="badge draft">{{ unsorted.length }}</span></h3>
+        <p class="small muted">Uploaded before weekly topics. Move each file into the week it was taught, so its topic's knowledge report uses it. Existing reports and questions are kept.</p>
+        <div v-for="f in unsorted" :key="f.key" class="unsorted-file">
+          <details class="grow">
+            <summary><b>{{ f.name }}</b> <span class="small muted">· {{ fileSummary(f) }}</span></summary>
+            <details v-for="p in f.parts" :key="p.id" style="margin: 6px 0 6px 16px">
+              <summary>{{ partLabel(f, p) }} <span class="small muted">· {{ p.text.length }} chars</span></summary>
+              <p class="small" style="white-space: pre-wrap; margin-top: 6px; max-height: 240px; overflow: auto">{{ p.text }}</p>
+            </details>
+          </details>
+          <div v-if="f.inUse && !f.legacy" class="row">
+            <select :value="moveTo[f.key] ?? S.topicId" @change="moveTo[f.key] = $event.target.value" style="width: auto; max-width: 100%" :aria-label="`Topic for ${f.name}`">
+              <option value="" disabled>Move to topic…</option>
+              <option v-for="t in course.topics" :key="t.id" :value="t.id">{{ topicLabel(t) }}</option>
+            </select>
+            <AsyncButton class="btn small" :disabled="!(moveTo[f.key] ?? S.topicId)" :run="moveFile(f)">Move</AsyncButton>
+          </div>
+        </div>
       </div>
     </template>
   </template>
