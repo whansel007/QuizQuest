@@ -18,8 +18,13 @@ export function suggestAssessment(markdown = '') {
   if (start >= 0)
     for (const l of lines.slice(start + 1)) {
       if (/^#{1,6}\s/.test(l)) break;
+      if (/^(?:(?:sample|example|practice|review)\s+)?(?:questions?(?:\s+and\s+answers?)?|q\s*&\s*a)\b/i.test(clean(l))) break;
       const item = l.match(/^\s*(?:[-*+]|\d+[.)])\s+(.*\S)/);
-      if (item) items.push(clean(item[1].replace(CITATION, '')).replace(/[.;]$/, ''));
+      if (item) {
+        const value = clean(item[1].replace(CITATION, ''));
+        if (/[?？]|^(?:q(?:uestion)?|a(?:nswer)?|solution)\s*\d*\s*[:.)]/i.test(value)) continue;
+        if (value) items.push(value.replace(/[.;]$/, ''));
+      }
     }
   return { topic: topic.slice(0, 160), outcome: items.join('; ').slice(0, 2000) };
 }
