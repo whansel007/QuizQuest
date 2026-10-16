@@ -214,6 +214,7 @@ function buildUserPrompt({ course, topic, outcome, count, format, chunks, quanti
     `Topic: ${topic.name}`,
     `Learning outcome: ${outcome.text}`,
     course.promptConfig ? `Subject guidance from the instructor: ${course.promptConfig}` : '',
+    'Write maths and units in plain text (e.g. 1 px = 1/96 inch, x^2 + 1); never use LaTeX or $ delimiters, which are not rendered. Use × for multiplication, not *.',
     `Write ${count} question(s). Format rules: ${quantities ? Object.keys(quantities).map((type) => FORMAT_RULES[type]).join('\n') : FORMAT_RULES[format]}`,
     quantities ? `Required quantities by type (return exactly these remaining slots): ${JSON.stringify(quantities)}` : '',
     '',

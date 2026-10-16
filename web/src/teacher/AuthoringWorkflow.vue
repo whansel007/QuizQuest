@@ -6,8 +6,10 @@ import ImportMaterials from './ImportMaterials.vue';
 import MarkdownEditor from '../components/MarkdownEditor.vue';
 import { initialTags } from './courses.js';
 import { draftStore } from './authoring-draft.js';
+import { when } from '../ui.js';
+import { suggestAssessment, sourceSummary } from './report-suggestions.mjs';
 const props = defineProps({ course: Object, target: Object });
-const attachments = ref({materialIds:[],pending:false,busy:false,ready:false});
+const attachments = ref({materialIds:[],names:{},pending:false,busy:false,ready:false});
 const jobs = ref([]), reportId = ref(''), review = ref(''), baseRevision = ref(0), error = ref(''), busy = ref(false), hasMaterial = ref(false);
 const types = QUESTION_TYPES;
 const typeLabels=QUESTION_LABELS;
@@ -27,8 +29,33 @@ const dirty = computed(() => !!report.value && review.value.trim() !== (report.v
 const saved = computed(() => report.value?.reportSourceId && !dirty.value && baseRevision.value === report.value.reportRevision);
 const total = computed(() => types.reduce((a,type) => a + (Number(config.quantities[type]) || 0),0));
 const validCounts = computed(() => total.value >= 1 && total.value <= 10 && types.every(type => Number.isInteger(config.quantities[type]) && config.quantities[type] >= 0 && config.quantities[type] <= 10));
-const validAssessment=computed(()=>config.topicText.trim().length>0 && config.learningOutcome.trim().length>0);
 const pendingGeneration=ref(null), notice=ref('');
+// Says why Generate questions is disabled instead of leaving a silent grey button.
+const generateBlocked = computed(() =>
+  running.value ? 'Wait for the current step to finish.'
+  : pendingGeneration.value ? 'Retry or check the pending generation request above first.'
+  : !saved.value ? (dirty.value ? 'Save your report changes first.' : 'Load the latest saved report first.')
+  : !config.topicText.trim() && !config.learningOutcome.trim() ? 'Enter a topic and a learning outcome.'
+  : !config.topicText.trim() ? 'Enter a topic.'
+  : !config.learningOutcome.trim() ? 'Enter a learning outcome.'
+  : !validCounts.value ? 'Choose whole-number quantities totalling 1–10 questions.'
+  : '');
+const sameIds = (a, b) => JSON.stringify([...a].sort()) === JSON.stringify([...b].sort());
+// Which files a report was made from, and whether that differs from what is attached now.
+const reportSources = computed(() => report.value ? sourceSummary(report.value.input.passageIds, attachments.value.names) : '');
+const reportOutdated = computed(() => report.value?.status === 'complete' && attachments.value.ready && !attachments.value.pending
+  && attachments.value.materialIds.length > 0 && !sameIds(report.value.input.passageIds, attachments.value.materialIds));
+const reportLabel = (j) => { const files = [...new Set(j.input.passageIds.map((id) => attachments.value.names[id]).filter(Boolean))];
+  return when(j.at) + (files.length ? ' · ' + files[0] + (files.length > 1 ? ` +${files.length - 1} more` : '') : ''); };
+// Fills only empty fields, from the saved report's title and learning objectives.
+const suggested = ref({ topic: '', outcome: '' });
+function suggestFromReport() {
+  if (report.value?.status !== 'complete') return;
+  suggested.value = suggestAssessment(report.value.reviewedText || report.value.result.markdown || '');
+  if (!config.topicText.trim() && suggested.value.topic) config.topicText = suggested.value.topic;
+  if (!config.learningOutcome.trim() && suggested.value.outcome) config.learningOutcome = suggested.value.outcome;
+}
+const usingSuggestion = computed(() => (suggested.value.topic && config.topicText === suggested.value.topic) || (suggested.value.outcome && config.learningOutcome === suggested.value.outcome));
 const attemptKey=`generation-attempt:${S.me.id}:${props.course.id}`;
 const key = `report-workflow:${S.me.id}:${props.course.id}`, path = `/api/teacher/courses/${props.course.id}`;
 let timer, refreshing, disposed = false, restoring = true, loadedId = '';
@@ -37,6 +64,7 @@ function loadEditor() {
   review.value = report.value.reviewedText || report.value.result.markdown || '';
   baseRevision.value = report.value.reportRevision || 0;
   loadedId = reportId.value;
+  suggestFromReport();
 }
 async function refresh() {
   if (disposed) return;
@@ -80,6 +108,7 @@ onMounted(async () => {
   applyTarget(props.target);
   try { await refresh(); }
   catch (e) { error.value = e.message; }
+  suggestFromReport();
   restoring = false;
   schedulePoll();
 });
@@ -99,7 +128,7 @@ async function action(fn) {
 function startReport() {
   if (busy.value || attachments.value.busy || attachments.value.pending || !attachments.value.ready) return;
   const materialIds=[...attachments.value.materialIds].sort();
-  const changed = reports.value.some(j=>j.status==='complete') && !reports.value.some(j=>j.status==='complete' && JSON.stringify([...j.input.passageIds].sort())===JSON.stringify(materialIds));
+  const changed = reports.value.some(j=>j.status==='complete') && !reports.value.some(j=>j.status==='complete' && sameIds(j.input.passageIds, materialIds));
   if (changed && !window.confirm('Attached files have changed. Generate a new report from the currently attached files? Existing reports, saved versions and questions will be kept.' + (dirty.value ? ' Unsaved edits in this editor will be replaced.' : ''))) return;
   if (!changed && dirty.value && !window.confirm('Keep editing the current report? Choose Cancel to keep editing, or OK to open the report for all uploaded material. Unsaved edits in this editor may be replaced.')) return;
   return action(async () => {
@@ -118,7 +147,7 @@ function reloadReport() {
 function saveReport() { return action(async () => {
   const j = await api('PUT',path+`/authoring/${reportId.value}/review`,{markdown:review.value,reportRevision:baseRevision.value});
   baseRevision.value=j.reportRevision; review.value=j.reviewedText;
-}); }
+}).then(suggestFromReport); }
 async function submitGeneration() {
   const payload=pendingGeneration.value;
   if(!payload) return; // A concurrent progress refresh may already acknowledge it.
@@ -144,7 +173,8 @@ function generate() {
   });
 }
 function resume(j) { return action(() => api('POST',path+`/authoring/${j.id}/resume`)); }
-function reviewDrafts() { S.qFilter='draft'; setTab('review'); }
+// Opens the Question bank on this batch's topic, where its drafts are.
+function reviewDrafts() { S.qFilter='draft'; S.qTopic=generation.value?.input.topicId || ''; setTab('review'); }
 function download() {
   const url=URL.createObjectURL(new Blob([review.value],{type:'text/markdown;charset=utf-8'}));
   const a=document.createElement('a'); a.href=url; a.download='knowledge-report.md'; a.click(); setTimeout(()=>URL.revokeObjectURL(url),1000);
@@ -158,15 +188,17 @@ function download() {
   <div v-if="pendingGeneration" :class="['note',busy?'':'warn']" role="status"><span v-if="busy">Submitting your generation request...</span><template v-else>A generation request needs confirmation. Retry the same request to recover its job without creating another batch. <button class="btn" :disabled="running" @click="action(submitGeneration)">Retry generation request</button><button class="btn" :disabled="running" @click="action(() => {})">Check request status</button></template></div>
   <div v-if="current" class="note" role="status" aria-live="polite">
     {{ current.message }} <span v-if="['queued','running'].includes(current.status)">You can return later; progress is saved.</span>
-    <span v-if="current.retryAt > Date.now()">Try again after {{ new Date(current.retryAt).toLocaleString() }}.</span>
+    <span v-if="current.retryAt > Date.now()">Try again after {{ when(current.retryAt) }}.</span>
     <button v-if="['failed','interrupted'].includes(current.status) && !current.result.applicationUnsupported" class="btn" :disabled="running" @click="resume(current)">Resume saved work</button>
   </div>
-  <ImportMaterials :course="course" :disabled="running" @available="hasMaterial=$event" @state="attachments=$event" />
+  <ImportMaterials :course="course" :disabled="running" in-workflow @available="hasMaterial=$event" @state="attachments=$event" />
   <button v-if="hasMaterial" class="btn" :disabled="running || attachments.busy || attachments.pending || !attachments.ready" @click="startReport">Generate report</button>
   <p v-if="attachments.pending" class="small muted">Upload or remove selected files before generating a report.</p>
   <div v-if="reports.length" class="panel">
     <h3>Knowledge report</h3>
-    <label v-if="reports.length > 1">Report <select aria-label="Knowledge report" :value="reportId" :disabled="running" @change="switchReport"><option v-for="j in reports" :key="j.id" :value="j.id">{{ new Date(j.at).toLocaleString() }}</option></select></label>
+    <label v-if="reports.length > 1">Report <select aria-label="Knowledge report" :value="reportId" :disabled="running" @change="switchReport"><option v-for="j in reports" :key="j.id" :value="j.id">{{ reportLabel(j) }}</option></select></label>
+    <p v-if="reportSources" class="small muted">Made from: {{ reportSources }}</p>
+    <p v-if="reportOutdated" class="note warn" role="status">This report was made from different files than the ones attached now. Click <strong>Generate report</strong> to make one from the current files, or keep using this one.</p>
     <template v-if="report?.status === 'complete'">
       <p>Edit this report to reflect what students should learn. Questions use only the latest saved report.</p>
       <p v-if="report.result.insufficient" class="note warn">Some material could not support a complete explanation. Review the gaps and add missing information before assessing it.</p>
@@ -179,14 +211,17 @@ function download() {
   </div>
   <div v-if="report?.reportSourceId" class="panel">
     <h3>Assessment configuration</h3>
-    <label for="assessment-topic">Topic</label><input id="assessment-topic" v-model="config.topicText" maxlength="160" :disabled="running" placeholder="Enter the topic for this assessment" />
+    <label for="assessment-topic">Topic</label><input id="assessment-topic" type="text" v-model="config.topicText" list="course-topics" maxlength="160" :disabled="running" placeholder="Enter the topic for this assessment" />
+    <datalist id="course-topics"><option v-for="t in course.topics" :key="t.id" :value="t.name" /></datalist>
     <label for="assessment-outcome">Learning outcome</label><textarea id="assessment-outcome" v-model="config.learningOutcome" maxlength="2000" rows="3" :disabled="running" placeholder="What should students be able to explain, evaluate or do?" />
+    <p v-if="usingSuggestion" class="small muted">Suggested from the report's title and learning objectives. Edit as needed; choosing an existing topic keeps questions grouped with it.</p>
     <label for="assessment-style">Assessment Style</label><select id="assessment-style" v-model="config.assessmentStyle" :disabled="running"><option value="conceptual">Conceptual</option><option value="application">Application</option><option value="both">Both</option></select>
     <p>Choose quantities for each question type. Up to 10 questions per assessment; reuse this report for further assessments.</p>
     <div class="row top"><label v-for="type in types" :key="type">{{ typeLabels[type] }}<input v-model.number="config.quantities[type]" :aria-label="typeLabels[type] + ' quantity'" type="number" min="0" max="10" step="1" :disabled="running" style="max-width:100px" /></label></div>
     <p class="small muted">MCQ has one correct option; Multi-select has multiple correct options. Short Answer accepts text or numerical responses.</p>
     <p>{{ total }} questions in total</p>
-    <button class="btn primary" :disabled="running || !!pendingGeneration || !saved || !validCounts || !validAssessment" @click="generate">Generate questions</button>
+    <button class="btn primary" :disabled="!!generateBlocked" @click="generate">Generate questions</button>
+    <p v-if="generateBlocked" class="small muted" role="status">{{ generateBlocked }}</p>
   </div>
   <div v-for="warning in generation?.result.warnings || []" :key="warning" class="note warn" role="alert">{{ warning }}</div>
   <div v-if="generation?.result.created?.length" class="panel">
