@@ -19,12 +19,20 @@ const courses = ref([]);
 const course = ref(null);
 const passages = ref([]);
 const tags = reactive({ topicId: null, outcomeId: null });
+const includeArchived = ref(false);
+
+async function refreshPassages() {
+  if (!course.value) return;
+  const q = includeArchived.value ? '?includeArchived=true' : '';
+  passages.value = await api('GET', `/api/teacher/courses/${course.value.id}/passages${q}`);
+}
+
 onMounted(async () => {
   try {
     courses.value = await loadCourses();
     course.value = currentCourse();
     if (course.value) {
-      passages.value = await api('GET', `/api/teacher/courses/${course.value.id}/passages`);
+      await refreshPassages();
       Object.assign(tags, initialTags(course.value));
     }
     loaded.value = true;
@@ -139,11 +147,43 @@ async function savePassage() {
   rerender();
 }
 
+const archivePassage = (p) => async () => {
+  const res = await api('POST', `/api/teacher/passages/${p.id}/archive`);
+  toast(res.archived ? 'Passage archived' : 'Passage restored');
+  await refreshPassages();
+};
+
 const deletePassage = (p) => async () => {
   await api('DELETE', `/api/teacher/passages/${p.id}`);
   toast('Passage deleted');
-  rerender();
+  await refreshPassages();
 };
+
+const editingPassage = ref(null);
+const editTitle = ref('');
+const editTopicId = ref(null);
+const editOutcomeId = ref(null);
+
+function startEditPassage(p) {
+  editingPassage.value = p;
+  editTitle.value = p.title;
+  editTopicId.value = p.topicId;
+  editOutcomeId.value = p.outcomeId;
+}
+
+const savePassageEdit = action(async () => {
+  if (!editingPassage.value) return;
+  if (!editTitle.value.trim()) throw new Error('Title cannot be empty.');
+  await api('PATCH', `/api/teacher/passages/${editingPassage.value.id}`, {
+    title: editTitle.value.trim(),
+    topicId: editTopicId.value,
+    outcomeId: editOutcomeId.value,
+  });
+  toast('Passage metadata updated successfully');
+  editingPassage.value = null;
+  await refreshPassages();
+});
+
 const plainLabel = 'font-weight:400;color:inherit;margin:10px 0';
 </script>
 
@@ -215,14 +255,78 @@ const plainLabel = 'font-weight:400;color:inherit;margin:10px 0';
         </div>
       </div>
 
+      <div class="panel row" style="justify-content: space-between; align-items: center;">
+        <span class="muted small">Course Learning Material</span>
+        <label style="display: flex; align-items: center; gap: 8px; font-weight: 500; cursor: pointer;">
+          <input v-model="includeArchived" type="checkbox" @change="refreshPassages" />
+          Show archived material
+        </label>
+      </div>
+
       <div v-for="t in course.topics" :key="t.id" class="panel">
         <h3>{{ t.name }} <span class="badge plain">{{ passages.filter((p) => p.topicId === t.id).length }} passage(s)</span></h3>
-        <details v-for="p in passages.filter((x) => x.topicId === t.id)" :key="p.id" style="margin: 8px 0">
-          <summary><b>{{ p.title }}</b> <span class="small muted">{{ `· ${t.outcomes.find((o) => o.id === p.outcomeId)?.text} · ${p.text.length} chars${p.origin && p.origin !== 'paste' ? ' · from ' + p.origin : ''} · cited by ${p.usedBy} question(s)` }}</span></summary>
+        <details v-for="p in passages.filter((x) => x.topicId === t.id)" :key="p.id" style="margin: 8px 0" :class="{ archived: p.archivedAt }">
+          <summary>
+            <b>{{ p.title }}</b>
+            <span v-if="p.archivedAt" class="badge bad" style="margin-left: 6px;">Archived</span>
+            <span class="small muted">{{ `· ${t.outcomes.find((o) => o.id === p.outcomeId)?.text} · ${p.text.length} chars${p.origin && p.origin !== 'paste' ? ' · from ' + p.origin : ''} · cited by ${p.usedBy} question(s)` }}</span>
+          </summary>
           <p class="small" style="white-space: pre-wrap; margin-top: 6px; max-height: 240px; overflow: auto">{{ p.text }}</p>
-          <AsyncButton class="btn small bad" :run="deletePassage(p)">Delete passage</AsyncButton>
+          <div class="row" style="margin-top: 8px; gap: 8px;">
+            <button class="btn small" @click="startEditPassage(p)">Edit metadata</button>
+            <AsyncButton class="btn small" :class="p.archivedAt ? 'good' : 'bad'" :run="archivePassage(p)">
+              {{ p.archivedAt ? 'Restore passage' : 'Archive passage' }}
+            </AsyncButton>
+          </div>
         </details>
+      </div>
+
+      <!-- Edit Metadata Modal -->
+      <div v-if="editingPassage" class="modal-overlay" @click.self="editingPassage = null">
+        <div class="modal-card">
+          <h3>Edit Passage Metadata</h3>
+          <p class="small muted">Update title, topic, or learning outcome. Text content remains immutable to preserve question provenance.</p>
+
+          <form @submit.prevent="savePassageEdit($event)">
+            <Field label="Title" v-slot="{ id }">
+              <input :id="id" v-model="editTitle" type="text" required />
+            </Field>
+
+            <div style="margin: 14px 0;">
+              <TopicOutcomeFields v-model:topic-id="editTopicId" v-model:outcome-id="editOutcomeId" :course="course" />
+            </div>
+
+            <div class="row" style="justify-content: flex-end; gap: 8px; margin-top: 18px;">
+              <button type="button" class="btn" @click="editingPassage = null">Cancel</button>
+              <button type="submit" class="btn primary">Save Changes</button>
+            </div>
+          </form>
+        </div>
       </div>
     </template>
   </template>
 </template>
+
+<style scoped>
+.modal-overlay {
+  position: fixed;
+  top: 0; left: 0; right: 0; bottom: 0;
+  background: rgba(0, 0, 0, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 100;
+}
+.modal-card {
+  background: var(--panel);
+  border-radius: var(--radius);
+  border: 1px solid var(--line);
+  padding: 24px;
+  width: 100%;
+  max-width: 520px;
+  box-shadow: var(--shadow);
+}
+details.archived {
+  opacity: 0.7;
+}
+</style>

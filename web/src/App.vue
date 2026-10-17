@@ -12,13 +12,14 @@ import GenerateView from './teacher/GenerateView.vue';
 import AnalyticsView from './teacher/AnalyticsView.vue';
 import EvaluationView from './teacher/EvaluationView.vue';
 import SettingsView from './teacher/SettingsView.vue';
+import ClassManagementView from './teacher/ClassManagementView.vue';
 import PracticeView from './student/PracticeView.vue';
 import WorldView from './student/WorldView.vue';
 import KingdomView from './student/KingdomView.vue';
 import PetsView from './student/PetsView.vue';
 
 const TABS = {
-  teacher: [['review', 'Question bank', ReviewView], ['content', 'Source material', ContentView], ['generate', 'AI drafting', GenerateView], ['analytics', 'Analytics', AnalyticsView], ['evaluation', 'Evaluation', EvaluationView], ['settings', 'Settings', SettingsView]],
+  teacher: [['classes', 'Classes & Roster', ClassManagementView], ['review', 'Question bank', ReviewView], ['content', 'Source material', ContentView], ['generate', 'AI drafting', GenerateView], ['analytics', 'Analytics', AnalyticsView], ['evaluation', 'Evaluation', EvaluationView], ['settings', 'Settings', SettingsView]],
   student: [['practice', 'Practice', PracticeView], ['world', 'World', WorldView], ['kingdom', 'Kingdom', KingdomView], ['pets', 'Pets & shop', PetsView]],
 };
 
