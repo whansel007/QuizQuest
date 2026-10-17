@@ -21,14 +21,14 @@ const crypto = require('crypto');
 const { validateQuestion, normalise, duplicateContent } = require('./validate');
 const { retrieve } = require('./retrieval');
 const gemini = require('./gemini');
-const { STYLE_RULES } = require('./assessment');
+const { STYLE_RULES, APPLICATION_GUIDE, BLUEPRINT_SCHEMA } = require('./assessment');
 const { dayKey } = require('./time');
 
 const GEN = {
   maxBatch: 10,
   dailyCallsPerCourse: 30,
   retries: 2, // re-ask the model this many times on malformed output
-  promptVersion: 'v2',
+  promptVersion: 'v3',
   templateFormats: ['mcq', 'tf'],
   aiFormats: ['mcq', 'tf', 'multi', 'numeric', 'short', 'param'],
 };
@@ -231,9 +231,18 @@ async function geminiDraft(ctx, client = gemini.generateJson) {
     schema.properties.applicationSupported={type:'BOOLEAN'};
     schema.properties.limitation={type:'STRING'};
     schema.required.push('applicationSupported','limitation');
+    // A blueprint written before the stem makes the model commit to the
+    // reasoning task first. Gemini orders properties alphabetically unless told.
+    const items=schema.properties.questions.items;
+    for(const variant of items.anyOf || [items]) {
+      variant.properties={blueprint:BLUEPRINT_SCHEMA,...variant.properties};
+      variant.required=['blueprint',...variant.required];
+      variant.propertyOrdering=Object.keys(variant.properties);
+    }
   }
+  const guide=ctx.assessment && ctx.assessment.style!=='conceptual' ? '\n'+APPLICATION_GUIDE : '';
   const { json, raw, model } = await client({
-    system: SYSTEM_PROMPT + (ctx.assessment ? ' '+STYLE_RULES : ''),
+    system: SYSTEM_PROMPT + (ctx.assessment ? ' '+STYLE_RULES+guide : ''),
     parts: [
       {
         text:
