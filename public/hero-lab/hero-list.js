@@ -1,14 +1,17 @@
-export { Flamekeeper, flamekeeper } from './heroes/flamekeeper.js';
-export { Ranger, ranger } from './heroes/ranger.js';
-export { Guardian, guardian } from './heroes/guardian.js';
+import { Flamekeeper, flamekeeper } from './heroes/flamekeeper.js';
+import { Ranger, ranger } from './heroes/ranger.js';
+import { Guardian, guardian } from './heroes/guardian.js';
 
-import { flamekeeper } from './heroes/flamekeeper.js';
-import { ranger } from './heroes/ranger.js';
-import { guardian } from './heroes/guardian.js';
+export { Flamekeeper, flamekeeper, Ranger, ranger, Guardian, guardian };
 
 export const HEROES = [
   flamekeeper,
   ranger,
   guardian,
 ];
+export const HERO_CLASSES = {
+  flamekeeper: Flamekeeper,
+  ranger: Ranger,
+  guardian: Guardian,
+};
 export default HEROES;

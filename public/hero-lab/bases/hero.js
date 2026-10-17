@@ -46,18 +46,29 @@ export class Hero {
   }
 
   fire(mode = 'primary', actor = this) {
-    console.log("The hero " + this.name + " fired " + this.mode)
-    return
+    return {
+      status: 'activated',
+      mode,
+      hero: actor.name || this.name,
+      weapon: this.weaponName,
+      aim: actor.aim ? { ...actor.aim } : { x: 1, y: 0 },
+      position: actor.position
+        ? { ...actor.position }
+        : { x: actor.x ?? 0, y: actor.y ?? 0 },
+      timestamp: Date.now(),
+    };
   }
 
-  skill(actor = this){
-      console.log("The hero " + this.name + " used skill ")
-    return
-  }
-  
-  ultimate(actor = this){
-      console.log("The hero " + this.name + " used ultimate ")
-    return
+  use(slot) {
+    const actions = {
+      weapon: { name: this.weaponName, description: this.weaponDescription },
+      skill: { name: this.skillName, description: this.skillDescription },
+      ultimate: { name: this.ultimateName, description: this.ultimateDescription },
+      talent: this.talent,
+    };
+    const action = actions[slot];
+    if (!action?.name || !action.description) throw new Error(`Unknown hero action: ${slot}`);
+    return `${this.name} activated ${action.name}: ${action.description}`;
   }
 
   damage(dmg){

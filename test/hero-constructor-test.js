@@ -23,7 +23,7 @@ test('Hero retains default combat stats when options are omitted', async () => {
 });
 
 test('Hero stores fixed skill and ultimate details directly and can describe them', async () => {
-  const { HEROES } = await import('../public/hero-lab/hero-list.js');
+  const { HEROES, HERO_CLASSES } = await import('../public/hero-lab/hero-list.js');
   const flamekeeper = HEROES.find((hero) => hero.id === 'flamekeeper');
 
   assert.equal(flamekeeper.skillName, 'Firebolt');
@@ -32,4 +32,11 @@ test('Hero stores fixed skill and ultimate details directly and can describe the
   assert.match(flamekeeper.use('ultimate'), /Meteor Storm: a large area attack/);
   assert.equal(flamekeeper.skill?.name, undefined);
   assert.equal(flamekeeper.ultimate?.name, undefined);
+
+  const FirstFlamekeeper = HERO_CLASSES.flamekeeper;
+  const first = new FirstFlamekeeper();
+  const second = new FirstFlamekeeper();
+  first.hp = 1;
+  assert.notEqual(first, second);
+  assert.equal(second.hp, 100);
 });

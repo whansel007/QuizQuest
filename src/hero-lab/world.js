@@ -1,6 +1,4 @@
-const { HEROES: HERO_LIST } = require('../../public/hero-lab/hero-list.js');
-
-const HEROES = Object.fromEntries(HERO_LIST.map((h) => [h.id, h]));
+const { HERO_CLASSES } = require('../../public/hero-lab/hero-list.js');
 
 const ARENA_CONFIG = { width: 800, height: 500, radius: 24, speed: 220, tickHz: 30 };
 const SPAWNS = [
@@ -66,17 +64,20 @@ function attachHeroLab(io) {
 
   nsp.on('connection', (socket) => {
     socket.on('join', (payload) => {
-      const hero = HEROES[payload?.heroId];
-      if (!hero) return socket.emit('notice', 'Choose a valid hero to join the field.');
+      const heroId = payload?.heroId;
+      const HeroClass = Object.hasOwn(HERO_CLASSES, heroId) ? HERO_CLASSES[heroId] : null;
+      if (!HeroClass) return socket.emit('notice', 'Choose a valid hero to join the field.');
 
       const existing = players.get(socket.id);
       const index = existing
         ? [...players.keys()].indexOf(socket.id) % SPAWNS.length
         : players.size % SPAWNS.length;
       const spawn = SPAWNS[index];
+      const hero = new HeroClass({ position: { ...spawn } });
       players.set(socket.id, {
         id: socket.id,
-        heroId: payload.heroId,
+        heroId,
+        hero,
         name: hero.name,
         emoji: hero.emoji,
         x: spawn.x,
@@ -101,7 +102,10 @@ function attachHeroLab(io) {
       const player = players.get(socket.id);
       if (!player || !Number.isFinite(aim?.x) || !Number.isFinite(aim?.y)) return;
       const length = Math.hypot(aim.x, aim.y);
-      if (length > 0) player.aim = { x: aim.x / length, y: aim.y / length };
+      if (length > 0) {
+        player.aim = { x: aim.x / length, y: aim.y / length };
+        player.hero.aim = { ...player.aim };
+      }
     });
 
     socket.on('fire', (payload) => {
@@ -122,8 +126,9 @@ function attachHeroLab(io) {
         timestamp: Date.now(),
       });
 
-      const hero = HEROES[player.heroId];
-      const fireResult = hero.fire(mode, player);
+      player.hero.position = { x: player.x, y: player.y };
+      player.hero.aim = { ...player.aim };
+      const fireResult = player.hero.fire(mode);
       const projectileConfig = fireResult?.projectile || (fireResult?.radius ? fireResult : null);
       if (projectileConfig) {
         projectileCounter += 1;
