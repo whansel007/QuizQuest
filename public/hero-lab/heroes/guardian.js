@@ -1,7 +1,4 @@
 import { Hero } from '../bases/hero.js';
-import { Weapon } from '../bases/weapon.js';
-import { Skill } from '../bases/skill.js';
-import { Ultimate } from '../bases/ultimate.js';
 
 export class Guardian extends Hero {
   constructor(options = {}) {
@@ -9,10 +6,15 @@ export class Guardian extends Hero {
       id: 'guardian',
       name: 'Guardian',
       emoji: '🛡️',
-      stats: { hp: 130, attack: 10, defense: 9 },
-      weapon: new Weapon({ name: 'Iron Mace', description: 'a sturdy strike toward the aim arrow.' }),
-      skill: new Skill({ name: 'Shield Rush', description: 'charges in the aimed direction.' }),
-      ultimate: new Ultimate({ name: 'Bulwark', description: 'raises a protective barrier around the campfire.' }),
+      hp: 130,
+      attack: 10,
+      defense: 9,
+      weaponName: 'Iron Mace',
+      weaponDescription: 'a sturdy strike toward the aim arrow.',
+      skillName: 'Shield Rush',
+      skillDescription: 'charges in the aimed direction.',
+      ultimateName: 'Bulwark',
+      ultimateDescription: 'raises a protective barrier around the campfire.',
       talent: { name: 'Steadfast', description: 'takes less damage while nearby allies are hurt.' },
       ...options,
     });

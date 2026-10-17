@@ -79,7 +79,6 @@ function attachHeroLab(io) {
         heroId: payload.heroId,
         name: hero.name,
         emoji: hero.emoji,
-        weapon: hero.weapon,
         x: spawn.x,
         y: spawn.y,
         aim: { x: 1, y: 0 },
@@ -123,7 +122,8 @@ function attachHeroLab(io) {
         timestamp: Date.now(),
       });
 
-      const fireResult = player.weapon?.fire?.(player, mode);
+      const hero = HEROES[player.heroId];
+      const fireResult = hero.fire(mode, player);
       const projectileConfig = fireResult?.projectile || (fireResult?.radius ? fireResult : null);
       if (projectileConfig) {
         projectileCounter += 1;

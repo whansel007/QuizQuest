@@ -1,62 +1,71 @@
-import { Weapon } from './weapon.js';
-import { Skill } from './skill.js';
-import { Ultimate } from './ultimate.js';
-
 export class Hero {
   constructor({
     id,
     name,
     emoji,
-    stats = {},
-    weapon,
-    skill,
-    ultimate,
+    hp = 100,
+    attack = 10,
+    defense = 5,
+    weaponName,
+    weaponDescription,
+    skillName,
+    skillDescription,
+    ultimateName,
+    ultimateDescription,
     talent,
     buffSlots = 3,
     position = { x: 400, y: 250 },
     aim = { x: 1, y: 0 },
   } = {}) {
+    // Identity
     this.id = id;
     this.name = name;
     this.emoji = emoji;
-    this.stats = { hp: 100, attack: 10, defense: 5, ...stats };
-    this.maxHp = this.stats.hp;
-    this.hp = this.stats.hp;
-    this.attack = this.stats.attack;
-    this.defense = this.stats.defense;
-    this.weapon = weapon instanceof Weapon ? weapon : (weapon ? new Weapon(weapon) : null);
-    this.skill = skill instanceof Skill ? skill : (skill ? new Skill(skill) : null);
-    this.ultimate = ultimate instanceof Ultimate ? ultimate : (ultimate ? new Ultimate(ultimate) : null);
+
+    // Stats
+    this.maxHp = hp;
+    this.hp = hp;
+    this.attack = attack;
+    this.defense = defense;
+    
     this.talent = talent;
     this.buffSlots = buffSlots;
     this.buffs = [];
+    
+    // World
     this.position = position;
     this.aim = aim;
+
+    // Lore
+    this.weaponName = weaponName;
+    this.weaponDescription = weaponDescription;
+    this.skillName = skillName;
+    this.skillDescription = skillDescription;
+    this.ultimateName = ultimateName;
+    this.ultimateDescription = ultimateDescription;
   }
 
-  use(slot) {
-    const ability = this[slot];
-    if (!ability) throw new Error(`Unknown hero action: ${slot}`);
-    return `${this.name} tested ${ability.name}: ${ability.description}`;
+  fire(mode = 'primary', actor = this) {
+    console.log("The hero " + this.name + " fired " + this.mode)
+    return
   }
 
-  testAction(slot) {
-    return this.use(slot);
+  skill(actor = this){
+      console.log("The hero " + this.name + " used skill ")
+    return
+  }
+  
+  ultimate(actor = this){
+      console.log("The hero " + this.name + " used ultimate ")
+    return
   }
 
-  fire(mode = 'primary') {
-    if (this.weapon && typeof this.weapon.fire === 'function') {
-      return this.weapon.fire(this, mode);
-    }
-    return {
-      status: 'activated',
-      mode,
-      hero: this.name,
-      weapon: this.weapon?.name || 'Unarmed',
-      aim: { ...this.aim },
-      position: { ...this.position },
-      timestamp: Date.now(),
-    };
+  damage(dmg){
+    this.hp -= dmg
+  }
+
+  heal(hl){
+    this.hp += hl
   }
 
   setAimFromPointer(pointer) {

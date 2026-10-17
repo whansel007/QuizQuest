@@ -92,8 +92,8 @@ socket.on('projectile_spawn', (proj) => {
   addOrUpdateProjectile(proj);
 });
 socket.on('fired', (result) => {
-  console.log(`[Weapon] ${result.mode === 'primary' ? 'Primary' : 'Secondary'} fire status:`, result);
-  addListItem(actionLog, `${result.hero} activated ${result.mode} fire (${selectedHero?.weapon.name || 'weapon'})`);
+  console.log(`[Fire] ${result.mode === 'primary' ? 'Primary' : 'Secondary'} fire status:`, result);
+  addListItem(actionLog, `${result.hero} activated ${result.mode} fire (${selectedHero?.weaponName || 'weapon'})`);
   trimActionLog();
 });
 socket.on('hit', (hit) => {
@@ -228,9 +228,9 @@ function selectHero(hero) {
     `HP: ${hero.hp} / ${hero.maxHp}`,
     `Attack: ${hero.attack}`,
     `Defense: ${hero.defense}`,
-    `Weapon: ${hero.weapon.name}`,
-    `Skill (E): ${hero.skill.name}`,
-    `Ultimate (Q): ${hero.ultimate.name}`,
+    `Weapon: ${hero.weaponName}`,
+    `Skill (E): ${hero.skillName}`,
+    `Ultimate (Q): ${hero.ultimateName}`,
     `Talent: ${hero.talent.name}`,
     `Buff slots: ${hero.buffs.length} / ${hero.buffSlots} used`,
   ].forEach((stat) => addListItem(heroStats, stat));
@@ -257,7 +257,6 @@ function fireWeapon(mode, customAim) {
   const player = state.players.find((candidate) => candidate.id === me);
   const aim = customAim || player?.aim || selectedHero.aim || { x: 1, y: 0 };
 
-  // The hero delegates firing to its weapon object
   const fireResult = selectedHero.fire(mode);
 
   let projectileId = null;
@@ -283,7 +282,7 @@ function fireWeapon(mode, customAim) {
   if (socket.connected) {
     socket.emit('fire', { mode, aim, projectileId });
   } else {
-    addListItem(actionLog, `${fireResult.hero} activated ${fireResult.mode} fire (${selectedHero.weapon.name})`);
+    addListItem(actionLog, `${fireResult.hero} activated ${fireResult.mode} fire (${selectedHero.weaponName})`);
     trimActionLog();
   }
 }
