@@ -1,0 +1,18 @@
+# EditorConfig: https://editorconfig.org
+# Helps everyone in the team keep consistent whitespace, line endings, and final newline.
+
+root = true
+
+[*]
+indent_style = space
+indent_size = 2
+end_of_line = lf
+charset = utf-8
+trim_trailing_whitespace = true
+insert_final_newline = true
+
+[*.md]
+trim_trailing_whitespace = false
+
+[Makefile]
+indent_style = tab
