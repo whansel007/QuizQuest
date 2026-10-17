@@ -8,7 +8,7 @@
 // - Callers must not put student identities in prompts.
 // ============================================================
 
-const TIMEOUT_MS = 45000;
+const TIMEOUT_MS = Number(process.env.GEMINI_TIMEOUT_MS) || 45000;
 
 const enabled = () => Boolean(process.env.GEMINI_API_KEY);
 const model = () => process.env.GEMINI_MODEL || 'gemini-2.5-flash';
