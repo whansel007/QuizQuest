@@ -1,7 +1,7 @@
 import { Hero } from '../bases/hero.js';
 
 export class Guardian extends Hero {
-  constructor(options = {}) {
+  constructor() {
     super({
       id: 'guardian',
       name: 'Guardian',
@@ -9,15 +9,24 @@ export class Guardian extends Hero {
       hp: 130,
       attack: 10,
       defense: 9,
-      weaponName: 'Iron Mace',
-      weaponDescription: 'a sturdy strike toward the aim arrow.',
-      skillName: 'Shield Rush',
-      skillDescription: 'charges in the aimed direction.',
-      ultimateName: 'Bulwark',
-      ultimateDescription: 'raises a protective barrier around the campfire.',
-      talent: { name: 'Steadfast', description: 'takes less damage while nearby allies are hurt.' },
-      ...options,
     });
+    this.weaponName = 'Iron Mace';
+    this.skillName = 'Shield Rush';
+    this.skillDescription = 'charges in the aimed direction.';
+    this.ultimateName = 'Bulwark';
+    this.ultimateDescription = 'raises a protective barrier around the campfire.';
+  }
+
+  fire() {
+    return null;
+  }
+
+  skill() {
+    return `${this.name} used ${this.skillName}: ${this.skillDescription}`;
+  }
+
+  ultimate() {
+    return `${this.name} used ${this.ultimateName}: ${this.ultimateDescription}`;
   }
 }
 

@@ -1,7 +1,7 @@
 import { Hero } from '../bases/hero.js';
 
 export class Ranger extends Hero {
-  constructor(options = {}) {
+  constructor() {
     super({
       id: 'ranger',
       name: 'Ranger',
@@ -9,15 +9,24 @@ export class Ranger extends Hero {
       hp: 85,
       attack: 18,
       defense: 3,
-      weaponName: 'Longbow',
-      weaponDescription: 'a precise arrow toward the aim arrow.',
-      skillName: 'Volley',
-      skillDescription: 'fires a fan of arrows in the aimed direction.',
-      ultimateName: 'Starfall',
-      ultimateDescription: 'rains arrows on the aimed point.',
-      talent: { name: 'Keen Eye', description: 'deals extra damage to distant targets.' },
-      ...options,
     });
+    this.weaponName = 'Longbow';
+    this.skillName = 'Volley';
+    this.skillDescription = 'fires a fan of arrows in the aimed direction.';
+    this.ultimateName = 'Starfall';
+    this.ultimateDescription = 'rains arrows on the aimed point.';
+  }
+
+  fire() {
+    return null;
+  }
+
+  skill() {
+    return `${this.name} used ${this.skillName}: ${this.skillDescription}`;
+  }
+
+  ultimate() {
+    return `${this.name} used ${this.ultimateName}: ${this.ultimateDescription}`;
   }
 }
 

@@ -1,4 +1,8 @@
+const DAMAGE_COOLDOWN_MS = 1000;
+
 export class Hero {
+  #lastDamageAt = Number.NEGATIVE_INFINITY;
+
   constructor({
     id,
     name,
@@ -6,14 +10,6 @@ export class Hero {
     hp = 100,
     attack = 10,
     defense = 5,
-    weaponName,
-    weaponDescription,
-    skillName,
-    skillDescription,
-    ultimateName,
-    ultimateDescription,
-    talent,
-    buffSlots = 3,
     position = { x: 400, y: 250 },
     aim = { x: 1, y: 0 },
   } = {}) {
@@ -27,63 +23,28 @@ export class Hero {
     this.hp = hp;
     this.attack = attack;
     this.defense = defense;
-    
-    this.talent = talent;
-    this.buffSlots = buffSlots;
-    this.buffs = [];
-    
-    // World
     this.position = position;
     this.aim = aim;
-
-    // Lore
-    this.weaponName = weaponName;
-    this.weaponDescription = weaponDescription;
-    this.skillName = skillName;
-    this.skillDescription = skillDescription;
-    this.ultimateName = ultimateName;
-    this.ultimateDescription = ultimateDescription;
   }
 
-  fire(mode = 'primary', actor = this) {
-    return {
-      status: 'activated',
-      mode,
-      hero: actor.name || this.name,
-      weapon: this.weaponName,
-      aim: actor.aim ? { ...actor.aim } : { x: 1, y: 0 },
-      position: actor.position
-        ? { ...actor.position }
-        : { x: actor.x ?? 0, y: actor.y ?? 0 },
-      timestamp: Date.now(),
-    };
+  damage(amount) {
+    if (!Number.isFinite(amount) || amount <= 0 || this.hp <= 0) return 0;
+
+    const now = Date.now();
+    if (now - this.#lastDamageAt < DAMAGE_COOLDOWN_MS) return 0;
+
+    const previousHp = this.hp;
+    this.hp = Math.max(0, this.hp - amount);
+    this.#lastDamageAt = now;
+    return previousHp - this.hp;
   }
 
-  use(slot) {
-    const actions = {
-      weapon: { name: this.weaponName, description: this.weaponDescription },
-      skill: { name: this.skillName, description: this.skillDescription },
-      ultimate: { name: this.ultimateName, description: this.ultimateDescription },
-      talent: this.talent,
-    };
-    const action = actions[slot];
-    if (!action?.name || !action.description) throw new Error(`Unknown hero action: ${slot}`);
-    return `${this.name} activated ${action.name}: ${action.description}`;
-  }
+  heal(amount) {
+    if (!Number.isFinite(amount) || amount <= 0 || this.hp <= 0) return 0;
 
-  damage(dmg){
-    this.hp -= dmg
-  }
-
-  heal(hl){
-    this.hp += hl
-  }
-
-  setAimFromPointer(pointer) {
-    const dx = pointer.x - this.position.x;
-    const dy = pointer.y - this.position.y;
-    const distance = Math.hypot(dx, dy);
-    if (distance > 0) this.aim = { x: dx / distance, y: dy / distance };
+    const previousHp = this.hp;
+    this.hp = Math.min(this.maxHp, this.hp + amount);
+    return this.hp - previousHp;
   }
 }
 

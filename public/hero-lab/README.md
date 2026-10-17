@@ -91,7 +91,7 @@ public/hero-lab/
    - Take damage and get knocked back/eliminated when struck by projectiles.
 
 3. **Authoritative Combat**:
-   - Firing is implemented by each hero, with shared activation details handled by the `Hero` base class.
+   - The client sends a fire request; the server calls the selected hero's `fire()` method and creates any projectile.
    - The Flamekeeper's **Ember Staff** launches blazing red fireballs in the aimed direction.
    - Projectile collisions are evaluated by the server, which broadcasts `hit` and `monster_killed` events.
    - Floating damage numbers (`-10`) and particle sparks burst when monsters are struck.
@@ -104,12 +104,11 @@ public/hero-lab/
 - **`join`** `{ heroId: string }`: Selects a hero and spawns into the field.
 - **`input`** `{ up: boolean, down: boolean, left: boolean, right: boolean }`: Sends directional key state.
 - **`aim`** `{ x: number, y: number }`: Sends normalized aim vector.
-- **`fire`** `'primary' | 'secondary' | { mode, aim }`: Requests weapon firing.
+- **`fire`** `'primary' | 'secondary'`: Requests weapon firing; the server creates and broadcasts any projectile.
 
 ### Server to Client
 - **`welcome`** `{ you: socketId, arena: { width, height } }`: Initial handshake upon joining.
 - **`state`** `{ campfire, monsters, players, projectiles }`: Broadcast 30 times per second with authoritative world state.
-- **`fired`** `{ mode, hero, position, aim, timestamp }`: Acknowledges weapon activation.
 - **`projectile_spawn`** `{ id, ownerId, heroId, x, y, vx, vy, radius, color }`: Broadcasts newly spawned projectiles.
 - **`hit`** `{ type, id, x, y, damage }`: Emitted when an entity is damaged.
 - **`monster_killed`** `{ id, x, y }`: Emitted when an enemy's health reaches zero.
@@ -118,13 +117,18 @@ public/hero-lab/
 
 ## Extending Hero Lab
 
+The `Hero` base class owns shared health and combat stats. Each specific hero
+defines its own `fire()`, `skill()`, and `ultimate()` methods. For primary fire,
+the client sends a fire request; the server calls the selected hero's `fire()`,
+creates the projectile, and broadcasts it to all clients.
+
 ### Adding a New Hero
 1. Create a new file in `public/hero-lab/heroes/my-hero.js`:
    ```javascript
    import { Hero } from '../bases/hero.js';
 
    export class MyHero extends Hero {
-     constructor(options = {}) {
+     constructor() {
        super({
          id: 'my_hero',
          name: 'My Hero',
@@ -132,27 +136,35 @@ public/hero-lab/
          hp: 110,
          attack: 15,
          defense: 6,
-         weaponName: 'Lightning Wand',
-         weaponDescription: 'casts lightning at the aimed point.',
-         skillName: 'Spark',
-         skillDescription: 'shocks nearby targets',
-         ultimateName: 'Thunderstorm',
-         ultimateDescription: 'calls lightning strikes',
-         talent: { name: 'Static Charge', description: 'builds charge while moving' },
-         ...options,
        });
+       this.weaponName = 'Lightning Wand';
+       this.skillName = 'Spark';
+       this.ultimateName = 'Thunderstorm';
+     }
+
+     fire(mode) {
+       if (mode !== 'primary') return null;
+       return { type: 'lightning', color: '#ffeb3b', radius: 8, speed: 600 };
+     }
+
+     skill() {
+       return `${this.name} used Spark`;
+     }
+
+     ultimate() {
+       return `${this.name} used Thunderstorm`;
      }
    }
 
    export const myHero = new MyHero();
    export default myHero;
    ```
-2. Register your hero instance in [`public/hero-lab/hero-list.js`](file:///c:/Users/William/Documents/GitHub/QuizQuest/public/hero-lab/hero-list.js). It will automatically appear in the hero selection UI and server registry.
+2. Register the hero class and an instance in [`public/hero-lab/hero-list.js`](file:///c:/Users/William/Documents/GitHub/QuizQuest/public/hero-lab/hero-list.js). The instance appears in the selector; the server uses the class to create a separate hero for each player.
 
 ### Adding a New Projectile Type
 1. Create a class in `public/hero-lab/projectiles/` extending `Projectile` from `../bases/projectile.js`.
 2. Implement custom `.draw(context)` for visual effects (e.g. trails, glow, particle emitters).
-3. Return its configuration from a weapon's `fire(hero, mode)` method.
+3. Return its configuration from the hero's `fire(mode)` method.
 
 ---
 

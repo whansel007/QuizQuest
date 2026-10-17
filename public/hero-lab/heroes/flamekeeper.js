@@ -1,7 +1,7 @@
 import { Hero } from '../bases/hero.js';
 
 export class Flamekeeper extends Hero {
-  constructor(options = {}) {
+  constructor() {
     super({
       id: 'flamekeeper',
       name: 'Flamekeeper',
@@ -9,28 +9,25 @@ export class Flamekeeper extends Hero {
       hp: 100,
       attack: 14,
       defense: 5,
-      weaponName: 'Ember Staff',
-      weaponDescription: 'fires a blazing red fireball in the aimed direction.',
-      skillName: 'Firebolt',
-      skillDescription: 'a quick burst of fire in the aimed direction.',
-      ultimateName: 'Meteor Storm',
-      ultimateDescription: 'a large area attack around the aimed point.',
-      talent: { name: 'Kindled', description: 'gains power while close to the campfire.' },
-      ...options,
     });
+    this.weaponName = 'Ember Staff';
+    this.skillName = 'Firebolt';
+    this.skillDescription = 'a quick burst of fire in the aimed direction.';
+    this.ultimateName = 'Meteor Storm';
+    this.ultimateDescription = 'a large area attack around the aimed point.';
   }
 
-  fire(mode = 'primary', actor = this) {
-    const result = super.fire(mode, actor);
-    if (mode === 'primary') {
-      result.projectile = {
-        type: 'fireball',
-        color: '#ff2d20',
-        radius: 10,
-        speed: 550,
-      };
-    }
-    return result;
+  fire(mode = 'primary') {
+    if (mode !== 'primary') return null;
+    return { type: 'fireball', color: '#ff2d20', radius: 10, speed: 550 };
+  }
+
+  skill() {
+    return `${this.name} used ${this.skillName}: ${this.skillDescription}`;
+  }
+
+  ultimate() {
+    return `${this.name} used ${this.ultimateName}: ${this.ultimateDescription}`;
   }
 }
 

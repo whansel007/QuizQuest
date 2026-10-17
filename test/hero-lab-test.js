@@ -80,15 +80,10 @@ test('Hero Lab server fires and broadcasts a red projectile in the aimed directi
   // Aim towards (0, 1) - downwards
   client.emit('aim', { x: 0, y: 1 });
 
-  const firedPromise = new Promise((resolve) => client.once('fired', resolve));
   const spawnPromise = new Promise((resolve) => client.once('projectile_spawn', resolve));
   const stateWithProj = nextState(client, (state) => Array.isArray(state.projectiles) && state.projectiles.length > 0);
 
   client.emit('fire', 'primary');
-
-  const fired = await firedPromise;
-  assert.equal(fired.mode, 'primary');
-  assert.equal(fired.hero, 'Flamekeeper');
 
   const spawned = await spawnPromise;
   assert.equal(spawned.ownerId, clientId);
@@ -122,4 +117,3 @@ test('Hero Lab server maintains campfire in the middle and spawns zombie monster
   assert.equal(zombie.emoji, '🧟');
   assert.equal(zombie.hp, 20);
 });
-

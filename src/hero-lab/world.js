@@ -73,7 +73,8 @@ function attachHeroLab(io) {
         ? [...players.keys()].indexOf(socket.id) % SPAWNS.length
         : players.size % SPAWNS.length;
       const spawn = SPAWNS[index];
-      const hero = new HeroClass({ position: { ...spawn } });
+      const hero = new HeroClass();
+      hero.position = { ...spawn };
       players.set(socket.id, {
         id: socket.id,
         heroId,
@@ -108,41 +109,25 @@ function attachHeroLab(io) {
       }
     });
 
-    socket.on('fire', (payload) => {
-      const mode = typeof payload === 'string' ? payload : payload?.mode;
+    socket.on('fire', (mode) => {
       const player = players.get(socket.id);
       if (!player || !['primary', 'secondary'].includes(mode)) return;
 
-      if (payload?.aim && Number.isFinite(payload.aim.x) && Number.isFinite(payload.aim.y)) {
-        const length = Math.hypot(payload.aim.x, payload.aim.y);
-        if (length > 0) player.aim = { x: payload.aim.x / length, y: payload.aim.y / length };
-      }
-
-      socket.emit('fired', {
-        mode,
-        hero: player.name,
-        position: { x: player.x, y: player.y },
-        aim: { ...player.aim },
-        timestamp: Date.now(),
-      });
-
       player.hero.position = { x: player.x, y: player.y };
       player.hero.aim = { ...player.aim };
-      const fireResult = player.hero.fire(mode);
-      const projectileConfig = fireResult?.projectile || (fireResult?.radius ? fireResult : null);
+      const projectileConfig = player.hero.fire(mode);
       if (projectileConfig) {
         projectileCounter += 1;
-        const speed = projectileConfig.speed || 550;
         const proj = {
-          id: payload?.projectileId || `proj_${socket.id}_${projectileCounter}_${Date.now()}`,
+          id: `proj_${socket.id}_${projectileCounter}_${Date.now()}`,
           ownerId: socket.id,
           heroId: player.heroId,
           x: player.x + player.aim.x * 24,
           y: player.y + player.aim.y * 24,
-          vx: player.aim.x * speed,
-          vy: player.aim.y * speed,
-          radius: projectileConfig.radius || 10,
-          color: projectileConfig.color || '#ff2d20',
+          vx: player.aim.x * projectileConfig.speed,
+          vy: player.aim.y * projectileConfig.speed,
+          radius: projectileConfig.radius,
+          color: projectileConfig.color,
           createdAt: Date.now(),
         };
         projectiles.set(proj.id, proj);

@@ -1,5 +1,4 @@
 import { HEROES } from './hero-list.js';
-import { Projectile } from './bases/projectile.js';
 import { Fireball } from './projectiles/fireball.js';
 
 const canvas = document.querySelector('#world');
@@ -24,7 +23,6 @@ const actionButtons = [
   { slot: 'weapon', label: 'Test weapon' },
   { slot: 'skill', label: 'Test skill (E)' },
   { slot: 'ultimate', label: 'Test ultimate (Q)' },
-  { slot: 'talent', label: 'Test talent' },
 ];
 
 let selectedHero = null;
@@ -33,7 +31,6 @@ let state = { players: [], projectiles: [], monsters: [], campfire: null };
 const clientProjectiles = new Map();
 const particles = [];
 const damageTexts = [];
-let projectileSeq = 0;
 let lastTime = performance.now();
 
 async function testAi() {
@@ -90,11 +87,6 @@ socket.on('notice', (message) => {
 });
 socket.on('projectile_spawn', (proj) => {
   addOrUpdateProjectile(proj);
-});
-socket.on('fired', (result) => {
-  console.log(`[Fire] ${result.mode === 'primary' ? 'Primary' : 'Secondary'} fire status:`, result);
-  addListItem(actionLog, `${result.hero} activated ${result.mode} fire (${selectedHero?.weaponName || 'weapon'})`);
-  trimActionLog();
 });
 socket.on('hit', (hit) => {
   damageTexts.push({
@@ -231,17 +223,21 @@ function selectHero(hero) {
     `Weapon: ${hero.weaponName}`,
     `Skill (E): ${hero.skillName}`,
     `Ultimate (Q): ${hero.ultimateName}`,
-    `Talent: ${hero.talent.name}`,
-    `Buff slots: ${hero.buffs.length} / ${hero.buffSlots} used`,
   ].forEach((stat) => addListItem(heroStats, stat));
   if (socket.connected) socket.emit('join', { heroId: hero.id });
 }
 
 function testAction(slot) {
   if (!selectedHero) return;
-  addListItem(actionLog, selectedHero.use(slot));
-  trimActionLog();
-  if (slot === 'weapon') fireWeapon('primary');
+  if (slot === 'weapon') {
+    fireWeapon('primary');
+    return;
+  }
+  const message = selectedHero[slot]();
+  if (message) {
+    addListItem(actionLog, message);
+    trimActionLog();
+  }
 }
 
 function getPointerCoordinates(event) {
@@ -252,39 +248,11 @@ function getPointerCoordinates(event) {
   };
 }
 
-function fireWeapon(mode, customAim) {
-  if (!selectedHero) return;
-  const player = state.players.find((candidate) => candidate.id === me);
-  const aim = customAim || player?.aim || selectedHero.aim || { x: 1, y: 0 };
-
-  const fireResult = selectedHero.fire(mode);
-
-  let projectileId = null;
-  if (fireResult?.projectile) {
-    projectileSeq += 1;
-    projectileId = `proj_${me || 'local'}_${projectileSeq}_${Date.now()}`;
-    const pConfig = fireResult.projectile;
-    const speed = pConfig.speed || 550;
-    const startX = (player ? player.x : selectedHero.position.x) + aim.x * 24;
-    const startY = (player ? player.y : selectedHero.position.y) + aim.y * 24;
-    addOrUpdateProjectile({
-      id: projectileId,
-      x: startX,
-      y: startY,
-      vx: aim.x * speed,
-      vy: aim.y * speed,
-      radius: pConfig.radius || 10,
-      color: pConfig.color || '#ff2d20',
-      createdAt: Date.now(),
-    });
-  }
-
-  if (socket.connected) {
-    socket.emit('fire', { mode, aim, projectileId });
-  } else {
-    addListItem(actionLog, `${fireResult.hero} activated ${fireResult.mode} fire (${selectedHero.weaponName})`);
-    trimActionLog();
-  }
+function fireWeapon(mode) {
+  if (!selectedHero || !socket.connected) return;
+  socket.emit('fire', mode);
+  addListItem(actionLog, `Requested ${mode} fire from ${selectedHero.name}.`);
+  trimActionLog();
 }
 
 for (const hero of HEROES) {
@@ -343,21 +311,16 @@ function onPointerDown(event) {
   if (!selectedHero) return;
   const pointer = getPointerCoordinates(event);
   const player = state.players.find((candidate) => candidate.id === me);
-  let aim = null;
   if (player) {
     const dx = pointer.x - player.x;
     const dy = pointer.y - player.y;
-    const distance = Math.hypot(dx, dy);
-    if (distance > 0) {
-      aim = { x: dx / distance, y: dy / distance };
-      if (socket.connected) socket.emit('aim', { x: dx, y: dy });
-    }
+    if (socket.connected) socket.emit('aim', { x: dx, y: dy });
   }
   if (event.button === 0) {
-    fireWeapon('primary', aim);
+    fireWeapon('primary');
   } else if (event.button === 2) {
     event.preventDefault();
-    fireWeapon('secondary', aim);
+    fireWeapon('secondary');
   }
 }
 
