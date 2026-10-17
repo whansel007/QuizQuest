@@ -41,11 +41,12 @@ coins and access checks all happen on the server.
 
 ## Quick start
 
-Requires **Node.js 22.13 or newer**.
+Requires **Node.js 22.13 or newer** and **pnpm**.
 
 ```bash
-npm install
-npm run dev
+corepack enable          # one-time: register pnpm
+pnpm install
+pnpm run dev
 ```
 
 Open **http://localhost:5173**. This runs the Vue app (with hot reload) and the
@@ -63,7 +64,7 @@ Without any configuration, data is stored in `data/db.json`.
 2. In the SQL Editor, run `supabase/migrations/20261007000000_quizquest_init.sql`.
 3. Copy `.env.example` to `.env` and set `SUPABASE_URL` (the project URL, e.g.
    `https://your-project-ref.supabase.co`) and `SUPABASE_SECRET_KEY`.
-4. Run `npm run dev`. On first start against an empty project, the server writes
+4. Run `pnpm run dev`. On first start against an empty project, the server writes
    the demo data.
 
 **Keep the secret key private.** It belongs in `.env` only, which is gitignored.
@@ -77,14 +78,14 @@ Run **one server at a time** per Supabase project. See
 
 | Command | What it does |
 |---|---|
-| `npm run dev` | Development: Vue app on :5173 and server on :3000, with auto-reload |
-| `npm run build` | Build the Vue app into `dist/` |
-| `npm start` | Production: server on :3000 serving `dist/` (build first) |
-| `npm test` | API, database, World and store tests |
-| `npm run test:browser` | Builds, then runs the Playwright browser tests |
-| `npm run check` | Syntax-check the JavaScript files |
-| `npm run reset-data` | Wipe local demo data (file store) |
-| `npm run db:reset -- --confirm` | Wipe and re-seed the Supabase project |
+| `pnpm run dev` | Development: Vue app on :5173 and server on :3000, with auto-reload |
+| `pnpm run build` | Build the Vue app into `dist/` |
+| `pnpm start` | Production: server on :3000 serving `dist/` (build first) |
+| `pnpm test` | API, database, World and store tests |
+| `pnpm run test:browser` | Builds, then runs the Playwright browser tests |
+| `pnpm run check` | Syntax-check the JavaScript files |
+| `pnpm run reset-data` | Wipe local demo data (file store) |
+| `pnpm run db:reset -- --confirm` | Wipe and re-seed the Supabase project |
 
 For browser tests, run `npx playwright install chromium` once, or use Edge with
 `$env:BROWSER_CHANNEL='msedge'` (PowerShell).

@@ -8,20 +8,21 @@ Requires **Node.js 22.13 or newer**, matching the installed PDF.js dependency.
 See `AUDIT.md` for the implementation audit, fixes, checks and limitations.
 
 ```bash
-npm install
-npm run dev          # open http://localhost:5173 (Vue app, hot reload); API + World on :3000
-npm test             # tag + quiz API (in memory AND on the Supabase schema) + World + store tests
-npm run check        # syntax-check Node and browser JS modules
-npm run build        # build the Vue app into dist/ (served by the Node server)
-npm start            # production mode: http://localhost:3000 serves dist/ (build first)
-npm run test:browser # builds, then runs the Playwright browser regressions
-npm run reset-data   # wipe data/ and re-seed on next start (file store only)
-npm run db:reset -- --confirm   # wipe the Supabase project and re-seed (Supabase only)
+corepack enable      # one-time: register pnpm (project's packageManager is pnpm)
+pnpm install
+pnpm run dev          # open http://localhost:5173 (Vue app, hot reload); API + World on :3000
+pnpm test             # tag + quiz API (in memory AND on the Supabase schema) + World + store tests
+pnpm run check        # syntax-check Node and browser JS modules
+pnpm run build        # build the Vue app into dist/ (served by the Node server)
+pnpm start            # production mode: http://localhost:3000 serves dist/ (build first)
+pnpm run test:browser # builds, then runs the Playwright browser regressions
+pnpm run reset-data   # wipe data/ and re-seed on next start (file store only)
+pnpm run db:reset -- --confirm   # wipe the Supabase project and re-seed (Supabase only)
 ```
 
 For browser tests, run `npx playwright install chromium` once (re-run it after
 upgrading Playwright). Alternatively, use an installed Edge browser:
-`$env:BROWSER_CHANNEL='msedge'` in PowerShell, then `npm run test:browser`.
+`$env:BROWSER_CHANNEL='msedge'` in PowerShell, then `pnpm run test:browser`.
 Tests use synthetic data and do not call a live AI provider or a live
 Supabase project; leave `GEMINI_API_KEY` unset when running them.
 
@@ -63,7 +64,7 @@ Supabase Postgres (supabase/migrations), row level security on, no policies
 3. Copy `.env.example` to `.env` and set `SUPABASE_URL` and
    `SUPABASE_SECRET_KEY`. The secret key is for the Node server only: never
    put it in `web/`, in a `VITE_*` variable or in git. If it leaks, rotate it.
-4. `npm run dev`. On first start against an empty project, the server writes
+4. `pnpm run dev`. On first start against an empty project, the server writes
    the synthetic demo data. It refuses to seed over existing rows.
 
 Row level security is enabled on every table with no policies, so the
@@ -78,7 +79,7 @@ The server needs a long-running process (World game loop, WebSockets), so
 use a platform such as Render, Fly.io, DigitalOcean App Platform, Cloud Run
 (min instances 1) or Azure App Service, in a Singapore region. Run
 **exactly one instance** while the stepping-stone store is in use. The build
-command is `npm ci && npm run build` and the start command is `npm start`.
+command is `pnpm install --frozen-lockfile && pnpm run build` and the start command is `pnpm start`.
 Set `SUPABASE_URL`, `SUPABASE_SECRET_KEY` and (optionally) `GEMINI_API_KEY`
 as the host's secret environment variables.
 
@@ -107,7 +108,7 @@ Logins are per browser tab. Good demo users:
 | Prof. Demo B / Student 07 | a separate class, used to show isolation |
 | Students 09-12 | Computing **Tutorial Group C** (also Prof. Demo A): stronger at Networking, weaker at Cyber hygiene, so *Analytics → Compare your classes* has two groups. Student 12 has no history yet |
 
-Existing `data/db.json` or Supabase data keeps the old demo set; run `npm run reset-data` (file store) or `npm run db:reset -- --confirm` (Supabase) to get Group C.
+Existing `data/db.json` or Supabase data keeps the old demo set; run `pnpm run reset-data` (file store) or `pnpm run db:reset -- --confirm` (Supabase) to get Group C.
 
 ## Proposal → code
 
