@@ -52,21 +52,4 @@ export class Enemy {
   }
 }
 
-export class Zombie extends Enemy {
-  constructor(options = {}) {
-    super({
-      emoji: '🧟',
-      hp: 20,
-      maxHp: 20,
-      speed: 55,
-      radius: 16,
-      damage: 6,
-      ...options,
-    });
-  }
-}
-
-export const Enemies = {
-  Enemy,
-  Zombie,
-};
+export default Enemy;

@@ -1,7 +1,7 @@
-import { Hero } from '../hero-base.js';
-import { Weapon } from '../weapon.js';
-import { Skill } from '../skill.js';
-import { Ultimate } from '../ultimate.js';
+import { Hero } from '../bases/hero.js';
+import { Weapon } from '../bases/weapon.js';
+import { Skill } from '../bases/skill.js';
+import { Ultimate } from '../bases/ultimate.js';
 
 export class Flamekeeper extends Hero {
   constructor(options = {}) {

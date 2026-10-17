@@ -1,4 +1,4 @@
-const { HEROES: HERO_LIST } = require('../../public/hero-lab/hero.js');
+const { HEROES: HERO_LIST } = require('../../public/hero-lab/hero-list.js');
 
 const HEROES = Object.fromEntries(HERO_LIST.map((h) => [h.id, h]));
 

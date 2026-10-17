@@ -1,4 +1,4 @@
-export class Ultimate {
+export class Skill {
   constructor({ name, description, activate }) {
     this.name = name;
     this.description = description;
@@ -6,6 +6,8 @@ export class Ultimate {
   }
 
   activate(hero) {
-    return `${hero.name} tested ${this.name}: ${this.description}`;
+    return `${hero.name} activated ${this.name}: ${this.description}`;
   }
 }
+
+export default Skill;

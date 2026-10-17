@@ -22,11 +22,11 @@ build the app with `npm run build`, run `npm start`, and open
 
 - `index.html` provides a hero list, canvas world, stats, action buttons, and
   action log.
-- `hero.js` defines the shared `Hero` class and sample hero definitions.
-- `weapon.js` defines the modular `Weapon` class with custom firing logic.
-- `skill.js` defines the `Skill` class.
-- `ultimate.js` defines the `Ultimate` class.
-- `enemies.js` / `enemy.js` defines the `Enemy` base class and `Zombie` enemy.
+- `bases/` contains foundational base classes: `Hero`, `Weapon`, `Skill`, `Ultimate`, `Enemy`, and `Projectile`.
+- `heroes/` contains individual hero classes and instances (`flamekeeper.js`, `ranger.js`, `guardian.js`).
+- `enemies/` contains enemy implementations (`zombie.js`).
+- `projectiles/` contains projectile implementations (`fireball.js`).
+- `hero-list.js` aggregates and exports the `HEROES` list (`Flamekeeper`, `Ranger`, `Guardian`).
 - `main.js` handles hero selection, sends keyboard and aim input over
   Socket.IO, and draws the latest server snapshot on the canvas.
 - `../../src/hero-lab/world.js` owns the live player state, monsters, campfire, and movement loop.
@@ -49,5 +49,5 @@ The "Test AI" button sends a request to NVIDIA NIM (`deepseek-ai/deepseek-v4.1-f
 asking for a multiple choice question about AI and prints the model's response to the
 browser console. To configure the API key, set `NVIDIA_API_KEY=nvapi-...` in `.env`.
 
-To add a hero, add its definition to `HEROES` in `hero.js`. The shared class
+To add a hero, create its file under `heroes/` and register it in `HEROES` in `hero-list.js`. The shared class
 constructs it and the selector lists it automatically.

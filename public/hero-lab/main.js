@@ -1,5 +1,6 @@
-import { HEROES } from './hero.js';
-import { Fireball, Projectile } from './projectile.js';
+import { HEROES } from './hero-list.js';
+import { Projectile } from './bases/projectile.js';
+import { Fireball } from './projectiles/fireball.js';
 
 const canvas = document.querySelector('#world');
 const context = canvas.getContext('2d');
