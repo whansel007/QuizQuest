@@ -21,9 +21,26 @@ or how much damage it dealt.
 
 ## What is implemented
 
-- Flamekeeper, Ranger, and Guardian can join the shared Hero Lab field. The
-  existing Ranger and Guardian actions are still placeholders; Flamekeeper can
-  fire, dash, and launch one stronger Meteor Strike projectile.
+- The Phase 2 roster is Sheriff, Guardian, Pilot, Bombardier, Bubbles, and
+  Electromancer. Flamekeeper and Ranger remain available as Hero Lab trials.
+- Sheriff fires long-range revolver shots, throws an explosive dynamite stick,
+  and channels a rapid-fire Deadeye ultimate.
+- Guardian throws a shield, rushes through enemies with a protected dash, and
+  steers an invulnerable charge during the ultimate.
+- Pilot fires pulse shots and retreats. The ultimate changes the hero into a
+  mech temporarily, replacing the weapon and skill with a punch and impact dash.
+- Bombardier throws timed explosive bombs, can place one proximity trap, and
+  marks five random airstrike locations before they explode.
+- Bubbles fires damaging bubbles, switches to teammate-healing bubbles with E,
+  and pops a large area bubble that heals heroes and damages enemies.
+- Electromancer fires a limited-pierce lightning orb, launches an area stun
+  ball, and chains lightning between nearby enemies.
+- All skill, damage, timing, and radius values for these heroes are grouped in
+  `game-config.js`. The server owns cooldowns, targeting, damage, healing,
+  knockback, and the temporary Pilot form.
+- When the campfire reaches zero HP, the server ends the shared run for every
+  connected player and stops waves and combat. In multiplayer, the HUD shows
+  each teammate's health in a compact list beneath your own health bar.
 - Hero defense reduces incoming damage. At least one point always gets through,
   except while a hero is explicitly invulnerable. A short server-side damage
   interval prevents a single contact from draining health every frame.
@@ -35,9 +52,9 @@ or how much damage it dealt.
 - The hero visual is currently the `visual` emoji field. Replacing that field's
   renderer with images later should not require changing combat rules.
 
-There is not yet an enemy that fires projectiles, nor a hero that uses piercing
-or dash invulnerability. Those are building blocks for the Skeleton and the
-new hero set in later phases.
+The six new heroes are still isolated to Hero Lab; they are not connected to
+the main game's selection, progression, or gacha systems yet. Enemy projectiles
+and the later wave, skeleton, healing, and upgrade work remain future phases.
 
 ## Tuning values
 
@@ -49,9 +66,20 @@ physical/magic HUD colors. Hero definitions can override their cooldowns.
 
 ## How to verify this phase
 
-Run `npm test` from the repository root. For a manual check, choose Flamekeeper
-and click once: the weapon circle should gray and refill, and holding the mouse
-should not fire continuously. Press E and Q and check their cooldown circles;
-press I to toggle the four live stats. Use two tabs to see the shared wave
-count. The Q action is now one powerful projectile; Sheriff will be the only
-hero with an automatic weapon stream during an ultimate.
+Run `npm run check` and `npm test` from the repository root. For a manual
+playtest:
+
+1. Start `npm run dev`, open `/hero-lab`, and choose each of the six new heroes.
+   Confirm each card and ability HUD uses the correct hero and ability names.
+2. Move and aim with WASD/arrows and the mouse, click to use the weapon, press E
+   for the skill, and Q for the ultimate. Try Sheriff Q while moving the mouse;
+   it should fire a stream in the current aim direction.
+3. Try Guardian E/Q, then Pilot Q followed by M1 and E to check the mech form
+   and its updated ability labels. Try Bombardier E twice to confirm only one
+   trap remains, and Q to see five marked strike sites.
+4. Open a second tab, choose another hero, and confirm their compact health row
+   appears under your own health bar in both tabs. Bubbles can aim healing
+   bubbles at the other player after pressing E.
+5. Let enemies reach the center campfire. When its HP reaches zero, both tabs
+   should show the end overlay and return to hero selection; neither tab should
+   continue into another wave.

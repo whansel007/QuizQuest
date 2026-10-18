@@ -116,6 +116,25 @@ test('Hero Lab HUD shows server state, cooldowns, and live stats', async (t) => 
   assert.equal(await page.getByRole('button', { name: /Choose another hero/ }).count(), 0);
 });
 
+test('Hero Lab lists the new roster and shows teammate health below local health', async (t) => {
+  const first = await browser.newPage();
+  const second = await browser.newPage();
+  t.after(async () => { await Promise.all([first.close(), second.close()]); });
+  await first.goto(`${base}/hero-lab`);
+  for (const name of ['Sheriff', 'Guardian', 'Pilot', 'Bombardier', 'Bubbles', 'Electromancer', 'Flamekeeper', 'Ranger']) {
+    await first.getByRole('button', { name: new RegExp(name) }).waitFor();
+  }
+  await first.getByRole('button', { name: /Sheriff/ }).click();
+  await first.locator('#hero-name').getByText('Sheriff').waitFor();
+  await second.goto(`${base}/hero-lab`);
+  await second.getByRole('button', { name: /Bubbles/ }).click();
+  await second.locator('#hero-name').getByText('Bubbles').waitFor();
+  await first.locator('#team-health:not([hidden]) .teammate-health').waitFor();
+  await second.locator('#team-health:not([hidden]) .teammate-health').waitFor();
+  assert.match(await first.locator('#team-health').innerText(), /Bubbles/);
+  assert.match(await second.locator('#team-health').innerText(), /Sheriff/);
+});
+
 test('refreshing a timed quiz offers resume without resetting the server deadline', async (t) => {
   const page = await pageFor(t, 'Student 01');
   await page.getByLabel('Timer', { exact: true }).selectOption('30');

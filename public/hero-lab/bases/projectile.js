@@ -15,6 +15,13 @@ export class Projectile {
     damage = 10,
     speed = 0,
     piercing = false,
+    pierces = 0,
+    targetTeam = 'monsters',
+    heal = 0,
+    explosionRadius = 0,
+    knockback = 0,
+    stunMs = 0,
+    detonateOnExpire = false,
     lifetimeMs = GAME_CONFIG.combat.projectileMaxAgeMs,
     kind = 'player',
     createdAt = Date.now(),
@@ -30,6 +37,13 @@ export class Projectile {
     this.color = color;
     this.damage = damage;
     this.piercing = piercing === true;
+    this.piercesRemaining = Math.max(0, pierces | 0);
+    this.targetTeam = targetTeam;
+    this.heal = heal;
+    this.explosionRadius = explosionRadius;
+    this.knockback = knockback;
+    this.stunMs = stunMs;
+    this.detonateOnExpire = detonateOnExpire;
     this.kind = kind;
     this.lifetimeMs = lifetimeMs;
     this.speed = speed;
@@ -40,6 +54,10 @@ export class Projectile {
   }
 
   onHit() {
+    if (this.piercesRemaining > 0) {
+      this.piercesRemaining -= 1;
+      return false;
+    }
     return !this.piercing;
   }
 

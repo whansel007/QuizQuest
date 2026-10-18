@@ -20,6 +20,8 @@ function attachHeroLab(io) {
   const players = new Map();
   const projectiles = new Map();
   const monsters = new Map();
+  const traps = new Map();
+  const timedEffects = [];
 
   let projectileCounter = 0;
   let monsterSeq = 0;
@@ -29,6 +31,7 @@ function attachHeroLab(io) {
   let enemiesSpawnedThisWave = 0;
   let nextEnemyAt = 0;
   let nextWaveAt = 0;
+  let gameEnded = false;
   const { enemySpawnIntervalMs: ENEMY_SPAWN_INTERVAL_MS, breakMs: WAVE_BREAK_MS } = GAME_CONFIG.waves;
 
   const campfire = {
@@ -42,6 +45,9 @@ function attachHeroLab(io) {
   function resetGame() {
     projectiles.clear();
     monsters.clear();
+    traps.clear();
+    timedEffects.length = 0;
+    gameEnded = false;
     campfire.hp = campfire.maxHp;
     waveNumber = 0;
     enemiesLeftToSpawn = 0;
@@ -51,6 +57,7 @@ function attachHeroLab(io) {
   }
 
   function startWave(now) {
+    if (gameEnded) return;
     waveNumber += 1;
     // Wave 1 has 8 enemies: 5 + waveNumber * (2 + waveNumber).
     enemiesLeftToSpawn = GAME_CONFIG.waves.baseEnemies
@@ -129,6 +136,7 @@ function attachHeroLab(io) {
       const heroId = payload?.heroId;
       const HeroClass = Object.hasOwn(HERO_CLASSES, heroId) ? HERO_CLASSES[heroId] : null;
       if (!HeroClass) return socket.emit('notice', 'Choose a valid hero to join the field.');
+      if (gameEnded) return socket.emit('notice', 'The campfire has gone out. The run is over.');
 
       const existing = players.get(socket.id);
       const index = existing
@@ -175,7 +183,7 @@ function attachHeroLab(io) {
 
     socket.on('fire', (mode) => {
       const player = players.get(socket.id);
-      if (!player || mode !== 'primary') return;
+      if (!player || gameEnded || mode !== 'primary') return;
 
       syncHeroAimAndPosition(player);
       const now = Date.now();
@@ -188,33 +196,34 @@ function attachHeroLab(io) {
 
     socket.on('skill', () => {
       const player = players.get(socket.id);
-      if (!player) return;
+      if (!player || gameEnded) return;
 
       syncHeroAimAndPosition(player);
       const now = Date.now();
       if (!player.hero.canUseAbility('skill', now)) return;
-      const skill = player.hero.skill();
-      if (skill?.type !== 'dash') return;
+      const skill = player.hero.skill(now);
+      if (!skill) return;
 
       player.hero.useAbility('skill', now);
-      if (skill.invulnerableMs > 0) player.hero.makeInvulnerable(skill.invulnerableMs, now);
-
-      player.x = clamp(
-        player.x + skill.direction.x * skill.distance,
-        ARENA_CONFIG.radius,
-        ARENA_CONFIG.width - ARENA_CONFIG.radius,
-      );
-      player.y = clamp(
-        player.y + skill.direction.y * skill.distance,
-        ARENA_CONFIG.radius,
-        ARENA_CONFIG.height - ARENA_CONFIG.radius,
-      );
+      if (skill.type === 'dash') {
+        if (skill.invulnerableMs > 0) player.hero.makeInvulnerable(skill.invulnerableMs, now);
+        if (skill.durationMs) player.dashState = { ...skill, until: now + skill.durationMs, hit: new Set() };
+        else {
+          player.x = clamp(player.x + skill.direction.x * skill.distance, ARENA_CONFIG.radius, ARENA_CONFIG.width - ARENA_CONFIG.radius);
+          player.y = clamp(player.y + skill.direction.y * skill.distance, ARENA_CONFIG.radius, ARENA_CONFIG.height - ARENA_CONFIG.radius);
+          if (skill.damageMultiplier) damageNearby(player, skill, now);
+        }
+      } else if (skill.type === 'projectile' && skill.projectile) addProjectile(player, skill.projectile);
+      else if (skill instanceof Projectile) addProjectile(player, skill);
+      else if (skill.type === 'trap') {
+        traps.set(player.id, { ownerId: player.id, x: player.x, y: player.y, radius: skill.radius, explosionRadius: skill.explosionRadius, damage: skill.damage, color: '#ff8c32' });
+      } else if (skill.type === 'activate') { /* timed mode is held on the hero */ }
       syncHeroAimAndPosition(player);
     });
 
     socket.on('ultimate', () => {
       const player = players.get(socket.id);
-      if (!player) return;
+      if (!player || gameEnded) return;
       syncHeroAimAndPosition(player);
       const now = Date.now();
       if (!player.hero.canUseAbility('ultimate', now)) return;
@@ -222,6 +231,13 @@ function attachHeroLab(io) {
       if (!result || (typeof result !== 'object' && result !== true)) return;
       player.hero.useAbility('ultimate', now);
       if (result instanceof Projectile) addProjectile(player, result);
+      else if (result.type === 'airstrike') {
+        for (let i = 0; i < result.markers; i++) timedEffects.push({ type: 'explosion', ownerId: player.id,
+          x: Math.random() * ARENA_CONFIG.width, y: Math.random() * ARENA_CONFIG.height,
+          damage: result.damage, radius: result.explosionRadius, at: now + result.delayMs + i * 160 });
+      } else if (result.type === 'bubble') timedEffects.push({ type: 'bubble', ownerId: player.id,
+        x: result.x, y: result.y, damage: result.damage, heal: result.heal, radius: result.maxRadius, at: now + result.growthMs });
+      else if (result.type === 'chain') chainAttack(player, result, now);
     });
 
     socket.on('disconnect', () => {
@@ -232,6 +248,47 @@ function attachHeroLab(io) {
     });
   });
 
+  function damageMonster(monster, amount, sourceId) {
+    const damage = monster.takeDamage(amount);
+    if (damage > 0) nsp.emit('hit', { type: 'monster', id: monster.id, x: monster.x, y: monster.y, damage });
+    if (monster.dead) { monsters.delete(monster.id); nsp.emit('monster_killed', { id: monster.id, x: monster.x, y: monster.y, sourceId }); }
+  }
+
+  function damageNearby(player, spec, now) {
+    for (const monster of [...monsters.values()]) {
+      if (effect.excludeId === monster.id) continue;
+      if (Math.hypot(monster.x-player.x, monster.y-player.y) > spec.distance + monster.radius) continue;
+      damageMonster(monster, player.hero.attack * spec.damageMultiplier, player.id);
+      const dx=monster.x-player.x, dy=monster.y-player.y, length=Math.hypot(dx,dy)||1;
+      monster.x += dx/length*(spec.knockback||0)*0.08; monster.y += dy/length*(spec.knockback||0)*0.08;
+    }
+  }
+
+  function explode(effect, now) {
+    for (const monster of [...monsters.values()]) {
+      if (Math.hypot(monster.x-effect.x, monster.y-effect.y) <= effect.radius + monster.radius) {
+        damageMonster(monster, effect.damage, effect.ownerId);
+        if (effect.stunMs) monster.stunnedUntil = now + effect.stunMs;
+        const dx=monster.x-effect.x, dy=monster.y-effect.y, length=Math.hypot(dx,dy)||1;
+        monster.knockbackX=(dx/length)*(effect.knockback||0); monster.knockbackY=(dy/length)*(effect.knockback||0);
+      }
+    }
+    if (effect.heal) for (const player of players.values()) {
+      if (Math.hypot(player.x-effect.x, player.y-effect.y) <= effect.radius) player.hero.heal(effect.heal);
+    }
+    nsp.emit('area_effect', { x: effect.x, y: effect.y, radius: effect.radius, color: effect.color || '#ff9c45' });
+  }
+
+  function chainAttack(player, effect, now) {
+    let x=player.x, y=player.y; const hit=new Set();
+    for(let i=0;i<effect.jumps;i++) {
+      const target=[...monsters.values()].filter(m=>!hit.has(m.id)&&Math.hypot(m.x-x,m.y-y)<=effect.range)
+        .sort((a,b)=>Math.hypot(a.x-x,a.y-y)-Math.hypot(b.x-x,b.y-y))[0];
+      if(!target) break; hit.add(target.id); damageMonster(target,effect.damage,player.id);
+      nsp.emit('lightning_chain',{x1:x,y1:y,x2:target.x,y2:target.y}); x=target.x;y=target.y;
+    }
+  }
+
   function snapshot(now = Date.now()) {
     return {
       wave: {
@@ -239,6 +296,9 @@ function attachHeroLab(io) {
         enemiesRemaining: monsters.size + enemiesLeftToSpawn,
         nextWaveInMs: nextWaveAt ? Math.max(0, nextWaveAt - now) : 0,
       },
+      gameEnded,
+      traps: [...traps.values()],
+      effects: timedEffects.map(({ type, x, y, radius, at }) => ({ type, x, y, radius, at })),
       campfire: {
         x: campfire.x,
         y: campfire.y,
@@ -289,6 +349,7 @@ function attachHeroLab(io) {
   const loop = setInterval(() => {
     const dt = 1 / ARENA_CONFIG.tickHz;
     const now = Date.now();
+    if (gameEnded) { broadcastState(now); return; }
 
     // 1. Move players
     for (const player of players.values()) {
@@ -310,14 +371,50 @@ function attachHeroLab(io) {
     }
 
     // 2. Start the next wave after its five-second break and spawn its enemies.
-    if (players.size > 0 && waveNumber === 0) startWave(now);
-    if (players.size > 0 && nextWaveAt && now >= nextWaveAt) startWave(now);
-    if (players.size > 0 && enemiesLeftToSpawn > 0 && now >= nextEnemyAt) {
+    if (players.size > 0 && !gameEnded && waveNumber === 0) startWave(now);
+    if (players.size > 0 && !gameEnded && nextWaveAt && now >= nextWaveAt) startWave(now);
+    if (players.size > 0 && !gameEnded && enemiesLeftToSpawn > 0 && now >= nextEnemyAt) {
       spawnEnemy();
     }
 
     // 3. Zombies chase the campfire; devils chase the closest living player.
+    for (const player of players.values()) {
+      if (player.dashState) {
+        const dash=player.dashState;
+        if(now>=dash.until){player.dashState=null;}
+        else {
+          const step=dash.distance/Math.max(1,dash.durationMs)*1000/ARENA_CONFIG.tickHz;
+          player.x=clamp(player.x+dash.direction.x*step,ARENA_CONFIG.radius,ARENA_CONFIG.width-ARENA_CONFIG.radius);
+          player.y=clamp(player.y+dash.direction.y*step,ARENA_CONFIG.radius,ARENA_CONFIG.height-ARENA_CONFIG.radius);
+          if(dash.damageMultiplier) for(const monster of [...monsters.values()]) {
+            if(dash.hit.has(monster.id)||Math.hypot(monster.x-player.x,monster.y-player.y)>monster.radius+ARENA_CONFIG.radius+8)continue;
+            dash.hit.add(monster.id);damageMonster(monster,player.hero.attack*dash.damageMultiplier,player.id);
+            monster.x+=dash.direction.x*(dash.knockback||0)*.08;monster.y+=dash.direction.y*(dash.knockback||0)*.08;
+          }
+        }
+      }
+      const effect=player.hero.update(now);
+      if (effect instanceof Projectile) addProjectile(player,effect);
+      if (player.hero.chargeUntil > now) {
+        const step=player.hero.spec.charge.speed/ARENA_CONFIG.tickHz;
+        player.x=clamp(player.x+player.aim.x*step,ARENA_CONFIG.radius,ARENA_CONFIG.width-ARENA_CONFIG.radius);
+        player.y=clamp(player.y+player.aim.y*step,ARENA_CONFIG.radius,ARENA_CONFIG.height-ARENA_CONFIG.radius);
+        for (const monster of [...monsters.values()]) {
+          if (Math.hypot(monster.x-player.x,monster.y-player.y) > monster.radius+ARENA_CONFIG.radius+8) continue;
+          if ((player.hero.lastChargeHit.get(monster.id)||0)+player.hero.spec.charge.hitCooldownMs > now) continue;
+          player.hero.lastChargeHit.set(monster.id,now);
+          damageMonster(monster,player.hero.attack*player.hero.spec.charge.damageMultiplier,player.id);
+          monster.x += player.aim.x*player.hero.spec.charge.knockback*.08;
+          monster.y += player.aim.y*player.hero.spec.charge.knockback*.08;
+        }
+      }
+    }
     for (const monster of monsters.values()) {
+      if (monster.stunnedUntil > now) continue;
+      if (monster.knockbackX || monster.knockbackY) {
+        monster.x += monster.knockbackX*dt; monster.y += monster.knockbackY*dt;
+        monster.knockbackX *= 0.88; monster.knockbackY *= 0.88;
+      }
       if (monster instanceof Devil) {
         const target = closestPlayer(monster);
         const damage = monster.update(dt, target, now);
@@ -338,6 +435,7 @@ function attachHeroLab(io) {
     for (const [id, proj] of projectiles.entries()) {
       proj.update(dt, ARENA_CONFIG);
       if (proj.dead) {
+        if (proj.detonateOnExpire || proj.explosionRadius > 0) explode({x:proj.x,y:proj.y,radius:proj.explosionRadius||proj.radius,damage:proj.damage,knockback:proj.knockback,stunMs:proj.stunMs,ownerId:proj.ownerId,color:proj.color},now);
         projectiles.delete(id);
       }
     }
@@ -356,6 +454,16 @@ function attachHeroLab(io) {
         }
         continue;
       }
+      if (proj.targetTeam === 'players') {
+        for (const player of players.values()) {
+          if (player.id === proj.ownerId || proj.hitTargets.has(player.id) || !proj.collidesWith({x:player.x,y:player.y,radius:ARENA_CONFIG.radius})) continue;
+          proj.hitTargets.add(player.id);
+          if (proj.heal) player.hero.heal(proj.heal);
+          if (proj.onHit(player)) projectiles.delete(pId);
+          break;
+        }
+        continue;
+      }
       for (const [mId, monster] of monsters.entries()) {
         if (proj.collidesWith(monster) && !proj.hitTargets.has(mId)) {
           const damage = monster.takeDamage(proj.damage);
@@ -365,23 +473,35 @@ function attachHeroLab(io) {
             monsters.delete(mId);
             nsp.emit('monster_killed', { id: mId, x: monster.x, y: monster.y });
           }
-          if (proj.onHit(monster)) projectiles.delete(pId);
+          if (proj.explosionRadius > 0) explode({x:proj.x,y:proj.y,radius:proj.explosionRadius,damage:proj.damage,knockback:proj.knockback,stunMs:proj.stunMs,ownerId:proj.ownerId,color:proj.color,excludeId:mId},now);
+          if (proj.onHit(monster) || proj.explosionRadius > 0) projectiles.delete(pId);
           break;
         }
       }
     }
 
+    for (const [ownerId, trap] of traps) {
+      const target=[...monsters.values()].find(m=>Math.hypot(m.x-trap.x,m.y-trap.y)<=m.radius+trap.radius);
+      if(target){explode({...trap,ownerId},now);traps.delete(ownerId);}
+    }
+    for(let i=timedEffects.length-1;i>=0;i--) if(now>=timedEffects[i].at){explode(timedEffects[i],now);timedEffects.splice(i,1);}
+
+    if (!gameEnded && campfire.hp <= 0) {
+      gameEnded=true; campfire.hp=0; nextWaveAt=0; enemiesLeftToSpawn=0;
+      for(const player of players.values()) nsp.to(player.id).emit('game_over',{reason:'campfire'});
+    }
+
     // 6. A dead hero is out of the shared game and returns to hero selection.
-    for (const player of [...players.values()]) {
+    for (const player of gameEnded ? [] : [...players.values()]) {
       if (player.hero.hp > 0) continue;
-      nsp.to(player.id).emit('game_over');
+      nsp.to(player.id).emit('game_over', { reason: 'hero' });
       players.delete(player.id);
     }
     if (players.size === 0 && waveNumber > 0) resetGame();
 
     // 8. Start a five-second break only after every enemy in the wave is gone.
     if (
-      players.size > 0 && waveNumber > 0 && enemiesLeftToSpawn === 0
+      players.size > 0 && !gameEnded && waveNumber > 0 && enemiesLeftToSpawn === 0
       && monsters.size === 0 && nextWaveAt === 0
     ) {
       nextWaveAt = now + WAVE_BREAK_MS;

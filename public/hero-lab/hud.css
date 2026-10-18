@@ -7,6 +7,12 @@ html, body { width: 100%; height: 100%; margin: 0; overflow: hidden; background:
 .health-row { display: flex; align-items: center; gap: .6rem; font-size: .8rem; font-variant-numeric: tabular-nums; }
 .health-track { height: 12px; flex: 1; overflow: hidden; background: #363b46; border: 1px solid #ffffff66; border-radius: 99px; }
 #health-fill { display: block; width: 100%; height: 100%; background: #64d985; transition: width .15s linear, background .15s; }
+#team-health { display: grid; gap: .2rem; padding-top: .2rem; border-top: 1px solid #ffffff26; }
+.teammate-health { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: .35rem .5rem; color: #d1d5db; font-size: .68rem; }
+.teammate-health-label { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.teammate-health-value { font-variant-numeric: tabular-nums; }
+.teammate-health-track { grid-column: 1 / -1; height: 4px; overflow: hidden; background: #363b46; border-radius: 99px; }
+.teammate-health-fill { display: block; height: 100%; background: #82cfff; }
 #wave-hud { left: 50%; display: grid; min-width: 180px; padding: .55rem 1rem; text-align: center; transform: translateX(-50%); }
 #wave-number { font-size: 1.1rem; }
 #wave-details { color: #e5e7eb; font-size: .85rem; }

@@ -14,6 +14,7 @@
       <div class="health-track" role="meter" aria-label="Hero health" aria-valuemin="0" aria-valuemax="100" aria-valuenow="100"><span id="health-fill"></span></div>
       <span id="health-value">-- / --</span>
     </div>
+    <div id="team-health" aria-label="Teammate health" hidden></div>
   </aside>
   <aside id="wave-hud" aria-live="polite">
     <strong id="wave-number">Wave 1</strong>
@@ -38,8 +39,8 @@
     <div class="ability" data-ability="ultimate"><span class="ability-circle"><span class="ability-key">Q</span></span><span class="ability-name">Ultimate</span></div>
   </aside>
   <section id="game-over" hidden>
-    <h1>Game over</h1>
-    <p>Returning to hero selection…</p>
+    <h1 id="game-over-title">Game over</h1>
+    <p id="game-over-message">Returning to hero selection…</p>
   </section>
   <script src="/socket.io/socket.io.js"></script>
   <script type="module" src="/hero-lab/world.js"></script>

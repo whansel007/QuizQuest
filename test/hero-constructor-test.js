@@ -99,3 +99,22 @@ test('Hero subclasses own their skill, ultimate, and projectile behavior', async
   assert.notEqual(first, second);
   assert.equal(second.hp, 100);
 });
+
+test('the Phase 2 roster includes six configured Heroes alongside the two lab-only trials', async () => {
+  const { HEROES, HERO_CLASSES } = await import('../public/hero-lab/hero-list.js');
+  const ids = HEROES.map((hero) => hero.id);
+  for (const id of ['sheriff', 'guardian', 'pilot', 'bombardier', 'bubbles', 'electromancer', 'flamekeeper', 'ranger']) {
+    assert.ok(ids.includes(id), `${id} is selectable in Hero Lab`);
+    assert.equal(typeof HERO_CLASSES[id], 'function');
+  }
+  const { Sheriff, Guardian, Pilot, Bombardier, Bubbles, Electromancer } = await import('../public/hero-lab/heroes/roster.js');
+  for (const HeroClass of [Sheriff, Guardian, Pilot, Bombardier, Bubbles, Electromancer]) {
+    const hero = new HeroClass();
+    assert.ok(hero.hp > 0);
+    assert.ok(hero.cooldowns.weapon.durationMs > 0);
+    assert.ok(hero.cooldowns.skill.durationMs > 0);
+    assert.ok(hero.cooldowns.ultimate.durationMs > 0);
+  }
+  assert.equal(new Sheriff().fire().speed, 980);
+  assert.equal(new Electromancer().fire().piercesRemaining, 2);
+});

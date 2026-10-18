@@ -218,3 +218,25 @@ test('Hero Lab server maintains campfire in the middle and spawns zombie monster
   assert.ok(serverZombie instanceof Zombie);
   assert.equal(serverZombie.maxHp, 20);
 });
+
+test('campfire loss ends the shared run for every connected player', async (t) => {
+  const first = await connectClient();
+  const second = await connectClient();
+  t.after(() => { first.disconnect(); second.disconnect(); });
+  const firstWelcome = new Promise((resolve) => first.once('welcome', resolve));
+  first.emit('join', { heroId: 'sheriff' });
+  const { you: firstId } = await firstWelcome;
+  const secondWelcome = new Promise((resolve) => second.once('welcome', resolve));
+  second.emit('join', { heroId: 'bubbles' });
+  const { you: secondId } = await secondWelcome;
+  const shared = await nextState(first, (state) => state.players.length === 2);
+  assert.equal(shared.players.find((p) => p.id === firstId).name, 'Sheriff');
+  assert.equal(shared.players.find((p) => p.id === secondId).name, 'Bubbles');
+  const endFirst = new Promise((resolve) => first.once('game_over', resolve));
+  const endSecond = new Promise((resolve) => second.once('game_over', resolve));
+  server.heroLab.campfire.hp = 0;
+  assert.deepEqual(await endFirst, { reason: 'campfire' });
+  assert.deepEqual(await endSecond, { reason: 'campfire' });
+  const ended = await nextState(first, (state) => state.gameEnded);
+  assert.equal(ended.campfire.hp, 0);
+});

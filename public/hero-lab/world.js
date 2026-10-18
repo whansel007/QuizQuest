@@ -12,6 +12,7 @@ const heroName = document.querySelector('#hero-name');
 const healthFill = document.querySelector('#health-fill');
 const healthTrack = document.querySelector('.health-track');
 const healthValue = document.querySelector('#health-value');
+const teamHealth = document.querySelector('#team-health');
 const infoButton = document.querySelector('#info-button');
 const statsPanel = document.querySelector('#stats-panel');
 const gameOverOverlay = document.querySelector('#game-over');
@@ -78,7 +79,11 @@ socket.on('player_hit', (hit) => {
     color: '#ff6161',
   });
 });
-socket.on('game_over', () => {
+socket.on('game_over', (result = {}) => {
+  document.querySelector('#game-over-title').textContent = result.reason === 'campfire' ? 'Campfire extinguished' : 'Hero down';
+  document.querySelector('#game-over-message').textContent = result.reason === 'campfire'
+    ? 'The shared run has ended. Returning to hero selection…'
+    : 'Returning to hero selection…';
   gameOverOverlay.hidden = false;
   setTimeout(() => {
     if (new URLSearchParams(location.search).has('embedded') && window.parent !== window) {
@@ -134,6 +139,14 @@ socket.on('monster_killed', (data) => {
       alpha: 1,
       decay: 0.04 + Math.random() * 0.04,
     });
+  }
+});
+socket.on('area_effect', (effect) => {
+  for (let i = 0; i < 20; i++) {
+    const angle = Math.random() * Math.PI * 2;
+    const speed = 30 + Math.random() * 130;
+    particles.push({ x: effect.x, y: effect.y, vx: Math.cos(angle) * speed, vy: Math.sin(angle) * speed,
+      radius: 2 + Math.random() * 3, color: effect.color || '#ff9c45', alpha: 1, decay: .035 + Math.random() * .025 });
   }
 });
 
@@ -253,6 +266,20 @@ function updateHud(timestamp = performance.now()) {
   healthTrack.setAttribute('aria-valuemax', String(player.maxHp));
   healthTrack.setAttribute('aria-valuenow', String(player.hp));
   healthValue.textContent = `${player.hp} / ${player.maxHp}`;
+
+  const teammates = (state.players || []).filter((candidate) => candidate.id !== me);
+  teamHealth.hidden = teammates.length === 0;
+  teamHealth.replaceChildren(...teammates.map((teammate) => {
+    const row = document.createElement('div'); row.className = 'teammate-health';
+    const label = document.createElement('span'); label.className = 'teammate-health-label';
+    label.textContent = `${teammate.emoji || ''} ${teammate.name}`;
+    const value = document.createElement('span'); value.className = 'teammate-health-value';
+    value.textContent = `${teammate.hp}/${teammate.maxHp}`;
+    const track = document.createElement('span'); track.className = 'teammate-health-track';
+    const fill = document.createElement('span'); fill.className = 'teammate-health-fill';
+    fill.style.width = `${Math.max(0, Math.min(100, teammate.hp / Math.max(1, teammate.maxHp) * 100))}%`;
+    track.append(fill); row.append(label, value, track); return row;
+  }));
 
   const color = GAME_CONFIG.hud[player.type] || GAME_CONFIG.hud.physical;
   document.querySelectorAll('.ability[data-ability]').forEach((element) => {
@@ -426,6 +453,19 @@ function draw(timestamp) {
       context.fillStyle = mHpRatio > 0.4 ? '#4caf50' : '#e53935';
       context.fillRect(mBarX, mBarY, mBarW * mHpRatio, mBarH);
     }
+  }
+
+  for (const trap of state.traps || []) {
+    context.beginPath(); context.arc(trap.x, trap.y, trap.radius || 14, 0, Math.PI * 2);
+    context.fillStyle = 'rgba(255, 130, 45, .45)'; context.fill();
+    context.strokeStyle = '#ff8c32'; context.lineWidth = 2; context.stroke();
+    context.font = '16px sans-serif'; context.textAlign = 'center'; context.textBaseline = 'middle';
+    context.fillText('💣', trap.x, trap.y);
+  }
+  for (const effect of state.effects || []) {
+    context.save(); context.globalAlpha = .7; context.strokeStyle = effect.type === 'bubble' ? '#8cf2ff' : '#ffb347';
+    context.setLineDash([8, 8]); context.lineWidth = 3; context.beginPath();
+    context.arc(effect.x, effect.y, effect.radius || 24, 0, Math.PI * 2); context.stroke(); context.restore();
   }
 
   // 3. Draw players
