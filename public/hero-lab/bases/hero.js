@@ -10,6 +10,7 @@ export class Hero {
     hp = 100,
     attack = 10,
     defense = 5,
+    speed = 220,
     position = { x: 400, y: 250 },
     aim = { x: 1, y: 0 },
   } = {}) {
@@ -23,6 +24,7 @@ export class Hero {
     this.hp = hp;
     this.attack = attack;
     this.defense = defense;
+    this.speed = speed;
     this.position = position;
     this.aim = aim;
   }
@@ -45,6 +47,10 @@ export class Hero {
     const previousHp = this.hp;
     this.hp = Math.min(this.maxHp, this.hp + amount);
     return this.hp - previousHp;
+  }
+
+  update() {
+    return null;
   }
 }
 

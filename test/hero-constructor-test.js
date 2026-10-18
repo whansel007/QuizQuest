@@ -1,14 +1,15 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 
-test('Hero accepts hp, attack, and defense as separate options', async () => {
+test('Hero accepts hp, attack, defense, and speed as separate options', async () => {
   const { Hero } = await import('../public/hero-lab/bases/hero.js');
-  const hero = new Hero({ id: 'test', name: 'Test', hp: 110, attack: 15, defense: 6 });
+  const hero = new Hero({ id: 'test', name: 'Test', hp: 110, attack: 15, defense: 6, speed: 240 });
 
   assert.equal(hero.hp, 110);
   assert.equal(hero.maxHp, 110);
   assert.equal(hero.attack, 15);
   assert.equal(hero.defense, 6);
+  assert.equal(hero.speed, 240);
   assert.equal(hero.stats, undefined);
 });
 
@@ -20,6 +21,7 @@ test('Hero retains default combat stats when options are omitted', async () => {
   assert.equal(hero.maxHp, 100);
   assert.equal(hero.attack, 10);
   assert.equal(hero.defense, 5);
+  assert.equal(hero.speed, 220);
 });
 
 test('Hero applies damage at most once per shared cooldown interval', async () => {
@@ -63,7 +65,7 @@ test('Hero damage cooldown is per instance and health cannot fall below zero', a
   }
 });
 
-test('Hero subclasses own their skills, ultimates, and fire configuration', async () => {
+test('Hero subclasses own their skill, ultimate, and projectile behavior', async () => {
   const { HEROES, HERO_CLASSES } = await import('../public/hero-lab/hero-list.js');
   const flamekeeper = HEROES.find((hero) => hero.id === 'flamekeeper');
 
@@ -71,15 +73,23 @@ test('Hero subclasses own their skills, ultimates, and fire configuration', asyn
   assert.equal(flamekeeper.ultimateName, 'Meteor Storm');
   assert.equal(typeof flamekeeper.skill, 'function');
   assert.equal(typeof flamekeeper.ultimate, 'function');
-  assert.match(flamekeeper.skill(), /Firebolt: a quick burst of fire/);
-  assert.match(flamekeeper.ultimate(), /Meteor Storm: a large area attack/);
-  assert.equal(typeof flamekeeper.use, 'undefined');
-  assert.deepEqual(flamekeeper.fire('primary'), {
-    type: 'fireball',
-    color: '#ff2d20',
-    radius: 10,
-    speed: 550,
+  assert.deepEqual(flamekeeper.skill(), {
+    type: 'dash',
+    direction: { x: 1, y: 0 },
+    distance: 180,
   });
+  assert.equal(flamekeeper.ultimate(Date.now()), true);
+  assert.equal(typeof flamekeeper.use, 'undefined');
+  const { Fireball } = await import('../public/hero-lab/projectiles/fireball.js');
+  const projectile = flamekeeper.fire('primary');
+  assert.ok(projectile instanceof Fireball);
+  assert.equal(projectile.type, 'fireball');
+  assert.equal(projectile.color, '#ff2d20');
+  assert.equal(projectile.radius, 10);
+  assert.equal(projectile.speed, 550);
+  assert.equal(projectile.damage, 10);
+  assert.equal(projectile.vx, 550);
+  assert.equal(projectile.vy, 0);
   assert.equal(flamekeeper.fire('secondary'), null);
 
   const FirstFlamekeeper = HERO_CLASSES.flamekeeper;

@@ -111,7 +111,11 @@ function start(port, opts = {}) {
       : isTagPath
       ? path.resolve(tagDir, pathname === '/tag' || pathname === '/tag/' ? 'index.html' : '.' + pathname.slice('/tag'.length))
       : isHeroLabPath
-      ? path.resolve(heroLabDir, pathname === '/hero-lab' ? 'index.html' : '.' + pathname.slice('/hero-lab'.length))
+      ? path.resolve(heroLabDir, pathname === '/hero-lab' || pathname === '/hero-lab/'
+        ? 'index.html'
+        : pathname === '/hero-lab/world'
+        ? 'world.html'
+        : '.' + pathname.slice('/hero-lab'.length))
       : path.join(distDir, pathname === '/' ? 'index.html' : pathname);
     if (isTagPath && file !== tagDir && !file.startsWith(tagDir + path.sep)) {
       res.writeHead(403);

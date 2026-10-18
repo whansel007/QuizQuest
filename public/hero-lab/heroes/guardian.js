@@ -9,6 +9,7 @@ export class Guardian extends Hero {
       hp: 130,
       attack: 10,
       defense: 9,
+      speed: 180,
     });
     this.weaponName = 'Iron Mace';
     this.skillName = 'Shield Rush';

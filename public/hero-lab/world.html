@@ -1,0 +1,34 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Hero Lab World</title>
+  <style>
+    * { box-sizing: border-box; }
+    html, body { width: 100%; height: 100%; margin: 0; overflow: hidden; background: #70a94f; font: 15px/1.4 system-ui, sans-serif; }
+    #world { position: fixed; top: 50%; left: 50%; display: block; width: min(100vw, 177.78vh); height: auto; aspect-ratio: 16 / 9; transform: translate(-50%, -50%); }
+    #hud { position: fixed; z-index: 1; top: 1rem; left: 1rem; display: grid; gap: .35rem; padding: .75rem 1rem; color: #fff; background: rgb(17 24 39 / 82%); border: 1px solid rgb(255 255 255 / 25%); border-radius: .75rem; pointer-events: none; }
+    #connection-status { color: #d1d5db; font-size: .85rem; }
+    #controls { position: fixed; z-index: 1; right: 1rem; bottom: 1rem; margin: 0; padding: .55rem .8rem; color: #fff; background: rgb(17 24 39 / 75%); border-radius: .5rem; pointer-events: none; }
+    #game-over { position: fixed; z-index: 2; inset: 0; display: grid; place-content: center; gap: .5rem; color: #fff; text-align: center; background: rgb(17 24 39 / 88%); }
+    #game-over[hidden] { display: none; }
+    #game-over h1, #game-over p { margin: 0; }
+  </style>
+</head>
+<body>
+  <canvas id="world" width="1920" height="1080" aria-label="Hero Lab World game arena"></canvas>
+  <aside id="hud" aria-live="polite">
+    <strong id="player-status">Joining the world…</strong>
+    <strong id="wave-status">Starting wave…</strong>
+    <span id="connection-status" role="status">Connecting…</span>
+  </aside>
+  <p id="controls">WASD / arrows: move · Mouse: aim · Left click: fire · E: dash · Q: ultimate barrage</p>
+  <section id="game-over" hidden>
+    <h1>Game over</h1>
+    <p>Returning to hero selection…</p>
+  </section>
+  <script src="/socket.io/socket.io.js"></script>
+  <script type="module" src="/hero-lab/world.js"></script>
+</body>
+</html>

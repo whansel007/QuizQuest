@@ -5,12 +5,13 @@ export class Projectile {
     heroId,
     x = 0,
     y = 0,
-    vx = 0,
-    vy = 0,
+    vx,
+    vy,
+    aim,
     radius = 10,
     color = '#ff2d20',
     damage = 10,
-    speed = 550,
+    speed = 0,
     createdAt = Date.now(),
   } = {}) {
     this.id = id;
@@ -18,8 +19,8 @@ export class Projectile {
     this.heroId = heroId;
     this.x = x;
     this.y = y;
-    this.vx = vx;
-    this.vy = vy;
+    this.vx = Number.isFinite(vx) ? vx : (aim?.x ?? 0) * speed;
+    this.vy = Number.isFinite(vy) ? vy : (aim?.y ?? 0) * speed;
     this.radius = radius;
     this.color = color;
     this.damage = damage;
@@ -27,9 +28,14 @@ export class Projectile {
     this.createdAt = createdAt;
     this.trail = [];
     this.dead = false;
+    this.hitTargets = new Set();
   }
 
-  update(dt, arena = { width: 800, height: 500 }) {
+  onHit() {
+    return true;
+  }
+
+  update(dt, arena = { width: 1920, height: 1080 }) {
     this.x += this.vx * dt;
     this.y += this.vy * dt;
 

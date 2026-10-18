@@ -50,7 +50,8 @@ test('Hero Lab server broadcasts authoritative movement to every client', async 
 
   const firstWelcome = new Promise((resolve) => first.once('welcome', resolve));
   first.emit('join', { heroId: 'ranger' });
-  const { you: firstId } = await firstWelcome;
+  const { you: firstId, arena } = await firstWelcome;
+  assert.deepEqual(arena, { width: 1920, height: 1080 });
   const initial = await nextState(first, (state) => state.players.some((player) => player.id === firstId));
   const startingX = initial.players.find((player) => player.id === firstId).x;
 
@@ -80,22 +81,77 @@ test('Hero Lab server fires and broadcasts a red projectile in the aimed directi
   // Aim towards (0, 1) - downwards
   client.emit('aim', { x: 0, y: 1 });
 
-  const spawnPromise = new Promise((resolve) => client.once('projectile_spawn', resolve));
-  const stateWithProj = nextState(client, (state) => Array.isArray(state.projectiles) && state.projectiles.length > 0);
-
   client.emit('fire', 'primary');
 
-  const spawned = await spawnPromise;
-  assert.equal(spawned.ownerId, clientId);
+  const snapshot = await nextState(client, (state) => Array.isArray(state.projectiles) && state.projectiles.length > 0);
+  const spawned = snapshot.projectiles.find((projectile) => projectile.ownerId === clientId);
+  assert.ok(spawned);
   assert.equal(spawned.heroId, 'flamekeeper');
   assert.equal(spawned.color, '#ff2d20');
   assert.equal(spawned.radius, 10);
   assert.ok(spawned.vy > 0, 'projectile moves in the aimed y direction');
 
-  const snapshot = await stateWithProj;
   const proj = snapshot.projectiles.find((p) => p.id === spawned.id);
   assert.ok(proj, 'projectile appears in broadcast state');
   assert.equal(proj.color, '#ff2d20');
+});
+
+test('projectile onHit return value controls removal and a piercing projectile can hit another target', async (t) => {
+  const client = await connectClient();
+  t.after(() => client.disconnect());
+
+  const welcomePromise = new Promise((resolve) => client.once('welcome', resolve));
+  client.emit('join', { heroId: 'flamekeeper' });
+  const { you: clientId } = await welcomePromise;
+  await nextState(client, (state) => state.players.some((player) => player.id === clientId));
+
+  const player = server.heroLab.players.get(clientId);
+  player.x = 300;
+  player.y = 300;
+  player.aim = { x: 1, y: 0 };
+  let hitCount = 0;
+  const { Projectile } = await import('../public/hero-lab/bases/projectile.js');
+  player.hero.fire = () => {
+    const projectile = new Projectile({
+      x: 324,
+      y: 300,
+      radius: 10,
+      color: '#ffffff',
+      damage: 7,
+      speed: 0,
+    });
+    projectile.onHit = () => {
+      hitCount += 1;
+      return false;
+    };
+    return projectile;
+  };
+
+  const { Zombie } = await import('../public/hero-lab/enemies/zombie.js');
+  const firstTarget = new Zombie({ id: 'piercing-target-1', x: 324, y: 300 });
+  server.heroLab.monsters.set(firstTarget.id, firstTarget);
+  client.emit('fire', 'primary');
+
+  const stateAfterFirstHit = await nextState(client, (state) =>
+    state.monsters.some((monster) => monster.id === firstTarget.id && monster.hp === 13)
+    && state.projectiles.some((projectile) => projectile.ownerId === clientId));
+  const projectile = stateAfterFirstHit.projectiles.find((item) => item.ownerId === clientId);
+  assert.equal(hitCount, 1);
+  assert.ok(projectile);
+
+  const serverProjectile = server.heroLab.projectiles.get(projectile.id);
+  serverProjectile.onHit = () => true;
+  const secondTarget = new Zombie({
+    id: 'piercing-target-2',
+    x: serverProjectile.x,
+    y: serverProjectile.y,
+  });
+  server.heroLab.monsters.set(secondTarget.id, secondTarget);
+
+  const stateAfterSecondHit = await nextState(client, (state) =>
+    !state.projectiles.some((item) => item.id === projectile.id));
+  assert.ok(stateAfterSecondHit.monsters.some((monster) => monster.id === firstTarget.id));
+  assert.ok(!stateAfterSecondHit.projectiles.some((item) => item.id === projectile.id));
 });
 
 test('Hero Lab server maintains campfire in the middle and spawns zombie monsters', async (t) => {
@@ -105,9 +161,9 @@ test('Hero Lab server maintains campfire in the middle and spawns zombie monster
   client.emit('join', { heroId: 'ranger' });
 
   // Verify campfire state is in the center
-  const stateWithCampfire = await nextState(client, (state) => state.campfire && state.campfire.x === 400 && state.campfire.y === 250);
-  assert.equal(stateWithCampfire.campfire.x, 400);
-  assert.equal(stateWithCampfire.campfire.y, 250);
+  const stateWithCampfire = await nextState(client, (state) => state.campfire && state.campfire.x === 960 && state.campfire.y === 540);
+  assert.equal(stateWithCampfire.campfire.x, 960);
+  assert.equal(stateWithCampfire.campfire.y, 540);
   assert.equal(stateWithCampfire.campfire.hp, 100);
   assert.equal(stateWithCampfire.campfire.maxHp, 100);
 
@@ -116,4 +172,8 @@ test('Hero Lab server maintains campfire in the middle and spawns zombie monster
   const zombie = stateWithMonster.monsters[0];
   assert.equal(zombie.emoji, '🧟');
   assert.equal(zombie.hp, 20);
+  const { Zombie } = await import('../public/hero-lab/enemies/zombie.js');
+  const serverZombie = [...server.heroLab.monsters.values()].find((monster) => monster.id === zombie.id);
+  assert.ok(serverZombie instanceof Zombie);
+  assert.equal(serverZombie.maxHp, 20);
 });

@@ -9,6 +9,7 @@ export class Ranger extends Hero {
       hp: 85,
       attack: 18,
       defense: 3,
+      speed: 260,
     });
     this.weaponName = 'Longbow';
     this.skillName = 'Volley';

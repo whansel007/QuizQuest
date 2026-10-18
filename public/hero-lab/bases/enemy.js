@@ -24,6 +24,14 @@ export class Enemy {
 
   update(dt, target) {
     if (!target || this.dead) return;
+    const touching = this.moveTowards(dt, target);
+    if (touching && target.hp > 0) {
+      target.hp = Math.max(0, target.hp - this.damage * dt);
+    }
+  }
+
+  moveTowards(dt, target) {
+    if (!target || this.dead) return false;
     const dx = target.x - this.x;
     const dy = target.y - this.y;
     const dist = Math.hypot(dx, dy);
@@ -32,23 +40,25 @@ export class Enemy {
     if (dist > minContactDist) {
       this.x += (dx / dist) * this.speed * dt;
       this.y += (dy / dist) * this.speed * dt;
-    } else {
-      if (target.hp > 0) {
-        target.hp = Math.max(0, target.hp - this.damage * dt);
-      }
-      if (dist > 0) {
-        this.x = target.x - (dx / dist) * minContactDist;
-        this.y = target.y - (dy / dist) * minContactDist;
-      }
+      return false;
     }
+
+    if (dist > 0) {
+      this.x = target.x - (dx / dist) * minContactDist;
+      this.y = target.y - (dy / dist) * minContactDist;
+    }
+    return true;
   }
 
   takeDamage(amount) {
+    if (!Number.isFinite(amount) || amount <= 0 || this.dead) return 0;
+
+    const previousHp = this.hp;
     this.hp = Math.max(0, this.hp - amount);
     if (this.hp <= 0) {
       this.dead = true;
     }
-    return this.dead;
+    return previousHp - this.hp;
   }
 }
 
