@@ -189,6 +189,18 @@ test('enemies damage the campfire on a contact cooldown instead of every server 
   assert.equal(campfire.hp, 88);
 });
 
+test('Sheriff Deadeye only emits its bullet stream while primary fire is held', async () => {
+  const { Sheriff } = await import('../public/hero-lab/heroes/roster.js');
+  const { GAME_CONFIG } = await import('../public/hero-lab/game-config.js');
+  const sheriff = new Sheriff();
+  const startedAt = 10_000;
+  sheriff.ultimate(startedAt);
+  assert.equal(sheriff.update(startedAt + 100, false), null);
+  const shot = sheriff.update(startedAt + GAME_CONFIG.heroes.sheriff.barrage.intervalMs, true);
+  assert.ok(shot);
+  assert.equal(shot.sourceAbility, 'ultimate');
+});
+
 test('enemy projectiles use server-side defense when they hit a hero', async (t) => {
   const client = await connectClient();
   t.after(() => client.disconnect());

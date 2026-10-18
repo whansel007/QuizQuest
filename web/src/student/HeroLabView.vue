@@ -1,7 +1,7 @@
 <script setup>
 // Student-facing entry point for the campfire defense game.
 // The signed-in user's kingdom upgrades are applied by the authoritative game server.
-import { computed, onMounted, onUnmounted, ref } from 'vue';
+import { computed, nextTick, onMounted, onUnmounted, ref } from 'vue';
 import Heading from '../components/Heading.vue';
 import { loadHome } from './home.js';
 
@@ -24,6 +24,11 @@ function returnToSelection(event) {
   if (event.data?.type === 'hero-lab-game-over') {
     selectedHero.value = null;
     gameUrl.value = '';
+  } else if (event.data?.type === 'hero-lab-run-again') {
+    const hero = heroes.value.find((candidate) => candidate.id === event.data.heroId && ownsHero(candidate.id));
+    selectedHero.value = null;
+    gameUrl.value = '';
+    if (hero) nextTick(() => chooseHero(hero));
   }
 }
 

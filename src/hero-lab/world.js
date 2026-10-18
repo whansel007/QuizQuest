@@ -55,6 +55,9 @@ function attachHeroLab(io, services = null) {
   let gameEnded = false;
   let buffVote = null;
   let lastBuff = null;
+  let dawnWave = 0;
+  let dawnPending = new Set();
+  let wavesCleared = 0;
   const { enemySpawnIntervalMs: ENEMY_SPAWN_INTERVAL_MS, breakMs: WAVE_BREAK_MS } = GAME_CONFIG.waves;
 
   const campfire = {
@@ -75,6 +78,9 @@ function attachHeroLab(io, services = null) {
     buffVotes.clear();
     buffVote = null;
     lastBuff = null;
+    dawnWave = 0;
+    dawnPending.clear();
+    wavesCleared = 0;
     runBuffs.length = 0;
     lastCampfireFeedbackAt = Number.NEGATIVE_INFINITY;
     pendingCampfireDamage = 0;
@@ -160,9 +166,6 @@ function attachHeroLab(io, services = null) {
   }
 
   function beginBuffVote(now) {
-    const missing = Math.max(0, campfire.maxHp - campfire.hp);
-    campfire.hp = Math.min(campfire.maxHp, campfire.hp + missing * GAME_CONFIG.arenaTuning.waveMoments.clearedHealFraction);
-    nsp.emit('wave_end', { wave: waveNumber });
     const pool = [
       { id: 'maxHp', label: 'Vitality', description: (v) => `Every hero gains ${v} max HP.` },
       { id: 'attack', label: 'Attack', description: (v) => `Every hero gains ${v} attack.` },
@@ -177,6 +180,33 @@ function attachHeroLab(io, services = null) {
     });
     buffVotes.clear();
     buffVote = { wave: waveNumber, cards, endsAt: now + GAME_CONFIG.waveBuffs.voteDurationMs };
+  }
+
+  function makeRunResult(player, victory, reason) {
+    const multiplier = victory ? GAME_CONFIG.arenaTuning.run.victoryRewardMultiplier : GAME_CONFIG.arenaTuning.run.defeatRewardMultiplier;
+    return {
+      victory, reason, wavesReached: waveNumber, wavesCleared,
+      kills: player?.kills || 0, damageDealt: Math.round(player?.damageDealt || 0),
+      bonusDamage: Math.round(player?.bonusDamage || 0),
+      rewardCoins: Math.round(wavesCleared * GAME_CONFIG.arenaTuning.run.coinsPerWave * multiplier),
+      nextBossWave: (Math.floor(waveNumber / GAME_CONFIG.arenaTuning.run.bossTeaserWave) + 1) * GAME_CONFIG.arenaTuning.run.bossTeaserWave,
+      heroId: player?.heroId || 'sheriff',
+    };
+  }
+
+  function completeWave(now) {
+    wavesCleared += 1;
+    const missing = Math.max(0, campfire.maxHp - campfire.hp);
+    campfire.hp = Math.min(campfire.maxHp, campfire.hp + missing * GAME_CONFIG.arenaTuning.waveMoments.clearedHealFraction);
+    nsp.emit('wave_end', { wave: waveNumber });
+    if (waveNumber % GAME_CONFIG.arenaTuning.run.milestoneEvery === 0) {
+      dawnWave = waveNumber;
+      dawnPending = new Set(players.keys());
+      for (const player of players.values()) { player.dawnWaiting = true; player.keys = {}; player.primaryHeld = false; }
+      nsp.emit('milestone_dawn', { wave: waveNumber, nextWave: waveNumber + 1 });
+      return;
+    }
+    beginBuffVote(now);
   }
 
   function finishBuffVote(now) {
@@ -226,6 +256,7 @@ function attachHeroLab(io, services = null) {
     if (player.downed || player.hero.hp > 0) return;
     player.downed = true;
     player.keys = {};
+    player.primaryHeld = false;
     player.respawnSolo = players.size === 1;
     player.respawnDurationMs = player.respawnSolo ? GAME_CONFIG.arenaTuning.respawn.soloMs : GAME_CONFIG.arenaTuning.respawn.baseMs;
     player.respawnRemainingMs = player.respawnDurationMs;
@@ -268,23 +299,27 @@ function attachHeroLab(io, services = null) {
       const spawn = SPAWNS[index];
       const hero = new HeroClass();
       const user = socket.data.user;
-      hero.buildingBonuses = { attack: 0 };
+      hero.buildingBonuses = { attackPercent: 0, attackMultiplier: 1, campfireMaxHpPercent: 0 };
       if (user) {
         if (!services.authenticate(socket.data.token)) return socket.disconnect(true);
         const levels = services.kingdomBuildings(user.id);
         for (const [building, buff] of Object.entries(GAME_CONFIG.buildingBuffs)) {
-          const level = Math.max(0, Math.min(3, Number(levels[building]) || 0));
+          const level = Math.max(0, Number(levels[building]) || 0);
           if (!buff.stat || (buff.type && buff.type !== hero.type)) continue;
-          const amount = level * buff.perLevel;
+          const amount = Math.min(GAME_CONFIG.arenaTuning.buildingBonuses.cap, level * GAME_CONFIG.arenaTuning.buildingBonuses.perLevel);
           if (buff.stat === 'campfireMaxHp') {
             if (!campfireBonuses.has(user.id)) {
-              campfire.maxHp += amount;
-              campfireBonuses.set(user.id, amount);
+              const hpBonus = campfire.maxHp * amount;
+              campfire.maxHp += hpBonus;
+              campfire.hp += hpBonus;
+              campfireBonuses.set(user.id, hpBonus);
             }
-          } else hero.buildingBonuses[buff.stat] += amount;
+            hero.buildingBonuses.campfireMaxHpPercent = amount;
+          } else hero.buildingBonuses.attackPercent = amount;
         }
       }
-      hero.attack += hero.buildingBonuses.attack;
+      hero.buildingBonuses.attackMultiplier = 1 + hero.buildingBonuses.attackPercent;
+      hero.attack *= hero.buildingBonuses.attackMultiplier;
       hero.position = { ...spawn };
       players.set(socket.id, {
         id: socket.id,
@@ -297,6 +332,13 @@ function attachHeroLab(io, services = null) {
         radius: ARENA_CONFIG.radius,
         aim: { x: 1, y: 0 },
         keys: {},
+        primaryHeld: false,
+        kills: 0,
+        damageDealt: 0,
+        bonusDamage: 0,
+        accountId: user?.id || null,
+        bubbleRush: null,
+        dawnWaiting: false,
         downed: false,
         momentumSamples: [],
         momentumReadySent: false,
@@ -311,13 +353,37 @@ function attachHeroLab(io, services = null) {
 
     socket.on('input', (input) => {
       const player = players.get(socket.id);
-      if (!player || player.downed || !input || typeof input !== 'object') return;
+      if (!player || player.downed || player.dawnWaiting || !input || typeof input !== 'object') return;
       player.keys = Object.fromEntries(MOVEMENT_KEYS.map((key) => [key, input[key] === true]));
+    });
+
+    socket.on('primary_hold', (held) => {
+      const player = players.get(socket.id);
+      if (player) player.primaryHeld = held === true;
+    });
+
+    socket.on('milestone_choice', (choice) => {
+      const player = players.get(socket.id);
+      if (!player || !dawnWave || !dawnPending.has(socket.id)) return;
+      dawnPending.delete(socket.id);
+      player.dawnWaiting = false;
+      if (choice === 'leave') {
+        nsp.emit('player_leave', { playerId: player.id, x: player.x, y: player.y, emoji: player.emoji });
+        socket.emit('run_result', makeRunResult(player, true, 'milestone'));
+        players.delete(socket.id);
+        buffVotes.delete(socket.id);
+      }
+      if (dawnPending.size === 0) {
+        dawnWave = 0;
+        if (players.size > 0) nextWaveAt = Date.now() + WAVE_BREAK_MS;
+        else { gameEnded = true; resetGame(); }
+      }
+      broadcastState();
     });
 
     socket.on('aim', (aim) => {
       const player = players.get(socket.id);
-      if (!player || player.downed || !Number.isFinite(aim?.x) || !Number.isFinite(aim?.y)) return;
+      if (!player || player.downed || player.dawnWaiting || !Number.isFinite(aim?.x) || !Number.isFinite(aim?.y)) return;
       const length = Math.hypot(aim.x, aim.y);
       if (length > 0) {
         player.aim = { x: aim.x / length, y: aim.y / length };
@@ -327,7 +393,7 @@ function attachHeroLab(io, services = null) {
 
     socket.on('fire', (mode, target) => {
       const player = players.get(socket.id);
-      if (!player || player.downed || gameEnded) return;
+      if (!player || player.downed || player.dawnWaiting || gameEnded) return;
 
       syncHeroAimAndPosition(player);
       const now = Date.now();
@@ -358,7 +424,7 @@ function attachHeroLab(io, services = null) {
 
     socket.on('skill', () => {
       const player = players.get(socket.id);
-      if (!player || player.downed || gameEnded) return;
+      if (!player || player.downed || player.dawnWaiting || gameEnded) return;
 
       syncHeroAimAndPosition(player);
       const now = Date.now();
@@ -393,7 +459,7 @@ function attachHeroLab(io, services = null) {
 
     socket.on('ultimate', () => {
       const player = players.get(socket.id);
-      if (!player || player.downed || gameEnded) return;
+      if (!player || player.downed || player.dawnWaiting || gameEnded) return;
       syncHeroAimAndPosition(player);
       const now = Date.now();
       if (!player.hero.canUseAbility('ultimate', now)) return;
@@ -426,8 +492,10 @@ function attachHeroLab(io, services = null) {
 
     socket.on('disconnect', () => {
       if (players.delete(socket.id)) {
+        dawnPending.delete(socket.id);
         buffVotes.delete(socket.id);
         if (players.size === 0) resetGame();
+        else if (dawnWave && dawnPending.size === 0) { dawnWave = 0; nextWaveAt = Date.now() + WAVE_BREAK_MS; }
         else if (buffVote && [...players.keys()].every((id) => buffVotes.has(id))) finishBuffVote(Date.now());
         broadcastState();
       }
@@ -443,12 +511,16 @@ function attachHeroLab(io, services = null) {
     const momentumMultiplier = killer?.momentumActive ? 1 + GAME_CONFIG.arenaTuning.momentum.bonus : 1;
     const appliedAmount = amount * momentumMultiplier * (overloadActive ? 1 + killer.hero.spec.overload.damageBonus : 1);
     const damage = monster.takeDamage(appliedAmount);
+    if (killer && damage > 0) {
+      killer.damageDealt = (killer.damageDealt || 0) + damage;
+    }
     if (damage > 0) nsp.emit('hit', { type: 'monster', id: monster.id, x: monster.x, y: monster.y, damage,
       sourceId: source.ownerId, heroId: killer?.heroId || null, sourceAbility: source.sourceAbility || 'weapon', bonus: overloadActive,
       sourceX: killer?.x, sourceY: killer?.y,
       enemyType: monster.type, boss: Boolean(monster.isBoss), elite: Boolean(monster.isElite) });
     if (monster.dead) {
       monsters.delete(monster.id);
+      if (killer) killer.kills = (killer.kills || 0) + 1;
       nsp.emit('monster_killed', { id: monster.id, x: monster.x, y: monster.y, sourceId: source.ownerId,
         heroId: killer?.heroId || null, sourceX: killer?.x, sourceY: killer?.y, emoji: monster.emoji, sourceAbility: source.sourceAbility || 'weapon',
         enemyType: monster.type, boss: Boolean(monster.isBoss), elite: Boolean(monster.isElite), finisher: Boolean(source.finisher) });
@@ -541,6 +613,7 @@ function attachHeroLab(io, services = null) {
         nextWaveInMs: nextWaveAt ? Math.max(0, nextWaveAt - now) : 0,
       },
       gameEnded,
+      dawn: dawnWave ? { wave: dawnWave, decisionsRemaining: dawnPending.size } : null,
       serverTime: now,
       buffVote: buffVote ? { wave: buffVote.wave, cards: buffVote.cards, endsAt: buffVote.endsAt,
         voteCount: buffVotes.size, votes: Object.fromEntries(buffVotes) } : null,
@@ -569,12 +642,12 @@ function attachHeroLab(io, services = null) {
         trapped: Boolean(trappedBy),
         skeletonWindupMs: Math.max(0, (windupUntil || 0) - now),
       })),
-      players: [...players.values()].map(({ id, heroId, hero, name, emoji, x, y, aim, downed, respawnRemainingMs, respawnDurationMs, respawnSpeedMultiplier, momentumActive }) => ({
+      players: [...players.values()].map(({ id, heroId, hero, name, emoji, x, y, aim, downed, respawnRemainingMs, respawnDurationMs, respawnSpeedMultiplier, momentumActive, dawnWaiting }) => ({
         id, heroId, name, emoji: hero.visual || emoji, type: hero.type, x: Math.round(x), y: Math.round(y), aim: { ...aim },
         talent: hero.talent, targeting: hero.targetingUntil > now,
         dashing: heroId === 'guardian' ? hero.dashingUntil > now || Boolean(players.get(id)?.controlledBurst && players.get(id).controlledBurst.until > now) : Boolean(players.get(id)?.dashState && players.get(id).dashState.until > now),
         downed: Boolean(downed), respawnRemainingMs: respawnRemainingMs || 0, respawnDurationMs: respawnDurationMs || 0,
-        respawnSpeedMultiplier: respawnSpeedMultiplier || 1, momentumActive: Boolean(momentumActive),
+        respawnSpeedMultiplier: respawnSpeedMultiplier || 1, momentumActive: Boolean(momentumActive), dawnWaiting: Boolean(dawnWaiting),
         hp: Math.max(0, Math.round(hero.hp)), maxHp: hero.maxHp,
         attack: hero.attack, defense: hero.defense, speed: hero.speed,
         abilities: Object.fromEntries(Object.entries(hero.cooldowns).map(([key, cooldown]) => [key, {
@@ -612,7 +685,7 @@ function attachHeroLab(io, services = null) {
 
     // 1. Move players
     for (const player of players.values()) {
-      if (player.downed) continue;
+      if (player.downed || player.dawnWaiting) continue;
       const dx = Number(player.keys.right) - Number(player.keys.left);
       const dy = Number(player.keys.down) - Number(player.keys.up);
       if (dx || dy) {
@@ -646,7 +719,7 @@ function attachHeroLab(io, services = null) {
 
     // 3. Zombies chase the campfire; devils chase the closest living player.
     for (const player of players.values()) {
-      if (player.downed) continue;
+      if (player.downed || player.dawnWaiting) continue;
       syncHeroAimAndPosition(player);
       if(player.heroId==='guardian' && player.hero.dashingUntil>now) player.hero.makeInvulnerable(player.hero.dashingUntil-now,now);
       if (player.controlledBurst) {
@@ -678,7 +751,7 @@ function attachHeroLab(io, services = null) {
           }
         }
       }
-      const effect=player.hero.update(now);
+      const effect=player.hero.update(now, player.primaryHeld);
       if (effect instanceof Projectile) addProjectile(player,effect);
       if (player.hero.chargeUntil > now) {
         const step=player.hero.spec.charge.speed/ARENA_CONFIG.tickHz;
@@ -867,17 +940,22 @@ function attachHeroLab(io, services = null) {
         nsp.emit('campfire_hit', { x: campfire.x, y: campfire.y, damage: pendingCampfireDamage });
         pendingCampfireDamage = 0;
       }
-      for(const player of players.values()) nsp.to(player.id).emit('game_over',{reason:'campfire'});
+      for (const player of players.values()) {
+        nsp.to(player.id).emit('run_result', makeRunResult(player, false, 'campfire'));
+        nsp.to(player.id).emit('game_over', { reason: 'campfire' });
+      }
+      players.clear();
+      resetGame();
     }
     if (buffVote && players.size > 0 && [...players.keys()].every((id) => buffVotes.has(id))) finishBuffVote(now);
     if (players.size === 0 && waveNumber > 0) resetGame();
 
     // 8. Start a five-second break only after every enemy in the wave is gone.
     if (
-      players.size > 0 && !gameEnded && !buffVote && waveNumber > 0 && enemiesLeftToSpawn === 0 && spawnTelegraphs.length === 0
+      players.size > 0 && !gameEnded && !buffVote && !dawnWave && waveNumber > 0 && enemiesLeftToSpawn === 0 && spawnTelegraphs.length === 0
       && monsters.size === 0 && nextWaveAt === 0
     ) {
-      beginBuffVote(now);
+      completeWave(now);
     }
 
     broadcastState(now);

@@ -36,8 +36,8 @@ export class Sheriff extends Hero {
     return { type: 'projectile', projectile: shot(this, { ...s, sourceAbility: 'skill', damage: this.attack * s.damageMultiplier, explosionRadius: s.explosionRadius, detonateOnExpire: true }) };
   }
   ultimate(now) { this.barrageUntil = now + this.spec.barrage.durationMs; this.barrageAt = now; return { type: 'activate' }; }
-  update(now) {
-    if (now >= this.barrageUntil || now < this.barrageAt) return null;
+  update(now, primaryHeld = false) {
+    if (!primaryHeld || now >= this.barrageUntil || now < this.barrageAt) return null;
     this.barrageAt = now + this.spec.barrage.intervalMs;
     // Position and aim are refreshed by the server every tick during Deadeye.
     const range = Math.hypot(GAME_CONFIG.arena.width, GAME_CONFIG.arena.height) / 2 * GAME_CONFIG.arenaTuning.heroTweaks.sheriffBulletRangeArenaDiagonalFraction;
@@ -116,7 +116,7 @@ export class Bombardier extends Hero {
 export class Bubbles extends Hero {
   constructor() {
     super(setup('bubbles', 'Bubbles', '🫧', 'magic'));
-    this.spec = GAME_CONFIG.heroes.bubbles; this.weaponName = 'Bubble Spray'; this.skillName = 'Bubble Trap'; this.ultimateName = 'Tidal Bubble';
+    this.spec = GAME_CONFIG.heroes.bubbles; this.weaponName = 'Bubble Spray'; this.skillName = 'Bubble Trap'; this.ultimateName = 'Bubble Rush';
   }
   fire() {
     const s = this.spec.spray, angle = Math.atan2(this.aim.y, this.aim.x) + (Math.random() - .5) * s.spreadRadians;
@@ -127,7 +127,7 @@ export class Bubbles extends Hero {
     return shot(this, { speed: s.speed, radius: s.radius, lifetimeMs: s.travelDistance / s.speed * 1000, emoji: '🫧', damage: 0,
       sourceAbility: 'skill', trap: s });
   }
-  ultimate() { const s = this.spec.ultimate; return { type: 'bubble', x: this.position.x, y: this.position.y, ...s, damage: this.attack * s.damageMultiplier }; }
+  ultimate() { const s = this.spec.ultimate; return { type: 'bubble_rush', ...s, damage: this.attack * s.damageMultiplier }; }
 }
 
 export class Electromancer extends Hero {

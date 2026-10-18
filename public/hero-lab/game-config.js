@@ -42,8 +42,9 @@ export const ARENA_TUNING = Object.freeze({
   waveMoments: { bannerMs: 1500, bannerMaxMs: 2000, bannerScaleStart: 1, bannerScalePeak: 1.3, bannerScaleEnd: 1, clearedBannerMs: 1000, clearedHealFraction: 0.1, bossZoom: 1.05, bossZoomMs: 300, abilityReadyPulseMs: 300 },
   briefing: { durationMs: 8000, fadeMs: 300, spawnTelegraphMs: 500, skeletonWindupMs: 400 },
   momentum: { bonus: 0.2, distancePx: 30, windowMs: 500, glowAlpha: 0.35, fadeMs: 150, streakCount: 3, streakLifeMs: 120, readyRisePx: 30, readyMs: 700, idleNudgeMs: 4000, nudgeDurationMs: 2500, nudgeMaxPerSession: 2 },
+  performance: { hudUpdateMs: 100, aimUpdateMs: 40, projectileTrailIntervalMs: 50, maxParticles: 400 },
   respawn: { baseMs: 12000, teammateSpeedMultiplier: 2.5, soloMs: 6000, soloCampfireCost: 0.1, respawnHpFraction: 0.5, invulnerabilityMs: 2000, flashIntervalMs: 120 },
-  run: { milestoneEvery: 10, coinsPerWave: 5, victoryRewardMultiplier: 1.5, defeatRewardMultiplier: 0.5, sessionRuns: 3, bossTeaserWave: 5 },
+  run: { milestoneEvery: 10, coinsPerWave: 5, victoryRewardMultiplier: 1.5, defeatRewardMultiplier: 0.5, sessionRuns: 3, bossTeaserWave: 5, leaveFadeMs: 400 },
   buildingBonuses: { perLevel: 0.04, cap: 0.4 },
   gachaReveal: { buildUpMs: 1500, rarityStars: { common: 3, rare: 4, epic: 5 }, flashColors: { common: '#ffffff', rare: '#4f8df7', epic: '#f5c84c' } },
   progression: { newPlayerHeroes: ['sheriff', 'electromancer'], alternativeMagicStarter: 'bubbles', heroRarityStars: 4,
@@ -103,9 +104,9 @@ export const GAME_CONFIG = Object.freeze({
   waves: { enemySpawnIntervalMs: 700, breakMs: 5000, baseEnemies: 5, linearGrowth: 2, quadraticGrowth: 1, devilEveryEnemies: 5, skeletonEveryEnemies: 4 },
   waveBuffs: { voteDurationMs: 15000, cardCount: 3, flatMin: 5, flatMax: 25, campfireMaxHp: 100 },
   buildingBuffs: {
-    library: { stat: 'attack', type: 'magic', perLevel: 10 },
-    workshop: { stat: 'attack', type: 'physical', perLevel: 10 },
-    garden: { stat: 'campfireMaxHp', perLevel: 10 },
+    library: { stat: 'attack', type: 'magic' },
+    workshop: { stat: 'attack', type: 'physical' },
+    garden: { stat: 'campfireMaxHp' },
     tower: { stat: null, perLevel: 0 },
   },
   heroSummon: {
@@ -150,7 +151,7 @@ export const GAME_CONFIG = Object.freeze({
       talent: { name: 'Unstoppable', description: 'Kills while dashing extend the dash.' },
       unstoppable: {},
       shield: { speed: 720, radius: 19, lifetimeMs: 240, damageMultiplier: 0.8, emoji: '🛡️', rotateToAim: true },
-      skillDash: { durationMs: 300, speedMultiplier: 2.5, invulnerableMs: 300, damageMultiplier: 1.2, knockback: 260 },
+      skillDash: { durationMs: 700, speedMultiplier: 3.2, invulnerableMs: 700, damageMultiplier: 1.2, knockback: 260 },
       charge: { durationMs: 6000, speed: 440, invulnerabilityMs: 6200, hitCooldownMs: 350, damageMultiplier: 0.9, knockback: 340 },
     },
     pilot: {
@@ -182,7 +183,7 @@ export const GAME_CONFIG = Object.freeze({
       talent: { name: 'Finisher', description: 'Bubble Trap kills trigger a larger explosion.' },
       spray: { speed: 370, radius: 7, lifetimeMs: 850, range: 315, damageMultiplier: 0.14, spreadRadians: 0.075 },
       bubbleTrap: { speed: 880, radius: 18, travelDistance: 390, damage: 9, explosionRadius: 110, finisherDamage: 44, finisherRadius: 235, missRefundFraction: 0 },
-      ultimate: { growthMs: 1800, maxRadius: 210, damageMultiplier: 2.4 },
+      ultimate: { durationMs: 6000, speedMultiplier: 2.6, popRadius: 145, damageMultiplier: 2.2 },
     },
     electromancer: {
       type: 'magic', hp: 100, attack: 16, defense: 4, speed: 225,

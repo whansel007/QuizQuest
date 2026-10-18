@@ -15,9 +15,7 @@
       <span id="health-value">-- / --</span>
     </div>
     <div id="team-health" aria-label="Teammate health" hidden></div>
-    <div id="buff-icons" aria-label="Run buffs"></div>
     <div id="downed-list" aria-label="Downed teammates" hidden></div>
-    <button id="briefing-button" type="button" aria-label="Show the game briefing" title="Show the game briefing">?</button>
   </aside>
   <aside id="wave-hud" aria-live="polite">
     <strong id="wave-number">Wave 1</strong>
@@ -48,6 +46,10 @@
     </section>
   </aside>
   <aside id="bottom-left-hud">
+    <div id="bottom-left-tools">
+      <button id="briefing-button" type="button" aria-label="Show the game briefing" title="Show the game briefing">?</button>
+      <div id="buff-icons" aria-label="Run buffs"></div>
+    </div>
     <button id="info-button" type="button" aria-expanded="false" aria-controls="stats-panel">
       <span class="ability-circle info-circle">I</span><span>Information</span>
     </button>
@@ -74,9 +76,33 @@
     <div class="ability" data-ability="skill"><span class="ability-circle"><span class="ability-key">E</span></span><span class="ability-name">Skill</span></div>
     <div class="ability" data-ability="ultimate"><span class="ability-circle"><span class="ability-key">Q</span></span><span class="ability-name">Ultimate</span></div>
   </aside>
-  <section id="game-over" hidden>
-    <h1 id="game-over-title">Game over</h1>
-    <p id="game-over-message">Returning to hero selection…</p>
+  <section id="milestone-dawn" hidden aria-label="Wave milestone choice">
+    <strong>DAWN!</strong>
+    <p id="dawn-message">You survived the milestone wave.</p>
+    <div class="dawn-actions">
+      <button id="dawn-leave" type="button">LEAVE · Claim rewards</button>
+      <button id="dawn-continue" type="button">CONTINUE</button>
+    </div>
+  </section>
+  <section id="run-result" hidden aria-label="Run results">
+    <h1 id="run-result-title">Run complete</h1>
+    <p id="run-result-message"></p>
+    <div id="run-result-stats"></div>
+    <p id="run-result-teaser"></p>
+    <label for="run-again-hero">Hero for the next run</label>
+    <select id="run-again-hero"></select>
+    <div class="run-result-actions">
+      <button id="run-again" type="button">RUN AGAIN</button>
+      <button id="return-kingdom" type="button">RETURN TO KINGDOM</button>
+    </div>
+  </section>
+  <section id="session-summary" hidden aria-label="Session summary">
+    <strong>Nice session! Here is what you did</strong>
+    <p id="session-summary-text"></p>
+    <div class="run-result-actions">
+      <button id="session-stop" type="button">STOP</button>
+      <button id="session-keep-going" type="button">KEEP GOING</button>
+    </div>
   </section>
   <script src="/socket.io/socket.io.js"></script>
   <script type="module" src="/hero-lab/world.js"></script>

@@ -6,6 +6,19 @@ import { playSound, setAudioOptions, setHeartbeat } from './arena-audio.js';
 
 const canvas = document.querySelector('#world');
 const context = canvas.getContext('2d');
+const backgroundCanvas = document.createElement('canvas');
+backgroundCanvas.width = canvas.width;
+backgroundCanvas.height = canvas.height;
+const backgroundContext = backgroundCanvas.getContext('2d');
+for (let y = 0; y < backgroundCanvas.height; y += 80) {
+  for (let x = 0; x < backgroundCanvas.width; x += 80) {
+    backgroundContext.fillStyle = (Math.floor(x / 80) + Math.floor(y / 80)) % 2 ? '#79b456' : '#70a94f';
+    backgroundContext.fillRect(x, y, 80, 80);
+  }
+}
+backgroundContext.strokeStyle = '#456f35';
+backgroundContext.lineWidth = 1;
+backgroundContext.strokeRect(0.5, 0.5, canvas.width - 1, canvas.height - 1);
 const connectionStatus = document.querySelector('#connection-status');
 const waveNumber = document.querySelector('#wave-number');
 const waveDetails = document.querySelector('#wave-details');
@@ -23,7 +36,9 @@ const statsPanel = document.querySelector('#stats-panel');
 const buffVote = document.querySelector('#buff-vote');
 const buffCards = document.querySelector('#buff-cards');
 const targetingHint = document.querySelector('#targeting-hint');
-const gameOverOverlay = document.querySelector('#game-over');
+const runResultPanel = document.querySelector('#run-result');
+const milestoneDawn = document.querySelector('#milestone-dawn');
+const sessionSummary = document.querySelector('#session-summary');
 const campfireFill = document.querySelector('#campfire-fill');
 const campfireValue = document.querySelector('#campfire-value');
 const campfireHud = document.querySelector('#campfire-hud');
@@ -59,6 +74,7 @@ const enemyFlashes = new Map();
 const enemyHitFlashUntil = new Map();
 const enemyHitFx = new Map();
 const deathSprites = [];
+const leavingPlayers = [];
 const areaEffects = [];
 const muzzleFlashes = new Map();
 const lastMuzzleAt = new Map();
@@ -83,15 +99,92 @@ let cameraZoom = { until: 0, scale: 1 };
 let combo = { count: 0, lastKillAt: 0 };
 let bannerTimer = null;
 let primaryFireTimer = null;
+let lastHudUpdateAt = 0;
+let lastAimSentAt = 0;
+let aimSendTimer = null;
 let briefingTimer = null;
 let briefingFadeTimer = null;
 const BRIEFING_SESSION_KEY = 'hero-lab-briefing-shown';
 const abilityReadyAt = new Map();
+const runAgainHero = document.querySelector('#run-again-hero');
+const runResultStats = document.querySelector('#run-result-stats');
+let latestRunResult = null;
 
 function saveSettings() {
   try { localStorage.setItem('hero-lab-settings', JSON.stringify(settings)); } catch { /* browser storage may be unavailable */ }
   setAudioOptions({ volume: settings.masterVolume, mute: settings.muted });
 }
+
+function addParticle(particle) {
+  const maxParticles = ARENA_TUNING.performance.maxParticles;
+  if (particles.length >= maxParticles) return;
+  particles.push(particle);
+}
+
+function returnToKingdom() {
+  if (new URLSearchParams(location.search).has('embedded') && window.parent !== window) {
+    window.parent.postMessage({ type: 'hero-lab-game-over' }, location.origin);
+  } else location.replace('/hero-lab');
+}
+
+function showRunResult(result) {
+  latestRunResult = result;
+  milestoneDawn.hidden = true;
+  runResultPanel.hidden = false;
+  const bestKey = `hero-lab-best:${result.heroId || selectedHero.id}`;
+  let personalBest = Number(result.wavesReached) || 0;
+  try {
+    personalBest = Math.max(personalBest, Number(localStorage.getItem(bestKey)) || 0);
+    localStorage.setItem(bestKey, String(personalBest));
+  } catch { /* storage may be unavailable */ }
+  document.querySelector('#run-result-title').textContent = result.victory ? 'Victory!' : 'Campfire extinguished';
+  document.querySelector('#run-result-message').textContent = `${result.wavesCleared || 0} waves cleared · ${result.rewardCoins || 0} placeholder coins${result.victory ? ' claimed' : ' earned'}.`;
+  runResultStats.replaceChildren();
+  for (const line of [
+    `Waves reached: ${result.wavesReached || 0}`,
+    `Kills: ${result.kills || 0}`,
+    `Damage dealt: ${result.damageDealt || 0}`,
+    `Personal best with this hero: ${personalBest} waves`,
+    `Your upgrades dealt ${result.bonusDamage || 0} extra damage`,
+  ]) {
+    const item = document.createElement('span'); item.textContent = line; runResultStats.append(item);
+  }
+  document.querySelector('#run-result-teaser').textContent = `Brute King awaits at wave ${result.nextBossWave || ARENA_TUNING.run.bossTeaserWave}.`;
+  runAgainHero.replaceChildren(...HEROES.map((hero) => {
+    const option = document.createElement('option'); option.value = hero.id; option.textContent = `${hero.emoji} ${hero.name}`;
+    option.selected = hero.id === (result.heroId || selectedHero.id); return option;
+  }));
+
+  let runCount = 0;
+  try {
+    runCount = Number(sessionStorage.getItem('hero-lab-run-count') || 0) + 1;
+    sessionStorage.setItem('hero-lab-run-count', String(runCount));
+    sessionStorage.setItem('hero-lab-session-kills', String((Number(sessionStorage.getItem('hero-lab-session-kills') || 0) || 0) + (result.kills || 0)));
+  } catch { /* storage may be unavailable */ }
+  let alreadyShown = false;
+  try { alreadyShown = sessionStorage.getItem('hero-lab-session-summary-shown') === '1'; } catch { /* storage may be unavailable */ }
+  if (runCount >= ARENA_TUNING.run.sessionRuns && !alreadyShown) {
+    sessionSummary.hidden = false;
+    const kills = Number(sessionStorage.getItem('hero-lab-session-kills') || 0) || 0;
+    document.querySelector('#session-summary-text').textContent = `${runCount} runs played · ${kills} total kills.`;
+    try { sessionStorage.setItem('hero-lab-session-summary-shown', '1'); } catch { /* storage may be unavailable */ }
+  }
+}
+
+document.querySelector('#dawn-leave').addEventListener('click', () => socket.emit('milestone_choice', 'leave'));
+document.querySelector('#dawn-continue').addEventListener('click', () => {
+  milestoneDawn.hidden = true;
+  socket.emit('milestone_choice', 'continue');
+});
+document.querySelector('#run-again').addEventListener('click', () => {
+  const nextHeroId = runAgainHero.value || selectedHero.id;
+  if (new URLSearchParams(location.search).has('embedded') && window.parent !== window) {
+    window.parent.postMessage({ type: 'hero-lab-run-again', heroId: nextHeroId }, location.origin);
+  } else location.replace(`/hero-lab/world?heroId=${encodeURIComponent(nextHeroId)}`);
+});
+document.querySelector('#return-kingdom').addEventListener('click', returnToKingdom);
+document.querySelector('#session-stop').addEventListener('click', returnToKingdom);
+document.querySelector('#session-keep-going').addEventListener('click', () => { sessionSummary.hidden = true; });
 shakeSetting.checked = settings.screenShake;
 numbersSetting.checked = settings.damageNumbers;
 muteSetting.checked = settings.muted;
@@ -255,6 +348,12 @@ socket.on('wave_end', (event) => {
   showBanner('WAVE CLEARED', false, ARENA_TUNING.waveMoments.clearedBannerMs);
   playSound('waveEnd');
 });
+socket.on('milestone_dawn', ({ wave, nextWave }) => {
+  document.querySelector('#dawn-message').textContent = `Wave ${wave} is clear. Leave with rewards or continue to wave ${nextWave}.`;
+  milestoneDawn.hidden = false;
+});
+socket.on('player_leave', (player) => leavingPlayers.push({ ...player, startedAt: performance.now() }));
+socket.on('run_result', showRunResult);
 socket.on('ability_used', (event) => {
   if (event.ability === 'ultimate') {
     playSound('ultimateCast', { volume: event.playerId === me ? 1 : 0.65 });
@@ -269,7 +368,7 @@ socket.on('dash_hit', (event) => {
   const player = state.players.find((candidate) => candidate.id === event.id);
   if (!player) return;
   for (let i = 0; i < ARENA_TUNING.momentum.streakCount; i++) {
-    particles.push({ x: player.x - player.aim.x * 20, y: player.y - player.aim.y * 20, vx: -player.aim.x * 90, vy: -player.aim.y * 90,
+    addParticle({ x: player.x - player.aim.x * 20, y: player.y - player.aim.y * 20, vx: -player.aim.x * 90, vy: -player.aim.y * 90,
       radius: 2, color: HERO_FX_COLORS[event.heroId]?.highlight || '#fff', alpha: 0.9, decay: 0.08 });
   }
   if (event.id === me) shakeCamera(ARENA_TUNING.screenShake.majorMinPx, ARENA_TUNING.screenShake.heroHitMs);
@@ -299,16 +398,8 @@ socket.on('momentum_ready', (event) => {
   if (event.playerId === me) momentumReadyLabels.push({ startedAt: performance.now(), bonus: event.bonus });
 });
 socket.on('game_over', (result = {}) => {
-  document.querySelector('#game-over-title').textContent = 'Campfire extinguished';
-  document.querySelector('#game-over-message').textContent = 'The shared run has ended. Returning to hero selection…';
-  gameOverOverlay.hidden = false;
-  setTimeout(() => {
-    if (new URLSearchParams(location.search).has('embedded') && window.parent !== window) {
-      window.parent.postMessage({ type: 'hero-lab-game-over' }, location.origin);
-    } else {
-      location.replace('/hero-lab');
-    }
-  }, 1200);
+  if (runResultPanel.hidden) showRunResult({ victory: false, reason: result.reason, wavesReached: state.wave?.number || 0,
+    wavesCleared: 0, kills: 0, damageDealt: 0, bonusDamage: 0, rewardCoins: 0, nextBossWave: ARENA_TUNING.run.bossTeaserWave, heroId: selectedHero.id });
 });
 socket.on('hit', (hit) => {
   const fx = HERO_FX_COLORS[hit.heroId] || {};
@@ -326,7 +417,7 @@ socket.on('hit', (hit) => {
   for (let i = 0; i < ARENA_TUNING.impactSparks.particlesMin + Math.floor(Math.random() * (ARENA_TUNING.impactSparks.particlesMax - ARENA_TUNING.impactSparks.particlesMin + 1)); i++) {
     const angle = Math.random() * Math.PI * 2;
     const speed = 30 + Math.random() * 60;
-    particles.push({
+    addParticle({
       x: hit.x,
       y: hit.y,
       vx: Math.cos(angle) * speed,
@@ -353,7 +444,7 @@ socket.on('monster_killed', (data) => {
     const angle = Math.random() * Math.PI * 2;
     const speed = 40 + Math.random() * 90;
     const lifeMs = ARENA_TUNING.deathBurst.durationMinMs + Math.floor(Math.random() * (ARENA_TUNING.deathBurst.durationMaxMs - ARENA_TUNING.deathBurst.durationMinMs + 1));
-    particles.push({
+    addParticle({
       x: data.x,
       y: data.y,
       vx: Math.cos(angle) * speed,
@@ -376,7 +467,7 @@ socket.on('area_effect', (effect) => {
   for (let i = 0; i < 20; i++) {
     const angle = Math.random() * Math.PI * 2;
     const speed = 30 + Math.random() * 130;
-    particles.push({ x: effect.x, y: effect.y, vx: Math.cos(angle) * speed, vy: Math.sin(angle) * speed,
+    addParticle({ x: effect.x, y: effect.y, vx: Math.cos(angle) * speed, vy: Math.sin(angle) * speed,
       radius: 2 + Math.random() * 3, color: effect.color || '#ff9c45', alpha: 1, expiresAt: performance.now() + ARENA_TUNING.areaEffects.detonationMs });
   }
 });
@@ -425,7 +516,7 @@ function addOrUpdateProjectile(data) {
   for (let i = 0; i < 6; i++) {
     const angle = Math.atan2(data.vy, data.vx) + (Math.random() - 0.5) * 0.9;
     const speed = 40 + Math.random() * 80;
-    particles.push({
+    addParticle({
       x: data.x,
       y: data.y,
       vx: Math.cos(angle) * speed,
@@ -472,13 +563,22 @@ function stopPrimaryFire() {
   primaryFireTimer = null;
 }
 
+function setPrimaryHeld(held) {
+  if (selectedHero.id === 'sheriff' && socket.connected) socket.emit('primary_hold', Boolean(held));
+}
+
 function onPointerMove(event) {
-  if (!socket.connected || !me) return;
-  const player = state.players.find((candidate) => candidate.id === me);
-  if (!player) return;
   const pointer = getPointerCoordinates(event);
   window.lastPointerWorld = pointer;
-  socket.emit('aim', { x: pointer.x - player.x, y: pointer.y - player.y });
+  if (!socket.connected || !me || aimSendTimer !== null) return;
+  const delay = Math.max(0, ARENA_TUNING.performance.aimUpdateMs - (performance.now() - lastAimSentAt));
+  aimSendTimer = setTimeout(() => {
+    aimSendTimer = null;
+    const player = state.players.find((candidate) => candidate.id === me);
+    if (!socket.connected || !player || !window.lastPointerWorld) return;
+    socket.emit('aim', { x: window.lastPointerWorld.x - player.x, y: window.lastPointerWorld.y - player.y });
+    lastAimSentAt = performance.now();
+  }, delay);
 }
 
 function onKeyDown(event) {
@@ -673,10 +773,12 @@ function onPointerDown(event) {
   if (player) {
     const dx = pointer.x - player.x;
     const dy = pointer.y - player.y;
-    if (socket.connected) socket.emit('aim', { x: dx, y: dy });
+    if (socket.connected) { socket.emit('aim', { x: dx, y: dy }); lastAimSentAt = performance.now(); }
+    if (aimSendTimer !== null) { clearTimeout(aimSendTimer); aimSendTimer = null; }
   }
   if (event.button === 2) { fireWeapon('secondary'); return; }
   if (event.button === 0) {
+    setPrimaryHeld(true);
     fireWeapon('primary');
     if (selectedHero.id === 'bubbles') {
       stopPrimaryFire();
@@ -687,8 +789,11 @@ function onPointerDown(event) {
 
 function draw(timestamp) {
   requestAnimationFrame(draw);
-  updateHud(timestamp);
   const currentTime = timestamp || performance.now();
+  if (currentTime - lastHudUpdateAt >= ARENA_TUNING.performance.hudUpdateMs) {
+    updateHud(currentTime);
+    lastHudUpdateAt = currentTime;
+  }
   const dt = Math.min((currentTime - lastTime) / 1000, 0.1);
   lastTime = currentTime;
   context.setTransform(1, 0, 0, 1, 0, 0);
@@ -711,17 +816,7 @@ function draw(timestamp) {
     context.translate(centerX, centerY); context.scale(scale, scale); context.translate(-centerX, -centerY);
   } else cameraZoom.scale = 1;
 
-  const grassTileSize = 80;
-  const grassColors = ['#70a94f', '#79b456'];
-  for (let y = 0; y < canvas.height; y += grassTileSize) {
-    for (let x = 0; x < canvas.width; x += grassTileSize) {
-      context.fillStyle = grassColors[(Math.floor(x / grassTileSize) + Math.floor(y / grassTileSize)) % 2];
-      context.fillRect(x, y, grassTileSize, grassTileSize);
-    }
-  }
-  context.strokeStyle = '#456f35';
-  context.lineWidth = 1;
-  context.strokeRect(0.5, 0.5, canvas.width - 1, canvas.height - 1);
+  context.drawImage(backgroundCanvas, 0, 0);
 
   // 1. Draw Campfire in the middle
   const cf = state.campfire || {
@@ -744,7 +839,7 @@ function draw(timestamp) {
       const now = performance.now();
       if (inside && player.hp < player.maxHp && now - (healParticleAt.get(player.id) || 0) >= ARENA_TUNING.campfire.healParticleIntervalMs) {
         healParticleAt.set(player.id, now);
-        particles.push({ x: player.x, y: player.y - 18, vx: 0, vy: -28, radius: 10, color: '#7af29a', alpha: 1, text: '+', decay: 0.03 });
+        addParticle({ x: player.x, y: player.y - 18, vx: 0, vy: -28, radius: 10, color: '#7af29a', alpha: 1, text: '+', decay: 0.03 });
       }
     }
     if (cf.hp > 0) {
@@ -760,7 +855,7 @@ function draw(timestamp) {
 
       // Ambient rising fire embers
       if (Math.random() < 0.25) {
-        particles.push({
+        addParticle({
           x: cf.x + (Math.random() - 0.5) * 24,
           y: cf.y + (Math.random() - 0.5) * 12,
           vx: (Math.random() - 0.5) * 15,
@@ -1019,6 +1114,14 @@ function draw(timestamp) {
     }
   }
 
+  for (let i = leavingPlayers.length - 1; i >= 0; i--) {
+    const leaving = leavingPlayers[i];
+    const progress = Math.min(1, (currentTime - leaving.startedAt) / ARENA_TUNING.run.leaveFadeMs);
+    if (progress >= 1) { leavingPlayers.splice(i, 1); continue; }
+    context.save(); context.globalAlpha = 1 - progress; context.font = `${32 * (1 - progress * 0.2)}px sans-serif`;
+    context.textAlign = 'center'; context.textBaseline = 'middle'; context.fillText(leaving.emoji || '👻', leaving.x, leaving.y - 24 * progress); context.restore();
+  }
+
   for (let i=lightningArcs.length-1;i>=0;i--) {
     const arc=lightningArcs[i], remaining=arc.expires-currentTime;
     if(remaining<=0){lightningArcs.splice(i,1);continue;}
@@ -1039,8 +1142,10 @@ function draw(timestamp) {
   for (const [id, p] of clientProjectiles.entries()) {
     p.update(dt, canvas);
 
-    if (Math.random() < 0.6) {
-      particles.push({
+    if (currentTime - (p.lastTrailAt || 0) >= ARENA_TUNING.performance.projectileTrailIntervalMs
+      && particles.length < ARENA_TUNING.performance.maxParticles) {
+      p.lastTrailAt = currentTime;
+      addParticle({
         x: p.x + (Math.random() - 0.5) * 6,
         y: p.y + (Math.random() - 0.5) * 6,
         vx: -p.vx * 0.08 + (Math.random() - 0.5) * 20,
@@ -1058,7 +1163,7 @@ function draw(timestamp) {
       for (let i = 0; i < 8; i++) {
         const angle = Math.random() * Math.PI * 2;
         const speed = 30 + Math.random() * 70;
-        particles.push({
+        addParticle({
           x: edgeX,
           y: edgeY,
           vx: Math.cos(angle) * speed,
@@ -1141,7 +1246,7 @@ function spawnDashTrail(player) {
   previousPositions.set(player.id,{x:player.x,y:player.y});
   if(!prior || Math.hypot(player.x-prior.x,player.y-prior.y)<2)return;
   const spec=GAME_CONFIG.visuals.dashTrail;
-  for(let i=0;i<spec.count;i++) particles.push({x:prior.x+(Math.random()-.5)*16,y:prior.y+(Math.random()-.5)*16,
+  for(let i=0;i<spec.count;i++) addParticle({x:prior.x+(Math.random()-.5)*16,y:prior.y+(Math.random()-.5)*16,
     vx:(Math.random()-.5)*35,vy:(Math.random()-.5)*35,radius:spec.radius+Math.random()*2,color:HERO_FX_COLORS[player.heroId]?.highlight || '#d8dfc7',alpha:.8,decay:spec.decay});
 }
 
@@ -1150,7 +1255,7 @@ canvas.addEventListener('pointerdown', onPointerDown);
 canvas.addEventListener('contextmenu', (event) => event.preventDefault());
 addEventListener('keydown', onKeyDown);
 addEventListener('keyup', onKeyUp);
-addEventListener('blur', () => { releaseKeys(); stopPrimaryFire(); });
-addEventListener('pointerup', stopPrimaryFire);
-addEventListener('pointercancel', stopPrimaryFire);
+addEventListener('blur', () => { releaseKeys(); stopPrimaryFire(); setPrimaryHeld(false); });
+addEventListener('pointerup', () => { stopPrimaryFire(); setPrimaryHeld(false); });
+addEventListener('pointercancel', () => { stopPrimaryFire(); setPrimaryHeld(false); });
 requestAnimationFrame(draw);
