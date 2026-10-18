@@ -13,6 +13,7 @@
 const crypto = require('crypto');
 
 const KEY_LEN = 32;
+const PASSWORD_MIN = 8;
 const PASSWORD_MAX = 200; // scrypt of a huge string is a cheap DoS
 const DEMO_PASSWORD = 'quizquest';
 
@@ -61,4 +62,4 @@ function ensureDemoCredentials(users) {
 
 const normEmail = (v) => (typeof v === 'string' ? v.trim().toLowerCase() : '');
 
-module.exports = { PASSWORD_MAX, DEMO_PASSWORD, hashPassword, verifyPassword, dummyHash, ensureDemoCredentials, normEmail };
+module.exports = { PASSWORD_MIN, PASSWORD_MAX, DEMO_PASSWORD, hashPassword, verifyPassword, dummyHash, ensureDemoCredentials, normEmail };

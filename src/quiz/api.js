@@ -15,7 +15,7 @@
 // code path that decides whether an answer is right and what it earns.
 //
 // AUTH: /api/login takes { email, password } (scrypt hashes, see
-// passwords.js). Seeded users share the demo password "quizquest".
+// passwords.js). /api/register signs up a new student account. Seeded users share the demo password "quizquest".
 // The old passwordless demo picker ({ userId }) still works while
 // demoLogin is on - the default everywhere except NODE_ENV=production.
 // ============================================================
@@ -41,6 +41,8 @@ const PASSAGE_LIMIT = 100000;      // characters per passage (PDF chapters)
 const TOKEN_TTL = 8 * 3600 * 1000;
 const LOGIN_MAX_FAILS = 5;         // wrong passwords per email...
 const LOGIN_LOCK_MS = 15 * 60 * 1000; // ...before it is locked for this long
+const NAME_MAX = 60;
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const SESSION_LENGTHS = [5, 8, 10, 15];
 const TIMERS = [0, 30, 60, 90];    // seconds per question; 0 = untimed
 const ACCOMMODATION = [1, 1.5, 2];
@@ -351,11 +353,30 @@ function createQuizApi({ dataFile = null, store = null, now = () => Date.now(), 
     let user;
     if (body.userId !== undefined && demoLogin) user = db.users.find((u) => u.id === body.userId) || fail(400, 'Unknown demo user.');
     else user = checkPassword(body);
-    for (const [t, s] of tokens) if (s.expires < now()) tokens.delete(t); // forget expired sessions
     for (const [e, f] of loginFails) if (f.until < now()) loginFails.delete(e);
+    return startSession(user);
+  });
+
+  function startSession(user) {
+    for (const [t, s] of tokens) if (s.expires < now()) tokens.delete(t); // forget expired sessions
     const token = crypto.randomBytes(24).toString('hex');
     tokens.set(token, { userId: user.id, expires: now() + TOKEN_TTL });
     return { token, user: publicUser(user) };
+  }
+
+  // Self sign-up always makes a student. Teacher accounts are created by
+  // the team (seed data / database), so nobody can promote themselves.
+  route('POST', '/api/register', null, ({ body }) => {
+    const name = str(body.name, NAME_MAX, 'Name');
+    const email = P.normEmail(body.email);
+    if (!EMAIL_RE.test(email) || email.length > 254) fail(400, 'Enter a valid email address.');
+    if (typeof body.password !== 'string' || body.password.length < P.PASSWORD_MIN) fail(400, `Use a password of at least ${P.PASSWORD_MIN} characters.`);
+    if (body.password.length > P.PASSWORD_MAX) fail(400, `Use a password of at most ${P.PASSWORD_MAX} characters.`);
+    if (db.users.some((u) => u.email === email)) fail(409, 'An account with this email already exists. Sign in instead.');
+    const user = { id: newId('s'), name, role: 'student', email, passwordHash: P.hashPassword(body.password), createdAt: now() };
+    db.users.push(user);
+    save({ analytics: false });
+    return startSession(user);
   });
 
   route('POST', '/api/logout', 'any', ({ token }) => {

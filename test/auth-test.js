@@ -93,3 +93,31 @@ test('hashes are salted and verify only the right password', () => {
   assert.ok(!P.verifyPassword('Correct horse', a));
   assert.ok(!P.verifyPassword('correct horse', 'garbage'));
 });
+
+test('sign-up creates a student account that can sign in', async (t) => {
+  const { quiz, call } = await boot(t);
+  const r = await call('POST', '/api/register', { name: ' New Student ', email: 'New@School.edu ', password: 'longenough', role: 'teacher' });
+  assert.equal(r.status, 200);
+  assert.ok(r.body.token);
+  assert.deepEqual({ ...r.body.user, id: undefined }, { id: undefined, name: 'New Student', role: 'student', email: 'new@school.edu' });
+  const stored = quiz.services.db.users.find((u) => u.email === 'new@school.edu');
+  assert.ok(stored.passwordHash.startsWith('scrypt$'));
+  assert.notEqual(stored.passwordHash, 'longenough');
+  const me = await call('GET', '/api/me', null, r.body.token);
+  assert.equal(me.body.role, 'student');
+  const login = await call('POST', '/api/login', { email: 'new@school.edu', password: 'longenough' });
+  assert.equal(login.status, 200);
+});
+
+test('sign-up rejects taken emails and bad input', async (t) => {
+  const { call } = await boot(t);
+  const taken = await call('POST', '/api/register', { name: 'Copy', email: 'STUDENT01@quizquest.demo', password: 'longenough' });
+  assert.equal(taken.status, 409);
+  for (const body of [
+    { email: 'a@b.co', password: 'longenough' },
+    { name: 'X', email: 'not-an-email', password: 'longenough' },
+    { name: 'X', email: 'a@b.co', password: 'short' },
+    { name: 'X', email: 'a@b.co', password: 'x'.repeat(P.PASSWORD_MAX + 1) },
+    { name: 'x'.repeat(61), email: 'a@b.co', password: 'longenough' },
+  ]) assert.equal((await call('POST', '/api/register', body)).status, 400, JSON.stringify(body).slice(0, 80));
+});
