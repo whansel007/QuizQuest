@@ -24,12 +24,12 @@ function connectClient() {
   });
 }
 
-function nextState(socket, predicate = () => true) {
+function nextState(socket, predicate = () => true, timeoutMs = 1500) {
   return new Promise((resolve, reject) => {
     const timeout = setTimeout(() => {
       socket.off('state', onState);
       reject(new Error('Timed out waiting for Hero Lab state'));
-    }, 1500);
+    }, timeoutMs);
     function onState(state) {
       if (!predicate(state)) return;
       clearTimeout(timeout);
@@ -49,7 +49,7 @@ test('Hero Lab server broadcasts authoritative movement to every client', async 
   });
 
   const firstWelcome = new Promise((resolve) => first.once('welcome', resolve));
-  first.emit('join', { heroId: 'ranger' });
+  first.emit('join', { heroId: 'pilot' });
   const { you: firstId, arena } = await firstWelcome;
   assert.deepEqual(arena, { width: 1920, height: 1080 });
   const initial = await nextState(first, (state) => state.players.some((player) => player.id === firstId));
@@ -69,12 +69,12 @@ test('Hero Lab server broadcasts authoritative movement to every client', async 
   assert.equal(updated.players.find((player) => player.id === secondId).name, 'Guardian');
 });
 
-test('Hero Lab server fires and broadcasts a red projectile in the aimed direction for Flamekeeper primary fire', async (t) => {
+test('Hero Lab server fires and broadcasts the selected hero projectile in the aimed direction', async (t) => {
   const client = await connectClient();
   t.after(() => client.disconnect());
 
   const welcomePromise = new Promise((resolve) => client.once('welcome', resolve));
-  client.emit('join', { heroId: 'flamekeeper' });
+  client.emit('join', { heroId: 'sheriff' });
   const { you: clientId } = await welcomePromise;
   await nextState(client, (state) => state.players.some((p) => p.id === clientId));
 
@@ -86,14 +86,14 @@ test('Hero Lab server fires and broadcasts a red projectile in the aimed directi
   const snapshot = await nextState(client, (state) => Array.isArray(state.projectiles) && state.projectiles.length > 0);
   const spawned = snapshot.projectiles.find((projectile) => projectile.ownerId === clientId);
   assert.ok(spawned);
-  assert.equal(spawned.heroId, 'flamekeeper');
-  assert.equal(spawned.color, '#ff2d20');
-  assert.equal(spawned.radius, 10);
+  assert.equal(spawned.heroId, 'sheriff');
+  assert.equal(spawned.color, '#ffe34f');
+  assert.equal(spawned.radius, 5);
   assert.ok(spawned.vy > 0, 'projectile moves in the aimed y direction');
 
   const proj = snapshot.projectiles.find((p) => p.id === spawned.id);
   assert.ok(proj, 'projectile appears in broadcast state');
-  assert.equal(proj.color, '#ff2d20');
+  assert.equal(proj.color, '#ffe34f');
 });
 
 test('projectile onHit return value controls removal and a piercing projectile can hit another target', async (t) => {
@@ -101,7 +101,7 @@ test('projectile onHit return value controls removal and a piercing projectile c
   t.after(() => client.disconnect());
 
   const welcomePromise = new Promise((resolve) => client.once('welcome', resolve));
-  client.emit('join', { heroId: 'flamekeeper' });
+  client.emit('join', { heroId: 'sheriff' });
   const { you: clientId } = await welcomePromise;
   await nextState(client, (state) => state.players.some((player) => player.id === clientId));
 
@@ -181,7 +181,7 @@ test('enemy projectiles use server-side defense when they hit a hero', async (t)
   const client = await connectClient();
   t.after(() => client.disconnect());
   const welcomePromise = new Promise((resolve) => client.once('welcome', resolve));
-  client.emit('join', { heroId: 'flamekeeper' });
+  client.emit('join', { heroId: 'sheriff' });
   const { you: clientId } = await welcomePromise;
   await nextState(client, (state) => state.players.some((player) => player.id === clientId));
 
@@ -199,7 +199,7 @@ test('Hero Lab server maintains campfire in the middle and spawns zombie monster
   const client = await connectClient();
   t.after(() => client.disconnect());
 
-  client.emit('join', { heroId: 'ranger' });
+  client.emit('join', { heroId: 'pilot' });
 
   // Verify campfire state is in the center
   const stateWithCampfire = await nextState(client, (state) => state.campfire && state.campfire.x === 960 && state.campfire.y === 540);
@@ -239,4 +239,62 @@ test('campfire loss ends the shared run for every connected player', async (t) =
   assert.deepEqual(await endSecond, { reason: 'campfire' });
   const ended = await nextState(first, (state) => state.gameEnded);
   assert.equal(ended.campfire.hp, 0);
+});
+
+test('Bombardier chooses the targeted bombing point with secondary fire', async (t) => {
+  const client = await connectClient();
+  t.after(() => client.disconnect());
+  const welcome = new Promise((resolve) => client.once('welcome', resolve));
+  client.emit('join', { heroId: 'bombardier' });
+  const { you } = await welcome;
+  await nextState(client, (state) => state.players.some((p) => p.id === you));
+  client.emit('ultimate');
+  await nextState(client, (state) => state.players.find((p) => p.id === you)?.targeting);
+  client.emit('fire', 'secondary', { x: 900, y: 400 });
+  const targeted = await nextState(client, (state) => state.effects?.length === 5);
+  assert.equal(targeted.players.find((p) => p.id === you).targeting, false);
+  assert.equal(targeted.players.find((p) => p.id === you).abilities.ultimate.remainingMs > 0, true);
+  assert.ok(targeted.effects.every((effect) => Math.hypot(effect.x - 900, effect.y - 400) <= 280));
+});
+
+test('heroes standing by the campfire slowly recover health', async (t) => {
+  const client = await connectClient();
+  t.after(() => client.disconnect());
+  const welcome = new Promise((resolve) => client.once('welcome', resolve));
+  client.emit('join', { heroId: 'sheriff' });
+  const { you } = await welcome;
+  await nextState(client, (state) => state.players.some((p) => p.id === you));
+  const player = server.heroLab.players.get(you);
+  player.x = server.heroLab.campfire.x;
+  player.y = server.heroLab.campfire.y;
+  player.hero.hp = 50;
+  const healed = await nextState(client, (state) => state.players.find((p) => p.id === you)?.hp > 50);
+  assert.ok(healed.players.find((p) => p.id === you).hp > 50);
+});
+
+test('wave buffs appear for a shared vote and a disconnected vote is removed', async (t) => {
+  const first = await connectClient();
+  const second = await connectClient();
+  t.after(() => { first.disconnect(); second.disconnect(); });
+  const firstWelcome = new Promise((resolve) => first.once('welcome', resolve));
+  first.emit('join', { heroId: 'sheriff' });
+  const { you: firstId } = await firstWelcome;
+  const secondWelcome = new Promise((resolve) => second.once('welcome', resolve));
+  second.emit('join', { heroId: 'guardian' });
+  await secondWelcome;
+  await nextState(first, (state) => state.monsters.length === 8, 9000);
+  server.heroLab.monsters.clear();
+  const voteState = await nextState(first, (state) => state.buffVote?.cards?.length === 3);
+  assert.equal(new Set(voteState.buffVote.cards.map((card) => card.id)).size, 3);
+  const choice = voteState.buffVote.cards[0];
+  assert.ok(choice.value >= 5 && choice.value <= 25);
+  first.emit('buff_vote', choice.id);
+  await nextState(first, (state) => state.buffVote?.voteCount === 1);
+  second.disconnect();
+  const applied = await nextState(first, (state) => !state.buffVote && state.lastBuff);
+  assert.equal(applied.lastBuff.id, choice.id);
+  const updated = applied.players.find((player) => player.id === firstId);
+  if (choice.id === 'attack') assert.ok(updated.attack >= 12 + choice.value);
+  if (choice.id === 'defense') assert.ok(updated.defense >= 5 + choice.value);
+  if (choice.id === 'speed') assert.ok(updated.speed >= 225 + choice.value);
 });

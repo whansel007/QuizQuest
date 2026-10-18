@@ -74,7 +74,8 @@ const MIME = {
 // opts.dataFile: where the quiz app keeps its JSON database (null = in-memory).
 // opts.store: an already-loaded store (e.g. the Supabase one) instead of a file.
 function start(port, opts = {}) {
-  const quiz = createQuizApi(opts.store ? { store: opts.store } : { dataFile: opts.dataFile !== undefined ? opts.dataFile : path.join(__dirname, 'data', 'db.json') });
+  const quizOptions = opts.store ? { store: opts.store } : { dataFile: opts.dataFile !== undefined ? opts.dataFile : path.join(__dirname, 'data', 'db.json') };
+  const quiz = createQuizApi({ ...quizOptions, debugMode: opts.debugMode });
   // ------ Live game state (in-memory, lives ONLY while running) ---
   // players: socket.id -> player object. This is the "database" of
   // the live game. Unlike Mongo it is volatile: if the server restarts,
@@ -159,7 +160,7 @@ function start(port, opts = {}) {
   const io = new Server(httpServer, { cors: { origin: '*' } });
   // The quiz World lives on its own namespace ('/world'); tag keeps '/'
   const world = attachWorld(io, quiz.services);
-  const heroLab = attachHeroLab(io);
+  const heroLab = attachHeroLab(io, quiz.services);
 
   // Smallest free slot (1..4). Slot = the player's identity: P1, P2...
   function freeSlot() {

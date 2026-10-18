@@ -13,14 +13,14 @@ import AnalyticsView from './teacher/AnalyticsView.vue';
 import EvaluationView from './teacher/EvaluationView.vue';
 import SettingsView from './teacher/SettingsView.vue';
 import PracticeView from './student/PracticeView.vue';
-import WorldView from './student/WorldView.vue';
 import HeroLabView from './student/HeroLabView.vue';
 import KingdomView from './student/KingdomView.vue';
 import PetsView from './student/PetsView.vue';
+import DebugMenu from './components/DebugMenu.vue';
 
 const TABS = {
   teacher: [['review', 'Question bank', ReviewView], ['content', 'Source material', ContentView], ['generate', 'AI drafting', GenerateView], ['analytics', 'Analytics', AnalyticsView], ['evaluation', 'Evaluation', EvaluationView], ['settings', 'Settings', SettingsView]],
-  student: [['practice', 'Practice', PracticeView], ['world', 'World', HeroLabView], ['class-world', 'Class World', WorldView], ['kingdom', 'Kingdom', KingdomView], ['pets', 'Pets & shop', PetsView]],
+  student: [['practice', 'Practice', PracticeView], ['world', 'World', HeroLabView], ['kingdom', 'Kingdom', KingdomView], ['pets', 'Hero Summon', PetsView]],
 };
 
 const ready = ref(false);
@@ -58,6 +58,7 @@ const current = computed(() => {
     </template>
   </main>
   <div id="toast" role="status" aria-live="polite" :class="{ show: toastState.show, bad: toastState.bad }">{{ toastState.msg }}</div>
+  <DebugMenu v-if="S.me?.role === 'student'" :key="S.token" />
   <footer>
     Demo build with synthetic users and demo course content only. Do not enter real student data.
     · <a href="/tag">Circle Tag (the original multiplayer experiment)</a>

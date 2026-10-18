@@ -30,9 +30,16 @@
       <span>Attack <b id="stat-attack">--</b></span>
       <span>Defense <b id="stat-defense">--</b></span>
       <span>Speed <b id="stat-speed">--</b></span>
+      <span class="talent-info"><em id="stat-talent-name">Talent</em><b id="stat-talent-description">--</b></span>
     </section>
     <span id="connection-status" role="status">Connecting…</span>
   </aside>
+  <section id="buff-vote" hidden aria-label="Choose a team wave buff">
+    <strong id="buff-vote-title">Choose a team buff</strong>
+    <span id="buff-vote-status">Every player votes once. Ties are random.</span>
+    <div id="buff-cards"></div>
+  </section>
+  <div id="targeting-hint" hidden>Right-click to confirm bombing location · Esc to cancel</div>
   <aside id="ability-hud" aria-label="Hero abilities">
     <div class="ability" data-ability="weapon"><span class="ability-circle"><span class="ability-key">M1</span></span><span class="ability-name">Weapon</span></div>
     <div class="ability" data-ability="skill"><span class="ability-circle"><span class="ability-key">E</span></span><span class="ability-name">Skill</span></div>

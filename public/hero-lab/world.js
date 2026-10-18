@@ -1,6 +1,6 @@
 import { HEROES } from './hero-list.js';
-import { Fireball } from './projectiles/fireball.js';
 import { EnemyProjectile } from './projectiles/enemy-projectile.js';
+import { Projectile } from './bases/projectile.js';
 import { GAME_CONFIG } from './game-config.js';
 
 const canvas = document.querySelector('#world');
@@ -15,8 +15,13 @@ const healthValue = document.querySelector('#health-value');
 const teamHealth = document.querySelector('#team-health');
 const infoButton = document.querySelector('#info-button');
 const statsPanel = document.querySelector('#stats-panel');
+const buffVote = document.querySelector('#buff-vote');
+const buffCards = document.querySelector('#buff-cards');
+const targetingHint = document.querySelector('#targeting-hint');
 const gameOverOverlay = document.querySelector('#game-over');
-const socket = window.io('/hero-lab');
+let token = null;
+try { token = sessionStorage.getItem('qq-token'); } catch { /* standalone Hero Lab has no app session */ }
+const socket = window.io('/hero-lab', { auth: token ? { token } : {} });
 const heroId = new URLSearchParams(location.search).get('heroId');
 const selectedHero = HEROES.find((hero) => hero.id === heroId);
 if (!selectedHero) location.replace('/hero-lab');
@@ -32,7 +37,11 @@ let stateReceivedAt = performance.now();
 const clientProjectiles = new Map();
 const particles = [];
 const damageTexts = [];
+const lightningArcs = [];
+const enemyFlashes = new Map();
+const previousPositions = new Map();
 let lastTime = performance.now();
+let lastBuffRender = '';
 
 socket.on('connect', () => {
   connectionStatus.textContent = 'Joining the field…';
@@ -73,7 +82,7 @@ socket.on('player_hit', (hit) => {
   damageTexts.push({
     x: hit.x,
     y: hit.y - 24,
-    text: `-${hit.damage}`,
+    text: `-${Math.round(hit.damage)}`,
     alpha: 1,
     vy: -35,
     color: '#ff6161',
@@ -97,7 +106,7 @@ socket.on('hit', (hit) => {
   damageTexts.push({
     x: hit.x + (Math.random() - 0.5) * 10,
     y: hit.y - 12,
-    text: `-${hit.damage}`,
+    text: `-${Math.round(hit.damage)}`,
     alpha: 1,
     vy: -35,
     color: '#ffdd00',
@@ -121,7 +130,7 @@ socket.on('monster_killed', (data) => {
   damageTexts.push({
     x: data.x,
     y: data.y - 20,
-    text: '💀 +10',
+    text: '💀',
     alpha: 1,
     vy: -25,
     color: '#a7ffeb',
@@ -149,6 +158,11 @@ socket.on('area_effect', (effect) => {
       radius: 2 + Math.random() * 3, color: effect.color || '#ff9c45', alpha: 1, decay: .035 + Math.random() * .025 });
   }
 });
+socket.on('lightning_chain', (arc) => lightningArcs.push({ ...arc, expires: performance.now() + GAME_CONFIG.visuals.lightningArcMs }));
+socket.on('lightning_flash', (flash) => enemyFlashes.set(flash.id, performance.now() + GAME_CONFIG.visuals.enemyFlashMs));
+socket.on('dash_extended', (popup) => {
+  if (popup.id === me) damageTexts.push({ x: popup.x, y: popup.y - 36, text: `+${(popup.ms / 1000).toFixed(1)}s`, alpha: 1, vy: -28, color: '#a6ffb4' });
+});
 
 function addOrUpdateProjectile(data) {
   if (clientProjectiles.has(data.id)) {
@@ -159,7 +173,7 @@ function addOrUpdateProjectile(data) {
     existing.vy = data.vy;
     return;
   }
-  const ProjectileClass = data.kind === 'enemy' ? EnemyProjectile : Fireball;
+  const ProjectileClass = data.kind === 'enemy' ? EnemyProjectile : Projectile;
   const projectile = new ProjectileClass({
     id: data.id,
     x: data.x,
@@ -168,6 +182,12 @@ function addOrUpdateProjectile(data) {
     vy: data.vy,
     radius: data.radius || 10,
     color: data.color || '#ff2d20',
+    emoji: data.emoji,
+    rotateToAim: data.rotateToAim,
+    flashColors: data.flashColors,
+    flashIntervalMs: data.flashIntervalMs,
+    shape: data.shape,
+    type: data.type,
     createdAt: data.createdAt || Date.now(),
   });
   clientProjectiles.set(data.id, projectile);
@@ -181,7 +201,7 @@ function addOrUpdateProjectile(data) {
       vx: Math.cos(angle) * speed,
       vy: Math.sin(angle) * speed,
       radius: 1.5 + Math.random() * 2,
-      color: Math.random() > 0.4 ? '#ffea00' : '#ff3b30',
+      color: data.flashColors?.[Math.floor(Math.random() * data.flashColors.length)] || data.color || '#ffea00',
       alpha: 1,
       decay: 0.05 + Math.random() * 0.04,
     });
@@ -207,6 +227,10 @@ function getPointerCoordinates(event) {
 
 function fireWeapon(mode) {
   if (!me || !socket.connected) return;
+  if (mode === 'secondary') {
+    if (window.lastPointerWorld) socket.emit('fire', mode, window.lastPointerWorld);
+    return;
+  }
   socket.emit('fire', mode);
 }
 
@@ -215,6 +239,7 @@ function onPointerMove(event) {
   const player = state.players.find((candidate) => candidate.id === me);
   if (!player) return;
   const pointer = getPointerCoordinates(event);
+  window.lastPointerWorld = pointer;
   socket.emit('aim', { x: pointer.x - player.x, y: pointer.y - player.y });
 }
 
@@ -233,6 +258,8 @@ function onKeyDown(event) {
     socket.emit('ultimate');
   } else if (event.code === 'KeyI' && !event.repeat) {
     toggleStats();
+  } else if (event.code === 'Escape' && !event.repeat) {
+    socket.emit('cancel_targeting');
   }
 }
 
@@ -248,7 +275,9 @@ function updateHud(timestamp = performance.now()) {
   const player = state.players?.find((candidate) => candidate.id === me);
   if (state.wave && waveNumber && waveDetails) {
     waveNumber.textContent = `Wave ${state.wave.number || 1}`;
-    if (state.wave.nextWaveInMs > 0) {
+    if (state.buffVote) {
+      waveDetails.textContent = 'Choose a team buff';
+    } else if (state.wave.nextWaveInMs > 0) {
       const remaining = Math.max(0, state.wave.nextWaveInMs - (timestamp - stateReceivedAt));
       waveDetails.textContent = remaining > 300
         ? `Wave cleared · Next wave in ${Math.ceil(remaining / 1000)}s`
@@ -302,6 +331,29 @@ function updateHud(timestamp = performance.now()) {
   document.querySelector('#stat-attack').textContent = String(player.attack);
   document.querySelector('#stat-defense').textContent = String(player.defense);
   document.querySelector('#stat-speed').textContent = String(player.speed);
+  document.querySelector('#stat-talent-name').textContent = player.talent?.name || 'Talent';
+  document.querySelector('#stat-talent-description').textContent = player.talent?.description || 'No special passive.';
+
+  const vote = state.buffVote;
+  buffVote.hidden = !vote;
+  if (vote) {
+    const voted = vote.votes?.[me] || '';
+    document.querySelector('#buff-vote-title').textContent = `Wave ${vote.wave} cleared · Vote for a team buff`;
+    const voteRemaining = Math.max(0, Math.ceil((vote.endsAt - state.serverTime - (timestamp - stateReceivedAt)) / 1000));
+    document.querySelector('#buff-vote-status').textContent = `${vote.voteCount}/${state.players.length} votes · ${voteRemaining}s left${voted ? ' · Your vote is recorded' : ''}`;
+    const signature = `${vote.wave}:${voted}:${vote.cards.map((card) => card.id).join(',')}`;
+    if (signature !== lastBuffRender) {
+      lastBuffRender = signature;
+      buffCards.replaceChildren(...vote.cards.map((card) => {
+        const button = document.createElement('button'); button.className = `buff-card${voted === card.id ? ' selected' : ''}`;
+        button.type = 'button'; button.disabled = Boolean(voted);
+        const title = document.createElement('strong'); title.textContent = card.label;
+        const description = document.createElement('span'); description.textContent = card.description;
+        button.append(title, description); button.addEventListener('click', () => socket.emit('buff_vote', card.id)); return button;
+      }));
+    }
+  } else lastBuffRender = '';
+  targetingHint.hidden = !player.targeting;
 }
 
 function onKeyUp(event) {
@@ -315,12 +367,14 @@ function onKeyUp(event) {
 function onPointerDown(event) {
   if (!me) return;
   const pointer = getPointerCoordinates(event);
+  window.lastPointerWorld = pointer;
   const player = state.players.find((candidate) => candidate.id === me);
   if (player) {
     const dx = pointer.x - player.x;
     const dy = pointer.y - player.y;
     if (socket.connected) socket.emit('aim', { x: dx, y: dy });
   }
+  if (event.button === 2) { fireWeapon('secondary'); return; }
   if (event.button === 0) {
     fireWeapon('primary');
   }
@@ -463,13 +517,16 @@ function draw(timestamp) {
     context.fillText('💣', trap.x, trap.y);
   }
   for (const effect of state.effects || []) {
+    if (effect.type === 'bomb-marker' && state.serverTime < effect.at) continue;
+    const progress = effect.type === 'bubble' ? Math.max(0, Math.min(1, (state.serverTime - effect.startAt) / Math.max(1, effect.at - effect.startAt))) : 1;
     context.save(); context.globalAlpha = .7; context.strokeStyle = effect.type === 'bubble' ? '#8cf2ff' : '#ffb347';
     context.setLineDash([8, 8]); context.lineWidth = 3; context.beginPath();
-    context.arc(effect.x, effect.y, effect.radius || 24, 0, Math.PI * 2); context.stroke(); context.restore();
+    context.arc(effect.x, effect.y, (effect.radius || 24) * progress, 0, Math.PI * 2); context.stroke(); context.restore();
   }
 
   // 3. Draw players
   for (const player of state.players) {
+    if (player.dashing) spawnDashTrail(player);
     const center = { x: player.x, y: player.y };
     const tip = { x: center.x + player.aim.x * 48, y: center.y + player.aim.y * 48 };
     context.strokeStyle = player.id === me ? '#222' : '#777';
@@ -499,7 +556,33 @@ function draw(timestamp) {
     context.fillText(player.name, center.x, center.y + 30);
   }
 
-  // 4. Update and draw projectiles (glowing red fireballs)
+  for (const monster of state.monsters || []) {
+    if (monster.stunned) {
+      context.font = '16px sans-serif'; context.textAlign = 'center'; context.textBaseline = 'middle';
+      context.fillText('⚡', monster.x, monster.y - 30);
+    }
+    if ((enemyFlashes.get(monster.id) || 0) > currentTime) {
+      context.beginPath(); context.arc(monster.x, monster.y, 25, 0, Math.PI * 2); context.strokeStyle = '#fff57a'; context.lineWidth = 4; context.stroke();
+    }
+  }
+
+  for (let i=lightningArcs.length-1;i>=0;i--) {
+    const arc=lightningArcs[i], remaining=arc.expires-currentTime;
+    if(remaining<=0){lightningArcs.splice(i,1);continue;}
+    context.save(); context.globalAlpha=Math.min(1,remaining/GAME_CONFIG.visuals.lightningArcMs);
+    context.strokeStyle='#8df4ff';context.lineWidth=4;context.shadowColor='#54deff';context.shadowBlur=14;
+    context.beginPath();context.moveTo(arc.x1,arc.y1);context.lineTo(arc.x2,arc.y2);context.stroke();context.restore();
+  }
+
+  const local = state.players.find((candidate) => candidate.id === me);
+  if (local?.targeting && window.lastPointerWorld) {
+    const spec=GAME_CONFIG.heroes.bombardier.airstrike, p=window.lastPointerWorld;
+    context.save();context.setLineDash([12,8]);context.strokeStyle='#ffbd58';context.lineWidth=4;
+    context.beginPath();context.arc(p.x,p.y,spec.circleRadius,0,Math.PI*2);context.stroke();
+    context.setLineDash([]);context.fillStyle='rgba(255,189,88,.12)';context.fill();context.restore();
+  }
+
+  // 4. Update and draw active projectiles.
   for (const [id, p] of clientProjectiles.entries()) {
     p.update(dt, canvas);
 
@@ -576,6 +659,15 @@ function draw(timestamp) {
     context.fillText(dtObj.text, dtObj.x, dtObj.y);
     context.restore();
   }
+}
+
+function spawnDashTrail(player) {
+  const prior=previousPositions.get(player.id);
+  previousPositions.set(player.id,{x:player.x,y:player.y});
+  if(!prior || Math.hypot(player.x-prior.x,player.y-prior.y)<2)return;
+  const spec=GAME_CONFIG.visuals.dashTrail;
+  for(let i=0;i<spec.count;i++) particles.push({x:prior.x+(Math.random()-.5)*16,y:prior.y+(Math.random()-.5)*16,
+    vx:(Math.random()-.5)*35,vy:(Math.random()-.5)*35,radius:spec.radius+Math.random()*2,color:'#d8dfc7',alpha:.8,decay:spec.decay});
 }
 
 canvas.addEventListener('pointermove', onPointerMove);

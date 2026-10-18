@@ -1,19 +1,18 @@
 <script setup>
-// Student-facing entry point for the Hero Lab prototype.
-// The existing game client stays in its own page and socket namespace; this
-// view supplies the hero choice and hosts that page inside QuizQuest.
-import { onMounted, onUnmounted, ref } from 'vue';
+// Student-facing entry point for the campfire defense game.
+// The signed-in user's kingdom upgrades are applied by the authoritative game server.
+import { computed, onMounted, onUnmounted, ref } from 'vue';
 import Heading from '../components/Heading.vue';
-
-const heroes = [
-  { id: 'flamekeeper', name: 'Flamekeeper', emoji: '🧙', hp: 100, attack: 14, defense: 5, speed: 220, weapon: 'Ember Staff' },
-  { id: 'ranger', name: 'Ranger', emoji: '🏹', hp: 85, attack: 18, defense: 3, speed: 260, weapon: 'Longbow' },
-  { id: 'guardian', name: 'Guardian', emoji: '🛡️', hp: 130, attack: 10, defense: 9, speed: 180, weapon: 'Iron Mace' },
-];
+import { loadHome } from './home.js';
 
 const selectedHero = ref(null);
 const gameFrame = ref(null);
 const gameUrl = ref('');
+const roster = ref(null);
+const rosterError = ref('');
+const loadingRoster = ref(true);
+const heroes = computed(() => roster.value?.catalog.heroes || []);
+const ownsHero = (id) => roster.value?.inventory.heroes.includes(id) || false;
 
 function chooseHero(hero) {
   selectedHero.value = hero;
@@ -32,7 +31,12 @@ function focusGame() {
   gameFrame.value?.contentWindow?.focus();
 }
 
-onMounted(() => window.addEventListener('message', returnToSelection));
+onMounted(async () => {
+  window.addEventListener('message', returnToSelection);
+  try { roster.value = await loadHome(); }
+  catch (err) { rosterError.value = err.message; }
+  finally { loadingRoster.value = false; }
+});
 onUnmounted(() => window.removeEventListener('message', returnToSelection));
 </script>
 
@@ -40,12 +44,16 @@ onUnmounted(() => window.removeEventListener('message', returnToSelection));
   <section class="hero-lab-page">
     <template v-if="!selectedHero">
       <Heading title="World" />
-      <p class="muted">Choose a hero to defend the campfire. Move with WASD or the arrow keys, aim with the mouse, and fire with the left mouse button. Press E to dash and Q to use the ultimate.</p>
+      <p class="muted">Choose a hero to defend the campfire. Library levels add attack for magic heroes, Workshop levels add attack for physical heroes, and Garden levels increase the shared campfire's max HP. Move with WASD or the arrow keys, aim with the mouse, and fire with the left mouse button. Press E to use your skill and Q for your ultimate.</p>
+      <p v-if="loadingRoster" class="muted">Loading your hero collection…</p>
+      <div v-else-if="rosterError" class="note bad">{{ rosterError }}</div>
       <div class="hero-lab-grid">
-        <button v-for="hero in heroes" :key="hero.id" class="panel hero-lab-card" type="button" @click="chooseHero(hero)">
+        <button v-for="hero in heroes" :key="hero.id" class="panel hero-lab-card" :class="{ locked: !ownsHero(hero.id) }" type="button" :disabled="!ownsHero(hero.id) || loadingRoster" @click="chooseHero(hero)">
           <strong class="hero-lab-name">{{ hero.emoji }} {{ hero.name }}</strong>
-          <span>{{ hero.weapon }}</span>
-          <span class="muted small">HP {{ hero.hp }} · Attack {{ hero.attack }} · Defense {{ hero.defense }} · Speed {{ hero.speed }}</span>
+          <span>{{ hero.rarity }}★ · {{ hero.weapon }}</span>
+          <span class="muted small">{{ hero.type }} · HP {{ hero.hp }} · Attack {{ hero.attack }} · Defense {{ hero.defense }} · Speed {{ hero.speed }}</span>
+          <span v-if="ownsHero(hero.id)" class="small">Owned</span>
+          <span v-else class="muted small">Summon to unlock</span>
         </button>
       </div>
     </template>
@@ -56,7 +64,7 @@ onUnmounted(() => window.removeEventListener('message', returnToSelection));
         ref="gameFrame"
         class="hero-lab-frame"
         :src="gameUrl"
-        title="Hero Lab World"
+        title="Campfire Defense"
         allow="gamepad"
         tabindex="0"
         @load="focusGame"
@@ -70,7 +78,9 @@ onUnmounted(() => window.removeEventListener('message', returnToSelection));
 .hero-lab-page { width: 100%; }
 .hero-lab-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(240px, 100%), 1fr)); gap: 12px; margin-top: 18px; }
 .hero-lab-card { display: grid; gap: 7px; width: 100%; margin: 0; color: inherit; font: inherit; text-align: left; cursor: pointer; transition: border-color .15s, transform .15s; }
-.hero-lab-card:hover { border-color: var(--accent); transform: translateY(-2px); }
+.hero-lab-card:hover:not(:disabled) { border-color: var(--accent); transform: translateY(-2px); }
+.hero-lab-card:disabled { cursor: not-allowed; opacity: .65; }
+.hero-lab-card.locked .hero-lab-name { filter: grayscale(1); }
 .hero-lab-name { font-size: 20px; }
 .hero-lab-frame { position: fixed; z-index: 10; inset: 0; display: block; width: 100vw; height: 100vh; border: 0; border-radius: 0; background: #70a94f; }
 </style>

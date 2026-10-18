@@ -8,69 +8,130 @@ const shot = (hero, spec, extra = {}) => new Projectile({
   y: hero.position.y + hero.aim.y * muzzle,
   aim: hero.aim,
   damage: hero.attack,
+  sourceAbility: 'weapon',
   ...spec,
   ...extra,
 });
 const setup = (id, name, emoji, type) => {
   const c = GAME_CONFIG.heroes[id];
-  return { id, name, emoji, type, ...c,
-    weaponCooldownMs: c.weaponCooldownMs, skillCooldownMs: c.skillCooldownMs,
-    ultimateCooldownMs: c.ultimateCooldownMs };
+  return { id, name, emoji, type, rarity: GAME_CONFIG.heroSummon.rarities[id], ...c, weaponCooldownMs: c.weaponCooldownMs,
+    skillCooldownMs: c.skillCooldownMs, ultimateCooldownMs: c.ultimateCooldownMs };
 };
 
 export class Sheriff extends Hero {
-  constructor() { super({ ...setup('sheriff', 'Sheriff', '🤠', 'physical') }); this.spec = GAME_CONFIG.heroes.sheriff; this.weaponName='Revolver'; this.skillName='Dynamite'; this.ultimateName='Deadeye'; this.barrageUntil=0; this.barrageAt=0; }
-  fire() { return shot(this, { ...this.spec.bullet, damage:this.attack, color:'#f4cc50' }); }
-  skill() { return { type:'projectile', projectile:shot(this,{ ...this.spec.dynamite, damage:this.attack*this.spec.dynamite.damageMultiplier, color:'#ff8c32', explosionRadius:this.spec.dynamite.explosionRadius, detonateOnExpire:true }) }; }
-  ultimate(now) { this.barrageUntil=now+this.spec.barrage.durationMs; this.barrageAt=now; return { type:'activate' }; }
-  update(now) { if(now>=this.barrageUntil) return null; if(now<this.barrageAt) return null; this.barrageAt=now+this.spec.barrage.intervalMs; return shot(this,{ ...this.spec.bullet, damage:this.attack, color:'#f4cc50' }); }
+  constructor() {
+    super(setup('sheriff', 'Sheriff', '🤠', 'physical'));
+    this.spec = GAME_CONFIG.heroes.sheriff; this.weaponName = 'Revolver'; this.skillName = 'Dynamite'; this.ultimateName = 'Deadeye';
+    this.barrageUntil = 0; this.barrageAt = 0;
+  }
+  fire() { return shot(this, { ...this.spec.bullet, damage: this.attack }); }
+  skill() {
+    const s = this.spec.dynamite;
+    return { type: 'projectile', projectile: shot(this, { ...s, sourceAbility: 'skill', damage: this.attack * s.damageMultiplier, explosionRadius: s.explosionRadius, detonateOnExpire: true }) };
+  }
+  ultimate(now) { this.barrageUntil = now + this.spec.barrage.durationMs; this.barrageAt = now; return { type: 'activate' }; }
+  update(now) {
+    if (now >= this.barrageUntil || now < this.barrageAt) return null;
+    this.barrageAt = now + this.spec.barrage.intervalMs;
+    // Position and aim are refreshed by the server every tick during Deadeye.
+    return shot(this, { ...this.spec.bullet, radius: this.spec.barrage.bulletRadius, sourceAbility: 'ultimate', damage: this.attack });
+  }
 }
 
 export class Guardian extends Hero {
-  constructor() { super({ ...setup('guardian','Guardian','🛡️','physical') }); this.spec=GAME_CONFIG.heroes.guardian; this.weaponName='Shield Toss'; this.skillName='Shield Rush'; this.ultimateName='Unbreakable Charge'; this.chargeUntil=0; this.lastChargeHit=new Map(); }
-  fire() { return shot(this,{ ...this.spec.shield, damage:this.attack*this.spec.shield.damageMultiplier, color:'#71c7ff' }); }
-  skill() { return { type:'dash', direction:{...this.aim}, ...this.spec.skillDash }; }
-  ultimate(now) { this.chargeUntil=now+this.spec.charge.durationMs; this.makeInvulnerable(this.spec.charge.invulnerabilityMs,now); return {type:'activate'}; }
+  constructor() {
+    super(setup('guardian', 'Guardian', '🛡️', 'physical'));
+    this.spec = GAME_CONFIG.heroes.guardian; this.weaponName = 'Shield Bash'; this.skillName = 'Shield Rush'; this.ultimateName = 'Unbreakable Charge';
+    this.chargeUntil = 0; this.lastChargeHit = new Map(); this.dashingUntil = 0; this.dashStartedAt = 0; this.dashCapUntil = 0;
+  }
+  fire() { return shot(this, { ...this.spec.shield, damage: this.attack * this.spec.shield.damageMultiplier }); }
+  skill(now = Date.now()) {
+    const s = this.spec.skillDash;
+    this.dashingUntil = now + s.durationMs; this.dashStartedAt = now; this.dashCapUntil = now + this.spec.unstoppable.maxTotalDashMs;
+    this.makeInvulnerable(s.durationMs, now);
+    return { type: 'dash', direction: { ...this.aim }, ...s };
+  }
+  ultimate(now) {
+    this.chargeUntil = now + this.spec.charge.durationMs; this.dashingUntil = this.chargeUntil; this.dashStartedAt = now;
+    this.dashCapUntil = now + this.spec.unstoppable.maxTotalDashMs;
+    this.makeInvulnerable(this.spec.charge.invulnerabilityMs, now);
+    return { type: 'activate' };
+  }
 }
 
 export class Pilot extends Hero {
-  constructor() { super({ ...setup('pilot','Pilot','🧑‍✈️','physical') }); this.spec=GAME_CONFIG.heroes.pilot; this.weaponName='Pulse Blaster'; this.skillName='Retreat'; this.ultimateName='Mech Suit'; this.mechUntil=0; }
-  get inMech() { return this.mechUntil>Date.now(); }
-  refreshForm(now) {
-    const mech=this.mechUntil>now, c=this.spec.mech;
-    this.visual=mech?'🤖':this.emoji; this.weaponName=mech?c.weaponName:'Pulse Blaster'; this.skillName=mech?c.skillName:'Retreat';
-    this.attack=mech?c.attack:this.spec.attack; this.defense=mech?c.defense:this.spec.defense; this.speed=mech?c.speed:this.spec.speed;
-    this.maxHp=mech?c.hp:this.spec.hp; this.hp=Math.min(this.hp,this.maxHp);
-    this.cooldowns.weapon.durationMs=mech?c.weaponCooldownMs:this.spec.weaponCooldownMs;
-    this.cooldowns.skill.durationMs=mech?c.skillCooldownMs:this.spec.skillCooldownMs;
+  constructor() {
+    super(setup('pilot', 'Pilot', '🧑‍✈️', 'physical'));
+    this.spec = GAME_CONFIG.heroes.pilot; this.weaponName = 'Scattershot'; this.skillName = 'Dash'; this.ultimateName = 'Mech Suit'; this.mechUntil = 0;
   }
-  fire() { const mech=this.mechUntil>Date.now(); return shot(this,mech?{...this.spec.mech.punch,damage:this.attack*this.spec.mech.punch.damageMultiplier,color:'#ffb347'}:{...this.spec.baseShot,damage:this.attack*this.spec.baseShot.damageMultiplier,color:'#8ee7ff'}); }
-  skill() { return {type:'dash',direction:{...this.aim},...(this.mechUntil>Date.now()?this.spec.mech.dash:{distance:this.spec.retreatDash.distance})}; }
-  ultimate(now) { this.mechUntil=now+this.spec.mech.durationMs; this.refreshForm(now); return {type:'activate'}; }
+  refreshForm(now) {
+    const mech = this.mechUntil > now, c = this.spec.mech;
+    const bonus = (stat) => (this.buildingBonuses?.[stat] || 0) + (this.runBonuses?.[stat] || 0);
+    this.visual = mech ? '🤖' : this.emoji; this.weaponName = mech ? c.weaponName : 'Scattershot'; this.skillName = mech ? c.skillName : 'Dash';
+    this.attack = (mech ? c.attack : this.spec.attack) + bonus('attack');
+    this.defense = (mech ? c.defense : this.spec.defense) + bonus('defense');
+    this.speed = (mech ? c.speed : this.spec.speed) + bonus('speed');
+    this.maxHp = (mech ? c.hp : this.spec.hp) + bonus('maxHp'); this.hp = Math.min(this.hp, this.maxHp);
+    this.cooldowns.weapon.durationMs = mech ? c.weaponCooldownMs : this.spec.weaponCooldownMs;
+    this.cooldowns.skill.durationMs = mech ? c.skillCooldownMs : this.spec.skillCooldownMs;
+    if (mech) this.makeInvulnerable(this.mechUntil - now, now);
+  }
+  fire() {
+    if (this.mechUntil > Date.now()) {
+      const s = this.spec.mech.punch;
+      return shot(this, { ...s, emoji: '🤜', rotateToAim: true, sourceAbility: 'weapon', damage: this.attack * s.damageMultiplier, explosionRadius: s.explosionRadius });
+    }
+    const s = this.spec.shotgun, center = Math.atan2(this.aim.y, this.aim.x);
+    return Array.from({ length: s.pellets }, () => {
+      const angle = center + (Math.random() - .5) * s.spreadRadians;
+      return shot(this, { speed: s.speed || 570, vx: Math.cos(angle) * (s.speed || 570), vy: Math.sin(angle) * (s.speed || 570),
+        radius: s.radius, color: s.color, lifetimeMs: s.range / (s.speed || 570) * 1000, damage: this.attack * s.pelletDamageMultiplier });
+    });
+  }
+  skill(now = Date.now()) {
+    const mech = this.mechUntil > now, s = mech ? this.spec.mech.dash : this.spec.retreatDash;
+    return { type: 'dash', direction: { ...this.aim }, ...s };
+  }
+  ultimate(now) { this.mechUntil = now + this.spec.mech.durationMs; this.refreshForm(now); return { type: 'activate' }; }
   update(now) { this.refreshForm(now); }
 }
 
 export class Bombardier extends Hero {
-  constructor() { super({ ...setup('bombardier','Bombardier','💣','magic') }); this.spec=GAME_CONFIG.heroes.bombardier; this.weaponName='Blast Bomb'; this.skillName='Trap'; this.ultimateName='Airstrike'; }
-  fire() { const b=this.spec.bomb; return shot(this,{...b,damage:this.attack*b.damageMultiplier,color:'#ff6b35',explosionRadius:b.explosionRadius,detonateOnExpire:true}); }
-  skill() { return {type:'trap',...this.spec.trap, x:this.position.x, y:this.position.y, damage:this.attack*this.spec.trap.damageMultiplier}; }
-  ultimate() { return {type:'airstrike',...this.spec.airstrike,damage:this.attack*this.spec.airstrike.damageMultiplier}; }
+  constructor() {
+    super(setup('bombardier', 'Bombardier', '💣', 'magic'));
+    this.spec = GAME_CONFIG.heroes.bombardier; this.weaponName = 'Blast Bomb'; this.skillName = 'Proximity Trap'; this.ultimateName = 'Targeted Bombing'; this.targetingUntil = 0;
+  }
+  fire() { const s = this.spec.bomb; return shot(this, { ...s, damage: this.attack * s.damageMultiplier, explosionRadius: s.explosionRadius, detonateOnExpire: true, emoji: '💣', color: '#ff7838', sourceAbility: 'weapon' }); }
+  skill() { const s = this.spec.trap; return { type: 'trap', ...s, x: this.position.x, y: this.position.y, damage: this.attack * s.damageMultiplier }; }
+  ultimate(now) { this.targetingUntil = now + this.spec.airstrike.targetTimeoutMs; return { type: 'targeting' }; }
 }
 
 export class Bubbles extends Hero {
-  constructor() { super({ ...setup('bubbles','Bubbles','🫧','magic') }); this.spec=GAME_CONFIG.heroes.bubbles; this.weaponName='Bubble Pop'; this.skillName='Healing Mode'; this.ultimateName='Tidal Bubble'; this.healingUntil=0; }
-  fire() { const healing=this.healingUntil>Date.now(), b=this.spec.bubble; return shot(this,{...b,damage:healing?0:this.attack*b.damageMultiplier,heal:healing?b.heal:0,targetTeam:healing?'players':'monsters',color:healing?'#74efff':'#ef9fff'}); }
-  skill(now=Date.now()) { this.healingUntil=now+this.spec.healingModeMs; this.weaponName='Healing Bubbles'; return {type:'activate'}; }
-  ultimate() { return {type:'bubble',x:this.position.x,y:this.position.y,...this.spec.ultimate,damage:this.attack*this.spec.ultimate.damageMultiplier}; }
-  update(now) { if(now>=this.healingUntil) this.weaponName='Bubble Pop'; }
+  constructor() {
+    super(setup('bubbles', 'Bubbles', '🫧', 'magic'));
+    this.spec = GAME_CONFIG.heroes.bubbles; this.weaponName = 'Bubble Spray'; this.skillName = 'Bubble Trap'; this.ultimateName = 'Tidal Bubble';
+  }
+  fire() {
+    const s = this.spec.spray, angle = Math.atan2(this.aim.y, this.aim.x) + (Math.random() - .5) * s.spreadRadians;
+    return shot(this, { ...s, vx: Math.cos(angle) * s.speed, vy: Math.sin(angle) * s.speed, lifetimeMs: s.range / s.speed * 1000, damage: this.attack * s.damageMultiplier });
+  }
+  skill() {
+    const s = this.spec.bubbleTrap;
+    return shot(this, { speed: s.speed, radius: s.radius, lifetimeMs: s.travelDistance / s.speed * 1000, color: '#56dfff', emoji: '🫧', damage: 0,
+      sourceAbility: 'skill', trap: s });
+  }
+  ultimate() { const s = this.spec.ultimate; return { type: 'bubble', x: this.position.x, y: this.position.y, ...s, damage: this.attack * s.damageMultiplier }; }
 }
 
 export class Electromancer extends Hero {
-  constructor() { super({ ...setup('electromancer','Electromancer','⚡','magic') }); this.spec=GAME_CONFIG.heroes.electromancer; this.weaponName='Lightning Orb'; this.skillName='Stun Field'; this.ultimateName='Chain Lightning'; }
-  fire() { return shot(this,{...this.spec.ball,damage:this.attack,color:'#ffe45c',pierces:this.spec.ball.pierces}); }
-  skill() { return shot(this,{...this.spec.stunBall,damage:this.attack*this.spec.stunBall.damageMultiplier,color:'#65d9ff',stunMs:this.spec.stunBall.stunMs, explosionRadius:this.spec.stunBall.areaRadius}); }
-  ultimate() { return {type:'chain',...this.spec.chain,damage:this.attack*this.spec.chain.damageMultiplier,x:this.position.x,y:this.position.y}; }
+  constructor() {
+    super(setup('electromancer', 'Electromancer', '⚡', 'magic'));
+    this.spec = GAME_CONFIG.heroes.electromancer; this.weaponName = 'Lightning Orb'; this.skillName = 'Stun Field'; this.ultimateName = 'Chain Lightning';
+  }
+  fire() { const s = this.spec.ball; return shot(this, { ...s, damage: this.attack, pierces: s.pierces }); }
+  skill() { const s = this.spec.stunBall; return shot(this, { ...s, sourceAbility: 'skill', damage: this.attack * s.damageMultiplier, stunMs: s.stunMs, explosionRadius: s.areaRadius }); }
+  ultimate() { const s = this.spec.chain; return { type: 'chain', ...s, damage: this.attack * s.damageMultiplier, x: this.position.x, y: this.position.y }; }
 }
 
-export const sheriff=new Sheriff(); export const guardian=new Guardian(); export const pilot=new Pilot();
-export const bombardier=new Bombardier(); export const bubbles=new Bubbles(); export const electromancer=new Electromancer();
+export const sheriff = new Sheriff(); export const guardian = new Guardian(); export const pilot = new Pilot();
+export const bombardier = new Bombardier(); export const bubbles = new Bubbles(); export const electromancer = new Electromancer();

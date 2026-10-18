@@ -5,7 +5,9 @@ const path = require('node:path');
 const { spawn } = require('node:child_process');
 
 const procs = [
-  spawn(process.execPath, ['--watch', '--env-file-if-exists=.env', 'server.js'], { stdio: 'inherit' }),
+  spawn(process.execPath, ['--watch', '--env-file-if-exists=.env', 'server.js'], {
+    stdio: 'inherit', env: { ...process.env, QUIZQUEST_DEMO: process.env.QUIZQUEST_DEMO || 'true' },
+  }),
   spawn(process.execPath, [path.join(__dirname, '..', 'node_modules', 'vite', 'bin', 'vite.js')], { stdio: 'inherit' }),
 ];
 const stop = () => {

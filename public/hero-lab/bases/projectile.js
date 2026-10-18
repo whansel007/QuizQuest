@@ -22,6 +22,13 @@ export class Projectile {
     knockback = 0,
     stunMs = 0,
     detonateOnExpire = false,
+    shape = 'circle',
+    emoji = '',
+    rotateToAim = false,
+    flashColors = null,
+    flashIntervalMs = 100,
+    sourceAbility = 'weapon',
+    trap = null,
     lifetimeMs = GAME_CONFIG.combat.projectileMaxAgeMs,
     kind = 'player',
     createdAt = Date.now(),
@@ -44,6 +51,13 @@ export class Projectile {
     this.knockback = knockback;
     this.stunMs = stunMs;
     this.detonateOnExpire = detonateOnExpire;
+    this.shape = shape;
+    this.emoji = emoji;
+    this.rotateToAim = rotateToAim;
+    this.flashColors = flashColors;
+    this.flashIntervalMs = flashIntervalMs;
+    this.sourceAbility = sourceAbility;
+    this.trap = trap;
     this.kind = kind;
     this.lifetimeMs = lifetimeMs;
     this.speed = speed;
@@ -88,6 +102,25 @@ export class Projectile {
   }
 
   draw(context) {
+    if (this.flashColors?.length) {
+      context.beginPath(); context.arc(this.x, this.y, this.radius, 0, Math.PI * 2);
+      context.fillStyle = this.flashColors[Math.floor(Date.now() / this.flashIntervalMs) % this.flashColors.length]; context.fill();
+    }
+    if (this.emoji) {
+      context.save();
+      context.translate(this.x, this.y);
+      if (this.rotateToAim) {
+        const facingLeft = this.vx < 0;
+        const angle = Math.atan2(this.vy, facingLeft ? -this.vx : this.vx);
+        if (facingLeft) context.scale(-1, 1);
+        context.rotate(angle);
+      }
+      context.font = `${this.radius * 1.8}px sans-serif`;
+      context.textAlign = 'center'; context.textBaseline = 'middle';
+      context.fillText(this.emoji, 0, 0);
+      context.restore();
+      return;
+    }
     context.fillStyle = this.color;
     context.beginPath();
     context.arc(this.x, this.y, this.radius, 0, Math.PI * 2);

@@ -1,208 +1,62 @@
-# Hero Lab (Hero Test Field)
+# Campfire Defense: Hero Guide
 
-A standalone multiplayer 2D top-down sandbox where players select a hero, then enter a full-page world to defend the campfire through increasingly large waves of zombies and devils.
+The World is a co-op arena game in QuizQuest. Pick one of the six heroes below, survive waves of monsters, and keep the campfire alive. The run ends when the campfire reaches 0 HP.
 
-The client renderer runs as native ES modules in the browser (rendered with Canvas 2D and HTML5), while an authoritative game loop runs on the Node.js server at 30 ticks per second over Socket.IO.
+## The six heroes
 
----
+Base stats are shown before kingdom upgrades and wave buffs. Attack values are base values; abilities can apply their own multipliers or effects.
 
-## Quick Start
+| Hero | Type | HP | Attack | Defense | Speed | Weapon | Skill | Ultimate | Talent |
+| --- | --- | ---: | ---: | ---: | ---: | --- | --- | --- | --- |
+| Sheriff 🤠 | Physical | 105 | 12 | 5 | 225 | Revolver | Dynamite | Deadeye | Quick Draw — kills reduce Dynamite cooldown. |
+| Guardian 🛡️ | Physical | 155 | 18 | 12 | 190 | Shield Bash | Shield Rush | Unbreakable Charge | Unstoppable — kills while dashing extend the dash. |
+| Pilot 🧑‍✈️ | Physical | 78 | 10 | 2 | 245 | Scattershot | Dash | Mech Suit | Adrenaline — kills bring Mech Suit closer. |
+| Bombardier 💣 | Magic | 95 | 22 | 3 | 210 | Blast Bomb | Proximity Trap | Targeted Bombing | Demolitionist — primary fire explodes. |
+| Bubbles 🫧 | Magic | 110 | 12 | 4 | 220 | Bubble Spray | Bubble Trap | Tidal Bubble | Finisher — Bubble Trap kills trigger a larger explosion. |
+| Electromancer ⚡ | Magic | 100 | 16 | 4 | 225 | Lightning Orb | Stun Field | Chain Lightning | Overload — deals bonus damage to stunned enemies. |
 
-From the repository root:
+### Kingdom upgrades in World
 
-```bash
-npm run dev
-```
+The server reads building levels from the signed-in student's saved kingdom when the hero joins. Each level grants a flat +10:
 
-Open [http://localhost:5173/hero-lab](http://localhost:5173/hero-lab), choose a hero, and the game opens at `/hero-lab/world`.
+- **Library:** +10 attack per level for magic heroes.
+- **Workshop:** +10 attack per level for physical heroes.
+- **Garden:** +10 campfire max HP per level for each player in the shared run.
+- **Tower:** no combat bonus is configured yet.
 
-> [!TIP]
-> Open the page in two or more browser tabs or windows side-by-side to test multiplayer interactions in realtime!
-
-To run on a production build:
-```bash
-npm run build
-npm start
-# open http://localhost:3000/hero-lab
-```
-
----
+Buildings cap at level 3, so each active upgrade grants up to +30. The shared run adds each player's Garden bonus once. The client does not send its own building levels or bonus values.
 
 ## Controls
 
-| Action | Control | Description |
-| :--- | :--- | :--- |
-| **Move** | `W`, `A`, `S`, `D` or Arrow Keys | Moves your hero smoothly around the arena (bounded by arena walls) |
-| **Aim** | Mouse Pointer | Directs your hero's aim pointer towards the mouse position |
-| **Weapon** | Left Mouse Click (`M1`) | Fires once per click; the server enforces its cooldown |
-| **Skill** | `E` | Flamekeeper dashes 180 pixels in the aimed direction |
-| **Ultimate** | `Q` | Flamekeeper launches a stronger Meteor Strike projectile |
+| Action | Control |
+| --- | --- |
+| Move | `W`, `A`, `S`, `D` or arrow keys |
+| Aim | Mouse pointer |
+| Weapon | Left mouse button |
+| Skill | `E` |
+| Ultimate | `Q` |
+| Bombardier target | Activate ultimate with `Q`, aim, then right-click to confirm; `Esc` cancels |
+| Hero information | `I` or the Information button |
 
----
+## Game loop
 
-## Directory Architecture
+- The server owns movement, attacks, cooldowns, enemy behavior, damage, and wave buffs.
+- Waves grow in size over time. After clearing a wave, everyone can vote for one team buff before the next wave.
+- Zombies and skeletons attack the campfire; devils chase heroes. The campfire heals slowly while heroes stand nearby.
+- The shared run ends as soon as the campfire is extinguished. Hero HP reaching zero removes that hero from the fight; the remaining team can continue.
+- With multiple players, the HUD shows teammate HP under the current player's HP.
 
-The code follows an Object-Oriented modular architecture:
+## Running the standalone sandbox
 
-```
-public/hero-lab/
-├── bases/                  # Foundational base classes
-│   ├── hero.js             # Hero base class (stats, movement, aim, actions)
-│   ├── enemy.js            # Enemy base class (movement towards target, takeDamage)
-│   ├── projectile.js       # Projectile base class (velocity, lifetime, collisions)
-│   └── index.js            # Barrel re-export for all base classes
-│
-├── heroes/                 # Individual hero implementations
-│   ├── flamekeeper.js      # Flamekeeper (Wizard 🧙) wielding the Ember Staff
-│   ├── ranger.js           # Ranger (Archer 🏹) wielding the Longbow
-│   └── guardian.js         # Guardian (Knight 🛡️) wielding the Iron Mace
-│
-├── enemies/                # Enemy monster implementations
-│   ├── zombie.js           # Zombie (🧟) that attacks the campfire
-│   ├── devil.js            # Devil (😈) that chases and attacks players
-│   └── index.js            # Barrel re-export for enemies
-│
-├── projectiles/            # Projectile implementations
-│   ├── fireball.js         # Fireball with radial glow, ember trail, and particles
-│   └── index.js            # Barrel re-export for projectiles
-│
-├── hero-list.js            # Single Source of Truth for available HEROES array
-├── main.js                 # Hero selection page
-├── world.js                # Full-page world renderer and input handling
-├── index.html              # Hero selector page
-├── world.html              # Full-page game world
-├── game-config.js          # Combat tuning, hero stats, wave settings and HUD colors
-├── HOW_THIS_WORKS.md       # Plain-language guide and playtest steps
-└── README_HERO-LAB.md      # Detailed reference
-```
+From the repository root, run `npm run dev`, then open `http://localhost:5173/hero-lab`. This standalone sandbox is useful for combat iteration. In the signed-in QuizQuest app, open **World**; the server applies the selected player's kingdom upgrades there.
 
-### Authoritative Server Backend
-- **[`src/hero-lab/world.js`](file:///c:/Users/William/Documents/GitHub/QuizQuest/src/hero-lab/world.js)**: Runs the authoritative server loop on the `/hero-lab` Socket.IO namespace. It manages players, waves, enemy targeting, projectiles, collisions, and game over.
+## Code map
 
----
+- [`game-config.js`](./game-config.js): hero stats, combat tuning, building bonuses, waves, and HUD colors.
+- [`hero-list.js`](./hero-list.js): the six selectable hero instances and server constructor registry.
+- [`heroes/roster.js`](./heroes/roster.js): hero weapons, skills, ultimates, and talents.
+- [`world.js`](./world.js): browser renderer, controls, and HUD.
+- [`src/hero-lab/world.js`](../../src/hero-lab/world.js): authoritative combat server and student-session kingdom bonus application.
+- [`HOW_THIS_WORKS.md`](./HOW_THIS_WORKS.md): plain-language implementation notes and playtest guide.
 
-## Gameplay Mechanics
-
-For the current plain-language guide and exact playtest steps, see
-[`HOW_THIS_WORKS.md`](./HOW_THIS_WORKS.md). Tunable combat values are in
-[`game-config.js`](./game-config.js).
-
-1. **The Campfire**:
-   - Positioned in the center of the 1920 × 1080 arena `(960, 540)` with 100 HP.
-   - Emits an animated warm fire glow and displays a health bar.
-   - If monsters reach the campfire, they deal contact damage over time.
-
-2. **Zombie Monsters (`🧟`)**:
-   - Spawn outside the arena boundaries and march toward the campfire.
-   - Feature individual health bars and contact hitboxes.
-   - Take damage and get knocked back/eliminated when struck by projectiles.
-
-3. **Devils (`😈`)**:
-   - One enemy in every five spawned chases the closest living player.
-   - Contact attacks damage that hero. A hero who reaches 0 HP gets game over and returns to hero selection.
-
-4. **Waves**:
-   - Wave `n` contains `5 + n × (2 + n)` enemies, so wave 1 starts with 8.
-   - After all enemies are defeated, the next wave starts after a five-second break.
-
-3. **Authoritative Combat**:
-   - The client sends a fire request; the server calls the selected hero's `fire()` method and creates any projectile.
-   - The Flamekeeper's **Ember Staff** launches a fireball toward the aim direction.
-   - Defense reduces incoming damage with a one-point minimum; ability cooldowns are server-owned.
-   - Projectile collisions are evaluated by the server, which broadcasts `hit` and `monster_killed` events.
-   - Floating damage numbers (`-10`) and particle sparks burst when monsters are struck.
-
----
-
-## Socket.IO Protocol (`/hero-lab`)
-
-### Client to Server
-- **`join`** `{ heroId: string }`: Selects a hero and spawns into the field.
-- **`input`** `{ up: boolean, down: boolean, left: boolean, right: boolean }`: Sends directional key state.
-- **`aim`** `{ x: number, y: number }`: Sends normalized aim vector.
-- **`fire`** `'primary'`: Requests one weapon shot; the server checks the cooldown and creates any projectile.
-- **`skill`**: Requests the selected hero's skill.
-- **`ultimate`**: Activates the selected hero's ultimate.
-
-### Server to Client
-- **`welcome`** `{ you: socketId, arena: { width, height } }`: Initial handshake upon joining.
-- **`state`** `{ wave, campfire, monsters, players, projectiles }`: Broadcast 30 times per second with authoritative world state, live stats and remaining ability cooldowns.
-- **`hit`** `{ type, id, x, y, damage }`: Emitted when an entity is damaged.
-- **`monster_killed`** `{ id, x, y }`: Emitted when an enemy's health reaches zero.
-- **`game_over`**: Sent to a player when their hero dies.
-
----
-
-## Extending Hero Lab
-
-The `Hero` base class owns shared health and combat stats. Each specific hero
-defines its own `fire()`, `skill()`, and `ultimate()` methods. For primary fire,
-the client sends a fire request; the server calls the selected hero's `fire()`.
-The hero returns a projectile instance, and the server assigns its ID and adds
-it to the world. The world advances projectiles and checks collisions. A
-projectile's `onHit(target)` returns `true` to remove it or `false` to let it
-continue; each projectile can hit a target only once.
-
-### Adding a New Hero
-1. Create a new file in `public/hero-lab/heroes/my-hero.js`:
-   ```javascript
-   import { Hero } from '../bases/hero.js';
-   import { LightningBolt } from '../projectiles/lightning-bolt.js';
-
-   export class MyHero extends Hero {
-     constructor() {
-       super({
-         id: 'my_hero',
-         name: 'My Hero',
-         emoji: '⚡',
-         hp: 110,
-         attack: 15,
-         defense: 6,
-         speed: 220,
-       });
-       this.weaponName = 'Lightning Wand';
-       this.skillName = 'Spark';
-       this.ultimateName = 'Thunderstorm';
-     }
-
-     fire(mode) {
-       if (mode !== 'primary') return null;
-       return new LightningBolt({
-         x: this.position.x + this.aim.x * 24,
-         y: this.position.y + this.aim.y * 24,
-         aim: this.aim,
-       });
-     }
-
-     skill() {
-       return `${this.name} used Spark`;
-     }
-
-     ultimate() {
-       return `${this.name} used Thunderstorm`;
-     }
-   }
-
-   export const myHero = new MyHero();
-   export default myHero;
-   ```
-2. Register the hero class and an instance in [`public/hero-lab/hero-list.js`](file:///c:/Users/William/Documents/GitHub/QuizQuest/public/hero-lab/hero-list.js). The instance appears in the selector; the server uses the class to create a separate hero for each player.
-
-### Adding a New Projectile Type
-1. Create a class in `public/hero-lab/projectiles/` extending `Projectile` from `../bases/projectile.js`. Set its own defaults, including projectile speed.
-2. Implement custom `.draw(context)` for visual effects (e.g. trails, glow, particle emitters).
-3. Return `new LightningBolt({ x, y, aim: this.aim })` from the hero's `fire(mode)` method. The server assigns its ID and adds the returned instance to the world.
-
----
-
-## Automated Tests
-
-Run the backend unit tests:
-```bash
-node --test test/hero-lab-test.js
-```
-
-Run the end-to-end Playwright browser tests:
-```bash
-node --test --test-name-pattern=hero test/browser.test.cjs
-```
+The former Class World's quiz gathering and raid backend remains in `src/world/world.js` for quiz functionality. The student navigation now opens Campfire Defense as **World**.

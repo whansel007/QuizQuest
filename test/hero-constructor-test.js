@@ -65,48 +65,26 @@ test('Hero damage cooldown is per instance and health cannot fall below zero', a
   }
 });
 
-test('Hero subclasses own their skill, ultimate, and projectile behavior', async () => {
-  const { HEROES, HERO_CLASSES } = await import('../public/hero-lab/hero-list.js');
-  const flamekeeper = HEROES.find((hero) => hero.id === 'flamekeeper');
-
-  assert.equal(flamekeeper.skillName, 'Firebolt');
-  assert.equal(flamekeeper.ultimateName, 'Meteor Strike');
-  assert.equal(typeof flamekeeper.skill, 'function');
-  assert.equal(typeof flamekeeper.ultimate, 'function');
-  assert.deepEqual(flamekeeper.skill(), {
-    type: 'dash',
-    direction: { x: 1, y: 0 },
-    distance: 180,
-  });
-  const { Fireball } = await import('../public/hero-lab/projectiles/fireball.js');
-  assert.ok(flamekeeper.ultimate(Date.now()) instanceof Fireball);
-  assert.equal(typeof flamekeeper.use, 'undefined');
-  const projectile = flamekeeper.fire('primary');
-  assert.ok(projectile instanceof Fireball);
-  assert.equal(projectile.type, 'fireball');
-  assert.equal(projectile.color, '#ff2d20');
-  assert.equal(projectile.radius, 10);
-  assert.equal(projectile.speed, 550);
-  assert.equal(projectile.damage, 14);
-  assert.equal(projectile.vx, 550);
-  assert.equal(projectile.vy, 0);
-  assert.equal(flamekeeper.fire('secondary'), null);
-
-  const FirstFlamekeeper = HERO_CLASSES.flamekeeper;
-  const first = new FirstFlamekeeper();
-  const second = new FirstFlamekeeper();
+test('selected hero constructors create independent state and own their attacks', async () => {
+  const { Sheriff } = await import('../public/hero-lab/heroes/roster.js');
+  const first = new Sheriff();
+  const second = new Sheriff();
   first.hp = 1;
   assert.notEqual(first, second);
-  assert.equal(second.hp, 100);
+  assert.equal(second.hp, 105);
+  assert.equal(first.fire().speed, 980);
 });
 
-test('the Phase 2 roster includes six configured Heroes alongside the two lab-only trials', async () => {
+test('the selectable roster contains exactly the six configured heroes', async () => {
   const { HEROES, HERO_CLASSES } = await import('../public/hero-lab/hero-list.js');
   const ids = HEROES.map((hero) => hero.id);
-  for (const id of ['sheriff', 'guardian', 'pilot', 'bombardier', 'bubbles', 'electromancer', 'flamekeeper', 'ranger']) {
+  assert.deepEqual(new Set(ids), new Set(['sheriff', 'guardian', 'pilot', 'bombardier', 'bubbles', 'electromancer']));
+  for (const id of ids) {
     assert.ok(ids.includes(id), `${id} is selectable in Hero Lab`);
     assert.equal(typeof HERO_CLASSES[id], 'function');
   }
+  assert.equal(HERO_CLASSES.flamekeeper, undefined);
+  assert.equal(HERO_CLASSES.ranger, undefined);
   const { Sheriff, Guardian, Pilot, Bombardier, Bubbles, Electromancer } = await import('../public/hero-lab/heroes/roster.js');
   for (const HeroClass of [Sheriff, Guardian, Pilot, Bombardier, Bubbles, Electromancer]) {
     const hero = new HeroClass();
@@ -117,4 +95,22 @@ test('the Phase 2 roster includes six configured Heroes alongside the two lab-on
   }
   assert.equal(new Sheriff().fire().speed, 980);
   assert.equal(new Electromancer().fire().piercesRemaining, 2);
+  assert.equal(new Pilot().fire().length, 7);
+  assert.equal(new Bombardier().cooldowns.weapon.durationMs, 1050, 'Bombardier keeps its primary cooldown');
+  assert.equal(new Bubbles().talent.name, 'Finisher');
+});
+
+test('Skeleton pauses to fire at a hero, then resumes walking toward the campfire', async () => {
+  const { Skeleton } = await import('../public/hero-lab/enemies/skeleton.js');
+  const skeleton = new Skeleton({ id: 'skeleton-test', x: 100, y: 100 });
+  skeleton.nextShotAt = 1000;
+  const campfire = { x: 400, y: 100, radius: 20, hp: 100 };
+  const target = { x: 200, y: 100, hero: { damage: () => 0 } };
+  const shot = skeleton.update(1 / 30, campfire, target, 1000);
+  assert.equal(shot.kind, 'enemy');
+  const stoppedX = skeleton.x;
+  assert.equal(skeleton.update(1 / 30, campfire, target, 1200), null);
+  assert.equal(skeleton.x, stoppedX, 'the skeleton stays stopped during its firing pause');
+  skeleton.update(1 / 30, campfire, target, 1600);
+  assert.ok(skeleton.x > stoppedX, 'the skeleton resumes toward the campfire');
 });

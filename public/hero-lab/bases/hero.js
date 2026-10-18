@@ -15,6 +15,8 @@ export class Hero {
     weaponName = 'Weapon',
     skillName = 'Skill',
     ultimateName = 'Ultimate',
+    talent = { name: 'Field Ready', description: 'Uses the hero’s standard combat skills.' },
+    rarity = 'rare',
     weaponCooldownMs = GAME_CONFIG.combat.weaponCooldownMs,
     skillCooldownMs = GAME_CONFIG.combat.skillCooldownMs,
     ultimateCooldownMs = GAME_CONFIG.combat.ultimateCooldownMs,
@@ -30,6 +32,8 @@ export class Hero {
     this.weaponName = weaponName;
     this.skillName = skillName;
     this.ultimateName = ultimateName;
+    this.talent = talent;
+    this.rarity = rarity;
 
     // Stats
     this.maxHp = hp;
