@@ -154,6 +154,47 @@ test('projectile onHit return value controls removal and a piercing projectile c
   assert.ok(!stateAfterSecondHit.projectiles.some((item) => item.id === projectile.id));
 });
 
+test('hero defense has a minimum damage floor, timed invulnerability, and ability cooldowns', async () => {
+  const { Hero } = await import('../public/hero-lab/bases/hero.js');
+  const hero = new Hero({ id: 'test', defense: 9 });
+  assert.equal(hero.damage(20, 10_000), 11);
+  assert.equal(hero.damage(20, 10_500), 0, 'damage cooldown prevents rapid repeated hits');
+  assert.equal(hero.damage(2, 11_001), 1, 'defense cannot reduce damage below the configured floor');
+
+  const protectedHero = new Hero({ id: 'protected' });
+  protectedHero.makeInvulnerable(1000, 20_000);
+  assert.equal(protectedHero.damage(20, 20_500), 0);
+  assert.equal(protectedHero.damage(20, 21_001), 15);
+  assert.equal(protectedHero.canUseAbility('skill', 30_000), true);
+  assert.equal(protectedHero.useAbility('skill', 30_000), true);
+  assert.equal(protectedHero.canUseAbility('skill', 34_999), false);
+  assert.equal(protectedHero.canUseAbility('skill', 35_000), true);
+});
+
+test('projectiles disappear on one hit by default and piercing is opt-in', async () => {
+  const { Projectile } = await import('../public/hero-lab/bases/projectile.js');
+  assert.equal(new Projectile().onHit(), true);
+  assert.equal(new Projectile({ piercing: true }).onHit(), false);
+});
+
+test('enemy projectiles use server-side defense when they hit a hero', async (t) => {
+  const client = await connectClient();
+  t.after(() => client.disconnect());
+  const welcomePromise = new Promise((resolve) => client.once('welcome', resolve));
+  client.emit('join', { heroId: 'flamekeeper' });
+  const { you: clientId } = await welcomePromise;
+  await nextState(client, (state) => state.players.some((player) => player.id === clientId));
+
+  const player = server.heroLab.players.get(clientId);
+  const before = player.hero.hp;
+  const { EnemyProjectile } = await import('../public/hero-lab/projectiles/enemy-projectile.js');
+  const bullet = new EnemyProjectile({ x: player.x, y: player.y, speed: 0, damage: 10 });
+  server.heroLab.projectiles.set('test-enemy-projectile', bullet);
+  const after = await nextState(client, (state) => state.players.find((candidate) => candidate.id === clientId)?.hp < before);
+  assert.equal(after.players.find((candidate) => candidate.id === clientId).hp, before - 5);
+  assert.ok(!after.projectiles.some((projectile) => projectile.id === 'test-enemy-projectile'));
+});
+
 test('Hero Lab server maintains campfire in the middle and spawns zombie monsters', async (t) => {
   const client = await connectClient();
   t.after(() => client.disconnect());

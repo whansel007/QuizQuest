@@ -1,11 +1,19 @@
 import { HEROES } from './hero-list.js';
 import { Fireball } from './projectiles/fireball.js';
+import { EnemyProjectile } from './projectiles/enemy-projectile.js';
+import { GAME_CONFIG } from './game-config.js';
 
 const canvas = document.querySelector('#world');
 const context = canvas.getContext('2d');
 const connectionStatus = document.querySelector('#connection-status');
-const waveStatus = document.querySelector('#wave-status');
-const playerStatus = document.querySelector('#player-status');
+const waveNumber = document.querySelector('#wave-number');
+const waveDetails = document.querySelector('#wave-details');
+const heroName = document.querySelector('#hero-name');
+const healthFill = document.querySelector('#health-fill');
+const healthTrack = document.querySelector('.health-track');
+const healthValue = document.querySelector('#health-value');
+const infoButton = document.querySelector('#info-button');
+const statsPanel = document.querySelector('#stats-panel');
 const gameOverOverlay = document.querySelector('#game-over');
 const socket = window.io('/hero-lab');
 const heroId = new URLSearchParams(location.search).get('heroId');
@@ -19,13 +27,14 @@ const codeToKey = {
 };
 let me = null;
 let state = { players: [], projectiles: [], monsters: [], campfire: null, wave: null };
+let stateReceivedAt = performance.now();
 const clientProjectiles = new Map();
 const particles = [];
 const damageTexts = [];
 let lastTime = performance.now();
 
 socket.on('connect', () => {
-  connectionStatus.textContent = `Joining as ${selectedHero?.name ?? 'hero'}…`;
+  connectionStatus.textContent = 'Joining the field…';
   if (selectedHero) socket.emit('join', { heroId: selectedHero.id });
 });
 socket.on('connect_error', (error) => {
@@ -40,21 +49,16 @@ socket.on('disconnect', () => {
 });
 socket.on('welcome', (welcome) => {
   me = welcome.you;
-  connectionStatus.textContent = `Playing as ${selectedHero.name}. Move with WASD, aim with the mouse.`;
+  connectionStatus.textContent = 'Connected';
 });
 socket.on('state', (snapshot) => {
   state = snapshot;
-  if (waveStatus && snapshot.wave) {
-    waveStatus.textContent = snapshot.wave.nextWaveInMs > 0
-      ? `Wave ${snapshot.wave.number} complete · next wave in ${Math.ceil(snapshot.wave.nextWaveInMs / 1000)}s`
-      : `Wave ${snapshot.wave.number} · ${snapshot.wave.enemiesRemaining} enemies left`;
-  }
-  const player = snapshot.players?.find((candidate) => candidate.id === me);
-  if (playerStatus && player) {
-    const barrage = player.ultimateActive ? ' · BARRAGE' : '';
-    playerStatus.textContent = `${selectedHero.emoji} ${selectedHero.name} · HP ${player.hp}/${player.maxHp}${barrage}`;
-  }
+  stateReceivedAt = performance.now();
   if (Array.isArray(snapshot.projectiles)) {
+    const active = new Set(snapshot.projectiles.map((projectile) => projectile.id));
+    for (const id of clientProjectiles.keys()) {
+      if (!active.has(id)) clientProjectiles.delete(id);
+    }
     for (const proj of snapshot.projectiles) {
       addOrUpdateProjectile(proj);
     }
@@ -142,7 +146,8 @@ function addOrUpdateProjectile(data) {
     existing.vy = data.vy;
     return;
   }
-  const projectile = new Fireball({
+  const ProjectileClass = data.kind === 'enemy' ? EnemyProjectile : Fireball;
+  const projectile = new ProjectileClass({
     id: data.id,
     x: data.x,
     y: data.y,
@@ -213,7 +218,63 @@ function onKeyDown(event) {
     socket.emit('skill');
   } else if (event.code === 'KeyQ' && !event.repeat) {
     socket.emit('ultimate');
+  } else if (event.code === 'KeyI' && !event.repeat) {
+    toggleStats();
   }
+}
+
+function toggleStats() {
+  const open = statsPanel.hidden;
+  statsPanel.hidden = !open;
+  infoButton.setAttribute('aria-expanded', String(open));
+}
+
+infoButton.addEventListener('click', toggleStats);
+
+function updateHud(timestamp = performance.now()) {
+  const player = state.players?.find((candidate) => candidate.id === me);
+  if (state.wave && waveNumber && waveDetails) {
+    waveNumber.textContent = `Wave ${state.wave.number || 1}`;
+    if (state.wave.nextWaveInMs > 0) {
+      const remaining = Math.max(0, state.wave.nextWaveInMs - (timestamp - stateReceivedAt));
+      waveDetails.textContent = remaining > 300
+        ? `Wave cleared · Next wave in ${Math.ceil(remaining / 1000)}s`
+        : 'Next wave starting…';
+    } else {
+      waveDetails.textContent = `Enemies left: ${state.wave.enemiesRemaining}`;
+    }
+  }
+  if (!player) return;
+
+  heroName.textContent = `${player.emoji} ${player.name}`;
+  const hpRatio = player.maxHp > 0 ? Math.max(0, Math.min(1, player.hp / player.maxHp)) : 0;
+  healthFill.style.width = `${hpRatio * 100}%`;
+  healthFill.style.background = hpRatio <= .25 ? '#ef5350' : hpRatio <= .55 ? '#ffb74d' : '#64d985';
+  healthTrack.setAttribute('aria-valuemax', String(player.maxHp));
+  healthTrack.setAttribute('aria-valuenow', String(player.hp));
+  healthValue.textContent = `${player.hp} / ${player.maxHp}`;
+
+  const color = GAME_CONFIG.hud[player.type] || GAME_CONFIG.hud.physical;
+  document.querySelectorAll('.ability[data-ability]').forEach((element) => {
+    const id = element.dataset.ability;
+    const data = player.abilities?.[id];
+    const circle = element.querySelector('.ability-circle');
+    const name = element.querySelector('.ability-name');
+    if (!data) return;
+    name.textContent = data.name || id;
+    element.dataset.type = player.type || 'physical';
+    circle.style.setProperty('--fill-color', color);
+    const elapsedMs = Math.max(0, timestamp - stateReceivedAt);
+    const remaining = Math.max(0, data.remainingMs - elapsedMs);
+    const fill = data.durationMs > 0 ? Math.max(0, Math.min(100, (1 - remaining / data.durationMs) * 100)) : 100;
+    circle.style.setProperty('--fill', `${fill}%`);
+    circle.classList.toggle('ready', remaining <= 0);
+  });
+
+  document.querySelector('#stat-health').textContent = `${player.hp} / ${player.maxHp}`;
+  document.querySelector('#stat-attack').textContent = String(player.attack);
+  document.querySelector('#stat-defense').textContent = String(player.defense);
+  document.querySelector('#stat-speed').textContent = String(player.speed);
 }
 
 function onKeyUp(event) {
@@ -235,14 +296,12 @@ function onPointerDown(event) {
   }
   if (event.button === 0) {
     fireWeapon('primary');
-  } else if (event.button === 2) {
-    event.preventDefault();
-    fireWeapon('secondary');
   }
 }
 
 function draw(timestamp) {
   requestAnimationFrame(draw);
+  updateHud(timestamp);
   const currentTime = timestamp || performance.now();
   const dt = Math.min((currentTime - lastTime) / 1000, 0.1);
   lastTime = currentTime;
@@ -260,7 +319,13 @@ function draw(timestamp) {
   context.strokeRect(0.5, 0.5, canvas.width - 1, canvas.height - 1);
 
   // 1. Draw Campfire in the middle
-  const cf = state.campfire || { x: 960, y: 540, radius: 28, hp: 100, maxHp: 100 };
+  const cf = state.campfire || {
+    x: GAME_CONFIG.arena.width / 2,
+    y: GAME_CONFIG.arena.height / 2,
+    radius: GAME_CONFIG.campfire.radius,
+    hp: GAME_CONFIG.campfire.hp,
+    maxHp: GAME_CONFIG.campfire.hp,
+  };
   if (cf) {
     if (cf.hp > 0) {
       const glowRadius = 90 + Math.sin(currentTime * 0.005) * 8;

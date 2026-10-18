@@ -51,7 +51,6 @@ onUnmounted(() => window.removeEventListener('message', returnToSelection));
     </template>
 
     <template v-else>
-      <button class="btn small hero-lab-exit" type="button" @click="selectedHero = null; gameUrl = ''">Choose another hero</button>
       <iframe
         :key="gameUrl"
         ref="gameFrame"
@@ -74,5 +73,4 @@ onUnmounted(() => window.removeEventListener('message', returnToSelection));
 .hero-lab-card:hover { border-color: var(--accent); transform: translateY(-2px); }
 .hero-lab-name { font-size: 20px; }
 .hero-lab-frame { position: fixed; z-index: 10; inset: 0; display: block; width: 100vw; height: 100vh; border: 0; border-radius: 0; background: #70a94f; }
-.hero-lab-exit { position: fixed; z-index: 11; top: 12px; right: 12px; }
 </style>

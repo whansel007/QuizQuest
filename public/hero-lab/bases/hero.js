@@ -1,4 +1,4 @@
-const DAMAGE_COOLDOWN_MS = 1000;
+import { GAME_CONFIG } from '../game-config.js';
 
 export class Hero {
   #lastDamageAt = Number.NEGATIVE_INFINITY;
@@ -7,10 +7,17 @@ export class Hero {
     id,
     name,
     emoji,
-    hp = 100,
-    attack = 10,
-    defense = 5,
-    speed = 220,
+    hp = GAME_CONFIG.heroDefaults.hp,
+    attack = GAME_CONFIG.heroDefaults.attack,
+    defense = GAME_CONFIG.heroDefaults.defense,
+    speed = GAME_CONFIG.heroDefaults.speed,
+    type = 'physical',
+    weaponName = 'Weapon',
+    skillName = 'Skill',
+    ultimateName = 'Ultimate',
+    weaponCooldownMs = GAME_CONFIG.combat.weaponCooldownMs,
+    skillCooldownMs = GAME_CONFIG.combat.skillCooldownMs,
+    ultimateCooldownMs = GAME_CONFIG.combat.ultimateCooldownMs,
     position = { x: 400, y: 250 },
     aim = { x: 1, y: 0 },
   } = {}) {
@@ -18,6 +25,11 @@ export class Hero {
     this.id = id;
     this.name = name;
     this.emoji = emoji;
+    this.visual = emoji; // swap this one field for sprite rendering later
+    this.type = type;
+    this.weaponName = weaponName;
+    this.skillName = skillName;
+    this.ultimateName = ultimateName;
 
     // Stats
     this.maxHp = hp;
@@ -27,16 +39,37 @@ export class Hero {
     this.speed = speed;
     this.position = position;
     this.aim = aim;
+    this.cooldowns = {
+      weapon: { durationMs: weaponCooldownMs, readyAt: 0 },
+      skill: { durationMs: skillCooldownMs, readyAt: 0 },
+      ultimate: { durationMs: ultimateCooldownMs, readyAt: 0 },
+    };
+    this.invulnerableUntil = 0;
   }
 
-  damage(amount) {
-    if (!Number.isFinite(amount) || amount <= 0 || this.hp <= 0) return 0;
+  canUseAbility(name, now = Date.now()) {
+    const ability = this.cooldowns[name];
+    return !!ability && now >= ability.readyAt;
+  }
 
-    const now = Date.now();
-    if (now - this.#lastDamageAt < DAMAGE_COOLDOWN_MS) return 0;
+  useAbility(name, now = Date.now(), durationMs = null) {
+    const ability = this.cooldowns[name];
+    if (!ability || !this.canUseAbility(name, now)) return false;
+    ability.readyAt = now + (durationMs ?? ability.durationMs);
+    return true;
+  }
+
+  makeInvulnerable(durationMs, now = Date.now()) {
+    this.invulnerableUntil = Math.max(this.invulnerableUntil, now + Math.max(0, durationMs));
+  }
+
+  damage(amount, now = Date.now()) {
+    if (!Number.isFinite(amount) || amount <= 0 || this.hp <= 0) return 0;
+    if (now < this.invulnerableUntil || now - this.#lastDamageAt < GAME_CONFIG.combat.damageIFrameMs) return 0;
 
     const previousHp = this.hp;
-    this.hp = Math.max(0, this.hp - amount);
+    const applied = Math.max(GAME_CONFIG.combat.minimumDamage, amount - this.defense);
+    this.hp = Math.max(0, this.hp - applied);
     this.#lastDamageAt = now;
     return previousHp - this.hp;
   }

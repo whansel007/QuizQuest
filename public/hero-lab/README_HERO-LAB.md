@@ -34,9 +34,9 @@ npm start
 | :--- | :--- | :--- |
 | **Move** | `W`, `A`, `S`, `D` or Arrow Keys | Moves your hero smoothly around the arena (bounded by arena walls) |
 | **Aim** | Mouse Pointer | Directs your hero's aim pointer towards the mouse position |
-| **Primary Fire** | Left Mouse Click | Flamekeeper fires a Fireball, with a one-second cooldown |
+| **Weapon** | Left Mouse Click (`M1`) | Fires once per click; the server enforces its cooldown |
 | **Skill** | `E` | Flamekeeper dashes 180 pixels in the aimed direction |
-| **Ultimate** | `Q` | Fires a five-second barrage, one fireball every 500 ms |
+| **Ultimate** | `Q` | Flamekeeper launches a stronger Meteor Strike projectile |
 
 ---
 
@@ -71,7 +71,9 @@ public/hero-lab/
 ├── world.js                # Full-page world renderer and input handling
 ├── index.html              # Hero selector page
 ├── world.html              # Full-page game world
-└── README.md               # Documentation
+├── game-config.js          # Combat tuning, hero stats, wave settings and HUD colors
+├── HOW_THIS_WORKS.md       # Plain-language guide and playtest steps
+└── README_HERO-LAB.md      # Detailed reference
 ```
 
 ### Authoritative Server Backend
@@ -80,6 +82,10 @@ public/hero-lab/
 ---
 
 ## Gameplay Mechanics
+
+For the current plain-language guide and exact playtest steps, see
+[`HOW_THIS_WORKS.md`](./HOW_THIS_WORKS.md). Tunable combat values are in
+[`game-config.js`](./game-config.js).
 
 1. **The Campfire**:
    - Positioned in the center of the 1920 × 1080 arena `(960, 540)` with 100 HP.
@@ -101,7 +107,8 @@ public/hero-lab/
 
 3. **Authoritative Combat**:
    - The client sends a fire request; the server calls the selected hero's `fire()` method and creates any projectile.
-   - The Flamekeeper's **Ember Staff** launches blazing red fireballs in the aimed direction.
+   - The Flamekeeper's **Ember Staff** launches a fireball toward the aim direction.
+   - Defense reduces incoming damage with a one-point minimum; ability cooldowns are server-owned.
    - Projectile collisions are evaluated by the server, which broadcasts `hit` and `monster_killed` events.
    - Floating damage numbers (`-10`) and particle sparks burst when monsters are struck.
 
@@ -113,13 +120,13 @@ public/hero-lab/
 - **`join`** `{ heroId: string }`: Selects a hero and spawns into the field.
 - **`input`** `{ up: boolean, down: boolean, left: boolean, right: boolean }`: Sends directional key state.
 - **`aim`** `{ x: number, y: number }`: Sends normalized aim vector.
-- **`fire`** `'primary' | 'secondary'`: Requests weapon firing; the server creates and broadcasts any projectile.
+- **`fire`** `'primary'`: Requests one weapon shot; the server checks the cooldown and creates any projectile.
 - **`skill`**: Requests the selected hero's skill.
 - **`ultimate`**: Activates the selected hero's ultimate.
 
 ### Server to Client
 - **`welcome`** `{ you: socketId, arena: { width, height } }`: Initial handshake upon joining.
-- **`state`** `{ wave, campfire, monsters, players, projectiles }`: Broadcast 30 times per second with authoritative world state.
+- **`state`** `{ wave, campfire, monsters, players, projectiles }`: Broadcast 30 times per second with authoritative world state, live stats and remaining ability cooldowns.
 - **`hit`** `{ type, id, x, y, damage }`: Emitted when an entity is damaged.
 - **`monster_killed`** `{ id, x, y }`: Emitted when an enemy's health reaches zero.
 - **`game_over`**: Sent to a player when their hero dies.

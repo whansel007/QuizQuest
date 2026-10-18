@@ -4,26 +4,39 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Hero Lab World</title>
-  <style>
-    * { box-sizing: border-box; }
-    html, body { width: 100%; height: 100%; margin: 0; overflow: hidden; background: #70a94f; font: 15px/1.4 system-ui, sans-serif; }
-    #world { position: fixed; top: 50%; left: 50%; display: block; width: min(100vw, 177.78vh); height: auto; aspect-ratio: 16 / 9; transform: translate(-50%, -50%); }
-    #hud { position: fixed; z-index: 1; top: 1rem; left: 1rem; display: grid; gap: .35rem; padding: .75rem 1rem; color: #fff; background: rgb(17 24 39 / 82%); border: 1px solid rgb(255 255 255 / 25%); border-radius: .75rem; pointer-events: none; }
-    #connection-status { color: #d1d5db; font-size: .85rem; }
-    #controls { position: fixed; z-index: 1; right: 1rem; bottom: 1rem; margin: 0; padding: .55rem .8rem; color: #fff; background: rgb(17 24 39 / 75%); border-radius: .5rem; pointer-events: none; }
-    #game-over { position: fixed; z-index: 2; inset: 0; display: grid; place-content: center; gap: .5rem; color: #fff; text-align: center; background: rgb(17 24 39 / 88%); }
-    #game-over[hidden] { display: none; }
-    #game-over h1, #game-over p { margin: 0; }
-  </style>
+  <link rel="stylesheet" href="/hero-lab/hud.css">
 </head>
 <body>
   <canvas id="world" width="1920" height="1080" aria-label="Hero Lab World game arena"></canvas>
-  <aside id="hud" aria-live="polite">
-    <strong id="player-status">Joining the world…</strong>
-    <strong id="wave-status">Starting wave…</strong>
+  <aside id="hero-hud" aria-live="polite">
+    <strong id="hero-name">Joining the world…</strong>
+    <div class="health-row">
+      <div class="health-track" role="meter" aria-label="Hero health" aria-valuemin="0" aria-valuemax="100" aria-valuenow="100"><span id="health-fill"></span></div>
+      <span id="health-value">-- / --</span>
+    </div>
+  </aside>
+  <aside id="wave-hud" aria-live="polite">
+    <strong id="wave-number">Wave 1</strong>
+    <span id="wave-details">Enemies left: --</span>
+  </aside>
+  <aside id="bottom-left-hud">
+    <button id="info-button" type="button" aria-expanded="false" aria-controls="stats-panel">
+      <span class="ability-circle info-circle">I</span><span>Information</span>
+    </button>
+    <section id="stats-panel" hidden aria-label="Current hero stats">
+      <strong>Current stats</strong>
+      <span>Health <b id="stat-health">--</b></span>
+      <span>Attack <b id="stat-attack">--</b></span>
+      <span>Defense <b id="stat-defense">--</b></span>
+      <span>Speed <b id="stat-speed">--</b></span>
+    </section>
     <span id="connection-status" role="status">Connecting…</span>
   </aside>
-  <p id="controls">WASD / arrows: move · Mouse: aim · Left click: fire · E: dash · Q: ultimate barrage</p>
+  <aside id="ability-hud" aria-label="Hero abilities">
+    <div class="ability" data-ability="weapon"><span class="ability-circle"><span class="ability-key">M1</span></span><span class="ability-name">Weapon</span></div>
+    <div class="ability" data-ability="skill"><span class="ability-circle"><span class="ability-key">E</span></span><span class="ability-name">Skill</span></div>
+    <div class="ability" data-ability="ultimate"><span class="ability-circle"><span class="ability-key">Q</span></span><span class="ability-name">Ultimate</span></div>
+  </aside>
   <section id="game-over" hidden>
     <h1>Game over</h1>
     <p>Returning to hero selection…</p>

@@ -1,3 +1,5 @@
+import { GAME_CONFIG } from '../game-config.js';
+
 export class Projectile {
   constructor({
     id,
@@ -12,6 +14,9 @@ export class Projectile {
     color = '#ff2d20',
     damage = 10,
     speed = 0,
+    piercing = false,
+    lifetimeMs = GAME_CONFIG.combat.projectileMaxAgeMs,
+    kind = 'player',
     createdAt = Date.now(),
   } = {}) {
     this.id = id;
@@ -24,6 +29,9 @@ export class Projectile {
     this.radius = radius;
     this.color = color;
     this.damage = damage;
+    this.piercing = piercing === true;
+    this.kind = kind;
+    this.lifetimeMs = lifetimeMs;
     this.speed = speed;
     this.createdAt = createdAt;
     this.trail = [];
@@ -32,7 +40,7 @@ export class Projectile {
   }
 
   onHit() {
-    return true;
+    return !this.piercing;
   }
 
   update(dt, arena = { width: 1920, height: 1080 }) {
@@ -47,7 +55,7 @@ export class Projectile {
       this.x > arena.width + 40 ||
       this.y < -40 ||
       this.y > arena.height + 40 ||
-      Date.now() - this.createdAt > 3500
+      Date.now() - this.createdAt > this.lifetimeMs
     ) {
       this.dead = true;
     }

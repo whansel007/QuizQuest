@@ -1,12 +1,10 @@
 import { Projectile } from '../bases/projectile.js';
+import { GAME_CONFIG } from '../game-config.js';
 
 export class Fireball extends Projectile {
   constructor(options = {}) {
     super({
-      radius: 10,
-      color: '#ff2d20',
-      speed: 550,
-      damage: 10,
+      ...GAME_CONFIG.projectiles.fireball,
       ...options,
     });
     this.type = 'fireball';

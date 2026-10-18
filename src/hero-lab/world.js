@@ -1,14 +1,16 @@
 const { HERO_CLASSES } = require('../../public/hero-lab/hero-list.js');
+const { GAME_CONFIG } = require('../../public/hero-lab/game-config.js');
+const { Projectile } = require('../../public/hero-lab/bases/projectile.js');
 const { Zombie } = require('../../public/hero-lab/enemies/zombie.js');
 const { Devil } = require('../../public/hero-lab/enemies/devil.js');
 
-const ARENA_CONFIG = { width: 1920, height: 1080, radius: 24, tickHz: 30 };
-const SPAWNS = [
-  { x: 480, y: 540 },
-  { x: 1440, y: 540 },
-  { x: 960, y: 270 },
-  { x: 960, y: 810 },
-];
+const ARENA_CONFIG = {
+  width: GAME_CONFIG.arena.width,
+  height: GAME_CONFIG.arena.height,
+  radius: GAME_CONFIG.arena.playerRadius,
+  tickHz: GAME_CONFIG.arena.tickHz,
+};
+const SPAWNS = GAME_CONFIG.spawns;
 const MOVEMENT_KEYS = ['up', 'down', 'left', 'right'];
 const clamp = (value, min, max) => Math.min(max, Math.max(min, value));
 
@@ -27,15 +29,14 @@ function attachHeroLab(io) {
   let enemiesSpawnedThisWave = 0;
   let nextEnemyAt = 0;
   let nextWaveAt = 0;
-  const ENEMY_SPAWN_INTERVAL_MS = 700;
-  const WAVE_BREAK_MS = 5000;
+  const { enemySpawnIntervalMs: ENEMY_SPAWN_INTERVAL_MS, breakMs: WAVE_BREAK_MS } = GAME_CONFIG.waves;
 
   const campfire = {
     x: ARENA_CONFIG.width / 2,
     y: ARENA_CONFIG.height / 2,
-    radius: 28,
-    hp: 100,
-    maxHp: 100,
+    radius: GAME_CONFIG.campfire.radius,
+    hp: GAME_CONFIG.campfire.hp,
+    maxHp: GAME_CONFIG.campfire.hp,
   };
 
   function resetGame() {
@@ -52,7 +53,8 @@ function attachHeroLab(io) {
   function startWave(now) {
     waveNumber += 1;
     // Wave 1 has 8 enemies: 5 + waveNumber * (2 + waveNumber).
-    enemiesLeftToSpawn = 5 + waveNumber * (2 + waveNumber);
+    enemiesLeftToSpawn = GAME_CONFIG.waves.baseEnemies
+      + waveNumber * (GAME_CONFIG.waves.linearGrowth + GAME_CONFIG.waves.quadraticGrowth * waveNumber);
     enemiesSpawnedThisWave = 0;
     nextEnemyAt = now;
     nextWaveAt = 0;
@@ -67,21 +69,22 @@ function attachHeroLab(io) {
     let x = 0;
     let y = 0;
 
+    const margin = GAME_CONFIG.enemySpawnMargin;
     if (side === 0) {
       x = Math.random() * ARENA_CONFIG.width;
-      y = -35;
+      y = -margin;
     } else if (side === 1) {
       x = Math.random() * ARENA_CONFIG.width;
-      y = ARENA_CONFIG.height + 35;
+      y = ARENA_CONFIG.height + margin;
     } else if (side === 2) {
-      x = -35;
+      x = -margin;
       y = Math.random() * ARENA_CONFIG.height;
     } else {
-      x = ARENA_CONFIG.width + 35;
+      x = ARENA_CONFIG.width + margin;
       y = Math.random() * ARENA_CONFIG.height;
     }
 
-    const EnemyClass = enemiesSpawnedThisWave % 5 === 0 ? Devil : Zombie;
+    const EnemyClass = enemiesSpawnedThisWave % GAME_CONFIG.waves.devilEveryEnemies === 0 ? Devil : Zombie;
     const monster = new EnemyClass({
       id: `enemy_${monsterSeq}`,
       x,
@@ -172,10 +175,15 @@ function attachHeroLab(io) {
 
     socket.on('fire', (mode) => {
       const player = players.get(socket.id);
-      if (!player || !['primary', 'secondary'].includes(mode)) return;
+      if (!player || mode !== 'primary') return;
 
       syncHeroAimAndPosition(player);
-      addProjectile(player, player.hero.fire(mode));
+      const now = Date.now();
+      if (!player.hero.canUseAbility('weapon', now)) return;
+      const projectile = player.hero.fire(mode, now);
+      if (!projectile) return;
+      player.hero.useAbility('weapon', now);
+      addProjectile(player, projectile);
     });
 
     socket.on('skill', () => {
@@ -183,8 +191,13 @@ function attachHeroLab(io) {
       if (!player) return;
 
       syncHeroAimAndPosition(player);
+      const now = Date.now();
+      if (!player.hero.canUseAbility('skill', now)) return;
       const skill = player.hero.skill();
       if (skill?.type !== 'dash') return;
+
+      player.hero.useAbility('skill', now);
+      if (skill.invulnerableMs > 0) player.hero.makeInvulnerable(skill.invulnerableMs, now);
 
       player.x = clamp(
         player.x + skill.direction.x * skill.distance,
@@ -203,7 +216,12 @@ function attachHeroLab(io) {
       const player = players.get(socket.id);
       if (!player) return;
       syncHeroAimAndPosition(player);
-      player.hero.ultimate(Date.now());
+      const now = Date.now();
+      if (!player.hero.canUseAbility('ultimate', now)) return;
+      const result = player.hero.ultimate(now);
+      if (!result || (typeof result !== 'object' && result !== true)) return;
+      player.hero.useAbility('ultimate', now);
+      if (result instanceof Projectile) addProjectile(player, result);
     });
 
     socket.on('disconnect', () => {
@@ -238,14 +256,22 @@ function attachHeroLab(io) {
         emoji,
       })),
       players: [...players.values()].map(({ id, heroId, hero, name, emoji, x, y, aim }) => ({
-        id, heroId, name, emoji, x: Math.round(x), y: Math.round(y), aim: { ...aim },
-        hp: Math.max(0, Math.round(hero.hp)), maxHp: hero.maxHp, speed: hero.speed,
-        ultimateActive: hero.ultimateEndsAt > now,
+        id, heroId, name, emoji: hero.visual || emoji, type: hero.type, x: Math.round(x), y: Math.round(y), aim: { ...aim },
+        hp: Math.max(0, Math.round(hero.hp)), maxHp: hero.maxHp,
+        attack: hero.attack, defense: hero.defense, speed: hero.speed,
+        abilities: Object.fromEntries(Object.entries(hero.cooldowns).map(([key, cooldown]) => [key, {
+          name: key === 'weapon' ? hero.weaponName : key === 'skill' ? hero.skillName : hero.ultimateName,
+          durationMs: cooldown.durationMs,
+          readyAt: cooldown.readyAt,
+          remainingMs: Math.max(0, cooldown.readyAt - now),
+        }])),
+        invulnerable: hero.invulnerableUntil > now,
       })),
-      projectiles: [...projectiles.values()].map(({ id, ownerId, heroId, x, y, vx, vy, radius, color }) => ({
+      projectiles: [...projectiles.values()].map(({ id, ownerId, heroId, x, y, vx, vy, radius, color, kind }) => ({
         id,
         ownerId,
         heroId,
+        kind,
         x: Math.round(x * 10) / 10,
         y: Math.round(y * 10) / 10,
         vx,
@@ -316,26 +342,28 @@ function attachHeroLab(io) {
       }
     }
 
-    // 5. Collision: Projectiles vs Monsters
+    // 5. Projectiles have an explicit team. Player shots hit monsters;
+    // enemy shots hit heroes and still pass through the normal defense rules.
     for (const [pId, proj] of projectiles.entries()) {
+      if (proj.kind === 'enemy') {
+        for (const player of players.values()) {
+          if (!proj.collidesWith({ x: player.x, y: player.y, radius: ARENA_CONFIG.radius }) || proj.hitTargets.has(player.id)) continue;
+          proj.hitTargets.add(player.id);
+          const damage = player.hero.damage(proj.damage, now);
+          projectiles.delete(pId);
+          if (damage > 0) nsp.emit('player_hit', { id: player.id, x: player.x, y: player.y, damage });
+          break;
+        }
+        continue;
+      }
       for (const [mId, monster] of monsters.entries()) {
         if (proj.collidesWith(monster) && !proj.hitTargets.has(mId)) {
           const damage = monster.takeDamage(proj.damage);
           proj.hitTargets.add(mId);
-          nsp.emit('hit', {
-            type: 'monster',
-            id: mId,
-            x: monster.x,
-            y: monster.y,
-            damage,
-          });
+          nsp.emit('hit', { type: 'monster', id: mId, x: monster.x, y: monster.y, damage });
           if (monster.dead) {
             monsters.delete(mId);
-            nsp.emit('monster_killed', {
-              id: mId,
-              x: monster.x,
-              y: monster.y,
-            });
+            nsp.emit('monster_killed', { id: mId, x: monster.x, y: monster.y });
           }
           if (proj.onHit(monster)) projectiles.delete(pId);
           break;
@@ -343,13 +371,7 @@ function attachHeroLab(io) {
       }
     }
 
-    // 6. Let heroes run timed effects, such as Flamekeeper's ultimate barrage.
-    for (const player of players.values()) {
-      syncHeroAimAndPosition(player);
-      addProjectile(player, player.hero.update(now));
-    }
-
-    // 7. A dead hero is out of the shared game and returns to hero selection.
+    // 6. A dead hero is out of the shared game and returns to hero selection.
     for (const player of [...players.values()]) {
       if (player.hero.hp > 0) continue;
       nsp.to(player.id).emit('game_over');

@@ -1,4 +1,5 @@
 import { Hero } from '../bases/hero.js';
+import { GAME_CONFIG } from '../game-config.js';
 
 export class Guardian extends Hero {
   constructor() {
@@ -6,10 +7,7 @@ export class Guardian extends Hero {
       id: 'guardian',
       name: 'Guardian',
       emoji: '🛡️',
-      hp: 130,
-      attack: 10,
-      defense: 9,
-      speed: 180,
+      ...GAME_CONFIG.heroes.guardian,
     });
     this.weaponName = 'Iron Mace';
     this.skillName = 'Shield Rush';

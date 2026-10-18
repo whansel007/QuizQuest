@@ -24,7 +24,7 @@ test('Hero retains default combat stats when options are omitted', async () => {
   assert.equal(hero.speed, 220);
 });
 
-test('Hero applies damage at most once per shared cooldown interval', async () => {
+test('Hero applies defense-reduced damage at most once per cooldown interval', async () => {
   const { Hero } = await import('../public/hero-lab/bases/hero.js');
   const hero = new Hero({ hp: 100 });
   const originalNow = Date.now;
@@ -32,16 +32,16 @@ test('Hero applies damage at most once per shared cooldown interval', async () =
   Date.now = () => now;
 
   try {
-    assert.equal(hero.damage(10), 10);
-    assert.equal(hero.hp, 90);
+    assert.equal(hero.damage(10), 5);
+    assert.equal(hero.hp, 95);
 
     now += 999;
     assert.equal(hero.damage(10), 0);
-    assert.equal(hero.hp, 90);
+    assert.equal(hero.hp, 95);
 
     now += 1;
-    assert.equal(hero.damage(10), 10);
-    assert.equal(hero.hp, 80);
+    assert.equal(hero.damage(10), 5);
+    assert.equal(hero.hp, 90);
   } finally {
     Date.now = originalNow;
   }
@@ -55,11 +55,11 @@ test('Hero damage cooldown is per instance and health cannot fall below zero', a
   Date.now = () => 10_000;
 
   try {
-    assert.equal(first.damage(20), 20);
+    assert.equal(first.damage(20), 15);
     assert.equal(first.damage(1), 0);
-    assert.equal(second.damage(5), 5);
-    assert.equal(first.hp, 0);
-    assert.equal(second.hp, 15);
+    assert.equal(second.damage(5), 1);
+    assert.equal(first.hp, 5);
+    assert.equal(second.hp, 19);
   } finally {
     Date.now = originalNow;
   }
@@ -70,7 +70,7 @@ test('Hero subclasses own their skill, ultimate, and projectile behavior', async
   const flamekeeper = HEROES.find((hero) => hero.id === 'flamekeeper');
 
   assert.equal(flamekeeper.skillName, 'Firebolt');
-  assert.equal(flamekeeper.ultimateName, 'Meteor Storm');
+  assert.equal(flamekeeper.ultimateName, 'Meteor Strike');
   assert.equal(typeof flamekeeper.skill, 'function');
   assert.equal(typeof flamekeeper.ultimate, 'function');
   assert.deepEqual(flamekeeper.skill(), {
@@ -78,16 +78,16 @@ test('Hero subclasses own their skill, ultimate, and projectile behavior', async
     direction: { x: 1, y: 0 },
     distance: 180,
   });
-  assert.equal(flamekeeper.ultimate(Date.now()), true);
-  assert.equal(typeof flamekeeper.use, 'undefined');
   const { Fireball } = await import('../public/hero-lab/projectiles/fireball.js');
+  assert.ok(flamekeeper.ultimate(Date.now()) instanceof Fireball);
+  assert.equal(typeof flamekeeper.use, 'undefined');
   const projectile = flamekeeper.fire('primary');
   assert.ok(projectile instanceof Fireball);
   assert.equal(projectile.type, 'fireball');
   assert.equal(projectile.color, '#ff2d20');
   assert.equal(projectile.radius, 10);
   assert.equal(projectile.speed, 550);
-  assert.equal(projectile.damage, 10);
+  assert.equal(projectile.damage, 14);
   assert.equal(projectile.vx, 550);
   assert.equal(projectile.vy, 0);
   assert.equal(flamekeeper.fire('secondary'), null);

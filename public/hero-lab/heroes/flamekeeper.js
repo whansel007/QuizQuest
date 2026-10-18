@@ -1,5 +1,6 @@
 import { Hero } from '../bases/hero.js';
 import { Fireball } from '../projectiles/fireball.js';
+import { GAME_CONFIG } from '../game-config.js';
 
 export class Flamekeeper extends Hero {
   constructor() {
@@ -7,35 +8,33 @@ export class Flamekeeper extends Hero {
       id: 'flamekeeper',
       name: 'Flamekeeper',
       emoji: '🧙',
-      hp: 100,
-      attack: 14,
-      defense: 5,
-      speed: 220,
+      hp: GAME_CONFIG.heroes.flamekeeper.hp,
+      attack: GAME_CONFIG.heroes.flamekeeper.attack,
+      defense: GAME_CONFIG.heroes.flamekeeper.defense,
+      speed: GAME_CONFIG.heroes.flamekeeper.speed,
+      type: GAME_CONFIG.heroes.flamekeeper.type,
+      weaponName: 'Ember Staff',
+      skillName: 'Firebolt',
+      ultimateName: 'Meteor Strike',
+      weaponCooldownMs: GAME_CONFIG.heroes.flamekeeper.weaponCooldownMs,
+      skillCooldownMs: GAME_CONFIG.heroes.flamekeeper.skillCooldownMs,
+      ultimateCooldownMs: GAME_CONFIG.heroes.flamekeeper.ultimateCooldownMs,
     });
     this.weaponName = 'Ember Staff';
     this.skillName = 'Firebolt';
     this.skillDescription = 'a quick burst of fire in the aimed direction.';
-    this.ultimateName = 'Meteor Storm';
-    this.ultimateDescription = 'a large area attack around the aimed point.';
-    this.primaryCooldownMs = 1000;
-    this.primaryReadyAt = 0;
-    this.ultimateEndsAt = 0;
-    this.nextUltimateShotAt = 0;
-    this.ultimateDurationMs = 5000;
-    this.ultimateFireIntervalMs = 500;
-    this.dashDistance = 180;
+    this.ultimateDescription = 'launches one powerful fireball.';
+    this.dashDistance = GAME_CONFIG.heroes.flamekeeper.dashDistance;
   }
 
   fire(mode = 'primary', now = Date.now()) {
-    this.endUltimateIfExpired(now);
     if (mode !== 'primary') return null;
-    if (now < this.primaryReadyAt) return null;
-
-    this.primaryReadyAt = now + this.primaryCooldownMs;
     return new Fireball({
-      x: this.position.x + this.aim.x * 24,
-      y: this.position.y + this.aim.y * 24,
+      x: this.position.x + this.aim.x * GAME_CONFIG.weaponMuzzleOffset,
+      y: this.position.y + this.aim.y * GAME_CONFIG.weaponMuzzleOffset,
       aim: this.aim,
+      damage: this.attack,
+      damage: this.attack,
     });
   }
 
@@ -43,31 +42,16 @@ export class Flamekeeper extends Hero {
     return { type: 'dash', direction: { ...this.aim }, distance: this.dashDistance };
   }
 
-  ultimate(now = Date.now()) {
-    this.endUltimateIfExpired(now);
-    if (now < this.ultimateEndsAt) return false;
-    this.primaryCooldownMs = 0;
-    this.primaryReadyAt = now;
-    this.ultimateEndsAt = now + this.ultimateDurationMs;
-    this.nextUltimateShotAt = now + this.ultimateFireIntervalMs;
-    return true;
-  }
-
-  update(now = Date.now()) {
-    this.endUltimateIfExpired(now);
-
-    if (now < this.ultimateEndsAt && now >= this.nextUltimateShotAt) {
-      this.nextUltimateShotAt = now + this.ultimateFireIntervalMs;
-      return this.fire('primary', now);
-    }
-    return null;
-  }
-
-  endUltimateIfExpired(now) {
-    if (!this.ultimateEndsAt || now < this.ultimateEndsAt) return;
-    this.ultimateEndsAt = 0;
-    this.primaryCooldownMs = 1000;
-    this.primaryReadyAt = now + this.primaryCooldownMs;
+  ultimate() {
+    return new Fireball({
+      x: this.position.x + this.aim.x * GAME_CONFIG.weaponMuzzleOffset,
+      y: this.position.y + this.aim.y * GAME_CONFIG.weaponMuzzleOffset,
+      aim: this.aim,
+      damage: this.attack * GAME_CONFIG.heroes.flamekeeper.ultimateDamageMultiplier,
+      radius: 18,
+      color: '#b17cff',
+      speed: 420,
+    });
   }
 }
 

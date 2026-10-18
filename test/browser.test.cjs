@@ -89,44 +89,31 @@ test('login network errors show a retry button', async (t) => {
   await page.getByRole('button', { name: 'Student 01' }).waitFor();
 });
 
-test('hero lab selects heroes and allows movement, aiming, and action tests', async (t) => {
+test('Hero Lab HUD shows server state, cooldowns, and live stats', async (t) => {
   const page = await browser.newPage();
   t.after(() => page.close());
   await page.goto(`${base}/hero-lab`);
-  await page.getByRole('heading', { name: 'Hero test field' }).waitFor();
-  assert.equal(await page.getByRole('heading', { name: 'Hero stats' }).count(), 0);
-  await page.getByRole('button', { name: '🏹 Ranger' }).click();
-  await page.getByRole('heading', { name: 'Hero stats' }).waitFor();
-  await page.getByRole('button', { name: 'Test weapon' }).click();
-  await page.getByText(/Ranger tested Longbow/).waitFor();
-  await page.keyboard.press('e');
-  await page.getByText(/Ranger tested Volley/).waitFor();
-  await page.keyboard.press('q');
-  await page.getByText(/Ranger tested Starfall/).waitFor();
-  await page.getByRole('button', { name: 'Test talent' }).click();
-  await page.getByText(/Ranger tested Keen Eye/).waitFor();
-  const before = await page.locator('canvas').evaluate((canvas) => canvas.toDataURL());
-  await page.locator('canvas').hover({ position: { x: 200, y: 100 } });
-  await page.waitForTimeout(50);
-  const aimed = await page.locator('canvas').evaluate((canvas) => canvas.toDataURL());
-  assert.notEqual(aimed, before, 'aim arrow follows the pointer');
-  await page.keyboard.down('ArrowRight');
-  await page.waitForTimeout(100);
-  await page.keyboard.up('ArrowRight');
-  assert.notEqual(await page.locator('canvas').evaluate((canvas) => canvas.toDataURL()), aimed, 'hero moves in the world');
-  await page.getByRole('button', { name: '🛡️ Guardian' }).click();
-  await page.getByText(/Weapon: Iron Mace/).waitFor();
-  const consoleMessages = [];
-  page.on('console', (msg) => consoleMessages.push(msg.text()));
-  await page.getByRole('button', { name: 'Fullscreen' }).waitFor();
-  await page.locator('canvas').click({ button: 'left' });
-  await page.getByText(/Guardian activated primary fire/).waitFor();
-  await page.locator('canvas').click({ button: 'right' });
-  await page.getByText(/Guardian activated secondary fire/).waitFor();
-  assert.ok(consoleMessages.some((msg) => msg.includes('[Weapon] Primary fire status:')), 'logged primary fire status');
-  assert.ok(consoleMessages.some((msg) => msg.includes('[Weapon] Secondary fire status:')), 'logged secondary fire status');
-  await page.getByRole('button', { name: 'Test AI' }).click();
-  assert.ok(consoleMessages.some((msg) => msg.includes('[AI] Requesting multiple choice question from NVIDIA')), 'logged AI request initiation');
+  await page.getByRole('heading', { name: 'Hero Lab' }).waitFor();
+  await page.getByRole('button', { name: /Flamekeeper/ }).click();
+  await page.locator('#hero-name').getByText('Flamekeeper').waitFor();
+  await page.getByText('Wave 1', { exact: true }).waitFor();
+  await page.getByText(/^Enemies left: \d+$/).waitFor();
+  await page.locator('[data-ability="weapon"] .ability-name').getByText('Ember Staff').waitFor();
+  await page.locator('[data-ability="skill"] .ability-name').getByText('Firebolt').waitFor();
+  await page.locator('[data-ability="ultimate"] .ability-name').getByText('Meteor Strike').waitFor();
+
+  await page.keyboard.press('i');
+  await page.locator('#stats-panel:not([hidden])').waitFor();
+  await page.locator('#stat-attack').getByText('14', { exact: true }).waitFor();
+  await page.getByRole('button', { name: /Information/ }).click();
+  assert.equal(await page.locator('#stats-panel').evaluate((panel) => panel.hidden), true);
+
+  await page.locator('#world').click({ position: { x: 1200, y: 360 } });
+  await page.waitForFunction(() => {
+    const circle = document.querySelector('[data-ability="weapon"] .ability-circle');
+    return Number.parseFloat(circle?.style.getPropertyValue('--fill')) < 100;
+  });
+  assert.equal(await page.getByRole('button', { name: /Choose another hero/ }).count(), 0);
 });
 
 test('refreshing a timed quiz offers resume without resetting the server deadline', async (t) => {

@@ -1,17 +1,18 @@
 import { Enemy } from '../bases/enemy.js';
+import { GAME_CONFIG } from '../game-config.js';
 
 export class Devil extends Enemy {
   constructor(options = {}) {
     super({
       emoji: '😈',
-      hp: 35,
-      maxHp: 35,
-      speed: 95,
-      radius: 18,
-      damage: 12,
+      hp: GAME_CONFIG.enemies.devil.hp,
+      maxHp: GAME_CONFIG.enemies.devil.hp,
+      speed: GAME_CONFIG.enemies.devil.speed,
+      radius: GAME_CONFIG.enemies.devil.radius,
+      damage: GAME_CONFIG.enemies.devil.damage,
       ...options,
     });
-    this.attackCooldownMs = 1000;
+    this.attackCooldownMs = GAME_CONFIG.enemies.devil.attackCooldownMs;
     this.nextAttackAt = 0;
   }
 
