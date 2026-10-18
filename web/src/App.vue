@@ -46,6 +46,7 @@ const current = computed(() => {
       <template v-if="S.me">
         <span>{{ S.me.name }}</span>
         <button class="btn small" @click="signOut">Switch user</button>
+        <DebugMenu v-if="S.me.role === 'student'" :key="S.token" />
       </template>
     </div>
   </header>
@@ -58,7 +59,6 @@ const current = computed(() => {
     </template>
   </main>
   <div id="toast" role="status" aria-live="polite" :class="{ show: toastState.show, bad: toastState.bad }">{{ toastState.msg }}</div>
-  <DebugMenu v-if="S.me?.role === 'student'" :key="S.token" />
   <footer>
     Demo build with synthetic users and demo course content only. Do not enter real student data.
     · <a href="/tag">Circle Tag (the original multiplayer experiment)</a>

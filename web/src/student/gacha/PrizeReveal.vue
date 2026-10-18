@@ -1,32 +1,38 @@
 <script setup>
-// ============================================================
-// Prize reveal: the egg wobbles, cracks open in a burst of confetti,
-// and the pet appears in a slowly turning 3D collector's box. Click or
-// press a key to skip the wobble. A modal dialog: focus stays inside,
-// Escape closes, and the result is announced to screen readers.
-// ============================================================
+// Summon reveal: the egg wobbles, cracks open in a burst of confetti,
+// and the hero or resource appears in a slowly turning 3D collector's box.
 import { ref, computed, nextTick, onMounted, onUnmounted } from 'vue';
 import { RARITY } from './rarity.js';
 
 const props = defineProps({
-  result: { type: Object, required: true }, // { pet, duplicatePet, eggColour }
-  refund: { type: Number, required: true },
-  equipped: Boolean, // the prize pet is already the equipped one
+  result: { type: Object, required: true }, // server summon result plus eggColour
+  resources: { type: Object, required: true },
 });
-const emit = defineEmits(['close', 'equip']);
+const emit = defineEmits(['close']);
 
 const reduced = typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches;
 const stage = ref(reduced ? 'open' : 'egg');
-const pet = computed(() => props.result.pet);
-const announcement = computed(() =>
-  stage.value === 'open' ? `You got ${pet.value.name}, ${pet.value.rarity}. ${props.result.duplicatePet ? `Duplicate: ${props.refund} coins back.` : 'New pet!'}` : '',
-);
+const isHero = computed(() => props.result.prize.kind === 'hero');
+const item = computed(() => isHero.value ? props.result.prize.hero : props.resources[props.result.prize.resource]);
+const itemName = computed(() => item.value.name);
+const itemEmoji = computed(() => item.value.emoji);
+const rarity = computed(() => isHero.value ? props.result.prize.rarity : 'common');
+const rarityStars = computed(() => rarity.value === 'epic' ? '5★ Epic' : rarity.value === 'rare' ? '4★ Rare' : '3★ Common');
+const duplicate = computed(() => isHero.value && props.result.duplicateHero);
+const colors = {
+  common: ['#ffffff', '#c9d3e0', '#86efac', '#7dd3fc'],
+  rare: ['#8cc4ff', '#4f8df7', '#ffffff', '#c4b5fd'],
+  epic: ['#f5c84c', '#fff1b8', '#c77dff', '#ff8fab', '#ffffff'],
+};
+const announcement = computed(() => {
+  if (stage.value !== 'open') return '';
+  if (!isHero.value) return `You got ${props.result.prize.amount} ${itemName.value} for your kingdom.`;
+  return `You got ${itemName.value}, ${rarity.value}. ${duplicate.value ? `Duplicate: ${props.result.refund} coins back.` : 'New hero!'}`;
+});
 
-// confetti pieces, scattered once when the egg cracks
-const COLOURS = { common: ['#ffffff', '#c9d3e0', '#86efac', '#7dd3fc'], starter: ['#ffffff', '#c9d3e0'], rare: ['#8cc4ff', '#4f8df7', '#ffffff', '#c4b5fd'], epic: ['#f5c84c', '#fff1b8', '#c77dff', '#ff8fab', '#ffffff'] };
 const pieces = computed(() => {
-  const n = RARITY[pet.value.rarity]?.confetti || 40;
-  const cs = COLOURS[pet.value.rarity] || COLOURS.common;
+  const n = RARITY[rarity.value]?.confetti || 40;
+  const cs = colors[rarity.value] || colors.common;
   return Array.from({ length: n }, (_, i) => {
     const a = Math.random() * Math.PI * 2;
     const v = 120 + Math.random() * 220;
@@ -52,7 +58,6 @@ function onKey(e) {
   }
   if (e.key === 'Escape') emit('close');
   if (e.key === 'Tab') {
-    // keep focus inside the dialog
     const els = [...root.value.querySelectorAll('button')];
     const i = els.indexOf(document.activeElement);
     const next = els[(i + (e.shiftKey ? -1 : 1) + els.length) % els.length];
@@ -77,10 +82,10 @@ onUnmounted(() => {
 
 <template>
   <Teleport to="body">
-    <div ref="root" class="prize" :class="['is-' + stage, pet.rarity]" role="dialog" aria-modal="true" aria-labelledby="prize-title" tabindex="-1" @click="crack" @keydown="onKey">
+    <div ref="root" class="prize" :class="['is-' + stage, rarity]" role="dialog" aria-modal="true" aria-labelledby="prize-title" tabindex="-1" @click="crack" @keydown="onKey">
       <div class="prize-rays" aria-hidden="true"></div>
       <div class="prize-stage">
-        <div class="prize-egg" :class="{ cracked: stage === 'open' }" :style="{ '--c': result.eggColour }" aria-hidden="true">
+        <div class="prize-egg" :class="{ cracked: stage === 'open' }" :style="{ '--c': result.eggColour || '#c4b5fd' }" aria-hidden="true">
           <span class="egg shell top"></span>
           <span class="egg shell bottom"></span>
         </div>
@@ -93,13 +98,13 @@ onUnmounted(() => {
             <div class="prize-spin">
               <div class="prize-box">
                 <div class="face front">
-                  <div class="pb-head"><span>QUIZQUEST</span><span>{{ pet.rarity }}</span></div>
-                  <div class="pb-window"><span class="pb-pet">{{ pet.emoji }}</span></div>
-                  <div class="pb-name">{{ pet.name }}</div>
+                  <div class="pb-head"><span>QUIZQUEST</span><span>{{ rarity }}</span></div>
+                  <div class="pb-window"><span class="pb-pet">{{ itemEmoji }}</span></div>
+                  <div class="pb-name">{{ itemName }}</div>
                 </div>
                 <div class="face back"><span>QUIZQUEST</span></div>
-                <div class="face side right"><span>QUIZQUEST · {{ pet.rarity }}</span></div>
-                <div class="face side left"><span>QUIZQUEST · {{ pet.rarity }}</span></div>
+                <div class="face side right"><span>QUIZQUEST · {{ rarity }}</span></div>
+                <div class="face side left"><span>QUIZQUEST · {{ rarity }}</span></div>
                 <div class="face cap top"></div>
                 <div class="face cap bottom"></div>
               </div>
@@ -109,21 +114,23 @@ onUnmounted(() => {
       </div>
       <div class="prize-info">
         <template v-if="stage === 'open'">
-          <h2 id="prize-title">{{ pet.emoji }} {{ pet.name }}</h2>
+          <h2 id="prize-title">{{ itemEmoji }} {{ itemName }}</h2>
           <div class="prize-tags">
-            <span class="prize-tag rarity-tag">{{ pet.rarity }}</span>
-            <span v-if="result.duplicatePet" class="prize-tag">Duplicate · +{{ refund }} 🪙 back</span>
-            <span v-else class="prize-tag new">New!</span>
+            <span class="prize-tag rarity-tag">{{ rarityStars }}</span>
+            <span v-if="duplicate" class="prize-tag">Duplicate · +{{ result.refund }} 🪙 back</span>
+            <span v-else-if="isHero" class="prize-tag new">New hero!</span>
+            <span v-else class="prize-tag new">+{{ result.prize.amount }} {{ itemName }}</span>
           </div>
-          <p class="prize-move">Move: {{ pet.move }}</p>
+          <p v-if="isHero" class="prize-move">{{ item.type }} hero · {{ item.weapon }}</p>
+          <p v-else class="prize-move">Added to your kingdom resources</p>
+          <p class="prize-move pity-line">{{ result.pity.totalPulls }} total pulls · pity {{ result.pity.sinceHero }} / {{ result.pity.sinceEpic }}</p>
           <div class="prize-actions" @click.stop>
-            <button v-if="!equipped" type="button" class="btn" @click="emit('equip')">Equip {{ pet.name }}</button>
-            <button ref="collectBtn" type="button" class="btn primary" @click="emit('close')">{{ result.duplicatePet ? 'OK' : 'Add to collection' }}</button>
+            <button ref="collectBtn" type="button" class="btn primary" @click="emit('close')">Continue</button>
           </div>
         </template>
         <template v-else>
-          <h2 id="prize-title">Opening your egg…</h2>
-          <p class="prize-move">Click or press any key to open it now</p>
+          <h2 id="prize-title">A summon is on its way…</h2>
+          <p class="prize-move">Click or press any key to open the egg now</p>
         </template>
       </div>
       <p class="sr-only" aria-live="assertive">{{ announcement }}</p>

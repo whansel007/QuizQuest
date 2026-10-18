@@ -87,13 +87,13 @@ test('Hero Lab server fires and broadcasts the selected hero projectile in the a
   const spawned = snapshot.projectiles.find((projectile) => projectile.ownerId === clientId);
   assert.ok(spawned);
   assert.equal(spawned.heroId, 'sheriff');
-  assert.equal(spawned.color, '#ffe34f');
+  assert.equal(spawned.color, '#f5c84c');
   assert.equal(spawned.radius, 5);
   assert.ok(spawned.vy > 0, 'projectile moves in the aimed y direction');
 
   const proj = snapshot.projectiles.find((p) => p.id === spawned.id);
   assert.ok(proj, 'projectile appears in broadcast state');
-  assert.equal(proj.color, '#ffe34f');
+  assert.equal(proj.color, '#f5c84c');
 });
 
 test('projectile onHit return value controls removal and a piercing projectile can hit another target', async (t) => {
@@ -177,6 +177,18 @@ test('projectiles disappear on one hit by default and piercing is opt-in', async
   assert.equal(new Projectile({ piercing: true }).onHit(), false);
 });
 
+test('enemies damage the campfire on a contact cooldown instead of every server tick', async () => {
+  const { Zombie } = await import('../public/hero-lab/enemies/zombie.js');
+  const zombie = new Zombie({ x: 0, y: 0, speed: 0, damage: 6 });
+  const campfire = { x: 0, y: 0, radius: 28, hp: 100 };
+  zombie.update(1 / 30, campfire, 1000);
+  assert.equal(campfire.hp, 94);
+  zombie.update(1 / 30, campfire, 1033);
+  assert.equal(campfire.hp, 94);
+  zombie.update(1 / 30, campfire, 2500);
+  assert.equal(campfire.hp, 88);
+});
+
 test('enemy projectiles use server-side defense when they hit a hero', async (t) => {
   const client = await connectClient();
   t.after(() => client.disconnect());
@@ -251,10 +263,12 @@ test('Bombardier chooses the targeted bombing point with secondary fire', async 
   client.emit('ultimate');
   await nextState(client, (state) => state.players.find((p) => p.id === you)?.targeting);
   client.emit('fire', 'secondary', { x: 900, y: 400 });
-  const targeted = await nextState(client, (state) => state.effects?.length === 5);
+  const targeted = await nextState(client, (state) => state.effects?.length === 1);
   assert.equal(targeted.players.find((p) => p.id === you).targeting, false);
   assert.equal(targeted.players.find((p) => p.id === you).abilities.ultimate.remainingMs > 0, true);
-  assert.ok(targeted.effects.every((effect) => Math.hypot(effect.x - 900, effect.y - 400) <= 280));
+  assert.equal(targeted.effects[0].x, 900);
+  assert.equal(targeted.effects[0].y, 400);
+  assert.equal(targeted.effects[0].radius, 280);
 });
 
 test('heroes standing by the campfire slowly recover health', async (t) => {

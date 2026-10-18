@@ -4,7 +4,7 @@ import { GAME_CONFIG } from '../game-config.js';
 export class Zombie extends Enemy {
   constructor(options = {}) {
     super({
-      emoji: '🧟',
+      emoji: '🧟', type: 'zombie',
       hp: GAME_CONFIG.enemies.zombie.hp,
       maxHp: GAME_CONFIG.enemies.zombie.hp,
       speed: GAME_CONFIG.enemies.zombie.speed,

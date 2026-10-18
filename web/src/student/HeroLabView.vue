@@ -45,6 +45,7 @@ onUnmounted(() => window.removeEventListener('message', returnToSelection));
     <template v-if="!selectedHero">
       <Heading title="World" />
       <p class="muted">Choose a hero to defend the campfire. Library levels add attack for magic heroes, Workshop levels add attack for physical heroes, and Garden levels increase the shared campfire's max HP. Move with WASD or the arrow keys, aim with the mouse, and fire with the left mouse button. Press E to use your skill and Q for your ultimate.</p>
+      <p class="hero-lab-tip">Tip: Move to deal more damage. Heal at the campfire.</p>
       <p v-if="loadingRoster" class="muted">Loading your hero collection…</p>
       <div v-else-if="rosterError" class="note bad">{{ rosterError }}</div>
       <div class="hero-lab-grid">
@@ -76,6 +77,7 @@ onUnmounted(() => window.removeEventListener('message', returnToSelection));
 
 <style scoped>
 .hero-lab-page { width: 100%; }
+.hero-lab-tip { margin-top: .25rem; color: var(--accent); font-weight: 700; }
 .hero-lab-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(240px, 100%), 1fr)); gap: 12px; margin-top: 18px; }
 .hero-lab-card { display: grid; gap: 7px; width: 100%; margin: 0; color: inherit; font: inherit; text-align: left; cursor: pointer; transition: border-color .15s, transform .15s; }
 .hero-lab-card:hover:not(:disabled) { border-color: var(--accent); transform: translateY(-2px); }

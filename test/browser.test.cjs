@@ -158,6 +158,8 @@ test('Hero Lab shows talents and Bombardier confirms targeted bombing with right
 test('Konami code opens the demo debug menu and changes only the signed-in wallet', async (t) => {
   const page = await pageFor(t, 'Student 01');
   await page.locator('#debug-menu-enabled').waitFor({ state: 'attached' });
+  await page.getByRole('button', { name: 'Tools and version' }).click();
+  await page.getByRole('dialog', { name: /QuizQuest v/ }).waitFor();
   for (const key of ['ArrowUp', 'ArrowUp', 'ArrowDown', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'ArrowLeft', 'ArrowRight', 'b', 'a', 'Enter']) {
     await page.keyboard.press(key);
   }

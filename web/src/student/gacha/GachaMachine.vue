@@ -1,7 +1,7 @@
 <script setup>
 // ============================================================
 // The egg machine: a glass dome of eggs, a crank and a chute.
-// The server has already picked the pet by the time the egg drops;
+// The server has already picked the summon prize by the time the egg drops;
 // this is only the show. The handle keeps turning while the request is
 // in flight, so a slow network just means a longer crank.
 // ============================================================
@@ -37,7 +37,8 @@ async function turn() {
     phase.value = 'idle';
     throw err; // AsyncButton shows it
   }
-  dropColour.value = eggColour(r.pet.rarity);
+  const rarity = r.prize.kind === 'hero' ? r.prize.rarity : 'common';
+  dropColour.value = eggColour(rarity);
   phase.value = 'drop';
   await wait(1100);
   phase.value = 'idle';
@@ -62,6 +63,6 @@ async function turn() {
       </div>
       <div class="gm-feet"></div>
     </div>
-    <AsyncButton class="btn primary gm-btn" :disabled="disabled || phase !== 'idle'" :run="turn">{{ phase === 'idle' ? `Open an egg · ${cost} 🪙` : 'Cranking…' }}</AsyncButton>
+    <AsyncButton class="btn primary gm-btn" :disabled="disabled || phase !== 'idle'" :run="turn">{{ phase === 'idle' ? `Summon · ${cost} 🪙` : 'Cranking…' }}</AsyncButton>
   </div>
 </template>

@@ -27,6 +27,7 @@ export class Projectile {
     rotateToAim = false,
     flashColors = null,
     flashIntervalMs = 100,
+    fadeLastFraction = 0,
     sourceAbility = 'weapon',
     trap = null,
     lifetimeMs = GAME_CONFIG.combat.projectileMaxAgeMs,
@@ -56,6 +57,7 @@ export class Projectile {
     this.rotateToAim = rotateToAim;
     this.flashColors = flashColors;
     this.flashIntervalMs = flashIntervalMs;
+    this.fadeLastFraction = fadeLastFraction;
     this.sourceAbility = sourceAbility;
     this.trap = trap;
     this.kind = kind;
@@ -102,6 +104,12 @@ export class Projectile {
   }
 
   draw(context) {
+    const age = Date.now() - this.createdAt;
+    const progress = Math.max(0, Math.min(1, age / Math.max(1, this.lifetimeMs)));
+    const alpha = this.fadeLastFraction > 0 && progress > 1 - this.fadeLastFraction
+      ? Math.max(0, (1 - progress) / this.fadeLastFraction) : 1;
+    context.save();
+    context.globalAlpha *= alpha;
     if (this.flashColors?.length) {
       context.beginPath(); context.arc(this.x, this.y, this.radius, 0, Math.PI * 2);
       context.fillStyle = this.flashColors[Math.floor(Date.now() / this.flashIntervalMs) % this.flashColors.length]; context.fill();
@@ -119,12 +127,14 @@ export class Projectile {
       context.textAlign = 'center'; context.textBaseline = 'middle';
       context.fillText(this.emoji, 0, 0);
       context.restore();
+      context.restore();
       return;
     }
     context.fillStyle = this.color;
     context.beginPath();
     context.arc(this.x, this.y, this.radius, 0, Math.PI * 2);
     context.fill();
+    context.restore();
   }
 }
 

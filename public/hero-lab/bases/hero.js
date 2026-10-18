@@ -59,7 +59,9 @@ export class Hero {
   useAbility(name, now = Date.now(), durationMs = null) {
     const ability = this.cooldowns[name];
     if (!ability || !this.canUseAbility(name, now)) return false;
+    ability.startedAt = now;
     ability.readyAt = now + (durationMs ?? ability.durationMs);
+    if (name === 'ultimate') ability.cutThisCycleMs = 0;
     return true;
   }
 

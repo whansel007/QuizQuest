@@ -5,6 +5,7 @@ export class Devil extends Enemy {
   constructor(options = {}) {
     super({
       emoji: '😈',
+      type: 'devil',
       hp: GAME_CONFIG.enemies.devil.hp,
       maxHp: GAME_CONFIG.enemies.devil.hp,
       speed: GAME_CONFIG.enemies.devil.speed,

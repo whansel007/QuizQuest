@@ -4,10 +4,11 @@ import { ref, computed, onMounted, onUnmounted } from 'vue';
 import { api, retryablePost } from '../api.js';
 import { when, toast } from '../ui.js';
 import Heading from '../components/Heading.vue';
-import AsyncButton from '../components/AsyncButton.vue';
 import { store, loadHome, updateBalances } from './home.js';
 import WalletBadge from './WalletBadge.vue';
 import ResourceBadge from './ResourceBadge.vue';
+import GachaMachine from './gacha/GachaMachine.vue';
+import PrizeReveal from './gacha/PrizeReveal.vue';
 
 const error = ref('');
 const ledger = ref(null);
@@ -29,10 +30,14 @@ const rates = computed(() => {
 const summon = retryablePost('/api/student/hero-summon');
 async function pull() {
   const result = await summon();
-  if (!alive) return;
-  prize.value = result;
-  store.home.inventory = result.inventory;
-  updateBalances({ wallet: result.wallet });
+  if (alive) {
+    store.home.inventory = result.inventory;
+    updateBalances({ wallet: result.wallet });
+  }
+  return result;
+}
+function showPrize(result) {
+  if (alive) prize.value = result;
 }
 async function closePrize() {
   prize.value = null;
@@ -62,7 +67,7 @@ onUnmounted(() => { alive = false; });
         <h2 id="summon-title">✨ Hero Summon</h2>
         <p>Call a new hero or earn resources for your kingdom.</p>
         <div class="summon-balances"><WalletBadge /><ResourceBadge /></div>
-        <AsyncButton class="btn primary summon-button" :disabled="home.wallet.balance < summonConfig.pullCost" :run="pull">Summon · {{ summonConfig.pullCost }} 🪙</AsyncButton>
+        <GachaMachine :cost="summonConfig.pullCost" :disabled="home.wallet.balance < summonConfig.pullCost" :open="pull" @prize="showPrize" />
         <p class="small muted">{{ pityText }}. Pity counters persist and reset only when the matching hero rarity is drawn.</p>
       </div>
       <div class="summon-orb" aria-hidden="true"><span>✦</span><i>🌀</i></div>
@@ -107,26 +112,7 @@ onUnmounted(() => { alive = false; });
       </div>
     </section>
 
-    <section v-if="prize" class="summon-reveal" role="dialog" aria-modal="true" aria-labelledby="reveal-title">
-      <div class="summon-reveal-card">
-        <button class="btn small reveal-close" type="button" aria-label="Close summon result" @click="closePrize">×</button>
-        <template v-if="prize.prize.kind === 'hero'">
-          <div class="reveal-emoji">{{ prize.prize.hero.emoji }}</div>
-          <span class="rarity" :class="prize.prize.rarity">{{ prize.prize.rarity }}★</span>
-          <h2 id="reveal-title">{{ prize.prize.hero.name }}</h2>
-          <p v-if="prize.duplicateHero">Duplicate hero · {{ prize.refund }} 🪙 refunded</p>
-          <p v-else>New hero added to your collection!</p>
-        </template>
-        <template v-else>
-          <div class="reveal-emoji">{{ catalog.resources[prize.prize.resource].emoji }}</div>
-          <span class="rarity common">3★ Common</span>
-          <h2 id="reveal-title">{{ catalog.resources[prize.prize.resource].name }}</h2>
-          <p>+{{ prize.prize.amount }} for your kingdom</p>
-        </template>
-        <p class="small muted">{{ prize.pity.totalPulls }} total pulls · pity counters {{ prize.pity.sinceHero }} / {{ prize.pity.sinceEpic }}</p>
-        <button class="btn primary" type="button" @click="closePrize">Continue</button>
-      </div>
-    </section>
+    <PrizeReveal v-if="prize" :result="prize" :resources="catalog.resources" @close="closePrize" />
   </template>
 </template>
 
@@ -134,10 +120,6 @@ onUnmounted(() => { alive = false; });
 .summon-panel { display:grid; grid-template-columns:minmax(230px,1fr) minmax(110px,.45fr) minmax(260px,1.2fr); gap:22px; align-items:center; }
 .summon-copy h2,.hero-collection h2,.summon-history h2 { margin:0 0 8px; }
 .summon-balances { display:flex; flex-wrap:wrap; gap:8px; margin:14px 0; }
-.summon-button { min-width:190px; }
-.summon-orb { width:120px;height:120px;border-radius:50%;display:grid;place-items:center;position:relative;background:radial-gradient(circle,#fff7c2 0,#f4bc45 24%,#8b58d4 60%,#292744 100%);box-shadow:0 0 42px #9366e988; }
-.summon-orb span { position:absolute;top:12px;right:24px;color:white;font-size:26px; }
-.summon-orb i { font-style:normal;font-size:45px; }
 .summon-rates h3 { margin:0 0 8px; }
 .rate-row { display:grid;grid-template-columns:92px 44px 1fr;gap:8px;align-items:start;padding:5px 0;font-size:13px; }
 .hero-collection,.summon-history { margin-top:16px; }
@@ -151,9 +133,5 @@ onUnmounted(() => { alive = false; });
 .history-toggle [aria-pressed="true"] { outline:2px solid var(--accent); }
 .history-amount { text-align:right;font-weight:700;white-space:nowrap; }
 .history-amount.positive { color:var(--good); }
-.summon-reveal { position:fixed;z-index:30;inset:0;background:#101322d9;display:grid;place-items:center;padding:18px; }
-.summon-reveal-card { position:relative;width:min(430px,100%);padding:30px 24px;text-align:center;border-radius:20px;background:var(--panel,#fff);box-shadow:0 20px 70px #0007; }
-.reveal-close { position:absolute;top:10px;right:10px; }
-.reveal-emoji { font-size:82px;margin:12px 0; }
-@media (max-width:760px) { .summon-panel { grid-template-columns:1fr; } .summon-orb { display:none; } }
+@media (max-width:760px) { .summon-panel { grid-template-columns:1fr; } }
 </style>

@@ -1,3 +1,5 @@
+import { GAME_CONFIG } from '../game-config.js';
+
 export class Enemy {
   constructor({
     id,
@@ -9,6 +11,7 @@ export class Enemy {
     maxHp = 20,
     emoji = '🧟',
     damage = 6,
+    type = 'zombie',
   } = {}) {
     this.id = id;
     this.x = x;
@@ -18,15 +21,18 @@ export class Enemy {
     this.hp = hp;
     this.maxHp = maxHp;
     this.emoji = emoji;
+    this.type = type;
     this.damage = damage;
     this.dead = false;
+    this.nextCampfireAttackAt = 0;
   }
 
-  update(dt, target) {
+  update(dt, target, now = Date.now()) {
     if (!target || this.dead) return;
     const touching = this.moveTowards(dt, target);
-    if (touching && target.hp > 0) {
-      target.hp = Math.max(0, target.hp - this.damage * dt);
+    if (touching && target.hp > 0 && now >= this.nextCampfireAttackAt) {
+      this.nextCampfireAttackAt = now + GAME_CONFIG.arenaTuning.campfire.contactDamageCooldownMs;
+      target.hp = Math.max(0, target.hp - this.damage);
     }
   }
 

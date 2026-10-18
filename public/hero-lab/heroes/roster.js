@@ -10,6 +10,8 @@ const shot = (hero, spec, extra = {}) => new Projectile({
   damage: hero.attack,
   sourceAbility: 'weapon',
   ...spec,
+  color: GAME_CONFIG.heroFxColors[hero.id]?.primary || spec.color,
+  flashColors: [GAME_CONFIG.heroFxColors[hero.id]?.primary, GAME_CONFIG.heroFxColors[hero.id]?.highlight],
   ...extra,
 });
 const setup = (id, name, emoji, type) => {
@@ -24,7 +26,11 @@ export class Sheriff extends Hero {
     this.spec = GAME_CONFIG.heroes.sheriff; this.weaponName = 'Revolver'; this.skillName = 'Dynamite'; this.ultimateName = 'Deadeye';
     this.barrageUntil = 0; this.barrageAt = 0;
   }
-  fire() { return shot(this, { ...this.spec.bullet, damage: this.attack }); }
+  fire() {
+    const range = Math.hypot(GAME_CONFIG.arena.width, GAME_CONFIG.arena.height) / 2 * GAME_CONFIG.arenaTuning.heroTweaks.sheriffBulletRangeArenaDiagonalFraction;
+    return shot(this, { ...this.spec.bullet, damage: this.attack, lifetimeMs: range / this.spec.bullet.speed * 1000,
+      fadeLastFraction: GAME_CONFIG.arenaTuning.heroTweaks.sheriffBulletFadeFraction });
+  }
   skill() {
     const s = this.spec.dynamite;
     return { type: 'projectile', projectile: shot(this, { ...s, sourceAbility: 'skill', damage: this.attack * s.damageMultiplier, explosionRadius: s.explosionRadius, detonateOnExpire: true }) };
@@ -34,7 +40,9 @@ export class Sheriff extends Hero {
     if (now >= this.barrageUntil || now < this.barrageAt) return null;
     this.barrageAt = now + this.spec.barrage.intervalMs;
     // Position and aim are refreshed by the server every tick during Deadeye.
-    return shot(this, { ...this.spec.bullet, radius: this.spec.barrage.bulletRadius, sourceAbility: 'ultimate', damage: this.attack });
+    const range = Math.hypot(GAME_CONFIG.arena.width, GAME_CONFIG.arena.height) / 2 * GAME_CONFIG.arenaTuning.heroTweaks.sheriffBulletRangeArenaDiagonalFraction;
+    return shot(this, { ...this.spec.bullet, radius: this.spec.barrage.bulletRadius, sourceAbility: 'ultimate', damage: this.attack,
+      lifetimeMs: range / this.spec.bullet.speed * 1000, fadeLastFraction: GAME_CONFIG.arenaTuning.heroTweaks.sheriffBulletFadeFraction });
   }
 }
 
@@ -47,13 +55,12 @@ export class Guardian extends Hero {
   fire() { return shot(this, { ...this.spec.shield, damage: this.attack * this.spec.shield.damageMultiplier }); }
   skill(now = Date.now()) {
     const s = this.spec.skillDash;
-    this.dashingUntil = now + s.durationMs; this.dashStartedAt = now; this.dashCapUntil = now + this.spec.unstoppable.maxTotalDashMs;
-    this.makeInvulnerable(s.durationMs, now);
-    return { type: 'dash', direction: { ...this.aim }, ...s };
+    return { type: 'controlled_burst', ...s };
   }
   ultimate(now) {
     this.chargeUntil = now + this.spec.charge.durationMs; this.dashingUntil = this.chargeUntil; this.dashStartedAt = now;
-    this.dashCapUntil = now + this.spec.unstoppable.maxTotalDashMs;
+    this.dashCapUntil = now + this.spec.charge.durationMs * GAME_CONFIG.arenaTuning.heroTweaks.guardianDashMaxBaseMultiplier;
+    this.lastChargeHit.clear();
     this.makeInvulnerable(this.spec.charge.invulnerabilityMs, now);
     return { type: 'activate' };
   }
@@ -101,7 +108,7 @@ export class Bombardier extends Hero {
     super(setup('bombardier', 'Bombardier', '💣', 'magic'));
     this.spec = GAME_CONFIG.heroes.bombardier; this.weaponName = 'Blast Bomb'; this.skillName = 'Proximity Trap'; this.ultimateName = 'Targeted Bombing'; this.targetingUntil = 0;
   }
-  fire() { const s = this.spec.bomb; return shot(this, { ...s, damage: this.attack * s.damageMultiplier, explosionRadius: s.explosionRadius, detonateOnExpire: true, emoji: '💣', color: '#ff7838', sourceAbility: 'weapon' }); }
+  fire() { const s = this.spec.bomb; return shot(this, { ...s, damage: this.attack * s.damageMultiplier, explosionRadius: s.explosionRadius, detonateOnExpire: true, emoji: '💣', sourceAbility: 'weapon' }); }
   skill() { const s = this.spec.trap; return { type: 'trap', ...s, x: this.position.x, y: this.position.y, damage: this.attack * s.damageMultiplier }; }
   ultimate(now) { this.targetingUntil = now + this.spec.airstrike.targetTimeoutMs; return { type: 'targeting' }; }
 }
@@ -117,7 +124,7 @@ export class Bubbles extends Hero {
   }
   skill() {
     const s = this.spec.bubbleTrap;
-    return shot(this, { speed: s.speed, radius: s.radius, lifetimeMs: s.travelDistance / s.speed * 1000, color: '#56dfff', emoji: '🫧', damage: 0,
+    return shot(this, { speed: s.speed, radius: s.radius, lifetimeMs: s.travelDistance / s.speed * 1000, emoji: '🫧', damage: 0,
       sourceAbility: 'skill', trap: s });
   }
   ultimate() { const s = this.spec.ultimate; return { type: 'bubble', x: this.position.x, y: this.position.y, ...s, damage: this.attack * s.damageMultiplier }; }
