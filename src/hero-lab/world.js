@@ -390,7 +390,6 @@ function attachHeroLab(io, services = null) {
       const heroId = payload?.heroId;
       const HeroClass = Object.hasOwn(HERO_CLASSES, heroId) ? HERO_CLASSES[heroId] : null;
       if (!HeroClass) return socket.emit('notice', 'Choose a valid hero to join the field.');
-      if (socket.data.user && !services.ownsHero(socket.data.user.id, heroId)) return socket.emit('notice', 'Summon this hero before choosing them.');
       if (gameEnded) return socket.emit('notice', 'The campfire has gone out. The run is over.');
 
       const existing = players.get(socket.id);

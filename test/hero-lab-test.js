@@ -24,6 +24,36 @@ function connectClient() {
   });
 }
 
+test('Hero Lab lets signed-in players select heroes they have not summoned', async (t) => {
+  const services = server.quiz.services;
+  const originalAuthenticate = services.authenticate;
+  const originalOwnsHero = services.ownsHero;
+  services.authenticate = (token) => token === 'hero-lab-debug-token'
+    ? { id: 'debug-student', role: 'student' }
+    : null;
+  services.ownsHero = () => false;
+  t.after(() => {
+    services.authenticate = originalAuthenticate;
+    services.ownsHero = originalOwnsHero;
+  });
+
+  const client = await new Promise((resolve, reject) => {
+    const socket = connect(`${base}/hero-lab`, {
+      transports: ['websocket'],
+      auth: { token: 'hero-lab-debug-token' },
+    });
+    socket.once('connect', () => resolve(socket));
+    socket.once('connect_error', reject);
+  });
+  t.after(() => client.disconnect());
+
+  const welcomePromise = new Promise((resolve) => client.once('welcome', resolve));
+  client.emit('join', { heroId: 'electromancer' });
+  const { you: clientId } = await welcomePromise;
+  const state = await nextState(client, (snapshot) => snapshot.players.some((player) => player.id === clientId));
+  assert.equal(state.players.find((player) => player.id === clientId).heroId, 'electromancer');
+});
+
 function nextState(socket, predicate = () => true, timeoutMs = 1500) {
   return new Promise((resolve, reject) => {
     const timeout = setTimeout(() => {

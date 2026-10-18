@@ -48,7 +48,7 @@ Buildings cap at level 3, so each active upgrade grants up to +30. The shared ru
 
 ## Running the standalone sandbox
 
-From the repository root, run `npm run dev`, then open `http://localhost:5173/hero-lab`. This standalone sandbox is useful for combat iteration. In the signed-in QuizQuest app, open **World**; the server applies the selected player's kingdom upgrades there.
+From the repository root, run `npm run dev`, then open `http://localhost:5173/hero-lab`. This standalone sandbox is useful for combat iteration and allows signed-in players to select any hero without summoning it first. In the signed-in QuizQuest app, open **World**; the server applies the selected player's kingdom upgrades there.
 
 ## Code map
 
