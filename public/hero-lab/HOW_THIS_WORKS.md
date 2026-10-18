@@ -37,11 +37,13 @@ route remains available for quick sandbox playtests.
 - **Bubbles:** rapid blue bubble spray chips enemies at short range. E launches a
   Bubble Trap that carries the first enemy it hits and explodes after traveling.
   If the base explosion would kill the trapped enemy, it uses the larger,
-  stronger finisher explosion. Q grows around the hero, then damages enemies
-  inside. Bubbles has no healing mode.
-- **Electromancer:** a limited-pierce lightning orb, a traveling stun zone, and
-  delayed chain lightning. Overload increases damage to stunned enemies. Stunned
-  enemies show an ⚡ indicator while they remain stunned.
+  stronger finisher explosion. Q wraps Bubbles in a fast-moving bubble for six
+  seconds. It pops around the hero when time expires, or early when Bubbles uses
+  primary fire or E. The pop damages nearby enemies. Bubbles has no healing mode.
+- **Electromancer:** a larger lightning orb, a traveling stun zone, and delayed
+  chain lightning. The chain jumps through every enemy it can reach, hitting
+  each target once per chain. Overload increases damage to stunned enemies.
+  Stunned enemies show an ⚡ indicator while they remain stunned.
 Every hero has a passive talent name and description in the Info panel. Talent
 effects run on the server. Monster kills carry the attacking hero and ability
 through projectile hits and explosions so kill-based talents can apply.
@@ -76,8 +78,8 @@ through projectile hits and explosions so kill-based talents can apply.
   Pilot's labels and stats change during the mech form. Bombardier's targeting
   state is shown above the arena.
 - The Info panel shows live health, attack, defense, speed, and talent text.
-- Defense reduces incoming damage but cannot lower it below the configured
-  minimum. Heroes have a short server-side damage interval. Campfire loss is a
+- Defense is percentage damage reduction, capped at 50%. Heroes have a short
+  server-side damage interval. Campfire loss is a
   shared game-over event.
 - Projectiles have their own color, size, emoji/shape, and optional direction
   rotation. By default they hit one enemy. Piercing, explosions, stuns, and
@@ -98,9 +100,28 @@ intervals inside a 280-pixel target circle; Bubbles' finisher activates when
 the trapped enemy has no more HP than the base explosion damage; Overload adds
 50% damage; and campfire healing is 1.5 HP per second within 115 pixels.
 
-Wave voting times out after 15 seconds. Ties are random, disconnected votes are
-removed, and if nobody votes the server randomly picks one of the offered
-cards. Buff cards offer a randomly rolled flat +5 to +25.
+Wave voting lasts 10 seconds in multiplayer and has no timer in solo. Ties are
+random, disconnected votes are removed, and if nobody votes the server randomly
+picks one of the offered cards. Cards include percentage stat upgrades and,
+from wave 3, one rare effect that is not already active.
+
+### Wave 5 enemy and buff workflow
+
+- Enemy count starts at 10 and grows by 4 per wave, with additional enemies for
+  larger parties. Enemy health and damage scale by wave. The server limits the
+  number of live enemies and queues the rest.
+- Brutes appear from wave 4 with high health, slow movement, and reduced
+  knockback. Exploders appear from wave 7, warn before damaging the campfire,
+  and burst for reduced damage when killed. Every fifth wave adds a Brute King
+  with six escorts; its slam has a visible warning and damages nearby heroes
+  and the campfire.
+- Every third non-boss wave can add Horde, Fast Night, or Supply Drop. Horde
+  doubles enemy count and halves health; Fast Night increases enemy and hero
+  speed; Supply Drop releases a healing pickup every 10 kills.
+- The ten rare effects are Thorns, Scavenger, Overcharge, Rally, Glass Cannon,
+  Second Wind, Life Steal, Ricochet, Volatile, and Powder Keg. A rare effect
+  can only be acquired once in a run. HUD icons show active effects and a
+  separate health bar appears while the Brute King is alive.
 
 ## Hero Summon, collection, and debug menu
 

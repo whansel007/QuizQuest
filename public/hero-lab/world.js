@@ -42,6 +42,9 @@ const sessionSummary = document.querySelector('#session-summary');
 const campfireFill = document.querySelector('#campfire-fill');
 const campfireValue = document.querySelector('#campfire-value');
 const campfireHud = document.querySelector('#campfire-hud');
+const bossHud = document.querySelector('#boss-hud');
+const bossHealthFill = document.querySelector('#boss-health-fill');
+const bossHealthValue = document.querySelector('#boss-health-value');
 const momentBanner = document.querySelector('#moment-banner');
 const lowHpVignette = document.querySelector('#low-hp-vignette');
 const settingsButton = document.querySelector('#settings-button');
@@ -89,6 +92,7 @@ let momentumNudge = null;
 let sessionNudgeCount = 0;
 try { sessionNudgeCount = Number(sessionStorage.getItem('hero-lab-momentum-nudges') || 0) || 0; } catch { /* session storage is optional */ }
 const ARENA_TUNING = GAME_CONFIG.arenaTuning;
+const hasCard = (id) => (state.activeBuffs || []).some((buff) => buff.id === id);
 const settings = { screenShake: true, damageNumbers: true, masterVolume: ARENA_TUNING.sound.defaultMasterVolume, muted: false };
 try { Object.assign(settings, JSON.parse(localStorage.getItem('hero-lab-settings') || '{}')); } catch { /* use defaults */ }
 setAudioOptions({ volume: settings.masterVolume, mute: settings.muted });
@@ -344,6 +348,7 @@ socket.on('wave_start', (event) => {
   playSound(event.bossWave ? 'bossSpawn' : 'waveStart');
   if (event.bossWave) cameraZoom = { startedAt: performance.now(), until: performance.now() + ARENA_TUNING.waveMoments.bossZoomMs, scale: ARENA_TUNING.waveMoments.bossZoom };
 });
+socket.on('wave_twist', (twist) => showBanner(twist.label));
 socket.on('wave_end', (event) => {
   showBanner('WAVE CLEARED', false, ARENA_TUNING.waveMoments.clearedBannerMs);
   playSound('waveEnd');
@@ -474,6 +479,20 @@ socket.on('area_effect', (effect) => {
 socket.on('lightning_chain', (arc) => lightningArcs.push({ ...arc, expires: performance.now() + GAME_CONFIG.visuals.lightningArcMs,
   color: HERO_FX_COLORS.electromancer.highlight }));
 socket.on('lightning_flash', (flash) => enemyFlashes.set(flash.id, performance.now() + GAME_CONFIG.visuals.enemyFlashMs));
+socket.on('ricochet_line', (arc) => lightningArcs.push({ ...arc, expires: performance.now() + GAME_CONFIG.arenaTuning.cards.effects.ricochetLineMs,
+  color: HERO_FX_COLORS[arc.heroId]?.primary || '#fff' }));
+socket.on('overcharge', ({ playerId, count }) => {
+  if (playerId === me) damageTexts.push({ x: window.lastPointerWorld?.x || 0, y: (window.lastPointerWorld?.y || 0) - 26,
+    text: `OVERCHARGE ${count}`, alpha: 1, vy: -20, color: '#ffe34f', scale: 1.3 });
+  playSound('shoot', { volume: playerId === me ? 0.9 : 0.55, semitones: 3 });
+});
+socket.on('pickup_collected', (pickup) => {
+  addParticle({ x: pickup.x, y: pickup.y - 14, vx: 0, vy: -30, radius: 10, color: '#7af29a', text: `+${Math.round(pickup.amount)}`, alpha: 1, decay: 0.03 });
+  playSound('pickup');
+});
+socket.on('life_steal', (heal) => addParticle({ x: heal.x, y: heal.y - 22, vx: 0, vy: -25, radius: 10,
+  color: '#88ff9c', text: `+${Math.round(heal.amount)}`, alpha: 1, decay: 0.03 }));
+socket.on('second_wind', () => { showBanner('SECOND WIND'); playSound('explosion'); shakeCamera(ARENA_TUNING.screenShake.majorMinPx, ARENA_TUNING.screenShake.majorMs); });
 socket.on('dash_extended', (popup) => {
   if (popup.id === me) damageTexts.push({ x: popup.x, y: popup.y - 36, text: `+${(popup.ms / 1000).toFixed(1)}s`, alpha: 1, vy: -28, color: '#a6ffb4' });
 });
@@ -621,7 +640,7 @@ function updateHud(timestamp = performance.now()) {
         ? `Wave cleared · Next wave in ${Math.ceil(remaining / 1000)}s`
         : 'Next wave starting…';
     } else {
-      waveDetails.textContent = `Enemies left: ${state.wave.enemiesRemaining}`;
+      waveDetails.textContent = `${state.wave.twist ? `${state.wave.twist.label} · ` : ''}Enemies left: ${state.wave.enemiesRemaining}`;
     }
   }
   const fire = state.campfire;
@@ -631,6 +650,13 @@ function updateHud(timestamp = performance.now()) {
     campfireFill.style.backgroundColor = ratio > 0.5 ? '#55ce69' : ratio > 0.25 ? '#ffc34d' : '#f04b54';
     campfireValue.textContent = `${fire.hp} / ${fire.maxHp}`;
     setHeartbeat(ratio < ARENA_TUNING.lowHp.threshold);
+  }
+  const boss = state.boss;
+  bossHud.hidden = !boss;
+  if (boss) {
+    const ratio = Math.max(0, Math.min(1, boss.hp / Math.max(1, boss.maxHp)));
+    bossHealthFill.style.width = `${ratio * 100}%`;
+    bossHealthValue.textContent = `${boss.name} · ${boss.hp} / ${boss.maxHp}`;
   }
   if (!player) return;
 
@@ -687,7 +713,7 @@ function updateHud(timestamp = performance.now()) {
     item.textContent = `${candidate.emoji || '👻'} ${candidate.name}: ${seconds}s${candidate.respawnSpeedMultiplier > 1 ? ` · x${candidate.respawnSpeedMultiplier}` : ''}`;
     return item;
   }));
-  const buffEmoji = { maxHp: '❤️', attack: '⚔️', defense: '🛡️', speed: '🏃', campfire: '🔥' };
+  const buffEmoji = { maxHp: '❤️', attack: '⚔️', defense: '🛡️', speed: '🏃', campfire: '🔥', thorns: '🔥', scavenger: '💚', overcharge: '⚡', rally: '📣', 'glass-cannon': '💥', 'second-wind': '🕊️', 'life-steal': '🩸', ricochet: '↗️', volatile: '☄️', 'powder-keg': '🧨' };
   buffIcons.replaceChildren(...(state.activeBuffs || []).map((buff) => {
     const icon = document.createElement('span');
     icon.className = 'buff-icon';
@@ -728,6 +754,12 @@ function updateHud(timestamp = performance.now()) {
   document.querySelector('#stat-attack').textContent = String(player.attack);
   document.querySelector('#stat-defense').textContent = String(player.defense);
   document.querySelector('#stat-speed').textContent = String(player.speed);
+  const buildingBonus = player.buildingBonuses || {};
+  const buildingRows = [];
+  if (buildingBonus.attackPercent > 0) buildingRows.push(`${player.type === 'magic' ? '📚 Library' : '🛠️ Workshop'} +${Math.round(buildingBonus.attackPercent * 100)}% damage`);
+  if (buildingBonus.campfireMaxHpPercent > 0) buildingRows.push(`🌷 Garden +${Math.round(buildingBonus.campfireMaxHpPercent * 100)}% campfire max HP`);
+  document.querySelector('#building-bonus-value').textContent = buildingRows.join(' · ') || 'None';
+  document.querySelector('#building-bonus-stat').title = buildingRows.join(' · ') || 'No kingdom building bonuses apply to this hero';
   const momentumStatus = document.querySelector('#momentum-status');
   momentumStatus.textContent = player.momentumActive ? 'Active' : 'Inactive';
   document.querySelector('#momentum-stat').style.opacity = player.momentumActive ? '1' : '0.55';
@@ -741,16 +773,19 @@ function updateHud(timestamp = performance.now()) {
     const voted = vote.votes?.[me] || '';
     document.querySelector('#buff-vote-title').textContent = `Wave ${vote.wave} cleared · Vote for a team buff`;
     const voteRemaining = Math.max(0, Math.ceil((vote.endsAt - state.serverTime - (timestamp - stateReceivedAt)) / 1000));
-    document.querySelector('#buff-vote-status').textContent = `${vote.voteCount}/${state.players.length} votes · ${voteRemaining}s left${voted ? ' · Your vote is recorded' : ''}`;
-    const signature = `${vote.wave}:${voted}:${vote.cards.map((card) => card.id).join(',')}`;
+    document.querySelector('#buff-vote-status').textContent = vote.endsAt > 0
+      ? `${vote.voteCount}/${state.players.length} votes · ${voteRemaining}s left${voted ? ' · Your vote is recorded' : ''}`
+      : `${voted ? 'Your vote is recorded' : 'Choose when ready'} · no timer in solo`;
+    const signature = `${vote.wave}:${voted}:${JSON.stringify(vote.votes)}:${vote.cards.map((card) => card.id).join(',')}`;
     if (signature !== lastBuffRender) {
       lastBuffRender = signature;
       buffCards.replaceChildren(...vote.cards.map((card) => {
-        const button = document.createElement('button'); button.className = `buff-card${voted === card.id ? ' selected' : ''}`;
+        const button = document.createElement('button'); button.className = `buff-card${card.rare ? ' rare' : ''}${voted === card.id ? ' selected' : ''}`;
         button.type = 'button'; button.disabled = Boolean(voted);
-        const title = document.createElement('strong'); title.textContent = card.label;
+        const title = document.createElement('strong'); title.textContent = `${card.rare ? '✨ ' : ''}${card.label}`;
         const description = document.createElement('span'); description.textContent = card.description;
-        button.append(title, description); button.addEventListener('click', () => socket.emit('buff_vote', card.id)); return button;
+        const tally = document.createElement('small'); tally.textContent = `${Object.values(vote.votes || {}).filter((id) => id === card.id).length} votes`;
+        button.append(title, description, tally); button.addEventListener('click', () => socket.emit('buff_vote', card.id)); return button;
       }));
     }
   } else lastBuffRender = '';
@@ -832,6 +867,10 @@ function draw(timestamp) {
     context.setLineDash([2, 9]);
     context.strokeStyle = '#86f09b'; context.lineWidth = 3;
     context.beginPath(); context.arc(cf.x, cf.y, ARENA_TUNING.campfire.healRadius, 0, Math.PI * 2); context.stroke();
+    if ((state.activeBuffs || []).some((buff) => buff.id === 'thorns')) {
+      context.setLineDash([3, 7]); context.strokeStyle = '#ff9b43'; context.lineWidth = 2;
+      context.beginPath(); context.arc(cf.x, cf.y, ARENA_TUNING.cards.effects.thornsRadius, 0, Math.PI * 2); context.stroke(); context.setLineDash([]);
+    }
     context.restore();
 
     for (const player of state.players || []) {
@@ -910,26 +949,32 @@ function draw(timestamp) {
       context.save();
       context.globalAlpha = 1;
       context.globalCompositeOperation = 'source-over';
+      const pulse = monster.type === 'exploder' ? 1 + Math.sin(currentTime * 0.012) * 0.09 : 1;
+      const scale = (monster.scale || 1) * pulse;
+      const visualRadius = 20 * scale;
+      const tint = monster.type === 'brute-king' ? '#7e222c' : monster.type === 'brute' ? '#514638'
+        : monster.type === 'exploder' ? '#b86b28' : '#426b36';
       context.beginPath();
-      context.arc(mx, my, 20, 0, Math.PI * 2);
-      context.fillStyle = hitFlash ? '#fff' : '#426b36';
+      context.arc(mx, my, visualRadius, 0, Math.PI * 2);
+      context.fillStyle = hitFlash ? '#fff' : tint;
       context.fill();
-      context.strokeStyle = '#294a24';
-      context.lineWidth = 2;
+      context.strokeStyle = monster.isBoss ? '#ff5f69' : monster.type === 'exploder' ? '#ffb34f' : '#294a24';
+      context.lineWidth = monster.isBoss ? 4 : 2;
       context.stroke();
-      context.font = '32px sans-serif';
+      context.font = `${32 * scale}px sans-serif`;
       context.textAlign = 'center';
       context.textBaseline = 'middle';
       context.filter = hitFlash ? 'brightness(0) invert(1)' : 'none';
       context.fillText(monster.emoji || '🧟', mx, my);
+      if (monster.isBoss) { context.filter = 'none'; context.font = '24px sans-serif'; context.fillText('👑', mx, my - visualRadius - 9); }
       context.filter = 'none';
       context.restore();
 
       // Monster health bar
-      const mBarW = 28;
+      const mBarW = monster.isBoss ? 70 : 28 * scale;
       const mBarH = 4;
       const mBarX = mx - mBarW / 2;
-      const mBarY = my - 20;
+      const mBarY = my - visualRadius;
       context.fillStyle = 'rgba(0, 0, 0, 0.7)';
       context.fillRect(mBarX - 1, mBarY - 1, mBarW + 2, mBarH + 2);
       const mHpRatio = Math.max(0, monster.hp / monster.maxHp);
@@ -942,6 +987,12 @@ function draw(timestamp) {
         context.fillStyle = '#fff'; context.fillText('!', mx, my - 32); context.restore();
       }
     }
+  }
+
+  for (const pickup of state.pickups || []) {
+    context.save(); context.globalAlpha = 0.85 + Math.sin(currentTime * 0.01) * 0.15;
+    context.font = '24px sans-serif'; context.textAlign = 'center'; context.textBaseline = 'middle';
+    context.fillText(pickup.type === 'supply' ? '💚' : '❤️', pickup.x, pickup.y); context.restore();
   }
 
   for (let i = deathSprites.length - 1; i >= 0; i--) {
@@ -1060,6 +1111,17 @@ function draw(timestamp) {
       context.arc(center.x, center.y, 23, 0, Math.PI * 2);
       context.stroke();
     }
+    if (player.bubbleRush) {
+      const pulse = 0.5 + Math.sin(currentTime * 0.018) * 0.08;
+      context.save();
+      context.globalAlpha = pulse * 0.35;
+      context.fillStyle = '#7cecff'; context.strokeStyle = '#d7fbff'; context.lineWidth = 3;
+      context.beginPath(); context.arc(center.x, center.y, 34 + Math.sin(currentTime * 0.012) * 2, 0, Math.PI * 2); context.fill();
+      context.globalAlpha = 0.95; context.stroke();
+      context.globalAlpha = 1;
+      context.font = '18px sans-serif'; context.textAlign = 'center'; context.fillText('🫧', center.x, center.y - 37);
+      context.restore();
+    }
     const muzzle = muzzleFlashes.get(player.id);
     const muzzleAge = muzzle ? currentTime - muzzle.startedAt : ARENA_TUNING.muzzleFlash.durationMs;
     if (muzzle && muzzleAge >= ARENA_TUNING.muzzleFlash.durationMs) muzzleFlashes.delete(player.id);
@@ -1131,6 +1193,14 @@ function draw(timestamp) {
   }
 
   const local = state.players.find((candidate) => candidate.id === me);
+  if (local && hasCard('overcharge') && local.overchargeShots > 0) {
+    const mouse = window.lastPointerWorld;
+    if (mouse) {
+      const remaining = ARENA_TUNING.cards.effects.overchargeEveryShots - (local.overchargeShots % ARENA_TUNING.cards.effects.overchargeEveryShots);
+      context.save(); context.strokeStyle = '#ffe34f'; context.lineWidth = 2; context.beginPath(); context.arc(mouse.x, mouse.y, 15, 0, Math.PI * 2); context.stroke();
+      context.font = 'bold 12px sans-serif'; context.textAlign = 'center'; context.fillStyle = '#fff2a0'; context.fillText(String(remaining), mouse.x, mouse.y - 21); context.restore();
+    }
+  }
   if (local?.targeting && window.lastPointerWorld) {
     const spec=GAME_CONFIG.heroes.bombardier.airstrike, p=window.lastPointerWorld;
     context.save();context.setLineDash([12,8]);context.strokeStyle='#ffbd58';context.lineWidth=4;
@@ -1178,6 +1248,13 @@ function draw(timestamp) {
       continue;
     }
 
+    if (p.heroId === 'electromancer' && p.shape === 'orb') {
+      const glow = context.createRadialGradient(p.x, p.y, p.radius * 0.3, p.x, p.y, p.radius * 2.1);
+      glow.addColorStop(0, '#f4fdff'); glow.addColorStop(0.3, HERO_FX_COLORS.electromancer.highlight);
+      glow.addColorStop(0.62, `${HERO_FX_COLORS.electromancer.primary}aa`); glow.addColorStop(1, 'transparent');
+      context.save(); context.globalAlpha = 0.82; context.fillStyle = glow;
+      context.beginPath(); context.arc(p.x, p.y, p.radius * 2.1, 0, Math.PI * 2); context.fill(); context.restore();
+    }
     p.draw(context);
   }
 

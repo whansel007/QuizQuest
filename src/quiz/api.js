@@ -682,6 +682,7 @@ function createQuizApi({ dataFile = null, store = null, now = () => Date.now(), 
         return s ? { id: s.id, classId: cl.id, answered: s.cursor, total: s.items.length } : null;
       }).filter(Boolean),
       wallet: wallet(user.id),
+      kingdom: { buildings: E.kingdom(db, user.id).buildings },
       inventory: R.inventory(db, user.id),
       catalog: { heroes: R.HERO_CATALOG, heroSummon: R.HERO_SUMMON, pets: R.PETS, items: R.ITEMS, eggCost: R.REWARDS.eggCost, eggOdds: R.EGG_ODDS, duplicateRefund: R.REWARDS.duplicateRefund, resources: E.RESOURCES },
       rules: R.REWARDS,

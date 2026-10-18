@@ -20,7 +20,7 @@ export class Skeleton extends Enemy {
       this.windupUntil = 0;
       this.windupAim = null;
       this.pauseUntil = now + this.spec.pauseMs;
-      return new EnemyProjectile({ x: this.x, y: this.y, aim, speed: this.spec.bulletSpeed, damage: this.spec.bulletDamage, color: '#e64045', emoji: '🔴', radius: 8 });
+      return new EnemyProjectile({ x: this.x, y: this.y, aim, speed: this.spec.bulletSpeed, damage: this.spec.bulletDamage * (this.damageScale || 1), color: '#e64045', emoji: '🔴', radius: 8 });
     }
     if (now >= this.nextShotAt && now >= this.pauseUntil && !this.windupUntil && target) {
       const dx = target.x - this.x, dy = target.y - this.y, length = Math.hypot(dx, dy) || 1;

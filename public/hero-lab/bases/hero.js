@@ -74,7 +74,8 @@ export class Hero {
     if (now < this.invulnerableUntil || now - this.#lastDamageAt < GAME_CONFIG.combat.damageIFrameMs) return 0;
 
     const previousHp = this.hp;
-    const applied = Math.max(GAME_CONFIG.combat.minimumDamage, amount - this.defense);
+    const reduction = Math.min(GAME_CONFIG.arenaTuning.enemies.wave.defenseReductionCap, Math.max(0, this.defense / 100));
+    const applied = Math.max(GAME_CONFIG.combat.minimumDamage, amount * (1 - reduction));
     this.hp = Math.max(0, this.hp - applied);
     this.#lastDamageAt = now;
     return previousHp - this.hp;

@@ -94,8 +94,9 @@ function spend(db, studentId, amount, reason, refKey, now = Date.now(), meta = u
 
 function inventory(db, studentId) {
   let inv = db.inventory.find((i) => i.studentId === studentId);
+  const starters = GAME_CONFIG.arenaTuning.progression.newPlayerHeroes || [HERO_SUMMON.starterHero];
   if (!inv) {
-    inv = { studentId, pets: [{ id: 'chick', dupes: 0 }], items: [], equippedPet: 'chick', equippedItem: null };
+    inv = { studentId, pets: [{ id: 'chick', dupes: 0 }], items: [], equippedPet: 'chick', equippedItem: null, heroes: [...starters] };
     db.inventory.push(inv);
   }
   inv.resources = inv.resources || { wood: 0, crystal: 0, herb: 0 };
