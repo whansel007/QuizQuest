@@ -57,8 +57,8 @@ Three collaborating pieces:
 
 1. **`server.js`** — the referee. Owns positions, movement, tag logic and
    broadcasts state 60 times a second.
-2. **`public/index.html`** — the shell: one canvas, a Join button, a banner.
-3. **`public/client.js`** — the screen: listens on the pipe, paints whatever
+2. **`public/tag/index.html`** — the shell: one canvas, a Join button, a banner.
+3. **`public/tag/client.js`** — the screen: listens on the pipe, paints whatever
    the server says, and reports which keys you're holding.
 
 The browser has **zero** game logic. It cannot say "I'm at x:400". It can only

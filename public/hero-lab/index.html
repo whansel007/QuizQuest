@@ -1,0 +1,25 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Hero Lab</title>
+  <style>
+    body { margin: 2rem auto; padding: 0 1rem; max-width: 760px; font: 16px/1.5 system-ui, sans-serif; color: #1f2937; }
+    h1 { margin-bottom: .25rem; }
+    #hero-list { display: grid; gap: .75rem; padding: 0; list-style: none; }
+    .hero-card { display: grid; gap: .3rem; width: 100%; padding: 1rem; text-align: left; color: inherit; background: #f3f4f6; border: 1px solid #d1d5db; border-radius: .75rem; cursor: pointer; }
+    .hero-card:hover, .hero-card:focus-visible { background: #e5f4df; border-color: #4b7b3e; }
+  </style>
+</head>
+<body>
+  <main>
+    <h1>Hero Lab</h1>
+    <p>Choose a hero to enter Hero Lab World. Move with WASD or the arrow keys, aim with the mouse, and fire with the left mouse button. Press E to use the skill and Q to use the ultimate.</p>
+    <p><strong>Tip: Move to deal more damage. Heal at the campfire.</strong></p>
+    <h2>Choose your hero</h2>
+    <ul id="hero-list" aria-label="Available heroes"></ul>
+  </main>
+  <script type="module" src="/hero-lab/main.js"></script>
+</body>
+</html>

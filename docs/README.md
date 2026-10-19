@@ -126,6 +126,7 @@ web/                Vue app (built by Vite)
   src/teacher/      professor screens
   src/student/      student screens and the World
   src/api.js        axios client
+public/             static assets (hero-lab, tag game)
 server.js           HTTP server, static files, Circle Tag game
 src/quiz/           API routes, sign-in, grading, adaptive engine, rewards, AI
 src/world/          multiplayer World (Socket.IO)
@@ -140,4 +141,4 @@ docs/               API research
 - [PROTOTYPE.md](PROTOTYPE.md): full guide (architecture, Supabase, hosting, features)
 - [AUDIT.md](AUDIT.md): implementation audit and known limitations
 - [docs/API_RECOMMENDATIONS.md](docs/API_RECOMMENDATIONS.md): useful APIs for later phases
-- [HOW_THIS_WORKS.md](HOW_THIS_WORKS.md): how the original Circle Tag game works (at `/tag`)
+- [public/tag/HOW_THIS_WORKS.md](../public/tag/HOW_THIS_WORKS.md): how the original Circle Tag game works (at `/tag`)

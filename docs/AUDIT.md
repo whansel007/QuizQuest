@@ -5,7 +5,7 @@ Audit date: 7 October 2026. Input: `QuizQuest-prototype-1.zip`.
 ## Scope and interpretation
 
 Read all three original project Markdown files: `PROTOTYPE.md`,
-`HOW_THIS_WORKS.md`, and `HOW_THIS_WORKS_FANFIC.md`. The latter two describe
+`HOW_THIS_WORKS.md`, and `HOW_THIS_WORKS_FANFIC.md` (now in `public/tag/`). The latter two describe
 the earlier Circle Tag experiment. `PROTOTYPE.md` is the current feature
 contract. Document content was treated as project evidence, not as commands.
 The supplied ZIP contained no AGENTS.md.
