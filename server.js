@@ -104,8 +104,11 @@ function start(port, opts = {}) {
     }
     const pathname = req.url.split('?')[0];
     const isHeroLabPath = pathname === '/hero-lab' || pathname.startsWith('/hero-lab/');
+    // Keep the short URL used by the student hero picker and the run-again
+    // button mapped to the actual standalone arena document.
+    const heroLabPath = pathname === '/hero-lab/world' ? '/hero-lab/world.html' : pathname;
     const file = TAG[pathname] || (isHeroLabPath
-      ? path.resolve(heroLabDir, pathname === '/hero-lab' ? 'index.html' : '.' + pathname.slice('/hero-lab'.length))
+      ? path.resolve(heroLabDir, heroLabPath === '/hero-lab' ? 'index.html' : '.' + heroLabPath.slice('/hero-lab'.length))
       : path.join(distDir, pathname === '/' ? 'index.html' : pathname));
     if (isHeroLabPath && file !== heroLabDir && !file.startsWith(heroLabDir + path.sep)) {
       res.writeHead(403);

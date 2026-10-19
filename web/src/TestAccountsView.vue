@@ -1,15 +1,11 @@
 <script setup>
 // Test accounts page (#test-accounts): the seeded demo users with their
-// emails. Click one to sign in straight away, or "Fill form" to go back
-// to the sign-in form with that email filled in.
-import { signIn } from './api.js';
-import { action } from './ui.js';
+// emails. Selecting one fills the regular password sign-in form.
 import QuizQuestLogo from './components/QuizQuestLogo.vue';
 
 defineProps({ users: { type: Array, default: null }, error: { type: String, default: '' } });
 defineEmits(['back', 'retry', 'fill']);
 
-const pick = (u) => action(() => signIn({ userId: u.id }));
 const groups = [['teacher', 'Professors'], ['student', 'Students']];
 // "Student 07" -> 07, "Prof. Demo A" -> DA
 const initials = (name) => name.match(/\d+$/)?.[0] || name.replace(/^Prof\.\s*/, '').split(/\s+/).map((w) => w[0]).join('').slice(0, 2).toUpperCase();
@@ -25,8 +21,7 @@ const initials = (name) => name.match(/\d+$/)?.[0] || name.replace(/^Prof\.\s*/,
       <h2>Test accounts</h2>
       <p class="qq-sub">
         Synthetic demo users for development and testing. Every account uses the password
-        <code class="qq-pass">quizquest</code>. Click an account to sign in instantly, or use
-        <b>Fill form</b> to try the full sign-in.
+        <code class="qq-pass">quizquest</code>. Select an account to fill the sign-in form.
       </p>
 
       <template v-if="error">
@@ -39,7 +34,7 @@ const initials = (name) => name.match(/\d+$/)?.[0] || name.replace(/^Prof\.\s*/,
           <h3 class="qq-group">{{ title }}</h3>
           <div class="qq-acc-grid">
             <div v-for="u in users.filter((x) => x.role === role)" :key="u.id" class="qq-acc" :class="'qq-acc-' + role">
-              <button type="button" class="qq-acc-main" @click="pick(u)($event)">
+              <button type="button" class="qq-acc-main" @click="$emit('fill', u.email)">
                 <span class="qq-avatar" aria-hidden="true">{{ initials(u.name) }}</span>
                 <span class="qq-acc-text">
                   <b>{{ u.name }}</b>
@@ -47,7 +42,7 @@ const initials = (name) => name.match(/\d+$/)?.[0] || name.replace(/^Prof\.\s*/,
                   <span class="qq-acc-note">{{ u.note }}</span>
                 </span>
               </button>
-              <button type="button" class="qq-acc-fill" :aria-label="`Fill the sign-in form with ${u.email}`" @click="$emit('fill', u.email)">Fill form</button>
+              <button type="button" class="qq-acc-fill" :aria-label="`Fill the sign-in form with ${u.email}`" @click="$emit('fill', u.email)">Use account</button>
             </div>
           </div>
         </div>

@@ -81,10 +81,10 @@ leaves the server.
 - Login sessions are kept in server memory for 8 hours, so restarting the server
   signs everyone out.
 - **Test accounts page:** the small **Test accounts** button under the form (or
-  `/#test-accounts`) lists every demo user. Click one to sign in without a
-  password, or **Fill form** to try the normal sign-in with that email. It is for
-  development and testing only, and is switched off when the server runs with
-  `NODE_ENV=production`.
+  `/#test-accounts`) lists seeded synthetic users. Select one to fill its email
+  into the regular sign-in form, then enter `quizquest`. The page never lists
+  registered accounts, and passwordless test login is disabled when the server
+  runs with `NODE_ENV=production`.
 
 There is no sign-up page yet: only the seeded accounts can sign in.
 

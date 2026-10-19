@@ -68,9 +68,12 @@ test('repeated wrong passwords lock the email for 15 minutes', async (t) => {
   assert.equal((await call('POST', '/api/login', { email, password: P.DEMO_PASSWORD })).status, 200);
 });
 
-test('with demo login off, the passwordless picker is gone', async (t) => {
+test('with demo login off, the account helper lists only seeded users and passwordless login is blocked', async (t) => {
   const { call } = await boot(t, { demoLogin: false });
-  assert.equal((await call('GET', '/api/demo-users')).status, 404);
+  const listed = await call('GET', '/api/demo-users');
+  assert.equal(listed.status, 200);
+  assert.ok(listed.body.length > 0);
+  assert.ok(listed.body.every((user) => user.email.endsWith('@quizquest.demo')));
   assert.equal((await call('POST', '/api/login', { userId: 't-a' })).status, 400);
   assert.equal((await call('POST', '/api/login', { email: 'prof.a@quizquest.demo', password: P.DEMO_PASSWORD })).status, 200);
 });

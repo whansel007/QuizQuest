@@ -8,3 +8,4 @@ knowledge/
 # Playwright output
 test-results/
 playwright-report/
+.workbuddy-ai

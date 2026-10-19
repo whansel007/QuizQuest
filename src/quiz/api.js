@@ -421,14 +421,18 @@ function createQuizApi({ dataFile = null, store = null, now = () => Date.now(), 
 
   // ---------------- auth (demo) ----------------
   route('GET', '/api/demo-users', null, () => {
-    if (!demoLogin) fail(404, 'Not found.');
     const label = (u) => {
       if (u.role === 'teacher') return db.classes.filter((c) => c.teacherIds.includes(u.id)).map((c) => c.name).join(', ');
       const cls = db.enrolments.filter((e) => e.studentId === u.id).map((e) => db.classes.find((c) => c.id === e.classId).name);
       const hist = db.attempts.some((a) => a.studentId === u.id);
       return cls.join(', ') + (hist ? '' : ' - no history yet');
     };
-    return db.users.map((u) => ({ id: u.id, name: u.name, role: u.role, email: u.email, note: label(u) }));
+    // The test-account helper may list synthetic seeded accounts in production,
+    // but never disclose registered users. Passwordless userId login remains
+    // disabled there; the picker only fills the regular password form.
+    return db.users.filter((u) => (u.id === 't-a' || u.id === 't-b' || /^s-\d{2}$/.test(u.id))
+      && u.email?.endsWith('@quizquest.demo'))
+      .map((u) => ({ id: u.id, name: u.name, role: u.role, email: u.email, note: label(u) }));
   });
 
   // One error for a wrong email or a wrong password, so the form can't be
