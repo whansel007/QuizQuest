@@ -1156,6 +1156,8 @@ function createQuizApi({ dataFile = null, store = null, now = () => Date.now(), 
         eggOdds: R.EGG_ODDS,
         duplicateRefund: R.REWARDS.duplicateRefund,
         resources: E.RESOURCES,
+        heroSummon: R.HERO_SUMMON,
+        heroes: R.HERO_CATALOG,
       },
       rules: R.REWARDS,
       options: { lengths: SESSION_LENGTHS, timers: TIMERS, accommodation: ACCOMMODATION },
@@ -1440,6 +1442,72 @@ function createQuizApi({ dataFile = null, store = null, now = () => Date.now(), 
     db.ledger.find((t) => t.refKey === refKey).meta = { petId: pet.id, dupe: !!owned };
     save();
     return { pet, duplicatePet: !!owned, inventory: inv, wallet: wallet(user.id) };
+  });
+
+  route('POST', '/api/student/hero-summon', 'student', ({ user, body }) => {
+    const rid = requestId(body.requestId);
+    const refKey = `hero-summon:${user.id}:${rid}`;
+    const cost = R.HERO_SUMMON.pullCost;
+    const inv = R.inventory(db, user.id);
+    // Idempotent retry: the same requestId returns the same prize so a
+    // double-click (or retryablePost replay) can't double-charge or roll
+    // a different result.
+    const prev = db.ledger.find((t) => t.refKey === refKey);
+    if (prev) {
+      const meta = prev.meta || {};
+      let prize;
+      if (meta.kind === 'hero') {
+        const hero = R.HERO_CATALOG.find((h) => h.id === meta.heroId) || { id: meta.heroId, name: meta.heroId, emoji: '✨', type: 'hero', rarity: meta.rarity, weapon: '', skill: '', ultimate: '' };
+        prize = { kind: 'hero', rarity: meta.rarity, hero };
+      } else {
+        prize = { kind: 'resource', rarity: meta.rarity, resource: meta.resource, amount: meta.amount };
+      }
+      return {
+        prize,
+        pity: inv.heroPity,
+        duplicateHero: !!meta.dupe,
+        refund: meta.dupe ? Math.floor(cost * R.HERO_SUMMON.duplicateRefundFraction) : 0,
+        inventory: inv,
+        wallet: wallet(user.id),
+        repeat: true,
+      };
+    }
+    const pay = R.spend(db, user.id, cost, 'Hero Summon pull', refKey, now());
+    if (!pay.ok) fail(400, pay.error);
+    const roll = R.drawHeroSummon(inv.heroPity);
+    inv.heroPity = roll.pity;
+    const meta = { kind: roll.prize.kind, rarity: roll.prize.rarity };
+    let duplicateHero = false;
+    let refund = 0;
+    if (roll.prize.kind === 'hero') {
+      meta.heroId = roll.prize.hero.id;
+      if (inv.heroes.includes(roll.prize.hero.id)) {
+        duplicateHero = true;
+        inv.heroDupes[roll.prize.hero.id] = (inv.heroDupes[roll.prize.hero.id] || 0) + 1;
+        refund = Math.floor(cost * R.HERO_SUMMON.duplicateRefundFraction);
+        meta.dupe = true;
+        if (refund > 0) {
+          db.ledger.push({
+            id: newId('tx'),
+            studentId: user.id,
+            kind: 'refund',
+            amount: refund,
+            reason: `Duplicate ${roll.prize.hero.name} refund`,
+            refKey: refKey + ':refund',
+            at: now(),
+          });
+        }
+      } else {
+        inv.heroes.push(roll.prize.hero.id);
+      }
+    } else {
+      meta.resource = roll.prize.resource;
+      meta.amount = roll.prize.amount;
+      inv.resources[roll.prize.resource] = (inv.resources[roll.prize.resource] || 0) + roll.prize.amount;
+    }
+    db.ledger.find((t) => t.refKey === refKey).meta = meta;
+    save();
+    return { prize: roll.prize, pity: roll.pity, duplicateHero, refund, inventory: inv, wallet: wallet(user.id) };
   });
 
   route('POST', '/api/student/equip', 'student', ({ user, body }) => {
