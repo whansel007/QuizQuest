@@ -12,19 +12,82 @@ test.before(async () => {
 });
 test.after(async () => { await browser?.close(); srv?.io.close(); });
 async function pageFor(t, name, viewport = { width: 1280, height: 900 }) {
-  const page = await browser.newPage({ viewport });
+  // Keep date expectations stable across developers' machines.
+  const page = await browser.newPage({ viewport, locale: 'en-SG', timezoneId: 'Asia/Singapore' });
   const errors = [];
   page.on('pageerror', (e) => errors.push(e.message));
   t.after(async () => { await page.close(); assert.deepEqual(errors, [], 'no unhandled browser errors'); });
   await page.goto(base);
+  // The current authentication screen opens on email login; demo profiles
+  // are behind their own tab. Start teacher tests on the question bank.
+  await page.getByRole('button', { name: 'Demo Accounts', exact: true }).click();
   await page.getByRole('button', { name, exact: false }).click();
   await page.getByRole('button', { name: 'Switch user', exact: true }).waitFor();
+  if (name.startsWith('Prof.')) await page.locator('#tabs').getByRole('button', { name: 'Question bank', exact: true }).click();
   return page;
 }
+
+test('student reports survive a failed submission and show a professor response in My Progress', async (t) => {
+  const page = await pageFor(t, 'Student 01');
+  await page.getByRole('button', { name: 'Start practice', exact: true }).click();
+  await page.locator('.quiz-head').waitFor();
+  const choices = page.locator('.options button');
+  if (await choices.count()) {
+    await choices.first().click();
+    if (await page.getByRole('button', { name: 'Submit answer' }).count()) await page.getByRole('button', { name: 'Submit answer' }).click();
+  } else {
+    if (await page.getByLabel('Numeric answer').count()) await page.getByLabel('Numeric answer').fill('42');
+    else await page.getByLabel('Written answer').fill('My practice answer.');
+    await page.getByRole('button', { name: 'Submit answer' }).click();
+  }
+  await page.getByRole('button', { name: 'Report a problem with this question', exact: true }).click();
+  await page.getByLabel('Problem category').selectOption('ambiguous');
+  const reason = 'Browser workflow: the wording could be clearer.';
+  await page.getByLabel('Report this question to your professor').fill(reason);
+  await page.route('**/api/student/questions/*/report', (route) => route.fulfill({
+    status: 503, contentType: 'application/json', body: '{"error":"Please retry this report."}',
+  }), { times: 1 });
+  await page.getByRole('button', { name: 'Send report', exact: true }).click();
+  await page.getByRole('alert').getByText('Please retry this report.').waitFor();
+  assert.equal(await page.getByLabel('Report this question to your professor').inputValue(), reason);
+  await page.getByRole('button', { name: 'Send report', exact: true }).click();
+  await page.getByText(/Report sent\. You can follow/).waitFor();
+  await page.locator('#tabs').getByRole('button', { name: 'My Progress', exact: true }).click();
+  await page.getByRole('heading', { name: 'My Progress', exact: true }).waitFor();
+  await page.getByText(reason, { exact: false }).waitFor();
+
+  const professor = await pageFor(t, 'Prof. Demo A');
+  await professor.locator('#tabs').getByRole('button', { name: 'Question bank', exact: true }).click();
+  await professor.getByRole('button', { name: /^Reported \(/ }).click();
+  const report = professor.locator('.qcard .note').filter({ hasText: reason });
+  await report.getByLabel('Professor response (optional, visible to the student)').fill('I checked the notes and clarified the question.');
+  await report.getByRole('button', { name: 'Mark resolved', exact: true }).click();
+  await professor.getByText('Report resolved. The student can see the status in My Progress.', { exact: true }).waitFor();
+  await page.getByRole('button', { name: 'Refresh progress', exact: true }).click();
+  await page.getByLabel('Report status', { exact: true }).selectOption('resolved');
+  await page.getByText('I checked the notes and clarified the question.', { exact: false }).waitFor();
+  if (process.env.QA_SCREENSHOTS) await page.screenshot({ path: require('node:path').join(process.env.QA_SCREENSHOTS, 'Progress-desktop.png'), fullPage: true });
+});
+
+test('My Progress handles empty history, a failed load and narrow screens', async (t) => {
+  const page = await pageFor(t, 'Student 12', { width: 390, height: 844 });
+  await page.route('**/api/student/classes/*/reports', (route) => route.fulfill({
+    status: 503, contentType: 'application/json', body: '{"error":"Progress temporarily unavailable."}',
+  }), { times: 1 });
+  await page.locator('#tabs').getByRole('button', { name: 'My Progress', exact: true }).click();
+  await page.getByRole('alert').waitFor();
+  await page.getByRole('button', { name: 'Refresh progress', exact: true }).click();
+  await page.getByText('No completed practice sessions yet.', { exact: true }).waitFor();
+  await page.getByText('You have not reported any questions in this class.', { exact: true }).waitFor();
+  assert.equal(await page.getByText('Not practised yet', { exact: true }).count(), 3);
+  assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth), true);
+  if (process.env.QA_SCREENSHOTS) await page.screenshot({ path: require('node:path').join(process.env.QA_SCREENSHOTS, 'Progress-empty-mobile.png'), fullPage: true });
+});
 test('switching professors refreshes course data and visits every teacher view', async (t) => {
   const page = await pageFor(t, 'Prof. Demo A');
   await page.getByRole('heading', { name: 'Question bank', exact: true }).waitFor();
   await page.getByRole('button', { name: 'Switch user' }).click();
+  await page.getByRole('button', { name: 'Demo Accounts', exact: true }).click();
   await page.getByRole('button', { name: 'Prof. Demo B' }).click();
   for (const name of ['Question bank', 'Source material', 'AI drafting', 'Analytics', 'Evaluation', 'Settings']) {
     await page.locator('#tabs').getByRole('button', { name, exact: true }).click();
@@ -80,13 +143,16 @@ test('practice Next recovers from a failed request and the session finishes', as
   }
   await page.getByRole('button', { name: 'Back to practice' }).waitFor();
 });
-test('login network errors show a retry button', async (t) => {
+test('login network errors allow a retry on the current authentication screen', async (t) => {
   const page = await browser.newPage();
   t.after(() => page.close());
-  await page.route('**/api/demo-users', (r) => r.fulfill({ status: 503, contentType: 'application/json', body: '{"error":"Unavailable"}' }), { times: 1 });
+  await page.route('**/api/login', (r) => r.fulfill({ status: 503, contentType: 'application/json', body: '{"error":"Unavailable"}' }), { times: 1 });
   await page.goto(base);
-  await page.getByRole('button', { name: 'Retry sign-in' }).click();
-  await page.getByRole('button', { name: 'Student 01' }).waitFor();
+  await page.getByRole('button', { name: 'Demo Accounts', exact: true }).click();
+  await page.getByRole('button', { name: 'Student 01' }).click();
+  await page.getByText('Unavailable', { exact: true }).waitFor();
+  await page.getByRole('button', { name: 'Student 01' }).click();
+  await page.getByRole('button', { name: 'Switch user', exact: true }).waitFor();
 });
 
 test('hero lab selects heroes and allows movement, aiming, and action tests', async (t) => {
@@ -148,7 +214,7 @@ test('student and teacher screens fit 320px and 390px viewports', async (t) => {
   const page = await pageFor(t, 'Student 02', { width: 320, height: 800 });
   for (const width of [320, 390]) {
     await page.setViewportSize({ width, height: 800 });
-    for (const name of ['Practice', 'World', 'Kingdom', 'Pets & shop']) {
+    for (const name of ['Practice', 'My Progress', 'World', 'Kingdom', 'Pets & shop']) {
       await page.locator('#tabs').getByRole('button', { name, exact: true }).click();
       await page.getByRole('heading', { name, exact: true }).waitFor();
       const overflow = await page.evaluate(() => document.documentElement.scrollWidth - innerWidth);
@@ -157,6 +223,7 @@ test('student and teacher screens fit 320px and 390px viewports', async (t) => {
     }
   }
   await page.getByRole('button', { name: 'Switch user' }).click();
+  await page.getByRole('button', { name: 'Demo Accounts', exact: true }).click();
   await page.getByRole('button', { name: 'Prof. Demo A' }).click();
   await page.setViewportSize({ width: 320, height: 800 });
   for (const name of ['Question bank', 'Source material', 'AI drafting', 'Analytics', 'Evaluation', 'Settings']) {

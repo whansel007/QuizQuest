@@ -6,7 +6,7 @@
 //    question doesn't inflate it).
 // 2. Until every topic has a few attempts, sample broadly
 //    (round-robin, least-practised topics first).
-// 3. After that: ~70% of slots from weaker topics, ~30% from the rest,
+// 3. After that: ~30% of slots from weaker topics, ~70% from the rest,
 //    random inside each group. These weights are a starting point
 //    for the team to test, not a validated recipe.
 // 4. Avoid recently-seen questions when alternatives exist, and
@@ -14,7 +14,7 @@
 // ============================================================
 
 const ADAPTIVE = {
-  weakShare: 0.7,          // share of slots given to weaker topics
+  weakShare: 0.3,          // share of slots given to weaker topics
   recentWindow: 10,        // distinct questions per topic that count towards the indicator
   minPerTopic: 3,          // attempts needed in EVERY topic before adapting
   weakBelow: 0.75,         // topic accuracy below this counts as "weaker"
@@ -24,7 +24,8 @@ const ADAPTIVE = {
 // Per-topic stats for one student in one class.
 // attempts must be pre-filtered to (studentId, classId).
 function topicStats(attempts, topics) {
-  const byTime = attempts.filter((a) => !a.needsReview).sort((a, b) => b.at - a.at);
+  // Creation order breaks timestamp ties (two answers can share a millisecond).
+  const byTime = attempts.filter((a) => !a.needsReview).reverse().sort((a, b) => b.at - a.at);
   const latestPerQuestion = new Map(); // qid -> most recent attempt
   for (const a of byTime) if (!latestPerQuestion.has(a.questionId)) latestPerQuestion.set(a.questionId, a);
 
@@ -100,7 +101,7 @@ function planSession({ bank, topics, stats, recentIds, length, rand = Math.rando
     }
     notes.push('Broad practice: sampling all topics until there is enough history to personalise.');
   } else {
-    // ADAPTIVE: weaker topics get ~70% of slots
+    // ADAPTIVE: weaker topics get ~30% of slots
     mode = 'adaptive';
     const ranked = topicsWithQs.map((t) => statOf(t.id)).sort((a, b) => a.accuracy - b.accuracy);
     weakTopicIds = ranked.filter((s) => s.accuracy < ADAPTIVE.weakBelow).map((s) => s.topicId);

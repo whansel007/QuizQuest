@@ -19,6 +19,7 @@ import WalletBadge from './WalletBadge.vue';
 import ResourceBadge from './ResourceBadge.vue';
 import QuestionForm from './QuestionForm.vue';
 import ResultBlock from './ResultBlock.vue';
+import ReportForm from './ReportForm.vue';
 
 const error = ref('');
 const loaded = ref(false);
@@ -127,7 +128,7 @@ function connect() {
     releaseKeys();
     socket.emit('input', keys);
     form.value?.destroy();
-    challenge.value = { id: ch.id, label: ch.label, question: ch.question, result: null };
+    challenge.value = { id: ch.id, label: ch.label, question: ch.question, result: null, reportOpen: false, reportDone: '' };
     challengeKey.value++;
     formActive = true;
     challengeId = ch.id;
@@ -335,7 +336,12 @@ onUnmounted(() => {
                 <ResultBlock :r="challenge.result.r">
                   <div v-if="challenge.result.extra" :class="challenge.result.extra.cls">{{ challenge.result.extra.text }}</div>
                 </ResultBlock>
-                <button class="btn small" style="margin-top: 8px" @click="closeResult">Close</button>
+                <div class="row" style="margin-top: 8px">
+                  <button class="btn small" @click="closeResult">Close</button>
+                  <button class="btn small" @click="challenge.reportOpen = true">Report a problem with this question</button>
+                </div>
+                <p v-if="challenge.reportDone" class="note good small" role="status">{{ challenge.reportDone }}</p>
+                <ReportForm v-else-if="challenge.reportOpen" :key="challenge.id" :question-id="challenge.question.questionId" :attempt-id="challenge.result.r.attemptId" @sent="(message) => (challenge.reportDone = message)" @cancel="challenge.reportOpen = false" />
               </div>
             </template>
             <p v-else class="muted small">{{ panelMsg }}</p>

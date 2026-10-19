@@ -17,8 +17,9 @@ pets, kingdom buildings and loot in a co-op multiplayer World.
   browser, so the PDF itself never leaves the professor's machine.
 - **AI drafting:** questions drafted from retrieved course material, always saved
   as drafts for professor review. An offline drafter works without an AI key.
-- **Adaptive practice:** broad at first, then ~70% weaker topics. Timers, extra
+- **Adaptive practice:** broad at first, then ~30% weaker topics and ~70% other topics. Timers, extra
   time and resume after refresh.
+- **My Progress and reports:** per-class topic indicators with question counts, confirmed session scores, and question report history with professor responses.
 - **Marking and analytics:** short answers get a provisional grade and the
   professor's mark wins. Class analytics and evaluation dashboards.
 - **Gamification:** server-side coins, pets and eggs, kingdom buildings, a class
@@ -109,6 +110,7 @@ docs/               API research
 ## Documentation
 
 - [PROTOTYPE.md](PROTOTYPE.md): full guide (architecture, Supabase, hosting, features)
+- [Student progress and reporting](docs/STUDENT_PROGRESS_REPORTING.md): calculations, report workflow, code map and testing
 - [AUDIT.md](AUDIT.md): implementation audit and known limitations
 - [docs/API_RECOMMENDATIONS.md](docs/API_RECOMMENDATIONS.md): useful APIs for later phases
 - [HOW_THIS_WORKS.md](HOW_THIS_WORKS.md): how the original Circle Tag game works (at `/tag`)

@@ -333,7 +333,7 @@ test('generation: drafts only, structure-checked, cached; formats limited offlin
   assert.equal(short.status, 400, 'offline drafter refuses formats it cannot write');
 });
 
-test('adaptive mix: ~70% weaker-topic questions once there is history', () => {
+test('adaptive mix: ~30% weaker-topic questions once there is history', () => {
   const topics = [{ id: 'A', name: 'A' }, { id: 'B', name: 'B' }, { id: 'C', name: 'C' }];
   const bank = topics.flatMap((t) => Array.from({ length: 10 }, (_, i) => ({ id: `${t.id}${i}`, topicId: t.id })));
   const attempts = [];
@@ -342,7 +342,7 @@ test('adaptive mix: ~70% weaker-topic questions once there is history', () => {
   const plan = planSession({ bank, topics, stats: topicStats(attempts, topics), recentIds: [], length: 10 });
   assert.equal(plan.mode, 'adaptive');
   assert.deepEqual(plan.weakTopicIds, ['B']);
-  assert.equal(plan.questionIds.filter((id) => id.startsWith('B')).length, 7);
+  assert.equal(plan.questionIds.filter((id) => id.startsWith('B')).length, 3);
   const fresh = planSession({ bank, topics, stats: topicStats([], topics), recentIds: [], length: 9 });
   assert.equal(fresh.mode, 'broad');
   for (const t of topics) assert.equal(fresh.questionIds.filter((id) => id.startsWith(t.id)).length, 3);

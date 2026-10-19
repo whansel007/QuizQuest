@@ -4,6 +4,7 @@ import { api, rerender } from '../api.js';
 import { toast } from '../ui.js';
 import AsyncButton from '../components/AsyncButton.vue';
 import QuestionEditor from './QuestionEditor.vue';
+import ReportReview from './ReportReview.vue';
 import { ORIGIN } from './courses.js';
 
 const props = defineProps({ q: { type: Object, required: true }, course: { type: Object, required: true }, passages: { type: Array, required: true } });
@@ -25,11 +26,6 @@ function edit() {
 const setStatus = (a) => async () => {
   await api('POST', `/api/teacher/questions/${q.id}/status`, { action: a });
   toast({ approve: 'Published', reject: 'Rejected', withdraw: 'Withdrawn from practice', republish: 'Published again' }[a]);
-  rerender();
-};
-const resolve = (r) => async () => {
-  await api('POST', `/api/teacher/questions/${q.id}/reports/${r.id}/resolve`);
-  toast('Report marked resolved');
   rerender();
 };
 </script>
@@ -79,9 +75,11 @@ const resolve = (r) => async () => {
     <div class="small muted">Source: {{ q.sources.length ? q.sources.map((s) => s.title).join(', ') : v.sourceIds.length ? 'source removed' : 'none cited' }}</div>
     <div v-if="totalAttempts" class="small muted">{{ totalAttempts }} attempt(s) across {{ q.versions.filter((x) => x.attempts).length }} version(s)</div>
     <div v-if="v.warnings?.length" class="note warn small" style="margin-top: 8px">{{ v.warnings.join(' ') }}</div>
-    <div v-for="r in q.reports.filter((x) => !x.resolved)" :key="r.id" class="note bad small" style="margin-top: 8px">
-      <b>Student report: </b>{{ r.reason }} <AsyncButton class="btn small" :run="resolve(r)">Mark resolved</AsyncButton>
-    </div>
+    <ReportReview v-for="r in q.reports.filter((x) => !x.resolved)" :key="r.id" :question-id="q.id" :report="r" />
+    <details v-if="q.reports.some((r) => r.resolved)" style="margin-top: 8px">
+      <summary>Resolved reports ({{ q.reports.filter((r) => r.resolved).length }})</summary>
+      <ReportReview v-for="r in q.reports.filter((x) => x.resolved)" :key="r.id" :question-id="q.id" :report="r" />
+    </details>
     <div class="actions">
       <AsyncButton v-if="['draft', 'rejected'].includes(q.status)" class="btn good" :run="setStatus('approve')">Approve &amp; publish</AsyncButton>
       <AsyncButton v-if="q.status === 'draft'" class="btn bad" :run="setStatus('reject')">Reject</AsyncButton>
