@@ -166,8 +166,17 @@ function clearSession() {
   rerender();
 }
 
-export async function signIn(userId) {
-  const r = await api('POST', '/api/login', { userId });
+// credentials: { email, password }, or { userId } for the demo picker
+export async function signIn(credentials) {
+  startSession(await api('POST', '/api/login', credentials));
+}
+
+// { name, email, password } -> a new student account, signed in
+export async function signUp(details) {
+  startSession(await api('POST', '/api/register', details));
+}
+
+function startSession(r) {
   S.token = r.token;
   try {
     sessionStorage.setItem('qq-token', r.token);

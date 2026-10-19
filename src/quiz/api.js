@@ -14,9 +14,10 @@
 // the multiplayer world (src/world/world.js), so there is exactly one
 // code path that decides whether an answer is right and what it earns.
 //
-// DEMO AUTH: /api/login lets you pick a synthetic user with no
-// password. That is for the prototype only - the real build would use
-// Supabase Auth, with teacher status assigned by an admin.
+// AUTH: /api/login takes { email, password } (scrypt hashes, see
+// passwords.js). /api/register signs up a new student account. Seeded users share the demo password "quizquest".
+// The old passwordless demo picker ({ userId }) still works while
+// demoLogin is on - the default everywhere except NODE_ENV=production.
 // ============================================================
 
 const crypto = require('crypto');
@@ -33,10 +34,15 @@ const gemini = require('./gemini');
 const R = require('./rewards');
 const E = require('./economy');
 const { SESSION_RESOURCES } = require('./seed');
+const P = require('./passwords');
 
 const BODY_LIMIT = 100 * 1024;     // bytes, default per request
 const PASSAGE_LIMIT = 100000;      // characters per passage (PDF chapters)
 const TOKEN_TTL = 8 * 3600 * 1000;
+const LOGIN_MAX_FAILS = 5;         // wrong passwords per email...
+const LOGIN_LOCK_MS = 15 * 60 * 1000; // ...before it is locked for this long
+const NAME_MAX = 60;
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const SESSION_LENGTHS = [5, 8, 10, 15];
 const TIMERS = [0, 30, 60, 90];    // seconds per question; 0 = untimed
 const ACCOMMODATION = [1, 1.5, 2];
@@ -101,9 +107,10 @@ const csvCell = (v) => {
 
 // store: an already-loaded { db, save } (e.g. src/db/supabase-store.js);
 // otherwise the JSON file store (dataFile = null keeps it in memory).
-function createQuizApi({ dataFile = null, store = null, now = () => Date.now(), drafter = null } = {}) {
+function createQuizApi({ dataFile = null, store = null, now = () => Date.now(), drafter = null, demoLogin = process.env.NODE_ENV !== 'production' } = {}) {
   store = store || createStore(dataFile);
   const { db } = store;
+  if (P.ensureDemoCredentials(db.users)) store.save();
   // Every change goes through save(), so counting saves tells us whether
   // the data has changed (used to cache dashboard numbers). A save can say
   // what it touched, so one class practising doesn't keep throwing away
@@ -120,6 +127,7 @@ function createQuizApi({ dataFile = null, store = null, now = () => Date.now(), 
   };
   const versionOfClass = (classId) => `${dataVersion}.${classVersions.get(classId) || 0}`;
   const tokens = new Map(); // token -> { userId, expires }
+  const loginFails = new Map(); // email -> { count, until }
   const grading = new Set(); // "sessionId:index" answers currently being graded
 
   // ---------- lookups that double as access checks ----------
@@ -152,6 +160,8 @@ function createQuizApi({ dataFile = null, store = null, now = () => Date.now(), 
     if (!sess || sess.expires < now()) return null;
     return db.users.find((u) => u.id === sess.userId) || null;
   }
+  // What the browser may see of a user: never the password hash
+  const publicUser = (u) => ({ id: u.id, name: u.name, role: u.role, email: u.email });
 
   // Shape a question for the teacher UI (full detail incl. answers)
   function teacherView(q) {
@@ -309,23 +319,64 @@ function createQuizApi({ dataFile = null, store = null, now = () => Date.now(), 
     routes.push({ method, re, keys, role, handler, limit: opts.limit || BODY_LIMIT });
   };
 
-  // ---------------- auth (demo) ----------------
+  // ---------------- auth ----------------
   route('GET', '/api/demo-users', null, () => {
+    if (!demoLogin) fail(404, 'Not found.');
     const label = (u) => {
       if (u.role === 'teacher') return db.classes.filter((c) => c.teacherIds.includes(u.id)).map((c) => c.name).join(', ');
       const cls = db.enrolments.filter((e) => e.studentId === u.id).map((e) => db.classes.find((c) => c.id === e.classId).name);
       const hist = db.attempts.some((a) => a.studentId === u.id);
       return cls.join(', ') + (hist ? '' : ' - no history yet');
     };
-    return db.users.map((u) => ({ id: u.id, name: u.name, role: u.role, note: label(u) }));
+    return db.users.map((u) => ({ id: u.id, name: u.name, role: u.role, email: u.email, note: label(u) }));
   });
 
+  // One error for a wrong email or a wrong password, so the form can't be
+  // used to find out which emails have accounts
+  function checkPassword(body) {
+    const email = P.normEmail(body.email);
+    if (!email || typeof body.password !== 'string' || !body.password) fail(400, 'Enter your email and password.');
+    if (email.length > 254 || body.password.length > P.PASSWORD_MAX) fail(401, 'Email or password is incorrect.');
+    const lock = loginFails.get(email);
+    if (lock && lock.count >= LOGIN_MAX_FAILS && lock.until > now()) fail(429, 'Too many failed attempts. Try again in 15 minutes.');
+    const user = db.users.find((u) => u.email === email);
+    if (!P.verifyPassword(body.password, user ? user.passwordHash : P.dummyHash()) || !user) {
+      const prev = lock && lock.until > now() ? lock.count : 0;
+      loginFails.set(email, { count: prev + 1, until: now() + LOGIN_LOCK_MS });
+      fail(401, 'Email or password is incorrect.');
+    }
+    loginFails.delete(email);
+    return user;
+  }
+
   route('POST', '/api/login', null, ({ body }) => {
-    const user = db.users.find((u) => u.id === body.userId) || fail(400, 'Unknown demo user.');
+    let user;
+    if (body.userId !== undefined && demoLogin) user = db.users.find((u) => u.id === body.userId) || fail(400, 'Unknown demo user.');
+    else user = checkPassword(body);
+    for (const [e, f] of loginFails) if (f.until < now()) loginFails.delete(e);
+    return startSession(user);
+  });
+
+  function startSession(user) {
     for (const [t, s] of tokens) if (s.expires < now()) tokens.delete(t); // forget expired sessions
     const token = crypto.randomBytes(24).toString('hex');
     tokens.set(token, { userId: user.id, expires: now() + TOKEN_TTL });
-    return { token, user };
+    return { token, user: publicUser(user) };
+  }
+
+  // Self sign-up always makes a student. Teacher accounts are created by
+  // the team (seed data / database), so nobody can promote themselves.
+  route('POST', '/api/register', null, ({ body }) => {
+    const name = str(body.name, NAME_MAX, 'Name');
+    const email = P.normEmail(body.email);
+    if (!EMAIL_RE.test(email) || email.length > 254) fail(400, 'Enter a valid email address.');
+    if (typeof body.password !== 'string' || body.password.length < P.PASSWORD_MIN) fail(400, `Use a password of at least ${P.PASSWORD_MIN} characters.`);
+    if (body.password.length > P.PASSWORD_MAX) fail(400, `Use a password of at most ${P.PASSWORD_MAX} characters.`);
+    if (db.users.some((u) => u.email === email)) fail(409, 'An account with this email already exists. Sign in instead.');
+    const user = { id: newId('s'), name, role: 'student', email, passwordHash: P.hashPassword(body.password), createdAt: now() };
+    db.users.push(user);
+    save({ analytics: false });
+    return startSession(user);
   });
 
   route('POST', '/api/logout', 'any', ({ token }) => {
@@ -333,7 +384,7 @@ function createQuizApi({ dataFile = null, store = null, now = () => Date.now(), 
     return { ok: true };
   });
 
-  route('GET', '/api/me', 'any', ({ user }) => user);
+  route('GET', '/api/me', 'any', ({ user }) => publicUser(user));
 
   // ---------------- teacher: courses & settings ----------------
   route('GET', '/api/teacher/courses', 'teacher', ({ user }) =>
