@@ -14,13 +14,14 @@ import EvaluationView from './teacher/EvaluationView.vue';
 import SettingsView from './teacher/SettingsView.vue';
 import ClassManagementView from './teacher/ClassManagementView.vue';
 import PracticeView from './student/PracticeView.vue';
-import WorldView from './student/WorldView.vue';
+import HeroLabView from './student/HeroLabView.vue';
 import KingdomView from './student/KingdomView.vue';
 import PetsView from './student/PetsView.vue';
+import DebugMenu from './components/DebugMenu.vue';
 
 const TABS = {
   teacher: [['classes', 'Classes & Roster', ClassManagementView], ['review', 'Question bank', ReviewView], ['content', 'Source material', ContentView], ['generate', 'AI drafting', GenerateView], ['analytics', 'Analytics', AnalyticsView], ['evaluation', 'Evaluation', EvaluationView], ['settings', 'Settings', SettingsView]],
-  student: [['practice', 'Practice', PracticeView], ['world', 'World', WorldView], ['kingdom', 'Kingdom', KingdomView], ['pets', 'Pets & shop', PetsView]],
+  student: [['practice', 'Practice', PracticeView], ['world', 'World', HeroLabView], ['kingdom', 'Kingdom', KingdomView], ['pets', 'Hero Summon', PetsView]],
 };
 
 const ready = ref(false);
@@ -46,10 +47,11 @@ const current = computed(() => {
       <template v-if="S.me">
         <span>{{ S.me.name }}</span>
         <button class="btn small" @click="signOut">Switch user</button>
+        <DebugMenu v-if="S.me.role === 'student'" :key="S.token" />
       </template>
     </div>
   </header>
-  <main id="main">
+  <main id="main" :class="{ 'main-world': current?.[0] === 'world' }">
     <template v-if="ready">
       <LoginView v-if="!S.me" :key="'login' + S.viewKey" />
       <!-- the key remounts the view on tab switch, user switch or rerender(),

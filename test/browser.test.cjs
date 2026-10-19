@@ -5,7 +5,7 @@ const { start } = require('../server');
 let srv, browser, base;
 test.before(async () => {
   // DIST_DIR lets parallel builds test their own output (default: dist/)
-  srv = start(0, { dataFile: null, distDir: process.env.DIST_DIR ? require('path').resolve(process.env.DIST_DIR) : undefined });
+  srv = start(0, { dataFile: null, debugMode: true, distDir: process.env.DIST_DIR ? require('path').resolve(process.env.DIST_DIR) : undefined });
   await new Promise((r) => srv.httpServer.once('listening', r));
   base = `http://localhost:${srv.httpServer.address().port}`;
   browser = await chromium.launch({ headless: true, ...(process.env.BROWSER_CHANNEL ? { channel: process.env.BROWSER_CHANNEL } : {}) });
@@ -33,7 +33,7 @@ test('switching professors refreshes course data and visits every teacher view',
   }
   assert.ok(!(await page.locator('main').innerText()).includes('You have no assigned courses'));
 });
-test('a delayed start cannot replace Pets after navigation', async (t) => {
+test('a delayed start cannot replace Hero Summon after navigation', async (t) => {
   const page = await pageFor(t, 'Student 01');
   await page.getByRole('button', { name: 'Start practice' }).waitFor();
   let release, started;
@@ -42,12 +42,12 @@ test('a delayed start cannot replace Pets after navigation', async (t) => {
   await page.route('**/api/student/sessions', async (route) => { started(); await held; await route.continue(); });
   await page.getByRole('button', { name: 'Start practice' }).click();
   await seen;
-  await page.locator('#tabs').getByRole('button', { name: 'Pets & shop' }).click();
-  await page.getByRole('heading', { name: 'Pets & shop' }).waitFor();
+  await page.locator('#tabs').getByRole('button', { name: 'Hero Summon' }).click();
+  await page.getByRole('heading', { name: 'Hero Summon', exact: true }).waitFor();
   release();
   await page.waitForResponse((r) => r.url().endsWith('/api/student/sessions'));
   await page.waitForTimeout(100);
-  assert.equal(await page.getByRole('heading', { name: 'Pets & shop' }).count(), 1);
+  assert.equal(await page.getByRole('heading', { name: 'Hero Summon', exact: true }).count(), 1);
   assert.equal(await page.locator('.quiz-head').count(), 0);
 });
 test('practice Next recovers from a failed request and the session finishes', async (t) => {
@@ -89,44 +89,87 @@ test('login network errors show a retry button', async (t) => {
   await page.getByRole('button', { name: 'Student 01' }).waitFor();
 });
 
-test('hero lab selects heroes and allows movement, aiming, and action tests', async (t) => {
+test('Hero Lab HUD shows server state, cooldowns, and live stats', async (t) => {
   const page = await browser.newPage();
   t.after(() => page.close());
   await page.goto(`${base}/hero-lab`);
-  await page.getByRole('heading', { name: 'Hero test field' }).waitFor();
-  assert.equal(await page.getByRole('heading', { name: 'Hero stats' }).count(), 0);
-  await page.getByRole('button', { name: '🏹 Ranger' }).click();
-  await page.getByRole('heading', { name: 'Hero stats' }).waitFor();
-  await page.getByRole('button', { name: 'Test weapon' }).click();
-  await page.getByText(/Ranger tested Longbow/).waitFor();
-  await page.keyboard.press('e');
-  await page.getByText(/Ranger tested Volley/).waitFor();
+  await page.getByRole('heading', { name: 'Hero Lab' }).waitFor();
+  await page.getByRole('button', { name: /Sheriff/ }).click();
+  await page.locator('#hero-name').getByText('Sheriff').waitFor();
+  await page.getByText('Wave 1', { exact: true }).waitFor();
+  await page.getByText(/^Enemies left: \d+$/).waitFor();
+  await page.locator('[data-ability="weapon"] .ability-name').getByText('Revolver').waitFor();
+  await page.locator('[data-ability="skill"] .ability-name').getByText('Dynamite').waitFor();
+  await page.locator('[data-ability="ultimate"] .ability-name').getByText('Deadeye').waitFor();
+
+  await page.keyboard.press('i');
+  await page.locator('#stats-panel:not([hidden])').waitFor();
+  await page.locator('#stat-attack').getByText('12', { exact: true }).waitFor();
+  await page.getByRole('button', { name: /Information/ }).click();
+  assert.equal(await page.locator('#stats-panel').evaluate((panel) => panel.hidden), true);
+
+  await page.locator('#world').click({ position: { x: 1200, y: 360 } });
+  await page.waitForFunction(() => {
+    const circle = document.querySelector('[data-ability="weapon"] .ability-circle');
+    return Number.parseFloat(circle?.style.getPropertyValue('--fill')) < 100;
+  });
+  assert.equal(await page.getByRole('button', { name: /Choose another hero/ }).count(), 0);
+});
+
+test('Hero Lab lists the new roster and shows teammate health below local health', async (t) => {
+  const first = await browser.newPage();
+  const second = await browser.newPage();
+  t.after(async () => { await Promise.all([first.close(), second.close()]); });
+  await first.goto(`${base}/hero-lab`);
+  for (const name of ['Sheriff', 'Guardian', 'Pilot', 'Bombardier', 'Bubbles', 'Electromancer']) {
+    await first.getByRole('button', { name: new RegExp(name) }).waitFor();
+  }
+  await first.getByRole('button', { name: /Sheriff/ }).click();
+  await first.locator('#hero-name').getByText('Sheriff').waitFor();
+  await second.goto(`${base}/hero-lab`);
+  await second.getByRole('button', { name: /Bubbles/ }).click();
+  await second.locator('#hero-name').getByText('Bubbles').waitFor();
+  await first.locator('#team-health:not([hidden]) .teammate-health').waitFor();
+  await second.locator('#team-health:not([hidden]) .teammate-health').waitFor();
+  assert.match(await first.locator('#team-health').innerText(), /Bubbles/);
+  assert.match(await second.locator('#team-health').innerText(), /Sheriff/);
+});
+
+test('Hero Lab shows talents and Bombardier confirms targeted bombing with right-click', async (t) => {
+  const page = await browser.newPage();
+  t.after(() => page.close());
+  await page.goto(`${base}/hero-lab`);
+  await page.getByRole('button', { name: /Sheriff/ }).click();
+  await page.locator('#hero-name').getByText('Sheriff').waitFor();
+  await page.keyboard.press('i');
+  await page.getByText('Quick Draw', { exact: true }).waitFor();
+  await page.getByRole('button', { name: /Information/ }).click();
+  await page.goto(`${base}/hero-lab`);
+  await page.getByRole('button', { name: /Bombardier/ }).click();
+  await page.locator('#hero-name').getByText('Bombardier').waitFor();
   await page.keyboard.press('q');
-  await page.getByText(/Ranger tested Starfall/).waitFor();
-  await page.getByRole('button', { name: 'Test talent' }).click();
-  await page.getByText(/Ranger tested Keen Eye/).waitFor();
-  const before = await page.locator('canvas').evaluate((canvas) => canvas.toDataURL());
-  await page.locator('canvas').hover({ position: { x: 200, y: 100 } });
-  await page.waitForTimeout(50);
-  const aimed = await page.locator('canvas').evaluate((canvas) => canvas.toDataURL());
-  assert.notEqual(aimed, before, 'aim arrow follows the pointer');
-  await page.keyboard.down('ArrowRight');
-  await page.waitForTimeout(100);
-  await page.keyboard.up('ArrowRight');
-  assert.notEqual(await page.locator('canvas').evaluate((canvas) => canvas.toDataURL()), aimed, 'hero moves in the world');
-  await page.getByRole('button', { name: '🛡️ Guardian' }).click();
-  await page.getByText(/Weapon: Iron Mace/).waitFor();
-  const consoleMessages = [];
-  page.on('console', (msg) => consoleMessages.push(msg.text()));
-  await page.getByRole('button', { name: 'Fullscreen' }).waitFor();
-  await page.locator('canvas').click({ button: 'left' });
-  await page.getByText(/Guardian activated primary fire/).waitFor();
-  await page.locator('canvas').click({ button: 'right' });
-  await page.getByText(/Guardian activated secondary fire/).waitFor();
-  assert.ok(consoleMessages.some((msg) => msg.includes('[Weapon] Primary fire status:')), 'logged primary fire status');
-  assert.ok(consoleMessages.some((msg) => msg.includes('[Weapon] Secondary fire status:')), 'logged secondary fire status');
-  await page.getByRole('button', { name: 'Test AI' }).click();
-  assert.ok(consoleMessages.some((msg) => msg.includes('[AI] Requesting multiple choice question from NVIDIA')), 'logged AI request initiation');
+  await page.locator('#targeting-hint:not([hidden])').waitFor();
+  const rect = await page.locator('#world').boundingBox();
+  await page.mouse.click(rect.x + rect.width * .55, rect.y + rect.height * .45, { button: 'right' });
+  await page.waitForFunction(() => Number.parseFloat(document.querySelector('[data-ability="ultimate"] .ability-circle')?.style.getPropertyValue('--fill')) < 100);
+  await page.waitForFunction(() => document.querySelector('#targeting-hint').hidden);
+});
+
+test('Konami code opens the demo debug menu and changes only the signed-in wallet', async (t) => {
+  const page = await pageFor(t, 'Student 01');
+  await page.locator('#debug-menu-enabled').waitFor({ state: 'attached' });
+  await page.getByRole('button', { name: 'Tools and version' }).click();
+  await page.getByRole('dialog', { name: /QuizQuest v/ }).waitFor();
+  for (const key of ['ArrowUp', 'ArrowUp', 'ArrowDown', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'ArrowLeft', 'ArrowRight', 'b', 'a', 'Enter']) {
+    await page.keyboard.press(key);
+  }
+  const dialog = page.getByRole('dialog', { name: 'Demo debug menu' });
+  await dialog.waitFor();
+  await dialog.getByLabel('Coin balance').fill('321');
+  await dialog.getByRole('button', { name: 'Set balance' }).click();
+  await dialog.getByText('Balance updated.').waitFor();
+  const wallet = srv.quiz.db.ledger.filter((entry) => entry.studentId === 's-01').reduce((sum, entry) => sum + entry.amount, 0);
+  assert.equal(wallet, 321);
 });
 
 test('refreshing a timed quiz offers resume without resetting the server deadline', async (t) => {
@@ -148,7 +191,7 @@ test('student and teacher screens fit 320px and 390px viewports', async (t) => {
   const page = await pageFor(t, 'Student 02', { width: 320, height: 800 });
   for (const width of [320, 390]) {
     await page.setViewportSize({ width, height: 800 });
-    for (const name of ['Practice', 'World', 'Kingdom', 'Pets & shop']) {
+    for (const name of ['Practice', 'World', 'Kingdom', 'Hero Summon']) {
       await page.locator('#tabs').getByRole('button', { name, exact: true }).click();
       await page.getByRole('heading', { name, exact: true }).waitFor();
       const overflow = await page.evaluate(() => document.documentElement.scrollWidth - innerWidth);
@@ -197,30 +240,30 @@ test('an answer accepted before a lost response can be retried exactly once', as
   await page.getByRole('button', { name: /Next question|See results/ }).waitFor();
 });
 
-test('an egg purchase with a lost response reuses its purchase key', async (t) => {
+test('a hero summon with a lost response reuses its purchase key', async (t) => {
   const page = await pageFor(t, 'Student 02');
   srv.quiz.db.ledger.push({ id: 'test-funds', studentId: 's-02', amount: 200, kind: 'refund', refKey: 'test-funds', at: Date.now() });
-  await page.locator('#tabs').getByRole('button', { name: 'Pets & shop' }).click();
-  const open = page.getByRole('button', { name: 'Open an egg' });
+  await page.locator('#tabs').getByRole('button', { name: 'Hero Summon' }).click();
+  const open = page.getByRole('button', { name: /Summon · 50/ });
   await open.waitFor();
   let body;
-  await page.route('**/shop/egg', async (route) => {
+  await page.route('**/hero-summon', async (route) => {
     body = route.request().postDataJSON();
     await route.fetch();
     await route.abort();
   }, { times: 1 });
   await open.click();
   await page.locator('#toast.bad').waitFor();
-  const spent = srv.quiz.db.ledger.filter((r) => r.refKey?.startsWith('egg:s-02:') && r.kind === 'spend').length;
-  const response = page.waitForResponse((r) => r.url().endsWith('/shop/egg'));
+  const spent = srv.quiz.db.ledger.filter((r) => r.refKey?.startsWith('hero-summon:s-02:') && r.kind === 'spend').length;
+  const response = page.waitForResponse((r) => r.url().endsWith('/hero-summon'));
   await open.click();
   const r = await response;
   assert.deepEqual(r.request().postDataJSON(), body);
   assert.equal((await r.json()).repeat, true);
-  assert.equal(srv.quiz.db.ledger.filter((r) => r.refKey?.startsWith('egg:s-02:') && r.kind === 'spend').length, spent);
+  assert.equal(srv.quiz.db.ledger.filter((r) => r.refKey?.startsWith('hero-summon:s-02:') && r.kind === 'spend').length, spent);
 });
 
-test('kingdom builds drop new blocks in place and the egg reveal hands over the pet', async (t) => {
+test('kingdom builds work and Hero Summon reveals a new hero', async (t) => {
   const page = await pageFor(t, 'Student 03');
   const R = require('../src/quiz/rewards');
   R.inventory(srv.quiz.db, 's-03').resources = { wood: 40, crystal: 40, herb: 40 };
@@ -234,20 +277,38 @@ test('kingdom builds drop new blocks in place and the egg reveal hands over the 
   assert.ok(await page.locator('.iso .vx.drop').count() > 0, 'new blocks drop in without remounting the view');
   assert.equal(await page.locator('.tile .v').first().innerText(), '🪵 35');
 
+  const E = require('../src/quiz/economy');
+  E.kingdom(srv.quiz.db, 's-03').buildings.garden = 2;
+  await page.locator('#tabs').getByRole('button', { name: 'World' }).click();
+  const sheriff = page.getByRole('button', { name: /Sheriff/ });
+  const bombardier = page.getByRole('button', { name: /Bombardier/ });
+  await sheriff.waitFor();
+  assert.equal(await sheriff.isEnabled(), true);
+  assert.equal(await bombardier.isEnabled(), false, 'unsummoned heroes stay locked');
+
   srv.quiz.db.ledger.push({ id: 'test-funds-3', studentId: 's-03', amount: 100, kind: 'refund', refKey: 'test-funds-3', at: Date.now() });
-  const draw = R.drawPet;
-  R.drawPet = () => R.PETS.find((p) => p.id === 'owl');
-  t.after(() => { R.drawPet = draw; });
-  await page.locator('#tabs').getByRole('button', { name: 'Pets & shop' }).click();
-  await page.getByRole('button', { name: /Open an egg/ }).click();
+  const draw = R.drawHeroSummon;
+  R.drawHeroSummon = (pity) => ({ prize: { kind: 'hero', rarity: 'epic', hero: R.HERO_CATALOG.find((hero) => hero.id === 'bombardier') }, pity: { totalPulls: pity.totalPulls + 1, sinceHero: 0, sinceEpic: 0 } });
+  t.after(() => { R.drawHeroSummon = draw; });
+  await page.locator('#tabs').getByRole('button', { name: 'Hero Summon' }).click();
+  await page.getByRole('button', { name: /Summon · 50/ }).click();
   const dialog = page.getByRole('dialog');
   await dialog.waitFor();
-  await dialog.click(); // skip the wobble
-  await dialog.getByRole('heading', { name: /Owl/ }).waitFor();
-  await dialog.getByRole('button', { name: 'Equip Owl' }).click();
+  await dialog.getByRole('heading', { name: /Bombardier/ }).waitFor();
+  await dialog.getByRole('button', { name: 'Continue' }).click();
   await dialog.waitFor({ state: 'detached' });
-  await page.locator('.pet-card.equipped', { hasText: 'Owl' }).waitFor();
-  await page.getByRole('cell', { name: 'Opened an egg' }).waitFor();
+  await page.locator('.hero-collection-card', { hasText: 'Bombardier' }).filter({ hasText: 'Owned' }).waitFor();
+  await page.getByRole('cell', { name: 'Hero Summon' }).waitFor();
+  await page.locator('#tabs').getByRole('button', { name: 'World' }).click();
+  const unlockedBombardier = page.getByRole('button', { name: /Bombardier/ });
+  await unlockedBombardier.waitFor();
+  assert.equal(await unlockedBombardier.isEnabled(), true, 'summoning unlocks that hero in World');
+  await unlockedBombardier.click();
+  const world = page.frameLocator('iframe[title="Campfire Defense"]');
+  await world.locator('#hero-name').getByText('Bombardier').waitFor();
+  await world.locator('body').press('i');
+  await world.locator('#stat-attack').getByText('32', { exact: true }).waitFor();
+  assert.equal(srv.heroLab.campfire.maxHp, 120, 'two Garden levels add 20 max HP to the shared campfire');
 });
 
 test('PDF upload extracts text locally and saves reviewed source material', async (t) => {

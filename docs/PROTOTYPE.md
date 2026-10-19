@@ -142,7 +142,8 @@ The standalone `/hero-lab` route is an isolated test field in
 `public/hero-lab/`.
 Select a hero, move with WASD or the arrow keys, aim with the mouse, and test
 its weapon, skill (E), ultimate (Q), and talent without joining the
-multiplayer World. See `public/hero-lab/README.md` for how it works.
+multiplayer World. See `public/hero-lab/README_HERO-LAB.md` and
+`public/hero-lab/HOW_THIS_WORKS.md` for how it works.
 
 ### Deliberately not built
 

@@ -101,7 +101,8 @@ const csvCell = (v) => {
 
 // store: an already-loaded { db, save } (e.g. src/db/supabase-store.js);
 // otherwise the JSON file store (dataFile = null keeps it in memory).
-function createQuizApi({ dataFile = null, store = null, now = () => Date.now(), drafter = null } = {}) {
+function createQuizApi({ dataFile = null, store = null, now = () => Date.now(), drafter = null,
+  debugMode = process.env.NODE_ENV === 'development' || process.env.QUIZQUEST_DEMO === 'true' } = {}) {
   store = store || createStore(dataFile);
   const { db } = store;
   // Every change goes through save(), so counting saves tells us whether
@@ -279,6 +280,8 @@ function createQuizApi({ dataFile = null, store = null, now = () => Date.now(), 
 
   const services = {
     db, save, now, authenticate, isEnrolled, answerQuestion, pickChallenge,
+    kingdomBuildings: (studentId) => ({ ...(db.kingdoms.find((k) => k.studentId === studentId)?.buildings || { library: 0, workshop: 0, garden: 0, tower: 0 }) }),
+    ownsHero: (studentId, heroId) => R.inventory(db, studentId).heroes.includes(heroId),
     classOf: (id) => db.classes.find((c) => c.id === id),
     grantResources: (studentId, bundle, reason, refKey) => E.grantResources(db, studentId, bundle, reason, refKey, now()),
     award: (studentId, amount, reason, refKey) => R.award(db, studentId, amount, reason, refKey, now()),
@@ -1151,11 +1154,24 @@ function createQuizApi({ dataFile = null, store = null, now = () => Date.now(), 
         return s ? { id: s.id, classId: cl.id, answered: s.cursor, total: s.items.length } : null;
       }).filter(Boolean),
       wallet: wallet(user.id),
+      kingdom: { buildings: E.kingdom(db, user.id).buildings },
       inventory: R.inventory(db, user.id),
-      catalog: { pets: R.PETS, items: R.ITEMS, eggCost: R.REWARDS.eggCost, eggOdds: R.EGG_ODDS, duplicateRefund: R.REWARDS.duplicateRefund, resources: E.RESOURCES },
+      catalog: { heroes: R.HERO_CATALOG, heroSummon: R.HERO_SUMMON, pets: R.PETS, items: R.ITEMS, eggCost: R.REWARDS.eggCost, eggOdds: R.EGG_ODDS, duplicateRefund: R.REWARDS.duplicateRefund, resources: E.RESOURCES },
       rules: R.REWARDS,
       options: { lengths: SESSION_LENGTHS, timers: TIMERS, accommodation: ACCOMMODATION },
     };
+  });
+
+  const debugMenuEnabled = () => debugMode && process.env.NODE_ENV !== 'production';
+  route('GET', '/api/student/debug-mode', 'student', () => ({ enabled: debugMenuEnabled() }));
+  route('POST', '/api/student/debug/wallet', 'student', ({ user, body }) => {
+    if (!debugMenuEnabled()) fail(404, 'Not found.');
+    if (!Number.isInteger(body.balance) || body.balance < 0 || body.balance > 1000000) fail(400, 'Balance must be an integer from 0 to 1,000,000.');
+    const current = wallet(user.id).balance;
+    db.ledger.push({ id: newId('tx'), studentId: user.id, kind: 'debug', amount: body.balance - current,
+      reason: 'Debug wallet adjustment', refKey: `debug-wallet:${user.id}:${crypto.randomUUID()}`, at: now() });
+    save();
+    return wallet(user.id);
   });
 
   route('GET', '/api/student/classes/:classId/progress', 'student', ({ user, params }) => {
@@ -1365,6 +1381,44 @@ function createQuizApi({ dataFile = null, store = null, now = () => Date.now(), 
     db.ledger.find((t) => t.refKey === refKey).meta = { petId: pet.id, dupe: !!owned };
     save();
     return { pet, duplicatePet: !!owned, inventory: inv, wallet: wallet(user.id) };
+  });
+
+  route('POST', '/api/student/hero-summon', 'student', ({ user, body }) => {
+    const rid = requestId(body.requestId);
+    const refKey = `hero-summon:${user.id}:${rid}`;
+    const previous = db.ledger.find((t) => t.refKey === refKey);
+    const inv = R.inventory(db, user.id);
+    if (previous) {
+      const saved = previous.meta?.heroSummon;
+      if (!saved) fail(409, 'That summon could not be recovered. Refresh the page and try again.');
+      return { ...saved, inventory: inv, wallet: wallet(user.id), repeat: true };
+    }
+    const config = R.HERO_SUMMON;
+    if (wallet(user.id).balance < config.pullCost) fail(400, 'Not enough coins for a summon.');
+    const { prize, pity } = R.drawHeroSummon(inv.heroPity);
+    let duplicateHero = false;
+    let refund = 0;
+    if (prize.kind === 'hero') {
+      duplicateHero = inv.heroes.includes(prize.hero.id);
+      if (duplicateHero) {
+        inv.heroDupes[prize.hero.id] = (inv.heroDupes[prize.hero.id] || 0) + 1;
+        refund = Math.floor(config.pullCost * config.duplicateRefundFraction);
+      }
+    }
+    const result = { prize, duplicateHero, refund, pity };
+    const spent = R.spend(db, user.id, config.pullCost, 'Hero Summon', refKey, now(), { heroSummon: result });
+    if (!spent.ok) fail(400, spent.error);
+    inv.heroPity = pity;
+    if (prize.kind === 'hero' && !duplicateHero) inv.heroes.push(prize.hero.id);
+    if (refund > 0) db.ledger.push({ id: newId('tx'), studentId: user.id, kind: 'refund', amount: refund,
+      reason: `Duplicate ${prize.hero.name} refund`, refKey: refKey + ':refund', at: now() });
+    if (prize.kind === 'resource') {
+      inv.resources[prize.resource] = (inv.resources[prize.resource] || 0) + prize.amount;
+      db.resourceLog.push({ id: newId('rl'), studentId: user.id, kind: 'summon', delta: { [prize.resource]: prize.amount },
+        reason: 'Hero Summon resource reward', refKey: refKey + ':resource', at: now() });
+    }
+    save();
+    return { ...result, inventory: inv, wallet: wallet(user.id) };
   });
 
   route('POST', '/api/student/equip', 'student', ({ user, body }) => {
