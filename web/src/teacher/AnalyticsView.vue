@@ -2,7 +2,8 @@
 // ============================================================
 // Analytics dashboard (+ free-response marking, participation)
 // ------------------------------------------------------------
-// One filter row (class + period) scopes everything below it. While new
+// One filter row (class, weekly topic, period) scopes everything below
+// it; the Weekly topics table always lists every topic of the course. While new
 // numbers load, the old ones stay on screen (dimmed when you changed the
 // period), so the layout never jumps. The page refreshes itself every
 // 30 seconds while it is visible, so it keeps up with a class that is
@@ -10,24 +11,27 @@
 // remembered in this browser. Nothing on this page names individual
 // students (opt-in participation points aside).
 // ============================================================
-import { ref, computed, onMounted, onUnmounted } from 'vue';
-import { S, api, rerender, download, setTab, periodQuery, dashPrefs, saveDashPrefs } from '../api.js';
-import { pct, secs } from '../ui.js';
+import { ref, computed, watch, onMounted, onUnmounted } from 'vue';
+import { S, api, rerender, download, setTab, dashQuery, dashPrefs, saveDashPrefs } from '../api.js';
+import { pct, secs, when, clockTime } from '../ui.js';
 import Heading from '../components/Heading.vue';
 import Meter from '../components/Meter.vue';
 import AsyncButton from '../components/AsyncButton.vue';
 import Pager from '../components/Pager.vue';
 import { usePaged } from '../components/paged.js';
 import ClassPicker from './ClassPicker.vue';
+import TopicPicker from './TopicPicker.vue';
+import TopicsOverview from './dashboard/TopicsOverview.vue';
 import LineChart from './charts/LineChart.vue';
 import ColumnChart from './charts/ColumnChart.vue';
 import ScatterChart from './charts/ScatterChart.vue';
+import { zoneOf, zoneCounts, ZONES, ZONE_ORDER } from './charts/time-zones.mjs';
 import QuestionInsight from './QuestionInsight.vue';
 import WhenPanel from './dashboard/WhenPanel.vue';
 import ContextsPanel from './dashboard/ContextsPanel.vue';
 import QualityPanel from './dashboard/QualityPanel.vue';
 import ComparePanel from './dashboard/ComparePanel.vue';
-import { loadCourses } from './courses.js';
+import { loadCourses, syncTopic, topicLabel } from './courses.js';
 import { downloadCsv, pctCell, secCell } from './csv.js';
 
 const PERIODS = [['7d', 'Last 7 days'], ['30d', 'Last 30 days'], ['all', 'All time'], ['custom', 'Custom dates']];
@@ -54,10 +58,12 @@ async function load({ quiet = false } = {}) {
   if (!quiet) refetching.value = true;
   try {
     const [analytics, queue] = await Promise.all([
-      api('GET', `/api/teacher/classes/${S.classId}/analytics?${periodQuery()}`),
-      api('GET', `/api/teacher/classes/${S.classId}/marking`),
+      api('GET', `/api/teacher/classes/${S.classId}/analytics?${dashQuery()}`),
+      api('GET', `/api/teacher/classes/${S.classId}/marking${S.topicId ? '?topic=' + encodeURIComponent(S.topicId) : ''}`),
     ]);
     if (mine !== seq) return;
+    // a newly chosen topic opens with its learning outcomes showing
+    if (analytics.topicId && analytics.topicId !== a.value?.topicId) openTopics.value = new Set([analytics.topicId]);
     a.value = analytics;
     marking.value = queue;
     error.value = '';
@@ -78,7 +84,11 @@ onMounted(async () => {
     classes.value = courses.value.flatMap((c) => c.classes);
     for (const c of courses.value) for (const cl of c.classes) courseOfClass.set(cl.id, c.id);
     if (classes.value.length) {
-      if (!S.classId || !classes.value.some((c) => c.id === S.classId)) S.classId = classes.value[0].id;
+      // the class last looked at in this browser, else the first
+      if (!S.classId) S.classId = dashPrefs().classId;
+      if (!classes.value.some((c) => c.id === S.classId)) S.classId = classes.value[0].id;
+      saveDashPrefs({ classId: S.classId });
+      syncTopic(course.value);
       if (S.range === 'custom') Object.assign(custom.value, { from: S.from, to: S.to });
       await load();
     }
@@ -122,12 +132,21 @@ const mark = (m, correct) => async () => {
   rerender();
 };
 const participationCsv = () => download(`/api/teacher/classes/${S.classId}/participation.csv`, `participation-${S.classId}.csv`);
-const clock = (t) => new Date(t).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-const printedAt = computed(() => new Date(updatedAt.value).toLocaleString([], { dateStyle: 'medium', timeStyle: 'short' }));
+// ---- the weekly topic the dashboard is narrowed to ('' = all)
+const course = computed(() => courses.value.find((c) => c.id === courseOfClass.get(S.classId)));
+const topic = computed(() => course.value?.topics.find((t) => t.id === a.value?.topicId) || null);
+function focusTopic(id) {
+  S.topicId = id;
+  load();
+}
+const clock = (t) => clockTime(t, a.value?.timezone);
+const printedAt = computed(() => when(updatedAt.value, a.value?.timezone));
 const className = computed(() => classes.value.find((c) => c.id === S.classId)?.name || '');
 const courseId = computed(() => courseOfClass.get(S.classId));
 const sameCourseClasses = computed(() => courses.value.find((c) => c.id === courseId.value)?.classes.length || 0);
 const printReport = () => window.print();
+// "for this topic" in labels once the dashboard is narrowed
+const scope = computed(() => (topic.value ? ' this topic' : ''));
 
 // ---- navigation from the dashboard
 const openQuestion = (id) => insight.value.open(id);
@@ -143,6 +162,13 @@ function draftFor(topicId, outcomeId) {
   S.draftTarget = { topicId, outcomeId };
   setTab('generate');
 }
+// Weekly topics "next step": open Source material, AI drafting or the bank on that topic
+function goTopic({ topicId, tab, filter = null }) {
+  S.courseId = courseId.value || S.courseId;
+  S.topicId = topicId;
+  if (filter) S.qFilter = filter;
+  setTab(tab);
+}
 function goTo(id) {
   const el = document.getElementById(id);
   if (!el) return;
@@ -151,6 +177,7 @@ function goTo(id) {
 }
 const sections = computed(() => [
   ['dash-overview', 'Overview'],
+  ['dash-weeks', 'Weekly topics'],
   ['dash-trends', 'Trends'],
   ['dash-topics', 'Topics'],
   ['dash-time', 'Questions'],
@@ -165,17 +192,21 @@ const attention = computed(() => {
   const out = [];
   const plural = (n, one, many = one + 's') => `${n} ${n === 1 ? one : many}`;
   if (marking.value.length) out.push({ icon: '✎', text: `${plural(marking.value.length, 'answer')} waiting for your mark`, go: () => goTo('dash-marking') });
+  const drafts = a.value.overview.topics.filter((t) => !a.value.topicId || t.topicId === a.value.topicId).reduce((n, t) => n + t.questions.draft, 0);
+  if (drafts) out.push({ icon: '✎', text: `${plural(drafts, 'drafted question')} waiting for your review`, go: () => goTopic({ topicId: a.value.topicId || '', tab: 'review', filter: 'draft' }) });
   if (a.value.tags.issues.length) out.push({ icon: '⚠', text: `${plural(a.value.tags.issues.length, 'question')} missing tags`, go: () => goTo('dash-quality') });
   if (a.value.openReports) out.push({ icon: '⚑', text: `${plural(a.value.openReports, 'open student report')}`, go: () => toBank({ filter: 'reported' }) });
   const confusing = a.value.time.questions.filter((q) => q.confusing).length;
-  if (confusing) out.push({ icon: '⚠', text: `${plural(confusing, 'question')} possibly confusing (slow and mostly wrong)`, go: () => goTo('dash-time') });
+  if (confusing) out.push({ icon: '⚠', text: `${plural(confusing, 'question')} worth rereading (slow and mostly wrong)`, go: () => { timeZone.value = 'reread'; goTo('dash-time'); } });
   if (a.value.quality.difficulty.length) out.push({ icon: '⚖', text: `${plural(a.value.quality.difficulty.length, 'difficulty tag')} not matching results`, go: () => goTo('dash-quality') });
-  const weakest = a.value.byTopic.filter((t) => t.all.n >= a.value.trend.lowN).sort((x, y) => x.all.accuracy - y.all.accuracy)[0];
+  // with one topic chosen, "weakest topic" would just name it
+  const weakest = !a.value.topicId && a.value.byTopic.filter((t) => t.all.n >= a.value.trend.lowN).sort((x, y) => x.all.accuracy - y.all.accuracy)[0];
   if (weakest && weakest.all.accuracy < 0.7) out.push({ icon: '↓', text: `Weakest topic: ${weakest.name}, ${pct(weakest.all.accuracy)} correct (${weakest.all.n} answers)`, go: () => goTo('dash-topics') });
   const uncovered = a.value.byTopic.flatMap((t) => t.outcomes).filter((o) => !o.published).length;
   if (uncovered) out.push({ icon: '○', text: `${plural(uncovered, 'learning outcome')} with no published questions`, go: () => goTo('dash-topics') });
   const idle = a.value.participation.enrolled - a.value.participation.active7d;
-  if (idle > 0) out.push({ icon: '○', text: `${idle} of ${a.value.participation.enrolled} students haven't practised in the last 7 days` });
+  if (idle > 0) out.push({ icon: '○', text: `${idle} of ${a.value.participation.enrolled} students haven't practised${scope.value} in the last 7 days` });
+  if (!a.value.topicId && a.value.overview.unsortedFiles) out.push({ icon: '⇢', text: `${plural(a.value.overview.unsortedFiles, 'uploaded file')} not in a weekly topic yet`, go: () => goTopic({ topicId: '', tab: 'content' }) });
   return out;
 });
 
@@ -194,8 +225,12 @@ const bucketLabel = (start, bucket) => {
   const d = new Date(start).toLocaleDateString([], { day: 'numeric', month: 'short', timeZone: a.value.timezone });
   return bucket === 'week' ? `w/c ${d}` : d;
 };
-// colour follows the topic (its order in the course); past 8 we never invent colours
-const series = computed(() => a.value.trend.topics.map((t, i) => ({ id: t.id, name: t.name, slot: (i % 8) + 1 })));
+// colour follows the topic (its order in the course, even when narrowed to
+// one topic); past 8 we never invent colours
+const series = computed(() => a.value.trend.topics.map((t) => {
+  const i = Math.max(0, a.value.overview.topics.findIndex((x) => x.topicId === t.id));
+  return { id: t.id, name: t.name, slot: (i % 8) + 1 };
+}));
 const combined = computed(() => series.value.length <= MAX_COMBINED);
 const accuracyRows = computed(() => a.value.trend.points.map((p) => ({
   label: bucketLabel(p.start, a.value.trend.bucket),
@@ -219,14 +254,27 @@ function toggleTopic(id) {
 
 // ---- long lists are paged (the charts and CSV exports still use everything)
 const markingPages = usePaged(() => marking.value, 5);
-const timePages = usePaged(() => a.value?.time.questions, 10);
 const missedPages = usePaged(() => a.value?.commonlyMissed, 5);
 
-// ---- time vs accuracy
-const scatter = computed(() => a.value.time.questions.map((q) => ({ id: q.questionId, label: q.stem, x: q.meanMs, y: q.accuracy.accuracy, n: q.n, flagged: q.confusing })));
+// ---- time vs accuracy: each question lands in a plainly named group
+// (time-zones.mjs); the chips pick a group, highlight its dots and filter
+// the table. The table lists the groups worth a look first.
+const zoneInput = (q) => ({ n: q.n, meanMs: q.meanMs, accuracy: q.accuracy.accuracy, flagged: q.confusing });
+const zoneOpts = computed(() => ({ slowMs: a.value.time.slowMs, maxAccuracy: a.value.time.maxAccuracy, lowN: a.value.time.minN }));
+const timeRows = computed(() => (a.value?.time.questions || [])
+  .map((q) => ({ ...q, zone: zoneOf(zoneInput(q), zoneOpts.value) }))
+  .sort((p, q) => ZONE_ORDER.indexOf(p.zone) - ZONE_ORDER.indexOf(q.zone) || q.meanMs - p.meanMs));
+const zones = computed(() => (a.value ? zoneCounts(a.value.time.questions.map(zoneInput), zoneOpts.value) : []));
+const timeZone = ref(''); // '' = every question
+const activeZone = computed(() => (zones.value.some((z) => z.id === timeZone.value) ? timeZone.value : ''));
+const timeShown = computed(() => (activeZone.value ? timeRows.value.filter((q) => q.zone === activeZone.value) : timeRows.value));
+const timePages = usePaged(() => timeShown.value, 10);
+watch(activeZone, () => timePages.go(1));
+const pickZone = (id) => (timeZone.value = activeZone.value === id ? '' : id);
+const scatter = computed(() => timeRows.value.map((q) => ({ id: q.questionId, label: q.stem, x: q.meanMs, y: q.accuracy.accuracy, n: q.n, flagged: q.confusing, zone: q.zone })));
 
 // ---- CSV exports (no student names in any of these)
-const file = (what) => `${what}-${S.classId}-${a.value.range === 'custom' ? `${a.value.from}_${a.value.to}` : a.value.range}.csv`;
+const file = (what) => `${what}-${S.classId}${topic.value ? '-' + (topic.value.week ? 'week-' + topic.value.week : topic.value.id) : ''}-${a.value.range === 'custom' ? `${a.value.from}_${a.value.to}` : a.value.range}.csv`;
 function topicsCsv() {
   const rows = [['topic', 'learning_outcome', 'first_attempt_accuracy_pct', 'first_attempts', 'retry_accuracy_pct', 'retries', 'awaiting_marking', 'published_questions', 'students', 'median_time_s', 'timeouts']];
   for (const t of a.value.byTopic) {
@@ -236,8 +284,8 @@ function topicsCsv() {
   downloadCsv(file('topics'), rows);
 }
 function timeCsv() {
-  const rows = [['question', 'type', 'topic', 'students', 'answers', 'average_time_s', 'median_time_s', 'accuracy_pct', 'confirmed_answers', 'possibly_confusing']];
-  for (const q of a.value.time.questions) rows.push([q.stem, q.type, q.topic, q.students, q.n, secCell(q.meanMs), secCell(q.medianMs), pctCell(q.accuracy.accuracy), q.accuracy.n, q.confusing ? 'yes' : 'no']);
+  const rows = [['question', 'type', 'topic', 'group', 'students', 'answers', 'average_time_s', 'median_time_s', 'accuracy_pct', 'confirmed_answers', 'possibly_confusing']];
+  for (const q of timeRows.value) rows.push([q.stem, q.type, q.topic, ZONES[q.zone].label, q.students, q.n, secCell(q.meanMs), secCell(q.medianMs), pctCell(q.accuracy.accuracy), q.accuracy.n, q.confusing ? 'yes' : 'no']);
   downloadCsv(file('question-times'), rows);
 }
 function missedCsv() {
@@ -256,11 +304,12 @@ function missedCsv() {
       <!-- shown on paper only -->
       <div class="print-only">
         <h1 style="font-size: 20px; margin: 0">QuizQuest class report</h1>
-        <p>{{ className }} · {{ period }} · {{ a.timezone.replace('_', ' ') }} time · generated {{ printedAt }}</p>
+        <p>{{ className }}<template v-if="topic"> · {{ topicLabel(topic) }}</template> · {{ period }} · {{ a.timezone.replace('_', ' ') }} time · generated {{ printedAt }}</p>
       </div>
 
       <Heading title="Analytics">
-        <ClassPicker :classes="classes" />
+        <ClassPicker :courses="courses" />
+        <TopicPicker v-if="course?.topics.length" :topics="course.topics" allow-all @change="load()" />
         <select v-model="choice" style="width: auto" aria-label="Period" @change="pickPeriod">
           <option v-for="[id, name] in PERIODS" :key="id" :value="id">{{ name }}</option>
         </select>
@@ -271,6 +320,10 @@ function missedCsv() {
         <label class="small" style="margin: 0">To <input v-model="custom.to" type="date" required :min="custom.from" /></label>
         <button class="btn small primary" type="submit">Apply</button>
       </form>
+      <p v-if="topic" class="note small topic-scope">
+        Showing <b>{{ topicLabel(topic) }}</b> only: its questions and this class's answers to them.
+        <button class="linklike no-print" @click="focusTopic('')">Show all topics</button>
+      </p>
       <div class="row small muted no-print" style="margin: -6px 0 10px">
         <span class="grow">Updated {{ clock(updatedAt) }} · days and weeks in {{ a.timezone.replace('_', ' ') }} time (change in Settings)</span>
         <label style="margin: 0; font-weight: 400; color: inherit"><input v-model="auto" type="checkbox" @change="setAuto" /> Auto-refresh every 30 seconds</label>
@@ -283,8 +336,8 @@ function missedCsv() {
       <div :class="{ refetching }">
         <!-- a brand-new class, or a quiet period -->
         <div v-if="!a.participation.allTimeAttempts" class="panel note-panel">
-          <h3>No answers yet</h3>
-          <p class="small">Nothing to chart until students practise. To get started:</p>
+          <h3>No answers{{ scope ? ' for this topic' : '' }} yet</h3>
+          <p class="small">Nothing to chart until students practise{{ scope }}. To get started:</p>
           <ol class="small">
             <li>Check the <button class="linklike" @click="toBank({ filter: 'published' })">Question bank</button> has published questions for each topic ({{ a.byTopic.flatMap((t) => t.outcomes).filter((o) => !o.published).length }} learning outcomes have none yet).</li>
             <li>Ask students to sign in and start a practice session, or meet in the World.</li>
@@ -311,12 +364,12 @@ function missedCsv() {
 
         <div class="tiles">
           <div class="tile">
-            <div class="v">{{ `${a.participation.activeEver} / ${a.participation.enrolled}` }}</div><div class="l">students who practised ({{ period }})</div>
+            <div class="v">{{ `${a.participation.activeEver} / ${a.participation.enrolled}` }}</div><div class="l">students who practised{{ scope }} ({{ period }})</div>
             <div v-if="delta('activeEver')" :class="'delta ' + delta('activeEver').cls">{{ delta('activeEver').text }}</div>
           </div>
-          <div class="tile"><div class="v">{{ `${a.participation.active7d} / ${a.participation.enrolled}` }}</div><div class="l">active in the last 7 days</div></div>
+          <div class="tile"><div class="v">{{ `${a.participation.active7d} / ${a.participation.enrolled}` }}</div><div class="l">active{{ scope ? ' on this topic' : '' }} in the last 7 days</div></div>
           <div class="tile">
-            <div class="v">{{ a.participation.sessionsCompleted }}</div><div class="l">sessions completed</div>
+            <div class="v">{{ a.participation.sessionsCompleted }}</div><div class="l">sessions completed{{ scope ? ' that included this topic' : '' }}</div>
             <div v-if="delta('sessionsCompleted')" :class="'delta ' + delta('sessionsCompleted').cls">{{ delta('sessionsCompleted').text }}</div>
           </div>
           <div class="tile">
@@ -340,6 +393,11 @@ function missedCsv() {
             </div>
           </div>
           <Pager :paged="markingPages" label="Answers to mark pages" noun="answers" />
+        </div>
+
+        <div id="dash-weeks" class="panel">
+          <h3 tabindex="-1">Weekly topics</h3>
+          <TopicsOverview :overview="a.overview" :current="a.topicId || ''" :enrolled="a.participation.enrolled" :period="period" @focus="focusTopic" @go="goTopic" />
         </div>
 
         <div id="dash-trends" class="panel">
@@ -438,19 +496,28 @@ function missedCsv() {
             <h3 class="grow" tabindex="-1">Time and accuracy per question</h3>
             <button v-if="a.time.questions.length" class="btn small no-print" @click="timeCsv">Download CSV</button>
           </div>
-          <p class="small muted">Average time students spent on each question ({{ period }}), from the question appearing to the answer arriving, measured by the server. Each student counts once, and timed-out answers are left out; times include reading and are not a measure of ability. A question that is both <b>slow</b> (slower than three quarters of questions) and <b>mostly wrong</b> (under {{ pct(a.time.maxAccuracy) }}, at least {{ a.time.minN }} answers) is flagged as possibly confusing: worth rereading. Slowest first. Click a dot or a question for details.</p>
+          <p class="small">Each dot is a question: <b>further right</b>, students took longer; <b>lower</b>, more of them got it wrong. Start with the shaded corner. Click a dot or a question for its details.</p>
+          <details class="small muted how-measured">
+            <summary>How this is measured</summary>
+            <p>Average time from the question appearing to the answer arriving ({{ period }}), measured by the server. Each student counts once and timed-out answers are left out; times include reading and are not a measure of ability. <b>Slow</b> means slower than three quarters of questions ({{ a.time.slowMs === null ? `needs at least four questions with ${a.time.minN}+ answers` : secs(a.time.slowMs) + ' or more' }}); <b>mostly wrong</b> means under {{ pct(a.time.maxAccuracy) }} correct. Questions need at least {{ a.time.minN }} answers before they are placed in a group.</p>
+          </details>
           <template v-if="a.time.questions.length">
-            <ScatterChart :points="scatter" :slow-ms="a.time.slowMs" :max-accuracy="a.time.maxAccuracy" :low-n="a.time.minN" label="Average time against accuracy, one dot per question" @open="openQuestion" />
+            <div class="chips zone-chips" role="group" aria-label="Question groups">
+              <button :aria-pressed="activeZone === '' ? 'true' : 'false'" @click="timeZone = ''">All ({{ a.time.questions.length }})</button>
+              <button v-for="z in zones" :key="z.id" :class="{ warn: z.id === 'reread' }" :aria-pressed="activeZone === z.id ? 'true' : 'false'" :title="z.hint" @click="pickZone(z.id)">{{ z.id === 'reread' ? '⚠ ' : '' }}{{ z.label }} ({{ z.count }})</button>
+            </div>
+            <p v-if="activeZone" class="small muted zone-hint">{{ ZONES[activeZone].label }}: {{ ZONES[activeZone].hint }}.</p>
+            <ScatterChart :points="scatter" :slow-ms="a.time.slowMs" :max-accuracy="a.time.maxAccuracy" :low-n="a.time.minN" :highlight="activeZone" label="Average time against percentage correct, one dot per question" @open="openQuestion" />
             <div class="table-wrap" style="margin-top: 12px">
               <table class="dash-table">
-                <thead><tr><th>Question</th><th>Topic</th><th>Students</th><th>Answers</th><th>Average time</th><th>Median</th><th>Accuracy</th></tr></thead>
+                <thead><tr><th>Question</th><th>Group</th><th>Topic</th><th>Students</th><th>Answers</th><th>Average time</th><th>Median</th><th>Correct</th></tr></thead>
                 <tbody>
                   <tr v-for="q in timePages.items" :key="q.questionId">
                     <td class="q">
                       <button class="linklike" @click="openQuestion(q.questionId)">{{ q.stem }}</button>
                       <span class="badge plain">{{ q.type }}</span>
-                      <span v-if="q.confusing" class="badge draft">⚠ possibly confusing</span>
                     </td>
+                    <td class="label small"><span v-if="q.zone === 'reread'" class="badge draft">⚠ {{ ZONES[q.zone].label }}</span><template v-else>{{ ZONES[q.zone].label }}</template></td>
                     <td class="label">{{ q.topic }}</td>
                     <td class="num">{{ q.students }}</td>
                     <td class="num">{{ q.n }}</td>
@@ -507,7 +574,7 @@ function missedCsv() {
 
         <div v-if="a.points" class="panel">
           <div class="row">
-            <h3 class="grow">Participation points</h3>
+            <h3 class="grow">Participation points<span v-if="topic" class="small muted"> (all topics)</span></h3>
             <AsyncButton class="btn small no-print" :run="participationCsv">Download CSV</AsyncButton>
           </div>
           <p class="small muted">One point per completed practice session of 5+ questions (max 3 per week), regardless of score. Turned on in Settings.</p>

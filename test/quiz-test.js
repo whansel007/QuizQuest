@@ -333,7 +333,7 @@ test('generation: drafts only, structure-checked, cached; formats limited offlin
   assert.equal(short.status, 400, 'offline drafter refuses formats it cannot write');
 });
 
-test('adaptive mix: ~70% weaker-topic questions once there is history', () => {
+test('adaptive mix: ~30% weaker-topic questions once there is history', () => {
   const topics = [{ id: 'A', name: 'A' }, { id: 'B', name: 'B' }, { id: 'C', name: 'C' }];
   const bank = topics.flatMap((t) => Array.from({ length: 10 }, (_, i) => ({ id: `${t.id}${i}`, topicId: t.id })));
   const attempts = [];
@@ -342,10 +342,30 @@ test('adaptive mix: ~70% weaker-topic questions once there is history', () => {
   const plan = planSession({ bank, topics, stats: topicStats(attempts, topics), recentIds: [], length: 10 });
   assert.equal(plan.mode, 'adaptive');
   assert.deepEqual(plan.weakTopicIds, ['B']);
-  assert.equal(plan.questionIds.filter((id) => id.startsWith('B')).length, 7);
+  assert.equal(plan.questionIds.filter((id) => id.startsWith('B')).length, 3);
   const fresh = planSession({ bank, topics, stats: topicStats([], topics), recentIds: [], length: 9 });
   assert.equal(fresh.mode, 'broad');
   for (const t of topics) assert.equal(fresh.questionIds.filter((id) => id.startsWith(t.id)).length, 3);
+});
+
+test('adaptive focus slots prefer questions similar to ones the student got wrong', () => {
+  const topics = [{ id: 'A', name: 'A' }, { id: 'B', name: 'B' }];
+  // B0-B4 practise outcome o1, B5-B9 outcome o2; the student misses B1 and B2 (both o1)
+  const bank = topics.flatMap((t) => Array.from({ length: 10 }, (_, i) => ({ id: `${t.id}${i}`, topicId: t.id, outcomeId: t.id === 'B' ? (i < 5 ? 'o1' : 'o2') : 'oa' })));
+  const attempts = [];
+  let at = 0;
+  for (const t of topics) for (let i = 0; i < 4; i++) attempts.push({ questionId: `${t.id}${i}`, topicId: t.id, correct: !(t.id === 'B' && (i === 1 || i === 2)), at: at++, ms: 1000 });
+  const stats = topicStats(attempts, topics);
+  assert.deepEqual(stats.find((s) => s.topicId === 'B').missedIds, ['B2', 'B1']);
+  for (let seed = 0; seed < 20; seed++) {
+    let x = seed + 1;
+    const rand = () => ((x = (x * 16807) % 2147483647) / 2147483647);
+    const plan = planSession({ bank, topics, stats, recentIds: [], length: 10, rand });
+    const focus = plan.questionIds.filter((id) => id.startsWith('B'));
+    assert.equal(focus.length, 3);
+    // three o1 questions other than the missed ones exist (B0, B3, B4): all focus slots go there
+    assert.deepEqual(focus.sort(), ['B0', 'B3', 'B4']);
+  }
 });
 
 // ---------------- free response marking ----------------

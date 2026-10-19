@@ -11,7 +11,7 @@
 // group, so nothing here shows that learning improved.
 // ============================================================
 
-const { topicStats } = require('./adaptive');
+const { ADAPTIVE, topicStats } = require('./adaptive');
 
 const median = (xs) => {
   if (!xs.length) return null;
@@ -81,6 +81,7 @@ function courseEvaluation(db, courseId) {
     broad: sessions.filter((s) => s.mode === 'broad').length,
     adaptive: adaptive.length,
     meanWeakShare: shares.length ? shares.reduce((a, b) => a + b, 0) / shares.length : null,
+    targetWeakShare: ADAPTIVE.weakShare,
     shortageNotices: sessions.filter((s) => (s.plan.notes || []).some((n) => /bank|not enough/.test(n))).length,
     followUps: changes.length,
     meanAccuracyChange: changes.length ? changes.reduce((a, b) => a + b, 0) / changes.length : null,

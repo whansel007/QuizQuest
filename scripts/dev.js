@@ -1,13 +1,11 @@
-// `npm run dev`: the Node API/World server (restarts on change) and the
+// `pnpm dev`: the Node API/World server (restarts on change) and the
 // Vite dev server (hot reload for the Vue app) side by side.
-// Open http://localhost:5173 - Vite forwards /api, /socket.io, and /hero-lab to Node.
+// Open http://localhost:5173 - Vite forwards /api and /socket.io to Node.
 const path = require('node:path');
 const { spawn } = require('node:child_process');
 
 const procs = [
-  spawn(process.execPath, ['--watch', '--env-file-if-exists=.env', 'server.js'], {
-    stdio: 'inherit', env: { ...process.env, QUIZQUEST_DEMO: process.env.QUIZQUEST_DEMO || 'true' },
-  }),
+  spawn(process.execPath, ['--watch', '--env-file-if-exists=.env', 'server.js'], { stdio: 'inherit', env: { ...process.env, QUIZQUEST_DEV: '1' } }),
   spawn(process.execPath, [path.join(__dirname, '..', 'node_modules', 'vite', 'bin', 'vite.js')], { stdio: 'inherit' }),
 ];
 const stop = () => {

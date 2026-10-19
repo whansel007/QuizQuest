@@ -1,16 +1,19 @@
 <script setup>
 // ============================================================
-// Source material: paste, PDF, scans & diagrams
+// Source material, grouped by weekly topic: paste, PDF, scans & diagrams
 // ============================================================
-import { ref, reactive, markRaw, onMounted } from 'vue';
-import { api, rerender } from '../api.js';
-import { toast, action } from '../ui.js';
+import { ref, reactive, computed, markRaw, onMounted } from 'vue';
+import { S, api, rerender } from '../api.js';
+import { toast, action, when } from '../ui.js';
 import Heading from '../components/Heading.vue';
 import Field from '../components/Field.vue';
 import AsyncButton from '../components/AsyncButton.vue';
 import CoursePicker from './CoursePicker.vue';
 import TopicOutcomeFields from './TopicOutcomeFields.vue';
-import { loadCourses, currentCourse, initialTags } from './courses.js';
+import ImportMaterials from './ImportMaterials.vue';
+import TopicManager from './TopicManager.vue';
+import TopicPicker from './TopicPicker.vue';
+import { loadCourses, currentCourse, initialTags, syncTopic, topicLabel } from './courses.js';
 import { loadPdfJs, toBase64 } from './pdf.js';
 
 const error = ref('');
@@ -19,21 +22,14 @@ const courses = ref([]);
 const course = ref(null);
 const passages = ref([]);
 const tags = reactive({ topicId: null, outcomeId: null });
-const includeArchived = ref(false);
-
-async function refreshPassages() {
-  if (!course.value) return;
-  const q = includeArchived.value ? '?includeArchived=true' : '';
-  passages.value = await api('GET', `/api/teacher/courses/${course.value.id}/passages${q}`);
-}
-
 onMounted(async () => {
   try {
     courses.value = await loadCourses();
     course.value = currentCourse();
+    syncTopic(course.value);
     if (course.value) {
-      await refreshPassages();
-      Object.assign(tags, initialTags(course.value));
+      passages.value = await api('GET', `/api/teacher/courses/${course.value.id}/passages`);
+      Object.assign(tags, initialTags(course.value, { topicId: S.topicId }));
     }
     loaded.value = true;
   } catch (err) {
@@ -147,44 +143,68 @@ async function savePassage() {
   rerender();
 }
 
-const archivePassage = (p) => async () => {
-  const res = await api('POST', `/api/teacher/passages/${p.id}/archive`);
-  toast(res.archived ? 'Passage archived' : 'Passage restored');
-  await refreshPassages();
-};
-
 const deletePassage = (p) => async () => {
+  if (!window.confirm(`Delete "${p.title}"? ${p.usedBy ? 'Questions cite this material and will lose access to its text. ' : ''}This cannot be undone.`)) return;
   await api('DELETE', `/api/teacher/passages/${p.id}`);
   toast('Passage deleted');
-  await refreshPassages();
+  rerender();
 };
+const plainLabel = 'font-weight:400;color:inherit;margin:10px 0';
 
-const editingPassage = ref(null);
-const editTitle = ref('');
-const editTopicId = ref(null);
-const editOutcomeId = ref(null);
-
-function startEditPassage(p) {
-  editingPassage.value = p;
-  editTitle.value = p.title;
-  editTopicId.value = p.topicId;
-  editOutcomeId.value = p.outcomeId;
+// ---- weekly topics: which topic's material is shown and uploaded to
+const topic = computed(() => course.value?.topics.find((t) => t.id === S.topicId) || null);
+const stamp = ref(0); // reloads the topic counts
+async function refresh() {
+  passages.value = await api('GET', `/api/teacher/courses/${course.value.id}/passages`);
+  stamp.value++;
+}
+function selectTopic(id) {
+  S.topicId = id;
+  if (id) tags.topicId = id; // "Add material" follows the chosen topic
 }
 
-const savePassageEdit = action(async () => {
-  if (!editingPassage.value) return;
-  if (!editTitle.value.trim()) throw new Error('Title cannot be empty.');
-  await api('PATCH', `/api/teacher/passages/${editingPassage.value.id}`, {
-    title: editTitle.value.trim(),
-    topicId: editTopicId.value,
-    outcomeId: editOutcomeId.value,
-  });
-  toast('Passage metadata updated successfully');
-  editingPassage.value = null;
-  await refreshPassages();
+// Uploaded lecture files are listed once per file, collapsed. Versions that
+// were replaced or removed stay stored (questions may cite them) but are
+// hidden unless asked for. Topic sections keep hand-added material only.
+const showReplaced = ref(false);
+// The earlier slide/page import saved titles like "deck.pptx — Slide 3" without
+// file tracking; AI drafting does not use those, so they are listed as older imports.
+const legacyImport = (p) => !p.importHash && (p.origin === 'pptx' || p.origin === 'pdf') && / — (Slide|Page) \d+$/.test(p.title);
+const isUpload = (p) => Boolean(p.importHash) || legacyImport(p);
+const uploadFiles = computed(() => {
+  const files = new Map();
+  for (const p of passages.value.filter(isUpload)) {
+    const legacy = legacyImport(p);
+    const name = p.fileName || p.title.split(legacy ? ' — ' : ' · ')[0];
+    const inUse = !legacy && p.attached !== false;
+    // One entry for the version in use; replaced versions stay separate.
+    const topicId = p.topicId ?? null;
+    const key = inUse ? 'in-use:' + topicId + ':' + name : legacy ? 'legacy:' + name + ':' + topicId : 'old:' + (p.documentId || name);
+    if (!files.has(key)) files.set(key, { key, name, topicId, inUse, legacy, parts: [], at: 0, usedBy: 0 });
+    const f = files.get(key);
+    f.parts.push(p);
+    f.at = Math.max(f.at, Date.parse(p.createdAt) || p.createdAt || 0);
+    f.usedBy += p.usedBy || 0;
+  }
+  return [...files.values()].sort((a, b) => b.inUse - a.inUse || b.at - a.at);
 });
-
-const plainLabel = 'font-weight:400;color:inherit;margin:10px 0';
+const replacedCount = computed(() => uploadFiles.value.filter((f) => !f.inUse).length);
+const manual = (topicId) => passages.value.filter((p) => p.topicId === topicId && !isUpload(p));
+const filesIn = (topicId) => uploadFiles.value.filter((f) => f.topicId === topicId && (f.inUse || showReplaced.value));
+// topics shown below: the chosen one, or every topic that has material
+const shownTopics = computed(() => (topic.value ? [topic.value] : course.value.topics.filter((t) => filesIn(t.id).length || manual(t.id).length)));
+// Files uploaded before weekly topics: move each into the week it belongs to
+const unsorted = computed(() => filesIn(null));
+const moveTo = reactive({});
+const moveFile = (f) => async () => {
+  const target = course.value.topics.find((t) => t.id === (moveTo[f.key] ?? S.topicId));
+  if (!target) throw new Error('Choose a topic first.');
+  await api('PUT', `/api/teacher/courses/${course.value.id}/imports`, { passageIds: f.parts.map((p) => p.id), topicId: target.id });
+  toast(`Moved ${f.name} to ${topicLabel(target)}`);
+  await refresh();
+};
+const fileSummary = (f) => `${f.parts.length} excerpt(s) · ${f.inUse ? 'in use' : f.legacy ? 'older import, not used by AI drafting' : 'replaced or removed'} · uploaded ${when(f.at)} · cited by ${f.usedBy} question(s)`;
+const partLabel = (f, p) => p.title.split(f.legacy ? ' — ' : ' · ').slice(1).join(' · ') || p.title;
 </script>
 
 <template>
@@ -192,7 +212,13 @@ const plainLabel = 'font-weight:400;color:inherit;margin:10px 0';
   <template v-else-if="loaded">
     <p v-if="!course">You have no assigned courses.</p>
     <template v-else>
-      <Heading title="Source material"><CoursePicker :courses="courses" /></Heading>
+      <Heading title="Source material">
+        <CoursePicker :courses="courses" />
+        <TopicPicker v-if="course.topics.length" :topics="course.topics" allow-all @change="selectTopic" />
+      </Heading>
+      <TopicManager :course="course" :stamp="stamp" @select="selectTopic" />
+      <ImportMaterials v-if="topic" :key="topic.id" :course="course" :topic="topic" @saved="refresh" />
+      <p v-else-if="course.topics.length" class="note small">Choose a weekly topic (top right, or click one above) to upload lecture files into it.</p>
       <div class="panel">
         <h3>Add material</h3>
         <p class="small muted">Material is stored separately from questions and treated as reference content only: instructions inside it are never followed. Long documents are split into chunks so drafting only uses the relevant parts.</p>
@@ -255,78 +281,43 @@ const plainLabel = 'font-weight:400;color:inherit;margin:10px 0';
         </div>
       </div>
 
-      <div class="panel row" style="justify-content: space-between; align-items: center;">
-        <span class="muted small">Course Learning Material</span>
-        <label style="display: flex; align-items: center; gap: 8px; font-weight: 500; cursor: pointer;">
-          <input v-model="includeArchived" type="checkbox" @change="refreshPassages" />
-          Show archived material
-        </label>
-      </div>
-
-      <div v-for="t in course.topics" :key="t.id" class="panel">
-        <h3>{{ t.name }} <span class="badge plain">{{ passages.filter((p) => p.topicId === t.id).length }} passage(s)</span></h3>
-        <details v-for="p in passages.filter((x) => x.topicId === t.id)" :key="p.id" style="margin: 8px 0" :class="{ archived: p.archivedAt }">
-          <summary>
-            <b>{{ p.title }}</b>
-            <span v-if="p.archivedAt" class="badge bad" style="margin-left: 6px;">Archived</span>
-            <span class="small muted">{{ `· ${t.outcomes.find((o) => o.id === p.outcomeId)?.text} · ${p.text.length} chars${p.origin && p.origin !== 'paste' ? ' · from ' + p.origin : ''} · cited by ${p.usedBy} question(s)` }}</span>
-          </summary>
+      <label v-if="replacedCount" :style="plainLabel"><input v-model="showReplaced" type="checkbox" /> Show {{ replacedCount }} replaced, removed or older import(s), kept for question history</label>
+      <div v-for="t in shownTopics" :key="t.id" class="panel">
+        <h3>{{ topicLabel(t) }} <span class="badge plain">{{ filesIn(t.id).filter((f) => f.inUse).length }} file(s)</span> <span v-if="manual(t.id).length" class="badge plain">{{ manual(t.id).length }} passage(s)</span></h3>
+        <p v-if="!filesIn(t.id).length && !manual(t.id).length" class="small muted">No material in this topic yet.</p>
+        <details v-for="f in filesIn(t.id)" :key="f.key" style="margin: 8px 0">
+          <summary><b>{{ f.name }}</b> <span class="small muted">· {{ fileSummary(f) }}</span></summary>
+          <details v-for="p in f.parts" :key="p.id" style="margin: 6px 0 6px 16px">
+            <summary>{{ partLabel(f, p) }} <span class="small muted">· {{ p.text.length }} chars · cited by {{ p.usedBy }}</span></summary>
+            <p class="small" style="white-space: pre-wrap; margin-top: 6px; max-height: 240px; overflow: auto">{{ p.text }}</p>
+          </details>
+        </details>
+        <details v-for="p in manual(t.id)" :key="p.id" style="margin: 8px 0">
+          <summary><b>{{ p.title }}</b> <span class="small muted">{{ `· ${t.outcomes.find((o) => o.id === p.outcomeId)?.text || 'no learning outcome'} · ${p.text.length} chars${p.origin && p.origin !== 'paste' ? ' · from ' + p.origin : ''} · cited by ${p.usedBy} question(s)` }}</span></summary>
           <p class="small" style="white-space: pre-wrap; margin-top: 6px; max-height: 240px; overflow: auto">{{ p.text }}</p>
-          <div class="row" style="margin-top: 8px; gap: 8px;">
-            <button class="btn small" @click="startEditPassage(p)">Edit metadata</button>
-            <AsyncButton class="btn small" :class="p.archivedAt ? 'good' : 'bad'" :run="archivePassage(p)">
-              {{ p.archivedAt ? 'Restore passage' : 'Archive passage' }}
-            </AsyncButton>
-          </div>
+          <AsyncButton class="btn small bad" :run="deletePassage(p)">Delete passage</AsyncButton>
         </details>
       </div>
-
-      <!-- Edit Metadata Modal -->
-      <div v-if="editingPassage" class="modal-overlay" @click.self="editingPassage = null">
-        <div class="modal-card">
-          <h3>Edit Passage Metadata</h3>
-          <p class="small muted">Update title, topic, or learning outcome. Text content remains immutable to preserve question provenance.</p>
-
-          <form @submit.prevent="savePassageEdit($event)">
-            <Field label="Title" v-slot="{ id }">
-              <input :id="id" v-model="editTitle" type="text" required />
-            </Field>
-
-            <div style="margin: 14px 0;">
-              <TopicOutcomeFields v-model:topic-id="editTopicId" v-model:outcome-id="editOutcomeId" :course="course" />
-            </div>
-
-            <div class="row" style="justify-content: flex-end; gap: 8px; margin-top: 18px;">
-              <button type="button" class="btn" @click="editingPassage = null">Cancel</button>
-              <button type="submit" class="btn primary">Save Changes</button>
-            </div>
-          </form>
+      <div v-if="unsorted.length" class="panel" style="border-color: var(--warn)">
+        <h3>Files not in a topic <span class="badge draft">{{ unsorted.length }}</span></h3>
+        <p class="small muted">Uploaded before weekly topics. Move each file into the week it was taught, so its topic's knowledge report uses it. Existing reports and questions are kept.</p>
+        <div v-for="f in unsorted" :key="f.key" class="unsorted-file">
+          <details class="grow">
+            <summary><b>{{ f.name }}</b> <span class="small muted">· {{ fileSummary(f) }}</span></summary>
+            <details v-for="p in f.parts" :key="p.id" style="margin: 6px 0 6px 16px">
+              <summary>{{ partLabel(f, p) }} <span class="small muted">· {{ p.text.length }} chars</span></summary>
+              <p class="small" style="white-space: pre-wrap; margin-top: 6px; max-height: 240px; overflow: auto">{{ p.text }}</p>
+            </details>
+          </details>
+          <div v-if="f.inUse && !f.legacy" class="row">
+            <select :value="moveTo[f.key] ?? S.topicId" @change="moveTo[f.key] = $event.target.value" style="width: auto; max-width: 100%" :aria-label="`Topic for ${f.name}`">
+              <option value="" disabled>Move to topic…</option>
+              <option v-for="t in course.topics" :key="t.id" :value="t.id">{{ topicLabel(t) }}</option>
+            </select>
+            <AsyncButton class="btn small" :disabled="!(moveTo[f.key] ?? S.topicId)" :run="moveFile(f)">Move</AsyncButton>
+          </div>
         </div>
       </div>
     </template>
   </template>
 </template>
-
-<style scoped>
-.modal-overlay {
-  position: fixed;
-  top: 0; left: 0; right: 0; bottom: 0;
-  background: rgba(0, 0, 0, 0.5);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  z-index: 100;
-}
-.modal-card {
-  background: var(--panel);
-  border-radius: var(--radius);
-  border: 1px solid var(--line);
-  padding: 24px;
-  width: 100%;
-  max-width: 520px;
-  box-shadow: var(--shadow);
-}
-details.archived {
-  opacity: 0.7;
-}
-</style>
