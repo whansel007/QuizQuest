@@ -5,15 +5,26 @@ import { ref, onMounted, onUnmounted } from 'vue';
 export function useWidth(el, fallback = 600) {
   const width = ref(fallback);
   let ro = null;
+  let frame = 0;
   onMounted(() => {
     width.value = el.value?.clientWidth || fallback;
     if (typeof ResizeObserver === 'undefined') return;
+    // redraw on the next frame, not inside the observer: a redraw that nudges
+    // the layout (a scrollbar appearing) would otherwise loop, and Safari
+    // reports that as an error
     ro = new ResizeObserver(([entry]) => {
-      if (entry.contentRect.width) width.value = entry.contentRect.width;
+      const w = entry.contentRect.width;
+      cancelAnimationFrame(frame);
+      frame = requestAnimationFrame(() => {
+        if (w) width.value = w;
+      });
     });
     ro.observe(el.value);
   });
-  onUnmounted(() => ro?.disconnect());
+  onUnmounted(() => {
+    ro?.disconnect();
+    cancelAnimationFrame(frame);
+  });
   return width;
 }
 

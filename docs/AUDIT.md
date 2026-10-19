@@ -50,6 +50,10 @@ The original ZIP is unchanged. This package contains the corrected source.
 - Responsive tests visit every student and teacher screen at 320px; student
   screens also run at 390px. Desktop workflows use 1280px. Mobile World and
   Kingdom screenshots were inspected and layout defects corrected.
+- Later run (10 Oct 2026, after the dashboard work): `npm test` 129 tests,
+  128 passed and 1 skipped (it runs in the Postgres/pglite pass instead);
+  `npm run test:browser` 16 tests passed in Playwright's own Chromium, and
+  again in WebKit and Firefox (`BROWSER=webkit` / `BROWSER=firefox`).
 - `npm run check`: syntax checks passed for all 33 shipped JavaScript files.
 - `npm audit --omit=dev`: zero reported production dependency vulnerabilities.
 - There is no bundler/build pipeline, ESLint configuration or TypeScript

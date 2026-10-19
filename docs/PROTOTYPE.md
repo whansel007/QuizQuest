@@ -22,6 +22,7 @@ npm run db:reset -- --confirm   # wipe the Supabase project and re-seed (Supabas
 For browser tests, run `npx playwright install chromium` once (re-run it after
 upgrading Playwright). Alternatively, use an installed Edge browser:
 `$env:BROWSER_CHANNEL='msedge'` in PowerShell, then `npm run test:browser`.
+`$env:BROWSER='webkit'` (or `'firefox'`) runs the same tests in that engine.
 Tests use synthetic data and do not call a live AI provider or a live
 Supabase project; leave `GEMINI_API_KEY` unset when running them.
 
@@ -96,7 +97,9 @@ If `data/db.json` was written by an older version, it is renamed to
 `db.v1.bak.json` and fresh demo data is seeded. `QUIZ_DATA_FILE=...` points the
 server at a different data file (handy for running two copies).
 
-Logins are per browser tab. Good demo users:
+Logins are per browser tab. Sign in with the user's demo email (`prof.a@quizquest.demo`,
+`student02@quizquest.demo`, ...) and the password `quizquest`, or pick one on the
+**Test accounts** page (see [README.md](README.md#signing-in)). Good demo users:
 
 | User | Why |
 |---|---|
@@ -118,7 +121,7 @@ Existing `data/db.json` or Supabase data keeps the old demo set; run `npm run re
 | 1. Question bank | `src/quiz/api.js`, *Question bank* + *Source material* tabs | Paste text or **upload a text-based PDF** (text extracted in the browser with pdf.js). Passages stored separately from questions. Editing a published question creates a new version. Withdraw / reject / student reports. |
 | 2. Controlled generation | `generator.js`, `retrieval.js`, `validate.js`, *AI drafting* tab | Retrieve chunks → draft → structure checks → **drafts only**. Identical inputs are cached; daily cap; retries capped. Shows which chunks were sent and why. |
 | 3. Adaptive algorithm | `adaptive.js` | Broad until each topic has 3 attempts, then 70/30 weak/other. Short bank is **disclosed**, never padded. |
-| 4. Analytics | `analytics.js`, *Analytics* tab (`web/src/teacher/AnalyticsView.vue`, `charts/`) | Denominators everywhere, first attempts vs retries, most-chosen wrong option, World answers counted. Period filter (7/30 days, all time, custom dates) with change vs the previous period; days and weeks in the class time zone (Singapore by default, set in *Settings*). "Needs attention" summary; trend charts (small multiples past 4 topics) with a table view; learning-outcome breakdown with question coverage; time vs accuracy per question with a "possibly confusing" flag; question detail dialog (answer breakdown, reports) linking to the Question bank; question quality (tags, difficulty tag vs results, wrong options almost nobody picks); when students practise (weekday x time grid); practice vs World accuracy; class comparison for professors with several groups in a course; "Draft questions" for outcomes with no published questions; CSV exports; print / save-as-PDF report; section shortcuts; auto-refresh every 30 s (numbers cached until the data changes); period and auto-refresh remembered per browser. Answers awaiting marking are left out of accuracy. No student names except opt-in participation points. |
+| 4. Analytics | `analytics.js`, *Analytics* tab (`web/src/teacher/AnalyticsView.vue`, `charts/`) | Denominators everywhere, first attempts vs retries, most-chosen wrong option, World answers counted. Period filter (7/30 days, all time, custom dates) with change vs the previous period; days and weeks in the class time zone (Singapore by default, set in *Settings*). "Needs attention" summary; trend charts (small multiples past 4 topics) with a table view; learning-outcome breakdown with question coverage; time vs accuracy per question with a "possibly confusing" flag; question detail dialog (answer breakdown, reports) linking to the Question bank; question quality (tags, difficulty tag vs results, wrong options almost nobody picks); when students practise (weekday x time grid); practice vs World accuracy; class comparison for professors with several groups in a course; "Draft questions" for outcomes with no published questions; CSV exports; print / save-as-PDF report; section shortcuts; auto-refresh every 30 s (numbers cached until the data changes); period and auto-refresh remembered per browser (a period is saved only once it loads). Marking happens in place; the queue lists every pending answer from current members (newest 50 shown, with the total), and a mark made by another professor first is kept (409). A failed background refresh is shown, not hidden. Answers awaiting marking are left out of accuracy, and "possibly confusing" needs 5+ marked answers. No student names except opt-in participation points, which print only when ticked. "vs previous" compares a running period up to the same point of the previous one, and part-days/weeks are drawn lighter. Printing lists every row and opens every topic. Charts are one tab stop each (arrow keys move, Enter opens a question). Cached numbers (dashboard, question detail, class comparison) are dropped only by changes to that class (or to everything), not by shop/pet/trade activity. The section bar sticks under the top bar and marks the section in view; tiles show the period's trend; participation points sort and page. |
 | 5. Gamification | `rewards.js`, *Pets & shop* | Server-side coins, once per question ever, unique ledger keys, daily cap, disclosed egg odds. Daily limits (coins, resources, trades, AI drafting) reset at local midnight and participation weeks start Monday 00:00, in `APP_TIMEZONE` (default Singapore) - see `time.js`. |
 
 ### Later stages (now built)
@@ -153,8 +156,10 @@ multiplayer World. See `public/hero-lab/README_HERO-LAB.md` and
 - **Per-request database queries and multiple server instances.** See
   *Architecture* above: Supabase is the database, but the server still keeps
   a working copy in memory (one instance only).
-- **Real login.** Still "pick a demo user" (users are stored in Supabase).
-  Supabase Auth is the next step. The World uses the same token.
+- **Sign-up and account management.** Email + password sign-in works, but only
+  for the seeded demo accounts: there is no sign-up, password reset or admin
+  screen for assigning professor access yet. Login sessions live in server
+  memory (lost on restart). The World uses the same token.
 
 ## AI features
 

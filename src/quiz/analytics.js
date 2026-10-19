@@ -92,8 +92,16 @@ function context(db, classId, now, period) {
     days = RANGES[period.range];
     since = instantOf(today - (days - 1) * DAY, tz);
   }
-  // the window of the same length just before, for "vs previous" changes
-  const prev = days === null ? null : { since: instantOf(localDate(since, tz) - days * DAY, tz), until: since };
+  // the window of the same length just before, for "vs previous" changes.
+  // While the period is still running (it includes now), the previous one is
+  // cut at the same point: Thursday 9am is compared with last Thursday 9am,
+  // not with a whole day the current period hasn't had yet.
+  let prev = null;
+  if (days !== null) {
+    const prevSince = instantOf(localDate(since, tz) - days * DAY, tz);
+    const running = now < until;
+    prev = { since: prevSince, until: running ? Math.min(since, prevSince + (now - since)) : since, partial: running };
+  }
   const enrolledSet = new Set(enrolled);
   const classAttempts = db.attempts.filter((a) => a.classId === classId && enrolledSet.has(a.studentId) && (!topicId || a.topicId === topicId));
   return {
@@ -125,6 +133,9 @@ function trend(classAttempts, topics, { range, since, until, now, tz, bucket }) 
     const byTopic = group(confirmed, (a) => a.topicId);
     points.push({
       start,
+      // only part of this day/week counts: it began before the period, or
+      // hasn't finished yet (today, this week), so its count looks low
+      partial: start < since || end > Math.min(until, now),
       answers: list.length,
       students: new Set(list.map((a) => a.studentId)).size,
       topics: Object.fromEntries(topics.map((t) => [t.id, rate(byTopic.get(t.id) || [])])),
@@ -176,8 +187,10 @@ function timeByQuestion(questionsById, byQuestion, topics) {
   }
   const enough = out.filter((q) => q.n >= LOW_N);
   const slowMs = quantile(enough.map((q) => q.meanMs).sort((x, y) => x - y), CONFUSING.slowQuantile);
+  // "mostly wrong" needs enough MARKED answers: unmarked short answers count
+  // towards the time but not the accuracy
   for (const q of out) {
-    q.confusing = Boolean(slowMs !== null && q.n >= LOW_N && q.meanMs >= slowMs && q.accuracy.n && q.accuracy.accuracy < CONFUSING.maxAccuracy);
+    q.confusing = Boolean(slowMs !== null && q.n >= LOW_N && q.meanMs >= slowMs && q.accuracy.n >= LOW_N && q.accuracy.accuracy < CONFUSING.maxAccuracy);
   }
   return { questions: out.sort((a, b) => b.meanMs - a.meanMs), slowMs, maxAccuracy: CONFUSING.maxAccuracy, minN: LOW_N };
 }
@@ -281,7 +294,8 @@ function classAnalytics(db, classId, now = Date.now(), period = { range: 'all' }
     awaitingMarking: attempts.length - confirmed.length,
     allTimeAttempts: classAttempts.length,
   };
-  const previous = prev && activity(classAttempts, sessions, prev.since, prev.until);
+  // partial: both sides stop at the same point of the period (it is still running)
+  const previous = prev && { ...activity(classAttempts, sessions, prev.since, prev.until), partial: prev.partial };
 
   const topicRows = topics.map((t) => {
     const all = byTopic.get(t.id) || [];
@@ -337,7 +351,7 @@ function classAnalytics(db, classId, now = Date.now(), period = { range: 'all' }
       type: TYPE_LABELS[v.type || 'mcq'],
       topic: topics.find((t) => t.id === q.topicId)?.name,
       status: q.status,
-      versionsAttempted: [...new Set(list.map((a) => a.version))].sort(),
+      versionsAttempted: [...new Set(list.map((a) => a.version))].sort((x, y) => x - y),
       first: rate(list.filter((a) => a.first)),
       retry: rate(list.filter((a) => !a.first)),
       topWrong,
@@ -353,7 +367,6 @@ function classAnalytics(db, classId, now = Date.now(), period = { range: 'all' }
   let points = null;
   if (cls.settings.participation?.enabled) {
     points = enrolled.map((sid) => ({
-      studentId: sid,
       name: db.users.find((u) => u.id === sid).name,
       points: db.participation.filter((p) => p.classId === classId && p.studentId === sid).length,
     }));
