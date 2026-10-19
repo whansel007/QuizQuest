@@ -92,6 +92,14 @@ footer { text-align: center; font-size: 12px; color: var(--muted); padding: 0 16
 }
 .row { display: flex; gap: 12px; flex-wrap: wrap; align-items: center; }
 .row.top { align-items: flex-start; }
+
+/* Spacing between stacked controls, so fields, buttons and panels never touch */
+.actions { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 12px; }
+.btn + .panel { margin-top: 12px; }
+:is(input, select, textarea, datalist, p) + label { margin-top: 12px; }
+.panel > label:has(> input[type="checkbox"]) { margin-bottom: 10px; }
+.file-list li { margin: 6px 0; }
+.file-actions { display: inline-flex; gap: 6px; margin-left: 8px; vertical-align: middle; }
 .grow { flex: 1; min-width: 0; }
 .grid { display: grid; gap: 12px; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); }
 .muted { color: var(--muted); }
@@ -114,9 +122,11 @@ button.btn, .btn {
 .btn.bad { color: var(--bad); }
 .btn.small { padding: 4px 10px; font-size: 13px; }
 .btn:disabled { opacity: 0.5; cursor: not-allowed; }
+/* A disabled primary button should not keep its accent colour and look clickable. */
+.btn.primary:disabled { background: var(--line); border-color: var(--line); color: var(--muted); opacity: 1; }
 
 label { display: block; font-size: 13px; font-weight: 600; color: var(--muted); margin-bottom: 4px; }
-input[type="text"], input[type="number"], input[type="email"], input[type="password"], select, textarea {
+input:not([type]), input[type="text"], input[type="number"], input[type="email"], input[type="password"], select, textarea {
   font: inherit;
   width: 100%;
   padding: 8px 10px;
@@ -158,7 +168,7 @@ th { font-size: 12px; text-transform: uppercase; letter-spacing: 0.4px; color: v
 .meter { height: 8px; background: var(--bg); border: 1px solid var(--line); border-radius: 99px; overflow: hidden; min-width: 80px; }
 .meter > div { height: 100%; background: var(--accent); }
 
-.chips { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 14px; }
+.chips { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 14px; }
 .chips button { font: inherit; font-size: 13px; padding: 4px 12px; border-radius: 99px; border: 1px solid var(--line); background: var(--panel); color: var(--ink); cursor: pointer; }
 .chips button[aria-pressed="true"] { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); }
 
@@ -166,7 +176,7 @@ th { font-size: 12px; text-transform: uppercase; letter-spacing: 0.4px; color: v
 .qcard ol { margin: 8px 0; padding-left: 22px; }
 .qcard li.correct { color: var(--good); font-weight: 700; }
 .qcard .meta { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 8px; align-items: center; }
-.qcard .actions { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 10px; }
+.qcard .actions { margin: 10px 0 0; }
 .opt-row { display: flex; gap: 8px; align-items: center; margin-bottom: 6px; }
 .opt-row input[type="radio"] { width: 18px; height: 18px; }
 
@@ -956,6 +966,21 @@ button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible
 .viz .refline { stroke: var(--muted); stroke-width: 1; opacity: 0.6; }
 .viz .lifted { stroke-width: 3; }
 .viz-legend .k.dot { width: 9px; height: 9px; border-radius: 50%; }
+/* time vs accuracy: named corners, the shaded "worth rereading" corner, direct labels */
+.viz .zone-shade { fill: var(--warn-soft); }
+.viz .corner { font-size: 11px; fill: var(--muted); font-weight: 600; }
+.viz .corner.warn { fill: var(--warn); }
+.viz .axis-title { font-weight: 600; }
+.viz .direct-label { font-size: 11px; fill: var(--ink); font-weight: 600; paint-order: stroke; stroke: var(--panel); stroke-width: 3px; stroke-linejoin: round; }
+.viz .leader { stroke: var(--muted); stroke-width: 1; }
+.viz .faded { opacity: 0.18; }
+.zone-chips { margin: 4px 0 8px; }
+.zone-chips button.warn { border-color: var(--warn); color: var(--warn); }
+.zone-chips button.warn[aria-pressed="true"] { background: var(--warn); border-color: var(--warn); color: var(--panel); }
+.zone-hint { margin: -2px 0 8px; }
+.how-measured { margin: -4px 0 10px; }
+.how-measured summary { cursor: pointer; }
+.how-measured p { margin: 6px 0 0; }
 .subrow { background: var(--bg); animation: dash-fade 0.25s ease-out; }
 .subrow .label { padding-left: 14px; min-width: 180px; }
 
@@ -1045,6 +1070,19 @@ dialog.insight::backdrop { background: rgba(10, 12, 20, 0.45); }
 .heat-scale { display: inline-flex; align-items: center; gap: 6px; }
 .heat-scale .ramp { display: inline-block; width: 90px; height: 10px; border-radius: 3px; background: linear-gradient(90deg, var(--bg), var(--series-1)); }
 
+/* ---------- weekly topics ---------- */
+.topic-form { border: 1px dashed var(--line); border-radius: 8px; padding: 12px 12px 0; margin-bottom: 12px; }
+.field.week-field { min-width: 90px; max-width: 110px; }
+.outcome-list { margin: 0 0 10px; padding-left: 20px; }
+.outcome-picks { gap: 6px; margin: -4px 0 12px; }
+.outcome-picks .btn { text-align: left; white-space: normal; }
+.outcome-picks .btn[aria-pressed="true"] { border-color: var(--accent); background: var(--accent-soft); }
+.unsorted-file { display: flex; flex-wrap: wrap; gap: 8px 12px; align-items: flex-start; padding: 8px 0; border-bottom: 1px solid var(--line); }
+.topic-scope { margin: -6px 0 10px; }
+@media (max-width: 640px) {
+  .field.week-field { max-width: none; flex-basis: 100%; }
+}
+
 /* ---------- printed report (Print report / save as PDF) ---------- */
 @media print {
   :root {
@@ -1071,7 +1109,7 @@ dialog.insight::backdrop { background: rgba(10, 12, 20, 0.45); }
 }
 
 /* ---------- pager ---------- */
-.pager { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin-top: 10px; }
+.pager { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin: 10px 0 12px; }
 .pager-count { margin-right: auto; }
 .pager .btn[aria-current="page"] { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); }
 @media (max-width: 640px) {

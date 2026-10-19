@@ -15,9 +15,12 @@
 // A period (last 7 / 30 days, all time, or custom dates) scopes
 // everything. Days and weeks follow the class's time zone (default
 // Singapore), so an answer at 7am on Tuesday counts on Tuesday.
+// An optional weekly topic (period.topicId) narrows everything to that
+// topic's questions and answers.
 // ============================================================
 
 const { TYPE_LABELS } = require('./formats');
+const { sortTopics, topicSummary } = require('./topics');
 const { DAY, DEFAULT_TZ, isValidTimeZone, localDate, instantOf, mondayOf, weekdayHour } = require('./time');
 
 const RANGES = { '7d': 7, '30d': 30, all: null, custom: null };
@@ -69,7 +72,9 @@ function parsePeriod(get) {
 function context(db, classId, now, period) {
   const cls = db.classes.find((c) => c.id === classId);
   const tz = isValidTimeZone(cls.settings.timezone) ? cls.settings.timezone : DEFAULT_TZ;
-  const topics = db.topics.filter((t) => t.courseId === cls.courseId);
+  const courseTopics = sortTopics(db.topics.filter((t) => t.courseId === cls.courseId));
+  const topicId = period.topicId || null;
+  const topics = topicId ? courseTopics.filter((t) => t.id === topicId) : courseTopics;
   const enrolled = db.enrolments.filter((e) => e.classId === classId).map((e) => e.studentId);
   const today = localDate(now, tz);
   const last7 = instantOf(today - 6 * DAY, tz); // today and the 6 days before it
@@ -98,9 +103,9 @@ function context(db, classId, now, period) {
     prev = { since: prevSince, until: running ? Math.min(since, prevSince + (now - since)) : since, partial: running };
   }
   const enrolledSet = new Set(enrolled);
-  const classAttempts = db.attempts.filter((a) => a.classId === classId && enrolledSet.has(a.studentId));
+  const classAttempts = db.attempts.filter((a) => a.classId === classId && enrolledSet.has(a.studentId) && (!topicId || a.topicId === topicId));
   return {
-    cls, tz, topics, enrolled, since, until, days, prev, last7, classAttempts,
+    cls, tz, topics, courseTopics, topicId, enrolled, enrolledSet, since, until, days, prev, last7, classAttempts,
     attempts: classAttempts.filter((a) => a.at >= since && a.at < until),
     bucket: days !== null && days <= DAILY_BUCKETS_UP_TO ? 'day' : 'week',
   };
@@ -247,6 +252,15 @@ function contexts(confirmed, topics) {
   return { ...split(confirmed), byTopic: topics.map((t) => ({ topicId: t.id, name: t.name, ...split(byTopic.get(t.id) || []) })) };
 }
 
+// The class's practice sessions; for one topic, only sessions that
+// included a question from it (`attempts` = that topic's answers)
+function sessionsOf(db, classId, attempts) {
+  const sessions = db.sessions.filter((s) => s.classId === classId);
+  if (!attempts) return sessions;
+  const ids = new Set(attempts.map((a) => a.sessionId));
+  return sessions.filter((s) => ids.has(s.id));
+}
+
 // Who answered, how many sessions and answers - for the tiles
 function activity(attempts, sessions, from, to) {
   const inWindow = attempts.filter((a) => a.at >= from && a.at < to);
@@ -261,10 +275,10 @@ function activity(attempts, sessions, from, to) {
 
 function classAnalytics(db, classId, now = Date.now(), period = { range: 'all' }) {
   const ctx = context(db, classId, now, period);
-  const { cls, tz, topics, enrolled, since, until, prev, last7, classAttempts, attempts } = ctx;
+  const { cls, tz, topics, topicId, enrolled, since, until, prev, last7, classAttempts, attempts } = ctx;
   const confirmed = attempts.filter((a) => !a.needsReview);
-  const sessions = db.sessions.filter((s) => s.classId === classId);
-  const courseQs = db.questions.filter((x) => x.courseId === cls.courseId);
+  const sessions = sessionsOf(db, classId, topicId && classAttempts);
+  const courseQs = db.questions.filter((x) => x.courseId === cls.courseId && (!topicId || x.topicId === topicId));
   const questionsById = new Map(courseQs.map((q) => [q.id, q]));
   const outcomeOf = new Map(courseQs.map((q) => [q.id, q.outcomeId]));
   // group once, look up many times (this runs on every auto-refresh)
@@ -358,8 +372,22 @@ function classAnalytics(db, classId, now = Date.now(), period = { range: 'all' }
     }));
   }
 
+  // Every weekly topic of the course: what it already has (material,
+  // report, questions) next to how this class is doing on it
+  const course = db.courses.find((c) => c.id === cls.courseId);
+  const enrolledAttempts = db.attempts.filter((a) => a.classId === classId && ctx.enrolledSet.has(a.studentId) && a.at >= since && a.at < until);
+  const attemptsByTopic = group(enrolledAttempts, (a) => a.topicId);
+  const overview = topicSummary(db, course);
+  overview.topics = overview.topics.map((t) => {
+    const all = attemptsByTopic.get(t.topicId) || [];
+    const list = all.filter((a) => !a.needsReview);
+    return { ...t, first: rate(list.filter((a) => a.first)), answers: all.length, students: new Set(all.map((a) => a.studentId)).size };
+  });
+
   return {
     class: { id: cls.id, name: cls.name, settings: cls.settings },
+    topicId,
+    overview,
     range: period.range,
     from: period.from || null,
     to: period.to || null,
@@ -384,14 +412,14 @@ function classAnalytics(db, classId, now = Date.now(), period = { range: 'all' }
 // ---------------- several classes of one course, side by side ----------------
 function courseComparison(db, classIds, now = Date.now(), period = { range: 'all' }) {
   return classIds.map((id) => {
-    const { cls, topics, enrolled, since, until, attempts } = context(db, id, now, period);
+    const { cls, topics, topicId, enrolled, since, until, attempts, classAttempts } = context(db, id, now, period);
     const confirmed = attempts.filter((a) => !a.needsReview);
     const byTopic = group(confirmed, (a) => a.topicId);
     return {
       classId: cls.id,
       name: cls.name,
       enrolled: enrolled.length,
-      ...activity(attempts, db.sessions.filter((s) => s.classId === id), since, until),
+      ...activity(attempts, sessionsOf(db, id, topicId && classAttempts), since, until),
       accuracy: rate(confirmed),
       topics: topics.map((t) => ({ topicId: t.id, name: t.name, accuracy: rate(byTopic.get(t.id) || []) })),
     };

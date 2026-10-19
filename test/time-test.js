@@ -76,3 +76,10 @@ test('the fast local clock matches Intl exactly, across DST and odd offsets', ()
     }
   }
 });
+
+test('localIso writes the local clock with its offset', () => {
+  const t = Date.UTC(2026, 9, 16, 3, 52, 7);
+  assert.equal(T.localIso(t, 'Asia/Singapore'), '2026-10-16T11:52:07+08:00');
+  assert.equal(T.localIso(t, 'Asia/Kolkata'), '2026-10-16T09:22:07+05:30');
+  assert.equal(T.localIso(t, 'America/New_York'), '2026-10-15T23:52:07-04:00');
+});

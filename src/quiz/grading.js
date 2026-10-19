@@ -59,7 +59,7 @@ async function aiGrade(v, text) {
     '',
     `<student_answer>\n${String(text).replace(/<\/?student_answer>/gi, '')}\n</student_answer>`,
   ].join('\n');
-  const { json } = await gemini.generateJson({ system: SHORT_SYSTEM, parts: [{ text: prompt }], schema: SHORT_SCHEMA, maxOutputTokens: 512, temperature: 0 });
+  const { json } = await gemini.generateJson({ system: SHORT_SYSTEM, parts: [{ text: prompt }], schema: SHORT_SCHEMA, maxOutputTokens: 512, maxAttempts:1, timeoutMs:15000, maxQuotaWaitMs:0 });
   const covered = [...new Set((json.coveredPoints || []).filter((i) => Number.isInteger(i) && i >= 0 && i < v.keyPoints.length))];
   return { score: covered.length / v.keyPoints.length, coveredPoints: covered, feedback: String(json.feedback || '').slice(0, 400), method: 'ai' };
 }
@@ -71,7 +71,12 @@ async function grade(v, instance, sub) {
   let g = { score: 0, coveredPoints: [], feedback: null, method: 'none' };
   if (text) {
     try {
-      g = gemini.enabled() ? await aiGrade(v, text) : keywordGrade(v, text);
+      if(v.answerMode==='numeric') {
+        const match=text.replace(/,/g,'').match(/^([+-]?(?:\d+(?:\.\d*)?|\.\d+)(?:e[+-]?\d+)?)\s*(.*?)$/i);
+        const unitsMatch=!!match && (!match[2] || (v.unit && match[2].toLowerCase()===v.unit.toLowerCase()));
+        const result=gradeSync({...v,type:'numeric'},null,{value:unitsMatch?match[1]:null});
+        g={score:result.score,coveredPoints:result.correct?v.keyPoints.map((_,i)=>i):[],feedback:null,method:'numeric'};
+      } else g = gemini.enabled() ? await aiGrade(v, text) : keywordGrade(v, text);
     } catch (err) {
       console.error('[grading] AI grading failed, using keywords:', err.message);
       g = keywordGrade(v, text);

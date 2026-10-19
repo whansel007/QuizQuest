@@ -17,6 +17,7 @@
 
 const crypto = require('crypto');
 const M = require('./mathexpr');
+const { contentText } = require('./content');
 
 const TYPES = ['mcq', 'multi', 'tf', 'numeric', 'short', 'param'];
 const TYPE_LABELS = { mcq: 'Single answer', multi: 'Select all that apply', tf: 'True / false', numeric: 'Numeric answer', short: 'Short answer', param: 'Maths variation' };
@@ -30,7 +31,7 @@ const norm = (x) => String(x || '').toLowerCase().replace(/[^a-z0-9\s]/g, ' ').r
 function cleanTyped(r) {
   const type = TYPES.includes(r.type) ? r.type : 'mcq';
   const out = { type };
-  if (type === 'mcq' || type === 'multi') out.options = Array.isArray(r.options) ? r.options.map((o) => s(o, 300)) : [];
+  if (type === 'mcq' || type === 'multi') out.options = Array.isArray(r.options) ? r.options.map((o) => contentText(o, 300)) : [];
   if (type === 'mcq') out.answerIndex = Number.isInteger(r.answerIndex) ? r.answerIndex : -1;
   if (type === 'multi') out.answerIndexes = Array.isArray(r.answerIndexes) ? [...new Set(r.answerIndexes.filter(Number.isInteger))].sort((a, b) => a - b) : [];
   if (type === 'tf') {
@@ -43,8 +44,10 @@ function cleanTyped(r) {
     out.unit = s(r.unit, 20);
   }
   if (type === 'short') {
-    out.modelAnswer = s(r.modelAnswer, 800);
+    out.modelAnswer = contentText(r.modelAnswer, 800);
     out.keyPoints = Array.isArray(r.keyPoints) ? r.keyPoints.map((k) => s(k, 200)).filter(Boolean) : [];
+    if(r.answerMode !== undefined) out.answerMode=s(r.answerMode,20);
+    if(out.answerMode==='numeric') {out.answer=num(r.answer);out.tolerance=r.tolerance===undefined?0:num(r.tolerance);out.unit=s(r.unit,20);}
   }
   if (type === 'param') {
     out.variables = Array.isArray(r.variables)
@@ -188,7 +191,9 @@ function validateTyped(q, errors, warnings) {
     if (!Number.isFinite(q.tolerance) || q.tolerance < 0) errors.push('Tolerance must be zero or a positive number.');
     if (q.tolerance === 0 && Number.isFinite(q.answer) && !Number.isInteger(q.answer)) warnings.push('Non-whole answer with zero tolerance: students must match it exactly.');
   } else if (q.type === 'short') {
-    if (q.modelAnswer.length < 5) errors.push('A model answer is required.');
+    if(q.answerMode!==undefined && !['text','numeric'].includes(q.answerMode)) errors.push('Short Answer mode must be text or numeric.');
+    if(q.answerMode==='numeric' && (!Number.isFinite(q.answer) || !Number.isFinite(q.tolerance) || q.tolerance<0)) errors.push('Numerical Short Answer needs a finite answer and a nonnegative tolerance.');
+    if (q.modelAnswer.length < (q.answerMode==='numeric'?1:5)) errors.push('A model answer is required.');
     if (!q.keyPoints.length || q.keyPoints.length > 6) errors.push('List 1-6 key points a good answer should cover.');
   } else if (q.type === 'param') {
     return validateParam(q, errors, warnings);

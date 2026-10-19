@@ -6,7 +6,11 @@ import { reactive } from 'vue';
 
 export const pct = (x) => (x === null || x === undefined ? '-' : Math.round(x * 100) + '%');
 export const secs = (ms) => (ms === null || ms === undefined ? '-' : (ms / 1000).toFixed(1) + 's');
-export const when = (t) => new Date(t).toLocaleString([], { dateStyle: 'medium', timeStyle: 'short' });
+// Times use Singapore's clock (the server's default APP_TIMEZONE), whatever the
+// browser's own zone or language. Analytics passes the class's zone instead.
+export const APP_TZ = 'Asia/Singapore';
+export const when = (t, timeZone = APP_TZ) => new Date(t).toLocaleString('en-SG', { dateStyle: 'medium', timeStyle: 'short', timeZone });
+export const clockTime = (t, timeZone = APP_TZ) => new Date(t).toLocaleTimeString('en-SG', { hour: '2-digit', minute: '2-digit', timeZone });
 export const fmtBundle = (b, catalog) => Object.entries(b || {}).filter(([, v]) => v).map(([k, v]) => `${v} ${catalog[k]?.emoji || k}`).join(' + ') || 'nothing';
 
 // One toast for the whole app (rendered by App.vue)
