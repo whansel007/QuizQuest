@@ -8,6 +8,12 @@ importers:
 
   .:
     dependencies:
+      '@fontsource/fredoka':
+        specifier: ^5.3.0
+        version: 5.3.0
+      '@fontsource/nunito':
+        specifier: ^5.3.0
+        version: 5.3.0
       '@supabase/supabase-js':
         specifier: ^2.117.3
         version: 2.117.3
@@ -64,6 +70,12 @@ packages:
 
   '@electric-sql/pglite@0.5.9':
     resolution: {integrity: sha512-GoQTRMZ/o4J3sMW4mLDtDFGNOm1xy5oH+iHDALWll3uERY6OF4BSnL1t7FZH2Mlw+RPceDBlFJgSaecO73c4EA==}
+
+  '@fontsource/fredoka@5.3.0':
+    resolution: {integrity: sha512-s2IhjQ50wDnKkkaKmjhtL0rxQg6ITsVusiipM3m7zUwVZZbbCKsscNDkngwp28xVzfIt7neWrkgU1qKqyTycQg==}
+
+  '@fontsource/nunito@5.3.0':
+    resolution: {integrity: sha512-vw9TaTQJ/zpEpKrsODuPmOvaVjXgdda6B+xXA4YqjrdeJ62MLgVoDerdRXFQHyBnSCt2yQ2nHKCHPP/Pv7Xq4Q==}
 
   '@jridgewell/sourcemap-codec@1.6.0':
     resolution: {integrity: sha512-T7jf+5zgsZHwNJ4lvQ7/aezbyk0nNX+zJVWpmHA7VYsEx7a7qr5Rg5IbtJFqkgze5Y2sruq1RUY8Q837Od7iFw==}
@@ -736,6 +748,10 @@ snapshots:
       '@babel/helper-validator-identifier': 7.29.7
 
   '@electric-sql/pglite@0.5.9': {}
+
+  '@fontsource/fredoka@5.3.0': {}
+
+  '@fontsource/nunito@5.3.0': {}
 
   '@jridgewell/sourcemap-codec@1.6.0': {}
 
