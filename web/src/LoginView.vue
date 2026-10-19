@@ -107,7 +107,7 @@ function fill(address) {
 }
 watch(page, (p) => p === 'signin' && nextTick(focusStep));
 
-// ---- demo accounts (404 = demo login is off: no Test accounts button) ----
+// ---- seeded synthetic test accounts ----
 const users = ref(null);
 const demoError = ref('');
 async function loadDemo() {

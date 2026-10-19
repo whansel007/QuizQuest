@@ -126,12 +126,13 @@ test('the test accounts page fills the sign-in form', async (t) => {
   await password.press('Enter');
   await page.getByRole('heading', { name: 'Practice', exact: true }).waitFor();
 });
-test('login network errors show a retry button', async (t) => {
+test('an unavailable API shows a useful error and the test accounts can be retried', async (t) => {
   const page = await browser.newPage();
   t.after(() => page.close());
-  await page.route('**/api/demo-users', (r) => r.fulfill({ status: 503, contentType: 'application/json', body: '{"error":"Unavailable"}' }), { times: 1 });
+  await page.route('**/api/demo-users', (r) => r.fulfill({ status: 500, contentType: 'text/plain', body: 'AggregateError ECONNREFUSED' }), { times: 1 });
   await page.goto(base);
   await page.getByRole('button', { name: 'Test accounts' }).click();
+  await page.getByText('The server could not reach the API. Check the API terminal, restart local development, and retry.').waitFor();
   await page.getByRole('button', { name: 'Retry loading demo accounts' }).click();
   await page.getByRole('button', { name: 'Student 01' }).waitFor();
 });

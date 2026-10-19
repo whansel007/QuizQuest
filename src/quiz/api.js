@@ -50,6 +50,8 @@ const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const NAME_MAX = 60;               // longest display name a user may register
 const ACCOMMODATION = [1, 1.5, 2];
 const TIMER_GRACE_MS = 3000;       // network slack before the server calls time
+const SEEDED_DEMO_USER_IDS = new Set(['t-a', 't-b', ...Array.from({ length: 12 }, (_, i) => `s-${String(i + 1).padStart(2, '0')}`)]);
+const isSeededDemoUser = (user) => SEEDED_DEMO_USER_IDS.has(user.id) && user.email?.endsWith('@quizquest.demo');
 
 class HttpError extends Error {
   constructor(status, message) {
@@ -110,7 +112,7 @@ const csvCell = (v) => {
 
 // store: an already-loaded { db, save } (e.g. src/db/supabase-store.js);
 // otherwise the JSON file store (dataFile = null keeps it in memory).
-function createQuizApi({ dataFile = null, store = null, now = () => Date.now(), drafter = null, demoLogin = process.env.NODE_ENV !== 'production', authoringAI = null, authoringDrafter = null } = {}) {
+function createQuizApi({ dataFile = null, store = null, now = () => Date.now(), drafter = null, demoLogin = process.env.NODE_ENV !== 'production', devMode = process.env.QUIZQUEST_DEV === '1', authoringAI = null, authoringDrafter = null } = {}) {
   store = store || createStore(dataFile);
   const { db } = store;
   if (P.ensureDemoCredentials(db.users)) store.save();
@@ -398,6 +400,7 @@ function createQuizApi({ dataFile = null, store = null, now = () => Date.now(), 
     answerQuestion,
     pickChallenge,
     classOf: (id) => db.classes.find((c) => c.id === id),
+    kingdomBuildings: (studentId) => E.kingdom(db, studentId).buildings,
     grantResources: (studentId, bundle, reason, refKey) => E.grantResources(db, studentId, bundle, reason, refKey, now()),
     award: (studentId, amount, reason, refKey) => R.award(db, studentId, amount, reason, refKey, now()),
     look: (studentId) => {
@@ -420,6 +423,13 @@ function createQuizApi({ dataFile = null, store = null, now = () => Date.now(), 
   };
 
   // ---------------- auth (demo) ----------------
+  if (devMode) {
+    route('GET', '/api/dev-ready', null, () => ({
+      ready: true,
+      demoAccounts: db.users.filter(isSeededDemoUser).length,
+    }));
+  }
+
   route('GET', '/api/demo-users', null, () => {
     const label = (u) => {
       if (u.role === 'teacher') return db.classes.filter((c) => c.teacherIds.includes(u.id)).map((c) => c.name).join(', ');
@@ -428,10 +438,9 @@ function createQuizApi({ dataFile = null, store = null, now = () => Date.now(), 
       return cls.join(', ') + (hist ? '' : ' - no history yet');
     };
     // The test-account helper may list synthetic seeded accounts in production,
-    // but never disclose registered users. Passwordless userId login remains
-    // disabled there; the picker only fills the regular password form.
-    return db.users.filter((u) => (u.id === 't-a' || u.id === 't-b' || /^s-\d{2}$/.test(u.id))
-      && u.email?.endsWith('@quizquest.demo'))
+    // but never disclose registered users. Production userId login is limited
+    // to this same seeded synthetic allowlist.
+    return db.users.filter(isSeededDemoUser)
       .map((u) => ({ id: u.id, name: u.name, role: u.role, email: u.email, note: label(u) }));
   });
 
@@ -463,6 +472,7 @@ function createQuizApi({ dataFile = null, store = null, now = () => Date.now(), 
   route('POST', '/api/login', null, ({ body }) => {
     let user;
     if (body.userId !== undefined && demoLogin) user = db.users.find((u) => u.id === body.userId) || fail(400, 'Unknown demo user.');
+    else if (body.userId !== undefined) user = db.users.find((u) => u.id === body.userId && isSeededDemoUser(u)) || fail(400, 'Unknown demo user.');
     else user = checkPassword(body);
     return startSession(user);
   });

@@ -78,8 +78,8 @@ Entry points:
 - Direct execution of `server.js`: connects the Supabase store when `SUPABASE_URL` is set; otherwise uses `QUIZ_DATA_FILE` or `data/db.json`.
 - [web/src/main.js](../web/src/main.js): mounts `App.vue` on `#app`.
 - [web/src/App.vue](../web/src/App.vue): restores the session and chooses role-specific views.
-- [scripts/dev.js](../scripts/dev.js): starts Node in watch mode with `.env` loading and starts Vite alongside it.
-- [vite.config.mjs](../vite.config.mjs): builds `web/` into `dist/`; development uses port `5173` and proxies API, Socket.IO, Circle Tag, and Hero Lab requests to Node.
+- [scripts/dev.js](../scripts/dev.js): starts the API, waits for `/api/demo-users`, selects a free API port when needed, then starts Vite. Both are direct children so shutdown does not leave a nested Node watcher behind.
+- [vite.config.mjs](../vite.config.mjs): builds `web/` into `dist/`; development uses port `5173` or Vite's next available port and proxies API, Socket.IO, Circle Tag, and Hero Lab requests to Node.
 
 Production-style startup serves the built frontend from Node, normally on port `3000`. `/tag` serves the original Circle Tag experiment; `/hero-lab` serves a separate static prototype. Neither is the main Vue professor authoring screen.
 
@@ -182,7 +182,7 @@ An empty project is seeded only after the adapter's initial checks; an incompati
 
 ## 7. Authentication, courses, and classes
 
-1. `LoginView.vue` fetches `GET /api/demo-users` and displays synthetic identities.
+1. `LoginView.vue` fetches `GET /api/demo-users` and displays seeded synthetic identities.
 2. `POST /api/login` accepts `{ userId }`, without a password, and returns `{ token, user }`.
 3. The backend stores random bearer tokens in a process-local map with an eight-hour TTL. `GET /api/me` restores a valid browser session; `POST /api/logout` removes the token.
 4. Professors fetch assigned courses through `GET /api/teacher/courses`. This response includes topics/outcomes, assigned classes, counts, format capabilities and Gemini/authoring availability.

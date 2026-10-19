@@ -51,8 +51,11 @@ pnpm install
 pnpm dev
 ```
 
-Open **http://localhost:5173**. This runs the Vue app (with hot reload) and the
-Node server on port 3000 together. Stop both with Ctrl + C.
+Open the **Local** URL printed by Vite (usually **http://localhost:5173**).
+The launcher starts the API first, waits until demo accounts respond, then
+starts Vite. If port 3000 is occupied, it picks another free API port and
+passes it to Vite's proxy. Vue changes hot-reload; restart `pnpm dev` after
+changing server code. Ctrl + C stops both processes.
 
 Try it: sign in as `prof.a@quizquest.demo` in one tab, `student02@quizquest.demo`
 in another and `student03@quizquest.demo` in a third (password `quizquest` for
@@ -81,10 +84,10 @@ leaves the server.
 - Login sessions are kept in server memory for 8 hours, so restarting the server
   signs everyone out.
 - **Test accounts page:** the small **Test accounts** button under the form (or
-  `/#test-accounts`) lists seeded synthetic users. Select one to fill its email
-  into the regular sign-in form, then enter `quizquest`. The page never lists
-  registered accounts, and passwordless test login is disabled when the server
-  runs with `NODE_ENV=production`.
+  `/#test-accounts`) lists seeded synthetic users. Click one to sign in without
+  a password, or use **Fill form** and enter `quizquest`. The page never lists
+  registered accounts. Passwordless test login is limited to those seeded
+  synthetic users even when the server runs with `NODE_ENV=production`.
 
 There is no sign-up page yet: only the seeded accounts can sign in.
 
@@ -108,7 +111,7 @@ Run **one server at a time** per Supabase project. See
 
 | Command | What it does |
 |---|---|
-| `pnpm dev` | Development: Vue app on :5173 and server on :3000, with auto-reload |
+| `pnpm dev` | Development: starts the API, checks demo-account readiness, then starts Vite on an available port |
 | `pnpm build` | Build the Vue app into `dist/` |
 | `pnpm start` | Production: server on :3000 serving `dist/` (build first) |
 | `pnpm test` | API, database, World and store tests |

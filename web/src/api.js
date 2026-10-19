@@ -127,7 +127,11 @@ http.interceptors.response.use(
       throw new Error('Session expired, please sign in again.');
     }
     const data = await errorBody(err.response.data);
-    throw Object.assign(new Error(data.error || 'Request failed'), { status, data });
+    const contentType = err.response.headers?.['content-type'] || '';
+    const message = data.error || (status >= 500 && !contentType.includes('json')
+      ? 'The server could not reach the API. Check the API terminal, restart local development, and retry.'
+      : 'Request failed');
+    throw Object.assign(new Error(message), { status, data });
   },
 );
 

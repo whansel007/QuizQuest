@@ -26,21 +26,19 @@ function connectClient() {
 
 test('Hero Lab lets signed-in players select heroes they have not summoned', async (t) => {
   const services = server.quiz.services;
-  const originalAuthenticate = services.authenticate;
-  const originalOwnsHero = services.ownsHero;
-  services.authenticate = (token) => token === 'hero-lab-debug-token'
-    ? { id: 'debug-student', role: 'student' }
-    : null;
-  services.ownsHero = () => false;
-  t.after(() => {
-    services.authenticate = originalAuthenticate;
-    services.ownsHero = originalOwnsHero;
+  assert.deepEqual(services.kingdomBuildings('s-01'), {
+    library: 0, workshop: 0, garden: 0, tower: 0,
+  }, 'the socket join can load kingdom bonuses for a signed-in student');
+  const login = await fetch(base + '/api/login', {
+    method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ userId: 's-01' }),
   });
+  assert.equal(login.status, 200);
+  const { token } = await login.json();
 
   const client = await new Promise((resolve, reject) => {
     const socket = connect(`${base}/hero-lab`, {
       transports: ['websocket'],
-      auth: { token: 'hero-lab-debug-token' },
+      auth: { token },
     });
     socket.once('connect', () => resolve(socket));
     socket.once('connect_error', reject);
@@ -52,6 +50,8 @@ test('Hero Lab lets signed-in players select heroes they have not summoned', asy
   const { you: clientId } = await welcomePromise;
   const state = await nextState(client, (snapshot) => snapshot.players.some((player) => player.id === clientId));
   assert.equal(state.players.find((player) => player.id === clientId).heroId, 'electromancer');
+  const accountList = await fetch(base + '/api/demo-users');
+  assert.equal(accountList.status, 200, 'joining the game must not terminate the API process');
 });
 
 function nextState(socket, predicate = () => true, timeoutMs = 1500) {

@@ -68,14 +68,29 @@ test('repeated wrong passwords lock the email for 15 minutes', async (t) => {
   assert.equal((await call('POST', '/api/login', { email, password: P.DEMO_PASSWORD })).status, 200);
 });
 
-test('with demo login off, the account helper lists only seeded users and passwordless login is blocked', async (t) => {
+test('with demo login off, passwordless login is limited to seeded demo users', async (t) => {
   const { call } = await boot(t, { demoLogin: false });
   const listed = await call('GET', '/api/demo-users');
   assert.equal(listed.status, 200);
   assert.ok(listed.body.length > 0);
   assert.ok(listed.body.every((user) => user.email.endsWith('@quizquest.demo')));
-  assert.equal((await call('POST', '/api/login', { userId: 't-a' })).status, 400);
+  assert.ok(listed.body.every((user) => user.id && user.name && ['teacher', 'student'].includes(user.role)));
+  const selected = listed.body.find((user) => user.id === 's-01');
+  const login = await call('POST', '/api/login', { userId: selected.id });
+  assert.equal(login.status, 200, 'a user selected from the account list can sign in without a password');
+  assert.equal((await call('GET', '/api/me', null, login.body.token)).body.id, selected.id);
+  const registered = await call('POST', '/api/register', { name: 'Real Student', email: 'real@example.org', password: 'longenough' });
+  assert.equal(registered.status, 200);
+  assert.equal((await call('POST', '/api/login', { userId: registered.body.user.id })).status, 400);
   assert.equal((await call('POST', '/api/login', { email: 'prof.a@quizquest.demo', password: P.DEMO_PASSWORD })).status, 200);
+});
+
+test('the dev readiness endpoint confirms the passwordless account list before Vite starts', async (t) => {
+  const { call } = await boot(t, { devMode: true });
+  const ready = await call('GET', '/api/dev-ready');
+  assert.equal(ready.status, 200);
+  assert.equal(ready.body.ready, true);
+  assert.equal(ready.body.demoAccounts, 14);
 });
 
 test('users saved before passwords existed get demo credentials', () => {

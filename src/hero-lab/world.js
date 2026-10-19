@@ -386,7 +386,16 @@ function attachHeroLab(io, services = null) {
   }
 
   nsp.on('connection', (socket) => {
-    socket.on('join', (payload) => {
+    const safe = (event, handler) => (...args) => {
+      try {
+        return handler(...args);
+      } catch (error) {
+        console.error(`[Hero Lab] ${event} failed:`, error && error.stack || error);
+        socket.emit('notice', 'The game could not complete that action. Please rejoin the World.');
+      }
+    };
+
+    socket.on('join', safe('join', (payload) => {
       const heroId = payload?.heroId;
       const HeroClass = Object.hasOwn(HERO_CLASSES, heroId) ? HERO_CLASSES[heroId] : null;
       if (!HeroClass) return socket.emit('notice', 'Choose a valid hero to join the field.');
@@ -451,7 +460,7 @@ function attachHeroLab(io, services = null) {
         arena: { width: ARENA_CONFIG.width, height: ARENA_CONFIG.height },
       });
       broadcastState();
-    });
+    }));
 
     socket.on('input', (input) => {
       const player = players.get(socket.id);
