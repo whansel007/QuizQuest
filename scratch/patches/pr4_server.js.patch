@@ -1,0 +1,60 @@
+@@ -70,7 +70,7 @@ const MIME = {
+ // opts.dataFile: where the quiz app keeps its JSON database (null = in-memory).
+ // opts.store: an already-loaded store (e.g. the Supabase one) instead of a file.
+ function start(port, opts = {}) {
+-  const quiz = createQuizApi(opts.store ? { store: opts.store } : { dataFile: opts.dataFile !== undefined ? opts.dataFile : path.join(__dirname, 'data', 'db.json') });
++  const quiz = createQuizApi({ ...opts, dataFile: opts.dataFile !== undefined ? opts.dataFile : path.join(__dirname, 'data', 'db.json') });
+   // ------ Live game state (in-memory, lives ONLY while running) ---
+   // players: socket.id -> player object. This is the "database" of
+   // the live game. Unlike Mongo it is volatile: if the server restarts,
+@@ -83,7 +83,7 @@ function start(port, opts = {}) {
+   let cooldownUntil = 0;     // timestamp after which collisions count again
+ 
+   // ------ Serve the static files (the part you already know) ------
+-  // The quiz app is the Vue build in dist/ (`npm run build`); Circle Tag
++  // The quiz app is the Vue build in dist/ (`pnpm build`); Circle Tag
+   // still lives in public/ at /tag.
+   const publicDir = path.join(__dirname, 'public');
+   const heroLabDir = path.join(publicDir, 'hero-lab');
+@@ -116,7 +116,7 @@ function start(port, opts = {}) {
+     }
+     if (pathname === '/' && !fs.existsSync(file)) {
+       res.writeHead(503, { 'Content-Type': 'text/plain; charset=utf-8' });
+-      return res.end('The Vue app has not been built yet. Run `npm run build` (or use `npm run dev` and open http://localhost:5173).');
++      return res.end('The Vue app has not been built yet. Run `pnpm build` (or use `pnpm dev` and open http://localhost:5173).');
+     }
+     fs.readFile(file, (err, data) => {
+       if (err) {
+@@ -305,7 +305,7 @@ function start(port, opts = {}) {
+   return { io, httpServer, quiz, world };
+ }
+ 
+-// If run directly (`npm run dev` / `node server.js`) this is the entry
++// If run directly (`pnpm dev` / `node server.js`) this is the entry
+ // point. The check also lets the test file `require('./server')` and
+ // call start() itself to boot its own throwaway server on port 0.
+ if (require.main === module) {
+@@ -326,6 +326,16 @@ if (require.main === module) {
+     }
+     start(port, opts);
+     console.log(`QuizQuest API on http://localhost:${port}  (data: ${where}; Circle Tag at /tag)`);
++    // `pnpm dev` serves the Vue app through Vite, so only a production start
++    // depends on dist/. A failed build leaves the previous dist/ in place,
++    // which silently serves an old app.
++    if (!process.env.QUIZQUEST_DEV) {
++      const built = (() => { try { return fs.statSync(path.join(__dirname, 'dist', 'index.html')).mtimeMs; } catch { return 0; } })();
++      const newest = (dir) => fs.readdirSync(dir, { withFileTypes: true })
++        .reduce((t, e) => Math.max(t, e.isDirectory() ? newest(path.join(dir, e.name)) : fs.statSync(path.join(dir, e.name)).mtimeMs), 0);
++      if (!built) console.warn('[startup] dist/ is missing. Run `pnpm build` first.');
++      else if (newest(path.join(__dirname, 'web')) > built) console.warn('[startup] dist/ is older than web/. Run `pnpm build`; if it fails, run `pnpm install`.');
++    }
+   })().catch((err) => {
+     // Startup errors are configuration problems; the message says what to fix
+     console.error('[startup]', err.message);
+@@ -337,4 +347,4 @@ if (require.main === module) {
+ }
+ 
+ // What the headless test imports so it can run the real game loop
+-module.exports = { start, ARENA, RADIUS, SPEED };
+\ No newline at end of file
++module.exports = { start, ARENA, RADIUS, SPEED };

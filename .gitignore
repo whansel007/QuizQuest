@@ -5,3 +5,6 @@ dist/
 dist-*/
 tmp/
 knowledge/
+# Playwright output
+test-results/
+playwright-report/
