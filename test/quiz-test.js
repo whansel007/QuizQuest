@@ -78,13 +78,13 @@ const PGLITE = process.env.QQ_STORE === 'pglite';
 let pg = null;
 let pgLog = null;
 test.before(async () => {
-  let opts = { dataFile: null };
+  let opts = { dataFile: null, debugMode: true };
   if (PGLITE) {
     const { openPglite, pgliteAdapter, quiet } = require('./support/pglite');
     const { createSyncedStore } = require('../src/db/supabase-store');
     pg = await openPglite();
     pgLog = quiet();
-    opts = { store: await createSyncedStore({ adapter: pgliteAdapter(pg), logger: pgLog, saveDelay: 20 }) };
+    opts = { store: await createSyncedStore({ adapter: pgliteAdapter(pg), logger: pgLog, saveDelay: 20 }), debugMode: true };
   }
   srv = start(0, opts);
   await new Promise((r) => srv.httpServer.once('listening', r));
@@ -404,6 +404,53 @@ test('shop: double-clicked purchase charges once; egg odds disclosed', async () 
   assert.equal(a.status, 200);
   assert.equal(b.status, 200);
   assert.equal(home.wallet.balance - b.body.wallet.balance, 40);
+});
+
+test('hero summon guarantees, owned heroes, refunds, resources, and retry safety are server-owned', async () => {
+  const R = require('../src/quiz/rewards');
+  const token = await login('s-06');
+  const home = (await call(token, 'GET', '/api/student/home')).body;
+  assert.deepEqual(home.catalog.heroSummon.odds, { common: 600, rare: 300, epic: 100 });
+  assert.ok(home.inventory.heroes.includes('sheriff'), 'new students start with Sheriff');
+  R.inventory(db(), 's-06').resources = { wood: 0, crystal: 0, herb: 0 };
+  db().ledger.push({ id: 'hero-summon-funds', studentId: 's-06', kind: 'refund', amount: 500, refKey: 'hero-summon-funds', at: Date.now() });
+
+  const draw = R.drawHeroSummon;
+  R.drawHeroSummon = (pity) => ({ prize: { kind: 'hero', rarity: 'epic', hero: { ...R.HERO_CATALOG.find((hero) => hero.id === 'bombardier') } }, pity: { totalPulls: pity.totalPulls + 1, sinceHero: 0, sinceEpic: 0 } });
+  try {
+    const requestId = 'hero-summon-0001';
+    const a = await call(token, 'POST', '/api/student/hero-summon', { requestId });
+    const b = await call(token, 'POST', '/api/student/hero-summon', { requestId });
+    assert.equal(a.status, 200);
+    assert.equal(b.body.repeat, true);
+    assert.equal(b.body.prize.hero.id, 'bombardier');
+    assert.ok(b.body.inventory.heroes.includes('bombardier'));
+    assert.equal(db().ledger.filter((entry) => entry.refKey?.startsWith('hero-summon:s-06:') && entry.kind === 'spend').length, 1);
+
+    const duplicate = await call(token, 'POST', '/api/student/hero-summon', { requestId: 'hero-summon-0002' });
+    assert.equal(duplicate.body.duplicateHero, true);
+    assert.equal(duplicate.body.refund, home.catalog.heroSummon.pullCost);
+    assert.equal(duplicate.body.inventory.heroDupes.bombardier, 1);
+  } finally { R.drawHeroSummon = draw; }
+
+  const pity = { totalPulls: 9, sinceHero: 9, sinceEpic: 9 };
+  const guaranteed = R.drawHeroSummon(pity, (n) => n > 1 ? 0 : 0);
+  assert.equal(guaranteed.prize.kind, 'hero', 'the 10th pull guarantees a hero');
+  const epic = R.drawHeroSummon({ totalPulls: 49, sinceHero: 49, sinceEpic: 49 }, () => 0);
+  assert.equal(epic.prize.rarity, 'epic', 'the 50th-pull epic guarantee takes priority');
+  const common = R.drawHeroSummon({ totalPulls: 0, sinceHero: 0, sinceEpic: 0 }, () => 0);
+  assert.equal(common.prize.kind, 'resource');
+  assert.equal(common.prize.amount, home.catalog.heroSummon.commonResourceAmount);
+});
+
+test('demo wallet editor records a server-side adjustment for the signed-in student', async () => {
+  const token = await login('s-05');
+  assert.deepEqual((await call(token, 'GET', '/api/student/debug-mode')).body, { enabled: true });
+  const result = await call(token, 'POST', '/api/student/debug/wallet', { balance: 237 });
+  assert.equal(result.status, 200);
+  assert.equal(result.body.balance, 237);
+  assert.ok(db().ledger.some((entry) => entry.studentId === 's-05' && entry.kind === 'debug'));
+  assert.equal((await call(null, 'POST', '/api/student/debug/wallet', { balance: 2 })).status, 401);
 });
 
 test('kingdom: builds cost resources, repeat requests are idempotent', async () => {
