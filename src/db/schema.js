@@ -45,6 +45,15 @@ const TABLES = [
     fields: { classId: f('class_id'), studentId: f('student_id') },
   },
   {
+    table: 'class_join_codes', collection: 'classJoinCodes', key: ['id'], optional: true,
+    fields: {
+      id: f('id'), classId: f('class_id'), codeHash: f('code_hash'),
+      expiresAt: f('expires_at', { ts: true, keepNull: true }), usageLimit: f('usage_limit', { keepNull: true }),
+      usageCount: f('usage_count'), revoked: f('revoked'),
+      createdBy: f('created_by', { keepNull: true }), createdAt: f('created_at', { ts: true, keepNull: true }),
+    },
+  },
+  {
     table: 'passages', collection: 'passages', key: ['id'],
     fields: { id: f('id'), courseId: f('course_id'), topicId: f('topic_id'), outcomeId: f('outcome_id'), title: f('title'), text: f('text'), origin: f('origin'), createdBy: f('created_by'), createdAt: f('created_at', { ts: true }) },
   },

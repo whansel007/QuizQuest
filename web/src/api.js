@@ -155,8 +155,9 @@ function clearSession() {
   rerender();
 }
 
-export async function signIn(userId) {
-  const r = await api('POST', '/api/login', { userId });
+export async function signIn(credentials) {
+  const payload = typeof credentials === 'string' ? { userId: credentials } : credentials;
+  const r = await api('POST', '/api/login', payload);
   S.token = r.token;
   try {
     sessionStorage.setItem('qq-token', r.token);
@@ -165,11 +166,40 @@ export async function signIn(userId) {
   }
   S.me = r.user;
   rerender();
+  return r.user;
+}
+
+export async function register(data) {
+  const r = await api('POST', '/api/auth/register', data);
+  S.token = r.token;
+  try {
+    sessionStorage.setItem('qq-token', r.token);
+  } catch {
+    // fine: this tab stays signed in until it is closed
+  }
+  S.me = r.user;
+  rerender();
+  return r.user;
 }
 
 export function signOut() {
   if (S.token) api('POST', '/api/logout').catch(() => {});
   clearSession();
+}
+
+export async function resetPassword({ accessToken, newPassword, email, code }) {
+  const r = await api('POST', '/api/auth/reset-password', { accessToken, newPassword, email, code });
+  if (r.token && r.user) {
+    S.token = r.token;
+    try {
+      sessionStorage.setItem('qq-token', r.token);
+    } catch {
+      // storage blocked
+    }
+    S.me = r.user;
+    rerender();
+  }
+  return r;
 }
 
 // On page load: resume this tab's session if the token is still valid
@@ -181,3 +211,4 @@ export async function restoreSession() {
     clearSession();
   }
 }
+

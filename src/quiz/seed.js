@@ -136,6 +136,7 @@ function seed(now = Date.now()) {
     trades: [],
     resourceLog: [],
     participation: [],
+    classJoinCodes: [],
   };
 
   // Hand-written questions: "prep time" is a plausible synthetic baseline
