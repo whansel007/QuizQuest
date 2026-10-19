@@ -32,6 +32,9 @@ const { createQuizApi } = require('./src/quiz/api');
 // The multiplayer World (/world Socket.IO namespace), built on the same
 // ideas as this file's tag game. See src/world/world.js.
 const { attachWorld } = require('./src/world/world');
+// The standalone Hero Lab demonstrates the same client-input/server-state
+// pattern without the World game's class enrollment and quiz rules.
+const { attachHeroLab } = require('./src/hero-lab/world');
 
 // --- Game constants (the "rules" of our world) ----------------
 // The arena is a fixed 900x600 coordinate grid. Every player shares
@@ -142,6 +145,8 @@ function start(port, opts = {}) {
   const io = new Server(httpServer, { cors: { origin: '*' } });
   // The quiz World lives on its own namespace ('/world'); tag keeps '/'
   const world = attachWorld(io, quiz.services);
+  // The standalone Hero Lab shares the same input/state pattern on '/hero-lab'
+  const heroLab = attachHeroLab(io, quiz.services);
 
   // Smallest free slot (1..4). Slot = the player's identity: P1, P2...
   function freeSlot() {
@@ -300,9 +305,10 @@ function start(port, opts = {}) {
   httpServer.on('close', () => {
     clearInterval(loop);
     world.stop();
+    heroLab.stop();
   });
   httpServer.listen(port);
-  return { io, httpServer, quiz, world };
+  return { io, httpServer, quiz, world, heroLab };
 }
 
 // If run directly (`pnpm dev` / `node server.js`) this is the entry
