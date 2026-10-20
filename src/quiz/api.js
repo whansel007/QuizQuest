@@ -491,9 +491,240 @@ function createQuizApi({ dataFile = null, store = null, now = () => Date.now(), 
     return startSession(user);
   });
 
+  // Same behaviour under the /api/auth/* prefix, so Task 1A's documented
+  // contract keeps working alongside the shorter route above. This one answers
+  // 201 because Task 1A's API documentation specifies "created".
+  route('POST', '/api/auth/register', null, ({ body }) => {
+    const name = str(body.name, NAME_MAX, 'Name');
+    const email = P.normEmail(body.email);
+    if (!EMAIL_RE.test(email) || email.length > 254) fail(400, 'Enter a valid email address.');
+    if (typeof body.password !== 'string' || body.password.length < P.PASSWORD_MIN) fail(400, `Use a password of at least ${P.PASSWORD_MIN} characters.`);
+    if (body.password.length > P.PASSWORD_MAX) fail(400, `Use a password of at most ${P.PASSWORD_MAX} characters.`);
+    if (db.users.some((u) => u.email === email)) fail(409, 'An account with this email already exists. Sign in instead.');
+    const user = { id: newId('s'), name, role: 'student', email, passwordHash: P.hashPassword(body.password), createdAt: now() };
+    db.users.push(user);
+    save({ analytics: false });
+    return [201, startSession(user)];
+  });
+
+  route('POST', '/api/auth/forgot-password', null, ({ body }) => {
+    const email = P.normEmail(body.email);
+    if (!email || !EMAIL_RE.test(email)) fail(400, 'Enter a valid email address.');
+    // Always the same answer, so this cannot be used to discover who has an account.
+    return {
+      ok: true,
+      message: 'If an account exists for that address, password reset instructions have been sent.',
+    };
+  });
+
+  // Completes a reset started by /api/auth/forgot-password. The recovery
+  // link proves control of the mailbox; this call exchanges it for a session.
+  const handleResetPassword = ({ req, body }) => {
+    const newPassword = body?.newPassword || body?.password || '';
+    const email = P.normEmail(body?.email);
+    if (!newPassword || newPassword.length < P.PASSWORD_MIN) fail(400, `Use a password of at least ${P.PASSWORD_MIN} characters.`);
+    if (newPassword.length > P.PASSWORD_MAX) fail(400, `Use a password of at most ${P.PASSWORD_MAX} characters.`);
+
+    // A signed-in caller may change their own password without a recovery link.
+    const currentToken = (req.headers.authorization || '').replace(/^Bearer\s+/i, '');
+    let target = currentToken ? authenticate(currentToken) : null;
+    if (!target && email) target = db.users.find((u) => u.email === email || `${u.id}@quizquest.edu` === email);
+    if (!target) fail(400, 'Could not identify the account. Please request a new reset link.');
+
+    target.passwordHash = P.hashPassword(newPassword);
+    // Changing a password ends every other session for that account.
+    for (const [t, s] of tokens) if (s.userId === target.id) tokens.delete(t);
+    save();
+    return startSession(target);
+  };
+
+  route('POST', '/api/auth/reset-password', null, handleResetPassword);
+  route('POST', '/api/auth/update-password', null, handleResetPassword);
+
   route('POST', '/api/logout', 'any', ({ token }) => {
     tokens.delete(token);
     return { ok: true };
+  });
+
+  // ---------------- class management (Task 1B) ----------------
+  // Join codes are unpredictable and stored hashed, so the database never
+  // holds a usable code and probing cannot enumerate valid ones.
+  const hashJoinCode = (rawCode) =>
+    crypto.createHash('sha256').update(String(rawCode).trim().toUpperCase()).digest('hex');
+
+  function generateJoinCode() {
+    const chars = '23456789ABCDEFGHJKLMNPQRSTUVWXYZ'; // no 0/O/1/I
+    let code = 'QQ-';
+    for (let i = 0; i < 5; i++) code += chars.charAt(Math.floor(Math.random() * chars.length));
+    return code;
+  }
+
+  route('GET', '/api/classes', 'any', ({ user }) => {
+    if (user.role === 'teacher') {
+      return db.classes
+        .filter((c) => c.teacherIds.includes(user.id))
+        .map((c) => ({
+          id: c.id,
+          name: c.name,
+          courseId: c.courseId,
+          courseTitle: db.courses.find((x) => x.id === c.courseId)?.title || '',
+          description: c.description || '',
+          archivedAt: c.archivedAt || null,
+          settings: c.settings,
+          memberCount: db.enrolments.filter((e) => e.classId === c.id).length,
+          activeCodesCount: (db.classJoinCodes || []).filter(
+            (cd) => cd.classId === c.id && !cd.revoked && (!cd.expiresAt || cd.expiresAt > now()),
+          ).length,
+        }));
+    }
+    return db.enrolments
+      .filter((e) => e.studentId === user.id)
+      .map((e) => {
+        const c = db.classes.find((cl) => cl.id === e.classId);
+        if (!c) return null;
+        return {
+          id: c.id,
+          name: c.name,
+          courseId: c.courseId,
+          courseTitle: db.courses.find((x) => x.id === c.courseId)?.title || '',
+          description: c.description || '',
+          settings: c.settings,
+        };
+      })
+      .filter(Boolean);
+  });
+
+  route('POST', '/api/classes', 'teacher', ({ user, body }) => {
+    const course = teacherCourse(user, body.courseId);
+    const name = str(body.name, 80, 'Class name');
+    const description = body.description ? str(body.description, 300, 'Description') : '';
+    const newClass = {
+      id: newId('cl'),
+      courseId: course.id,
+      name,
+      description,
+      teacherIds: [user.id],
+      settings: { tradingEnabled: true, participation: { enabled: false }, timezone: 'Asia/Singapore' },
+      archivedAt: null,
+      createdBy: user.id,
+      createdAt: now(),
+    };
+    db.classes.push(newClass);
+    save();
+    return [201, newClass];
+  });
+
+  route('PATCH', '/api/classes/:classId', 'teacher', ({ user, params, body }) => {
+    const cls = teacherClass(user, params.classId);
+    if (body.name !== undefined) cls.name = str(body.name, 80, 'Class name');
+    if (body.description !== undefined)
+      cls.description = typeof body.description === 'string' ? str(body.description, 300, 'Description') : '';
+    save();
+    return cls;
+  });
+
+  // Classes are archived, never deleted: quiz attempts and history stay intact.
+  route('POST', '/api/classes/:classId/archive', 'teacher', ({ user, params }) => {
+    const cls = teacherClass(user, params.classId);
+    cls.archivedAt = cls.archivedAt ? null : now();
+    save();
+    return { ok: true, archived: Boolean(cls.archivedAt), archivedAt: cls.archivedAt };
+  });
+
+  route('GET', '/api/classes/:classId/members', 'teacher', ({ user, params }) => {
+    const cls = teacherClass(user, params.classId);
+    const studentIds = db.enrolments.filter((e) => e.classId === cls.id).map((e) => e.studentId);
+    return studentIds.map((sid) => {
+      const u = db.users.find((x) => x.id === sid);
+      const attempts = db.attempts.filter((a) => a.studentId === sid && a.classId === cls.id);
+      return {
+        id: sid,
+        name: u?.name || 'Unknown',
+        email: u?.email || `${sid}@quizquest.edu`,
+        attemptsCount: attempts.length,
+        lastActive: attempts.length ? Math.max(...attempts.map((a) => a.at)) : null,
+      };
+    });
+  });
+
+  route('DELETE', '/api/classes/:classId/members/:userId', 'teacher', ({ user, params }) => {
+    const cls = teacherClass(user, params.classId);
+    const idx = db.enrolments.findIndex((e) => e.classId === cls.id && e.studentId === params.userId);
+    if (idx === -1) fail(404, 'Student is not enrolled in this class.');
+    db.enrolments.splice(idx, 1);
+    save();
+    return { ok: true, removedUserId: params.userId };
+  });
+
+  route('POST', '/api/classes/:classId/join-codes', 'teacher', ({ user, params, body }) => {
+    const cls = teacherClass(user, params.classId);
+    const rawCode = generateJoinCode();
+    const codeHash = hashJoinCode(rawCode);
+    const expiresInDays = Number(body?.expiresInDays);
+    const expiresAt = Number.isInteger(expiresInDays) && expiresInDays > 0 ? now() + expiresInDays * 86400000 : null;
+    const usageLimit = Number.isInteger(body?.usageLimit) && body.usageLimit > 0 ? body.usageLimit : null;
+    db.classJoinCodes = db.classJoinCodes || [];
+    const rec = {
+      id: newId('code'),
+      classId: cls.id,
+      codeHash,
+      expiresAt,
+      usageLimit,
+      usageCount: 0,
+      revoked: false,
+      createdBy: user.id,
+      createdAt: now(),
+    };
+    db.classJoinCodes.push(rec);
+    save();
+    return [201, { id: rec.id, code: rawCode, expiresAt, usageLimit, usageCount: 0, revoked: false }];
+  });
+
+  // Never returns the code itself, only its state.
+  route('GET', '/api/classes/:classId/join-codes', 'teacher', ({ user, params }) => {
+    const cls = teacherClass(user, params.classId);
+    db.classJoinCodes = db.classJoinCodes || [];
+    return db.classJoinCodes
+      .filter((c) => c.classId === cls.id)
+      .map((c) => ({
+        id: c.id,
+        expiresAt: c.expiresAt,
+        usageLimit: c.usageLimit,
+        usageCount: c.usageCount,
+        revoked: c.revoked,
+        createdAt: c.createdAt,
+        isExpired: c.expiresAt ? c.expiresAt < now() : false,
+      }));
+  });
+
+  route('DELETE', '/api/classes/:classId/join-codes/:codeId', 'teacher', ({ user, params }) => {
+    const cls = teacherClass(user, params.classId);
+    const rec =
+      (db.classJoinCodes || []).find((c) => c.id === params.codeId && c.classId === cls.id) || fail(404, 'Join code not found.');
+    rec.revoked = true;
+    save();
+    return { ok: true };
+  });
+
+  // Redemption is checked and applied in one pass: an unknown, revoked,
+  // expired or exhausted code never creates an enrolment.
+  route('POST', '/api/classes/join', 'student', ({ user, body }) => {
+    const raw = (body?.code || '').trim();
+    if (!raw) fail(400, 'Please enter a join code.');
+    db.classJoinCodes = db.classJoinCodes || [];
+    const codeRecord = db.classJoinCodes.find((c) => c.codeHash === hashJoinCode(raw) && !c.revoked);
+    if (!codeRecord) fail(404, 'Invalid or revoked join code.');
+    if (codeRecord.expiresAt && codeRecord.expiresAt < now()) fail(400, 'This join code has expired.');
+    if (codeRecord.usageLimit && codeRecord.usageCount >= codeRecord.usageLimit)
+      fail(400, 'This join code has reached its usage limit.');
+
+    const cls = db.classes.find((c) => c.id === codeRecord.classId && !c.archivedAt) || fail(404, 'Class not found or archived.');
+    if (isEnrolled(user.id, cls.id)) fail(400, 'You are already enrolled in this class.');
+
+    db.enrolments.push({ classId: cls.id, studentId: user.id });
+    codeRecord.usageCount++;
+    save();
+    return { ok: true, class: { id: cls.id, name: cls.name, courseTitle: db.courses.find((c) => c.id === cls.courseId)?.title } };
   });
 
   // ---------------- hero-lab AI test (shared Gemini client) ----------------
@@ -757,12 +988,15 @@ function createQuizApi({ dataFile = null, store = null, now = () => Date.now(), 
     },
     { limit: 500 * 1024 },
   );
-  route('GET', '/api/teacher/courses/:cid/passages', 'teacher', ({ user, params }) => {
+  route('GET', '/api/teacher/courses/:cid/passages', 'teacher', ({ user, params, query }) => {
     const c = teacherCourse(user, params.cid);
+    const includeArchived = query?.get?.('includeArchived') === 'true';
     // One pass over the questions instead of one per passage.
     const usedBy = new Map();
     for (const q of db.questions) for (const id of new Set(q.versions.at(-1).sourceIds)) usedBy.set(id, (usedBy.get(id) || 0) + 1);
-    return db.passages.filter((p) => p.courseId === c.id).map((p) => ({ ...p, usedBy: usedBy.get(p.id) || 0 }));
+    return db.passages
+      .filter((p) => p.courseId === c.id && (includeArchived || !p.archivedAt))
+      .map((p) => ({ ...p, usedBy: usedBy.get(p.id) || 0 }));
   });
 
   // Detach uploads without destroying sources referenced by reports/questions,
@@ -830,8 +1064,33 @@ function createQuizApi({ dataFile = null, store = null, now = () => Date.now(), 
     { limit: 6 * 1024 * 1024 },
   );
 
-  // Deletion supports the "material retention" policy the team will set.
-  // Questions keep their sourceIds; the UI then shows "source removed".
+  // Soft archive: the passage row stays so questions keep pointing at a real
+  // source id. Restore is the same call with the flag cleared.
+  route('POST', '/api/teacher/passages/:pid/archive', 'teacher', ({ user, params, body }) => {
+    const p = db.passages.find((x) => x.id === params.pid) || fail(404, 'Not found.');
+    teacherCourse(user, p.courseId);
+    const archived = body?.archived === undefined ? !p.archivedAt : body.archived === true;
+    p.archivedAt = archived ? now() : null;
+    save();
+    return { ok: true, archived, archivedAt: p.archivedAt };
+  });
+
+  // Metadata only. The passage text is immutable once saved so AI drafts
+  // already referencing it keep matching the material they were written from.
+  route('PATCH', '/api/teacher/passages/:pid', 'teacher', ({ user, params, body }) => {
+    const p = db.passages.find((x) => x.id === params.pid) || fail(404, 'Not found.');
+    const c = teacherCourse(user, p.courseId);
+    if (body.title !== undefined) p.title = str(body.title, 120, 'Title');
+    if (body.topicId !== undefined || body.outcomeId !== undefined) {
+      const { topic, outcome } = topicAndOutcome(c, body.topicId ?? p.topicId, body.outcomeId ?? p.outcomeId);
+      p.topicId = topic.id;
+      p.outcomeId = outcome.id;
+    }
+    save();
+    return p;
+  });
+
+  // Hard delete stays available for passages that were never referenced.
   route('DELETE', '/api/teacher/passages/:pid', 'teacher', ({ user, params }) => {
     const p = db.passages.find((x) => x.id === params.pid) || fail(404, 'Not found.');
     teacherCourse(user, p.courseId);
@@ -1665,7 +1924,7 @@ function createQuizApi({ dataFile = null, store = null, now = () => Date.now(), 
         if (!user) fail(401, 'Please sign in.');
         if (r.role !== 'any' && user.role !== r.role) fail(403, 'Not allowed.');
       }
-      const body = ['POST', 'PUT'].includes(req.method) ? await readJson(req, r.limit) : {};
+      const body = ['POST', 'PUT', 'PATCH'].includes(req.method) ? await readJson(req, r.limit) : {};
       const out = await r.handler({ req, params, body, user, token, query: url.searchParams });
       if (out && out.__raw !== undefined) {
         res.writeHead(200, {
