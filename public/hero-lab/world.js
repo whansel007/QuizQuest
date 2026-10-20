@@ -5,20 +5,28 @@ import { GAME_CONFIG, HERO_FX_COLORS } from './game-config.js';
 import { playSound, setAudioOptions, setHeartbeat } from './arena-audio.js';
 
 const canvas = document.querySelector('#world');
-const context = canvas.getContext('2d');
+const ARENA_WIDTH = GAME_CONFIG.arena.width;
+const ARENA_HEIGHT = GAME_CONFIG.arena.height;
+// Rasterize close to the displayed viewport while keeping world coordinates fixed.
+const renderScale = Math.min(1, Math.max(0.4, Math.min(innerWidth / ARENA_WIDTH, innerHeight / ARENA_HEIGHT)));
+canvas.width = Math.round(ARENA_WIDTH * renderScale);
+canvas.height = Math.round(ARENA_HEIGHT * renderScale);
+const particleBudget = Math.max(100, Math.floor(GAME_CONFIG.arenaTuning.performance.maxParticles * renderScale * renderScale));
+const context = canvas.getContext('2d', { alpha: false, desynchronized: true });
 const backgroundCanvas = document.createElement('canvas');
 backgroundCanvas.width = canvas.width;
 backgroundCanvas.height = canvas.height;
 const backgroundContext = backgroundCanvas.getContext('2d');
-for (let y = 0; y < backgroundCanvas.height; y += 80) {
-  for (let x = 0; x < backgroundCanvas.width; x += 80) {
+backgroundContext.scale(renderScale, renderScale);
+for (let y = 0; y < ARENA_HEIGHT; y += 80) {
+  for (let x = 0; x < ARENA_WIDTH; x += 80) {
     backgroundContext.fillStyle = (Math.floor(x / 80) + Math.floor(y / 80)) % 2 ? '#79b456' : '#70a94f';
     backgroundContext.fillRect(x, y, 80, 80);
   }
 }
 backgroundContext.strokeStyle = '#456f35';
 backgroundContext.lineWidth = 1;
-backgroundContext.strokeRect(0.5, 0.5, canvas.width - 1, canvas.height - 1);
+backgroundContext.strokeRect(0.5, 0.5, ARENA_WIDTH - 1, ARENA_HEIGHT - 1);
 const connectionStatus = document.querySelector('#connection-status');
 const waveNumber = document.querySelector('#wave-number');
 const waveDetails = document.querySelector('#wave-details');
@@ -120,8 +128,7 @@ function saveSettings() {
 }
 
 function addParticle(particle) {
-  const maxParticles = ARENA_TUNING.performance.maxParticles;
-  if (particles.length >= maxParticles) return;
+  if (particles.length >= particleBudget) return;
   particles.push(particle);
 }
 
@@ -560,8 +567,8 @@ function releaseKeys() {
 function getPointerCoordinates(event) {
   const rect = canvas.getBoundingClientRect();
   return {
-    x: ((event.clientX - rect.left) / rect.width) * canvas.width,
-    y: ((event.clientY - rect.top) / rect.height) * canvas.height,
+    x: ((event.clientX - rect.left) / rect.width) * ARENA_WIDTH,
+    y: ((event.clientY - rect.top) / rect.height) * ARENA_HEIGHT,
   };
 }
 
@@ -831,7 +838,7 @@ function draw(timestamp) {
   }
   const dt = Math.min((currentTime - lastTime) / 1000, 0.1);
   lastTime = currentTime;
-  context.setTransform(1, 0, 0, 1, 0, 0);
+  context.setTransform(renderScale, 0, 0, renderScale, 0, 0);
   context.globalAlpha = 1;
   context.globalCompositeOperation = 'source-over';
   context.filter = 'none';
@@ -844,14 +851,14 @@ function draw(timestamp) {
     context.translate((Math.random() * 2 - 1) * offset, (Math.random() * 2 - 1) * offset);
   } else cameraShake.intensity = 0;
   if (currentTime < cameraZoom.until) {
-    const centerX = canvas.width / 2, centerY = canvas.height / 2;
+    const centerX = ARENA_WIDTH / 2, centerY = ARENA_HEIGHT / 2;
     const progress = (currentTime - cameraZoom.startedAt) / (cameraZoom.until - cameraZoom.startedAt);
     const pulse = 1 - Math.abs(progress * 2 - 1);
     const scale = 1 + (cameraZoom.scale - 1) * pulse;
     context.translate(centerX, centerY); context.scale(scale, scale); context.translate(-centerX, -centerY);
   } else cameraZoom.scale = 1;
 
-  context.drawImage(backgroundCanvas, 0, 0);
+  context.drawImage(backgroundCanvas, 0, 0, ARENA_WIDTH, ARENA_HEIGHT);
 
   // 1. Draw Campfire in the middle
   const cf = state.campfire || {
@@ -1210,10 +1217,10 @@ function draw(timestamp) {
 
   // 4. Update and draw active projectiles.
   for (const [id, p] of clientProjectiles.entries()) {
-    p.update(dt, canvas);
+    p.update(dt, GAME_CONFIG.arena);
 
     if (currentTime - (p.lastTrailAt || 0) >= ARENA_TUNING.performance.projectileTrailIntervalMs
-      && particles.length < ARENA_TUNING.performance.maxParticles) {
+      && particles.length < particleBudget) {
       p.lastTrailAt = currentTime;
       addParticle({
         x: p.x + (Math.random() - 0.5) * 6,
@@ -1228,8 +1235,8 @@ function draw(timestamp) {
     }
 
     if (p.dead) {
-      const edgeX = Math.max(0, Math.min(canvas.width, p.x));
-      const edgeY = Math.max(0, Math.min(canvas.height, p.y));
+      const edgeX = Math.max(0, Math.min(ARENA_WIDTH, p.x));
+      const edgeY = Math.max(0, Math.min(ARENA_HEIGHT, p.y));
       for (let i = 0; i < 8; i++) {
         const angle = Math.random() * Math.PI * 2;
         const speed = 30 + Math.random() * 70;

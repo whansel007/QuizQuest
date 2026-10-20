@@ -714,7 +714,7 @@ function attachHeroLab(io, services = null) {
   }
 
   function damageNearby(player, spec, now) {
-    for (const monster of [...monsters.values()]) {
+    for (const monster of monsters.values()) {
       if (Math.hypot(monster.x-player.x, monster.y-player.y) > spec.distance + monster.radius) continue;
       damageMonster(monster, player.hero.attack * spec.damageMultiplier, { ownerId: player.id, sourceAbility: 'skill' });
       if (!monster.isBoss) {
@@ -725,7 +725,7 @@ function attachHeroLab(io, services = null) {
   }
 
   function explode(effect, now) {
-    for (const monster of [...monsters.values()]) {
+    for (const monster of monsters.values()) {
       if (effect.excludeId === monster.id) continue;
       if (Math.hypot(monster.x-effect.x, monster.y-effect.y) <= effect.radius + monster.radius) {
         damageMonster(monster, effect.damage, { ownerId: effect.ownerId, sourceAbility: effect.sourceAbility || 'ultimate', finisher: effect.finisher });
@@ -744,7 +744,7 @@ function attachHeroLab(io, services = null) {
   }
 
   function resolveEnemyBlast(effect, now) {
-    for (const monster of [...monsters.values()]) {
+    for (const monster of monsters.values()) {
       if (monster.id === effect.sourceId || Math.hypot(monster.x - effect.x, monster.y - effect.y) > effect.radius + monster.radius) continue;
       damageMonster(monster, effect.damage, { ownerId: null, sourceAbility: 'enemy-explosion' });
     }
@@ -788,10 +788,21 @@ function attachHeroLab(io, services = null) {
   }
 
   function chainAttack(player, effect, now) {
-    let x=player.x, y=player.y; const hit=new Set();
-    for(let i=0;;i++) {
-      const target=[...monsters.values()].filter(m=>!hit.has(m.id)&&Math.hypot(m.x-x,m.y-y)<=effect.range)
-        .sort((a,b)=>Math.hypot(a.x-x,a.y-y)-Math.hypot(b.x-x,b.y-y))[0];
+    let x = player.x, y = player.y;
+    const hit = new Set();
+    const rangeSquared = effect.range * effect.range;
+    for (let i = 0; i < monsters.size; i++) {
+      let target = null;
+      let nearestSquared = rangeSquared;
+      for (const monster of monsters.values()) {
+        if (hit.has(monster.id)) continue;
+        const dx = monster.x - x, dy = monster.y - y;
+        const distanceSquared = dx * dx + dy * dy;
+        if (distanceSquared <= rangeSquared && (!target || distanceSquared < nearestSquared)) {
+          nearestSquared = distanceSquared;
+          target = monster;
+        }
+      }
       if(!target) break;
       hit.add(target.id); pendingChains.push({ at: now + i * effect.jumpDelayMs, ownerId: player.id, targetId: target.id,
         x1: x, y1: y, damage: effect.damage }); x=target.x;y=target.y;
@@ -932,7 +943,7 @@ function attachHeroLab(io, services = null) {
         else {
           player.hero.makeInvulnerable(player.controlledBurst.until - now, now);
           const dash = player.controlledBurst;
-          for (const monster of [...monsters.values()]) {
+          for (const monster of monsters.values()) {
             const lastHit = dash.lastHitAt.get(monster.id) ?? Number.NEGATIVE_INFINITY;
             if (now - lastHit < GAME_CONFIG.arenaTuning.heroTweaks.guardianRepeatHitCooldownMs
               || Math.hypot(monster.x - player.x, monster.y - player.y) > monster.radius + ARENA_CONFIG.radius + 8) continue;
@@ -949,7 +960,7 @@ function attachHeroLab(io, services = null) {
           const step=dash.distance/Math.max(1,dash.durationMs)*1000/ARENA_CONFIG.tickHz;
           player.x=clamp(player.x+dash.direction.x*step,ARENA_CONFIG.radius,ARENA_CONFIG.width-ARENA_CONFIG.radius);
           player.y=clamp(player.y+dash.direction.y*step,ARENA_CONFIG.radius,ARENA_CONFIG.height-ARENA_CONFIG.radius);
-          if(dash.damageMultiplier) for(const monster of [...monsters.values()]) {
+          if(dash.damageMultiplier) for(const monster of monsters.values()) {
             if(dash.hit.has(monster.id)||Math.hypot(monster.x-player.x,monster.y-player.y)>monster.radius+ARENA_CONFIG.radius+8)continue;
             dash.hit.add(monster.id);damageMonster(monster,player.hero.attack*dash.damageMultiplier,{ownerId:player.id,sourceAbility:'skill'});
             pushFromDash(monster, player, now);
@@ -962,7 +973,7 @@ function attachHeroLab(io, services = null) {
         const step=player.hero.spec.charge.speed/ARENA_CONFIG.tickHz;
         player.x=clamp(player.x+player.aim.x*step,ARENA_CONFIG.radius,ARENA_CONFIG.width-ARENA_CONFIG.radius);
         player.y=clamp(player.y+player.aim.y*step,ARENA_CONFIG.radius,ARENA_CONFIG.height-ARENA_CONFIG.radius);
-        for (const monster of [...monsters.values()]) {
+        for (const monster of monsters.values()) {
           if (Math.hypot(monster.x-player.x,monster.y-player.y) > monster.radius+ARENA_CONFIG.radius+8) continue;
           const lastHitAt = player.hero.lastChargeHit.get(monster.id) ?? Number.NEGATIVE_INFINITY;
           if (now - lastHitAt < GAME_CONFIG.arenaTuning.heroTweaks.guardianRepeatHitCooldownMs) continue;
@@ -1045,7 +1056,7 @@ function attachHeroLab(io, services = null) {
       lastCampfireFeedbackAt = now;
     }
 
-    if (hasRunEffect('thorns')) for (const monster of [...monsters.values()]) {
+    if (hasRunEffect('thorns')) for (const monster of monsters.values()) {
       if (Math.hypot(monster.x - campfire.x, monster.y - campfire.y) <= GAME_CONFIG.arenaTuning.cards.effects.thornsRadius + monster.radius)
         damageMonster(monster, GAME_CONFIG.arenaTuning.cards.effects.thornsDamagePerSecond * dt, { ownerId: null, sourceAbility: 'thorns' });
     }
@@ -1060,7 +1071,7 @@ function attachHeroLab(io, services = null) {
     for (const [id, proj] of projectiles.entries()) {
       proj.update(dt, ARENA_CONFIG);
       if (proj.stunMs > 0 && proj.explosionRadius > 0) {
-        for (const monster of [...monsters.values()]) {
+        for (const monster of monsters.values()) {
           if (proj.hitTargets.has(monster.id) || Math.hypot(monster.x-proj.x,monster.y-proj.y) > proj.explosionRadius+monster.radius) continue;
           proj.hitTargets.add(monster.id);
           damageMonster(monster,proj.damage,{ownerId:proj.ownerId,sourceAbility:'skill'});
@@ -1131,9 +1142,17 @@ function attachHeroLab(io, services = null) {
           proj.hitTargets.add(mId);
           if (!proj.ricocheted && proj.sourceAbility === 'weapon' && hasRunEffect('ricochet')) {
             const ricochet = GAME_CONFIG.arenaTuning.cards.effects;
-            const target = [...monsters.values()].filter((candidate) => candidate.id !== mId && !proj.hitTargets.has(candidate.id)
-              && Math.hypot(candidate.x - monster.x, candidate.y - monster.y) <= ricochet.ricochetRange)
-              .sort((a, b) => Math.hypot(a.x - monster.x, a.y - monster.y) - Math.hypot(b.x - monster.x, b.y - monster.y))[0];
+            let target = null;
+            let nearestSquared = ricochet.ricochetRange * ricochet.ricochetRange;
+            for (const candidate of monsters.values()) {
+              if (candidate.id === mId || proj.hitTargets.has(candidate.id)) continue;
+              const dx = candidate.x - monster.x, dy = candidate.y - monster.y;
+              const distanceSquared = dx * dx + dy * dy;
+              if (distanceSquared <= nearestSquared && (!target || distanceSquared < nearestSquared)) {
+                nearestSquared = distanceSquared;
+                target = candidate;
+              }
+            }
             if (target) {
               proj.ricocheted = true;
               damageMonster(target, proj.damage * ricochet.ricochetDamageFraction, { ownerId: proj.ownerId, sourceAbility: 'weapon' });

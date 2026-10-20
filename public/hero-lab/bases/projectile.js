@@ -64,7 +64,6 @@ export class Projectile {
     this.lifetimeMs = lifetimeMs;
     this.speed = speed;
     this.createdAt = createdAt;
-    this.trail = [];
     this.dead = false;
     this.hitTargets = new Set();
   }
@@ -80,9 +79,6 @@ export class Projectile {
   update(dt, arena = { width: 1920, height: 1080 }) {
     this.x += this.vx * dt;
     this.y += this.vy * dt;
-
-    this.trail.unshift({ x: this.x, y: this.y });
-    if (this.trail.length > 8) this.trail.pop();
 
     if (
       this.x < -40 ||
