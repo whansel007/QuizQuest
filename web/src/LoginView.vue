@@ -1,23 +1,62 @@
 <script setup>
 // Sign-in page, in two steps: email, then password (the card slides
 // between them). "Create an account" swaps in a one-step sign-up form
-// (students only; teacher accounts are set up by the team). A small "Test accounts" button opens #test-accounts,
-// shown only while the server offers demo login (not in production).
+// (students only; teacher accounts are set up by the team). Synthetic test
+// accounts are available from Tools after entering the Konami code.
 import { ref, computed, watch, nextTick, onMounted, onBeforeUnmount } from 'vue';
 import { api, signIn, signUp } from './api.js';
 import QuizQuestLogo from './components/QuizQuestLogo.vue';
 import TestAccountsView from './TestAccountsView.vue';
+import packageJson from '../../package.json';
 
 // ---- two pages without a router: the form, and #test-accounts ----
 const ACCOUNTS = '#test-accounts';
-const page = ref(location.hash === ACCOUNTS ? 'accounts' : 'signin');
-const syncPage = () => (page.value = location.hash === ACCOUNTS ? 'accounts' : 'signin');
+const page = ref('signin');
+const debugUnlocked = ref(false);
+const versionOpen = ref(false);
+const versionDialog = ref(null);
+const version = packageJson.version;
+const debugCode = ['ArrowUp', 'ArrowUp', 'ArrowDown', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'ArrowLeft', 'ArrowRight', 'b', 'a', 'Enter'];
+let debugPosition = 0;
+const syncPage = () => {
+  if (location.hash === ACCOUNTS && !debugUnlocked.value) {
+    history.replaceState(null, '', location.pathname + location.search);
+    page.value = 'signin';
+  } else page.value = location.hash === ACCOUNTS ? 'accounts' : 'signin';
+};
 function go(to) {
-  if (to === 'accounts') location.hash = ACCOUNTS; // hashchange syncs the page
+  if (to === 'accounts' && debugUnlocked.value) location.hash = ACCOUNTS; // hashchange syncs the page
   else {
     history.pushState(null, '', location.pathname + location.search);
     page.value = 'signin';
   }
+}
+async function openTools() {
+  debugPosition = 0;
+  versionOpen.value = true;
+  await nextTick();
+  versionDialog.value?.focus();
+}
+function enterDebugCode(event) {
+  if (!versionOpen.value) return;
+  event.preventDefault();
+  event.stopPropagation();
+  if (event.key === 'Escape') {
+    versionOpen.value = false;
+    debugPosition = 0;
+    return;
+  }
+  if (event.repeat) return;
+  const key = event.code === 'KeyB' ? 'b' : event.code === 'KeyA' ? 'a' : event.key.length === 1 ? event.key.toLowerCase() : event.key;
+  if (key === debugCode[debugPosition]) {
+    debugPosition++;
+    if (debugPosition === debugCode.length) {
+      debugPosition = 0;
+      debugUnlocked.value = true;
+      versionOpen.value = false;
+      void loadDemo().then(() => go('accounts'));
+    }
+  } else debugPosition = key === debugCode[0] ? 1 : 0;
 }
 
 // ---- the form ----
@@ -122,9 +161,13 @@ async function loadDemo() {
 
 onMounted(() => {
   addEventListener('hashchange', syncPage);
-  loadDemo();
+  addEventListener('keydown', enterDebugCode, true);
+  syncPage();
 });
-onBeforeUnmount(() => removeEventListener('hashchange', syncPage));
+onBeforeUnmount(() => {
+  removeEventListener('hashchange', syncPage);
+  removeEventListener('keydown', enterDebugCode, true);
+});
 
 const floaters = ['?', '★', '✓', 'A', '+', '!', '◆', '?'];
 </script>
@@ -224,12 +267,19 @@ const floaters = ['?', '★', '✓', 'A', '+', '!', '◆', '?'];
 
         <div class="qq-card-foot">
           <p v-if="step !== 'signup'" class="qq-register">Not registered yet? <button type="button" class="qq-inline-link" @click="toSignup">Create a student account</button></p>
-          <button v-if="users || demoError" type="button" class="qq-link" @click="go('accounts')"><span aria-hidden="true">🧪</span> Test accounts</button>
+          <button type="button" class="qq-link" aria-label="Tools and version" title="Tools and version" @click="openTools">🔧</button>
         </div>
       </div>
     </section>
 
     <TestAccountsView v-else :users="users" :error="demoError" @back="go('signin')" @retry="loadDemo" @fill="fill" />
+
+    <section v-if="versionOpen" ref="versionDialog" class="qq-debug-backdrop" role="dialog" aria-modal="true" aria-labelledby="login-version-title" tabindex="-1" @click.self="versionOpen = false">
+      <div class="qq-debug-panel">
+        <button class="qq-debug-close" type="button" aria-label="Close tools and version" @click="versionOpen = false; debugPosition = 0">×</button>
+        <h2 id="login-version-title">QuizQuest v{{ version }}</h2>
+      </div>
+    </section>
 
     <p class="qq-foot">
       Demo build with synthetic users and demo course content only. Do not enter real student data.
@@ -237,3 +287,9 @@ const floaters = ['?', '★', '✓', 'A', '+', '!', '◆', '?'];
     </p>
   </div>
 </template>
+
+<style scoped>
+.qq-debug-backdrop { position:fixed;z-index:50;inset:0;background:#101322bb;display:grid;place-items:center;padding:16px; }
+.qq-debug-panel { position:relative;width:min(320px,100%);min-height:110px;padding:24px;border-radius:18px;background:#fff;display:grid;place-items:center;box-shadow:0 20px 80px #0005; }
+.qq-debug-close { position:absolute;top:10px;right:10px;border:0;background:transparent;font-size:24px;cursor:pointer; }
+</style>

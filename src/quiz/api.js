@@ -112,7 +112,7 @@ const csvCell = (v) => {
 
 // store: an already-loaded { db, save } (e.g. src/db/supabase-store.js);
 // otherwise the JSON file store (dataFile = null keeps it in memory).
-function createQuizApi({ dataFile = null, store = null, now = () => Date.now(), drafter = null, demoLogin = process.env.NODE_ENV !== 'production', devMode = process.env.QUIZQUEST_DEV === '1', authoringAI = null, authoringDrafter = null } = {}) {
+function createQuizApi({ dataFile = null, store = null, now = () => Date.now(), drafter = null, devMode = process.env.QUIZQUEST_DEV === '1', authoringAI = null, authoringDrafter = null } = {}) {
   store = store || createStore(dataFile);
   const { db } = store;
   if (P.ensureDemoCredentials(db.users)) store.save();
@@ -471,8 +471,7 @@ function createQuizApi({ dataFile = null, store = null, now = () => Date.now(), 
 
   route('POST', '/api/login', null, ({ body }) => {
     let user;
-    if (body.userId !== undefined && demoLogin) user = db.users.find((u) => u.id === body.userId) || fail(400, 'Unknown demo user.');
-    else if (body.userId !== undefined) user = db.users.find((u) => u.id === body.userId && isSeededDemoUser(u)) || fail(400, 'Unknown demo user.');
+    if (body.userId !== undefined) user = db.users.find((u) => u.id === body.userId && isSeededDemoUser(u)) || fail(400, 'Unknown demo user.');
     else user = checkPassword(body);
     return startSession(user);
   });
@@ -1135,6 +1134,20 @@ function createQuizApi({ dataFile = null, store = null, now = () => Date.now(), 
   });
 
   // ---------------- student: home & progress ----------------
+  route('GET', '/api/student/debug-mode', 'student', ({ user }) => ({ enabled: isSeededDemoUser(user) }));
+  route('POST', '/api/student/debug/wallet', 'student', ({ user, body }) => {
+    if (!isSeededDemoUser(user)) fail(403, 'Debug tools are only available for synthetic demo accounts.');
+    const balance = Number(body.balance);
+    if (!Number.isInteger(balance) || balance < 0 || balance > 1_000_000) fail(400, 'Balance must be a whole number from 0 to 1,000,000.');
+    const adjustment = balance - R.balance(db, user.id);
+    db.ledger.push({
+      id: newId('tx'), studentId: user.id, kind: 'debug', amount: adjustment,
+      reason: 'Debug wallet adjustment', refKey: `debug-wallet:${user.id}:${newId('debug')}`, at: now(),
+    });
+    save();
+    return wallet(user.id);
+  });
+
   route('GET', '/api/student/home', 'student', ({ user }) => {
     const classes = db.enrolments
       .filter((e) => e.studentId === user.id)

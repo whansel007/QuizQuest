@@ -21,11 +21,19 @@ async function pageFor(t, name, viewport = { width: 1280, height: 900 }, options
   const errors = [];
   page.on('pageerror', (e) => errors.push(e.message));
   t.after(async () => { await page.close(); assert.deepEqual(errors, [], 'no unhandled browser errors'); });
-  // the test accounts page: one click signs in (and "Switch user" comes back here)
-  await page.goto(base + '/#test-accounts');
+  // Open the hidden demo account picker through Tools + Konami code.
+  await page.goto(base);
+  await unlockTestAccounts(page);
   await page.getByRole('button', { name, exact: false }).click();
   await page.getByRole('button', { name: 'Switch user', exact: true }).waitFor();
   return page;
+}
+async function unlockTestAccounts(page) {
+  await page.getByRole('button', { name: 'Tools and version' }).click();
+  for (const key of ['ArrowUp', 'ArrowUp', 'ArrowDown', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'ArrowLeft', 'ArrowRight', 'b', 'a', 'Enter']) {
+    await page.keyboard.press(key);
+  }
+  await page.getByRole('heading', { name: 'Test accounts' }).waitFor();
 }
 test('switching professors refreshes course data and visits every teacher view', async (t) => {
   const page = await pageFor(t, 'Prof. Demo A');
@@ -112,12 +120,12 @@ test('signing in with email and password', async (t) => {
   await password.press('Enter');
   await page.getByRole('heading', { name: 'Question bank', exact: true }).waitFor();
 });
-test('the test accounts page fills the sign-in form', async (t) => {
+test('the Konami debug menu exposes test accounts and fills the sign-in form', async (t) => {
   const page = await browser.newPage();
   t.after(() => page.close());
   await page.goto(base);
-  await page.getByRole('button', { name: 'Test accounts' }).click();
-  await page.getByRole('heading', { name: 'Test accounts' }).waitFor();
+  assert.equal(await page.getByRole('button', { name: 'Test accounts' }).count(), 0, 'the account picker is not exposed in the normal sign-in view');
+  await unlockTestAccounts(page);
   assert.ok(page.url().endsWith('#test-accounts'));
   await page.getByRole('button', { name: 'Fill the sign-in form with student03@quizquest.demo' }).click();
   await page.getByRole('button', { name: 'Change email (student03@quizquest.demo)' }).waitFor();
@@ -126,12 +134,13 @@ test('the test accounts page fills the sign-in form', async (t) => {
   await password.press('Enter');
   await page.getByRole('heading', { name: 'Practice', exact: true }).waitFor();
 });
-test('an unavailable API shows a useful error and the test accounts can be retried', async (t) => {
+test('an unavailable API shows a useful error and the debug account list can be retried', async (t) => {
   const page = await browser.newPage();
   t.after(() => page.close());
   await page.route('**/api/demo-users', (r) => r.fulfill({ status: 500, contentType: 'text/plain', body: 'AggregateError ECONNREFUSED' }), { times: 1 });
   await page.goto(base);
-  await page.getByRole('button', { name: 'Test accounts' }).click();
+  await page.getByRole('button', { name: 'Tools and version' }).click();
+  for (const key of ['ArrowUp', 'ArrowUp', 'ArrowDown', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'ArrowLeft', 'ArrowRight', 'b', 'a', 'Enter']) await page.keyboard.press(key);
   await page.getByText('The server could not reach the API. Check the API terminal, restart local development, and retry.').waitFor();
   await page.getByRole('button', { name: 'Retry loading demo accounts' }).click();
   await page.getByRole('button', { name: 'Student 01' }).waitFor();

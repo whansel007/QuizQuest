@@ -68,8 +68,8 @@ test('repeated wrong passwords lock the email for 15 minutes', async (t) => {
   assert.equal((await call('POST', '/api/login', { email, password: P.DEMO_PASSWORD })).status, 200);
 });
 
-test('with demo login off, passwordless login is limited to seeded demo users', async (t) => {
-  const { call } = await boot(t, { demoLogin: false });
+test('passwordless debug login consistently accepts seeded users and rejects registered users', async (t) => {
+  const { call } = await boot(t, { demoLogin: false }); // legacy production-style setting no longer disables seeded demo users
   const listed = await call('GET', '/api/demo-users');
   assert.equal(listed.status, 200);
   assert.ok(listed.body.length > 0);
