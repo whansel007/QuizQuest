@@ -54,7 +54,9 @@ From the repository root, run `npm run dev`, then open `http://localhost:5173/he
 
 - [`game-config.js`](./game-config.js): hero stats, combat tuning, building bonuses, waves, and HUD colors.
 - [`hero-list.js`](./hero-list.js): the six selectable hero instances and server constructor registry.
-- [`heroes/roster.js`](./heroes/roster.js): hero weapons, skills, ultimates, and talents.
+- [`heroes/roster.js`](./heroes/roster.js): compatibility registry that exports the hero constructors and shared instances.
+- [`heroes/sheriff.js`](./heroes/sheriff.js), [`heroes/guardian.js`](./heroes/guardian.js), [`heroes/pilot.js`](./heroes/pilot.js), [`heroes/bombardier.js`](./heroes/bombardier.js), [`heroes/bubbles.js`](./heroes/bubbles.js), and [`heroes/electromancer.js`](./heroes/electromancer.js): individual hero stats and combat behavior.
+- [`heroes/shared.js`](./heroes/shared.js): shared configuration and projectile construction helpers.
 - [`world.js`](./world.js): browser renderer, controls, and HUD.
 - [`src/hero-lab/world.js`](../../src/hero-lab/world.js): authoritative combat server and student-session kingdom bonus application.
 - [`HOW_THIS_WORKS.md`](./HOW_THIS_WORKS.md): plain-language implementation notes and playtest guide.
