@@ -9,6 +9,7 @@ import WalletBadge from './WalletBadge.vue';
 import ResourceBadge from './ResourceBadge.vue';
 import GachaMachine from './gacha/GachaMachine.vue';
 import PrizeReveal from './gacha/PrizeReveal.vue';
+import { formatHeroType } from './hero-type.js';
 
 const error = ref('');
 const ledger = ref(null);
@@ -70,7 +71,6 @@ onUnmounted(() => { alive = false; });
         <GachaMachine :cost="summonConfig.pullCost" :disabled="home.wallet.balance < summonConfig.pullCost" :open="pull" @prize="showPrize" />
         <p class="small muted">{{ pityText }}. Pity counters persist and reset only when the matching hero rarity is drawn.</p>
       </div>
-      <div class="summon-orb" aria-hidden="true"><span>✦</span><i>🌀</i></div>
       <div class="summon-rates">
         <h3>Drop rates</h3>
         <div v-for="rate in rates" :key="rate.rarity" class="rate-row">
@@ -90,7 +90,7 @@ onUnmounted(() => { alive = false; });
         <article v-for="hero in catalog.heroes" :key="hero.id" class="hero-collection-card" :class="[{ locked: !ownsHero(hero.id) }, hero.rarity]">
           <div class="hero-collection-emoji">{{ hero.emoji }}</div>
           <div class="hero-collection-title"><strong>{{ hero.name }}</strong><span class="rarity" :class="hero.rarity">{{ hero.rarity }}★</span></div>
-          <div class="small muted">{{ hero.type }} · {{ ownsHero(hero.id) ? 'Owned' : 'Not summoned' }}</div>
+          <div class="small muted">{{ formatHeroType(hero.type) }} · {{ ownsHero(hero.id) ? 'Owned' : 'Not summoned' }}</div>
           <div class="small">{{ hero.weapon }} · {{ hero.skill }} · {{ hero.ultimate }}</div>
           <div v-if="ownsHero(hero.id) && inv.heroDupes[hero.id]" class="small muted">{{ inv.heroDupes[hero.id] }} duplicate pull(s)</div>
         </article>
@@ -117,7 +117,7 @@ onUnmounted(() => { alive = false; });
 </template>
 
 <style scoped>
-.summon-panel { display:grid; grid-template-columns:minmax(230px,1fr) minmax(110px,.45fr) minmax(260px,1.2fr); gap:22px; align-items:center; }
+.summon-panel { display:grid; grid-template-columns:minmax(230px,1fr) minmax(260px,1.2fr); gap:22px; align-items:center; }
 .summon-copy h2,.hero-collection h2,.summon-history h2 { margin:0 0 8px; }
 .summon-balances { display:flex; flex-wrap:wrap; gap:8px; margin:14px 0; }
 .summon-rates h3 { margin:0 0 8px; }

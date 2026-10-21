@@ -20,6 +20,7 @@
 // ============================================================
 
 const crypto = require('crypto');
+const { DEBUG_TUNING } = require('../../config/tuning.js');
 const { createStore } = require('./store');
 const { validateQuestion } = require('./validate');
 const { generate, GEN } = require('./generator');
@@ -1138,7 +1139,7 @@ function createQuizApi({ dataFile = null, store = null, now = () => Date.now(), 
   route('POST', '/api/student/debug/wallet', 'student', ({ user, body }) => {
     if (!isSeededDemoUser(user)) fail(403, 'Debug tools are only available for synthetic demo accounts.');
     const balance = Number(body.balance);
-    if (!Number.isInteger(balance) || balance < 0 || balance > 1_000_000) fail(400, 'Balance must be a whole number from 0 to 1,000,000.');
+    if (!Number.isInteger(balance) || balance < DEBUG_TUNING.minimumBalance || balance > DEBUG_TUNING.maximumBalance) fail(400, `Balance must be a whole number from ${DEBUG_TUNING.minimumBalance.toLocaleString()} to ${DEBUG_TUNING.maximumBalance.toLocaleString()}.`);
     const adjustment = balance - R.balance(db, user.id);
     db.ledger.push({
       id: newId('tx'), studentId: user.id, kind: 'debug', amount: adjustment,
@@ -1146,6 +1147,22 @@ function createQuizApi({ dataFile = null, store = null, now = () => Date.now(), 
     });
     save();
     return wallet(user.id);
+  });
+  route('POST', '/api/student/debug/resources', 'student', ({ user, body }) => {
+    if (!isSeededDemoUser(user)) fail(403, 'Debug tools are only available for synthetic demo accounts.');
+    const { resource, balance: requestedBalance } = body || {};
+    const balance = Number(requestedBalance);
+    if (typeof resource !== 'string' || !Object.hasOwn(E.RESOURCES, resource)) fail(400, 'Choose a valid kingdom resource.');
+    if (!Number.isInteger(balance) || balance < DEBUG_TUNING.minimumBalance || balance > DEBUG_TUNING.maximumBalance) {
+      fail(400, `Balance must be a whole number from ${DEBUG_TUNING.minimumBalance.toLocaleString()} to ${DEBUG_TUNING.maximumBalance.toLocaleString()}.`);
+    }
+    const current = E.resources(db, user.id);
+    const delta = balance - (current[resource] || 0);
+    current[resource] = balance;
+    db.resourceLog.push({ id: newId('rl'), studentId: user.id, kind: 'debug', delta: { [resource]: delta },
+      reason: `Debug ${E.RESOURCES[resource].name} adjustment`, refKey: `debug-resource:${user.id}:${newId('debug')}`, at: now() });
+    save();
+    return { resources: { ...current } };
   });
 
   route('GET', '/api/student/home', 'student', ({ user }) => {

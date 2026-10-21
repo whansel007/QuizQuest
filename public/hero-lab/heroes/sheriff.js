@@ -6,7 +6,7 @@ export class Sheriff extends Hero {
   constructor() {
     super(setup('sheriff', 'Sheriff', '🤠', 'physical'));
     this.spec = GAME_CONFIG.heroes.sheriff; this.weaponName = 'Revolver'; this.skillName = 'Dynamite'; this.ultimateName = 'Deadeye';
-    this.barrageUntil = 0; this.barrageAt = 0;
+    this.barrageUntil = 0; this.barrageAt = 0; this.ultimateFlashUntil = 0;
   }
   fire() {
     const range = Math.hypot(GAME_CONFIG.arena.width, GAME_CONFIG.arena.height) / 2 * GAME_CONFIG.arenaTuning.heroTweaks.sheriffBulletRangeArenaDiagonalFraction;
@@ -17,7 +17,12 @@ export class Sheriff extends Hero {
     const s = this.spec.dynamite;
     return { type: 'projectile', projectile: shot(this, { ...s, sourceAbility: 'skill', damage: this.attack * s.damageMultiplier, explosionRadius: s.explosionRadius, detonateOnExpire: true }) };
   }
-  ultimate(now) { this.barrageUntil = now + this.spec.barrage.durationMs; this.barrageAt = now; return { type: 'activate' }; }
+  ultimate(now) {
+    this.barrageUntil = now + this.spec.barrage.durationMs;
+    this.ultimateFlashUntil = this.barrageUntil;
+    this.barrageAt = now;
+    return { type: 'activate' };
+  }
   update(now, primaryHeld = false) {
     if (!primaryHeld || now >= this.barrageUntil || now < this.barrageAt) return null;
     this.barrageAt = now + this.spec.barrage.intervalMs;

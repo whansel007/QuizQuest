@@ -2,6 +2,10 @@ import { HEROES } from './hero-list.js';
 import { EnemyProjectile } from './projectiles/enemy-projectile.js';
 import { Projectile } from './bases/projectile.js';
 import { GAME_CONFIG, HERO_FX_COLORS } from './game-config.js';
+import { SHAKE_PLAYER_HIT_TRAUMA, SHAKE_ULTIMATE_TRAUMA, SHAKE_BOSS_SLAM_TRAUMA, SHAKE_EXPLOSION_BASE_TRAUMA,
+  SHAKE_EXPLOSION_RADIUS_SCALE, SHAKE_MAX_TRAUMA, SHAKE_DECAY, SHAKE_MAX_OFFSET, SHAKE_EXPLOSION_COOLDOWN_MS,
+  SHAKE_NOISE_HZ, SHAKE_NOISE_PRIMARY_PHASE, SHAKE_NOISE_PRIMARY_FREQUENCY, SHAKE_NOISE_SECONDARY_FREQUENCY, SHAKE_NOISE_SECONDARY_PHASE, SHAKE_DEFAULT_INTENSITY,
+  SHAKE_MIN_INTENSITY, SHAKE_MAX_INTENSITY, SHAKE_INTENSITY_STEP } from '../../config/tuning.js';
 import { playSound, setAudioOptions, setHeartbeat } from './arena-audio.js';
 
 const canvas = document.querySelector('#world');
@@ -58,10 +62,15 @@ const lowHpVignette = document.querySelector('#low-hp-vignette');
 const settingsButton = document.querySelector('#settings-button');
 const settingsPanel = document.querySelector('#settings-panel');
 const shakeSetting = document.querySelector('#shake-setting');
+const shakeIntensitySetting = document.querySelector('#shake-intensity-setting');
+const shakeIntensityValue = document.querySelector('#shake-intensity-value');
 const numbersSetting = document.querySelector('#numbers-setting');
 const muteSetting = document.querySelector('#mute-setting');
 const volumeSetting = document.querySelector('#volume-setting');
 const killStreakHud = document.querySelector('#kill-streak');
+const overloadFlash = document.querySelector('#overload-flash');
+const sheriffSkillAbility = document.querySelector('.ability[data-ability="skill"]');
+const sheriffRefundLabel = sheriffSkillAbility.querySelector('.cooldown-refund-label');
 let token = null;
 try { token = sessionStorage.getItem('qq-token'); } catch { /* standalone Hero Lab has no app session */ }
 const socket = window.io('/hero-lab', { auth: token ? { token } : {} });
@@ -94,19 +103,35 @@ const previousPositions = new Map();
 const momentumVisualAlpha = new Map();
 const momentumPositions = new Map();
 const momentumReadyLabels = [];
+const chainCounters = new Map();
+const dynamiteReadyBounces = new Map();
+let sheriffRefundLabelState = null;
+let sheriffRefundLabelTimer = null;
 let lastLocalPosition = null;
 let localIdleSince = performance.now();
 let momentumNudge = null;
 let sessionNudgeCount = 0;
 try { sessionNudgeCount = Number(sessionStorage.getItem('hero-lab-momentum-nudges') || 0) || 0; } catch { /* session storage is optional */ }
 const ARENA_TUNING = GAME_CONFIG.arenaTuning;
+document.documentElement.style.setProperty('--cooldown-ring-transition', `${ARENA_TUNING.heroTweaks.cooldownRingTransitionMs}ms`);
+document.documentElement.style.setProperty('--sheriff-ready-glow-period', `${ARENA_TUNING.heroTweaks.sheriffReadyGlowPeriodMs}ms`);
+document.documentElement.style.setProperty('--sheriff-ready-ring-duration', `${ARENA_TUNING.heroTweaks.sheriffReadyRingMs}ms`);
+document.documentElement.style.setProperty('--sheriff-refund-pulse-duration', `${ARENA_TUNING.heroTweaks.sheriffRefundPulseMs}ms`);
+document.documentElement.style.setProperty('--sheriff-refund-label-duration', `${ARENA_TUNING.heroTweaks.sheriffRefundLabelMs}ms`);
+document.documentElement.style.setProperty('--overload-flash-duration', `${ARENA_TUNING.heroTweaks.electroOverloadFlashMs}ms`);
+document.documentElement.style.setProperty('--overload-feedback-duration', `${ARENA_TUNING.heroTweaks.electroOverloadFeedbackMs}ms`);
 const hasCard = (id) => (state.activeBuffs || []).some((buff) => buff.id === id);
-const settings = { screenShake: true, damageNumbers: true, masterVolume: ARENA_TUNING.sound.defaultMasterVolume, muted: false };
+const settings = { screenShake: true, shakeIntensity: SHAKE_DEFAULT_INTENSITY, damageNumbers: true, masterVolume: ARENA_TUNING.sound.defaultMasterVolume, muted: false };
 try { Object.assign(settings, JSON.parse(localStorage.getItem('hero-lab-settings') || '{}')); } catch { /* use defaults */ }
+const storedShakeIntensity = Number(settings.shakeIntensity);
+settings.shakeIntensity = Number.isFinite(storedShakeIntensity)
+  ? Math.max(SHAKE_MIN_INTENSITY, Math.min(SHAKE_MAX_INTENSITY, storedShakeIntensity)) : SHAKE_DEFAULT_INTENSITY;
 setAudioOptions({ volume: settings.masterVolume, mute: settings.muted });
 let lastTime = performance.now();
 let lastBuffRender = '';
-let cameraShake = { until: 0, intensity: 0, durationMs: 0 };
+let trauma = 0;
+let lastTraumaUpdateAt = performance.now();
+let lastExplosionTraumaAt = Number.NEGATIVE_INFINITY;
 let cameraZoom = { until: 0, scale: 1 };
 let combo = { count: 0, lastKillAt: 0 };
 let bannerTimer = null;
@@ -151,12 +176,16 @@ function showRunResult(result) {
   document.querySelector('#run-result-title').textContent = result.victory ? 'Victory!' : 'Campfire extinguished';
   document.querySelector('#run-result-message').textContent = `${result.wavesCleared || 0} waves cleared · ${result.rewardCoins || 0} placeholder coins${result.victory ? ' claimed' : ' earned'}.`;
   runResultStats.replaceChildren();
+  const upgradeLines = result.attackBonusPercent > 0
+    ? [`Your ${result.attackBonusBuilding || 'Kingdom'} +${result.attackBonusPercent}% base attack bonus dealt ${result.bonusDamage || 0} extra damage`]
+    : [`Kingdom attack bonus: 0% · Extra damage: ${result.bonusDamage || 0}`];
+  if (result.campfireBonusPercent > 0) upgradeLines.push(`Garden +${result.campfireBonusPercent}% base campfire HP per player`);
   for (const line of [
     `Waves reached: ${result.wavesReached || 0}`,
     `Kills: ${result.kills || 0}`,
     `Damage dealt: ${result.damageDealt || 0}`,
     `Personal best with this hero: ${personalBest} waves`,
-    `Your upgrades dealt ${result.bonusDamage || 0} extra damage`,
+    ...upgradeLines,
   ]) {
     const item = document.createElement('span'); item.textContent = line; runResultStats.append(item);
   }
@@ -197,6 +226,11 @@ document.querySelector('#return-kingdom').addEventListener('click', returnToKing
 document.querySelector('#session-stop').addEventListener('click', returnToKingdom);
 document.querySelector('#session-keep-going').addEventListener('click', () => { sessionSummary.hidden = true; });
 shakeSetting.checked = settings.screenShake;
+shakeIntensitySetting.value = String(settings.shakeIntensity);
+shakeIntensitySetting.min = String(SHAKE_MIN_INTENSITY);
+shakeIntensitySetting.max = String(SHAKE_MAX_INTENSITY);
+shakeIntensitySetting.step = String(SHAKE_INTENSITY_STEP);
+shakeIntensityValue.textContent = `${settings.shakeIntensity}%`;
 numbersSetting.checked = settings.damageNumbers;
 muteSetting.checked = settings.muted;
 volumeSetting.value = String(settings.masterVolume);
@@ -210,24 +244,44 @@ document.addEventListener('click', (event) => {
   if (button && button !== settingsButton && !button.disabled) playSound('uiClick');
 });
 shakeSetting.addEventListener('change', () => { settings.screenShake = shakeSetting.checked; saveSettings(); });
+shakeIntensitySetting.addEventListener('input', () => {
+  settings.shakeIntensity = Number(shakeIntensitySetting.value);
+  shakeIntensityValue.textContent = `${settings.shakeIntensity}%`;
+  saveSettings();
+});
 numbersSetting.addEventListener('change', () => { settings.damageNumbers = numbersSetting.checked; saveSettings(); });
 muteSetting.addEventListener('change', () => { settings.muted = muteSetting.checked; saveSettings(); });
 volumeSetting.addEventListener('input', () => { settings.masterVolume = Number(volumeSetting.value); saveSettings(); });
 
-function shakeCamera(intensity, durationMs) {
-  if (!settings.screenShake) return;
-  cameraShake = { until: performance.now() + durationMs, intensity: Math.max(cameraShake.intensity, intensity), durationMs };
+function shakeCamera(amount, source = 'event') {
+  if (!settings.screenShake || settings.shakeIntensity <= SHAKE_MIN_INTENSITY) return;
+  const now = performance.now();
+  if (source === 'explosion') {
+    if (now - lastExplosionTraumaAt < SHAKE_EXPLOSION_COOLDOWN_MS) return;
+    lastExplosionTraumaAt = now;
+  }
+  trauma = Math.min(SHAKE_MAX_TRAUMA, trauma + amount);
 }
 
-function showAreaEffect({ x, y, radius, kind = 'player', telegraphMs = 0, sourceAbility = 'weapon' }) {
+function smoothShakeNoise(timestamp, phase = SHAKE_NOISE_PRIMARY_PHASE) {
+  const samplePosition = timestamp * SHAKE_NOISE_HZ / 1000;
+  const sample = Math.floor(samplePosition);
+  const fraction = samplePosition - sample;
+  const eased = fraction * fraction * (3 - 2 * fraction);
+  const valueAt = (index) => (Math.sin(index * SHAKE_NOISE_PRIMARY_FREQUENCY + phase)
+    + Math.sin(index * SHAKE_NOISE_SECONDARY_FREQUENCY + phase + SHAKE_NOISE_SECONDARY_PHASE)) / 2;
+  return valueAt(sample) + (valueAt(sample + 1) - valueAt(sample)) * eased;
+}
+
+function showAreaEffect({ x, y, radius, kind = 'player', telegraphMs = 0, sourceAbility = 'weapon', color = null, sourceHeroId = null }) {
   const now = performance.now();
-  areaEffects.push({ x, y, radius, kind, sourceAbility, phase: telegraphMs > 0 ? 'telegraph' : 'detonation', startedAt: now,
+  areaEffects.push({ x, y, radius, kind, sourceAbility, color, sourceHeroId, phase: telegraphMs > 0 ? 'telegraph' : 'detonation', startedAt: now,
     durationMs: telegraphMs > 0 ? telegraphMs : ARENA_TUNING.areaEffects.detonationMs });
   if (areaEffects.length > 24) areaEffects.shift();
   if (telegraphMs <= 0) {
-    const factor = Math.min(1, radius / ARENA_TUNING.enemies.bruteKing.slamRadius);
-    const intensity = ARENA_TUNING.screenShake.majorMinPx + factor * (ARENA_TUNING.screenShake.majorMaxPx - ARENA_TUNING.screenShake.majorMinPx);
-    shakeCamera(intensity, ARENA_TUNING.screenShake.majorMs);
+    if (sourceAbility === 'boss-slam') shakeCamera(SHAKE_BOSS_SLAM_TRAUMA, 'major');
+    else if (sourceHeroId === 'guardian' && sourceAbility === 'ultimate') shakeCamera(SHAKE_ULTIMATE_TRAUMA, 'major');
+    else shakeCamera(SHAKE_EXPLOSION_BASE_TRAUMA + radius / SHAKE_EXPLOSION_RADIUS_SCALE, 'explosion');
   }
 }
 
@@ -248,6 +302,20 @@ function addDamageNumber({ x, y, damage, sourceId, targetId, bonus = false, colo
   damageTexts.push({ x, y, startY: y, value: damage, text: `-${Math.round(damage)}`, startedAt: now, lastHitAt: now,
     sourceId, targetId, bonus, alpha: 1, color: bonus ? '#ffe34f' : (color || '#fff'), scale: bonus ? ARENA_TUNING.damageNumbers.bonusScale : 1 });
   while (damageTexts.length > ARENA_TUNING.damageNumbers.maxVisible) damageTexts.shift();
+}
+
+function showElectroOverload(event) {
+  damageTexts.push({ x: event.heroX, y: event.heroY - 64, text: 'OVERLOAD!', alpha: 1, vy: -18,
+    color: HERO_FX_COLORS.electromancer.highlight, scale: 1.35 });
+  overloadFlash.classList.remove('show');
+  void overloadFlash.offsetWidth;
+  overloadFlash.classList.add('show');
+  setTimeout(() => overloadFlash.classList.remove('show'), ARENA_TUNING.heroTweaks.electroOverloadFlashMs);
+  const circle = document.querySelector('.ability[data-ability="ultimate"] .ability-circle');
+  circle.classList.remove('overload-pulse');
+  void circle.offsetWidth;
+  circle.classList.add('overload-pulse');
+  setTimeout(() => circle.classList.remove('overload-pulse'), ARENA_TUNING.heroTweaks.electroOverloadFeedbackMs);
 }
 
 function showBanner(text, boss = false, durationMs = ARENA_TUNING.waveMoments.bannerMs) {
@@ -369,7 +437,7 @@ socket.on('run_result', showRunResult);
 socket.on('ability_used', (event) => {
   if (event.ability === 'ultimate') {
     playSound('ultimateCast', { volume: event.playerId === me ? 1 : 0.65 });
-    shakeCamera(ARENA_TUNING.screenShake.majorMinPx, ARENA_TUNING.screenShake.majorMs);
+    shakeCamera(SHAKE_ULTIMATE_TRAUMA, 'major');
   }
 });
 socket.on('weapon_fired', (event) => {
@@ -383,16 +451,16 @@ socket.on('dash_hit', (event) => {
     addParticle({ x: player.x - player.aim.x * 20, y: player.y - player.aim.y * 20, vx: -player.aim.x * 90, vy: -player.aim.y * 90,
       radius: 2, color: HERO_FX_COLORS[event.heroId]?.highlight || '#fff', alpha: 0.9, decay: 0.08 });
   }
-  if (event.id === me) shakeCamera(ARENA_TUNING.screenShake.majorMinPx, ARENA_TUNING.screenShake.heroHitMs);
+  if (event.id === me) shakeCamera(SHAKE_PLAYER_HIT_TRAUMA);
 });
 socket.on('player_hit', (hit) => {
   if (hit.id !== me) return;
   addDamageNumber({ x: hit.x, y: hit.y - 24, damage: hit.damage, sourceId: hit.sourceId, targetId: hit.id, color: '#ff6161' });
-  shakeCamera(ARENA_TUNING.screenShake.heroHitMinPx + Math.random() * (ARENA_TUNING.screenShake.heroHitMaxPx - ARENA_TUNING.screenShake.heroHitMinPx), ARENA_TUNING.screenShake.heroHitMs);
+  if (hit.sourceAbility !== 'boss-slam') shakeCamera(SHAKE_PLAYER_HIT_TRAUMA);
   playSound('hit');
 });
 socket.on('campfire_hit', () => {
-  shakeCamera(ARENA_TUNING.screenShake.majorMinPx, ARENA_TUNING.screenShake.majorMs);
+  shakeCamera(SHAKE_PLAYER_HIT_TRAUMA);
   playSound('campfireDamaged');
   campfireHud.classList.remove('campfire-hit');
   void campfireHud.offsetWidth;
@@ -404,7 +472,7 @@ socket.on('hero_downed', (event) => {
 });
 socket.on('hero_respawn', (event) => {
   playSound('heroRespawn', { volume: event.playerId === me ? 1 : 0.7 });
-  if (event.playerId === me) shakeCamera(ARENA_TUNING.screenShake.majorMinPx, ARENA_TUNING.screenShake.majorMs);
+  if (event.playerId === me) shakeCamera(SHAKE_PLAYER_HIT_TRAUMA);
 });
 socket.on('momentum_ready', (event) => {
   if (event.playerId === me) momentumReadyLabels.push({ startedAt: performance.now(), bonus: event.bonus });
@@ -485,6 +553,43 @@ socket.on('area_effect', (effect) => {
 });
 socket.on('lightning_chain', (arc) => lightningArcs.push({ ...arc, expires: performance.now() + GAME_CONFIG.visuals.lightningArcMs,
   color: HERO_FX_COLORS.electromancer.highlight }));
+socket.on('electro_chain_refund', (event) => {
+  const now = performance.now();
+  chainCounters.set(event.playerId, { count: event.hitCount, startedAt: now });
+  addParticle({ x: event.x, y: event.y, vx: 0, vy: -16, radius: 4,
+    color: HERO_FX_COLORS.electromancer.highlight, alpha: 1, decay: 0.08, expiresAt: now + 300 });
+  if (event.playerId === me && event.cooldownRefilled) showElectroOverload(event);
+});
+socket.on('dynamite_ready', ({ playerId }) => {
+  dynamiteReadyBounces.set(playerId, performance.now());
+  if (playerId === me) {
+    playSound('dynamiteReady');
+    const circle = sheriffSkillAbility.querySelector('.ability-circle');
+    circle.classList.add('dynamite-ready-pulse');
+    setTimeout(() => circle.classList.remove('dynamite-ready-pulse'), ARENA_TUNING.heroTweaks.sheriffReadyRingMs);
+  }
+});
+socket.on('sheriff_cooldown_refund', (event) => {
+  if (event.playerId !== me) return;
+  const now = performance.now();
+  if (!sheriffRefundLabelState || now > sheriffRefundLabelState.mergeUntil) sheriffRefundLabelState = { totalMs: 0 };
+  sheriffRefundLabelState.totalMs += event.refundMs;
+  sheriffRefundLabelState.mergeUntil = now + ARENA_TUNING.heroTweaks.sheriffRefundMergeMs;
+  sheriffRefundLabel.textContent = `-${(sheriffRefundLabelState.totalMs / 1000).toFixed(1)}s`;
+  sheriffRefundLabel.hidden = false;
+  sheriffRefundLabel.classList.remove('show');
+  void sheriffRefundLabel.offsetWidth;
+  sheriffRefundLabel.classList.add('show');
+  const circle = sheriffSkillAbility.querySelector('.ability-circle');
+  circle.classList.remove('cooldown-refund-pulse');
+  void circle.offsetWidth;
+  circle.classList.add('cooldown-refund-pulse');
+  clearTimeout(sheriffRefundLabelTimer);
+  sheriffRefundLabelTimer = setTimeout(() => {
+    sheriffRefundLabel.hidden = true;
+    sheriffRefundLabel.classList.remove('show');
+  }, ARENA_TUNING.heroTweaks.sheriffRefundLabelMs);
+});
 socket.on('lightning_flash', (flash) => enemyFlashes.set(flash.id, performance.now() + GAME_CONFIG.visuals.enemyFlashMs));
 socket.on('ricochet_line', (arc) => lightningArcs.push({ ...arc, expires: performance.now() + GAME_CONFIG.arenaTuning.cards.effects.ricochetLineMs,
   color: HERO_FX_COLORS[arc.heroId]?.primary || '#fff' }));
@@ -499,7 +604,7 @@ socket.on('pickup_collected', (pickup) => {
 });
 socket.on('life_steal', (heal) => addParticle({ x: heal.x, y: heal.y - 22, vx: 0, vy: -25, radius: 10,
   color: '#88ff9c', text: `+${Math.round(heal.amount)}`, alpha: 1, decay: 0.03 }));
-socket.on('second_wind', () => { showBanner('SECOND WIND'); playSound('explosion'); shakeCamera(ARENA_TUNING.screenShake.majorMinPx, ARENA_TUNING.screenShake.majorMs); });
+socket.on('second_wind', () => { showBanner('SECOND WIND'); playSound('explosion'); shakeCamera(SHAKE_ULTIMATE_TRAUMA, 'major'); });
 socket.on('dash_extended', (popup) => {
   if (popup.id === me) damageTexts.push({ x: popup.x, y: popup.y - 36, text: `+${(popup.ms / 1000).toFixed(1)}s`, alpha: 1, vy: -28, color: '#a6ffb4' });
 });
@@ -742,17 +847,29 @@ function updateHud(timestamp = performance.now()) {
     circle.style.setProperty('--fill-color', color);
     const elapsedMs = Math.max(0, timestamp - stateReceivedAt);
     const remaining = Math.max(0, data.remainingMs - elapsedMs);
+    const lockoutRemaining = Math.max(0, (data.lockoutRemainingMs || 0) - elapsedMs);
     const fill = data.durationMs > 0 ? Math.max(0, Math.min(100, (1 - remaining / data.durationMs) * 100)) : 100;
     circle.style.setProperty('--fill', `${fill}%`);
-    circle.classList.toggle('ready', remaining <= 0);
+    circle.classList.toggle('ready', remaining <= 0 && lockoutRemaining <= 0);
+    circle.classList.toggle('locked', lockoutRemaining > 0);
+    const lockoutLabel = circle.querySelector('.ability-lockout');
+    if (lockoutLabel) lockoutLabel.textContent = lockoutRemaining > 0 ? String(Math.ceil(lockoutRemaining / 1000)) : '';
+    const isSheriffDynamite = player.heroId === 'sheriff' && id === 'skill';
+    element.classList.toggle('sheriff-skill-ready', isSheriffDynamite && remaining <= 0 && lockoutRemaining <= 0);
+    if (isSheriffDynamite) {
+      element.style.setProperty('--sheriff-ready-glow-period', `${ARENA_TUNING.heroTweaks.sheriffReadyGlowPeriodMs}ms`);
+      circle.style.setProperty('--fill-color', '#ffd34f');
+    }
     const key = `${me}:${id}`;
     const previous = abilityReadyAt.get(key);
     if (previous !== undefined && previous > 0 && remaining <= 0) {
-      circle.classList.remove('ready-pulse');
-      void circle.offsetWidth;
-      circle.classList.add('ready-pulse');
-      playSound(id === 'ultimate' ? 'ultimateReady' : 'abilityReady');
-      setTimeout(() => circle.classList.remove('ready-pulse'), ARENA_TUNING.waveMoments.abilityReadyPulseMs);
+      if (!isSheriffDynamite) {
+        circle.classList.remove('ready-pulse');
+        void circle.offsetWidth;
+        circle.classList.add('ready-pulse');
+        playSound(id === 'ultimate' ? 'ultimateReady' : 'abilityReady');
+        setTimeout(() => circle.classList.remove('ready-pulse'), ARENA_TUNING.waveMoments.abilityReadyPulseMs);
+      }
     }
     abilityReadyAt.set(key, remaining);
   });
@@ -763,7 +880,7 @@ function updateHud(timestamp = performance.now()) {
   document.querySelector('#stat-speed').textContent = String(player.speed);
   const buildingBonus = player.buildingBonuses || {};
   const buildingRows = [];
-  if (buildingBonus.attackPercent > 0) buildingRows.push(`${player.type === 'magic' ? '📚 Library' : '🛠️ Workshop'} +${Math.round(buildingBonus.attackPercent * 100)}% damage`);
+  if (buildingBonus.attackPercent > 0) buildingRows.push(`${player.type === 'magic' ? '📚 Library' : '🛠️ Workshop'} +${Math.round(buildingBonus.attackPercent * 100)}% ${player.type === 'magic' ? 'magic' : 'physical'} attack`);
   if (buildingBonus.campfireMaxHpPercent > 0) buildingRows.push(`🌷 Garden +${Math.round(buildingBonus.campfireMaxHpPercent * 100)}% campfire max HP`);
   document.querySelector('#building-bonus-value').textContent = buildingRows.join(' · ') || 'None';
   document.querySelector('#building-bonus-stat').title = buildingRows.join(' · ') || 'No kingdom building bonuses apply to this hero';
@@ -845,11 +962,15 @@ function draw(timestamp) {
   context.shadowBlur = 0;
   context.setLineDash([]);
   context.save();
-  if (currentTime < cameraShake.until) {
-    const remaining = Math.max(0, (cameraShake.until - currentTime) / Math.max(1, cameraShake.durationMs));
-    const offset = cameraShake.intensity * remaining;
-    context.translate((Math.random() * 2 - 1) * offset, (Math.random() * 2 - 1) * offset);
-  } else cameraShake.intensity = 0;
+  const traumaElapsed = Math.max(0, (currentTime - lastTraumaUpdateAt) / 1000);
+  trauma = Math.max(0, trauma - SHAKE_DECAY * traumaElapsed);
+  lastTraumaUpdateAt = currentTime;
+  if (settings.screenShake && settings.shakeIntensity > SHAKE_MIN_INTENSITY && trauma > 0) {
+    const offset = trauma * trauma * SHAKE_MAX_OFFSET * settings.shakeIntensity / SHAKE_MAX_INTENSITY;
+    const noiseX = smoothShakeNoise(currentTime);
+    const noiseY = smoothShakeNoise(currentTime, SHAKE_NOISE_SECONDARY_PHASE);
+    context.translate(noiseX * offset, noiseY * offset);
+  }
   if (currentTime < cameraZoom.until) {
     const centerX = ARENA_WIDTH / 2, centerY = ARENA_HEIGHT / 2;
     const progress = (currentTime - cameraZoom.startedAt) / (cameraZoom.until - cameraZoom.startedAt);
@@ -1042,9 +1163,13 @@ function draw(timestamp) {
     const effect = areaEffects[i];
     const progress = Math.min(1, (currentTime - effect.startedAt) / Math.max(1, effect.durationMs));
     if (progress >= 1) { areaEffects.splice(i, 1); continue; }
+    const electroStun = effect.sourceHeroId === 'electromancer' && effect.sourceAbility === 'skill';
+    const guardianSlam = effect.sourceHeroId === 'guardian' && effect.sourceAbility === 'ultimate' && effect.kind === 'player';
     const danger = effect.kind === 'enemy';
-    const fill = danger ? '#ef4654' : '#ffb347';
-    const edge = danger ? '#ff4d59' : '#ffe08a';
+    const fill = electroStun ? effect.color || HERO_FX_COLORS.electromancer.primary
+      : guardianSlam ? HERO_FX_COLORS.guardian.primary : danger ? '#ef4654' : '#ffb347';
+    const edge = electroStun ? HERO_FX_COLORS.electromancer.highlight
+      : guardianSlam ? HERO_FX_COLORS.guardian.highlight : danger ? '#ff4d59' : '#ffe08a';
     context.save(); context.beginPath(); context.arc(effect.x, effect.y, effect.radius, 0, Math.PI * 2);
     if (effect.phase === 'telegraph') {
       context.globalAlpha = 0.12; context.fillStyle = fill;
@@ -1099,6 +1224,13 @@ function draw(timestamp) {
     }
     if (player.dashing) spawnDashTrail(player);
     const center = { x: player.x, y: player.y };
+    if (player.guardianBrace) {
+      context.save();
+      context.globalAlpha = 0.55 + Math.sin(currentTime * 0.008) * 0.15;
+      context.strokeStyle = HERO_FX_COLORS.guardian.highlight; context.lineWidth = 4;
+      context.beginPath(); context.arc(center.x, center.y, 31, 0, Math.PI * 2); context.stroke();
+      context.restore();
+    }
     const tip = { x: center.x + player.aim.x * 48, y: center.y + player.aim.y * 48 };
     context.strokeStyle = player.id === me ? '#222' : '#777';
     context.fillStyle = context.strokeStyle;
@@ -1139,6 +1271,38 @@ function draw(timestamp) {
     context.textBaseline = 'middle';
     context.fillStyle = '#222';
     context.fillText(player.emoji, center.x - player.aim.x * recoil, center.y - player.aim.y * recoil);
+    if (player.guardianCharging && player.guardianDamageRamp > 0) {
+      const label = `+${Math.round(player.guardianDamageRamp * 100)}%`;
+      context.save();
+      context.font = 'bold 13px sans-serif'; context.textAlign = 'center'; context.textBaseline = 'middle';
+      const width = context.measureText(label).width + 16;
+      context.fillStyle = '#10243be8'; context.strokeStyle = HERO_FX_COLORS.guardian.highlight; context.lineWidth = 1.5;
+      context.beginPath(); context.roundRect(center.x - width / 2, center.y - 65, width, 22, 11); context.fill(); context.stroke();
+      context.fillStyle = '#fff'; context.fillText(label, center.x, center.y - 54); context.restore();
+    }
+    const chainCounter = chainCounters.get(player.id);
+    if (chainCounter) {
+      const age = currentTime - chainCounter.startedAt;
+      if (age >= ARENA_TUNING.heroTweaks.electroChainCounterMs) chainCounters.delete(player.id);
+      else {
+        const progress = Math.min(1, age / ARENA_TUNING.heroTweaks.electroChainCounterPopMs);
+        const scale = 1 + (ARENA_TUNING.heroTweaks.electroChainCounterScale - 1) * Math.sin(Math.PI * progress);
+        context.save(); context.translate(center.x, center.y - 68); context.scale(scale, scale);
+        context.font = 'bold 16px sans-serif'; context.textAlign = 'center'; context.textBaseline = 'middle';
+        context.lineWidth = 4; context.strokeStyle = '#10283b'; context.fillStyle = HERO_FX_COLORS.electromancer.highlight;
+        context.strokeText(`CHAIN x${chainCounter.count}`, 0, 0); context.fillText(`CHAIN x${chainCounter.count}`, 0, 0); context.restore();
+      }
+    }
+    const readyBounceAt = dynamiteReadyBounces.get(player.id);
+    if (readyBounceAt !== undefined) {
+      const age = currentTime - readyBounceAt;
+      if (age >= ARENA_TUNING.heroTweaks.sheriffReadyBounceMs) dynamiteReadyBounces.delete(player.id);
+      else {
+        const bounce = Math.sin(Math.PI * age / ARENA_TUNING.heroTweaks.sheriffReadyBounceMs) * 18;
+        context.save(); context.font = '20px sans-serif'; context.textAlign = 'center'; context.textBaseline = 'middle';
+        context.fillText('🧨', center.x, center.y - 49 - bounce); context.restore();
+      }
+    }
     if (muzzle && muzzleAge < ARENA_TUNING.muzzleFlash.durationMs) {
       const fx = HERO_FX_COLORS[player.heroId] || {};
       const x = center.x + player.aim.x * 38, y = center.y + player.aim.y * 38;
@@ -1150,7 +1314,7 @@ function draw(timestamp) {
     }
     context.font = '12px sans-serif';
     context.fillText(player.name, center.x, center.y + 30);
-    if (player.invulnerable && Math.floor(currentTime / ARENA_TUNING.respawn.flashIntervalMs) % 2 === 0) {
+    if ((player.invulnerable || player.ultimateFlash) && Math.floor(currentTime / ARENA_TUNING.respawn.flashIntervalMs) % 2 === 0) {
       context.save(); context.globalAlpha = 0.25; context.fillStyle = '#fff';
       context.beginPath(); context.arc(center.x, center.y, 25, 0, Math.PI * 2); context.fill(); context.restore();
     }
@@ -1195,7 +1359,7 @@ function draw(timestamp) {
     const arc=lightningArcs[i], remaining=arc.expires-currentTime;
     if(remaining<=0){lightningArcs.splice(i,1);continue;}
     context.save(); context.globalAlpha=Math.min(1,remaining/GAME_CONFIG.visuals.lightningArcMs);
-    context.strokeStyle=arc.color;context.lineWidth=4;context.shadowColor=HERO_FX_COLORS.electromancer.primary;context.shadowBlur=14;
+    context.strokeStyle=arc.color;context.lineWidth=4;context.shadowBlur=0;
     context.beginPath();context.moveTo(arc.x1,arc.y1);context.lineTo(arc.x2,arc.y2);context.stroke();context.restore();
   }
 
@@ -1330,8 +1494,9 @@ function spawnDashTrail(player) {
   previousPositions.set(player.id,{x:player.x,y:player.y});
   if(!prior || Math.hypot(player.x-prior.x,player.y-prior.y)<2)return;
   const spec=GAME_CONFIG.visuals.dashTrail;
+  const ramp = player.guardianCharging ? Math.min(1, player.guardianDamageRamp / GAME_CONFIG.arenaTuning.heroTweaks.guardianUltimateRampCap) : 0;
   for(let i=0;i<spec.count;i++) addParticle({x:prior.x+(Math.random()-.5)*16,y:prior.y+(Math.random()-.5)*16,
-    vx:(Math.random()-.5)*35,vy:(Math.random()-.5)*35,radius:spec.radius+Math.random()*2,color:HERO_FX_COLORS[player.heroId]?.highlight || '#d8dfc7',alpha:.8,decay:spec.decay});
+    vx:(Math.random()-.5)*35,vy:(Math.random()-.5)*35,radius:spec.radius+Math.random()*2+ramp*2,color:ramp > 0.4 ? HERO_FX_COLORS[player.heroId]?.highlight : HERO_FX_COLORS[player.heroId]?.primary || '#d8dfc7',alpha:.65+ramp*.35,decay:spec.decay});
 }
 
 canvas.addEventListener('pointermove', onPointerMove);

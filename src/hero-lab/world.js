@@ -1,5 +1,6 @@
 const { HERO_CLASSES } = require('../../public/hero-lab/hero-list.js');
 const { GAME_CONFIG } = require('../../public/hero-lab/game-config.js');
+const { RESPAWN_RING_MIN, RESPAWN_RING_MAX, RESPAWN_MIN_SEPARATION, RESPAWN_CANDIDATE_ATTEMPTS } = require('../../config/tuning.js');
 const { Projectile } = require('../../public/hero-lab/bases/projectile.js');
 const { Zombie } = require('../../public/hero-lab/enemies/zombie.js');
 const { Devil } = require('../../public/hero-lab/enemies/devil.js');
@@ -40,6 +41,7 @@ function attachHeroLab(io, services = null) {
   const timedEffects = [];
   const spawnTelegraphs = [];
   const pendingChains = [];
+  const pendingChainCasts = new Map();
   const buffVotes = new Map();
   const campfireBonuses = new Map();
   let lastCampfireFeedbackAt = Number.NEGATIVE_INFINITY;
@@ -52,6 +54,7 @@ function attachHeroLab(io, services = null) {
 
   let projectileCounter = 0;
   let monsterSeq = 0;
+  let chainCastCounter = 0;
 
   let waveNumber = 0;
   let enemiesLeftToSpawn = 0;
@@ -82,6 +85,7 @@ function attachHeroLab(io, services = null) {
     timedEffects.length = 0;
     spawnTelegraphs.length = 0;
     pendingChains.length = 0;
+    pendingChainCasts.clear();
     buffVotes.clear();
     buffVote = null;
     lastBuff = null;
@@ -254,6 +258,9 @@ function attachHeroLab(io, services = null) {
       victory, reason, wavesReached: waveNumber, wavesCleared,
       kills: player?.kills || 0, damageDealt: Math.round(player?.damageDealt || 0),
       bonusDamage: Math.round(player?.bonusDamage || 0),
+      attackBonusPercent: Math.round((player?.hero.buildingBonuses?.attackPercent || 0) * 100),
+      attackBonusBuilding: player?.hero.type === 'magic' ? 'Library' : 'Workshop',
+      campfireBonusPercent: Math.round((player?.hero.buildingBonuses?.campfireMaxHpPercent || 0) * 100),
       rewardCoins: Math.round(wavesCleared * GAME_CONFIG.arenaTuning.run.coinsPerWave * multiplier),
       nextBossWave: (Math.floor(waveNumber / GAME_CONFIG.arenaTuning.run.bossTeaserWave) + 1) * GAME_CONFIG.arenaTuning.run.bossTeaserWave,
       heroId: player?.heroId || 'sheriff',
@@ -376,8 +383,28 @@ function attachHeroLab(io, services = null) {
   function respawnPlayer(player, now) {
     player.downed = false;
     player.keys = {};
-    player.x = campfire.x;
-    player.y = campfire.y;
+    const livingHeroes = [...players.values()].filter((other) => other.id !== player.id && !other.downed && other.hero.hp > 0);
+    let selected = null;
+    let selectedSeparation = Number.NEGATIVE_INFINITY;
+    for (let attempt = 0; attempt < RESPAWN_CANDIDATE_ATTEMPTS; attempt++) {
+      const angle = Math.random() * Math.PI * 2;
+      const radius = RESPAWN_RING_MIN + Math.random() * (RESPAWN_RING_MAX - RESPAWN_RING_MIN);
+      const candidate = { x: campfire.x + Math.cos(angle) * radius, y: campfire.y + Math.sin(angle) * radius };
+      if (candidate.x < ARENA_CONFIG.radius || candidate.x > ARENA_CONFIG.width - ARENA_CONFIG.radius
+        || candidate.y < ARENA_CONFIG.radius || candidate.y > ARENA_CONFIG.height - ARENA_CONFIG.radius) continue;
+      const separation = livingHeroes.length
+        ? Math.min(...livingHeroes.map((other) => Math.hypot(other.x - candidate.x, other.y - candidate.y)))
+        : Number.POSITIVE_INFINITY;
+      if (separation > selectedSeparation) {
+        selected = candidate;
+        selectedSeparation = separation;
+      }
+      if (separation >= RESPAWN_MIN_SEPARATION) break;
+    }
+    // There are currently no arena obstacles; all accepted candidates lie on
+    // the unobstructed ring and within the fixed arena bounds.
+    player.x = selected?.x ?? campfire.x + RESPAWN_RING_MIN;
+    player.y = selected?.y ?? campfire.y;
     player.hero.hp = Math.max(1, player.hero.maxHp * GAME_CONFIG.arenaTuning.respawn.respawnHpFraction);
     player.hero.makeInvulnerable(GAME_CONFIG.arenaTuning.respawn.invulnerabilityMs, now);
     player.respawnRemainingMs = 0;
@@ -409,13 +436,16 @@ function attachHeroLab(io, services = null) {
       const hero = new HeroClass();
       const user = socket.data.user;
       hero.buildingBonuses = { attackPercent: 0, attackMultiplier: 1, campfireMaxHpPercent: 0 };
+      hero.braceUntil = 0;
+      hero.chargeDamageBonus = 0;
+      hero.ultimateLockoutUntil = 0;
       if (user) {
         if (!services.authenticate(socket.data.token)) return socket.disconnect(true);
         const levels = services.kingdomBuildings(user.id);
         for (const [building, buff] of Object.entries(GAME_CONFIG.buildingBuffs)) {
-          const level = Math.max(0, Number(levels[building]) || 0);
+          const level = Math.min(GAME_CONFIG.arenaTuning.buildingBonuses.levelCap, Math.max(0, Math.floor(Number(levels[building]) || 0)));
           if (!buff.stat || (buff.type && buff.type !== hero.type)) continue;
-          const amount = Math.min(GAME_CONFIG.arenaTuning.buildingBonuses.cap, level * GAME_CONFIG.arenaTuning.buildingBonuses.perLevel);
+          const amount = level * GAME_CONFIG.arenaTuning.buildingBonuses.perLevel;
           if (buff.stat === 'campfireMaxHp') {
             if (!campfireBonuses.has(user.id)) {
               const hpBonus = GAME_CONFIG.campfire.hp * amount;
@@ -447,6 +477,8 @@ function attachHeroLab(io, services = null) {
         bonusDamage: 0,
         accountId: user?.id || null,
         bubbleRush: null,
+        sheriffDynamiteReady: true,
+        sheriffBlastRefunds: new Map(),
         dawnWaiting: false,
         downed: false,
         momentumSamples: [],
@@ -553,9 +585,10 @@ function attachHeroLab(io, services = null) {
       if (!skill) return;
 
       player.hero.useAbility('skill', now);
+      if (player.heroId === 'sheriff') player.sheriffDynamiteReady = false;
       nsp.emit('ability_used', { playerId: player.id, heroId: player.heroId, ability: 'skill' });
       if (skill.type === 'controlled_burst') {
-        player.controlledBurst = { until: now + skill.durationMs, speedMultiplier: skill.speedMultiplier,
+        player.controlledBurst = { until: now + skill.durationMs, speedMultiplier: skill.speedMultiplier, direction: { ...player.aim },
           capUntil: now + skill.durationMs * GAME_CONFIG.arenaTuning.heroTweaks.guardianDashMaxBaseMultiplier,
           damageMultiplier: skill.damageMultiplier, lastHitAt: new Map() };
         player.hero.dashingUntil = player.controlledBurst.until;
@@ -582,11 +615,19 @@ function attachHeroLab(io, services = null) {
       if (!player || player.downed || player.dawnWaiting || gameEnded) return;
       syncHeroAimAndPosition(player);
       const now = Date.now();
+      if (player.heroId === 'guardian' && GAME_CONFIG.arenaTuning.heroTweaks.guardianUltimateEarlyEnd
+        && player.hero.chargeUntil > now) {
+        endGuardianCharge(player, now);
+        broadcastState(now);
+        return;
+      }
       if (!player.hero.canUseAbility('ultimate', now)) return;
       const result = player.hero.ultimate(now);
       if (!result || (typeof result !== 'object' && result !== true)) return;
       if (result.type === 'targeting') { broadcastState(now); return; }
       player.hero.useAbility('ultimate', now);
+      if (player.heroId === 'electromancer') player.hero.ultimateLockoutUntil = now + GAME_CONFIG.arenaTuning.heroTweaks.electroUltimateMinLockoutMs;
+      if (player.heroId === 'guardian') player.hero.chargeDamageBonus = 0;
       nsp.emit('ability_used', { playerId: player.id, heroId: player.heroId, ability: 'ultimate' });
       if (result instanceof Projectile) addProjectile(player, result);
       else if (result.type === 'bubble_rush') {
@@ -623,11 +664,8 @@ function attachHeroLab(io, services = null) {
   function damageMonster(monster, amount, sourceId) {
     const source = typeof sourceId === 'object' ? sourceId : { ownerId: sourceId, sourceAbility: 'weapon' };
     const killer = players.get(source.ownerId);
-    const electro = killer?.heroId === 'electromancer';
-    const overloadActive = electro && monster.stunnedUntil > Date.now()
-      && (source.sourceAbility !== 'ultimate' || killer.hero.spec.overload.chainGetsBonus);
     const momentumMultiplier = killer?.momentumActive ? 1 + GAME_CONFIG.arenaTuning.momentum.bonus : 1;
-    const appliedAmount = amount * momentumMultiplier * (overloadActive ? 1 + killer.hero.spec.overload.damageBonus : 1);
+    const appliedAmount = amount * momentumMultiplier;
     const hpBefore = monster.hp;
     const damage = monster.takeDamage(appliedAmount);
     if (killer && damage > 0) {
@@ -644,7 +682,7 @@ function attachHeroLab(io, services = null) {
       }
     }
     if (damage > 0) nsp.emit('hit', { type: 'monster', id: monster.id, x: monster.x, y: monster.y, damage,
-      sourceId: source.ownerId, heroId: killer?.heroId || null, sourceAbility: source.sourceAbility || 'weapon', bonus: overloadActive,
+      sourceId: source.ownerId, heroId: killer?.heroId || null, sourceAbility: source.sourceAbility || 'weapon', bonus: false,
       sourceX: killer?.x, sourceY: killer?.y,
       enemyType: monster.type, boss: Boolean(monster.isBoss), elite: Boolean(monster.isElite) });
     if (monster.dead) {
@@ -663,9 +701,20 @@ function attachHeroLab(io, services = null) {
       if (killer?.heroId === 'sheriff' && (source.sourceAbility !== 'skill' || killer.hero.spec.kills.countDynamiteKills)) {
         const cd = killer.hero.cooldowns.skill;
         const now = Date.now();
-        const cut = GAME_CONFIG.arenaTuning.heroTweaks.sheriffTalentCooldownCutSec * 1000;
-        if (cd.readyAt > now) {
-          cd.readyAt = Math.max(now, cd.readyAt - cut);
+        const remainingMs = Math.max(0, cd.readyAt - now);
+        let cutMs = Math.min(remainingMs, GAME_CONFIG.arenaTuning.heroTweaks.sheriffTalentCooldownCutSec * 1000);
+        if (source.sourceAbility === 'skill' && source.refundGroupId) {
+          const refunded = killer.sheriffBlastRefunds.get(source.refundGroupId) || { amountMs: 0, lastAt: now };
+          const capRemainingMs = Math.max(0, GAME_CONFIG.arenaTuning.heroTweaks.sheriffBlastRefundCapMs - refunded.amountMs);
+          cutMs = Math.min(cutMs, capRemainingMs);
+          refunded.amountMs += cutMs;
+          refunded.lastAt = now;
+          killer.sheriffBlastRefunds.set(source.refundGroupId, refunded);
+        }
+        if (cutMs > 0) {
+          cd.readyAt = Math.max(now, cd.readyAt - cutMs);
+          nsp.emit('sheriff_cooldown_refund', { playerId: killer.id, x: killer.x, y: killer.y,
+            refundMs: cutMs, sourceAbility: source.sourceAbility });
         }
       }
       if (killer?.heroId === 'pilot') {
@@ -675,6 +724,13 @@ function attachHeroLab(io, services = null) {
         const perKillCut = GAME_CONFIG.arenaTuning.heroTweaks.pilotTalentCooldownCutSec * 1000;
         const cut = Math.max(0, Math.min(perKillCut, maxCut - (cd.cutThisCycleMs || 0), cd.readyAt - now));
         if (cut > 0) { cd.readyAt -= cut; cd.cutThisCycleMs = (cd.cutThisCycleMs || 0) + cut; }
+      }
+      if (killer?.heroId === 'bubbles' && source.sourceAbility === 'skill') {
+        const cooldown = killer.hero.cooldowns.skill;
+        const now = Date.now();
+        const remaining = Math.max(0, cooldown.readyAt - now);
+        const refund = killer.hero.spec.bubbleTrap.killCooldownRefundFraction || 0;
+        if (remaining > 0 && refund > 0) cooldown.readyAt = now + remaining * (1 - refund);
       }
       if (killer?.heroId === 'guardian' && (killer.hero.dashingUntil > Date.now() || killer.hero.chargeUntil > Date.now())) {
         const cut = GAME_CONFIG.arenaTuning.heroTweaks.guardianKillExtensionSec * 1000;
@@ -700,6 +756,22 @@ function attachHeroLab(io, services = null) {
       }
     }
     return damage;
+  }
+
+  function endGuardianCharge(player, now) {
+    const hero = player.hero;
+    if (player.heroId !== 'guardian' || !(hero.chargeUntil > 0)) return false;
+    const charge = hero.spec.charge;
+    const ramp = Math.min(charge.rampCap, hero.chargeDamageBonus || 0);
+    hero.chargeUntil = 0;
+    hero.dashingUntil = now;
+    hero.chargeDamageBonus = 0;
+    explode({ x: player.x, y: player.y, radius: charge.slamRadius,
+      damage: hero.attack * charge.slamDamageMultiplier * (1 + ramp),
+      knockback: charge.slamKnockback, ownerId: player.id, kind: 'player', sourceAbility: 'ultimate' }, now);
+    nsp.emit('guardian_charge_slam', { playerId: player.id, x: player.x, y: player.y,
+      radius: charge.slamRadius, damageMultiplier: charge.slamDamageMultiplier * (1 + ramp) });
+    return true;
   }
 
   function pushFromDash(monster, player, now) {
@@ -728,7 +800,8 @@ function attachHeroLab(io, services = null) {
     for (const monster of monsters.values()) {
       if (effect.excludeId === monster.id) continue;
       if (Math.hypot(monster.x-effect.x, monster.y-effect.y) <= effect.radius + monster.radius) {
-        damageMonster(monster, effect.damage, { ownerId: effect.ownerId, sourceAbility: effect.sourceAbility || 'ultimate', finisher: effect.finisher });
+        damageMonster(monster, effect.damage, { ownerId: effect.ownerId, sourceAbility: effect.sourceAbility || 'ultimate',
+          finisher: effect.finisher, refundGroupId: effect.refundGroupId });
         if (effect.stunMs && !monster.isBoss) monster.stunnedUntil = now + effect.stunMs;
         const dx=monster.x-effect.x, dy=monster.y-effect.y, length=Math.hypot(dx,dy)||1;
         if (!monster.isBoss) { monster.knockbackX=(dx/length)*(effect.knockback||0); monster.knockbackY=(dy/length)*(effect.knockback||0); }
@@ -740,6 +813,7 @@ function attachHeroLab(io, services = null) {
     const owner = players.get(effect.ownerId);
     nsp.emit('area_effect', { x: effect.x, y: effect.y, radius: effect.radius, kind: effect.kind || 'player', telegraphMs: 0,
       color: effect.color || GAME_CONFIG.heroFxColors[owner?.heroId]?.primary || '#ff9c45',
+      sourceHeroId: owner?.heroId,
       sourceAbility: effect.sourceAbility || 'ultimate', finisher: Boolean(effect.finisher) });
   }
 
@@ -790,6 +864,7 @@ function attachHeroLab(io, services = null) {
   function chainAttack(player, effect, now) {
     let x = player.x, y = player.y;
     const hit = new Set();
+    const targets = [];
     const rangeSquared = effect.range * effect.range;
     for (let i = 0; i < monsters.size; i++) {
       let target = null;
@@ -804,9 +879,18 @@ function attachHeroLab(io, services = null) {
         }
       }
       if(!target) break;
-      hit.add(target.id); pendingChains.push({ at: now + i * effect.jumpDelayMs, ownerId: player.id, targetId: target.id,
-        x1: x, y1: y, damage: effect.damage }); x=target.x;y=target.y;
+      hit.add(target.id);
+      targets.push({ targetId: target.id, x1: x, y1: y, at: now + i * effect.jumpDelayMs });
+      x=target.x;y=target.y;
     }
+    const castId = ++chainCastCounter;
+    const cast = { castId, ownerId: player.id, planned: targets.length, processed: 0, hitCount: 0, stunnedHitCount: 0, refundedMs: 0 };
+    if (targets.length === 0) {
+      console.info('[Hero Lab] Electromancer Chain Lightning', { castId, enemiesHit: 0, stunnedEnemiesHit: 0, secondsRefunded: 0 });
+      return;
+    }
+    pendingChainCasts.set(castId, cast);
+    for (const target of targets) pendingChains.push({ ...target, castId, ownerId: player.id, damage: effect.damage });
   }
 
   function snapshot(now = Date.now()) {
@@ -854,7 +938,11 @@ function attachHeroLab(io, services = null) {
       })),
       players: [...players.values()].map(({ id, heroId, hero, name, emoji, x, y, aim, downed, respawnRemainingMs, respawnDurationMs, respawnSpeedMultiplier, momentumActive, dawnWaiting, bubbleRush }) => ({
         id, heroId, name, emoji: hero.visual || emoji, type: hero.type, x: Math.round(x), y: Math.round(y), aim: { ...aim },
+        ultimateFlash: hero.ultimateFlashUntil > now,
         talent: hero.talent, targeting: hero.targetingUntil > now,
+        guardianCharging: heroId === 'guardian' && hero.chargeUntil > now,
+        guardianDamageRamp: heroId === 'guardian' ? hero.chargeDamageBonus || 0 : 0,
+        guardianBrace: heroId === 'guardian' && hero.braceUntil > now,
         dashing: heroId === 'guardian' ? hero.dashingUntil > now || Boolean(players.get(id)?.controlledBurst && players.get(id).controlledBurst.until > now) : Boolean(players.get(id)?.dashState && players.get(id).dashState.until > now),
         downed: Boolean(downed), respawnRemainingMs: respawnRemainingMs || 0, respawnDurationMs: respawnDurationMs || 0,
         respawnSpeedMultiplier: respawnSpeedMultiplier || 1, momentumActive: Boolean(momentumActive), dawnWaiting: Boolean(dawnWaiting),
@@ -868,6 +956,7 @@ function attachHeroLab(io, services = null) {
           durationMs: cooldown.durationMs,
           readyAt: cooldown.readyAt,
           remainingMs: Math.max(0, cooldown.readyAt - now),
+          lockoutRemainingMs: key === 'ultimate' && heroId === 'electromancer' ? Math.max(0, hero.ultimateLockoutUntil - now) : 0,
         }])),
         invulnerable: hero.invulnerableUntil > now,
       })),
@@ -902,15 +991,18 @@ function attachHeroLab(io, services = null) {
       if (player.downed || player.dawnWaiting) continue;
       const dx = Number(player.keys.right) - Number(player.keys.left);
       const dy = Number(player.keys.down) - Number(player.keys.up);
-      if (dx || dy) {
+      const controlledBurst = player.controlledBurst?.until > now ? player.controlledBurst : null;
+      if (dx || dy || controlledBurst) {
         const length = Math.hypot(dx, dy);
-        const burst = Math.max(player.controlledBurst && player.controlledBurst.until > now ? player.controlledBurst.speedMultiplier : 1,
+        const burst = Math.max(controlledBurst ? controlledBurst.speedMultiplier : 1,
           player.bubbleRush?.speedMultiplier || 1,
           activeTwist?.id === 'fast-night' ? 1 + GAME_CONFIG.arenaTuning.waveTwists.fastNightHeroSpeed : 1);
         const step = player.hero.speed * burst / ARENA_CONFIG.tickHz;
         const oldX = player.x, oldY = player.y;
-        player.x = clamp(player.x + (dx / length) * step, ARENA_CONFIG.radius, ARENA_CONFIG.width - ARENA_CONFIG.radius);
-        player.y = clamp(player.y + (dy / length) * step, ARENA_CONFIG.radius, ARENA_CONFIG.height - ARENA_CONFIG.radius);
+        const moveX = controlledBurst ? controlledBurst.direction.x : dx / length;
+        const moveY = controlledBurst ? controlledBurst.direction.y : dy / length;
+        player.x = clamp(player.x + moveX * step, ARENA_CONFIG.radius, ARENA_CONFIG.width - ARENA_CONFIG.radius);
+        player.y = clamp(player.y + moveY * step, ARENA_CONFIG.radius, ARENA_CONFIG.height - ARENA_CONFIG.radius);
         const distance = Math.hypot(player.x - oldX, player.y - oldY);
         if (distance > 0) player.momentumSamples.push({ at: now, distance });
       }
@@ -939,7 +1031,11 @@ function attachHeroLab(io, services = null) {
       syncHeroAimAndPosition(player);
       if(player.heroId==='guardian' && player.hero.dashingUntil>now) player.hero.makeInvulnerable(player.hero.dashingUntil-now,now);
       if (player.controlledBurst) {
-        if (now >= player.controlledBurst.until) player.controlledBurst = null;
+        if (now >= player.controlledBurst.until) {
+          player.controlledBurst = null;
+          if (player.heroId === 'guardian' && GAME_CONFIG.arenaTuning.heroTweaks.guardianBraceEnabled)
+            player.hero.braceUntil = now + GAME_CONFIG.arenaTuning.heroTweaks.guardianBraceDurationMs;
+        }
         else {
           player.hero.makeInvulnerable(player.controlledBurst.until - now, now);
           const dash = player.controlledBurst;
@@ -978,19 +1074,63 @@ function attachHeroLab(io, services = null) {
           const lastHitAt = player.hero.lastChargeHit.get(monster.id) ?? Number.NEGATIVE_INFINITY;
           if (now - lastHitAt < GAME_CONFIG.arenaTuning.heroTweaks.guardianRepeatHitCooldownMs) continue;
           player.hero.lastChargeHit.set(monster.id,now);
-          damageMonster(monster,player.hero.attack*player.hero.spec.charge.damageMultiplier,{ownerId:player.id,sourceAbility:'ultimate'});
+          const charge = player.hero.spec.charge;
+          const currentRamp = Math.min(charge.rampCap, player.hero.chargeDamageBonus || 0);
+          const dealt = damageMonster(monster, player.hero.attack * charge.damageMultiplier * (1 + currentRamp),
+            { ownerId: player.id, sourceAbility: 'ultimate' });
+          if (dealt > 0) player.hero.chargeDamageBonus = Math.min(charge.rampCap, currentRamp + charge.rampPerHit);
           pushFromDash(monster, player, now);
         }
       }
     }
 
+    for (const player of players.values()) {
+      if (player.heroId === 'guardian' && player.hero.chargeUntil > 0 && now >= player.hero.chargeUntil) endGuardianCharge(player, now);
+    }
+
     for (let i=pendingChains.length-1;i>=0;i--) {
       const chain=pendingChains[i]; if(now<chain.at) continue;
       const target=monsters.get(chain.targetId);
+      const cast = pendingChainCasts.get(chain.castId);
       if(target) {
+        const owner = players.get(chain.ownerId);
+        const stunned = target.stunnedUntil > now;
+        let refundMs = 0;
+        let cooldownRefilled = false;
+        let remainingMs = 0;
+        if (owner?.heroId === 'electromancer' && cast) {
+          cast.hitCount += 1;
+          if (stunned) cast.stunnedHitCount += 1;
+          const cooldown = owner.hero.cooldowns.ultimate;
+          const beforeRemainingMs = Math.max(0, cooldown.readyAt - now);
+          const stunMultiplier = stunned ? GAME_CONFIG.arenaTuning.heroTweaks.electroStunRefundMultiplier : 1;
+          const wantedRefundMs = owner.hero.spec.ultimateCooldownMs
+            * GAME_CONFIG.arenaTuning.heroTweaks.electroChainRefundPct * stunMultiplier;
+          refundMs = Math.min(beforeRemainingMs, wantedRefundMs);
+          if (refundMs > 0) cooldown.readyAt = Math.max(now, cooldown.readyAt - refundMs);
+          remainingMs = Math.max(0, cooldown.readyAt - now);
+          cooldownRefilled = beforeRemainingMs > 0 && remainingMs <= 0;
+          cast.refundedMs += refundMs;
+        }
         damageMonster(target,chain.damage,{ownerId:chain.ownerId,sourceAbility:'ultimate'});
-        nsp.emit('lightning_chain',{x1:chain.x1,y1:chain.y1,x2:target.x,y2:target.y});
+        nsp.emit('lightning_chain',{x1:chain.x1,y1:chain.y1,x2:target.x,y2:target.y,sourceId:chain.ownerId,targetId:target.id});
         nsp.emit('lightning_flash',{id:target.id,x:target.x,y:target.y});
+        if (owner?.heroId === 'electromancer' && cast) nsp.emit('electro_chain_refund', {
+          playerId: owner.id, x: target.x, y: target.y, heroX: owner.x, heroY: owner.y,
+          targetId: target.id, stunned, hitCount: cast.hitCount, stunnedHitCount: cast.stunnedHitCount,
+          refundMs, totalRefundedMs: cast.refundedMs, remainingMs, lockoutRemainingMs: Math.max(0, owner.hero.ultimateLockoutUntil - now),
+          cooldownRefilled, castId: chain.castId,
+        });
+      }
+      if (cast) {
+        cast.processed += 1;
+        if (cast.processed >= cast.planned) {
+          console.info('[Hero Lab] Electromancer Chain Lightning', {
+            castId: cast.castId, enemiesHit: cast.hitCount, stunnedEnemiesHit: cast.stunnedHitCount,
+            secondsRefunded: Number((cast.refundedMs / 1000).toFixed(3)),
+          });
+          pendingChainCasts.delete(cast.castId);
+        }
       }
       pendingChains.splice(i,1);
     }
@@ -1075,11 +1215,11 @@ function attachHeroLab(io, services = null) {
           if (proj.hitTargets.has(monster.id) || Math.hypot(monster.x-proj.x,monster.y-proj.y) > proj.explosionRadius+monster.radius) continue;
           proj.hitTargets.add(monster.id);
           damageMonster(monster,proj.damage,{ownerId:proj.ownerId,sourceAbility:'skill'});
-          if (!monster.isBoss) monster.stunnedUntil=now+proj.stunMs;
+          monster.stunnedUntil=now+proj.stunMs;
           if (!proj.areaVisualSent) {
             proj.areaVisualSent = true;
             nsp.emit('area_effect',{x:proj.x,y:proj.y,radius:proj.explosionRadius,kind:'player',telegraphMs:0,
-              color:GAME_CONFIG.heroFxColors[proj.heroId]?.primary,sourceAbility:'skill'});
+              color:GAME_CONFIG.heroFxColors.electromancer.primary,sourceHeroId:'electromancer',sourceAbility:'skill'});
           }
         }
       }
@@ -1088,7 +1228,7 @@ function attachHeroLab(io, services = null) {
         if (target) { target.x = proj.x; target.y = proj.y; }
         const travel = Math.hypot(proj.x - proj.trapOrigin.x, proj.y - proj.trapOrigin.y);
         if (target && (travel >= proj.trap.travelDistance || proj.dead)) {
-          const finisher = target.hp <= proj.trap.damage;
+          const finisher = target.hp <= proj.trap.finisherDamage;
           target.trappedBy = null;
           explode({ x: proj.x, y: proj.y, radius: finisher ? proj.trap.finisherRadius : proj.trap.explosionRadius,
             damage: finisher ? proj.trap.finisherDamage : proj.trap.damage, ownerId: proj.ownerId, sourceAbility: 'skill',
@@ -1103,7 +1243,7 @@ function attachHeroLab(io, services = null) {
           }
           if (proj.trapTargetId) { const target=monsters.get(proj.trapTargetId); if(target) target.trappedBy=null; }
         }
-        if (proj.detonateOnExpire || (proj.explosionRadius > 0 && !proj.trap && !proj.stunMs)) explode({x:proj.x,y:proj.y,radius:proj.explosionRadius||proj.radius,damage:proj.damage,knockback:proj.knockback,stunMs:proj.stunMs,ownerId:proj.ownerId,sourceAbility:proj.sourceAbility,color:proj.color},now);
+        if (proj.detonateOnExpire || (proj.explosionRadius > 0 && !proj.trap && !proj.stunMs)) explode({x:proj.x,y:proj.y,radius:proj.explosionRadius||proj.radius,damage:proj.damage,knockback:proj.knockback,stunMs:proj.stunMs,ownerId:proj.ownerId,sourceAbility:proj.sourceAbility,refundGroupId:proj.id,color:proj.color},now);
         projectiles.delete(id);
       }
     }
@@ -1138,7 +1278,7 @@ function attachHeroLab(io, services = null) {
             proj.trapTargetId=mId; proj.trapOrigin={x:proj.x,y:proj.y}; monster.trappedBy=proj.id; monster.x=proj.x; monster.y=proj.y;
             break;
           }
-          const damage = damageMonster(monster,proj.damage,{ownerId:proj.ownerId,sourceAbility:proj.sourceAbility||'weapon'});
+          const damage = damageMonster(monster,proj.damage,{ownerId:proj.ownerId,sourceAbility:proj.sourceAbility||'weapon',refundGroupId:proj.id});
           proj.hitTargets.add(mId);
           if (!proj.ricocheted && proj.sourceAbility === 'weapon' && hasRunEffect('ricochet')) {
             const ricochet = GAME_CONFIG.arenaTuning.cards.effects;
@@ -1159,7 +1299,7 @@ function attachHeroLab(io, services = null) {
               nsp.emit('ricochet_line', { x1: monster.x, y1: monster.y, x2: target.x, y2: target.y, heroId: proj.heroId });
             }
           }
-          if (proj.explosionRadius > 0) explode({x:proj.x,y:proj.y,radius:proj.explosionRadius,damage:proj.damage,knockback:proj.knockback,stunMs:proj.stunMs,ownerId:proj.ownerId,sourceAbility:proj.sourceAbility,excludeId:mId,color:proj.color},now);
+          if (proj.explosionRadius > 0) explode({x:proj.x,y:proj.y,radius:proj.explosionRadius,damage:proj.damage,knockback:proj.knockback,stunMs:proj.stunMs,ownerId:proj.ownerId,sourceAbility:proj.sourceAbility,refundGroupId:proj.id,excludeId:mId,color:proj.color},now);
           if (proj.onHit(monster) || proj.explosionRadius > 0) projectiles.delete(pId);
           break;
         }
@@ -1234,6 +1374,18 @@ function attachHeroLab(io, services = null) {
       && monsters.size === 0 && nextWaveAt === 0
     ) {
       completeWave(now);
+    }
+
+    for (const player of players.values()) {
+      if (player.heroId === 'sheriff') {
+        for (const [groupId, refund] of player.sheriffBlastRefunds) {
+          if (now - refund.lastAt > GAME_CONFIG.arenaTuning.heroTweaks.sheriffRefundGroupTtlMs) player.sheriffBlastRefunds.delete(groupId);
+        }
+        if (!player.sheriffDynamiteReady && now >= player.hero.cooldowns.skill.readyAt) {
+          player.sheriffDynamiteReady = true;
+          nsp.emit('dynamite_ready', { playerId: player.id, x: player.x, y: player.y });
+        }
+      }
     }
 
     broadcastState(now);

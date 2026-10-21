@@ -8,23 +8,76 @@ Base stats are shown before kingdom upgrades and wave buffs. Attack values are b
 
 | Hero | Type | HP | Attack | Defense | Speed | Weapon | Skill | Ultimate | Talent |
 | --- | --- | ---: | ---: | ---: | ---: | --- | --- | --- | --- |
-| Sheriff 🤠 | Physical | 105 | 12 | 5 | 225 | Revolver | Dynamite | Deadeye | Quick Draw — kills reduce Dynamite cooldown. |
-| Guardian 🛡️ | Physical | 155 | 18 | 12 | 190 | Shield Bash | Shield Rush | Unbreakable Charge | Unstoppable — kills while dashing extend the dash. |
+| Sheriff 🤠 | Physical | 105 | 12 | 5 | 225 | Revolver | Dynamite | Deadeye | Quick Draw — each kill refunds 0.4 s; one Dynamite blast refunds at most 2 s. |
+| Guardian 🛡️ | Physical | 155 | 18 | 12 | 190 | Shield Bash | Shield Rush | Unbreakable Charge | Unstoppable — dash kills extend the dash; Charge ramps damage and ends with a slam. |
 | Pilot 🧑‍✈️ | Physical | 78 | 10 | 2 | 245 | Scattershot | Dash | Mech Suit | Adrenaline — kills bring Mech Suit closer. |
 | Bombardier 💣 | Magic | 95 | 22 | 3 | 210 | Blast Bomb | Proximity Trap | Targeted Bombing | Demolitionist — primary fire explodes. |
-| Bubbles 🫧 | Magic | 110 | 12 | 4 | 220 | Bubble Spray | Bubble Trap | Bubble Rush | Finisher — Bubble Trap kills trigger a larger explosion. |
-| Electromancer ⚡ | Magic | 100 | 16 | 4 | 225 | Lightning Orb | Stun Field | Chain Lightning | Overload — deals bonus damage to stunned enemies. |
+| Bubbles 🫧 | Magic | 110 | 12 | 4 | 220 | Bubble Spray | Bubble Trap | Bubble Rush | Finisher — Bubble Trap kills trigger a larger explosion and halve the remaining skill cooldown. |
+| Electromancer ⚡ | Magic | 100 | 16 | 4 | 225 | Lightning Orb | Stun Field | Chain Lightning | Overload — Chain Lightning refunds its cooldown; stunned targets refund twice as much. |
+
+## Ability cooldowns and mechanics
+
+Cooldowns below are the base server values, before run buffs and hero talents. Weapon cooldown is the minimum interval between primary attacks. Cooldowns begin when an ability is successfully used; Bombardier's ultimate is the exception because its target can be canceled without spending the cooldown. The server config is the source of truth: [`game-config.js`](./game-config.js).
+
+| Hero | Weapon cooldown | Skill cooldown | Ultimate cooldown |
+| --- | ---: | ---: | ---: |
+| Sheriff | 0.27 s | 8 s | 30 s |
+| Guardian | 0.488 s | 6.5 s | 45 s |
+| Pilot | 0.28 s (mech: 0.638 s) | 7 s (mech: 8 s) | 40 s |
+| Bombardier | 1.05 s | 14 s | 40 s |
+| Bubbles | 0.105 s | 14 s | 35 s |
+| Electromancer | 0.525 s | 10 s | 35 s |
+
+### Sheriff
+
+- **Revolver:** Fires one fast bullet. **Dynamite (E):** Throws a fast explosive with a 1.5 s lifetime and 115 px blast radius; it deals 1.6× attack damage.
+- **Deadeye (Q):** Lasts 5 s and fires an 8 px bullet every 0.18 s while primary fire is held. Aim and position continue updating during the stream.
+- **Quick Draw:** Each qualifying kill refunds 0.4 s from Dynamite's remaining cooldown. Dynamite kills qualify, but a single Dynamite blast can refund at most 2 s total. Dynamite's base cooldown remains 8 s.
+
+### Guardian
+
+- **Shield Bash:** Throws a short-lived shield projectile (0.24 s) for 0.8× attack damage.
+- **Shield Rush (E):** A 0.7 s mouse-aimed burst at 3.2× movement speed, with 0.7 s of invulnerability. It deals 1.2× attack damage and knocks enemies back. Kills can add 0.15 s per kill, up to 1.2× the base dash duration (0.84 s total).
+- **Unbreakable Charge (Q):** A steerable 6 s charge at 440 px/s with invulnerability. It hits the same enemy at most once every 0.35 s. Each hit increases damage to subsequent hits by 10%, up to +100%. Kills can extend the charge by 0.15 s each, up to 7.2 s total. When the charge ends, Guardian slams for 2× attack damage (before the ramp) in a 150 px radius, with knockback. Press Q again to end early. The optional 40% damage-reduction brace for 1.5 s after Shield Rush is implemented but disabled by default.
+
+### Pilot
+
+- **Scattershot:** Fires 7 pellets with a 0.32 radian spread; each pellet deals 0.4× attack damage.
+- **Dash (E):** A 250 px aimed dash over 0.4 s.
+- **Mech Suit (Q):** Lasts 12 s, is invulnerable, and changes Pilot's stats and moves. The weapon becomes a 2.8× explosive fist; the skill becomes a 260 px dash over 0.42 s, dealing 1.5× mech attack damage with knockback.
+- **Adrenaline:** Kills remove up to 1 s from Mech Suit's remaining ultimate cooldown, capped at reducing 50% of the base cooldown in one cooldown cycle.
+
+### Bombardier
+
+- **Blast Bomb:** Bomb travels at 410 px/s, then explodes at its 0.85 s lifetime or range end, dealing 1.2× attack damage in a 100 px radius.
+- **Proximity Trap (E):** Places a trap at Bombardier's position. It triggers within 125 px, then deals 2.2× attack damage in a 130 px blast.
+- **Targeted Bombing (Q):** Opens a 5 s targeting window. Right-click confirms a 280 px pattern and schedules five bombs at 1 s intervals. Each blast uses a 135 px radius and 1.7× attack damage. The 40 s cooldown starts on confirmation; canceling or timing out does not consume it.
+
+### Bubbles
+
+- **Bubble Spray:** Holding primary fire sprays bubbles every 0.105 s. Each bubble has randomized spread, travels up to 315 px, and deals 0.14× attack damage.
+- **Bubble Trap (E):** Launches at 880 px/s for up to 390 px. On enemy contact, it carries the target. At the end of travel it deals 9 damage in a 110 px blast. If the carried target has 44 HP or less when the trap resolves, it instead deals 44 damage in a 235 px finisher blast. A kill credited to Bubble Trap halves the remaining skill cooldown.
+- **Bubble Rush (Q):** Lasts 6 s at 2.6× walking speed; it pops early if Bubbles fires or uses E. The pop deals 2.2× attack damage within 145 px.
+
+### Electromancer
+
+- **Lightning Orb:** Fires a piercing orb (up to 2 pierces) with a 2.4 s lifetime.
+- **Stun Field (E):** Fires a blue projectile at 440 px/s. On detonation it deals 0.7× attack damage and stuns enemies in a 120 px radius for 1.9 s.
+- **Chain Lightning (Q):** Deals 1.4× attack damage per hit and jumps every 0.26 s to nearby enemies within 220 px. It can chain through any number of enemies in range, hitting each target once per cast.
+- **Overload:** Each Chain Lightning hit refunds 4% of its 35 s base ultimate cooldown (1.4 s). Hitting a stunned enemy refunds twice that (2.8 s). Refunds are based on the base cooldown, so Rally does not increase them. Q cannot be cast again for at least 5 s after any cast, even if the cooldown refills sooner. Overload no longer adds damage to stunned targets.
+
+Run buffs can modify cooldowns or combat values. The Rally team buff reduces ultimate cooldowns by 20%. Cooldown refunds from talents are described above; live remaining times and the Electro lockout are shown by the HUD.
 
 ### Kingdom upgrades in World
 
-The server reads building levels from the signed-in student's saved kingdom when the hero joins. Each level grants a flat +10:
+The server reads building levels from the signed-in student's saved kingdom when the hero joins. Library and Workshop add 10% of the hero's base attack per level, before run buffs, up to level 3 (+30%). Garden adds 10% of the base campfire HP per level for each player in the shared run, once per player (also capped at level 3):
 
-- **Library:** +10 attack per level for magic heroes.
-- **Workshop:** +10 attack per level for physical heroes.
-- **Garden:** +10 campfire max HP per level for each player in the shared run.
+- **Library:** +10% base attack per level for magic heroes.
+- **Workshop:** +10% base attack per level for physical heroes.
+- **Garden:** +10% of base campfire max HP per level per player in the shared run.
 - **Tower:** no combat bonus is configured yet.
 
-Buildings cap at level 3, so each active upgrade grants up to +30. The shared run adds each player's Garden bonus once. The client does not send its own building levels or bonus values.
+At level 3, the Library or Workshop grants +30% matching attack. With the 100 HP base campfire, Garden level 3 gives 130 max HP in a solo run; four players with Garden level 3 each give the shared campfire 220 max HP. The shared run adds each player's Garden bonus once. The client does not send its own building levels or bonus values.
 
 ## Controls
 

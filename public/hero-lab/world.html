@@ -8,6 +8,7 @@
 </head>
 <body>
   <canvas id="world" width="1920" height="1080" aria-label="Hero Lab World game arena"></canvas>
+  <div id="overload-flash" aria-hidden="true"></div>
   <aside id="hero-hud" aria-live="polite">
     <strong id="hero-name">Joining the world…</strong>
     <div class="health-row">
@@ -40,6 +41,8 @@
     <section id="settings-panel" hidden aria-label="Arena settings">
       <strong>Settings</strong>
       <label><input id="shake-setting" type="checkbox" checked> Screen shake</label>
+      <label for="shake-intensity-setting">Shake intensity <span id="shake-intensity-value"></span></label>
+      <input id="shake-intensity-setting" type="range">
       <label><input id="numbers-setting" type="checkbox" checked> Damage numbers</label>
       <label><input id="mute-setting" type="checkbox"> Mute sound</label>
       <label for="volume-setting">Master volume</label>
@@ -75,8 +78,8 @@
   <div id="targeting-hint" hidden>Right-click to confirm bombing location · Esc to cancel</div>
   <aside id="ability-hud" aria-label="Hero abilities">
     <div class="ability" data-ability="weapon"><span class="ability-circle"><span class="ability-key">M1</span></span><span class="ability-name">Weapon</span></div>
-    <div class="ability" data-ability="skill"><span class="ability-circle"><span class="ability-key">E</span></span><span class="ability-name">Skill</span></div>
-    <div class="ability" data-ability="ultimate"><span class="ability-circle"><span class="ability-key">Q</span></span><span class="ability-name">Ultimate</span></div>
+    <div class="ability" data-ability="skill"><span class="ability-circle"><span class="ability-key">E</span></span><span class="ability-name">Skill</span><small class="cooldown-refund-label" hidden></small></div>
+    <div class="ability" data-ability="ultimate"><span class="ability-circle"><span class="ability-key">Q</span><small class="ability-lockout"></small></span><span class="ability-name">Ultimate</span></div>
   </aside>
   <section id="milestone-dawn" hidden aria-label="Wave milestone choice">
     <strong>DAWN!</strong>

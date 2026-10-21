@@ -1,6 +1,9 @@
 * { box-sizing: border-box; }
 html, body { width: 100%; height: 100%; margin: 0; overflow: hidden; background: #70a94f; font: 15px/1.4 system-ui, sans-serif; }
 #world { position: fixed; top: 50%; left: 50%; display: block; width: min(100vw, 177.78vh); height: auto; aspect-ratio: 16 / 9; transform: translate(-50%, -50%); }
+#overload-flash { position: fixed; z-index: 6; inset: 0; opacity: 0; pointer-events: none; background: rgb(83 184 255 / 17%); }
+#overload-flash.show { animation: overload-flash var(--overload-flash-duration, 150ms) ease-out both; }
+@keyframes overload-flash { 20% { opacity: 1; } 100% { opacity: 0; } }
 #hero-hud, #wave-hud { position: fixed; z-index: 1; top: 1rem; color: #fff; background: rgb(17 24 39 / 84%); border: 1px solid rgb(255 255 255 / 25%); border-radius: .75rem; box-shadow: 0 4px 16px #0004; }
 #hero-hud { left: 1rem; display: grid; gap: .45rem; min-width: min(255px, calc(100vw - 2rem)); padding: .7rem .9rem; }
 #hero-name { font-size: 1.1rem; }
@@ -60,10 +63,26 @@ html, body { width: 100%; height: 100%; margin: 0; overflow: hidden; background:
 #bottom-left-tools #buff-icons { max-width: 220px; }
 #info-button { display: grid; justify-items: center; gap: .25rem; padding: 0; color: white; font: inherit; font-size: .72rem; background: transparent; border: 0; cursor: pointer; }
 #info-button:focus-visible { outline: 2px solid white; outline-offset: 3px; border-radius: .5rem; }
-.ability-circle { display: grid; width: 62px; height: 62px; place-items: center; color: white; background: linear-gradient(to top, var(--fill-color) var(--fill, 100%), #353b47 var(--fill, 100%)); border: 2px solid rgb(255 255 255 / 75%); border-radius: 50%; box-shadow: 0 3px 12px #0007; font-weight: 800; }
+.ability-circle { position: relative; display: grid; width: 62px; height: 62px; place-items: center; color: white; background: linear-gradient(to top, var(--fill-color) var(--fill, 100%), #353b47 var(--fill, 100%)); border: 2px solid rgb(255 255 255 / 75%); border-radius: 50%; box-shadow: 0 3px 12px #0007; font-weight: 800; transition: --fill var(--cooldown-ring-transition, 100ms) linear; }
+@property --fill { syntax: '<percentage>'; inherits: false; initial-value: 100%; }
 .ability-circle.ready { background: var(--fill-color); }
 .ability-circle.ready-pulse { animation: ability-ready .3s ease-out; }
 @keyframes ability-ready { 50% { box-shadow: 0 0 0 9px #fff8, 0 0 24px var(--fill-color); transform: scale(1.12); } }
+.ability-circle.locked { filter: saturate(.7); }
+.ability-lockout { position: absolute; right: -2px; bottom: 3px; display: none; min-width: 1.1rem; padding: 0 .2rem; border-radius: 99px; color: #fff; background: #263244; font-size: .65rem; line-height: 1.1rem; }
+.ability-circle.locked .ability-lockout { display: block; }
+.ability.sheriff-skill-ready .ability-circle { --fill-color: #ffd34f !important; }
+.ability.sheriff-skill-ready .ability-circle.ready { animation: dynamite-ready-glow var(--sheriff-ready-glow-period, 1s) ease-in-out infinite; }
+@keyframes dynamite-ready-glow { 50% { box-shadow: 0 0 10px 3px #ffd34f99, 0 0 22px #ffbe3d66; } }
+.ability-circle.dynamite-ready-pulse::after { position: absolute; inset: -5px; border: 2px solid #ffe17c; border-radius: inherit; content: ''; animation: dynamite-ready-ring var(--sheriff-ready-ring-duration, 300ms) ease-out both; }
+@keyframes dynamite-ready-ring { 100% { opacity: 0; transform: scale(1.35); } }
+.ability-circle.cooldown-refund-pulse { animation: cooldown-refund-jump var(--sheriff-refund-pulse-duration, 100ms) ease-out; }
+@keyframes cooldown-refund-jump { 50% { box-shadow: 0 0 0 5px #ffe17caa, 0 0 18px #ffc43d; transform: scale(1.08); } }
+.cooldown-refund-label { color: #ffe17c; font-size: .68rem; font-weight: 800; text-shadow: 0 1px 3px #000; }
+.cooldown-refund-label.show { animation: refund-label-fade var(--sheriff-refund-label-duration, 500ms) ease-out both; }
+@keyframes refund-label-fade { 15% { opacity: 1; transform: translateY(0); } 100% { opacity: 0; transform: translateY(-8px); } }
+.ability-circle.overload-pulse { animation: overload-ring var(--overload-feedback-duration, 900ms) ease-out; }
+@keyframes overload-ring { 20% { box-shadow: 0 0 0 10px #66d8ffcc, 0 0 30px #48cfff; transform: scale(1.12); } }
 .info-circle { --fill-color: #606978; --fill: 100%; font-size: 1.15rem; }
 #stats-panel { display: grid; min-width: 176px; gap: .2rem; padding: .65rem .8rem; color: #fff; background: rgb(17 24 39 / 91%); border: 1px solid rgb(255 255 255 / 25%); border-radius: .65rem; box-shadow: 0 4px 16px #0005; font-size: .82rem; }
 #stats-panel span { display: flex; justify-content: space-between; gap: 1rem; color: #d1d5db; }

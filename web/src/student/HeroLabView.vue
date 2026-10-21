@@ -4,6 +4,8 @@
 import { computed, nextTick, onMounted, onUnmounted, ref } from 'vue';
 import Heading from '../components/Heading.vue';
 import { loadHome } from './home.js';
+import { formatHeroType } from './hero-type.js';
+import { BASE_CAMPFIRE_HP, BUILDING_BONUS_PER_LEVEL, BUILDING_LEVEL_CAP } from '../../../config/tuning.js';
 
 const selectedHero = ref(null);
 const gameFrame = ref(null);
@@ -16,13 +18,22 @@ const heroes = computed(() => roster.value?.catalog.heroes || []);
 const ownsHero = (id) => roster.value?.inventory.heroes.includes(id) || false;
 const buildingLevels = computed(() => roster.value?.kingdom?.buildings || {});
 const buildings = [
-  { id: 'library', name: 'Library', icon: '📚', applies: (hero) => hero?.type === 'magic', label: 'magic damage' },
-  { id: 'workshop', name: 'Workshop', icon: '🛠️', applies: (hero) => hero?.type === 'physical', label: 'physical damage' },
-  { id: 'garden', name: 'Garden', icon: '🌷', applies: () => true, label: 'campfire max HP' },
+  { id: 'library', name: 'Library', icon: '📚', applies: (hero) => hero?.type === 'magic', label: 'magic attack' },
+  { id: 'workshop', name: 'Workshop', icon: '🛠️', applies: (hero) => hero?.type === 'physical', label: 'physical attack' },
+  { id: 'garden', name: 'Garden', icon: '🌷', applies: () => true, label: 'campfire max HP per player' },
   { id: 'tower', name: 'Tower', icon: '🗼', applies: () => false, label: 'no combat bonus yet' },
 ];
-const buildingPercent = (id) => Math.min(40, Math.max(0, Number(buildingLevels.value[id]) || 0) * 4);
+const buildingLevel = (id) => Math.min(BUILDING_LEVEL_CAP, Math.max(0, Math.floor(Number(buildingLevels.value[id]) || 0)));
+const buildingPercent = (id) => Math.round(buildingLevel(id) * BUILDING_BONUS_PER_LEVEL * 100);
 const buildingEffect = (building) => building.id === 'tower' ? building.label : `+${buildingPercent(building.id)}% ${building.label}`;
+const buildingSummary = (building) => `${building.name} Lv${buildingLevel(building.id)}: ${buildingEffect(building)}`;
+const gardenSummary = computed(() => {
+  const perPlayer = Math.round(BASE_CAMPFIRE_HP * buildingPercent('garden') / 100);
+  const maxPlayerBonus = Math.round(BASE_CAMPFIRE_HP * BUILDING_BONUS_PER_LEVEL * BUILDING_LEVEL_CAP);
+  const soloMax = BASE_CAMPFIRE_HP + maxPlayerBonus;
+  const fourPlayerMax = BASE_CAMPFIRE_HP + maxPlayerBonus * 4;
+  return `Garden Lv${buildingLevel('garden')} adds ${perPlayer} campfire HP per player; at Lv${BUILDING_LEVEL_CAP}, base ${BASE_CAMPFIRE_HP} HP becomes ${soloMax} HP solo or ${fourPlayerMax} HP with four players all at Lv${BUILDING_LEVEL_CAP}.`;
+});
 
 function chooseHero(hero) {
   selectedHero.value = hero;
@@ -59,18 +70,18 @@ onUnmounted(() => window.removeEventListener('message', returnToSelection));
   <section class="hero-lab-page">
     <template v-if="!selectedHero">
       <Heading title="World" />
-      <p class="muted">Choose a hero to defend the campfire. Each Library or Workshop level adds 4% matching hero damage, up to 40%; each Garden level adds 4% shared campfire max HP, up to 40%. Move with WASD or the arrow keys, aim with the mouse, and fire with the left mouse button. Press E to use your skill and Q for your ultimate.</p>
+      <p class="muted">Choose a hero to defend the campfire. Each Library or Workshop level adds 10% matching hero attack, up to 30%; each Garden level adds 10% of base campfire HP per player. Move with WASD or the arrow keys, aim with the mouse, and fire with the left mouse button. Press E to use your skill and Q for your ultimate.</p>
       <p class="hero-lab-tip">Tip: Move to deal more damage. Heal at the campfire.</p>
       <section class="panel kingdom-preview" aria-label="Kingdom upgrades for this run">
         <strong>Your kingdom upgrades</strong>
         <span class="muted small">Select or hover over a hero to see which damage building applies.</span>
         <div class="kingdom-building-list">
           <div v-for="building in buildings" :key="building.id" class="kingdom-building" :class="{ relevant: building.applies(previewHero) && previewHero }">
-            <span>{{ building.icon }} {{ building.name }} Lv {{ buildingLevels[building.id] || 0 }}</span>
-            <b>{{ buildingEffect(building) }}</b>
+            <span>{{ buildingSummary(building) }}</span>
           </div>
         </div>
-        <span v-if="previewHero" class="small">{{ previewHero.name }} receives {{ buildings.filter((building) => building.applies(previewHero) && building.id !== 'garden').map(buildingEffect).join(', ') || 'no damage building bonus' }}{{ buildingPercent('garden') ? ` and +${buildingPercent('garden')}% campfire max HP` : '' }}.</span>
+        <span class="small">{{ gardenSummary }}</span>
+        <span v-if="previewHero" class="small">{{ previewHero.name }} receives {{ buildings.filter((building) => building.applies(previewHero) && building.id !== 'garden').map(buildingEffect).join(', ') || 'no matching attack building bonus' }}{{ buildingPercent('garden') ? ` and +${buildingPercent('garden')}% campfire max HP per player` : '' }}.</span>
       </section>
       <p v-if="loadingRoster" class="muted">Loading your hero collection…</p>
       <div v-else-if="rosterError" class="note bad">{{ rosterError }}</div>
@@ -78,7 +89,7 @@ onUnmounted(() => window.removeEventListener('message', returnToSelection));
         <button v-for="hero in heroes" :key="hero.id" class="panel hero-lab-card" :class="{ locked: !ownsHero(hero.id), previewed: previewHero?.id === hero.id }" type="button" :disabled="!ownsHero(hero.id) || loadingRoster" @mouseenter="previewHero = hero" @focus="previewHero = hero" @click="previewHero = hero; chooseHero(hero)">
           <strong class="hero-lab-name">{{ hero.emoji }} {{ hero.name }}</strong>
           <span>{{ hero.rarity }}★ · {{ hero.weapon }}</span>
-          <span class="muted small">{{ hero.type }} · HP {{ hero.hp }} · Attack {{ hero.attack }} · Defense {{ hero.defense }} · Speed {{ hero.speed }}</span>
+          <span class="muted small">{{ formatHeroType(hero.type) }} · HP {{ hero.hp }} · Attack {{ hero.attack }} · Defense {{ hero.defense }} · Speed {{ hero.speed }}</span>
           <span v-if="ownsHero(hero.id)" class="small">Owned</span>
           <span v-else class="muted small">Summon to unlock</span>
         </button>

@@ -1,19 +1,22 @@
 <script setup>
 import { nextTick, onMounted, onUnmounted, ref } from 'vue';
 import { api } from '../api.js';
-import { loadHome, updateBalances } from '../student/home.js';
+import { loadHome, store, updateBalances } from '../student/home.js';
+import { DEBUG_TUNING } from '../../../config/tuning.js';
 import packageJson from '../../../package.json';
 
 const enabled = ref(false);
 const versionOpen = ref(false);
 const open = ref(false);
 const balance = ref(0);
+const resourceBalances = ref({});
 const error = ref('');
 const saved = ref(false);
 const versionNotice = ref('');
 const versionDialog = ref(null);
 const debugDialog = ref(null);
 const appVersion = packageJson.version;
+const resources = () => Object.entries(store.home?.catalog.resources || {});
 const code = ['ArrowUp', 'ArrowUp', 'ArrowDown', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'ArrowLeft', 'ArrowRight', 'b', 'a', 'Enter'];
 let position = 0;
 
@@ -54,19 +57,38 @@ async function openVersion() {
   versionDialog.value?.focus();
 }
 
-async function saveBalance() {
+async function setWalletBalance(nextBalance = balance.value) {
   error.value = '';
   saved.value = false;
   try {
-    const wallet = await api('POST', '/api/student/debug/wallet', { balance: Number(balance.value) });
+    const wallet = await api('POST', '/api/student/debug/wallet', { balance: Number(nextBalance) });
     updateBalances({ wallet });
+    balance.value = wallet.balance;
     saved.value = true;
   } catch (err) { error.value = err.message; }
 }
 
+async function setResourceBalance(resource, nextBalance = resourceBalances.value[resource]) {
+  error.value = '';
+  saved.value = false;
+  try {
+    const result = await api('POST', '/api/student/debug/resources', { resource, balance: Number(nextBalance) });
+    updateBalances({ resources: result.resources });
+    resourceBalances.value = { ...resourceBalances.value, [resource]: result.resources[resource] };
+    saved.value = true;
+  } catch (err) { error.value = err.message; }
+}
+
+function adjustWallet(amount) { return setWalletBalance(Math.max(DEBUG_TUNING.minimumBalance, Math.min(DEBUG_TUNING.maximumBalance, balance.value + amount))); }
+function adjustResource(resource, amount) { return setResourceBalance(resource, Math.max(DEBUG_TUNING.minimumBalance, Math.min(DEBUG_TUNING.maximumBalance, Number(resourceBalances.value[resource]) + amount))); }
+
 async function openMenu() {
   open.value = true;
-  try { balance.value = (await loadHome()).wallet.balance; }
+  try {
+    const home = await loadHome();
+    balance.value = home.wallet.balance;
+    resourceBalances.value = Object.fromEntries(Object.keys(home.catalog.resources).map((resource) => [resource, home.inventory.resources[resource] || 0]));
+  }
   catch (err) { error.value = err.message; }
   await nextTick();
   debugDialog.value?.focus();
@@ -96,11 +118,26 @@ onUnmounted(() => window.removeEventListener('keydown', konami, true));
     <div ref="debugDialog" class="panel debug-panel" tabindex="-1">
       <button class="btn small debug-close" type="button" aria-label="Close debug menu" @click="open = false">×</button>
       <h2 id="debug-title">Demo debug menu</h2>
-      <p class="muted small">Change this signed-in student's coin balance for summon playtesting.</p>
-      <form @submit.prevent="saveBalance">
+      <p class="muted small">Change this signed-in student's coins and kingdom resources for playtesting.</p>
+      <form class="resource-controls" @submit.prevent="setWalletBalance()">
         <label for="debug-balance">Coin balance</label>
-        <input id="debug-balance" v-model.number="balance" type="number" min="0" max="1000000" step="1" required>
-        <button class="btn primary" type="submit">Set balance</button>
+        <input id="debug-balance" v-model.number="balance" type="number" :min="DEBUG_TUNING.minimumBalance" :max="DEBUG_TUNING.maximumBalance" :step="DEBUG_TUNING.inputStep" required>
+        <div class="debug-actions">
+          <button class="btn primary" type="submit">Set</button>
+          <button class="btn" type="button" @click="adjustWallet(DEBUG_TUNING.smallAdjustment)">+{{ DEBUG_TUNING.smallAdjustment }}</button>
+          <button class="btn" type="button" @click="adjustWallet(DEBUG_TUNING.largeAdjustment)">+{{ DEBUG_TUNING.largeAdjustment }}</button>
+          <button class="btn" type="button" @click="setWalletBalance(DEBUG_TUNING.minimumBalance)">Reset to 0</button>
+        </div>
+      </form>
+      <form v-for="[resource, details] in resources()" :key="resource" class="resource-controls" @submit.prevent="setResourceBalance(resource)">
+        <label :for="`debug-resource-${resource}`">{{ details.emoji }} {{ details.name }}</label>
+        <input :id="`debug-resource-${resource}`" v-model.number="resourceBalances[resource]" type="number" :min="DEBUG_TUNING.minimumBalance" :max="DEBUG_TUNING.maximumBalance" :step="DEBUG_TUNING.inputStep" required>
+        <div class="debug-actions">
+          <button class="btn primary" type="submit">Set</button>
+          <button class="btn" type="button" @click="adjustResource(resource, DEBUG_TUNING.smallAdjustment)">+{{ DEBUG_TUNING.smallAdjustment }}</button>
+          <button class="btn" type="button" @click="adjustResource(resource, DEBUG_TUNING.largeAdjustment)">+{{ DEBUG_TUNING.largeAdjustment }}</button>
+          <button class="btn" type="button" @click="setResourceBalance(resource, DEBUG_TUNING.minimumBalance)">Reset to 0</button>
+        </div>
       </form>
       <p v-if="saved" class="small">Balance updated.</p>
       <p v-if="error" class="note bad small">{{ error }}</p>
@@ -110,9 +147,10 @@ onUnmounted(() => window.removeEventListener('keydown', konami, true));
 
 <style scoped>
 .debug-backdrop { position:fixed;z-index:50;inset:0;background:#101322bb;display:grid;place-items:center;padding:16px; }
-.debug-panel { position:relative;width:min(380px,100%);display:grid;gap:12px; }
+.debug-panel { position:relative;width:min(520px,100%);max-height:min(90vh,760px);overflow:auto;display:grid;gap:12px; }
 .debug-panel h2,.debug-panel p { margin:0; }
 .debug-panel form { display:grid;gap:8px; }
+.debug-actions { display:flex;flex-wrap:wrap;gap:6px; }
 .debug-trigger { flex:none; }
 .version-panel { width:min(320px,100%);min-height:110px;place-items:center; }
 .debug-close { position:absolute;top:10px;right:10px; }

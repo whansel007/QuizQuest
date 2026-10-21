@@ -104,10 +104,13 @@ function start(port, opts = {}) {
     }
     const pathname = req.url.split('?')[0];
     const isHeroLabPath = pathname === '/hero-lab' || pathname.startsWith('/hero-lab/');
+    const isTuningPath = pathname === '/config/tuning.js';
     // Keep the short URL used by the student hero picker and the run-again
     // button mapped to the actual standalone arena document.
     const heroLabPath = pathname === '/hero-lab/world' ? '/hero-lab/world.html' : pathname;
-    const file = TAG[pathname] || (isHeroLabPath
+    const file = TAG[pathname] || (isTuningPath
+      ? path.join(__dirname, 'config', 'tuning.js')
+      : isHeroLabPath
       ? path.resolve(heroLabDir, heroLabPath === '/hero-lab' ? 'index.html' : '.' + heroLabPath.slice('/hero-lab'.length))
       : path.join(distDir, pathname === '/' ? 'index.html' : pathname));
     if (isHeroLabPath && file !== heroLabDir && !file.startsWith(heroLabDir + path.sep)) {
@@ -116,7 +119,7 @@ function start(port, opts = {}) {
     }
     // Guard against path traversal attempts like GET /../server.js
     // (the trailing separator stops a sibling folder like "dist-old" matching)
-    if (!TAG[pathname] && !isHeroLabPath && !file.startsWith(distDir + path.sep)) {
+    if (!TAG[pathname] && !isHeroLabPath && !isTuningPath && !file.startsWith(distDir + path.sep)) {
       res.writeHead(403);
       return res.end();
     }

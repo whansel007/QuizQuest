@@ -3,6 +3,7 @@
 // and the hero or resource appears in a slowly turning 3D collector's box.
 import { ref, computed, nextTick, onMounted, onUnmounted } from 'vue';
 import { RARITY } from './rarity.js';
+import { formatHeroType } from '../hero-type.js';
 
 const props = defineProps({
   result: { type: Object, required: true }, // server summon result plus eggColour
@@ -121,7 +122,7 @@ onUnmounted(() => {
             <span v-else-if="isHero" class="prize-tag new">New hero!</span>
             <span v-else class="prize-tag new">+{{ result.prize.amount }} {{ itemName }}</span>
           </div>
-          <p v-if="isHero" class="prize-move">{{ item.type }} hero · {{ item.weapon }}</p>
+          <p v-if="isHero" class="prize-move">{{ formatHeroType(item.type) }} hero · {{ item.weapon }}</p>
           <p v-else class="prize-move">Added to your kingdom resources</p>
           <p class="prize-move pity-line">{{ result.pity.totalPulls }} total pulls · pity {{ result.pity.sinceHero }} / {{ result.pity.sinceEpic }}</p>
           <div class="prize-actions" @click.stop>
