@@ -272,7 +272,7 @@ test('student and teacher screens fit 320px and 390px viewports', async (t) => {
     }
   }
   await page.getByRole('button', { name: 'Switch user' }).click();
-  await page.getByRole('button', { name: 'Demo Accounts', exact: true }).click();
+  await unlockTestAccounts(page);
   await page.getByRole('button', { name: 'Prof. Demo A' }).click();
   await page.setViewportSize({ width: 320, height: 800 });
   for (const name of ['Question bank', 'Source material', 'AI drafting', 'Analytics', 'Evaluation', 'Settings']) {
