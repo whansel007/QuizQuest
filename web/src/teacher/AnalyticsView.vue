@@ -382,7 +382,8 @@ function delta(key) {
   const prev = a.value.previous;
   if (!prev) return null;
   const d = a.value.participation[key] - prev[key];
-  const before = `the ${a.value.days} days before`;
+  // "the 58 days before" alone doesn't say before what, for a semester
+  const before = `the ${a.value.days} days before${a.value.range === 'semester' ? ' the semester' : ''}`;
   // a period that includes today is compared up to the same time of day,
   // so an unfinished today is never measured against a whole day
   const hint = prev.partial

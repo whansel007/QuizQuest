@@ -430,15 +430,20 @@ test('dashboard: very low accuracy is flagged, commonly missed means under 60%, 
   const page = await pageFor(t, 'Prof. Demo A');
   await page.locator('#tabs').getByRole('button', { name: 'Analytics', exact: true }).click();
   const attention = page.locator('.panel', { has: page.getByRole('heading', { name: 'Needs attention' }) });
-  // the seeded video-call question: 0 of 5 right on first attempts. One
-  // question opens straight away.
-  await attention.getByRole('button', { name: /1 question under 25% correct on first attempts/ }).click();
-  const dialog = page.getByRole('dialog');
-  await dialog.getByText(/A video call has a sharp picture/).first().waitFor();
-  await page.keyboard.press('Escape');
-  await dialog.waitFor({ state: 'hidden' });
-  // Group A is far behind Group C on Networking basics (class names, no students)
-  await attention.getByRole('button', { name: /^Networking basics: \d+% correct here vs \d+% in Computing - Tutorial Group C$/ }).waitFor();
+  // the seeded video-call question: 0 of 5 right on first attempts (earlier
+  // tests answer at random, so others may join it). One question opens
+  // straight away; several go to their list.
+  const lowest = attention.getByRole('button', { name: /\d+ questions? under 25% correct on first attempts/ });
+  const one = /^1 question /.test(await lowest.innerText());
+  await lowest.click();
+  if (one) {
+    const dialog = page.getByRole('dialog');
+    await dialog.waitFor();
+    await page.keyboard.press('Escape');
+    await dialog.waitFor({ state: 'hidden' });
+  } else await page.waitForFunction(() => document.activeElement?.closest('#dash-missed'));
+  // Group A is far behind Group C on a topic (class names, no students)
+  await attention.getByRole('button', { name: /^.+: \d+% correct here vs \d+% in Computing - Tutorial Group C$/ }).waitFor();
   // the comparison explanation opens from a button, not only on hover
   const info = page.getByRole('button', { name: 'How the answers submitted comparison works' });
   await info.click();
@@ -476,6 +481,8 @@ test('dashboard: "This semester" uses the dates set in Settings', async (t) => {
   await tabs.getByRole('button', { name: 'Analytics', exact: true }).click();
   await page.getByLabel('Period').selectOption('semester');
   await page.getByText(/students who practised \(this semester, from \d{1,2} \w{3} \d{4}\)/).waitFor();
+  // the comparison says before what
+  await page.getByText(/in the \d+ days before the semester/).first().waitFor();
   // without dates the dashboard stays put and points to Settings
   await tabs.getByRole('button', { name: 'Settings', exact: true }).click();
   await page.getByLabel('Semester starts').fill('');
