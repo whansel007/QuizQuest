@@ -11,9 +11,7 @@ const actionLog = document.querySelector('#action-log');
 const fullscreenBtn = document.querySelector('#fullscreen-btn');
 const testAiBtn = document.querySelector('#test-ai-btn');
 
-// --- NVIDIA API Configuration ---
-// Put your NVIDIA API key here (e.g. 'nvapi-...'), or put NVIDIA_API_KEY=nvapi-... in .env
-const NVIDIA_API_KEY = '';
+// Gemini credentials are configured only in the backend .env.
 
 const keys = new Set();
 const moveKeys = new Set(['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'KeyW', 'KeyA', 'KeyS', 'KeyD']);
@@ -28,13 +26,13 @@ let selectedHero = null;
 let previousFrame = 0;
 
 async function testAi() {
-  console.log('[AI] Requesting multiple choice question from NVIDIA (deepseek-ai/deepseek-v4.1-flash)...');
+  console.log('[AI] Requesting a multiple choice question from the server Gemini client...');
   try {
+    const token = sessionStorage.getItem('qq-token');
     const res = await fetch('/api/hero-lab/test-ai', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: 'Bearer ' + token } : {}) },
       body: JSON.stringify({
-        apiKey: NVIDIA_API_KEY || undefined,
         prompt: 'Make a multiple choice question about what AI is.',
       }),
     });

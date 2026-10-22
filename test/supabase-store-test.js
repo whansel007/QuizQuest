@@ -73,6 +73,43 @@ test('NUL characters (e.g. from pasted PDF text) cannot block saves', async () =
   assert.equal((await open(pg)).db.passages[0].text, 'beforeafter');
 });
 
+test('authoring checkpoints, reviewed analysis and cached parts survive a real Postgres reload',async()=>{
+  const pg=await openPglite(),s=await open(pg);
+  const course=s.db.courses[0];
+  course.authoringJobs=[{id:'job-persisted',kind:'analysis',status:'running',input:{passageIds:[s.db.passages[0].id]},result:{parts:[{markdown:'A saved analysis excerpt.',insufficient:false}]},reviewedText:'Professor reviewed content',attempts:1}];
+  course.analysisCache={'hash-value':{markdown:'A saved analysis excerpt.',insufficient:false}};
+  s.save();await s.flush();
+  const reload=await open(pg),restored=reload.db.courses.find(c=>c.id===course.id);
+  assert.deepEqual(restored.authoringJobs,course.authoringJobs);
+  assert.deepEqual(restored.analysisCache,course.analysisCache);
+  const {createAuthoring}=require('../src/quiz/authoring');
+  createAuthoring({db:reload.db,persist:async()=>{}});
+  assert.equal(restored.authoringJobs[0].status,'interrupted');
+  assert.equal(restored.authoringJobs[0].reviewedText,'Professor reviewed content');
+});
+
+test('saved knowledge report revisions and mixed-format generation survive Postgres reload',async()=>{
+  const pg=await openPglite(),s=await open(pg);
+  const {createAuthoring}=require('../src/quiz/authoring');
+  const course=s.db.courses[0];
+  const markdown='# Reviewed knowledge report\nThe professor edits and saves authoritative content before assessments are generated.';
+  const run=createAuthoring({db:s.db,persist:async()=>{s.save();await s.flush();},ai:async()=>({json:{markdown,insufficient:false}})});
+  const job=run.start(course,'report',{},course.teacherIds[0]);
+  const deadline=Date.now()+10000;
+  while(['queued','running'].includes(job.status)&&Date.now()<deadline)await new Promise(r=>setTimeout(r,10));
+  assert.equal(job.status,'complete',job.message);
+  await run.review(course,job.id,markdown,0);
+  const first=job.reportSourceId;
+  await run.review(course,job.id,markdown+'\nUpdated assessment boundary: 97 units.',1);
+  const reloaded=await open(pg),restored=reloaded.db.courses.find(c=>c.id===course.id).authoringJobs.find(j=>j.id===job.id);
+  assert.equal(restored.reportRevision,2);
+  assert.match(restored.reviewedText,/97 units/);
+  assert.equal(reloaded.db.passages.find(p=>p.id===first).text,markdown);
+  assert.equal(reloaded.db.passages.find(p=>p.id===restored.reportSourceId).text,restored.reviewedText);
+  const result=await pg.query("select count(*)::int as n from passages where origin = 'report'");
+  assert.equal(result.rows[0].n,2);
+});
+
 test('refuses to seed over unmarked data or load another schema version', async () => {
   const pg = await openPglite();
   await open(pg);

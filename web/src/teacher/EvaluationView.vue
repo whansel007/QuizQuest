@@ -80,7 +80,7 @@ const change = (r) => (r.meanAccuracyChange === null ? '-' : `${r.meanAccuracyCh
         <h3>Recommendation behaviour</h3>
         <div class="tiles">
           <div class="tile"><div class="v">{{ `${ev.recommendation.adaptive} / ${ev.recommendation.sessions}` }}</div><div class="l">sessions personalised ({{ ev.recommendation.broad }} broad)</div></div>
-          <div class="tile"><div class="v">{{ pct(ev.recommendation.meanWeakShare) }}</div><div class="l">of personalised questions from focus topics (target 70%)</div></div>
+          <div class="tile"><div class="v">{{ pct(ev.recommendation.meanWeakShare) }}</div><div class="l">of personalised questions from focus topics (target {{ pct(ev.recommendation.targetWeakShare) }})</div></div>
           <div class="tile"><div class="v">{{ ev.recommendation.shortageNotices }}</div><div class="l">sessions that disclosed a small bank</div></div>
           <div class="tile"><div class="v">{{ change(ev.recommendation) }}</div><div class="l">focus-topic accuracy, next session vs before (n={{ ev.recommendation.followUps }})</div></div>
         </div>

@@ -1,0 +1,112 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Hero Lab World</title>
+  <link rel="stylesheet" href="/hero-lab/hud.css">
+</head>
+<body>
+  <canvas id="world" width="1920" height="1080" aria-label="Hero Lab World game arena"></canvas>
+  <aside id="hero-hud" aria-live="polite">
+    <strong id="hero-name">Joining the world…</strong>
+    <div class="health-row">
+      <div class="health-track" role="meter" aria-label="Hero health" aria-valuemin="0" aria-valuemax="100" aria-valuenow="100"><span id="health-fill"></span></div>
+      <span id="health-value">-- / --</span>
+    </div>
+    <div id="team-health" aria-label="Teammate health" hidden></div>
+    <div id="downed-list" aria-label="Downed teammates" hidden></div>
+  </aside>
+  <aside id="wave-hud" aria-live="polite">
+    <strong id="wave-number">Wave 1</strong>
+    <span id="wave-details">Enemies left: --</span>
+  </aside>
+  <aside id="campfire-hud" aria-label="Campfire health">
+    <span>Campfire</span><span id="campfire-value">-- / --</span>
+    <div class="campfire-track"><span id="campfire-fill"></span></div>
+  </aside>
+  <aside id="boss-hud" aria-label="Boss health" hidden><strong id="boss-name">Brute King</strong><div class="boss-track"><span id="boss-health-fill"></span></div><span id="boss-health-value"></span></aside>
+  <div id="moment-banner" aria-live="assertive" hidden></div>
+  <div id="low-hp-vignette" aria-hidden="true" hidden></div>
+  <section id="join-briefing" hidden aria-label="Defend the campfire briefing">
+    <strong>Defend the campfire!</strong>
+    <div class="briefing-tip"><span aria-hidden="true">🟢</span><span>Stand in the green ring to heal.</span></div>
+    <div class="briefing-tip"><span aria-hidden="true">🏃</span><span>Keep moving: +20% damage while you move.</span></div>
+    <div class="briefing-tip"><span aria-hidden="true">🎮</span><span>Click fire | E skill | Q ultimate | WASD move</span></div>
+    <small>Press any key or click to close</small>
+  </section>
+  <aside id="settings-hud">
+    <button id="settings-button" type="button" aria-expanded="false" aria-controls="settings-panel">⚙ Settings</button>
+    <section id="settings-panel" hidden aria-label="Arena settings">
+      <strong>Settings</strong>
+      <label><input id="shake-setting" type="checkbox" checked> Screen shake</label>
+      <label><input id="numbers-setting" type="checkbox" checked> Damage numbers</label>
+      <label><input id="mute-setting" type="checkbox"> Mute sound</label>
+      <label for="volume-setting">Master volume</label>
+      <input id="volume-setting" type="range" min="0" max="1" step="0.01" value="0.55">
+    </section>
+  </aside>
+  <aside id="bottom-left-hud">
+    <div id="bottom-left-tools">
+      <button id="briefing-button" type="button" aria-label="Show the game briefing" title="Show the game briefing">?</button>
+      <div id="buff-icons" aria-label="Run buffs"></div>
+    </div>
+    <button id="info-button" type="button" aria-expanded="false" aria-controls="stats-panel">
+      <span class="ability-circle info-circle">I</span><span>Information</span>
+    </button>
+    <section id="stats-panel" hidden aria-label="Current hero stats">
+      <strong>Current stats</strong>
+      <span>Health <b id="stat-health">--</b></span>
+      <span>Attack <b id="stat-attack">--</b></span>
+      <span>Defense <b id="stat-defense">--</b></span>
+      <span>Speed <b id="stat-speed">--</b></span>
+      <span id="building-bonus-stat" title="Kingdom upgrades applied to this hero">🏰 Upgrades <b id="building-bonus-value">None</b></span>
+      <span id="momentum-stat" title="Moving: +20% damage" aria-label="Moving: plus 20 percent damage">🏃 Momentum <b id="momentum-status">Inactive</b></span>
+      <span class="talent-info"><em id="stat-talent-name">Talent</em><b id="stat-talent-description">--</b></span>
+    </section>
+    <strong id="kill-streak" hidden aria-live="polite"></strong>
+    <span id="connection-status" role="status">Connecting…</span>
+  </aside>
+  <section id="buff-vote" hidden aria-label="Choose a team wave buff">
+    <strong id="buff-vote-title">Choose a team buff</strong>
+    <span id="buff-vote-status">Every player votes once. Ties are random.</span>
+    <div id="buff-cards"></div>
+  </section>
+  <div id="targeting-hint" hidden>Right-click to confirm bombing location · Esc to cancel</div>
+  <aside id="ability-hud" aria-label="Hero abilities">
+    <div class="ability" data-ability="weapon"><span class="ability-circle"><span class="ability-key">M1</span></span><span class="ability-name">Weapon</span></div>
+    <div class="ability" data-ability="skill"><span class="ability-circle"><span class="ability-key">E</span></span><span class="ability-name">Skill</span></div>
+    <div class="ability" data-ability="ultimate"><span class="ability-circle"><span class="ability-key">Q</span></span><span class="ability-name">Ultimate</span></div>
+  </aside>
+  <section id="milestone-dawn" hidden aria-label="Wave milestone choice">
+    <strong>DAWN!</strong>
+    <p id="dawn-message">You survived the milestone wave.</p>
+    <div class="dawn-actions">
+      <button id="dawn-leave" type="button">LEAVE · Claim rewards</button>
+      <button id="dawn-continue" type="button">CONTINUE</button>
+    </div>
+  </section>
+  <section id="run-result" hidden aria-label="Run results">
+    <h1 id="run-result-title">Run complete</h1>
+    <p id="run-result-message"></p>
+    <div id="run-result-stats"></div>
+    <p id="run-result-teaser"></p>
+    <label for="run-again-hero">Hero for the next run</label>
+    <select id="run-again-hero"></select>
+    <div class="run-result-actions">
+      <button id="run-again" type="button">RUN AGAIN</button>
+      <button id="return-kingdom" type="button">RETURN TO KINGDOM</button>
+    </div>
+  </section>
+  <section id="session-summary" hidden aria-label="Session summary">
+    <strong>Nice session! Here is what you did</strong>
+    <p id="session-summary-text"></p>
+    <div class="run-result-actions">
+      <button id="session-stop" type="button">STOP</button>
+      <button id="session-keep-going" type="button">KEEP GOING</button>
+    </div>
+  </section>
+  <script src="/socket.io/socket.io.js"></script>
+  <script type="module" src="/hero-lab/world.js"></script>
+</body>
+</html>

@@ -3,6 +3,7 @@
 // keeps the outcome if it belongs to the new topic, else picks its first.
 import { computed, watch } from 'vue';
 import Field from '../components/Field.vue';
+import { topicLabel } from './courses.js';
 
 const props = defineProps({ course: { type: Object, required: true }, disabled: Boolean, title: { type: String, default: null } });
 const topicId = defineModel('topicId', { type: String });
@@ -16,7 +17,7 @@ watch(topicId, () => {
 <template>
   <Field class="grow" label="Topic" v-slot="{ id }">
     <select :id="id" v-model="topicId" :disabled="disabled" :title="title">
-      <option v-for="t in course.topics" :key="t.id" :value="t.id">{{ t.name }}</option>
+      <option v-for="t in course.topics" :key="t.id" :value="t.id">{{ topicLabel(t) }}</option>
     </select>
   </Field>
   <Field class="grow" label="Learning outcome" v-slot="{ id }">

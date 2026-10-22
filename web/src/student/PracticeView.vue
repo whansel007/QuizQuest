@@ -98,7 +98,8 @@ const onStart = action(async () => {
         <h3>Your practice indicator</h3>
         <p class="small muted">Accuracy on your most recent {{ prog.window }} different questions per topic. It is a rough guide for what to practise next, not a measure of mastery or a grade.</p>
         <div class="grid">
-          <div v-for="t in prog.topics" :key="t.topicId || t.name" class="tile">
+          <!-- Topics with no questions yet and no practice history are left out. -->
+          <div v-for="t in prog.topics.filter((x) => x.n || x.bank)" :key="t.topicId || t.name" class="tile">
             <div style="font-weight: 700">{{ t.name }}</div>
             <template v-if="t.n">
               <div class="v">{{ pct(t.accuracy) }}</div>

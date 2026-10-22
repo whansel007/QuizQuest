@@ -14,7 +14,7 @@
 ## Prologue — the mind-shift
 
 Once in a quiet dev-machine, there lived a shy little client who existed inside
-a browser tab (accurately rendered as `public/client.js`). All she had ever
+a browser tab (accurately rendered as `public/tag/client.js`). All she had ever
 known was *asking*. She would knock on the world's door — `GET /index.html`,
 please — and a polite stranger would hand her a page and shut the door behind
 her. Every request, a new door. Every door, the same file, zero memory, no
