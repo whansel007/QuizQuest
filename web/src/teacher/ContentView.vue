@@ -13,15 +13,16 @@ import TopicOutcomeFields from './TopicOutcomeFields.vue';
 import ImportMaterials from './ImportMaterials.vue';
 import TopicManager from './TopicManager.vue';
 import TopicPicker from './TopicPicker.vue';
-import { loadCourses, currentCourse, initialTags, syncTopic, topicLabel } from './courses.js';
+import { loadCourses, currentCourse, initialTags, syncTopic, topicLabel, NEW } from './courses.js';
 import { loadPdfJs, toBase64 } from './pdf.js';
+import { pdfPageHasFigure } from './import-materials.js';
 
 const error = ref('');
 const loaded = ref(false);
 const courses = ref([]);
 const course = ref(null);
 const passages = ref([]);
-const tags = reactive({ topicId: null, outcomeId: null });
+const tags = reactive({ topicId: null, outcomeId: null, topicName: '', topicWeek: null, outcomeText: '' });
 onMounted(async () => {
   try {
     courses.value = await loadCourses();
@@ -77,8 +78,9 @@ const onPdf = action(async (e) => {
       // rebuild lines: pdf.js gives text runs with end-of-line markers
       const t = tc.items.map((it) => it.str + (it.hasEOL ? '\n' : ' ')).join('').replace(/[ \t]+/g, ' ').replace(/ *\n */g, '\n').trim();
       const scanned = t.length < 30;
+      const figure = !scanned && (await pdfPageHasFigure(lib, page));
       // pdf.js objects must not be made reactive (markRaw)
-      out.push({ n: i, text: t, page: markRaw(page), scanned, checked: !scanned });
+      out.push({ n: i, text: t, page: markRaw(page), scanned, figure, checked: !scanned });
     }
     return out;
   });
@@ -86,18 +88,28 @@ const onPdf = action(async (e) => {
   importBox.value = { pages };
 });
 
+// Scanned page: the AI transcription replaces the empty text layer.
+// Page with figures: the AI describes the figures, added after the page text.
 const transcribePage = (p) => async () => {
+  const mode = p.scanned ? 'text' : 'figures';
   const vp = p.page.getViewport({ scale: 2 });
   const canvas = document.createElement('canvas');
   canvas.width = Math.floor(vp.width);
   canvas.height = Math.floor(vp.height);
   await p.page.render({ canvasContext: canvas.getContext('2d'), viewport: vp }).promise;
-  const blob = await new Promise((r) => canvas.toBlob(r, 'image/png'));
-  const r = await api('POST', `/api/teacher/courses/${course.value.id}/transcribe`, { imageBase64: await toBase64(blob), mimeType: 'image/png', mode: 'text' });
-  p.text = r.text;
-  p.checked = true;
+  // JPEG keeps photo-heavy pages under the server's 4 MB image limit
+  const blob = await new Promise((r) => canvas.toBlob(r, 'image/jpeg', 0.85));
+  const r = await api('POST', `/api/teacher/courses/${course.value.id}/transcribe`, { imageBase64: await toBase64(blob), mimeType: 'image/jpeg', mode });
   if (r.containsPersonalData) toast('The model flagged possible personal data on this page - please check before saving.', true);
-  toast(`Page ${p.n} transcribed - included below when you click "Add selected pages"`);
+  if (mode === 'text') {
+    p.text = r.text;
+    toast(`Page ${p.n} transcribed - included below when you click "Add selected pages"`);
+  } else {
+    if (r.text.trim()) p.text += `\n\n[Figure description, AI-generated: check against the original]\n${r.text.trim()}`;
+    toast(r.text.trim() ? `Figures on page ${p.n} described - included below when you click "Add selected pages"` : `The AI found no teaching figure on page ${p.n}.`);
+  }
+  p.figure = false;
+  p.checked = true;
 };
 
 function addPages() {
@@ -138,8 +150,21 @@ function showPreview() {
 }
 
 async function savePassage() {
-  await api('POST', `/api/teacher/courses/${course.value.id}/passages`, { title: title.value, topicId: tags.topicId, outcomeId: tags.outcomeId, text: preview.value.clean, origin, confirmNoPersonalData: confirm.value });
-  toast('Passage saved');
+  const body = { title: title.value, text: preview.value.clean, origin, confirmNoPersonalData: confirm.value };
+  // a new topic and/or typed learning outcome is created by the server with the passage
+  if (tags.topicId === NEW) body.newTopic = { name: tags.topicName, week: tags.topicWeek === '' ? null : tags.topicWeek };
+  else body.topicId = tags.topicId;
+  if (tags.outcomeId === NEW) body.outcomeText = tags.outcomeText;
+  else body.outcomeId = tags.outcomeId;
+  const p = await api('POST', `/api/teacher/courses/${course.value.id}/passages`, body);
+  if (body.newTopic) {
+    await loadCourses(true);
+    S.topicId = p.topicId;
+    toast(`Passage saved to the new topic ${topicLabel(p.topic)}`);
+  } else {
+    if (body.outcomeText) await loadCourses(true);
+    toast('Passage saved');
+  }
   rerender();
 }
 
@@ -223,11 +248,11 @@ const partLabel = (f, p) => p.title.split(f.legacy ? ' — ' : ' · ').slice(1).
         <h3>Add material</h3>
         <p class="small muted">Material is stored separately from questions and treated as reference content only: instructions inside it are never followed. Long documents are split into chunks so drafting only uses the relevant parts.</p>
         <Field label="Title" v-slot="{ id }"><input :id="id" v-model="title" type="text" placeholder="e.g. Week 3 notes: protocols" /></Field>
-        <div class="row top"><TopicOutcomeFields v-model:topic-id="tags.topicId" v-model:outcome-id="tags.outcomeId" :course="course" /></div>
+        <div class="row top"><TopicOutcomeFields v-model:topic-id="tags.topicId" v-model:outcome-id="tags.outcomeId" v-model:topic-name="tags.topicName" v-model:topic-week="tags.topicWeek" v-model:outcome-text="tags.outcomeText" :course="course" allow-new /></div>
         <div class="row top" style="margin-bottom: 12px">
           <div class="panel grow" style="margin: 0; min-width: 240px">
             <b>📄 Text-based PDF</b>
-            <p class="small muted">Text is extracted in your browser. Scanned pages are detected and can be transcribed.</p>
+            <p class="small muted">Text is extracted in your browser. Scanned pages and pages with figures are detected, and AI can transcribe or describe them.</p>
             <input type="file" accept="application/pdf" @change="onPdf" />
           </div>
           <div class="panel grow" style="margin: 0; min-width: 240px">
@@ -252,8 +277,8 @@ const partLabel = (f, p) => p.title.split(f.legacy ? ' — ' : ' · ').slice(1).
               <div class="small muted">{{ importBox.pages.length }} page(s). Untick pages you don't want (e.g. title or reference pages).</div>
               <div v-for="p in importBox.pages" :key="p.n" class="opt-row small">
                 <input v-model="p.checked" type="checkbox" :aria-label="`Include page ${p.n}`" />
-                <span class="grow">Page {{ p.n }}: <span v-if="p.scanned" class="badge draft">no text layer - looks scanned</span><template v-else>{{ `${p.text.length} characters - "${p.text.slice(0, 70)}…"` }}</template></span>
-                <AsyncButton v-if="p.scanned" class="btn small" :disabled="!course.geminiEnabled" :title="course.geminiEnabled ? '' : 'Needs GEMINI_API_KEY on the server'" :run="transcribePage(p)">Transcribe with AI</AsyncButton>
+                <span class="grow">Page {{ p.n }}: <span v-if="p.scanned" class="badge draft">no text layer - looks scanned</span><template v-else>{{ `${p.text.length} characters - "${p.text.slice(0, 70)}…"` }} <span v-if="p.figure" class="badge draft">has a figure</span></template></span>
+                <AsyncButton v-if="p.scanned || p.figure" class="btn small" :disabled="!course.geminiEnabled" :title="course.geminiEnabled ? '' : 'Needs GEMINI_API_KEY on the server'" :run="transcribePage(p)">{{ p.scanned ? 'Transcribe with AI' : 'Describe figures with AI' }}</AsyncButton>
               </div>
               <button class="btn primary small" style="margin-top: 8px" @click="addPages">Add selected pages</button>
             </div>
