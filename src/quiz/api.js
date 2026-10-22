@@ -1239,28 +1239,40 @@ attemptId: attempt.id,
   route('GET', '/api/teacher/classes/:classId/marking', 'teacher', ({ user, params, query }) => {
     const cls = teacherClass(user, params.classId);
     const topicId = topicFilter(query, cls.courseId);
-    return db.attempts
-      .filter((a) => a.classId === cls.id && a.needsReview && (!topicId || a.topicId === topicId))
-      .slice(-50)
-      .reverse()
-      .map((a) => {
-        const q = db.questions.find((x) => x.id === a.questionId);
-        const v = versionOf(q, a.version);
-        // the answer text is shown without the student's identity
-        return {
-          attemptId: a.id,
-          at: a.at,
-          topicId: a.topicId,
-          stem: v.stem,
-          modelAnswer: v.modelAnswer,
-          keyPoints: v.keyPoints,
-          text: a.text,
-          coveredPoints: a.coveredPoints || [],
-          method: a.method,
-          autoCorrect: a.correct,
-          score: a.score,
-        };
-      });
+    // Only students currently in the class: someone who left keeps their old
+    // attempts, but the professor should not mark answers for a class they
+    // are no longer enrolled in.
+    const pending = db.attempts.filter(
+      (a) =>
+        a.classId === cls.id &&
+        a.needsReview &&
+        (!topicId || a.topicId === topicId) &&
+        isEnrolled(a.studentId, cls.id),
+    );
+    return {
+      total: pending.length,
+      items: pending
+        .slice(-50)
+        .reverse()
+        .map((a) => {
+          const q = db.questions.find((x) => x.id === a.questionId);
+          const v = versionOf(q, a.version);
+          // the answer text is shown without the student's identity
+          return {
+            attemptId: a.id,
+            at: a.at,
+            topicId: a.topicId,
+            stem: v.stem,
+            modelAnswer: v.modelAnswer,
+            keyPoints: v.keyPoints,
+            text: a.text,
+            coveredPoints: a.coveredPoints || [],
+            method: a.method,
+            autoCorrect: a.correct,
+            score: a.score,
+          };
+        }),
+    };
   });
 
   route('POST', '/api/teacher/attempts/:aid/mark', 'teacher', ({ user, params, body }) => {
@@ -1268,6 +1280,11 @@ attemptId: attempt.id,
     teacherClass(user, a.classId);
     if (typeof body.correct !== 'boolean') fail(400, 'Choose correct or not correct.');
     if (a.type !== 'short') fail(400, 'Only short answers can be manually marked.');
+    // Marking from the queue: if the answer stopped being pending after the
+    // professor's screen loaded, someone already marked it. Refuse instead of
+    // overwriting their mark.
+    if (body.expectPending === true && !a.needsReview)
+      fail(409, 'This answer has already been marked.');
     a.correct = body.correct;
     a.score = body.correct ? 1 : 0;
     a.needsReview = false;
