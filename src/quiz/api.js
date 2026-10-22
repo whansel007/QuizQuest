@@ -24,6 +24,9 @@ const { createStore } = require('./store');
 const { validateQuestion } = require('./validate');
 const { generate, GEN } = require('./generator');
 const { ADAPTIVE, topicStats, planSession, similarToMissed } = require('./adaptive');
+const { studentProgress } = require('./progress');
+const { reportContext, studentReports } = require('./reporting');
+const reportCategories = require('./report-categories.json');
 const { classAnalytics, courseComparison, questionInsights, parsePeriod, isValidTimeZone } = require('./analytics');
 const { localIso, APP_TZ } = require('./time');
 const { courseEvaluation } = require('./evaluation');
@@ -200,7 +203,14 @@ function createQuizApi({ dataFile = null, store = null, now = () => Date.now(), 
       })),
       sources: passageRefs(latest.sourceIds),
       // reports are shown without the reporter's identity
-      reports: q.reports.map((r) => ({ id: r.id, reason: r.reason, at: r.at, resolved: r.resolved })),
+      reports: q.reports.map((r) => {
+        const context = reportContext(db, q, r);
+        return {
+          id: r.id, reason: r.reason, category: r.category || 'other', at: r.at,
+          resolved: r.resolved, resolvedAt: r.resolvedAt || null, resolutionNote: r.resolutionNote || '',
+          version: context.version, stem: context.stem,
+        };
+      }),
     };
   }
 
@@ -311,6 +321,7 @@ function createQuizApi({ dataFile = null, store = null, now = () => Date.now(), 
       }
     }
     const result = {
+attemptId: attempt.id,
       correct: g.correct,
       score: g.score,
       provisional: g.provisional,
@@ -349,7 +360,7 @@ function createQuizApi({ dataFile = null, store = null, now = () => Date.now(), 
   }
 
   // Pick a question for a world challenge: published, auto-gradable,
-  // ~30% from the student's weaker topics (preferring questions similar
+// ~30% from the student's weaker topics (preferring questions similar
   // to ones they got wrong), the rest general, avoiding recent repeats.
   function pickChallenge(user, cls, rand = Math.random) {
     const topics = topicsOf(cls.courseId);
@@ -1210,11 +1221,15 @@ function createQuizApi({ dataFile = null, store = null, now = () => Date.now(), 
     return teacherView(q);
   });
 
-  route('POST', '/api/teacher/questions/:qid/reports/:rid/resolve', 'teacher', ({ user, params }) => {
+  route('POST', '/api/teacher/questions/:qid/reports/:rid/resolve', 'teacher', ({ user, params, body }) => {
     const q = teacherQuestion(user, params.qid);
     const r = q.reports.find((x) => x.id === params.rid) || fail(404, 'Not found.');
+    if (r.resolved) return teacherView(q); // a retried request must not replace the response
+    const note = body.resolutionNote === undefined ? '' : str(body.resolutionNote, 500, 'Professor response');
     r.resolved = true;
     r.resolvedAt = now();
+    r.resolvedBy = user.id;
+    r.resolutionNote = note;
     save();
     return teacherView(q);
   });
@@ -1469,20 +1484,12 @@ function createQuizApi({ dataFile = null, store = null, now = () => Date.now(), 
 
   route('GET', '/api/student/classes/:classId/progress', 'student', ({ user, params }) => {
     const cl = studentClass(user, params.classId);
-    const topics = topicsOf(cl.courseId);
-    const mine = db.attempts.filter((a) => a.studentId === user.id && a.classId === cl.id);
-    const bank = db.questions.filter((q) => q.courseId === cl.courseId && q.status === 'published');
-    const sessions = db.sessions
-      .filter((s) => s.studentId === user.id && s.classId === cl.id && s.completedAt)
-      .slice(-5)
-      .reverse()
-      .map((s) => ({ id: s.id, at: s.completedAt, total: s.items.length, correct: s.items.filter((i) => i.result?.correct).length }));
-    return {
-      topics: topicStats(mine, topics).map((s) => ({ ...s, bank: bank.filter((q) => q.topicId === s.topicId).length })),
-      window: ADAPTIVE.recentWindow,
-      sessions,
-      awaitingMarking: mine.filter((a) => a.needsReview).length,
-    };
+return studentProgress(db, user.id, cl);
+  });
+
+  route('GET', '/api/student/classes/:classId/reports', 'student', ({ user, params }) => {
+    studentClass(user, params.classId);
+    return studentReports(db, user.id, params.classId);
   });
 
   // ---------------- student: practice sessions ----------------
@@ -1681,10 +1688,26 @@ function createQuizApi({ dataFile = null, store = null, now = () => Date.now(), 
 
   route('POST', '/api/student/questions/:qid/report', 'student', ({ user, params, body }) => {
     const q = db.questions.find((x) => x.id === params.qid) || fail(404, 'Not found.');
-    // only questions this student has actually answered can be reported
-    if (!db.attempts.some((a) => a.studentId === user.id && a.questionId === q.id)) fail(404, 'Not found.');
-    if (q.reports.some((r) => r.studentId === user.id && !r.resolved)) return { ok: true, already: true };
-    q.reports.push({ id: newId('r'), studentId: user.id, reason: str(body.reason, 300, 'Reason'), at: now(), resolved: false });
+    if (body.attemptId !== undefined && (typeof body.attemptId !== 'string' || !body.attemptId)) fail(400, 'Invalid attempt id.');
+    // Trust only a server-recorded attempt owned by this student. Old clients
+    // without an attempt ID fall back to their latest answer to this question.
+    const attempt = db.attempts.filter((a) => a.studentId === user.id && a.questionId === q.id && (!body.attemptId || a.id === body.attemptId))
+      .reverse().sort((a, b) => b.at - a.at)[0] || fail(404, 'Not found.');
+    studentClass(user, attempt.classId);
+    const existing = q.reports.find((r) => {
+      const context = reportContext(db, q, r);
+      return r.studentId === user.id && !r.resolved && context.classId === attempt.classId && context.version === attempt.version;
+    });
+    if (existing) return { ok: true, already: true };
+    const category = body.category === undefined ? 'other' : body.category;
+    if (!reportCategories.some((c) => c.value === category)) fail(400, 'Pick a report category.');
+    const v = versionOf(q, attempt.version);
+    // Maths questions keep the student's sampled values, rather than a new draw.
+    const stem = v.stem.replace(/\{(\w+)\}/g, (match, key) => String(attempt.instance?.values?.[key] ?? match));
+    q.reports.push({
+      id: newId('r'), studentId: user.id, classId: attempt.classId, version: attempt.version,
+      attemptId: attempt.id, stem, category, reason: str(body.reason, 300, 'Reason'), at: now(), resolved: false,
+    });
     save();
     return { ok: true };
   });

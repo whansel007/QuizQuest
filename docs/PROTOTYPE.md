@@ -8,20 +8,21 @@ Requires **Node.js 22.13 or newer**, matching the installed PDF.js dependency.
 See `AUDIT.md` for the implementation audit, fixes, checks and limitations.
 
 ```bash
-npm install
-npm run dev          # open http://localhost:5173 (Vue app, hot reload); API + World on :3000
-npm test             # tag + quiz API (in memory AND on the Supabase schema) + World + store tests
-npm run check        # syntax-check Node and browser JS modules
-npm run build        # build the Vue app into dist/ (served by the Node server)
-npm start            # production mode: http://localhost:3000 serves dist/ (build first)
-npm run test:browser # builds, then runs the Playwright browser regressions
-npm run reset-data   # wipe data/ and re-seed on next start (file store only)
-npm run db:reset -- --confirm   # wipe the Supabase project and re-seed (Supabase only)
+corepack enable      # one-time: register pnpm (project's packageManager is pnpm)
+pnpm install
+pnpm run dev          # open http://localhost:5173 (Vue app, hot reload); API + World on :3000
+pnpm test             # tag + quiz API (in memory AND on the Supabase schema) + World + store tests
+pnpm run check        # syntax-check Node and browser JS modules
+pnpm run build        # build the Vue app into dist/ (served by the Node server)
+pnpm start            # production mode: http://localhost:3000 serves dist/ (build first)
+pnpm run test:browser # builds, then runs the Playwright browser regressions
+pnpm run reset-data   # wipe data/ and re-seed on next start (file store only)
+pnpm run db:reset -- --confirm   # wipe the Supabase project and re-seed (Supabase only)
 ```
 
 For browser tests, run `npx playwright install chromium` once (re-run it after
 upgrading Playwright). Alternatively, use an installed Edge browser:
-`$env:BROWSER_CHANNEL='msedge'` in PowerShell, then `npm run test:browser`.
+`$env:BROWSER_CHANNEL='msedge'` in PowerShell, then `pnpm run test:browser`.
 `$env:BROWSER='webkit'` (or `'firefox'`) runs the same tests in that engine.
 Tests use synthetic data and do not call a live AI provider or a live
 Supabase project; leave `GEMINI_API_KEY` unset when running them.
@@ -64,7 +65,7 @@ Supabase Postgres (supabase/migrations), row level security on, no policies
 3. Copy `.env.example` to `.env` and set `SUPABASE_URL` and
    `SUPABASE_SECRET_KEY`. The secret key is for the Node server only: never
    put it in `web/`, in a `VITE_*` variable or in git. If it leaks, rotate it.
-4. `npm run dev`. On first start against an empty project, the server writes
+4. `pnpm run dev`. On first start against an empty project, the server writes
    the synthetic demo data. It refuses to seed over existing rows.
 
 Row level security is enabled on every table with no policies, so the
@@ -79,7 +80,7 @@ The server needs a long-running process (World game loop, WebSockets), so
 use a platform such as Render, Fly.io, DigitalOcean App Platform, Cloud Run
 (min instances 1) or Azure App Service, in a Singapore region. Run
 **exactly one instance** while the stepping-stone store is in use. The build
-command is `npm ci && npm run build` and the start command is `npm start`.
+command is `pnpm install --frozen-lockfile && pnpm run build` and the start command is `pnpm start`.
 Set `SUPABASE_URL`, `SUPABASE_SECRET_KEY` and (optionally) `GEMINI_API_KEY`
 as the host's secret environment variables.
 
@@ -105,12 +106,12 @@ Logins are per browser tab. Sign in with the user's demo email (`prof.a@quizques
 |---|---|
 | Prof. Demo A | owns the Computing course: every professor tab |
 | Student 01 | no history yet, so sessions sample **broadly** |
-| Student 02 | weak at Networking, so sessions **focus** there (~70%) |
+| Student 02 | weak at Networking, so sessions reserve ~30% for weaker topics |
 | Students 02 + 03 in two tabs | meet in the **World** and fight the raid boss together |
 | Prof. Demo B / Student 07 | a separate class, used to show isolation |
 | Students 09-12 | Computing **Tutorial Group C** (also Prof. Demo A): stronger at Networking, weaker at Cyber hygiene, so *Analytics → Compare your classes* has two groups. Student 12 has no history yet |
 
-Existing `data/db.json` or Supabase data keeps the old demo set; run `npm run reset-data` (file store) or `npm run db:reset -- --confirm` (Supabase) to get Group C.
+Existing `data/db.json` or Supabase data keeps the old demo set; run `pnpm run reset-data` (file store) or `pnpm run db:reset -- --confirm` (Supabase) to get Group C.
 
 ## Proposal → code
 
@@ -122,7 +123,7 @@ Existing `data/db.json` or Supabase data keeps the old demo set; run `npm run re
 | 2. Controlled generation | `generator.js`, `retrieval.js`, `validate.js`, *AI drafting* tab | Retrieve chunks → draft → structure checks → **drafts only**. Identical inputs are cached; daily cap; retries capped. Shows which chunks were sent and why. |
 | 3. Adaptive algorithm | `adaptive.js` | Broad until each topic has 3 attempts, then 70/30 weak/other. Short bank is **disclosed**, never padded. |
 | 4. Analytics | `analytics.js`, *Analytics* tab (`web/src/teacher/AnalyticsView.vue`, `charts/`) | Denominators everywhere, first attempts vs retries, most-chosen wrong option, World answers counted. Period filter (7/30 days, all time, custom dates) with change vs the previous period; days and weeks in the class time zone (Singapore by default, set in *Settings*). "Needs attention" summary; trend charts (small multiples past 4 topics) with a table view; learning-outcome breakdown with question coverage; time vs accuracy per question with a "possibly confusing" flag; question detail dialog (answer breakdown, reports) linking to the Question bank; question quality (tags, difficulty tag vs results, wrong options almost nobody picks); when students practise (weekday x time grid); practice vs World accuracy; class comparison for professors with several groups in a course; "Draft questions" for outcomes with no published questions; CSV exports; print / save-as-PDF report; section shortcuts; auto-refresh every 30 s (numbers cached until the data changes); period and auto-refresh remembered per browser (a period is saved only once it loads). Marking happens in place; the queue lists every pending answer from current members (newest 50 shown, with the total), and a mark made by another professor first is kept (409). A failed background refresh is shown, not hidden. Answers awaiting marking are left out of accuracy, and "possibly confusing" needs 5+ marked answers. No student names except opt-in participation points, which print only when ticked. "vs previous" compares a running period up to the same point of the previous one, and part-days/weeks are drawn lighter. Printing lists every row and opens every topic. Charts are one tab stop each (arrow keys move, Enter opens a question). Cached numbers (dashboard, question detail, class comparison) are dropped only by changes to that class (or to everything), not by shop/pet/trade activity. The section bar sticks under the top bar and marks the section in view; tiles show the period's trend; participation points sort and page. |
-| 5. Gamification | `rewards.js`, *Pets & shop* | Server-side coins, once per question ever, unique ledger keys, daily cap, disclosed egg odds. Daily limits (coins, resources, trades, AI drafting) reset at local midnight and participation weeks start Monday 00:00, in `APP_TIMEZONE` (default Singapore) - see `time.js`. |
+>| 5. Gamification | `rewards.js`, *Pets & shop* | Server-side coins, once per question ever, unique ledger keys, daily cap, disclosed egg odds. Daily limits (coins, resources, trades, AI drafting) reset at local midnight and participation weeks start Monday 00:00, in `APP_TIMEZONE` (default Singapore) - see `time.js`. |
 
 ### Later stages (now built)
 

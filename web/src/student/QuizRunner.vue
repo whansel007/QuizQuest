@@ -206,7 +206,7 @@ onUnmounted(() => {
           </div>
           <div>
             <div v-if="reportDone" class="note good small">{{ reportDone }}</div>
-            <ReportForm v-else-if="reportOpen" :question-id="question.questionId" @sent="(msg) => (reportDone = msg)" @cancel="reportOpen = false" />
+            <ReportForm v-else-if="reportOpen" :key="qKey" :question-id="question.questionId" :attempt-id="feedback.r.attemptId" @sent="(msg) => (reportDone = msg)" @cancel="reportOpen = false" />
           </div>
         </template>
       </div>
@@ -240,6 +240,7 @@ onUnmounted(() => {
       </div>
       <div class="row" style="margin-top: 12px">
         <button class="btn primary" @click="rerender">Back to practice</button>
+        <button class="btn" @click="setTab('progress')">View my progress</button>
         <button class="btn" @click="setTab('kingdom')">Build your kingdom</button>
         <button class="btn" @click="setTab('world')">Enter the World</button>
       </div>
