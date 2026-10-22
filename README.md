@@ -105,7 +105,7 @@ Never put it in the code, in `web/`, or in a chat. If it leaks, rotate it in the
 Supabase dashboard.
 
 Run **one server at a time** per Supabase project. See
-[PROTOTYPE.md](PROTOTYPE.md#supabase-setup) for details and troubleshooting.
+[PROTOTYPE.md](docs/PROTOTYPE.md#supabase-setup) for details and troubleshooting.
 
 ## Commands
 
@@ -245,7 +245,7 @@ docs/               API research
 
 ## Documentation
 
-- [PROTOTYPE.md](PROTOTYPE.md): full guide (architecture, Supabase, hosting, features)
-- [AUDIT.md](AUDIT.md): implementation audit and known limitations
+- [PROTOTYPE.md](docs/PROTOTYPE.md): full guide (architecture, Supabase, hosting, features)
+- [docs/AUDIT.md](docs/AUDIT.md): implementation audit and known limitations
 - [docs/API_RECOMMENDATIONS.md](docs/API_RECOMMENDATIONS.md): useful APIs for later phases
-- [public/tag/HOW_THIS_WORKS.md](../public/tag/HOW_THIS_WORKS.md): how the original Circle Tag game works (at `/tag`)
+- [public/tag/HOW_THIS_WORKS.md](public/tag/HOW_THIS_WORKS.md): how the original Circle Tag game works (at `/tag`)
