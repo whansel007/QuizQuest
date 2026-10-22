@@ -100,7 +100,7 @@ server at a different data file (handy for running two copies).
 
 Logins are per browser tab. Sign in with the user's demo email (`prof.a@quizquest.demo`,
 `student02@quizquest.demo`, ...) and the password `quizquest`, or pick one on the
-**Test accounts** page (see [README.md](README.md#signing-in)). Good demo users:
+**Test accounts** page (see [README.md](../README.md#signing-in)). Good demo users:
 
 | User | Why |
 |---|---|

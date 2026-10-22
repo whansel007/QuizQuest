@@ -522,3 +522,26 @@ test('Application insufficiency is actionable and cannot silently generate conce
   assert.equal(savedReport.reviewedText,reportText);
   assert.equal(await page.getByRole('button',{name:'Resume saved work',exact:true}).count(),0);
 });
+
+test('a stalled progress request releases controls and explicit refresh recovers without inference', async t => {
+  const page = await browser.newPage();
+  t.after(() => page.close());
+  await page.goto(base);
+  await page.getByRole('button', { name: 'Prof. Demo A' }).click();
+  await page.locator('#tabs').getByRole('button', { name: 'AI drafting', exact: true }).click();
+  await page.getByRole('button', { name: 'Choose files', exact: true }).waitFor();
+  await page.waitForFunction(() => [...document.querySelectorAll('button')].some(b => b.textContent === 'Choose files' && !b.disabled));
+  const before = inferenceCalls;
+  let held, requests = 0;
+  await page.route('**/authoring', route => { held = route; requests++; }, { times: 1 });
+  const refresh = page.getByRole('button', { name: 'Refresh progress', exact: true });
+  await refresh.click();
+  await page.getByRole('alert').filter({ hasText: 'The request timed out.' }).waitFor({ timeout: 45000 });
+  assert.equal(await refresh.isEnabled(), true, 'timeout clears busy state');
+  await held.abort().catch(() => {});
+  assert.equal(requests, 1);
+  await refresh.click();
+  await page.waitForFunction(() => [...document.querySelectorAll('button')].some(b => b.textContent === 'Refresh progress' && !b.disabled));
+  assert.equal(await page.getByRole('alert').filter({ hasText: 'The request timed out.' }).count(), 0);
+  assert.equal(inferenceCalls, before, 'recovery reads progress without generation');
+});

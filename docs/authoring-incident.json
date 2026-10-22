@@ -1,0 +1,80 @@
+{
+  "date": "2026-10-15",
+  "scope": "Local source audit and offline verification; existing uncommitted changes preserved",
+  "confirmedRootCauses": {
+    "authoringRequests": "AuthoringWorkflow.vue unconditionally scheduled GET /authoring every 2500 ms on mount and after every poll, regardless of job status. No watcher loop or AI scheduler was found.",
+    "fileSelectionDisplay": "ImportMaterials.vue cleared the native file input after local extraction. The browser then displayed its empty-selection label. The old filename list relied only on IndexedDB recovery and did not identify selected versus uploaded files."
+  },
+  "idleFrequency": {
+    "before": "One initial GET, then approximately 24 GET /authoring requests per minute per mounted workflow, derived from the 2500 ms timer; no live baseline test was run.",
+    "after": "One initial GET; zero periodic requests without queued/running jobs. Browser assertions observed zero requests during separate 5500 ms idle and completed-job windows.",
+    "authorizedJobs": "Poll at 2500 ms while queued/running. Stop at terminal status, unmount, or request error. Navigation does not cancel the backend job.",
+    "crossTabChanges": "Use Refresh progress to discover changes from other tabs while idle. Concurrent-save revision checks still protect edits."
+  },
+  "geminiEvidence": {
+    "file": "data/gemini-usage.json",
+    "eventsBeforeVerification": 107,
+    "ledgerDay": "2026-10-15",
+    "originalModifiedUTC": "2026-10-15T09:52:14.499Z",
+    "tailEvents": [
+      {"id":"da30a547-8299-4b23-a011-3a735fa0b163","singaporeTime":"2026-10-15 17:51:51","model":"gemini-3.5-flash-lite","operation":"generateContent","status":200,"promptTokens":18436,"outputTokens":27},
+      {"id":"b72423db-26e4-437c-8dd9-39c1ef116817","singaporeTime":"2026-10-15 17:52:01","model":"gemini-3.5-flash-lite","operation":"generateContent","status":200,"promptTokens":15111,"outputTokens":27},
+      {"id":"3ad23da2-596a-4271-ab44-f6e98199541d","singaporeTime":"2026-10-15 17:52:05","model":"gemini-3.5-flash-lite","operation":"generateContent","status":200,"promptTokens":4105,"outputTokens":27}
+    ],
+    "attribution": "The local QuizQuest ledger records these three successful provider responses. Matching them to the reported RPD increase, a specific job, or an initiating action is unconfirmed: historical events lack job context and the incident timestamp was not supplied. Token sizes alone do not establish the consumer or cause. Historical verification scripts also used this ledger.",
+    "getAuthoring": "GET /api/teacher/courses/:cid/authoring only projects saved jobs. GET /authoring/:jid only reads saved analysis parts. Neither calls kick, start, resume, generateJson or Gemini indirectly.",
+    "saveReport": "PUT /authoring/:jid/review validates revision, stores professor text and creates versioned report passages; it performs no inference."
+  },
+  "invocationAudit": [
+    {"path":"src/quiz/authoring.js","trigger":"Authenticated professor POST authoring/report, recommendations, generation, explicit resume or draft regeneration","details":"Analysis may use multiple source groups and synthesis. Assessment generation includes drafting and independent verification; validation retries fill missing slots. No automatic restart recovery or GET-triggered inference."},
+    {"path":"src/quiz/generator.js","trigger":"Authenticated professor POST /courses/:cid/generate or authoring generation","details":"Legacy generator already has an in-flight course lock, cache, daily drafting limit and bounded drafting rounds. Authoring additionally uses durable job deduplication and the lifetime Gemini request budget."},
+    {"path":"src/quiz/vision.js","trigger":"Professor explicitly clicks Transcribe / Transcribe with AI","details":"Multimodal calls count tokens before inference. Each shared-client invocation has at most three transport attempts, at most six provider operations including recounting after fallback."},
+    {"path":"src/quiz/grading.js","trigger":"Student submits a nonempty short answer through practice or Game","details":"One Gemini attempt, 15-second timeout, no quota wait, keyword fallback. Blank or expired answers are handled locally; idle timeout does not initiate inference."},
+    {"path":"src/quiz/api.js and public/hero-lab/main.js","trigger":"Teacher explicitly clicks Hero Lab AI test","details":"Uses the shared Gemini client, capped at three attempts."},
+    {"path":"scripts/probe-gemini.js, scripts/verify-gemini-live.js, scripts/verify-authoring-live.js, scripts/verify-gemini-consumers.js","trigger":"Manual script invocation","details":"These can consume live quota but are not imported by application startup or the test runner. They were inspected and never executed during this incident fix."}
+  ],
+  "safeguards": {
+    "frontend": "Coalesce concurrent progress fetches; guard actions synchronously; poll only active jobs; stop automatic polling on error; expose explicit Refresh progress.",
+    "uploads": "Separate Choose files, Upload files and Generate report. Show selected, partially uploaded and uploaded states per filename. Recover server-confirmed uploads even after IndexedDB is cleared. Retry only unsaved excerpts. Existing content hashes prevent duplicate imports. Persist original filenames with passages through the existing extras mapping.",
+    "generation": "Existing durable input/source hashes reuse identical jobs, including completed work; regeneration has a per-question identity; per-course job exclusion and synchronous frontend guards prevent concurrent duplicate authoring work.",
+    "requestBudgets": "Persisted j.calls and j.requestBudget apply across retries, verification and manual resumes. Generation: 18 provider attempts per job. Recommendations: 3. Analysis: min(600, sourceGroupCount * 6 + 12). Existing resume-attempt limit of five remains. Budgets are assigned before the first provider call and old call counts are retained.",
+    "transport": "Clamp finite transport attempts to whole numbers from 1 to 3; invalid/infinite values use 3. Persist accounting before inference. Budget/accounting rejection is nonretryable and marked not_sent in the quota ledger.",
+    "auditability": "New authoring quota entries include jobId, courseId and kind. Shared RPM/TPM/RPD safeguards remain."
+  },
+  "changedFiles": [
+    "web/src/teacher/AuthoringWorkflow.vue",
+    "web/src/teacher/ImportMaterials.vue",
+    "src/quiz/api.js",
+    "src/quiz/authoring.js",
+    "src/quiz/gemini.js",
+    "src/quiz/gemini-quota.js",
+    "test/authoring-test.js",
+    "test/browser-authoring.test.cjs",
+    "test/incident-test.js",
+    "test/support/offline.cjs",
+    "docs/authoring-incident.json"
+  ],
+  "verification": {
+    "networkPolicy": "Node test preload clears Gemini/Supabase configuration and blocks external fetches. Gemini transport tests inject mock fetch implementations. Browser tests use in-memory stores, injected authoring providers, ephemeral ports and installed Edge. The user's application was never restarted.",
+    "commands": [
+      "node --require ./test/support/offline.cjs --test test/*-test.js",
+      "$env:BROWSER_CHANNEL='msedge'; node --require ./test/support/offline.cjs --test test/browser*.test.cjs",
+      "node scripts/check.js",
+      "node node_modules/vite/bin/vite.js build",
+      "git diff --check"
+    ],
+    "focusedTests": "22 passed: job budgets, retries, duplicate submissions/resumes, zero-inference saves/fetches, persisted upload metadata, recovery, source grounding and generation.",
+    "regression": "149 passed, 1 existing skip; includes local PGlite persistence, Question Bank, versioning, grading and Game.",
+    "browser": "14 tests covering the existing screens and the expanded authoring/upload workflows.",
+    "syntax": "64 JavaScript files passed",
+    "build": "Passed",
+    "diffCheck": "Passed"
+  },
+  "limitations": [
+    "Existing deployment assumes one application process and persistent disk; no cross-process job or quota lock was introduced.",
+    "New lifetime budgets may leave unusually difficult jobs partially complete; checkpoints and drafts remain available and budget exhaustion does not automatically start replacement work.",
+    "Other consumers of the same Google project are invisible to the local ledger. Historical reservations are not a provider billing audit.",
+    "Live Supabase and live Gemini were not exercised."
+  ],
+  "repositoryActions": {"liveGeminiCalls":0,"applicationRestarted":false,"liveSupabaseModified":false,"committed":false,"pushed":false,"merged":false}
+}
