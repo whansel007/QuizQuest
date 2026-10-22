@@ -344,10 +344,12 @@ async function readPdf(bytes, progress, signal) {
   }
 }
 async function transcribeScans(doc, pages, describe, progress, stats, signal) {
+  let attempted = 0;
   for (const [i, page] of pages.entries()) {
     if (!page.scanned) continue;
     signal?.throwIfAborted();
-    if (stats.stopped || stats.transcribed + stats.personal + stats.failed >= MAX_DESCRIBED) break;
+    if (stats.stopped || attempted >= MAX_DESCRIBED) break;
+    attempted++; // Empty successful responses still consume an AI attempt.
     progress(`Transcribing scanned page ${i + 1} with AI`);
     try {
       const p = await doc.getPage(i + 1);

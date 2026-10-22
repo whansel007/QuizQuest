@@ -34,3 +34,14 @@ test('suggested outcomes drop source citations', async () => {
   const report = '# Vue.js fundamentals\n## Learning objectives\n- Understand the DOM (Week4Slides (1).pptx · Slide 3, Slide 4)\n- Explain reactivity (Slides 5–9)\n- Compare v-if (conditional) and v-show';
   assert.equal(suggestAssessment(report).outcome, 'Understand the DOM; Explain reactivity; Compare v-if (conditional) and v-show');
 });
+
+test('combined objectives and sample questions never suggest Q&A as outcomes', async () => {
+  const { suggestAssessment } = await import('../web/src/teacher/report-suggestions.mjs');
+  const report = '# Networks\n## Learning objectives and sample Q&A\n- Explain latency and bandwidth.\n- **Q:** What is latency?\n- **A:** Packet travel delay.\n- Compare switching and routing.\n';
+  assert.equal(suggestAssessment(report).outcome, 'Explain latency and bandwidth; Compare switching and routing');
+});
+
+test('bold sample-question sections end objective extraction', async () => {
+  const { suggestAssessment } = await import('../web/src/teacher/report-suggestions.mjs');
+  assert.equal(suggestAssessment('# Networks\n## Learning objectives\n- Explain latency.\n\n**Sample questions and answers**\n1. What is latency?\n2. Packet travel delay.').outcome, 'Explain latency');
+});

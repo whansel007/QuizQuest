@@ -60,10 +60,10 @@ test.before(async () => {
     .replace(/^import .*$/gm, '')
     .replace(/^export const (\w+)/gm, 'window.$1')
     .replace(/^export (async function|function) (\w+)/gm, 'window.$2 = $1 $2');
-  browser = await chromium.launch();
+  browser = await chromium.launch({ ...(process.env.BROWSER_CHANNEL ? { channel: process.env.BROWSER_CHANNEL } : {}) });
   page = await browser.newPage();
   await page.addScriptTag({ path: path.join(path.dirname(require.resolve('fflate')), '..', 'umd', 'index.js') });
-  await page.addScriptTag({ content: 'const { unzipSync, strFromU8 } = window.fflate; const loadPdfJs = null;\n' + src });
+  await page.addScriptTag({ content: 'const { unzipSync, strFromU8 } = window.fflate; const loadPdfJs = () => window.pdfLibrary;\n' + src });
 });
 test.after(() => browser?.close());
 
@@ -164,4 +164,27 @@ test('legacy Office formats get a save-as instruction', async () => {
   assert.match((await run('old.ppt', Buffer.from('x'), false)).error, /Save As › PowerPoint Presentation \(\.pptx\)/);
   assert.match((await run('old.doc', Buffer.from('x'), false)).error, /Save As › Word Document \(\.docx\)/);
   assert.equal(await page.evaluate(() => [originOf('a.PPSX'), originOf('a.docx'), originOf('a.pdf'), originOf('a.md')].join()), 'pptx,docx,pdf,text');
+});
+
+test('empty scan transcriptions still count toward the per-file AI limit', async () => {
+  const result = await page.evaluate(async () => {
+    let calls = 0, destroyed = false;
+    window.pdfLibrary = { getDocument: () => ({
+      promise: Promise.resolve({ numPages: 45, getPage: async () => ({
+        getTextContent: async () => ({ items: [] }), cleanup() {},
+        getViewport: () => ({ width: 10, height: 10 }),
+        render: () => ({ promise: Promise.resolve() }),
+      }) }),
+      destroy: async () => { destroyed = true; },
+    }) };
+    try {
+      const result = await extractFile(new File(['mock PDF'], 'scans.pdf'), () => {}, {
+        describe: async () => { calls++; return { text: '', containsPersonalData: false }; },
+      });
+      return { calls, destroyed, pages: result.pages.length };
+    } finally { delete window.pdfLibrary; }
+  });
+  assert.equal(result.calls, 40);
+  assert.equal(result.pages, 45, 'unread pages remain available');
+  assert.equal(result.destroyed, true);
 });
