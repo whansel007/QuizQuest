@@ -53,7 +53,7 @@ export function customPeriodError(from, to) {
 }
 function savedPeriod() {
   const p = dashPrefs();
-  if (['7d', '30d', 'all'].includes(p.range)) return { range: p.range, from: null, to: null };
+  if (['7d', '30d', 'semester', 'all'].includes(p.range)) return { range: p.range, from: null, to: null };
   if (p.range === 'custom' && !customPeriodError(p.from, p.to)) return { range: 'custom', from: p.from, to: p.to };
   return { range: '30d', from: null, to: null };
 }
@@ -72,7 +72,8 @@ export const S = reactive({
   // Weekly topic shared by Source material, AI drafting, Question bank and
   // Analytics, so moving between them keeps the same week ('' = all topics)
   topicId: '',
-  // Analytics period: '7d' | '30d' | 'all' | 'custom' (from/to: local dates)
+  // Analytics period: '7d' | '30d' | 'semester' | 'all' | 'custom' (from/to:
+  // local dates; the semester's dates come from the course's settings)
   ...savedPeriod(),
   focusQuestionId: null, // Question bank scrolls to (and highlights) this question once
   draftTarget: null, // AI drafting opens with this { topicId, outcomeId } once

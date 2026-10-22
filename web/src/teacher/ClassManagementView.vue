@@ -465,7 +465,8 @@ function copyToClipboard(text) {
 .classes-grid {
   display: grid;
   gap: 16px;
-  grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+  /* min(): a card never forces the page wider than a 320px phone */
+  grid-template-columns: repeat(auto-fill, minmax(min(320px, 100%), 1fr));
   margin-top: 16px;
 }
 .class-card {

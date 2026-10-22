@@ -76,6 +76,13 @@ nav#tabs button {
   cursor: pointer;
 }
 nav#tabs button[aria-current="page"] { background: var(--accent-soft); color: var(--accent); }
+/* the professor's seven tabs: below the width where they would wrap onto
+   two or three lines, they take their own row and scroll sideways instead */
+@media (max-width: 1199px) {
+  nav#tabs.crowded { order: 3; flex-basis: 100%; flex-wrap: nowrap; overflow-x: auto; }
+  nav#tabs.crowded button { flex: 0 0 auto; white-space: nowrap; }
+  nav#tabs.crowded ~ #who { margin-left: auto; }
+}
 #who { display: flex; gap: 10px; align-items: center; font-size: 14px; color: var(--muted); }
 
 main { max-width: 1040px; margin: 0 auto; padding: 22px 16px 60px; }
@@ -961,6 +968,10 @@ button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible
 .tile .delta.up { color: var(--good); }
 .tile .delta.down { color: var(--bad); }
 .tile .delta.flat { color: var(--muted); }
+/* "How this comparison works": a tap target that also works without a mouse */
+.tile .info-btn { background: none; border: none; padding: 0 4px; min-width: 24px; min-height: 24px; font: inherit; color: var(--muted); cursor: pointer; vertical-align: middle; }
+.tile .info-btn[aria-expanded="true"] { color: var(--accent); }
+.tile .delta-hint { margin: 4px 0 0; }
 .chart-title { font-size: 13px; font-weight: 600; margin-bottom: 4px; }
 .multiples { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(240px, 100%), 1fr)); gap: 12px; }
 .viz .refline { stroke: var(--muted); stroke-width: 1; opacity: 0.6; }

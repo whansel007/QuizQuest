@@ -37,8 +37,10 @@ async function unlockTestAccounts(page) {
 }
 test('switching professors refreshes course data and visits every teacher view', async (t) => {
   const page = await pageFor(t, 'Prof. Demo A');
+  await page.locator('#tabs').getByRole('button', { name: 'Question bank', exact: true }).click();
   await page.getByRole('heading', { name: 'Question bank', exact: true }).waitFor();
   await page.getByRole('button', { name: 'Switch user' }).click();
+  await unlockTestAccounts(page); // the demo accounts are hidden again after signing out
   await page.getByRole('button', { name: 'Prof. Demo B' }).click();
   for (const name of ['Question bank', 'Source material', 'AI drafting', 'Analytics', 'Evaluation', 'Settings']) {
     await page.locator('#tabs').getByRole('button', { name, exact: true }).click();
@@ -118,6 +120,8 @@ test('signing in with email and password', async (t) => {
   await page.getByRole('button', { name: 'Continue' }).click();
   await password.fill('quizquest');
   await password.press('Enter');
+  // professors land on Classes & Roster
+  await page.locator('#tabs').getByRole('button', { name: 'Question bank', exact: true }).click();
   await page.getByRole('heading', { name: 'Question bank', exact: true }).waitFor();
 });
 test('the Konami debug menu exposes test accounts and fills the sign-in form', async (t) => {
@@ -332,6 +336,104 @@ test('PDF upload extracts text locally and saves reviewed source material', asyn
   await page.getByRole('button', { name: 'Save passage' }).click();
   await page.getByText('Passage saved', { exact: true }).waitFor();
   assert.ok(srv.quiz.db.passages.some((p) => p.title === 'network-test' && p.text.includes(text)));
+});
+
+test('"Add material" creates a new topic with a typed learning outcome', async (t) => {
+  const page = await pageFor(t, 'Prof. Demo A');
+  await page.locator('#tabs').getByRole('button', { name: 'Source material' }).click();
+  const panel = page.locator('.panel', { has: page.getByRole('heading', { name: 'Add material', exact: true }) });
+  await panel.getByLabel('Title').fill('Cloud notes');
+  await panel.getByLabel('Topic', { exact: true }).selectOption({ label: '+ New topic…' });
+  await panel.getByLabel('Week').fill('9');
+  await panel.getByLabel('New topic name').fill('Cloud computing');
+  await panel.getByLabel('Learning outcome for the new topic').fill('Explain what cloud computing offers');
+  await panel.getByLabel('Text', { exact: true }).fill('Cloud computing rents computing resources over the internet.');
+  await panel.getByRole('button', { name: 'Preview', exact: true }).click();
+  await panel.getByRole('checkbox', { name: /I confirm/ }).check();
+  await panel.getByRole('button', { name: 'Save passage' }).click();
+  await page.getByText('Passage saved to the new topic Week 9 · Cloud computing').waitFor();
+  const topic = srv.quiz.db.topics.find((x) => x.name === 'Cloud computing');
+  // later tests share this server and expect the seeded weeks only
+  t.after(() => {
+    const { passages } = srv.quiz.db;
+    for (let i = passages.length - 1; i >= 0; i--) if (passages[i].topicId === topic.id) passages.splice(i, 1);
+    srv.quiz.db.topics.splice(srv.quiz.db.topics.indexOf(topic), 1);
+    srv.quiz.services.save();
+  });
+  assert.equal(topic.week, 9);
+  assert.deepEqual(topic.outcomes.map((o) => o.text), ['Explain what cloud computing offers']);
+  assert.ok(srv.quiz.db.passages.some((p) => p.title === 'Cloud notes' && p.topicId === topic.id && p.outcomeId === topic.outcomes[0].id));
+  // the new outcome is now offered in the list
+  await page.locator('.panel', { has: page.getByRole('heading', { name: 'Add material', exact: true }) }).getByLabel('Learning outcome', { exact: true }).locator('option', { hasText: 'Explain what cloud computing offers' }).waitFor({ state: 'attached' });
+});
+
+test('dashboard: very low accuracy is flagged, commonly missed means under 60%, and empty comparisons stay quiet', async (t) => {
+  const page = await pageFor(t, 'Prof. Demo A');
+  await page.locator('#tabs').getByRole('button', { name: 'Analytics', exact: true }).click();
+  const attention = page.locator('.panel', { has: page.getByRole('heading', { name: 'Needs attention' }) });
+  // the seeded video-call question: 0 of 5 right on first attempts. One
+  // question opens straight away.
+  await attention.getByRole('button', { name: /1 question under 25% correct on first attempts/ }).click();
+  const dialog = page.getByRole('dialog');
+  await dialog.getByText(/A video call has a sharp picture/).first().waitFor();
+  await page.keyboard.press('Escape');
+  await dialog.waitFor({ state: 'hidden' });
+  // Group A is far behind Group C on Networking basics (class names, no students)
+  await attention.getByRole('button', { name: /^Networking basics: \d+% correct here vs \d+% in Computing - Tutorial Group C$/ }).waitFor();
+  // the comparison explanation opens from a button, not only on hover
+  const info = page.getByRole('button', { name: 'How the answers submitted comparison works' });
+  await info.click();
+  assert.equal(await info.getAttribute('aria-expanded'), 'true');
+  await page.getByText(/counted up to the same time of day|in the 30 days before\./).first().waitFor();
+  await info.click();
+  assert.equal(await info.getAttribute('aria-expanded'), 'false');
+  await page.locator('.dash-nav, nav').getByRole('button', { name: 'Commonly missed' }).first().click();
+  const missed = page.locator('#dash-missed');
+  await missed.getByText(/^Questions under 60% correct on first attempts/).waitFor();
+  const firsts = await missed.locator('.small.muted').filter({ hasText: 'first attempts' }).allInnerTexts();
+  for (const line of firsts.filter((l) => l.includes(' · first attempts '))) assert.ok(Number(line.match(/first attempts (\d+)%/)[1]) < 60, line);
+  // 50% is no longer "mostly right": the time table's groups use the 60% line
+  const time = page.locator('#dash-time');
+  await time.getByRole('columnheader', { name: 'Correct (all answers)' }).waitFor();
+  const https = time.locator('tr', { hasText: 'What does HTTPS add to HTTP?' });
+  assert.match(await https.innerText(), /often wrong/i);
+  // downloads are named by what they hold, for whom and when
+  const download = page.waitForEvent('download');
+  await missed.getByRole('button', { name: 'Download CSV' }).click();
+  assert.match((await download).suggestedFilename(), /^Commonly missed questions - Computing - Tutorial Group A - All topics - last 30 days to \d{1,2} \w{3} \d{4}\.csv$/);
+  // no World answers yet: no "(0 in World)" and no empty Practice vs World panel
+  assert.equal(await page.getByText('(0 in World)').count(), 0);
+  assert.equal(await page.getByRole('heading', { name: 'Practice vs World' }).count(), 0);
+  // the seeded previous period is empty, so the tiles say "up from 0" instead of "+120"
+  await page.getByText(/^▲ up from 0 in the 30 days before/).first().waitFor();
+});
+
+test('dashboard: "This semester" uses the dates set in Settings', async (t) => {
+  const course = srv.quiz.db.courses.find((c) => c.id === 'c-comp');
+  const seeded = { ...course.semester };
+  t.after(() => { course.semester = seeded; srv.quiz.services.save(); });
+  const page = await pageFor(t, 'Prof. Demo A');
+  const tabs = page.locator('#tabs');
+  await tabs.getByRole('button', { name: 'Analytics', exact: true }).click();
+  await page.getByLabel('Period').selectOption('semester');
+  await page.getByText(/students who practised \(this semester, from \d{1,2} \w{3} \d{4}\)/).waitFor();
+  // without dates the dashboard stays put and points to Settings
+  await tabs.getByRole('button', { name: 'Settings', exact: true }).click();
+  await page.getByLabel('Semester starts').fill('');
+  await page.getByRole('button', { name: 'Clear dates' }).click();
+  await page.getByText('Semester dates cleared').waitFor();
+  // the remembered "This semester" falls back to 30 days, and says why
+  await tabs.getByRole('button', { name: 'Analytics', exact: true }).click();
+  await page.getByText(/students who practised \(last 30 days\)/).waitFor();
+  await page.getByText('This course has no semester dates yet.').waitFor();
+  await page.getByLabel('Period').selectOption('semester');
+  await page.getByText('This course has no semester dates yet.').waitFor();
+  await page.getByText(/students who practised \(last 30 days\)/).waitFor();
+  await page.getByRole('button', { name: 'Set when the semester starts in Settings' }).click();
+  await page.getByLabel('Semester starts').fill(seeded.start);
+  await page.getByRole('button', { name: 'Save dates' }).click();
+  await page.getByText('Semester dates saved').waitFor();
+  assert.deepEqual(course.semester, { start: seeded.start });
 });
 
 test('dashboard: period filter, question detail, and a jump to the Question bank', async (t) => {

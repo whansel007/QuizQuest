@@ -29,4 +29,7 @@ export function useWidth(el, fallback = 600) {
 }
 
 // Show every nth x label so labels never collide
-export const labelStep = (count, plotWidth, minGap = 56) => Math.max(1, Math.ceil(count / Math.max(1, Math.floor(plotWidth / minGap))));
+const labelEvery = (count, plotWidth, minGap) => Math.max(1, Math.ceil(count / Math.max(1, Math.floor(plotWidth / minGap))));
+// labels: pass the x labels so the gap fits the longest (about 6px per character at 11px)
+export const labelStep = (count, plotWidth, minGap = 56, labels = []) =>
+  labelEvery(count, plotWidth, Math.max(minGap, 10 + 6 * Math.max(0, ...labels.map((l) => String(l).length))));

@@ -37,7 +37,7 @@ import ComparePanel from './dashboard/ComparePanel.vue';
 import { loadCourses, syncTopic, topicLabel } from './courses.js';
 import { downloadCsv, pctCell, secCell } from './csv.js';
 
-const PERIODS = [['7d', 'Last 7 days'], ['30d', 'Last 30 days'], ['all', 'All time'], ['custom', 'Custom dates']];
+const PERIODS = [['7d', 'Last 7 days'], ['30d', 'Last 30 days'], ['semester', 'This semester'], ['all', 'All time'], ['custom', 'Custom dates']];
 const REFRESH_MS = 30000;
 const MAX_COMBINED = 4; // more topics than this: one small chart per topic
 
@@ -118,6 +118,14 @@ async function init() {
       saveDashPrefs({ classId: S.classId });
       syncTopic(course.value);
       if (S.range === 'custom') Object.assign(custom.value, { from: S.from, to: S.to });
+      // "This semester" was remembered, but the course's dates have been
+      // cleared since: show the last 30 days and say why (the saved choice
+      // stays, so it comes back once the dates are set again)
+      if (S.range === 'semester' && !course.value?.semester?.start) {
+        Object.assign(S, { range: '30d', from: null, to: null });
+        choice.value = '30d';
+        fellBack.value = true;
+      }
       await load();
     }
     loaded.value = true;
@@ -200,8 +208,13 @@ async function switchPeriod(next) {
     if (next.range !== 'custom') choice.value = before.range;
   }
 }
+// "This semester" needs the course's start date (Settings); without it the
+// dashboard stays as it is and a note links to Settings
+const fellBack = ref(false); // see init()
+const noSemester = computed(() => !course.value?.semester?.start && (choice.value === 'semester' || fellBack.value));
 function pickPeriod() {
-  if (choice.value === 'custom') return; // shown below; nothing loads until applied
+  if (choice.value === 'custom' || (choice.value === 'semester' && noSemester.value)) return; // shown below; nothing loads yet
+  fellBack.value = false;
   switchPeriod({ range: choice.value });
 }
 function applyCustom() {
@@ -213,6 +226,8 @@ const fmtDate = (iso) => new Date(iso + 'T00:00:00Z').toLocaleDateString([], { d
 const period = computed(() => {
   if (!a.value) return '';
   if (a.value.range === 'custom') return `${fmtDate(a.value.from)} to ${fmtDate(a.value.to)}`;
+  // a running semester has no end yet
+  if (a.value.range === 'semester') return a.value.to ? `this semester, ${fmtDate(a.value.from)} to ${fmtDate(a.value.to)}` : `this semester, from ${fmtDate(a.value.from)}`;
   return PERIODS.find(([id]) => id === a.value.range)?.[1].toLowerCase() || '';
 });
 
@@ -304,6 +319,27 @@ const sections = computed(() => [
 ]);
 
 // ---- "needs attention": the few things worth acting on, each linked
+const VERY_LOW = 0.25; // first-attempt accuracy that is flagged on its own
+const GAP = 0.2; // a topic this far behind another class is flagged
+// Compare classes rows (ComparePanel loads them): the widest topic gap where
+// this class is behind, both sides on enough answers. Class-level only.
+const compareRows = ref([]);
+const classGap = computed(() => {
+  const mine = compareRows.value.find((r) => r.classId === S.classId);
+  if (!mine || !a.value) return null;
+  const enough = (acc) => acc && acc.n >= a.value.trend.lowN && acc.accuracy !== null;
+  let worst = null;
+  for (const t of mine.topics) {
+    if (!enough(t.accuracy)) continue;
+    for (const other of compareRows.value.filter((r) => r !== mine)) {
+      const o = other.topics.find((x) => x.topicId === t.topicId)?.accuracy;
+      if (!enough(o)) continue;
+      const d = o.accuracy - t.accuracy.accuracy;
+      if (d >= GAP && (!worst || d > worst.d)) worst = { d, topic: t.name, here: t.accuracy.accuracy, there: o.accuracy, other: other.name };
+    }
+  }
+  return worst;
+});
 const attention = computed(() => {
   if (!a.value) return [];
   const out = [];
@@ -314,7 +350,20 @@ const attention = computed(() => {
   if (a.value.tags.issues.length) out.push({ icon: '⚠', text: `${plural(a.value.tags.issues.length, 'question')} missing tags`, go: () => goTo('dash-quality') });
   if (a.value.openReports) out.push({ icon: '⚑', text: `${plural(a.value.openReports, 'open student report')}`, go: () => toBank({ filter: 'reported' }) });
   const confusing = a.value.time.questions.filter((q) => q.confusing).length;
-  if (confusing) out.push({ icon: '⚠', text: `${plural(confusing, 'question')} worth rereading (slow and mostly wrong)`, go: () => { timeZone.value = 'reread'; goTo('dash-time'); } });
+  // a single question opens straight away; several go to their list
+  const flagged = a.value.time.questions.filter((q) => q.confusing);
+  if (confusing) out.push({ icon: '⚠', text: `${plural(confusing, 'question')} worth rereading (slow and often wrong)`, go: () => {
+    if (confusing === 1) return openQuestion(flagged[0].questionId);
+    timeZone.value = 'reread';
+    goTo('dash-time');
+  } });
+  // almost nobody gets it right first time, however fast: often a wrong key,
+  // a confusing question or a gap in teaching. They top Commonly missed.
+  const lowest = missed.value.filter((q) => q.first.n >= a.value.time.minN && q.first.accuracy < VERY_LOW);
+  if (lowest.length) out.push({ icon: '✗', text: `${plural(lowest.length, 'question')} under ${pct(VERY_LOW)} correct on first attempts`, go: () => (lowest.length === 1 ? openQuestion(lowest[0].questionId) : goTo('dash-missed')) });
+  // (4) this class far behind another of the professor's classes on a topic
+  const gap = classGap.value;
+  if (gap) out.push({ icon: '⇄', text: `${gap.topic}: ${pct(gap.here)} correct here vs ${pct(gap.there)} in ${gap.other}`, go: () => goTo('dash-compare') });
   if (a.value.quality.difficulty.length) out.push({ icon: '⚖', text: `${plural(a.value.quality.difficulty.length, 'difficulty tag')} not matching results`, go: () => goTo('dash-quality') });
   // first attempts, like the By topic table it links to; with one topic chosen it would just name it
   const weakest = !a.value.topicId && a.value.byTopic.filter((t) => t.first.n >= a.value.trend.lowN).sort((x, y) => x.first.accuracy - y.first.accuracy)[0];
@@ -328,14 +377,21 @@ const attention = computed(() => {
 });
 
 // ---- tiles: change vs the previous period of the same length
+const hintOpen = ref(null); // the tile whose comparison explanation is open
 function delta(key) {
   const prev = a.value.previous;
   if (!prev) return null;
   const d = a.value.participation[key] - prev[key];
-  // a period still running is compared up to the same point of the previous one
-  const vs = `vs previous ${a.value.days} days${prev.partial ? ', to the same point' : ''}`;
-  if (d === 0) return { cls: 'flat', text: `no change ${vs}` };
-  return d > 0 ? { cls: 'up', text: `▲ ${d} ${vs}` } : { cls: 'down', text: `▼ ${-d} ${vs}` };
+  const before = `the ${a.value.days} days before`;
+  // a period that includes today is compared up to the same time of day,
+  // so an unfinished today is never measured against a whole day
+  const hint = prev.partial
+    ? `Today isn't over yet, so ${before} are counted up to the same time of day (${prev[key]} then). This keeps the comparison fair.`
+    : `${prev[key]} in ${before}.`;
+  if (d === 0) return { cls: 'flat', text: `same as ${before}`, hint };
+  // "▲ 6 more" would hide that there was nothing to compare with
+  if (prev[key] === 0) return { cls: 'up', text: `▲ up from 0 in ${before}`, hint };
+  return d > 0 ? { cls: 'up', text: `▲ ${d} more than ${before}`, hint } : { cls: 'down', text: `▼ ${-d} fewer than ${before}`, hint };
 }
 // the shape of a tile's number over the period, from the Trends buckets
 function spark(field, what) {
@@ -353,7 +409,7 @@ const tiles = computed(() => {
     { key: 'activeEver', value: `${p.activeEver} / ${p.enrolled}`, label: `students who practised (${period.value})`, delta: delta('activeEver'), spark: spark('students', 'Students active') },
     { key: 'active7d', value: `${p.active7d} / ${p.enrolled}`, label: 'active in the last 7 days' },
     { key: 'sessionsCompleted', value: p.sessionsCompleted, label: 'sessions completed', delta: delta('sessionsCompleted') },
-    { key: 'attempts', value: p.attempts, label: `answers submitted (${p.worldAttempts} in World)`, delta: delta('attempts'), spark: spark('answers', 'Answers') },
+    { key: 'attempts', value: p.attempts, label: `answers submitted${p.worldAttempts ? ` (${p.worldAttempts} in World)` : ''}`, delta: delta('attempts'), spark: spark('answers', 'Answers') },
     ...(p.awaitingMarking ? [{ key: 'awaitingMarking', value: p.awaitingMarking, label: 'answers in this period awaiting marking (left out of accuracy)' }] : []),
   ];
 });
@@ -411,15 +467,40 @@ function sortPoints(key) {
 }
 const ariaSort = (key) => (pointsSort.value.key !== key ? 'none' : pointsSort.value.dir > 0 ? 'ascending' : 'descending');
 const pointsPages = usePaged(() => sortedPoints.value, 10);
-const timePages = usePaged(() => a.value?.time.questions, 10);
-const missedPages = usePaged(() => a.value?.commonlyMissed, 5);
+// "commonly missed": under the same line as "often wrong", worst first
+const missed = computed(() => (a.value?.commonlyMissed || []).filter((q) => q.first.accuracy < a.value.time.maxAccuracy));
+const missedPages = usePaged(() => missed.value, 5);
 
-// ---- time vs accuracy
+// ---- time vs accuracy: each question lands in a plainly named group
+// (time-zones.mjs); the chips pick a group, highlight its dots and filter
+// the table. The table lists the groups worth a look first.
+const zoneInput = (q) => ({ n: q.n, meanMs: q.meanMs, accuracy: q.accuracy.accuracy, flagged: q.confusing });
+const zoneOpts = computed(() => ({ slowMs: a.value.time.slowMs, maxAccuracy: a.value.time.maxAccuracy, lowN: a.value.time.minN }));
+const timeRows = computed(() =>
+  (a.value?.time.questions || []).map((q) => ({ ...q, zone: zoneOf(zoneInput(q), zoneOpts.value) })).sort((p, q) => ZONE_ORDER.indexOf(p.zone) - ZONE_ORDER.indexOf(q.zone) || q.meanMs - p.meanMs),
+);
+const zones = computed(() => (a.value ? zoneCounts(a.value.time.questions.map(zoneInput), zoneOpts.value) : []));
+const timeZone = ref(''); // '' = every question
+const activeZone = computed(() => (zones.value.some((z) => z.id === timeZone.value) ? timeZone.value : ''));
+const timeShown = computed(() => (activeZone.value ? timeRows.value.filter((q) => q.zone === activeZone.value) : timeRows.value));
+const timePages = usePaged(() => timeShown.value, 10);
+watch(activeZone, () => timePages.go(1));
+const pickZone = (id) => (timeZone.value = activeZone.value === id ? '' : id);
 // n = marked answers (what the accuracy rests on), not every timed answer
-const scatter = computed(() => a.value.time.questions.map((q) => ({ id: q.questionId, label: q.stem, x: q.meanMs, y: q.accuracy.accuracy, n: q.accuracy.n, flagged: q.confusing })));
+const scatter = computed(() => timeRows.value.map((q) => ({ id: q.questionId, label: q.stem, x: q.meanMs, y: q.accuracy.accuracy, n: q.accuracy.n, flagged: q.confusing, zone: q.zone })));
 
 // ---- CSV exports (no student names in any of these)
-const file = (what) => `${what}-${S.classId}${topic.value ? '-' + (topic.value.week ? 'week-' + topic.value.week : topic.value.id) : ''}-${a.value.range === 'custom' ? `${a.value.from}_${a.value.to}` : a.value.range}.csv`;
+// A name that says what is inside, e.g. "Commonly missed questions -
+// Computing - Tutorial Group A - Week 2 Networking basics - last 30 days to
+// 23 Oct 2026.csv" (the same words as the printed report's heading)
+const CSV_TITLES = { topics: 'Topic results', 'question-times': 'Question times and accuracy', 'commonly-missed': 'Commonly missed questions' };
+function file(what) {
+  const today = new Date().toLocaleDateString([], { day: 'numeric', month: 'short', year: 'numeric', timeZone: a.value.timezone });
+  const when = a.value.range === 'custom' || (a.value.range === 'semester' && a.value.to) ? period.value : `${period.value} to ${today}`;
+  const parts = [CSV_TITLES[what], className.value, topic.value ? topicLabel(topic.value).replace(' · ', ' ') : 'All topics', when];
+  // characters Windows and macOS refuse in file names
+  return parts.filter(Boolean).join(' - ').replace(/[\\/:*?"<>|]+/g, '-').replace(/\s+/g, ' ').slice(0, 180) + '.csv';
+}
 function topicsCsv() {
   const rows = [['topic', 'learning_outcome', 'first_attempt_accuracy_pct', 'first_attempts', 'retry_accuracy_pct', 'retries', 'awaiting_marking', 'published_questions', 'students', 'median_time_s', 'timeouts']];
   for (const t of a.value.byTopic) {
@@ -435,7 +516,7 @@ function timeCsv() {
 }
 function missedCsv() {
   const rows = [['question', 'type', 'topic', 'status', 'first_attempt_accuracy_pct', 'first_attempts', 'retry_accuracy_pct', 'retries', 'most_chosen_wrong_answer', 'times_chosen', 'open_reports']];
-  for (const q of a.value.commonlyMissed) rows.push([q.stem, q.type, q.topic, q.status, pctCell(q.first.accuracy), q.first.n, pctCell(q.retry.accuracy), q.retry.n, q.topWrong?.option || '', q.topWrong?.count || '', q.openReports]);
+  for (const q of missed.value) rows.push([q.stem, q.type, q.topic, q.status, pctCell(q.first.accuracy), q.first.n, pctCell(q.retry.accuracy), q.retry.n, q.topWrong?.option || '', q.topWrong?.count || '', q.openReports]);
   downloadCsv(file('commonly-missed'), rows);
 }
 </script>
@@ -472,6 +553,10 @@ function missedCsv() {
         </select>
         <button class="btn no-print" @click="printReport">Print report</button>
       </Heading>
+      <p v-if="noSemester" class="note small no-print">
+        This course has no semester dates yet.
+        <button class="linklike" @click="setTab('settings')">Set when the semester starts in Settings</button>, then choose This semester again.
+      </p>
       <form v-if="choice === 'custom'" class="row custom-dates no-print" @submit.prevent="applyCustom">
         <label class="small" style="margin: 0">From <input v-model="custom.from" type="date" required :max="custom.to" /></label>
         <label class="small" style="margin: 0">To <input v-model="custom.to" type="date" required :min="custom.from" /></label>
@@ -529,7 +614,11 @@ function missedCsv() {
           <!-- the key changes when a background refresh changes the value, so the glow replays -->
           <div v-for="t in tiles" :key="`${t.key}:${pulse[t.key] || 0}`" class="tile" :class="{ pulse: pulse[t.key] }">
             <div class="v">{{ t.value }}</div><div class="l">{{ t.label }}</div>
-            <div v-if="t.delta" :class="'delta ' + t.delta.cls">{{ t.delta.text }}</div>
+            <div v-if="t.delta" :class="'delta ' + t.delta.cls">
+              {{ t.delta.text }}
+              <button type="button" class="info-btn no-print" :aria-expanded="hintOpen === t.key ? 'true' : 'false'" :aria-label="`How the ${t.label} comparison works`" @click="hintOpen = hintOpen === t.key ? null : t.key">ⓘ</button>
+            </div>
+            <p v-if="hintOpen === t.key" class="delta-hint small muted">{{ t.delta.hint }}</p>
             <Sparkline v-if="t.spark" :key="drawKey" :points="t.spark.points" :label="t.spark.label" />
           </div>
         </div>
@@ -658,13 +747,18 @@ function missedCsv() {
           <p class="small">Each dot is a question: <b>further right</b>, students took longer; <b>lower</b>, more of them got it wrong. Start with the shaded corner. Click a dot or a question for its details.</p>
           <details class="small muted how-measured">
             <summary>How this is measured</summary>
-            <p>Average time from the question appearing to the answer arriving ({{ period }}), measured by the server. Each student counts once and timed-out answers are left out; times include reading and are not a measure of ability. <b>Slow</b> means slower than three quarters of questions ({{ a.time.slowMs === null ? `needs at least four questions with ${a.time.minN}+ answers` : secs(a.time.slowMs) + ' or more' }}); <b>mostly wrong</b> means under {{ pct(a.time.maxAccuracy) }} correct. Questions need at least {{ a.time.minN }} answers before they are placed in a group.</p>
+            <p>Average time from the question appearing to the answer arriving ({{ period }}), measured by the server. Each student counts once and timed-out answers are left out; times include reading and are not a measure of ability. <b>Slow</b> means slower than three quarters of questions ({{ a.time.slowMs === null ? `needs at least four questions with ${a.time.minN}+ answers` : secs(a.time.slowMs) + ' or more' }}); <b>often wrong</b> means under {{ pct(a.time.maxAccuracy) }} correct, counting every marked answer (first attempts and retries). Questions need at least {{ a.time.minN }} answers before they are placed in a group.</p>
           </details>
           <template v-if="a.time.questions.length">
-            <ScatterChart :key="drawKey" :points="scatter" :slow-ms="a.time.slowMs" :max-accuracy="a.time.maxAccuracy" :low-n="a.time.minN" label="Average time against accuracy, one dot per question" @open="openQuestion" />
+            <div class="chips zone-chips" role="group" aria-label="Question groups">
+              <button :aria-pressed="activeZone === '' ? 'true' : 'false'" @click="timeZone = ''">All ({{ a.time.questions.length }})</button>
+              <button v-for="z in zones" :key="z.id" :class="{ warn: z.id === 'reread' }" :aria-pressed="activeZone === z.id ? 'true' : 'false'" :title="z.hint" @click="pickZone(z.id)">{{ z.id === 'reread' ? '⚠ ' : '' }}{{ z.label }} ({{ z.count }})</button>
+            </div>
+            <p v-if="activeZone" class="small muted zone-hint">{{ ZONES[activeZone].label }}: {{ ZONES[activeZone].hint }}.</p>
+            <ScatterChart :key="drawKey" :points="scatter" :slow-ms="a.time.slowMs" :max-accuracy="a.time.maxAccuracy" :low-n="a.time.minN" :highlight="activeZone" label="Average time against accuracy, one dot per question" @open="openQuestion" />
             <div class="table-wrap" style="margin-top: 12px">
               <table class="dash-table">
-                <thead><tr><th>Question</th><th>Group</th><th>Topic</th><th>Students</th><th>Answers</th><th>Average time</th><th>Median</th><th>Correct</th></tr></thead>
+                <thead><tr><th>Question</th><th>Group</th><th>Topic</th><th>Students</th><th>Answers</th><th>Average time</th><th>Median</th><th>Correct (all answers)</th></tr></thead>
                 <tbody>
                   <tr v-for="q in timePages.items" :key="q.questionId">
                     <td class="q">
@@ -690,10 +784,10 @@ function missedCsv() {
         <div id="dash-missed" class="panel">
           <div class="row">
             <h3 class="grow" tabindex="-1">Commonly missed questions</h3>
-            <button v-if="a.commonlyMissed.length" class="btn small no-print" @click="missedCsv">Download CSV</button>
+            <button v-if="missed.length" class="btn small no-print" @click="missedCsv">Download CSV</button>
           </div>
-          <p class="small muted">Every question with at least {{ a.minN }} confirmed first attempts, lowest first-attempt accuracy first. Low accuracy is a reason to look closer: it can mean a difficult concept, an ambiguous question, or a gap in coverage. Click a question for its answer breakdown.</p>
-          <template v-if="a.commonlyMissed.length">
+          <p class="small muted">Questions under {{ pct(a.time.maxAccuracy) }} correct on first attempts (at least {{ a.minN }} confirmed), lowest first. Low accuracy is a reason to look closer: it can mean a difficult concept, an ambiguous question, or a gap in coverage. Click a question for its answer breakdown.</p>
+          <template v-if="missed.length">
             <div v-for="q in missedPages.items" :key="q.questionId" style="padding: 10px 0; border-bottom: 1px solid var(--line)">
               <div class="row">
                 <button class="linklike grow missed-title" style="font-weight: 600; text-align: left" @click="openQuestion(q.questionId)">{{ q.stem }}</button>
@@ -706,14 +800,17 @@ function missedCsv() {
             </div>
             <Pager :paged="missedPages" label="Commonly missed questions pages" noun="questions" />
           </template>
+          <p v-else-if="a.commonlyMissed.length" class="small">✓ No question is under {{ pct(a.time.maxAccuracy) }} correct on first attempts{{ topic ? ' in this topic' : '' }}.</p>
           <p v-else class="muted small">Not enough data yet.</p>
         </div>
 
         <div id="dash-activity" class="panel">
           <h3 tabindex="-1">When students practise</h3>
           <WhenPanel :when="a.when" :timezone="a.timezone" />
-          <h3 style="margin-top: 18px">Practice vs World</h3>
-          <ContextsPanel :contexts="a.contexts" />
+          <template v-if="a.contexts.world.n">
+            <h3 style="margin-top: 18px">Practice vs World</h3>
+            <ContextsPanel :contexts="a.contexts" />
+          </template>
         </div>
 
         <div id="dash-quality" class="panel">
@@ -723,7 +820,7 @@ function missedCsv() {
 
         <div v-if="sameCourseClasses >= 2" id="dash-compare" class="panel">
           <h3 tabindex="-1">Compare your classes</h3>
-          <ComparePanel :course-id="courseId" :stamp="stamp" />
+          <ComparePanel :course-id="courseId" :stamp="stamp" @loaded="compareRows = $event" />
         </div>
 
         <!-- names students, so it stays off paper unless asked for -->
