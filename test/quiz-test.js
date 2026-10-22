@@ -78,13 +78,13 @@ const PGLITE = process.env.QQ_STORE === 'pglite';
 let pg = null;
 let pgLog = null;
 test.before(async () => {
-  let opts = { dataFile: null };
+  let opts = { dataFile: null, debugMode: true };
   if (PGLITE) {
     const { openPglite, pgliteAdapter, quiet } = require('./support/pglite');
     const { createSyncedStore } = require('../src/db/supabase-store');
     pg = await openPglite();
     pgLog = quiet();
-    opts = { store: await createSyncedStore({ adapter: pgliteAdapter(pg), logger: pgLog, saveDelay: 20 }) };
+    opts = { store: await createSyncedStore({ adapter: pgliteAdapter(pg), logger: pgLog, saveDelay: 20 }), debugMode: true };
   }
   srv = start(0, opts);
   await new Promise((r) => srv.httpServer.once('listening', r));
@@ -348,6 +348,26 @@ test('adaptive mix: ~30% weaker-topic questions once there is history', () => {
   for (const t of topics) assert.equal(fresh.questionIds.filter((id) => id.startsWith(t.id)).length, 3);
 });
 
+test('adaptive focus slots prefer questions similar to ones the student got wrong', () => {
+  const topics = [{ id: 'A', name: 'A' }, { id: 'B', name: 'B' }];
+  // B0-B4 practise outcome o1, B5-B9 outcome o2; the student misses B1 and B2 (both o1)
+  const bank = topics.flatMap((t) => Array.from({ length: 10 }, (_, i) => ({ id: `${t.id}${i}`, topicId: t.id, outcomeId: t.id === 'B' ? (i < 5 ? 'o1' : 'o2') : 'oa' })));
+  const attempts = [];
+  let at = 0;
+  for (const t of topics) for (let i = 0; i < 4; i++) attempts.push({ questionId: `${t.id}${i}`, topicId: t.id, correct: !(t.id === 'B' && (i === 1 || i === 2)), at: at++, ms: 1000 });
+  const stats = topicStats(attempts, topics);
+  assert.deepEqual(stats.find((s) => s.topicId === 'B').missedIds, ['B2', 'B1']);
+  for (let seed = 0; seed < 20; seed++) {
+    let x = seed + 1;
+    const rand = () => ((x = (x * 16807) % 2147483647) / 2147483647);
+    const plan = planSession({ bank, topics, stats, recentIds: [], length: 10, rand });
+    const focus = plan.questionIds.filter((id) => id.startsWith('B'));
+    assert.equal(focus.length, 3);
+    // three o1 questions other than the missed ones exist (B0, B3, B4): all focus slots go there
+    assert.deepEqual(focus.sort(), ['B0', 'B3', 'B4']);
+  }
+});
+
 // ---------------- free response marking ----------------
 test('short answers are provisional; the professor\'s mark wins and pays once', async () => {
   const t = await login('s-06');
@@ -361,8 +381,16 @@ test('short answers are provisional; the professor\'s mark wins and pays once', 
   assert.equal(attempt.needsReview, true);
   assert.equal(attempt.correct, false);
   const prof = await login('t-a');
+  // the queue: every pending answer from current class members, with a total
+  // s-07 is a real student who isn't (or is no longer) in cl-a
+  db().attempts.push({ ...attempt, id: 'at-left-class', studentId: 's-07' });
   const queue = (await call(prof, 'GET', '/api/teacher/classes/cl-a/marking')).body;
-  const entry = queue.find((m) => m.attemptId === attempt.id);
+  assert.equal(queue.total, db().attempts.filter((a) => a.classId === 'cl-a' && a.needsReview && a.studentId !== 's-07').length);
+  assert.equal(queue.items.length, Math.min(50, queue.total));
+  assert.ok(!queue.items.some((m) => m.attemptId === 'at-left-class'), 'not from students who left the class');
+  db().attempts.splice(db().attempts.findIndex((a) => a.id === 'at-left-class'), 1);
+  srv.quiz.services.save(); // in case a background save already stored it
+  const entry = queue.items.find((m) => m.attemptId === attempt.id);
   assert.ok(entry);
   assert.ok(!JSON.stringify(entry).includes('s-06'), 'marking queue is anonymous');
   const w = (await call(t, 'GET', '/api/student/home')).body.wallet;
@@ -371,6 +399,10 @@ test('short answers are provisional; the professor\'s mark wins and pays once', 
   const m2 = await call(prof, 'POST', `/api/teacher/attempts/${attempt.id}/mark`, { correct: true });
   assert.equal(m2.body.paid, 0, 'marking twice does not pay twice');
   assert.equal(attempt.needsReview, false);
+  // from the queue (expectPending), an answer someone already marked is refused
+  const m3 = await call(prof, 'POST', `/api/teacher/attempts/${attempt.id}/mark`, { correct: false, expectPending: true });
+  assert.equal(m3.status, 409);
+  assert.equal(attempt.correct, true, 'the first mark stands');
 });
 
 // ---------------- economy ----------------
@@ -384,6 +416,53 @@ test('shop: double-clicked purchase charges once; egg odds disclosed', async () 
   assert.equal(a.status, 200);
   assert.equal(b.status, 200);
   assert.equal(home.wallet.balance - b.body.wallet.balance, 40);
+});
+
+test('hero summon guarantees, owned heroes, refunds, resources, and retry safety are server-owned', async () => {
+  const R = require('../src/quiz/rewards');
+  const token = await login('s-06');
+  const home = (await call(token, 'GET', '/api/student/home')).body;
+  assert.deepEqual(home.catalog.heroSummon.odds, { common: 600, rare: 300, epic: 100 });
+  assert.ok(home.inventory.heroes.includes('sheriff'), 'new students start with Sheriff');
+  R.inventory(db(), 's-06').resources = { wood: 0, crystal: 0, herb: 0 };
+  db().ledger.push({ id: 'hero-summon-funds', studentId: 's-06', kind: 'refund', amount: 500, refKey: 'hero-summon-funds', at: Date.now() });
+
+  const draw = R.drawHeroSummon;
+  R.drawHeroSummon = (pity) => ({ prize: { kind: 'hero', rarity: 'epic', hero: { ...R.HERO_CATALOG.find((hero) => hero.id === 'bombardier') } }, pity: { totalPulls: pity.totalPulls + 1, sinceHero: 0, sinceEpic: 0 } });
+  try {
+    const requestId = 'hero-summon-0001';
+    const a = await call(token, 'POST', '/api/student/hero-summon', { requestId });
+    const b = await call(token, 'POST', '/api/student/hero-summon', { requestId });
+    assert.equal(a.status, 200);
+    assert.equal(b.body.repeat, true);
+    assert.equal(b.body.prize.hero.id, 'bombardier');
+    assert.ok(b.body.inventory.heroes.includes('bombardier'));
+    assert.equal(db().ledger.filter((entry) => entry.refKey?.startsWith('hero-summon:s-06:') && entry.kind === 'spend').length, 1);
+
+    const duplicate = await call(token, 'POST', '/api/student/hero-summon', { requestId: 'hero-summon-0002' });
+    assert.equal(duplicate.body.duplicateHero, true);
+    assert.equal(duplicate.body.refund, home.catalog.heroSummon.pullCost);
+    assert.equal(duplicate.body.inventory.heroDupes.bombardier, 1);
+  } finally { R.drawHeroSummon = draw; }
+
+  const pity = { totalPulls: 9, sinceHero: 9, sinceEpic: 9 };
+  const guaranteed = R.drawHeroSummon(pity, (n) => n > 1 ? 0 : 0);
+  assert.equal(guaranteed.prize.kind, 'hero', 'the 10th pull guarantees a hero');
+  const epic = R.drawHeroSummon({ totalPulls: 49, sinceHero: 49, sinceEpic: 49 }, () => 0);
+  assert.equal(epic.prize.rarity, 'epic', 'the 50th-pull epic guarantee takes priority');
+  const common = R.drawHeroSummon({ totalPulls: 0, sinceHero: 0, sinceEpic: 0 }, () => 0);
+  assert.equal(common.prize.kind, 'resource');
+  assert.equal(common.prize.amount, home.catalog.heroSummon.commonResourceAmount);
+});
+
+test('demo wallet editor records a server-side adjustment for the signed-in student', async () => {
+  const token = await login('s-05');
+  assert.deepEqual((await call(token, 'GET', '/api/student/debug-mode')).body, { enabled: true });
+  const result = await call(token, 'POST', '/api/student/debug/wallet', { balance: 237 });
+  assert.equal(result.status, 200);
+  assert.equal(result.body.balance, 237);
+  assert.ok(db().ledger.some((entry) => entry.studentId === 's-05' && entry.kind === 'debug'));
+  assert.equal((await call(null, 'POST', '/api/student/debug/wallet', { balance: 2 })).status, 401);
 });
 
 test('kingdom: builds cost resources, repeat requests are idempotent', async () => {

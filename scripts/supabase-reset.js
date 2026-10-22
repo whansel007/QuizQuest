@@ -1,4 +1,4 @@
-// `npm run db:reset -- --confirm`
+// `pnpm db:reset --confirm`
 // Deletes EVERY QuizQuest row in the Supabase project from .env and
 // writes fresh synthetic demo data. Stop the server first. Refuses to run
 // without --confirm, because it cannot be undone.
@@ -9,7 +9,7 @@ const { connectSupabaseStore, projectUrl } = require('../src/db/supabase-store')
 (async () => {
   if (!process.argv.includes('--confirm')) {
     console.log('This deletes ALL QuizQuest data in the Supabase project set in .env and re-seeds the synthetic demo data.');
-    console.log('Stop the server first, then run:  npm run db:reset -- --confirm');
+    console.log('Stop the server first, then run:  pnpm db:reset --confirm');
     process.exit(1);
   }
   const url = process.env.SUPABASE_URL;

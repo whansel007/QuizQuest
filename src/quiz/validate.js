@@ -10,6 +10,7 @@
 // ============================================================
 
 const { TYPES, cleanTyped, validateTyped } = require('./formats');
+const { contentText } = require('./content');
 
 const DIFFICULTIES = ['easy', 'medium', 'hard'];
 const LIMITS = { stemMin: 10, stemMax: 600, explanationMax: 1500 };
@@ -17,7 +18,11 @@ const DUPLICATE_THRESHOLD = 0.8; // word-overlap ratio treated as "obviously the
 
 // lowercase, strip punctuation, collapse spaces - used for comparisons only
 function normalise(s) {
-  return String(s || '').toLowerCase().replace(/[^a-z0-9\s]/g, ' ').replace(/\s+/g, ' ').trim();
+  return String(s || '')
+    .toLowerCase()
+    .replace(/[^a-z0-9\s]/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
 }
 
 // Jaccard similarity of the two word sets (0 = nothing shared, 1 = identical)
@@ -29,6 +34,15 @@ function similarity(a, b) {
   for (const w of A) if (B.has(w)) shared++;
   return shared / (A.size + B.size - shared);
 }
+// Quantities alone do not make a new generated question. Shared-source
+// explanations catch paraphrases missed by comparing question text alone.
+function duplicateContent(a, b) {
+  const masked = (s) => String(s || '').replace(/[+-]?\d+(?:[.,]\d+)*/g, ' quantity ');
+  const stem = similarity(masked(a.stem), masked(b.stem));
+  if (stem >= 0.8) return true;
+  const shared = (a.sourceIds || []).some((id) => (b.sourceIds || []).includes(id));
+  return shared && stem >= 0.25 && similarity(masked(a.explanation), masked(b.explanation)) >= 0.6;
+}
 
 // Coerce an untrusted object (LLM output or form body) into our shape.
 // Unknown keys are dropped so nothing unexpected gets stored.
@@ -36,8 +50,8 @@ function clean(raw) {
   const r = raw && typeof raw === 'object' ? raw : {};
   return {
     ...cleanTyped(r),
-    stem: typeof r.stem === 'string' ? r.stem.trim() : '',
-    explanation: typeof r.explanation === 'string' ? r.explanation.trim() : '',
+    stem: contentText(r.stem),
+    explanation: contentText(r.explanation),
     difficulty: typeof r.difficulty === 'string' ? r.difficulty.trim().toLowerCase() : '',
     sourceIds: Array.isArray(r.sourceIds) ? r.sourceIds.filter((s) => typeof s === 'string') : [],
   };
@@ -92,4 +106,4 @@ function validateQuestion(raw, { allowedSourceIds, requireSource = true, existin
   return { q, errors, warnings, samples };
 }
 
-module.exports = { validateQuestion, similarity, normalise, DIFFICULTIES, LIMITS };
+module.exports = { validateQuestion, similarity, normalise, DIFFICULTIES, LIMITS, duplicateContent };

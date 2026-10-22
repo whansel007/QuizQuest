@@ -35,10 +35,11 @@ primary fire and right-click activates secondary fire (logged to the console and
 action log); E tests the skill, Q tests the ultimate, and F (or the Fullscreen
 button / double-click) toggles fullscreen mode.
 
-The "Test AI" button sends a request to NVIDIA NIM (`deepseek-ai/deepseek-v4.1-flash`)
+The "Test AI" button requires a professor session: sign in to QuizQuest, then
+navigate to `/hero-lab` in that same tab. It sends a request to the backend Gemini client
 asking for a multiple choice question about AI and prints the model's response to the
-browser console. To configure the API key, set `NVIDIA_API_KEY=nvapi-...` in `.env`,
-or set `NVIDIA_API_KEY` in `public/hero-lab/main.js`.
+browser console. Configure `GEMINI_API_KEY` and `GEMINI_MODEL` in the backend `.env`.
+Never put API credentials in browser files. The shared Gemini quota limits apply.
 
 To add a hero, add its definition to `HEROES` in `hero.js`. The shared class
 constructs it and the selector lists it automatically.

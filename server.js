@@ -32,6 +32,9 @@ const { createQuizApi } = require('./src/quiz/api');
 // The multiplayer World (/world Socket.IO namespace), built on the same
 // ideas as this file's tag game. See src/world/world.js.
 const { attachWorld } = require('./src/world/world');
+// The standalone Hero Lab demonstrates the same client-input/server-state
+// pattern without the World game's class enrollment and quiz rules.
+const { attachHeroLab } = require('./src/hero-lab/world');
 
 // --- Game constants (the "rules" of our world) ----------------
 // The arena is a fixed 900x600 coordinate grid. Every player shares
@@ -70,7 +73,7 @@ const MIME = {
 // opts.dataFile: where the quiz app keeps its JSON database (null = in-memory).
 // opts.store: an already-loaded store (e.g. the Supabase one) instead of a file.
 function start(port, opts = {}) {
-  const quiz = createQuizApi(opts.store ? { store: opts.store } : { dataFile: opts.dataFile !== undefined ? opts.dataFile : path.join(__dirname, 'data', 'db.json') });
+  const quiz = createQuizApi({ ...opts, dataFile: opts.dataFile !== undefined ? opts.dataFile : path.join(__dirname, 'data', 'db.json') });
   // ------ Live game state (in-memory, lives ONLY while running) ---
   // players: socket.id -> player object. This is the "database" of
   // the live game. Unlike Mongo it is volatile: if the server restarts,
@@ -83,7 +86,7 @@ function start(port, opts = {}) {
   let cooldownUntil = 0;     // timestamp after which collisions count again
 
   // ------ Serve the static files (the part you already know) ------
-  // The quiz app is the Vue build in dist/ (`npm run build`); Circle Tag
+  // The quiz app is the Vue build in dist/ (`pnpm build`); Circle Tag
   // still lives in public/ at /tag.
   const publicDir = path.join(__dirname, 'public');
   const heroLabDir = path.join(publicDir, 'hero-lab');
@@ -101,8 +104,11 @@ function start(port, opts = {}) {
     }
     const pathname = req.url.split('?')[0];
     const isHeroLabPath = pathname === '/hero-lab' || pathname.startsWith('/hero-lab/');
+    // Keep the short URL used by the student hero picker and the run-again
+    // button mapped to the actual standalone arena document.
+    const heroLabPath = pathname === '/hero-lab/world' ? '/hero-lab/world.html' : pathname;
     const file = TAG[pathname] || (isHeroLabPath
-      ? path.resolve(heroLabDir, pathname === '/hero-lab' ? 'index.html' : '.' + pathname.slice('/hero-lab'.length))
+      ? path.resolve(heroLabDir, heroLabPath === '/hero-lab' ? 'index.html' : '.' + heroLabPath.slice('/hero-lab'.length))
       : path.join(distDir, pathname === '/' ? 'index.html' : pathname));
     if (isHeroLabPath && file !== heroLabDir && !file.startsWith(heroLabDir + path.sep)) {
       res.writeHead(403);
@@ -116,7 +122,7 @@ function start(port, opts = {}) {
     }
     if (pathname === '/' && !fs.existsSync(file)) {
       res.writeHead(503, { 'Content-Type': 'text/plain; charset=utf-8' });
-      return res.end('The Vue app has not been built yet. Run `npm run build` (or use `npm run dev` and open http://localhost:5173).');
+      return res.end('The Vue app has not been built yet. Run `pnpm build` (or use `pnpm dev` and open http://localhost:5173).');
     }
     fs.readFile(file, (err, data) => {
       if (err) {
@@ -142,6 +148,8 @@ function start(port, opts = {}) {
   const io = new Server(httpServer, { cors: { origin: '*' } });
   // The quiz World lives on its own namespace ('/world'); tag keeps '/'
   const world = attachWorld(io, quiz.services);
+  // The standalone Hero Lab shares the same input/state pattern on '/hero-lab'
+  const heroLab = attachHeroLab(io, quiz.services);
 
   // Smallest free slot (1..4). Slot = the player's identity: P1, P2...
   function freeSlot() {
@@ -300,12 +308,13 @@ function start(port, opts = {}) {
   httpServer.on('close', () => {
     clearInterval(loop);
     world.stop();
+    heroLab.stop();
   });
   httpServer.listen(port);
-  return { io, httpServer, quiz, world };
+  return { io, httpServer, quiz, world, heroLab };
 }
 
-// If run directly (`npm run dev` / `node server.js`) this is the entry
+// If run directly (`pnpm dev` / `node server.js`) this is the entry
 // point. The check also lets the test file `require('./server')` and
 // call start() itself to boot its own throwaway server on port 0.
 if (require.main === module) {
@@ -326,6 +335,16 @@ if (require.main === module) {
     }
     start(port, opts);
     console.log(`QuizQuest API on http://localhost:${port}  (data: ${where}; Circle Tag at /tag)`);
+    // `pnpm dev` serves the Vue app through Vite, so only a production start
+    // depends on dist/. A failed build leaves the previous dist/ in place,
+    // which silently serves an old app.
+    if (!process.env.QUIZQUEST_DEV) {
+      const built = (() => { try { return fs.statSync(path.join(__dirname, 'dist', 'index.html')).mtimeMs; } catch { return 0; } })();
+      const newest = (dir) => fs.readdirSync(dir, { withFileTypes: true })
+        .reduce((t, e) => Math.max(t, e.isDirectory() ? newest(path.join(dir, e.name)) : fs.statSync(path.join(dir, e.name)).mtimeMs), 0);
+      if (!built) console.warn('[startup] dist/ is missing. Run `pnpm build` first.');
+      else if (newest(path.join(__dirname, 'web')) > built) console.warn('[startup] dist/ is older than web/. Run `pnpm build`; if it fails, run `pnpm install`.');
+    }
   })().catch((err) => {
     // Startup errors are configuration problems; the message says what to fix
     console.error('[startup]', err.message);

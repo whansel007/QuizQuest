@@ -28,12 +28,28 @@ const APP_TZ = isValidTimeZone(process.env.APP_TIMEZONE) ? process.env.APP_TIMEZ
 
 // The wall-clock time in `tz` at instant t, written as if it were UTC
 const formatters = new Map();
-function wallClock(t, tz) {
+function exactWallClock(t, tz) {
   if (!formatters.has(tz)) {
     formatters.set(tz, new Intl.DateTimeFormat('en-US', { timeZone: tz, hourCycle: 'h23', year: 'numeric', month: 'numeric', day: 'numeric', hour: 'numeric', minute: 'numeric', second: 'numeric' }));
   }
   const p = Object.fromEntries(formatters.get(tz).formatToParts(new Date(t)).map((x) => [x.type, Number(x.value)]));
   return Date.UTC(p.year, p.month - 1, p.day, p.hour, p.minute, p.second);
+}
+// Intl is slow and the dashboard asks about thousands of answers at once.
+// Zones only change their offset on a quarter hour (DST, 30- and 45-minute
+// zones included), so the offset is worked out once per 15 minutes.
+const QUARTER = 15 * 60000;
+const offsets = new Map(); // `${tz}|${quarter}` -> offset in ms
+function wallClock(t, tz) {
+  const q = Math.floor(t / QUARTER);
+  const key = `${tz}|${q}`;
+  let off = offsets.get(key);
+  if (off === undefined) {
+    off = exactWallClock(q * QUARTER, tz) - q * QUARTER;
+    if (offsets.size > 100000) offsets.clear(); // bounded: about 3 years of quarters
+    offsets.set(key, off);
+  }
+  return Math.floor(t / 1000) * 1000 + off;
 }
 const offset = (t, tz) => wallClock(t, tz) - Math.floor(t / 1000) * 1000;
 
@@ -53,9 +69,16 @@ function weekdayHour(t, tz = APP_TZ) {
   return { weekday: (w.getUTCDay() + 6) % 7, hour: w.getUTCHours() };
 }
 
+// ISO 8601 on the local clock with its offset, e.g. 2026-10-16T11:52:00+08:00
+function localIso(t, tz = APP_TZ) {
+  const minutes = Math.round(offset(t, tz) / 60000), abs = Math.abs(minutes);
+  const pad = (n) => String(n).padStart(2, '0');
+  return new Date(wallClock(t, tz)).toISOString().slice(0, 19) + (minutes < 0 ? '-' : '+') + pad(Math.floor(abs / 60)) + ':' + pad(abs % 60);
+}
+
 // 'YYYY-MM-DD' keys for "same day" / "same week" checks
 const iso = (date) => new Date(date).toISOString().slice(0, 10);
 const dayKey = (t, tz = APP_TZ) => iso(localDate(t, tz));
 const weekKey = (t, tz = APP_TZ) => iso(mondayOf(localDate(t, tz))); // the Monday that starts the week
 
-module.exports = { DAY, DEFAULT_TZ, APP_TZ, isValidTimeZone, localDate, instantOf, mondayOf, weekdayHour, dayKey, weekKey };
+module.exports = { DAY, DEFAULT_TZ, APP_TZ, isValidTimeZone, localIso, localDate, instantOf, mondayOf, weekdayHour, dayKey, weekKey, wallClock, exactWallClock };

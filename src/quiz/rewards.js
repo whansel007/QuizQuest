@@ -16,6 +16,8 @@
 
 const crypto = require('crypto');
 const { dayKey } = require('./time');
+const { GAME_CONFIG } = require('../../public/hero-lab/game-config.js');
+const { HEROES } = require('../../public/hero-lab/hero-list.js');
 
 const REWARDS = {
   firstCorrect: 10,       // first time a student gets a given question right
@@ -47,6 +49,10 @@ const ITEMS = [
 ];
 // Disclosed to students before they spend anything. Out of 1000.
 const EGG_ODDS = { common: 600, rare: 300, epic: 100 };
+const HERO_SUMMON = GAME_CONFIG.heroSummon;
+const HERO_CATALOG = HEROES.map(({ id, name, emoji, type, maxHp, attack, defense, speed, weaponName, skillName, ultimateName }) => ({
+  id, name, emoji, type, rarity: HERO_SUMMON.rarities[id], hp: maxHp, attack, defense, speed, weapon: weaponName, skill: skillName, ultimate: ultimateName,
+}));
 
 
 function balance(db, studentId) {
@@ -78,21 +84,26 @@ function award(db, studentId, amount, reason, refKey, now = Date.now()) {
 
 // Spend coins. requestId comes from the client so a double-click on
 // "Buy" can't charge twice: same requestId = same purchase.
-function spend(db, studentId, amount, reason, refKey, now = Date.now()) {
+function spend(db, studentId, amount, reason, refKey, now = Date.now(), meta = undefined) {
   const prev = db.ledger.find((t) => t.refKey === refKey);
   if (prev) return { ok: true, duplicate: true };
   if (balance(db, studentId) < amount) return { ok: false, error: 'Not enough coins.' };
-  db.ledger.push({ id: 'tx-' + crypto.randomUUID().slice(0, 8), studentId, kind: 'spend', amount: -amount, reason, refKey, at: now });
+  db.ledger.push({ id: 'tx-' + crypto.randomUUID().slice(0, 8), studentId, kind: 'spend', amount: -amount, reason, refKey, at: now, ...(meta ? { meta } : {}) });
   return { ok: true, duplicate: false };
 }
 
 function inventory(db, studentId) {
   let inv = db.inventory.find((i) => i.studentId === studentId);
+  const starters = GAME_CONFIG.arenaTuning.progression.newPlayerHeroes || [HERO_SUMMON.starterHero];
   if (!inv) {
-    inv = { studentId, pets: [{ id: 'chick', dupes: 0 }], items: [], equippedPet: 'chick', equippedItem: null };
+    inv = { studentId, pets: [{ id: 'chick', dupes: 0 }], items: [], equippedPet: 'chick', equippedItem: null, heroes: [...starters] };
     db.inventory.push(inv);
   }
   inv.resources = inv.resources || { wood: 0, crystal: 0, herb: 0 };
+  inv.heroes = Array.isArray(inv.heroes) ? inv.heroes : [HERO_SUMMON.starterHero];
+  if (!inv.heroes.includes(HERO_SUMMON.starterHero)) inv.heroes.unshift(HERO_SUMMON.starterHero);
+  inv.heroDupes = inv.heroDupes && typeof inv.heroDupes === 'object' ? inv.heroDupes : {};
+  inv.heroPity = { totalPulls: 0, sinceHero: 0, sinceEpic: 0, ...(inv.heroPity || {}) };
   return inv;
 }
 
@@ -111,4 +122,33 @@ function drawPet(rand = (n) => crypto.randomInt(n)) {
   return pool[rand(pool.length)];
 }
 
-module.exports = { REWARDS, PETS, ITEMS, EGG_ODDS, balance, earnedOnDay, award, spend, inventory, drawPet };
+// Pity counts reset on the corresponding prize: rare/epic resets hero pity;
+// only an epic resets 5-star pity. The 10-pull guarantee uses the normal
+// 3:1 rare-to-epic ratio among heroes.
+function drawHeroSummon(pity, rand = (n) => crypto.randomInt(n)) {
+  const odds = HERO_SUMMON.odds;
+  const next = {
+    totalPulls: pity.totalPulls + 1,
+    sinceHero: pity.sinceHero + 1,
+    sinceEpic: pity.sinceEpic + 1,
+  };
+  let rarity;
+  if (next.sinceEpic >= HERO_SUMMON.epicPityPulls) rarity = 'epic';
+  else if (next.sinceHero >= HERO_SUMMON.heroPityPulls) rarity = rand(4) === 0 ? 'epic' : 'rare';
+  else {
+    const roll = rand(Object.values(odds).reduce((sum, weight) => sum + weight, 0));
+    let cursor = roll;
+    rarity = Object.keys(odds).find((key) => (cursor -= odds[key]) < 0) || 'epic';
+  }
+  if (rarity === 'common') {
+    const resource = ['wood', 'crystal', 'herb'][rand(3)];
+    return { prize: { kind: 'resource', rarity, resource, amount: HERO_SUMMON.commonResourceAmount }, pity: next };
+  }
+  next.sinceHero = 0;
+  if (rarity === 'epic') next.sinceEpic = 0;
+  const pool = HERO_CATALOG.filter((hero) => hero.rarity === rarity);
+  const hero = pool[rand(pool.length)];
+  return { prize: { kind: 'hero', rarity, hero: { ...hero } }, pity: next };
+}
+
+module.exports = { REWARDS, PETS, ITEMS, EGG_ODDS, HERO_SUMMON, HERO_CATALOG, balance, earnedOnDay, award, spend, inventory, drawPet, drawHeroSummon };

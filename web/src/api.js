@@ -39,15 +39,28 @@ export function saveDashPrefs(changes) {
     // storage blocked: the choice lasts until the tab is closed
   }
 }
-const DATE = /^\d{4}-\d{2}-\d{2}$/;
+// The same rules as the server's parsePeriod, so a bad range is caught
+// before it is sent (or restored from an older save): null when fine.
+const DAY = 86400000;
+const MAX_CUSTOM_DAYS = 366;
+const isDate = (d) => /^\d{4}-\d{2}-\d{2}$/.test(d || '') && !Number.isNaN(Date.parse(d)) && new Date(Date.parse(d)).toISOString().slice(0, 10) === d;
+export function customPeriodError(from, to) {
+  if (!isDate(from) || !isDate(to)) return 'Pick a valid start and end date.';
+  const days = (Date.parse(to) - Date.parse(from)) / DAY + 1;
+  if (days < 1) return 'The start date must be on or before the end date.';
+  if (days > MAX_CUSTOM_DAYS) return `Pick at most ${MAX_CUSTOM_DAYS} days.`;
+  return null;
+}
 function savedPeriod() {
   const p = dashPrefs();
   if (['7d', '30d', 'all'].includes(p.range)) return { range: p.range, from: null, to: null };
-  if (p.range === 'custom' && DATE.test(p.from) && DATE.test(p.to)) return { range: 'custom', from: p.from, to: p.to };
+  if (p.range === 'custom' && !customPeriodError(p.from, p.to)) return { range: 'custom', from: p.from, to: p.to };
   return { range: '30d', from: null, to: null };
 }
 // ?range=... for the analytics endpoints
 export const periodQuery = () => (S.range === 'custom' ? `range=custom&from=${S.from}&to=${S.to}` : `range=${S.range}`);
+// ...plus &topic=... when the dashboard is narrowed to one weekly topic
+export const dashQuery = () => periodQuery() + (S.topicId ? `&topic=${encodeURIComponent(S.topicId)}` : '');
 
 export const S = reactive({
   token: saved(),
@@ -56,6 +69,9 @@ export const S = reactive({
   courseId: null,
   classId: null,
   qFilter: 'draft',
+  // Weekly topic shared by Source material, AI drafting, Question bank and
+  // Analytics, so moving between them keeps the same week ('' = all topics)
+  topicId: '',
   // Analytics period: '7d' | '30d' | 'all' | 'custom' (from/to: local dates)
   ...savedPeriod(),
   focusQuestionId: null, // Question bank scrolls to (and highlights) this question once
@@ -102,6 +118,7 @@ http.interceptors.response.use(
     return res;
   },
   async (err) => {
+    if (axios.isCancel(err)) throw Object.assign(new Error('Cancelled.'), { name: 'AbortError' });
     if (!err.response) throw new Error('Could not reach the server. Check your connection and try again.');
     const { config, status } = err.response;
     if (config.qqToken !== S.token) throw new Error('The active user changed.');
@@ -110,13 +127,18 @@ http.interceptors.response.use(
       throw new Error('Session expired, please sign in again.');
     }
     const data = await errorBody(err.response.data);
-    throw Object.assign(new Error(data.error || 'Request failed'), { status, data });
+    const contentType = err.response.headers?.['content-type'] || '';
+    const message = data.error || (status >= 500 && !contentType.includes('json')
+      ? 'The server could not reach the API. Check the API terminal, restart local development, and retry.'
+      : 'Request failed');
+    throw Object.assign(new Error(message), { status, data });
   },
 );
 
 // api('POST', '/api/...', body) -> parsed JSON, or throws Error(message)
-export async function api(method, url, data) {
-  const res = await http.request({ method, url, data });
+// `options.signal` (an AbortSignal) cancels the request with an AbortError.
+export async function api(method, url, data, options = {}) {
+  const res = await http.request({ method, url, data, signal: options.signal });
   return res.data;
 }
 
@@ -151,26 +173,21 @@ function clearSession() {
   } catch {
     // storage blocked: the token only lived in memory anyway
   }
-  Object.assign(S, { token: null, me: null, tab: null, courseId: null, classId: null, qFilter: 'draft', ...savedPeriod(), focusQuestionId: null, draftTarget: null });
+  Object.assign(S, { token: null, me: null, tab: null, courseId: null, classId: null, qFilter: 'draft', topicId: '', ...savedPeriod(), focusQuestionId: null, draftTarget: null });
   rerender();
 }
 
+// credentials: { email, password }, or { userId } for the demo picker
 export async function signIn(credentials) {
-  const payload = typeof credentials === 'string' ? { userId: credentials } : credentials;
-  const r = await api('POST', '/api/login', payload);
-  S.token = r.token;
-  try {
-    sessionStorage.setItem('qq-token', r.token);
-  } catch {
-    // fine: this tab stays signed in until it is closed
-  }
-  S.me = r.user;
-  rerender();
-  return r.user;
+  startSession(await api('POST', '/api/login', credentials));
 }
 
-export async function register(data) {
-  const r = await api('POST', '/api/auth/register', data);
+// { name, email, password } -> a new student account, signed in
+export async function signUp(details) {
+  startSession(await api('POST', '/api/register', details));
+}
+
+function startSession(r) {
   S.token = r.token;
   try {
     sessionStorage.setItem('qq-token', r.token);
@@ -179,27 +196,11 @@ export async function register(data) {
   }
   S.me = r.user;
   rerender();
-  return r.user;
 }
 
 export function signOut() {
   if (S.token) api('POST', '/api/logout').catch(() => {});
   clearSession();
-}
-
-export async function resetPassword({ accessToken, newPassword, email, code }) {
-  const r = await api('POST', '/api/auth/reset-password', { accessToken, newPassword, email, code });
-  if (r.token && r.user) {
-    S.token = r.token;
-    try {
-      sessionStorage.setItem('qq-token', r.token);
-    } catch {
-      // storage blocked
-    }
-    S.me = r.user;
-    rerender();
-  }
-  return r;
 }
 
 // On page load: resume this tab's session if the token is still valid
@@ -211,4 +212,3 @@ export async function restoreSession() {
     clearSession();
   }
 }
-

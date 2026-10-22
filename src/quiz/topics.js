@@ -1,0 +1,76 @@
+// ============================================================
+// Weekly topics
+// ------------------------------------------------------------
+// A course is taught week by week. Each topic can carry an optional
+// week number, and uploaded files, knowledge reports and questions are
+// grouped under a topic. Every class (tutorial group) of the course
+// shares them. Topics without a week sort after the numbered ones, in
+// the order they were created.
+// ============================================================
+
+const WEEK_MAX = 52;
+const NAME_MAX = 160;
+const OUTCOME_MAX = 2000;
+const OUTCOMES_PER_TOPIC = 20;
+
+const weekOrder = (t) => (Number.isInteger(t.week) ? t.week : WEEK_MAX + 1);
+// Array sort is stable, so equal weeks keep their creation order
+const sortTopics = (list) => [...list].sort((a, b) => weekOrder(a) - weekOrder(b));
+
+const bad = (message) => {
+  throw Object.assign(new Error(message), { status: 400 });
+};
+
+// week: undefined = not given, null/'' = clear, else a whole number 1-52
+function parseWeek(value) {
+  if (value === undefined) return undefined;
+  if (value === null || value === '') return null;
+  if (!Number.isInteger(value) || value < 1 || value > WEEK_MAX) bad(`Week must be a whole number from 1 to ${WEEK_MAX}.`);
+  return value;
+}
+function parseName(value, topics, self = null) {
+  const name = typeof value === 'string' ? value.trim() : '';
+  if (!name || name.length > NAME_MAX) bad(`Enter a topic name (up to ${NAME_MAX} characters).`);
+  if (topics.some((t) => t !== self && t.name.toLowerCase() === name.toLowerCase())) bad('This course already has a topic with that name.');
+  return name;
+}
+function parseOutcome(value, topic) {
+  const text = typeof value === 'string' ? value.trim() : '';
+  if (!text || text.length > OUTCOME_MAX) bad(`Enter a learning outcome (up to ${OUTCOME_MAX} characters).`);
+  if (topic.outcomes.some((o) => o.text.toLowerCase() === text.toLowerCase())) bad('This topic already has that learning outcome.');
+  if (topic.outcomes.length >= OUTCOMES_PER_TOPIC) bad(`A topic can have up to ${OUTCOMES_PER_TOPIC} learning outcomes.`);
+  return text;
+}
+
+// Uploaded file excerpts still in use (not removed or replaced)
+const isAttachedUpload = (p) => Boolean(p.importHash) && p.origin !== 'report' && p.attached !== false;
+const fileOf = (p) => p.documentId || p.fileName || p.title.split(' · ')[0];
+
+// What each topic already has, from material to published questions.
+// Course-level: the same for every class of the course.
+function topicSummary(db, course) {
+  const passages = db.passages.filter((p) => p.courseId === course.id);
+  const questions = db.questions.filter((q) => q.courseId === course.id);
+  const reports = (course.authoringJobs || []).filter((j) => j.kind === 'analysis' && j.input.reportBased);
+  const filesIn = (topicId) => new Set(passages.filter((p) => isAttachedUpload(p) && (p.topicId ?? null) === topicId).map(fileOf)).size;
+  const topics = sortTopics(db.topics.filter((t) => t.courseId === course.id)).map((t) => {
+    const mine = questions.filter((q) => q.topicId === t.id);
+    const count = (status) => mine.filter((q) => q.status === status).length;
+    const latest = reports.filter((j) => j.input.topicId === t.id).at(-1);
+    return {
+      topicId: t.id,
+      name: t.name,
+      week: Number.isInteger(t.week) ? t.week : null,
+      files: filesIn(t.id),
+      passages: passages.filter((p) => p.topicId === t.id && !p.importHash && p.origin !== 'report').length,
+      report: latest ? { id: latest.id, status: latest.status, saved: Boolean(latest.reportSourceId), revision: latest.reportRevision || 0 } : null,
+      questions: { draft: count('draft'), published: count('published'), withdrawn: count('withdrawn'), rejected: count('rejected') },
+      openReports: mine.reduce((n, q) => n + q.reports.filter((r) => !r.resolved).length, 0),
+      // nothing refers to it yet, so it can be deleted
+      empty: !mine.length && !latest && !passages.some((p) => p.topicId === t.id) && !db.attempts.some((a) => a.topicId === t.id),
+    };
+  });
+  return { topics, unsortedFiles: filesIn(null) };
+}
+
+module.exports = { WEEK_MAX, sortTopics, parseWeek, parseName, parseOutcome, topicSummary, isAttachedUpload };

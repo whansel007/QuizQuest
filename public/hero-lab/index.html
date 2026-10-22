@@ -3,53 +3,23 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Hero test field</title>
+  <title>Hero Lab</title>
   <style>
-    #world:fullscreen {
-      background-color: #ffffff;
-      max-width: 100vw;
-      max-height: 100vh;
-      aspect-ratio: 800 / 500;
-      margin: auto;
-    }
-    #world::backdrop {
-      background-color: #111111;
-    }
+    body { margin: 2rem auto; padding: 0 1rem; max-width: 760px; font: 16px/1.5 system-ui, sans-serif; color: #1f2937; }
+    h1 { margin-bottom: .25rem; }
+    #hero-list { display: grid; gap: .75rem; padding: 0; list-style: none; }
+    .hero-card { display: grid; gap: .3rem; width: 100%; padding: 1rem; text-align: left; color: inherit; background: #f3f4f6; border: 1px solid #d1d5db; border-radius: .75rem; cursor: pointer; }
+    .hero-card:hover, .hero-card:focus-visible { background: #e5f4df; border-color: #4b7b3e; }
   </style>
 </head>
 <body>
-  <h1>Hero test field</h1>
-  <p>Select a hero to enter the empty world. Move with WASD or the arrow keys; aim with the mouse. Left-click for primary fire, right-click for secondary fire. Press E for skill, Q for ultimate, or F for fullscreen.</p>
-
-  <section aria-labelledby="hero-selector-heading">
-    <h2 id="hero-selector-heading">Hero selector</h2>
-    <ul id="hero-list"></ul>
-  </section>
-
-  <section aria-labelledby="world-heading">
-    <h2 id="world-heading">World</h2>
-    <p id="world-message">Choose a hero to drop into the world.</p>
-    <p>
-      <button id="fullscreen-btn" type="button" hidden>Fullscreen</button>
-      <button id="test-ai-btn" type="button">Test AI</button>
-    </p>
-    <canvas
-      id="world"
-      width="800"
-      height="500"
-      aria-label="Empty test world. Move with WASD or arrow keys and aim with the mouse."
-      hidden
-    ></canvas>
-    <div id="hero-details" hidden>
-      <h3>Hero stats</h3>
-      <ul id="hero-stats"></ul>
-      <h3>Test actions</h3>
-      <div id="actions"></div>
-      <h3>Action log</h3>
-      <ul id="action-log" aria-live="polite"></ul>
-    </div>
-  </section>
-
+  <main>
+    <h1>Hero Lab</h1>
+    <p>Choose a hero to enter Hero Lab World. Move with WASD or the arrow keys, aim with the mouse, and fire with the left mouse button. Press E to use the skill and Q to use the ultimate.</p>
+    <p><strong>Tip: Move to deal more damage. Heal at the campfire.</strong></p>
+    <h2>Choose your hero</h2>
+    <ul id="hero-list" aria-label="Available heroes"></ul>
+  </main>
   <script type="module" src="/hero-lab/main.js"></script>
 </body>
 </html>

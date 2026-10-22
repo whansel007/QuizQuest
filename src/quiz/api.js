@@ -23,27 +23,38 @@ const crypto = require('crypto');
 const { createStore } = require('./store');
 const { validateQuestion } = require('./validate');
 const { generate, GEN } = require('./generator');
-const { ADAPTIVE, topicStats, planSession } = require('./adaptive');
+const { ADAPTIVE, topicStats, planSession, similarToMissed } = require('./adaptive');
 const { studentProgress } = require('./progress');
 const { reportContext, studentReports } = require('./reporting');
 const reportCategories = require('./report-categories.json');
 const { classAnalytics, courseComparison, questionInsights, parsePeriod, isValidTimeZone } = require('./analytics');
+const { localIso, APP_TZ } = require('./time');
 const { courseEvaluation } = require('./evaluation');
 const { TYPES, TYPE_LABELS, studentView, newInstance, instantiate, gradeSync, isEmpty } = require('./formats');
 const { grade } = require('./grading');
 const { transcribe } = require('./vision');
 const gemini = require('./gemini');
+const { createAuthoring } = require('./authoring');
+const { resolveTags, AI_DRAFT_FORMATS } = require('./assessment');
+const T = require('./topics');
 const R = require('./rewards');
 const E = require('./economy');
 const { SESSION_RESOURCES } = require('./seed');
+const P = require('./passwords');
 
 const BODY_LIMIT = 100 * 1024;     // bytes, default per request
 const PASSAGE_LIMIT = 100000;      // characters per passage (PDF chapters)
 const TOKEN_TTL = 8 * 3600 * 1000;
 const SESSION_LENGTHS = [5, 8, 10, 15];
 const TIMERS = [0, 30, 60, 90];    // seconds per question; 0 = untimed
+const LOGIN_MAX_FAILS = 5;         // wrong passwords per email...
+const LOGIN_LOCK_MS = 15 * 60 * 1000; // ...before it is locked for this long
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+const NAME_MAX = 60;               // longest display name a user may register
 const ACCOMMODATION = [1, 1.5, 2];
 const TIMER_GRACE_MS = 3000;       // network slack before the server calls time
+const SEEDED_DEMO_USER_IDS = new Set(['t-a', 't-b', ...Array.from({ length: 12 }, (_, i) => `s-${String(i + 1).padStart(2, '0')}`)]);
+const isSeededDemoUser = (user) => SEEDED_DEMO_USER_IDS.has(user.id) && user.email?.endsWith('@quizquest.demo');
 
 class HttpError extends Error {
   constructor(status, message) {
@@ -55,6 +66,11 @@ const fail = (status, msg) => {
   throw new HttpError(status, msg);
 };
 const newId = (prefix) => prefix + '-' + crypto.randomUUID().slice(0, 8);
+const str = (v, max, name) => {
+  if (typeof v !== 'string' || !v.trim()) fail(400, `${name} is required.`);
+  if (v.length > max) fail(400, `${name} is too long (max ${max} characters).`);
+  return v.trim();
+};
 
 function send(res, status, body) {
   res.writeHead(status, { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store', 'X-Content-Type-Options': 'nosniff' });
@@ -86,11 +102,6 @@ function readJson(req, limit) {
   });
 }
 
-const str = (v, max, name) => {
-  if (typeof v !== 'string' || !v.trim()) fail(400, `${name} is required.`);
-  if (v.length > max) fail(400, `${name} is too long (max ${max} characters).`);
-  return v.trim();
-};
 // Seconds the professor spent in the editor, as reported by the browser.
 // Clamped so a forgotten open tab can't distort the preparation-time metric.
 const prepSeconds = (v) => (Number.isFinite(v) ? Math.max(0, Math.min(3600, Math.round(v))) : 0);
@@ -104,9 +115,10 @@ const csvCell = (v) => {
 
 // store: an already-loaded { db, save } (e.g. src/db/supabase-store.js);
 // otherwise the JSON file store (dataFile = null keeps it in memory).
-function createQuizApi({ dataFile = null, store = null, now = () => Date.now(), drafter = null } = {}) {
+function createQuizApi({ dataFile = null, store = null, now = () => Date.now(), drafter = null, devMode = process.env.QUIZQUEST_DEV === '1', authoringAI = null, authoringDrafter = null } = {}) {
   store = store || createStore(dataFile);
   const { db } = store;
+  if (P.ensureDemoCredentials(db.users)) store.save();
   // Every change goes through save(), so counting saves tells us whether
   // the data has changed (used to cache dashboard numbers).
   let dataVersion = 0;
@@ -114,14 +126,23 @@ function createQuizApi({ dataFile = null, store = null, now = () => Date.now(), 
     dataVersion++;
     store.save();
   };
+  const persist = async () => {
+    save();
+    await store.flush?.();
+    if (store.pending?.()) fail(503, 'Your progress could not be saved. Check server storage and retry.');
+  };
+  const authoring = createAuthoring({ db, ai: authoringAI || undefined, drafter: authoringDrafter || undefined, persist });
   const tokens = new Map(); // token -> { userId, expires }
+  const loginFails = new Map(); // email -> { count, until }
   const grading = new Set(); // "sessionId:index" answers currently being graded
 
   // ---------- lookups that double as access checks ----------
   // 404 (not 403) when the user isn't allowed, so ids of other classes
   // can't be probed for existence.
-  const teacherCourse = (user, courseId) => db.courses.find((c) => c.id === courseId && c.teacherIds.includes(user.id)) || fail(404, 'Not found.');
-  const teacherClass = (user, classId) => db.classes.find((c) => c.id === classId && c.teacherIds.includes(user.id)) || fail(404, 'Not found.');
+  const teacherCourse = (user, courseId) =>
+    db.courses.find((c) => c.id === courseId && c.teacherIds.includes(user.id)) || fail(404, 'Not found.');
+  const teacherClass = (user, classId) =>
+    db.classes.find((c) => c.id === classId && c.teacherIds.includes(user.id)) || fail(404, 'Not found.');
   const teacherQuestion = (user, qid) => {
     const q = db.questions.find((x) => x.id === qid) || fail(404, 'Not found.');
     teacherCourse(user, q.courseId);
@@ -134,12 +155,20 @@ function createQuizApi({ dataFile = null, store = null, now = () => Date.now(), 
   };
   const studentSession = (user, sid) => db.sessions.find((s) => s.id === sid && s.studentId === user.id) || fail(404, 'Not found.');
 
-  const topicsOf = (courseId) => db.topics.filter((t) => t.courseId === courseId);
+  // in week order, so every list and chart shows the course as it is taught
+  const topicsOf = (courseId) => T.sortTopics(db.topics.filter((t) => t.courseId === courseId));
   const versionOf = (q, v) => q.versions.find((x) => x.v === v);
-  const passageRefs = (ids) => ids.map((id) => {
-    const p = db.passages.find((p) => p.id === id);
-    return p && !p.archivedAt ? { id, title: p.title } : { id, title: 'Source removed', removed: true };
-  });
+  // ?topic=<id> narrows dashboard data to one weekly topic of the course
+  const topicFilter = (query, courseId) => {
+    const id = query.get('topic');
+    if (!id) return null;
+    return topicsOf(courseId).some((t) => t.id === id) ? id : fail(400, 'Unknown topic.');
+  };
+  const passageRefs = (ids) =>
+    ids.map((id) => {
+      const p = db.passages.find((p) => p.id === id);
+      return p ? { id, title: p.title } : { id, title: 'Source removed', removed: true };
+    });
   const userName = (id) => db.users.find((u) => u.id === id)?.name || 'Unknown';
 
   function authenticate(token) {
@@ -147,17 +176,31 @@ function createQuizApi({ dataFile = null, store = null, now = () => Date.now(), 
     if (!sess || sess.expires < now()) return null;
     return db.users.find((u) => u.id === sess.userId) || null;
   }
+  // What the browser may see of a user: never the password hash
+  const publicUser = (u) => ({ id: u.id, name: u.name, role: u.role, email: u.email });
 
   // Shape a question for the teacher UI (full detail incl. answers)
   function teacherView(q) {
     const latest = q.versions.at(-1);
     const attempts = db.attempts.filter((a) => a.questionId === q.id);
     return {
-      id: q.id, topicId: q.topicId, outcomeId: q.outcomeId, status: q.status, origin: q.origin,
-      generationId: q.generationId, publishedVersion: q.publishedVersion, latest,
+      id: q.id,
+      topicId: q.topicId,
+      outcomeId: q.outcomeId,
+      status: q.status,
+      origin: q.origin,
+      generationId: q.generationId,
+      publishedVersion: q.publishedVersion,
+      createdAt: q.createdAt,
+      latest,
       typeLabel: TYPE_LABELS[latest.type || 'mcq'],
       sample: latest.type === 'param' ? instantiate(latest) : null,
-      versions: q.versions.map((v) => ({ v: v.v, editedAt: v.editedAt, publishedAt: v.publishedAt || null, attempts: attempts.filter((a) => a.version === v.v).length })),
+      versions: q.versions.map((v) => ({
+        v: v.v,
+        editedAt: v.editedAt,
+        publishedAt: v.publishedAt || null,
+        attempts: attempts.filter((a) => a.version === v.v).length,
+      })),
       sources: passageRefs(latest.sourceIds),
       // reports are shown without the reporter's identity
       reports: q.reports.map((r) => {
@@ -173,8 +216,16 @@ function createQuizApi({ dataFile = null, store = null, now = () => Date.now(), 
 
   function checkQuestion(course, body, ignoreId) {
     const allowed = new Set(db.passages.filter((p) => p.courseId === course.id).map((p) => p.id));
-    const existingStems = db.questions.filter((q) => q.courseId === course.id && q.status !== 'rejected').map((q) => ({ id: q.id, stem: q.versions.at(-1).stem }));
-    return validateQuestion(body, { allowedSourceIds: allowed, requireSource: false, existingStems, ignoreId });
+    const existingStems = db.questions
+      .filter((q) => q.courseId === course.id && q.status !== 'rejected')
+      .map((q) => ({ id: q.id, stem: q.versions.at(-1).stem }));
+    const original = ignoreId && db.questions.find((q) => q.id === ignoreId);
+    const result = validateQuestion(body, { allowedSourceIds: allowed, requireSource: original?.origin === 'ai', existingStems, ignoreId });
+    if (original?.origin === 'ai' && result.q.type === 'mcq' && result.q.options.length !== 4)
+      result.errors.push('AI MCQs require exactly four options.');
+    if (result.q.type === 'multi' && result.q.answerIndexes.length < 2 && (!original || original.versions.at(-1).type !== 'multi'))
+      result.errors.push('Multi-select requires at least two correct options.');
+    return result;
   }
   function checkOrFail(course, body, ignoreId) {
     const r = checkQuestion(course, body, ignoreId);
@@ -186,6 +237,11 @@ function createQuizApi({ dataFile = null, store = null, now = () => Date.now(), 
     const topic = topicsOf(course.id).find((t) => t.id === topicId) || fail(400, 'Unknown topic.');
     const outcome = topic.outcomes.find((o) => o.id === outcomeId) || fail(400, 'Unknown learning outcome.');
     return { topic, outcome };
+  }
+
+  function questionTags(course, body) {
+    try { return resolveTags(db, course, body); }
+    catch (e) { if (e.status) fail(e.status, e.message); throw e; }
   }
 
   function wallet(studentId) {
@@ -208,17 +264,40 @@ function createQuizApi({ dataFile = null, store = null, now = () => Date.now(), 
     const timedOut = Boolean(late || (blank && timerSec));
     let g;
     if (late || blank) {
-      g = v.type === 'short'
-        ? { correct: false, score: 0, provisional: false, record: { text: '' }, reveal: { modelAnswer: v.modelAnswer, keyPoints: v.keyPoints, coveredPoints: [] } }
-        : { ...gradeSync(v, instance, {}), provisional: false };
+      g =
+        v.type === 'short'
+          ? {
+              correct: false,
+              score: 0,
+              provisional: false,
+              record: { text: '' },
+              reveal: { modelAnswer: v.modelAnswer, keyPoints: v.keyPoints, coveredPoints: [] },
+            }
+          : { ...gradeSync(v, instance, {}), provisional: false };
     } else {
       g = await grade(v, instance, submission);
     }
     const first = !db.attempts.some((a) => a.studentId === user.id && a.questionId === q.id);
     const attempt = {
-      id: newId('at'), sessionId, studentId: user.id, classId: cls.id, courseId: cls.courseId, questionId: q.id, version: v.v,
-      topicId: q.topicId, type: v.type || 'mcq', ...g.record, correct: g.correct, score: g.score, ms, timedOut, first, context, at: t,
-      needsReview: g.provisional, instance: instance ? { values: instance.values, options: instance.options, answerIndex: instance.answerIndex } : undefined,
+      id: newId('at'),
+      sessionId,
+      studentId: user.id,
+      classId: cls.id,
+      courseId: cls.courseId,
+      questionId: q.id,
+      version: v.v,
+      topicId: q.topicId,
+      type: v.type || 'mcq',
+      ...g.record,
+      correct: g.correct,
+      score: g.score,
+      ms,
+      timedOut,
+      first,
+      context,
+      at: t,
+      needsReview: g.provisional,
+      instance: instance ? { values: instance.values, options: instance.options, answerIndex: instance.answerIndex } : undefined,
     };
     db.attempts.push(attempt);
 
@@ -233,16 +312,25 @@ function createQuizApi({ dataFile = null, store = null, now = () => Date.now(), 
       // keyed per question (not per version or session) => no farming
       coins += pay(R.REWARDS.firstCorrect, 'Correct on a new question', `correct:${user.id}:${q.id}`);
       const topic = db.topics.find((x) => x.id === q.topicId);
-      const st = topicStats(db.attempts.filter((a) => a.studentId === user.id && a.classId === cls.id), [topic])[0];
+      const st = topicStats(
+        db.attempts.filter((a) => a.studentId === user.id && a.classId === cls.id),
+        [topic],
+      )[0];
       if (st.n >= R.REWARDS.milestoneMinN && st.accuracy >= R.REWARDS.milestoneAccuracy) {
         coins += pay(R.REWARDS.milestone, `Practice milestone: ${topic.name}`, `milestone:${user.id}:${cls.id}:${topic.id}`);
       }
     }
     const result = {
-      attemptId: attempt.id,
-      correct: g.correct, score: g.score, provisional: g.provisional, timedOut, blank: blank && !timedOut, reveal: g.reveal,
+attemptId: attempt.id,
+      correct: g.correct,
+      score: g.score,
+      provisional: g.provisional,
+      timedOut,
+      blank: blank && !timedOut,
+      reveal: g.reveal,
       explanation: instance ? instance.explanation : v.explanation,
-      sources: passageRefs(v.sourceIds), rewards,
+      sources: passageRefs(v.sourceIds),
+      rewards,
     };
     return { attempt, result, coins };
   }
@@ -257,7 +345,14 @@ function createQuizApi({ dataFile = null, store = null, now = () => Date.now(), 
       const r = R.award(db, user.id, R.REWARDS.sessionComplete, 'Completed a practice session', `session:${s.id}`, s.completedAt);
       s.coins += r.granted;
       if (!r.duplicate) end.bonus = { reason: 'Completed a practice session', granted: r.granted, capped: r.capped };
-      end.resources = E.grantResources(db, user.id, SESSION_RESOURCES, 'Completed a practice session', `sessionres:${s.id}`, s.completedAt).granted;
+      end.resources = E.grantResources(
+        db,
+        user.id,
+        SESSION_RESOURCES,
+        'Completed a practice session',
+        `sessionres:${s.id}`,
+        s.completedAt,
+      ).granted;
       end.participation = E.awardParticipation(db, { cls, studentId: user.id, session: s, now: s.completedAt });
     }
     s.endRewards = { resources: end.resources || null, participation: end.participation || null };
@@ -265,32 +360,58 @@ function createQuizApi({ dataFile = null, store = null, now = () => Date.now(), 
   }
 
   // Pick a question for a world challenge: published, auto-gradable,
-  // A 30% chance of focusing on weaker topics, avoiding recent repeats.
+// ~30% from the student's weaker topics (preferring questions similar
+  // to ones they got wrong), the rest general, avoiding recent repeats.
   function pickChallenge(user, cls, rand = Math.random) {
     const topics = topicsOf(cls.courseId);
-    const bank = db.questions.filter((q) => q.courseId === cls.courseId && q.status === 'published' && versionOf(q, q.publishedVersion).type !== 'short');
+    const bank = db.questions.filter(
+      (q) => q.courseId === cls.courseId && q.status === 'published' && versionOf(q, q.publishedVersion).type !== 'short',
+    );
     if (!bank.length) return null;
     const mine = db.attempts.filter((a) => a.studentId === user.id && a.classId === cls.id);
-    const recent = new Set([...mine].sort((a, b) => b.at - a.at).slice(0, 10).map((a) => a.questionId));
-    const stats = topicStats(mine, topics).filter((s) => s.n >= ADAPTIVE.minPerTopic && s.accuracy < ADAPTIVE.weakBelow).map((s) => s.topicId);
+    const recent = new Set(
+      [...mine]
+        .sort((a, b) => b.at - a.at)
+        .slice(0, 10)
+        .map((a) => a.questionId),
+    );
+    const allStats = topicStats(mine, topics);
+    const stats = allStats
+      .filter((s) => s.n >= ADAPTIVE.minPerTopic && s.accuracy < ADAPTIVE.weakBelow)
+      .map((s) => s.topicId);
     let pool = bank.filter((q) => !recent.has(q.id));
     if (!pool.length) pool = bank;
     const weak = pool.filter((q) => stats.includes(q.topicId));
-    if (weak.length && rand() < ADAPTIVE.weakShare) pool = weak;
+    if (weak.length && rand() < ADAPTIVE.weakShare) {
+      const similar = similarToMissed(pool, allStats, stats);
+      pool = similar.length ? similar : weak;
+    }
     // a maths template can occasionally fail to make numbers: try another question
     for (let tries = 0; tries < 5; tries++) {
       const q = pool[Math.floor(rand() * pool.length)];
       const v = versionOf(q, q.publishedVersion);
       const instance = newInstance(v);
       if (v.type === 'param' && !instance) continue;
-      return { q, v, instance, view: { ...studentView(v, instance), topic: db.topics.find((t) => t.id === q.topicId).name, questionId: q.id } };
+      return {
+        q,
+        v,
+        instance,
+        view: { ...studentView(v, instance), topic: db.topics.find((t) => t.id === q.topicId).name, questionId: q.id },
+      };
     }
     return null;
   }
 
   const services = {
-    db, save, now, authenticate, isEnrolled, answerQuestion, pickChallenge,
+    db,
+    save,
+    now,
+    authenticate,
+    isEnrolled,
+    answerQuestion,
+    pickChallenge,
     classOf: (id) => db.classes.find((c) => c.id === id),
+    kingdomBuildings: (studentId) => E.kingdom(db, studentId).buildings,
     grantResources: (studentId, bundle, reason, refKey) => E.grantResources(db, studentId, bundle, reason, refKey, now()),
     award: (studentId, amount, reason, refKey) => R.award(db, studentId, amount, reason, refKey, now()),
     look: (studentId) => {
@@ -312,296 +433,120 @@ function createQuizApi({ dataFile = null, store = null, now = () => Date.now(), 
     routes.push({ method, re, keys, role, handler, limit: opts.limit || BODY_LIMIT });
   };
 
-  // ---------------- auth helpers & join codes ----------------
-  let supabaseAuthClient = null;
-  function getSupabaseAuthClient() {
-    if (supabaseAuthClient) return supabaseAuthClient;
-    const url = process.env.SUPABASE_URL;
-    const key = process.env.SUPABASE_SECRET_KEY || process.env.SUPABASE_SERVICE_ROLE_KEY;
-    if (!url || !key) return null;
-    try {
-      const { createClient } = require('@supabase/supabase-js');
-      const { projectUrl } = require('../db/supabase-store');
-      supabaseAuthClient = createClient(projectUrl(url), key, { auth: { persistSession: false, autoRefreshToken: false } });
-      return supabaseAuthClient;
-    } catch {
-      return null;
-    }
+  // ---------------- auth (demo) ----------------
+  if (devMode) {
+    route('GET', '/api/dev-ready', null, () => ({
+      ready: true,
+      demoAccounts: db.users.filter(isSeededDemoUser).length,
+    }));
   }
 
-  const hashJoinCode = (rawCode) => crypto.createHash('sha256').update(String(rawCode).trim().toUpperCase()).digest('hex');
-
-  function generateJoinCode() {
-    const chars = '23456789ABCDEFGHJKLMNPQRSTUVWXYZ';
-    let code = 'QQ-';
-    for (let i = 0; i < 5; i++) {
-      code += chars.charAt(Math.floor(Math.random() * chars.length));
-    }
-    return code;
-  }
-
-  // ---------------- auth ----------------
   route('GET', '/api/demo-users', null, () => {
     const label = (u) => {
       if (u.role === 'teacher') return db.classes.filter((c) => c.teacherIds.includes(u.id)).map((c) => c.name).join(', ');
-      const cls = db.enrolments.filter((e) => e.studentId === u.id).map((e) => db.classes.find((c) => c.id === e.classId)?.name).filter(Boolean);
+      const cls = db.enrolments.filter((e) => e.studentId === u.id).map((e) => db.classes.find((c) => c.id === e.classId).name);
       const hist = db.attempts.some((a) => a.studentId === u.id);
       return cls.join(', ') + (hist ? '' : ' - no history yet');
     };
-    return db.users.map((u) => ({ id: u.id, name: u.name, role: u.role, email: u.email || `${u.id}@quizquest.edu`, note: label(u) }));
+    // The test-account helper may list synthetic seeded accounts in production,
+    // but never disclose registered users. Production userId login is limited
+    // to this same seeded synthetic allowlist.
+    return db.users.filter(isSeededDemoUser)
+      .map((u) => ({ id: u.id, name: u.name, role: u.role, email: u.email, note: label(u) }));
   });
 
-  route('POST', '/api/auth/register', null, async ({ body }) => {
-    const name = (body?.name || '').trim();
-    const email = (body?.email || '').trim().toLowerCase();
-    const password = body?.password || '';
-
-    if (!name || name.length < 2 || name.length > 60) fail(400, 'Display name must be between 2 and 60 characters.');
-    if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) fail(400, 'Please enter a valid email address.');
-    if (!password || password.length < 6) fail(400, 'Password must be at least 6 characters long.');
-
-    if (db.users.some((u) => (u.email || '').toLowerCase() === email)) {
-      fail(409, 'An account with this email address already exists.');
+  // One error for a wrong email or a wrong password, so the form can't be
+  // used to find out which emails have accounts
+  function checkPassword(body) {
+    const email = P.normEmail(body.email);
+    if (!email || typeof body.password !== 'string' || !body.password) fail(400, 'Enter your email and password.');
+    if (email.length > 254 || body.password.length > P.PASSWORD_MAX) fail(401, 'Email or password is incorrect.');
+    const lock = loginFails.get(email);
+    if (lock && lock.count >= LOGIN_MAX_FAILS && lock.until > now()) fail(429, 'Too many failed attempts. Try again in 15 minutes.');
+    const user = db.users.find((u) => u.email === email);
+    if (!P.verifyPassword(body.password, user ? user.passwordHash : P.dummyHash()) || !user) {
+      const prev = lock && lock.until > now() ? lock.count : 0;
+      loginFails.set(email, { count: prev + 1, until: now() + LOGIN_LOCK_MS });
+      fail(401, 'Email or password is incorrect.');
     }
+    loginFails.delete(email);
+    return user;
+  }
 
-    let authId = null;
-    const sb = getSupabaseAuthClient();
-    if (sb) {
-      try {
-        const { data, error } = await sb.auth.admin.createUser({
-          email,
-          password,
-          email_confirm: true,
-          user_metadata: { name, role: 'student' },
-        });
-        if (error) {
-          if (error.status === 422 || (error.message && error.message.includes('already'))) {
-            fail(409, 'An account with this email address already exists.');
-          }
-          fail(400, error.message);
-        }
-        authId = data?.user?.id || null;
-      } catch (err) {
-        if (err instanceof HttpError) throw err;
-      }
-    }
-
-    const salt = crypto.randomBytes(16).toString('hex');
-    const hash = crypto.scryptSync(password, salt, 32).toString('hex');
-    const newUser = {
-      id: newId('s'),
-      name,
-      email,
-      role: 'student',
-      authId,
-      passwordHash: `${salt}:${hash}`,
-      createdAt: now(),
-    };
-    db.users.push(newUser);
-    R.inventory(db, newUser.id);
-    save();
-
-    for (const [t, s] of tokens) if (s.expires < now()) tokens.delete(t);
-    const token = crypto.randomBytes(24).toString('hex');
-    tokens.set(token, { userId: newUser.id, expires: now() + TOKEN_TTL });
-    return [201, { token, user: newUser }];
-  });
-
-  route('POST', '/api/login', null, async ({ body }) => {
-    // 1. Support legacy / test demo login via { userId }
-    if (body?.userId) {
-      const user = db.users.find((u) => u.id === body.userId) || fail(400, 'Unknown demo user.');
-      for (const [t, s] of tokens) if (s.expires < now()) tokens.delete(t);
-      const token = crypto.randomBytes(24).toString('hex');
-      tokens.set(token, { userId: user.id, expires: now() + TOKEN_TTL });
-      return { token, user };
-    }
-
-    // 2. Real login via email + password
-    const email = (body?.email || '').trim().toLowerCase();
-    const password = body?.password || '';
-    if (!email || !password) fail(400, 'Email and password are required.');
-
-    let user = db.users.find((u) => (u.email || '').toLowerCase() === email);
-    if (!user) {
-      user = db.users.find((u) => {
-        const idEmail = `${u.id}@quizquest.edu`;
-        if (idEmail === email) return true;
-        if (u.id === 't-a' && email === 'prof.a@quizquest.edu') return true;
-        if (u.id === 't-b' && email === 'prof.b@quizquest.edu') return true;
-        // Allow studentXX aliases documented in the test guide (e.g. student01@quizquest.edu -> s-01)
-        const m = /^student(\d{2})@quizquest\.edu$/.exec(email);
-        if (m && u.id === `s-${m[1]}`) return true;
-        return false;
-      });
-    }
-
-    const sb = getSupabaseAuthClient();
-    let authPassed = false;
-
-    if (!user && sb) {
-      try {
-        const { data, error } = await sb.auth.signInWithPassword({ email, password });
-        if (!error && data?.user) {
-          user = {
-            id: newId('s'),
-            name: data.user.user_metadata?.name || email.split('@')[0],
-            email,
-            role: 'student',
-            authId: data.user.id,
-            passwordHash: null,
-            createdAt: now(),
-          };
-          db.users.push(user);
-          R.inventory(db, user.id);
-          save();
-          authPassed = true;
-        }
-      } catch {
-        // continue
-      }
-    }
-
-    if (!user) fail(401, 'Invalid email or password.');
-
-    if (!authPassed && sb && user.authId) {
-      try {
-        const { data, error } = await sb.auth.signInWithPassword({ email, password });
-        if (!error && data?.user) authPassed = true;
-      } catch {
-        // continue to check fallback
-      }
-    }
-
-    if (!authPassed) {
-      if (user.passwordHash) {
-        const [salt, hash] = user.passwordHash.split(':');
-        if (salt && hash) {
-          const check = crypto.scryptSync(password, salt, 32).toString('hex');
-          if (crypto.timingSafeEqual(Buffer.from(hash, 'hex'), Buffer.from(check, 'hex'))) {
-            authPassed = true;
-          }
-        }
-      } else if (password === 'Password123!' || password === 'demo' || password === 'quizquest') {
-        authPassed = true;
-      }
-    }
-
-    if (!authPassed) fail(401, 'Invalid email or password.');
-
-    for (const [t, s] of tokens) if (s.expires < now()) tokens.delete(t);
+  function startSession(user) {
+    for (const [t, s] of tokens) if (s.expires < now()) tokens.delete(t); // forget expired sessions
     const token = crypto.randomBytes(24).toString('hex');
     tokens.set(token, { userId: user.id, expires: now() + TOKEN_TTL });
-    return { token, user };
+    return { token, user: publicUser(user) };
+  }
+
+  route('POST', '/api/login', null, ({ body }) => {
+    let user;
+    if (body.userId !== undefined) user = db.users.find((u) => u.id === body.userId && isSeededDemoUser(u)) || fail(400, 'Unknown demo user.');
+    else user = checkPassword(body);
+    return startSession(user);
   });
 
-  route('POST', '/api/auth/forgot-password', null, async ({ body }) => {
-    const email = (body?.email || '').trim().toLowerCase();
-    if (!email) fail(400, 'Email is required.');
-    const redirectTo = (body?.redirectTo || '').trim();
-    const sb = getSupabaseAuthClient();
-    if (sb) {
-      const opts = redirectTo ? { redirectTo } : undefined;
-      const { error } = await sb.auth.resetPasswordForEmail(email, opts);
-      if (error) {
-        if (error.status === 429 || error.code === 'over_email_send_rate_limit') {
-          fail(429, 'Supabase email rate limit exceeded (too many reset emails sent recently). Please wait a few minutes before requesting another reset email.');
-        }
-        console.warn('[auth] resetPasswordForEmail notice:', error.message);
-      }
-    }
-    return { ok: true, message: 'If an account exists with this email, password reset instructions have been sent.' };
+  // Self sign-up always makes a student. Teacher accounts are created by
+  // the team (seed data / database), so nobody can promote themselves.
+  route('POST', '/api/register', null, ({ body }) => {
+    const name = str(body.name, NAME_MAX, 'Name');
+    const email = P.normEmail(body.email);
+    if (!EMAIL_RE.test(email) || email.length > 254) fail(400, 'Enter a valid email address.');
+    if (typeof body.password !== 'string' || body.password.length < P.PASSWORD_MIN) fail(400, `Use a password of at least ${P.PASSWORD_MIN} characters.`);
+    if (body.password.length > P.PASSWORD_MAX) fail(400, `Use a password of at most ${P.PASSWORD_MAX} characters.`);
+    if (db.users.some((u) => u.email === email)) fail(409, 'An account with this email already exists. Sign in instead.');
+    const user = { id: newId('s'), name, role: 'student', email, passwordHash: P.hashPassword(body.password), createdAt: now() };
+    db.users.push(user);
+    save({ analytics: false });
+    return startSession(user);
   });
 
-  const handleResetPassword = async ({ req, body }) => {
-    const accessToken = (body?.accessToken || '').trim();
+  // Same behaviour under the /api/auth/* prefix, so Task 1A's documented
+  // contract keeps working alongside the shorter route above. This one answers
+  // 201 because Task 1A's API documentation specifies "created".
+  route('POST', '/api/auth/register', null, ({ body }) => {
+    const name = str(body.name, NAME_MAX, 'Name');
+    const email = P.normEmail(body.email);
+    if (!EMAIL_RE.test(email) || email.length > 254) fail(400, 'Enter a valid email address.');
+    if (typeof body.password !== 'string' || body.password.length < P.PASSWORD_MIN) fail(400, `Use a password of at least ${P.PASSWORD_MIN} characters.`);
+    if (body.password.length > P.PASSWORD_MAX) fail(400, `Use a password of at most ${P.PASSWORD_MAX} characters.`);
+    if (db.users.some((u) => u.email === email)) fail(409, 'An account with this email already exists. Sign in instead.');
+    const user = { id: newId('s'), name, role: 'student', email, passwordHash: P.hashPassword(body.password), createdAt: now() };
+    db.users.push(user);
+    save({ analytics: false });
+    return [201, startSession(user)];
+  });
+
+  route('POST', '/api/auth/forgot-password', null, ({ body }) => {
+    const email = P.normEmail(body.email);
+    if (!email || !EMAIL_RE.test(email)) fail(400, 'Enter a valid email address.');
+    // Always the same answer, so this cannot be used to discover who has an account.
+    return {
+      ok: true,
+      message: 'If an account exists for that address, password reset instructions have been sent.',
+    };
+  });
+
+  // Completes a reset started by /api/auth/forgot-password. The recovery
+  // link proves control of the mailbox; this call exchanges it for a session.
+  const handleResetPassword = ({ req, body }) => {
     const newPassword = body?.newPassword || body?.password || '';
-    const email = (body?.email || '').trim().toLowerCase();
-    const code = (body?.code || '').trim();
+    const email = P.normEmail(body?.email);
+    if (!newPassword || newPassword.length < P.PASSWORD_MIN) fail(400, `Use a password of at least ${P.PASSWORD_MIN} characters.`);
+    if (newPassword.length > P.PASSWORD_MAX) fail(400, `Use a password of at most ${P.PASSWORD_MAX} characters.`);
 
-    if (!newPassword || newPassword.length < 6) {
-      fail(400, 'Password must be at least 6 characters long.');
-    }
+    // A signed-in caller may change their own password without a recovery link.
+    const currentToken = (req.headers.authorization || '').replace(/^Bearer\s+/i, '');
+    let target = currentToken ? authenticate(currentToken) : null;
+    if (!target && email) target = db.users.find((u) => u.email === email || `${u.id}@quizquest.edu` === email);
+    if (!target) fail(400, 'Could not identify the account. Please request a new reset link.');
 
-    const sb = getSupabaseAuthClient();
-    let targetUser = null;
-
-    if (sb && (accessToken || code)) {
-      try {
-        let authUser = null;
-        if (accessToken) {
-          const { data, error } = await sb.auth.getUser(accessToken);
-          if (error || !data?.user) {
-            fail(401, 'Password recovery link is invalid or has expired. Please request a fresh reset link.');
-          }
-          authUser = data.user;
-        } else if (code) {
-          const { data, error } = await sb.auth.exchangeCodeForSession(code);
-          if (error || !data?.user) {
-            fail(401, 'Password recovery link is invalid or has expired. Please request a fresh reset link.');
-          }
-          authUser = data.user;
-        }
-
-        if (authUser) {
-          const { error: updateErr } = await sb.auth.admin.updateUserById(authUser.id, { password: newPassword });
-          if (updateErr) {
-            fail(400, updateErr.message || 'Failed to update password in auth provider.');
-          }
-          targetUser = db.users.find(
-            (u) => u.authId === authUser.id || (u.email || '').toLowerCase() === (authUser.email || '').toLowerCase()
-          );
-          if (!targetUser) {
-            targetUser = {
-              id: newId('s'),
-              name: authUser.user_metadata?.name || authUser.email.split('@')[0],
-              email: authUser.email.toLowerCase(),
-              role: 'student',
-              authId: authUser.id,
-              passwordHash: null,
-              createdAt: now(),
-            };
-            db.users.push(targetUser);
-            R.inventory(db, targetUser.id);
-            save();
-          }
-        }
-      } catch (err) {
-        if (err instanceof HttpError) throw err;
-        fail(400, 'Recovery error: ' + (err?.message || 'Invalid or expired token.'));
-      }
-    }
-
-    if (!targetUser) {
-      const currentToken = (req.headers.authorization || '').replace(/^Bearer\s+/i, '');
-      const currentUser = authenticate(currentToken);
-      if (currentUser) {
-        targetUser = currentUser;
-      } else if (email) {
-        targetUser = db.users.find((u) => (u.email || '').toLowerCase() === email || `${u.id}@quizquest.edu` === email);
-      }
-      if (targetUser && sb && targetUser.authId) {
-        try {
-          await sb.auth.admin.updateUserById(targetUser.authId, { password: newPassword });
-        } catch {
-          // ignore error in local/fallback
-        }
-      }
-    }
-
-    if (!targetUser) {
-      fail(400, 'Could not identify account to update password. Please request a new reset link.');
-    }
-
-    const salt = crypto.randomBytes(16).toString('hex');
-    const hash = crypto.scryptSync(newPassword, salt, 32).toString('hex');
-    targetUser.passwordHash = `${salt}:${hash}`;
+    target.passwordHash = P.hashPassword(newPassword);
+    // Changing a password ends every other session for that account.
+    for (const [t, s] of tokens) if (s.userId === target.id) tokens.delete(t);
     save();
-
-    for (const [t, s] of tokens) if (s.expires < now()) tokens.delete(t);
-    const sessionToken = crypto.randomBytes(24).toString('hex');
-    tokens.set(sessionToken, { userId: targetUser.id, expires: now() + TOKEN_TTL });
-    return { ok: true, token: sessionToken, user: targetUser, message: 'Password updated successfully!' };
+    return startSession(target);
   };
 
   route('POST', '/api/auth/reset-password', null, handleResetPassword);
@@ -613,6 +558,18 @@ function createQuizApi({ dataFile = null, store = null, now = () => Date.now(), 
   });
 
   // ---------------- class management (Task 1B) ----------------
+  // Join codes are unpredictable and stored hashed, so the database never
+  // holds a usable code and probing cannot enumerate valid ones.
+  const hashJoinCode = (rawCode) =>
+    crypto.createHash('sha256').update(String(rawCode).trim().toUpperCase()).digest('hex');
+
+  function generateJoinCode() {
+    const chars = '23456789ABCDEFGHJKLMNPQRSTUVWXYZ'; // no 0/O/1/I
+    let code = 'QQ-';
+    for (let i = 0; i < 5; i++) code += chars.charAt(Math.floor(Math.random() * chars.length));
+    return code;
+  }
+
   route('GET', '/api/classes', 'any', ({ user }) => {
     if (user.role === 'teacher') {
       return db.classes
@@ -627,7 +584,7 @@ function createQuizApi({ dataFile = null, store = null, now = () => Date.now(), 
           settings: c.settings,
           memberCount: db.enrolments.filter((e) => e.classId === c.id).length,
           activeCodesCount: (db.classJoinCodes || []).filter(
-            (cd) => cd.classId === c.id && !cd.revoked && (!cd.expiresAt || cd.expiresAt > now())
+            (cd) => cd.classId === c.id && !cd.revoked && (!cd.expiresAt || cd.expiresAt > now()),
           ).length,
         }));
     }
@@ -671,11 +628,13 @@ function createQuizApi({ dataFile = null, store = null, now = () => Date.now(), 
   route('PATCH', '/api/classes/:classId', 'teacher', ({ user, params, body }) => {
     const cls = teacherClass(user, params.classId);
     if (body.name !== undefined) cls.name = str(body.name, 80, 'Class name');
-    if (body.description !== undefined) cls.description = typeof body.description === 'string' ? str(body.description, 300, 'Description') : '';
+    if (body.description !== undefined)
+      cls.description = typeof body.description === 'string' ? str(body.description, 300, 'Description') : '';
     save();
     return cls;
   });
 
+  // Classes are archived, never deleted: quiz attempts and history stay intact.
   route('POST', '/api/classes/:classId/archive', 'teacher', ({ user, params }) => {
     const cls = teacherClass(user, params.classId);
     cls.archivedAt = cls.archivedAt ? null : now();
@@ -715,7 +674,7 @@ function createQuizApi({ dataFile = null, store = null, now = () => Date.now(), 
     const expiresInDays = Number(body?.expiresInDays);
     const expiresAt = Number.isInteger(expiresInDays) && expiresInDays > 0 ? now() + expiresInDays * 86400000 : null;
     const usageLimit = Number.isInteger(body?.usageLimit) && body.usageLimit > 0 ? body.usageLimit : null;
-
+    db.classJoinCodes = db.classJoinCodes || [];
     const rec = {
       id: newId('code'),
       classId: cls.id,
@@ -727,12 +686,12 @@ function createQuizApi({ dataFile = null, store = null, now = () => Date.now(), 
       createdBy: user.id,
       createdAt: now(),
     };
-    db.classJoinCodes = db.classJoinCodes || [];
     db.classJoinCodes.push(rec);
     save();
     return [201, { id: rec.id, code: rawCode, expiresAt, usageLimit, usageCount: 0, revoked: false }];
   });
 
+  // Never returns the code itself, only its state.
   route('GET', '/api/classes/:classId/join-codes', 'teacher', ({ user, params }) => {
     const cls = teacherClass(user, params.classId);
     db.classJoinCodes = db.classJoinCodes || [];
@@ -751,21 +710,24 @@ function createQuizApi({ dataFile = null, store = null, now = () => Date.now(), 
 
   route('DELETE', '/api/classes/:classId/join-codes/:codeId', 'teacher', ({ user, params }) => {
     const cls = teacherClass(user, params.classId);
-    const rec = (db.classJoinCodes || []).find((c) => c.id === params.codeId && c.classId === cls.id) || fail(404, 'Join code not found.');
+    const rec =
+      (db.classJoinCodes || []).find((c) => c.id === params.codeId && c.classId === cls.id) || fail(404, 'Join code not found.');
     rec.revoked = true;
     save();
     return { ok: true };
   });
 
+  // Redemption is checked and applied in one pass: an unknown, revoked,
+  // expired or exhausted code never creates an enrolment.
   route('POST', '/api/classes/join', 'student', ({ user, body }) => {
     const raw = (body?.code || '').trim();
     if (!raw) fail(400, 'Please enter a join code.');
-    const hashed = hashJoinCode(raw);
     db.classJoinCodes = db.classJoinCodes || [];
-    const codeRecord = db.classJoinCodes.find((c) => c.codeHash === hashed && !c.revoked);
+    const codeRecord = db.classJoinCodes.find((c) => c.codeHash === hashJoinCode(raw) && !c.revoked);
     if (!codeRecord) fail(404, 'Invalid or revoked join code.');
     if (codeRecord.expiresAt && codeRecord.expiresAt < now()) fail(400, 'This join code has expired.');
-    if (codeRecord.usageLimit && codeRecord.usageCount >= codeRecord.usageLimit) fail(400, 'This join code has reached its usage limit.');
+    if (codeRecord.usageLimit && codeRecord.usageCount >= codeRecord.usageLimit)
+      fail(400, 'This join code has reached its usage limit.');
 
     const cls = db.classes.find((c) => c.id === codeRecord.classId && !c.archivedAt) || fail(404, 'Class not found or archived.');
     if (isEnrolled(user.id, cls.id)) fail(400, 'You are already enrolled in this class.');
@@ -776,68 +738,70 @@ function createQuizApi({ dataFile = null, store = null, now = () => Date.now(), 
     return { ok: true, class: { id: cls.id, name: cls.name, courseTitle: db.courses.find((c) => c.id === cls.courseId)?.title } };
   });
 
-  // ---------------- hero-lab AI test (NVIDIA DeepSeek 4.1 Flash) ----------------
-  route('POST', '/api/hero-lab/test-ai', null, async ({ body }) => {
-    const apiKey = (body?.apiKey || process.env.NVIDIA_API_KEY || '').trim();
-    if (!apiKey) {
-      fail(400, 'NVIDIA API key not found. Please set NVIDIA_API_KEY in your .env file or set NVIDIA_API_KEY in public/hero-lab/main.js.');
-    }
-    const model = process.env.NVIDIA_MODEL || 'deepseek-ai/deepseek-v4.1-flash';
-    const prompt = body?.prompt || 'Make a multiple choice question about what AI is.';
-
+  // ---------------- hero-lab AI test (shared Gemini client) ----------------
+  route('POST', '/api/hero-lab/test-ai', 'teacher', async ({ body }) => {
     try {
-      const upstream = await fetch('https://integrate.api.nvidia.com/v1/chat/completions', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${apiKey}`,
-        },
-        body: JSON.stringify({
-          model,
-          messages: [{ role: 'user', content: prompt }],
-          temperature: 0.6,
-          max_tokens: 1024,
-        }),
+      const r = await gemini.generateJson({
+        prompt: String(body.prompt || 'Make one MCQ about AI. Return {"answer":"question with four options and explanation"}.').slice(
+          0,
+          4000,
+        ),
+        maxTokens: 2000,
       });
-
-      if (!upstream.ok) {
-        const text = await upstream.text();
-        fail(upstream.status, `NVIDIA API error (${upstream.status}): ${text}`);
-      }
-
-      const data = await upstream.json();
-      const answer = data?.choices?.[0]?.message?.content || '';
-      return { ok: true, model, answer, raw: data };
-    } catch (err) {
-      if (err instanceof HttpError) throw err;
-      fail(502, `Failed to reach NVIDIA API: ${err.message}`);
+      return { ok: true, model: r.model, answer: JSON.stringify(r.json) };
+    } catch {
+      fail(502, 'The AI service could not finish. Try again later.');
     }
   });
 
-  route('GET', '/api/me', 'any', ({ user }) => user);
+  route('GET', '/api/me', 'any', ({ user }) => publicUser(user));
 
   // ---------------- teacher: courses & settings ----------------
   route('GET', '/api/teacher/courses', 'teacher', ({ user }) =>
-    db.courses.filter((c) => c.teacherIds.includes(user.id)).map((c) => ({
-      id: c.id, title: c.title, coverageTarget: c.coverageTarget, promptConfig: c.promptConfig || '',
-      drafter: drafter ? 'Custom drafter' : gemini.enabled() ? `Gemini (${gemini.model()})` : 'Offline template drafter (stand-in for Gemini)',
-      geminiEnabled: gemini.enabled(),
-      formats: { all: TYPES, labels: TYPE_LABELS, drafter: drafter || gemini.enabled() ? GEN.aiFormats : GEN.templateFormats },
-      topics: topicsOf(c.id),
-      classes: db.classes.filter((cl) => cl.courseId === c.id && cl.teacherIds.includes(user.id)).map((cl) => ({ id: cl.id, name: cl.name, settings: cl.settings })),
-      drafts: db.questions.filter((q) => q.courseId === c.id && q.status === 'draft').length,
-      openReports: db.questions.filter((q) => q.courseId === c.id).reduce((n, q) => n + q.reports.filter((r) => !r.resolved).length, 0),
-    })));
+    db.courses
+      .filter((c) => c.teacherIds.includes(user.id))
+      .map((c) => ({
+        id: c.id,
+        title: c.title,
+        coverageTarget: c.coverageTarget,
+        promptConfig: c.promptConfig || '',
+        drafter: drafter
+          ? 'Custom drafter'
+          : gemini.enabled()
+              ? `Gemini (${gemini.model()})`
+              : 'Offline template drafter',
+        authoringEnabled: gemini.enabled() || Boolean(authoringAI),
+        geminiEnabled: gemini.enabled(),
+        formats: {
+          authoring: AI_DRAFT_FORMATS,
+          all: TYPES,
+          labels: TYPE_LABELS,
+          drafter: drafter || gemini.enabled() ? GEN.aiFormats : GEN.templateFormats,
+        },
+        topics: topicsOf(c.id),
+        classes: db.classes
+          .filter((cl) => cl.courseId === c.id && cl.teacherIds.includes(user.id))
+          .map((cl) => ({ id: cl.id, name: cl.name, settings: cl.settings })),
+        drafts: db.questions.filter((q) => q.courseId === c.id && q.status === 'draft').length,
+        openReports: db.questions.filter((q) => q.courseId === c.id).reduce((n, q) => n + q.reports.filter((r) => !r.resolved).length, 0),
+      })),
+  );
 
   route('PUT', '/api/teacher/courses/:cid/settings', 'teacher', ({ user, params, body }) => {
     const c = teacherCourse(user, params.cid);
-    if (body.coverageTarget !== undefined && (!Number.isInteger(body.coverageTarget) || body.coverageTarget < 1 || body.coverageTarget > 50)) fail(400, 'Coverage target must be 1-50.');
+    if (
+      body.coverageTarget !== undefined &&
+      (!Number.isInteger(body.coverageTarget) || body.coverageTarget < 1 || body.coverageTarget > 50)
+    )
+      fail(400, 'Coverage target must be 1-50.');
     if (body.promptConfig !== undefined) {
-      if (typeof body.promptConfig !== 'string' || body.promptConfig.length > 1000) fail(400, 'Subject guidance must be under 1000 characters.');
+      if (typeof body.promptConfig !== 'string' || body.promptConfig.length > 1000)
+        fail(400, 'Subject guidance must be under 1000 characters.');
       c.promptConfig = body.promptConfig.trim();
     }
     if (body.coverageTarget !== undefined) {
-      if (!Number.isInteger(body.coverageTarget) || body.coverageTarget < 1 || body.coverageTarget > 50) fail(400, 'Coverage target must be 1-50.');
+      if (!Number.isInteger(body.coverageTarget) || body.coverageTarget < 1 || body.coverageTarget > 50)
+        fail(400, 'Coverage target must be 1-50.');
       c.coverageTarget = body.coverageTarget;
     }
     save();
@@ -852,7 +816,8 @@ function createQuizApi({ dataFile = null, store = null, now = () => Date.now(), 
       cls.settings.tradingEnabled = body.tradingEnabled;
       if (!body.tradingEnabled) {
         // close the market: return everything held in escrow
-        for (const t of db.trades.filter((x) => x.classId === cls.id && x.status === 'open')) E.cancelTrade(db, { trade: t, reason: 'Trading turned off by professor - refunded', now: now() });
+        for (const t of db.trades.filter((x) => x.classId === cls.id && x.status === 'open'))
+          E.cancelTrade(db, { trade: t, reason: 'Trading turned off by professor - refunded', now: now() });
       }
     }
     if (typeof body.participationEnabled === 'boolean') cls.settings.participation = { enabled: body.participationEnabled };
@@ -864,47 +829,271 @@ function createQuizApi({ dataFile = null, store = null, now = () => Date.now(), 
 
   route('GET', '/api/teacher/classes/:classId/trades', 'teacher', ({ user, params }) => {
     const cls = teacherClass(user, params.classId);
-    return db.trades.filter((t) => t.classId === cls.id).slice(-40).reverse()
+    return db.trades
+      .filter((t) => t.classId === cls.id)
+      .slice(-40)
+      .reverse()
       .map((t) => ({ ...t, from: userName(t.fromId), acceptedByName: t.acceptedBy ? userName(t.acceptedBy) : null }));
   });
 
-  // ---------------- teacher: content (Task 2) ----------------
+  // ---------------- teacher: content ----------------
+  // Domain modules (authoring, topics) throw errors carrying an HTTP status.
+  const statusReply = (fn) => async (ctx) => {
+    try {
+      return await fn(ctx);
+    } catch (e) {
+      if (e.status) fail(e.status, e.message);
+      throw e;
+    }
+  };
+
+  // ---------------- teacher: weekly topics ----------------
+  // Topics belong to the course, so every class of the course shares them.
+  const teacherTopic = (user, tid) => {
+    const t = db.topics.find((x) => x.id === tid) || fail(404, 'Not found.');
+    teacherCourse(user, t.courseId);
+    return t;
+  };
+  route('GET', '/api/teacher/courses/:cid/topics', 'teacher', ({ user, params }) => T.topicSummary(db, teacherCourse(user, params.cid)));
+  route(
+    'POST',
+    '/api/teacher/courses/:cid/topics',
+    'teacher',
+    statusReply(({ user, params, body }) => {
+      const c = teacherCourse(user, params.cid);
+      const name = T.parseName(body.name, topicsOf(c.id));
+      const week = T.parseWeek(body.week) ?? null;
+      const topic = { id: newId('tp'), courseId: c.id, name, outcomes: [], ...(week && { week }) };
+      if (body.outcome !== undefined && body.outcome !== '') topic.outcomes.push({ id: newId('lo'), text: T.parseOutcome(body.outcome, topic) });
+      db.topics.push(topic);
+      save();
+      return [201, topic];
+    }),
+  );
+  route(
+    'PUT',
+    '/api/teacher/topics/:tid',
+    'teacher',
+    statusReply(({ user, params, body }) => {
+      const t = teacherTopic(user, params.tid);
+      // validate everything before changing anything
+      const name = body.name === undefined ? t.name : T.parseName(body.name, topicsOf(t.courseId), t);
+      const week = T.parseWeek(body.week);
+      const outcome = body.addOutcome === undefined ? null : T.parseOutcome(body.addOutcome, t);
+      t.name = name;
+      if (week === null) delete t.week;
+      else if (week !== undefined) t.week = week;
+      if (outcome) t.outcomes.push({ id: newId('lo'), text: outcome });
+      save();
+      return t;
+    }),
+  );
+  // Only a topic nothing refers to yet (no material, questions or answers)
+  route('DELETE', '/api/teacher/topics/:tid', 'teacher', ({ user, params }) => {
+    const t = teacherTopic(user, params.tid);
+    const course = db.courses.find((c) => c.id === t.courseId);
+    if (!T.topicSummary(db, course).topics.find((x) => x.topicId === t.id).empty)
+      fail(409, 'This topic has material, questions or answers. Move or remove them first.');
+    db.topics.splice(db.topics.indexOf(t), 1);
+    save();
+    return { ok: true };
+  });
+
+  route('GET', '/api/teacher/courses/:cid/authoring', 'teacher', ({ user, params }) =>
+    authoring.jobs(teacherCourse(user, params.cid)).map(({ metrics, key, sourceDigest, _recovery, _validation, reportSnapshot, pendingBatch, _diagnostics, ...j }) => {
+      const { parts, synthesis, ...result } = j.result;
+      return { ...j, result: { ...result, partCount: parts?.length } };
+    }),
+  );
+  route('GET', '/api/teacher/courses/:cid/authoring/:jid', 'teacher', ({ user, params }) => {
+    const j = authoring.jobs(teacherCourse(user, params.cid)).find((j) => j.id === params.jid) || fail(404, 'Not found.');
+    return { id: j.id, parts: j.result.parts || [] };
+  });
+  route(
+    'POST',
+    '/api/teacher/courses/:cid/authoring',
+    'teacher',
+    statusReply(async ({ user, params, body }) => {
+      const j = authoring.start(teacherCourse(user, params.cid), body.kind, body, user.id);
+      await persist();
+      return [202, j];
+    }),
+  );
+  route(
+    'POST',
+    '/api/teacher/courses/:cid/authoring/:jid/resume',
+    'teacher',
+    statusReply(async ({ user, params }) => {
+      const j = authoring.resume(teacherCourse(user, params.cid), params.jid);
+      await persist();
+      return [202, j];
+    }),
+  );
+  route(
+    'PUT',
+    '/api/teacher/courses/:cid/authoring/:jid/review',
+    'teacher',
+    statusReply(({ user, params, body }) => authoring.review(teacherCourse(user, params.cid), params.jid, body.markdown, body.reportRevision)),
+    { limit: 300 * 1024 },
+  );
+  route(
+    'POST',
+    '/api/teacher/questions/:qid/regenerate',
+    'teacher',
+    statusReply(async ({ user, params }) => {
+      const q = teacherQuestion(user, params.qid),
+        c = teacherCourse(user, q.courseId);
+      const j = authoring.regenerate(c, q, user.id);
+      await persist();
+      return [202, { id: j.id }];
+    }),
+  );
+
+  // Sequential page uploads are bounded and idempotent after response loss.
+  route(
+    'POST',
+    '/api/teacher/courses/:cid/import',
+    'teacher',
+    async ({ user, params, body }) => {
+      const c = teacherCourse(user, params.cid);
+      // Uploaded lecture files belong to a weekly topic (older uploads may
+      // have none); a learning outcome is optional.
+      const topic = body.topicId == null ? null : topicsOf(c.id).find((t) => t.id === body.topicId) || fail(400, 'Unknown topic.');
+      const outcome = body.outcomeId == null ? null : topic?.outcomes.find((o) => o.id === body.outcomeId) || fail(400, 'Unknown learning outcome.');
+      if (body.confirmNoPersonalData !== true) fail(400, 'Confirm that this is authorised course material without student personal data.');
+      if (authoring.jobs(c).some((j) => ['queued', 'running'].includes(j.status))) fail(409, 'Wait for the current authoring job before changing files.');
+      const title = str(body.title, 120, 'Title'),
+        content = str(body.text, PASSAGE_LIMIT, 'Extracted text');
+      const key = crypto
+        .createHash('sha256')
+        .update(JSON.stringify([topic?.id ?? null, outcome?.id ?? null, title, content]))
+        .digest('hex');
+      const fileName = typeof body.fileName === 'string' && body.fileName.trim() ? body.fileName.trim().slice(0, 255) : null;
+      const documentId = typeof body.documentId === 'string' && /^[a-f0-9]{64}$/.test(body.documentId) ? body.documentId : null;
+      const existing = db.passages.find((p) => p.courseId === c.id && p.importHash === key);
+      if (existing) {
+        // An unchanged excerpt re-uploaded as part of a new version of a file
+        // joins that version, so the file is listed once.
+        Object.assign(existing, { attached: true }, documentId && { documentId }, fileName && { fileName });
+        await persist();
+        return existing;
+      }
+      const p = {
+        id: newId('p'),
+        courseId: c.id,
+        topicId: topic?.id ?? null,
+        outcomeId: outcome?.id ?? null,
+        title,
+        text: content,
+        origin: ['pdf', 'pptx', 'docx', 'text'].includes(body.origin) ? body.origin : 'text',
+        importHash: key,
+        attached: true,
+        ...(fileName && { fileName }),
+        ...(documentId && { documentId }),
+        createdBy: user.id,
+        createdAt: now(),
+      };
+      db.passages.push(p);
+      await persist();
+      return [201, p];
+    },
+    { limit: 500 * 1024 },
+  );
   route('GET', '/api/teacher/courses/:cid/passages', 'teacher', ({ user, params, query }) => {
     const c = teacherCourse(user, params.cid);
     const includeArchived = query?.get?.('includeArchived') === 'true';
+    // One pass over the questions instead of one per passage.
+    const usedBy = new Map();
+    for (const q of db.questions) for (const id of new Set(q.versions.at(-1).sourceIds)) usedBy.set(id, (usedBy.get(id) || 0) + 1);
     return db.passages
       .filter((p) => p.courseId === c.id && (includeArchived || !p.archivedAt))
-      .map((p) => ({
-        ...p,
-        usedBy: db.questions.filter((q) => q.versions.at(-1).sourceIds.includes(p.id)).length,
-      }));
+      .map((p) => ({ ...p, usedBy: usedBy.get(p.id) || 0 }));
   });
 
-  route('POST', '/api/teacher/courses/:cid/passages', 'teacher', ({ user, params, body }) => {
+  // Detach uploads without destroying sources referenced by reports/questions,
+  // or move an uploaded file to another weekly topic ({ topicId }).
+  route('PUT', '/api/teacher/courses/:cid/imports', 'teacher', async ({ user, params, body }) => {
     const c = teacherCourse(user, params.cid);
-    const { topic, outcome } = topicAndOutcome(c, body.topicId, body.outcomeId);
-    if (body.confirmNoPersonalData !== true) fail(400, 'Please confirm the material contains no student personal data.');
-    const origin = ['paste', 'pdf', 'scan', 'diagram'].includes(body.origin) ? body.origin : 'paste';
-    const p = { id: newId('p'), courseId: c.id, topicId: topic.id, outcomeId: outcome.id, title: str(body.title, 120, 'Title'), text: str(body.text, PASSAGE_LIMIT, 'Passage text'), origin, createdBy: user.id, createdAt: now(), archivedAt: null };
-    db.passages.push(p);
-    save();
-    return [201, p];
-  }, { limit: 400 * 1024 });
+    if (authoring.jobs(c).some((j) => ['queued', 'running'].includes(j.status))) fail(409, 'Wait for the current authoring job before changing files.');
+    const moving = body.topicId !== undefined;
+    if (!Array.isArray(body.passageIds) || !body.passageIds.length || body.passageIds.length > 1000 || (!moving && body.attached !== false))
+      fail(400, 'Choose uploaded file excerpts to remove or move.');
+    const parts = body.passageIds.map((id) => db.passages.find((p) => p.id === id && p.courseId === c.id && p.importHash && p.origin !== 'report'));
+    if (parts.some((p) => !p)) fail(404, 'Uploaded file not found.');
+    if (!moving) {
+      for (const p of parts) p.attached = false;
+    } else {
+      const topic = body.topicId === null ? null : topicsOf(c.id).find((t) => t.id === body.topicId) || fail(400, 'Unknown topic.');
+      // the import key includes the topic, so re-uploading the file there stays idempotent
+      const keyOf = (p) => crypto.createHash('sha256').update(JSON.stringify([topic?.id ?? null, null, p.title, p.text])).digest('hex');
+      const ids = new Set(parts.map((p) => p.id));
+      if (parts.some((p) => db.passages.some((x) => x.courseId === c.id && !ids.has(x.id) && x.importHash === keyOf(p))))
+        fail(409, 'This file is already uploaded to that topic.');
+      for (const p of parts) Object.assign(p, { topicId: topic?.id ?? null, outcomeId: null, importHash: keyOf(p) });
+    }
+    await persist();
+    return { ok: true };
+  });
 
-  route('POST', '/api/teacher/passages/:pid/archive', 'teacher', ({ user, params }) => {
+  route(
+    'POST',
+    '/api/teacher/courses/:cid/passages',
+    'teacher',
+    ({ user, params, body }) => {
+      const c = teacherCourse(user, params.cid);
+      const { topic, outcome } = topicAndOutcome(c, body.topicId, body.outcomeId);
+      if (body.confirmNoPersonalData !== true) fail(400, 'Please confirm the material contains no student personal data.');
+      const origin = ['paste', 'pdf', 'scan', 'diagram'].includes(body.origin) ? body.origin : 'paste';
+      const p = {
+        id: newId('p'),
+        courseId: c.id,
+        topicId: topic.id,
+        outcomeId: outcome.id,
+        title: str(body.title, 120, 'Title'),
+        text: str(body.text, PASSAGE_LIMIT, 'Passage text'),
+        origin,
+        createdBy: user.id,
+        createdAt: now(),
+      };
+      db.passages.push(p);
+      save();
+      return [201, p];
+    },
+    { limit: 400 * 1024 },
+  );
+
+  // Scanned page / diagram -> suggested text (not saved until the professor confirms)
+  route(
+    'POST',
+    '/api/teacher/courses/:cid/transcribe',
+    'teacher',
+    async ({ user, params, body }) => {
+      teacherCourse(user, params.cid);
+      const r = await transcribe({ imageBase64: body.imageBase64, mimeType: body.mimeType, mode: body.mode });
+      return [r.status, r.body];
+    },
+    { limit: 6 * 1024 * 1024 },
+  );
+
+  // Soft archive: the passage row stays so questions keep pointing at a real
+  // source id. Restore is the same call with the flag cleared.
+  route('POST', '/api/teacher/passages/:pid/archive', 'teacher', ({ user, params, body }) => {
     const p = db.passages.find((x) => x.id === params.pid) || fail(404, 'Not found.');
     teacherCourse(user, p.courseId);
-    p.archivedAt = p.archivedAt ? null : now();
+    const archived = body?.archived === undefined ? !p.archivedAt : body.archived === true;
+    p.archivedAt = archived ? now() : null;
     save();
-    return { ok: true, archived: Boolean(p.archivedAt), archivedAt: p.archivedAt };
+    return { ok: true, archived, archivedAt: p.archivedAt };
   });
 
+  // Metadata only. The passage text is immutable once saved so AI drafts
+  // already referencing it keep matching the material they were written from.
   route('PATCH', '/api/teacher/passages/:pid', 'teacher', ({ user, params, body }) => {
     const p = db.passages.find((x) => x.id === params.pid) || fail(404, 'Not found.');
     const c = teacherCourse(user, p.courseId);
     if (body.title !== undefined) p.title = str(body.title, 120, 'Title');
-    if (body.topicId !== undefined && body.outcomeId !== undefined) {
-      const { topic, outcome } = topicAndOutcome(c, body.topicId, body.outcomeId);
+    if (body.topicId !== undefined || body.outcomeId !== undefined) {
+      const { topic, outcome } = topicAndOutcome(c, body.topicId ?? p.topicId, body.outcomeId ?? p.outcomeId);
       p.topicId = topic.id;
       p.outcomeId = outcome.id;
     }
@@ -912,24 +1101,12 @@ function createQuizApi({ dataFile = null, store = null, now = () => Date.now(), 
     return p;
   });
 
-  // Scanned page / diagram -> suggested text (not saved until the professor confirms)
-  route('POST', '/api/teacher/courses/:cid/transcribe', 'teacher', async ({ user, params, body }) => {
-    teacherCourse(user, params.cid);
-    const r = await transcribe({ imageBase64: body.imageBase64, mimeType: body.mimeType, mode: body.mode });
-    return [r.status, r.body];
-  }, { limit: 6 * 1024 * 1024 });
-
-  // Deletion supports the "material retention" policy the team will set.
-  // Questions keep their sourceIds; the UI then shows "source removed".
-  route('DELETE', '/api/teacher/passages/:pid', 'teacher', ({ user, params, query }) => {
+  // Hard delete stays available for passages that were never referenced.
+  route('DELETE', '/api/teacher/passages/:pid', 'teacher', ({ user, params }) => {
     const p = db.passages.find((x) => x.id === params.pid) || fail(404, 'Not found.');
     teacherCourse(user, p.courseId);
-    if (query?.get?.('hard') === 'true') {
-      db.passages.splice(db.passages.indexOf(p), 1);
-    } else {
-      // Soft archive: keep passage for provenance and analytics
-      p.archivedAt = now();
-    }
+    if (p.origin === 'report') fail(409, 'Saved report versions are retained for question history. Edit the report in AI drafting.');
+    db.passages.splice(db.passages.indexOf(p), 1);
     save();
     return { ok: true };
   });
@@ -949,16 +1126,31 @@ function createQuizApi({ dataFile = null, store = null, now = () => Date.now(), 
 
   route('POST', '/api/teacher/courses/:cid/questions', 'teacher', ({ user, params, body }) => {
     const c = teacherCourse(user, params.cid);
-    const { topic, outcome } = topicAndOutcome(c, body.topicId, body.outcomeId);
+    if (!AI_DRAFT_FORMATS.includes(body.type || 'mcq')) fail(400, 'New questions support MCQ, True/False, Short Answer and Multi-select.');
+    const tags = questionTags(c, body);
+    const { topic, outcome } = tags;
     const { q, warnings } = checkOrFail(c, body, null);
     const t = now();
     const publish = body.publish === true;
     const question = {
-      id: newId('q'), courseId: c.id, topicId: topic.id, outcomeId: outcome.id, status: publish ? 'published' : 'draft', origin: 'manual', generationId: null,
-      createdAt: t, createdBy: user.id, publishedVersion: publish ? 1 : null, reports: [],
-      editCount: 0, prepSeconds: prepSeconds(body.prepSeconds), reviewedAt: publish ? t : null, reviewedBy: publish ? user.id : null,
+      id: newId('q'),
+      courseId: c.id,
+      topicId: topic.id,
+      outcomeId: outcome.id,
+      status: publish ? 'published' : 'draft',
+      origin: 'manual',
+      generationId: null,
+      createdAt: t,
+      createdBy: user.id,
+      publishedVersion: publish ? 1 : null,
+      reports: [],
+      editCount: 0,
+      prepSeconds: prepSeconds(body.prepSeconds),
+      reviewedAt: publish ? t : null,
+      reviewedBy: publish ? user.id : null,
       versions: [{ v: 1, ...q, warnings, editedAt: t, editedBy: user.id, publishedAt: publish ? t : null }],
     };
+    tags.commit();
     db.questions.push(question);
     save();
     return [201, teacherView(question)];
@@ -970,12 +1162,17 @@ function createQuizApi({ dataFile = null, store = null, now = () => Date.now(), 
   route('PUT', '/api/teacher/questions/:qid', 'teacher', ({ user, params, body }) => {
     const q = teacherQuestion(user, params.qid);
     const c = db.courses.find((x) => x.id === q.courseId);
-    const { topic, outcome } = topicAndOutcome(c, body.topicId ?? q.topicId, body.outcomeId ?? q.outcomeId);
+    if (!AI_DRAFT_FORMATS.includes(body.type) && body.type !== q.versions.at(-1).type) fail(400, 'Choose a supported question type.');
+    const tags = questionTags(c, {...body, topicId:body.topicId ?? q.topicId, outcomeId:body.outcomeId ?? q.outcomeId});
+    const { topic, outcome } = tags;
     const frozenTags = q.versions.some((v) => v.publishedAt != null) || db.attempts.some((a) => a.questionId === q.id);
-    if (frozenTags && (topic.id !== q.topicId || outcome.id !== q.outcomeId)) fail(409, 'Published question tags are fixed to preserve history. Create a new question for a different learning outcome.');
+    if (frozenTags && (topic.id !== q.topicId || outcome.id !== q.outcomeId))
+      fail(409, 'Published question tags are fixed to preserve history. Create a new question for a different learning outcome.');
     const { q: clean, warnings } = checkOrFail(c, body, q.id);
+    tags.commit();
     q.topicId = topic.id;
     q.outcomeId = outcome.id;
+    if (q.assessment) q.assessment = {...q.assessment, topic:topic.name, learningOutcome:outcome.text};
     const latest = q.versions.at(-1);
     const t = now();
     const answered = db.attempts.some((a) => a.questionId === q.id && a.version === latest.v);
@@ -1002,7 +1199,11 @@ function createQuizApi({ dataFile = null, store = null, now = () => Date.now(), 
     if (!allowed[body.action].includes(q.status)) fail(409, `Cannot ${body.action} a ${q.status} question.`);
     if (body.action === 'approve' || body.action === 'republish') {
       // re-run the structural checks on what is about to go live
-      checkOrFail(db.courses.find((x) => x.id === q.courseId), latest, q.id);
+      checkOrFail(
+        db.courses.find((x) => x.id === q.courseId),
+        latest,
+        q.id,
+      );
       latest.publishedAt = latest.publishedAt || t;
       q.publishedVersion = latest.v;
       q.status = 'published';
@@ -1034,14 +1235,32 @@ function createQuizApi({ dataFile = null, store = null, now = () => Date.now(), 
   });
 
   // ---------------- teacher: marking free-response answers ----------------
-  route('GET', '/api/teacher/classes/:classId/marking', 'teacher', ({ user, params }) => {
+  // ?topic=<id>: only answers to that weekly topic's questions (dashboard filter)
+  route('GET', '/api/teacher/classes/:classId/marking', 'teacher', ({ user, params, query }) => {
     const cls = teacherClass(user, params.classId);
-    return db.attempts.filter((a) => a.classId === cls.id && a.needsReview).slice(-50).reverse().map((a) => {
-      const q = db.questions.find((x) => x.id === a.questionId);
-      const v = versionOf(q, a.version);
-      // the answer text is shown without the student's identity
-      return { attemptId: a.id, at: a.at, stem: v.stem, modelAnswer: v.modelAnswer, keyPoints: v.keyPoints, text: a.text, coveredPoints: a.coveredPoints || [], method: a.method, autoCorrect: a.correct, score: a.score };
-    });
+    const topicId = topicFilter(query, cls.courseId);
+    return db.attempts
+      .filter((a) => a.classId === cls.id && a.needsReview && (!topicId || a.topicId === topicId))
+      .slice(-50)
+      .reverse()
+      .map((a) => {
+        const q = db.questions.find((x) => x.id === a.questionId);
+        const v = versionOf(q, a.version);
+        // the answer text is shown without the student's identity
+        return {
+          attemptId: a.id,
+          at: a.at,
+          topicId: a.topicId,
+          stem: v.stem,
+          modelAnswer: v.modelAnswer,
+          keyPoints: v.keyPoints,
+          text: a.text,
+          coveredPoints: a.coveredPoints || [],
+          method: a.method,
+          autoCorrect: a.correct,
+          score: a.score,
+        };
+      });
   });
 
   route('POST', '/api/teacher/attempts/:aid/mark', 'teacher', ({ user, params, body }) => {
@@ -1055,7 +1274,15 @@ function createQuizApi({ dataFile = null, store = null, now = () => Date.now(), 
     a.markedBy = user.id;
     a.markedAt = now();
     let paid = 0;
-    if (a.correct) paid = R.award(db, a.studentId, R.REWARDS.firstCorrect, 'Correct on a new question (marked by professor)', `correct:${a.studentId}:${a.questionId}`, now()).granted;
+    if (a.correct)
+      paid = R.award(
+        db,
+        a.studentId,
+        R.REWARDS.firstCorrect,
+        'Correct on a new question (marked by professor)',
+        `correct:${a.studentId}:${a.questionId}`,
+        now(),
+      ).granted;
     const session = db.sessions.find((s) => s.id === a.sessionId);
     const item = session?.items.find((it) => it.qid === a.questionId && it.v === a.version && it.result);
     if (item) {
@@ -1074,29 +1301,55 @@ function createQuizApi({ dataFile = null, store = null, now = () => Date.now(), 
   route('GET', '/api/teacher/courses/:cid/coverage', 'teacher', ({ user, params }) => {
     const c = teacherCourse(user, params.cid);
     const qs = db.questions.filter((q) => q.courseId === c.id);
-    return topicsOf(c.id).flatMap((t) => t.outcomes.map((o) => {
-      const mine = qs.filter((q) => q.outcomeId === o.id);
-      const published = mine.filter((q) => q.status === 'published').length;
-      return {
-        topicId: t.id, topic: t.name, outcomeId: o.id, outcome: o.text,
-        published, drafts: mine.filter((q) => q.status === 'draft').length,
-        passages: db.passages.filter((p) => p.outcomeId === o.id).length,
-        target: c.coverageTarget, gap: Math.max(0, c.coverageTarget - published),
-      };
-    }));
+    return topicsOf(c.id).flatMap((t) =>
+      t.outcomes.map((o) => {
+        const mine = qs.filter((q) => q.outcomeId === o.id);
+        const published = mine.filter((q) => q.status === 'published').length;
+        return {
+          topicId: t.id,
+          topic: t.name,
+          outcomeId: o.id,
+          outcome: o.text,
+          published,
+          drafts: mine.filter((q) => q.status === 'draft').length,
+          passages: db.passages.filter((p) => p.outcomeId === o.id).length,
+          target: c.coverageTarget,
+          gap: Math.max(0, c.coverageTarget - published),
+        };
+      }),
+    );
   });
 
   route('POST', '/api/teacher/courses/:cid/generate', 'teacher', async ({ user, params, body }) => {
     const c = teacherCourse(user, params.cid);
-    const { topic, outcome } = topicAndOutcome(c, body.topicId, body.outcomeId);
-    const r = await generate({ db, course: c, topic, outcome, count: body.count, format: body.format, focus: body.focus, force: body.force === true, userId: user.id, now: now(), drafter });
+    let tags;
+    try { tags=resolveTags(db,c,body); } catch(e) { if(e.status) fail(e.status,e.message); throw e; }
+    const {topic,outcome}=tags;
+    tags.commit();
+    const r = await generate({
+      db,
+      course: c,
+      topic,
+      outcome,
+      count: body.count,
+      format: body.format,
+      focus: body.focus,
+      force: body.force === true,
+      userId: user.id,
+      now: now(),
+      drafter,
+      checkpoint: persist,
+    });
     save();
     return [r.status, r.body];
   });
 
   route('GET', '/api/teacher/courses/:cid/generations', 'teacher', ({ user, params }) => {
     const c = teacherCourse(user, params.cid);
-    return db.generationLog.filter((g) => g.courseId === c.id).slice(-15).reverse()
+    return db.generationLog
+      .filter((g) => g.courseId === c.id)
+      .slice(-15)
+      .reverse()
       .map(({ rawOutput, hash, ...g }) => g); // eslint-disable-line no-unused-vars
   });
 
@@ -1112,9 +1365,9 @@ function createQuizApi({ dataFile = null, store = null, now = () => Date.now(), 
     return p;
   };
   route('GET', '/api/teacher/classes/:classId/analytics', 'teacher', ({ user, params, query }) => {
-    teacherClass(user, params.classId);
-    const p = period(query);
-    const key = `${params.classId}|${p.range}|${p.from || ''}|${p.to || ''}`;
+    const cls = teacherClass(user, params.classId);
+    const p = { ...period(query), topicId: topicFilter(query, cls.courseId) };
+    const key = `${params.classId}|${p.range}|${p.from || ''}|${p.to || ''}|${p.topicId || ''}`;
     const hit = analyticsCache.get(key);
     if (hit && hit.version === dataVersion && now() - hit.at < ANALYTICS_TTL) return hit.value;
     const value = classAnalytics(db, params.classId, now(), p);
@@ -1133,15 +1386,20 @@ function createQuizApi({ dataFile = null, store = null, now = () => Date.now(), 
   route('GET', '/api/teacher/courses/:cid/compare', 'teacher', ({ user, params, query }) => {
     const c = teacherCourse(user, params.cid);
     const ids = db.classes.filter((cl) => cl.courseId === c.id && cl.teacherIds.includes(user.id)).map((cl) => cl.id);
-    return courseComparison(db, ids, now(), period(query));
+    return courseComparison(db, ids, now(), { ...period(query), topicId: topicFilter(query, c.id) });
   });
 
   route('GET', '/api/teacher/classes/:classId/participation.csv', 'teacher', ({ user, params }) => {
     const cls = teacherClass(user, params.classId);
     if (!cls.settings.participation?.enabled) fail(409, 'Participation points are not enabled for this class.');
     const rows = [['student', 'points', 'week', 'awarded_at']];
-    for (const p of db.participation.filter((x) => x.classId === cls.id)) rows.push([userName(p.studentId), 1, p.week, new Date(p.at).toISOString()]);
-    return { __raw: rows.map((r) => r.map(csvCell).join(',')).join('\n') + '\n', contentType: 'text/csv; charset=utf-8', filename: `participation-${cls.id}.csv` };
+    for (const p of db.participation.filter((x) => x.classId === cls.id))
+      rows.push([userName(p.studentId), 1, p.week, localIso(p.at, isValidTimeZone(cls.settings.timezone) ? cls.settings.timezone : APP_TZ)]);
+    return {
+      __raw: rows.map((r) => r.map(csvCell).join(',')).join('\n') + '\n',
+      contentType: 'text/csv; charset=utf-8',
+      filename: `participation-${cls.id}.csv`,
+    };
   });
 
   route('GET', '/api/teacher/courses/:cid/evaluation', 'teacher', ({ user, params }) => {
@@ -1150,24 +1408,58 @@ function createQuizApi({ dataFile = null, store = null, now = () => Date.now(), 
   });
 
   // ---------------- student: home & progress ----------------
-  route('GET', '/api/student/home', 'student', ({ user }) => {
-    const classes = db.enrolments.filter((e) => e.studentId === user.id).map((e) => {
-      const cl = db.classes.find((c) => c.id === e.classId);
-      return {
-        id: cl.id, name: cl.name, course: db.courses.find((c) => c.id === cl.courseId).title,
-        tradingEnabled: cl.settings.tradingEnabled,
-        participation: cl.settings.participation?.enabled ? { points: db.participation.filter((p) => p.classId === cl.id && p.studentId === user.id).length, weeklyCap: E.PARTICIPATION.weeklyCap } : null,
-      };
+  route('GET', '/api/student/debug-mode', 'student', ({ user }) => ({ enabled: isSeededDemoUser(user) }));
+  route('POST', '/api/student/debug/wallet', 'student', ({ user, body }) => {
+    if (!isSeededDemoUser(user)) fail(403, 'Debug tools are only available for synthetic demo accounts.');
+    const balance = Number(body.balance);
+    if (!Number.isInteger(balance) || balance < 0 || balance > 1_000_000) fail(400, 'Balance must be a whole number from 0 to 1,000,000.');
+    const adjustment = balance - R.balance(db, user.id);
+    db.ledger.push({
+      id: newId('tx'), studentId: user.id, kind: 'debug', amount: adjustment,
+      reason: 'Debug wallet adjustment', refKey: `debug-wallet:${user.id}:${newId('debug')}`, at: now(),
     });
+    save();
+    return wallet(user.id);
+  });
+
+  route('GET', '/api/student/home', 'student', ({ user }) => {
+    const classes = db.enrolments
+      .filter((e) => e.studentId === user.id)
+      .map((e) => {
+        const cl = db.classes.find((c) => c.id === e.classId);
+        return {
+          id: cl.id,
+          name: cl.name,
+          course: db.courses.find((c) => c.id === cl.courseId).title,
+          tradingEnabled: cl.settings.tradingEnabled,
+          participation: cl.settings.participation?.enabled
+            ? {
+                points: db.participation.filter((p) => p.classId === cl.id && p.studentId === user.id).length,
+                weeklyCap: E.PARTICIPATION.weeklyCap,
+              }
+            : null,
+        };
+      });
     return {
       classes,
-      resumable: classes.map((cl) => {
-        const s = db.sessions.findLast((s) => s.studentId === user.id && s.classId === cl.id && !s.completedAt);
-        return s ? { id: s.id, classId: cl.id, answered: s.cursor, total: s.items.length } : null;
-      }).filter(Boolean),
+      resumable: classes
+        .map((cl) => {
+          const s = db.sessions.findLast((s) => s.studentId === user.id && s.classId === cl.id && !s.completedAt);
+          return s ? { id: s.id, classId: cl.id, answered: s.cursor, total: s.items.length } : null;
+        })
+        .filter(Boolean),
       wallet: wallet(user.id),
       inventory: R.inventory(db, user.id),
-      catalog: { pets: R.PETS, items: R.ITEMS, eggCost: R.REWARDS.eggCost, eggOdds: R.EGG_ODDS, duplicateRefund: R.REWARDS.duplicateRefund, resources: E.RESOURCES },
+      catalog: {
+        pets: R.PETS,
+        items: R.ITEMS,
+        eggCost: R.REWARDS.eggCost,
+        eggOdds: R.EGG_ODDS,
+        duplicateRefund: R.REWARDS.duplicateRefund,
+        resources: E.RESOURCES,
+        heroSummon: R.HERO_SUMMON,
+        heroes: R.HERO_CATALOG,
+      },
       rules: R.REWARDS,
       options: { lengths: SESSION_LENGTHS, timers: TIMERS, accommodation: ACCOMMODATION },
     };
@@ -1175,7 +1467,7 @@ function createQuizApi({ dataFile = null, store = null, now = () => Date.now(), 
 
   route('GET', '/api/student/classes/:classId/progress', 'student', ({ user, params }) => {
     const cl = studentClass(user, params.classId);
-    return studentProgress(db, user.id, cl);
+return studentProgress(db, user.id, cl);
   });
 
   route('GET', '/api/student/classes/:classId/reports', 'student', ({ user, params }) => {
@@ -1197,11 +1489,25 @@ function createQuizApi({ dataFile = null, store = null, now = () => Date.now(), 
     const plan = planSession({ bank, topics, stats: topicStats(mine, topics), recentIds, length: body.length });
     const npcHp = Math.max(1, Math.ceil(plan.questionIds.length * 0.6)) * 10;
     const session = {
-      id: newId('ses'), studentId: user.id, classId: cl.id, courseId: cl.courseId, createdAt: now(),
-      timerSec: Math.round(body.timerSec * mult), mode: plan.mode,
+      id: newId('ses'),
+      studentId: user.id,
+      classId: cl.id,
+      courseId: cl.courseId,
+      createdAt: now(),
+      timerSec: Math.round(body.timerSec * mult),
+      mode: plan.mode,
       plan: { weakTopicIds: plan.weakTopicIds, notes: plan.notes },
-      items: plan.questionIds.map((qid) => ({ qid, v: db.questions.find((q) => q.id === qid).publishedVersion, servedAt: null, instance: null, result: null })),
-      cursor: 0, npc: { name: 'Fog of Confusion', emoji: '👾', maxHp: npcHp, hp: npcHp }, coins: 0, completedAt: null,
+      items: plan.questionIds.map((qid) => ({
+        qid,
+        v: db.questions.find((q) => q.id === qid).publishedVersion,
+        servedAt: null,
+        instance: null,
+        result: null,
+      })),
+      cursor: 0,
+      npc: { name: 'Fog of Confusion', emoji: '👾', maxHp: npcHp, hp: npcHp },
+      coins: 0,
+      completedAt: null,
     };
     db.sessions.push(session);
     save();
@@ -1217,7 +1523,8 @@ function createQuizApi({ dataFile = null, store = null, now = () => Date.now(), 
       const before = s.items.length;
       s.items = s.items.filter((it, i) => i < s.cursor || it.servedAt || db.questions.find((q) => q.id === it.qid)?.status === 'published');
       if (s.items.length !== before) {
-        if (!s.plan.notes.some((n) => n.includes('withdrawn'))) s.plan.notes.push('A question was withdrawn by your professor during this session, so it was skipped.');
+        if (!s.plan.notes.some((n) => n.includes('withdrawn')))
+          s.plan.notes.push('A question was withdrawn by your professor during this session, so it was skipped.');
         if (s.cursor >= s.items.length) finishSession(s, user);
         save();
       }
@@ -1228,7 +1535,10 @@ function createQuizApi({ dataFile = null, store = null, now = () => Date.now(), 
     if (!s.completedAt && s.cursor >= s.items.length) finishSession(s, user); // defensive: nothing left
     while (!s.completedAt && !s.items[s.cursor].servedAt) {
       const it = s.items[s.cursor];
-      const iv = versionOf(db.questions.find((x) => x.id === it.qid), it.v);
+      const iv = versionOf(
+        db.questions.find((x) => x.id === it.qid),
+        it.v,
+      );
       it.instance = newInstance(iv); // maths variations get fresh numbers
       if (iv.type === 'param' && !it.instance) {
         s.items.splice(s.cursor, 1);
@@ -1239,13 +1549,25 @@ function createQuizApi({ dataFile = null, store = null, now = () => Date.now(), 
       }
       save();
     }
-    const out = { id: s.id, total: s.items.length, cursor: s.cursor, npc: s.npc, timerSec: s.timerSec, mode: s.mode, notes: s.plan.notes, done: !!s.completedAt, coins: s.coins };
+    const out = {
+      id: s.id,
+      total: s.items.length,
+      cursor: s.cursor,
+      npc: s.npc,
+      timerSec: s.timerSec,
+      mode: s.mode,
+      notes: s.plan.notes,
+      done: !!s.completedAt,
+      coins: s.coins,
+    };
     if (s.completedAt) return out;
     const item = s.items[s.cursor];
     const q = db.questions.find((x) => x.id === item.qid);
     const v = versionOf(q, item.v);
     out.question = {
-      ...studentView(v, item.instance), index: s.cursor, questionId: q.id,
+      ...studentView(v, item.instance),
+      index: s.cursor,
+      questionId: q.id,
       topic: db.topics.find((t) => t.id === q.topicId).name,
       remainingMs: s.timerSec ? Math.max(0, s.timerSec * 1000 - (now() - item.servedAt)) : null,
     };
@@ -1270,7 +1592,18 @@ function createQuizApi({ dataFile = null, store = null, now = () => Date.now(), 
     const cls = db.classes.find((c) => c.id === s.classId);
     let out;
     try {
-      out = await answerQuestion({ user, cls, q, v, instance: item.instance, submission: body, servedAt: item.servedAt, timerSec: s.timerSec, sessionId: s.id, context: 'practice' });
+      out = await answerQuestion({
+        user,
+        cls,
+        q,
+        v,
+        instance: item.instance,
+        submission: body,
+        servedAt: item.servedAt,
+        timerSec: s.timerSec,
+        sessionId: s.id,
+        context: 'practice',
+      });
     } finally {
       grading.delete(lock);
     }
@@ -1285,9 +1618,13 @@ function createQuizApi({ dataFile = null, store = null, now = () => Date.now(), 
     const inv = R.inventory(db, user.id);
     const pet = R.PETS.find((p) => p.id === inv.equippedPet);
     item.result = {
-      index, ...out.result, npc: { ...s.npc },
+      index,
+      ...out.result,
+      npc: { ...s.npc },
       attack: out.result.correct ? { pet: pet.emoji, move: pet.move, damage: 10 } : null,
-      done: !!s.completedAt, resources: extras.resources, participation: extras.participation,
+      done: !!s.completedAt,
+      resources: extras.resources,
+      participation: extras.participation,
     };
     save();
     return item.result;
@@ -1306,9 +1643,17 @@ function createQuizApi({ dataFile = null, store = null, now = () => Date.now(), 
     }
     const end = s.endRewards || {};
     return {
-      total: s.items.length, correct: s.items.filter((i) => i.result.correct).length, coins: s.coins, npc: s.npc, byTopic, notes: s.plan.notes,
-      wallet: wallet(user.id), resources: end.resources || null, participation: end.participation || null,
-      provisional: s.items.filter((i) => i.result.provisional).length, feedbackGiven: !!s.feedback,
+      total: s.items.length,
+      correct: s.items.filter((i) => i.result.correct).length,
+      coins: s.coins,
+      npc: s.npc,
+      byTopic,
+      notes: s.plan.notes,
+      wallet: wallet(user.id),
+      resources: end.resources || null,
+      participation: end.participation || null,
+      provisional: s.items.filter((i) => i.result.provisional).length,
+      feedbackGiven: !!s.feedback,
     };
   });
 
@@ -1376,7 +1721,14 @@ function createQuizApi({ dataFile = null, store = null, now = () => Date.now(), 
     const rid = requestId(body.requestId);
     const refKey = `egg:${user.id}:${rid}`;
     const prev = db.ledger.find((t) => t.refKey === refKey);
-    if (prev) return { pet: R.PETS.find((p) => p.id === prev.meta.petId), duplicatePet: prev.meta.dupe, inventory: R.inventory(db, user.id), wallet: wallet(user.id), repeat: true };
+    if (prev)
+      return {
+        pet: R.PETS.find((p) => p.id === prev.meta.petId),
+        duplicatePet: prev.meta.dupe,
+        inventory: R.inventory(db, user.id),
+        wallet: wallet(user.id),
+        repeat: true,
+      };
     const r = R.spend(db, user.id, R.REWARDS.eggCost, 'Opened an egg', refKey, now());
     if (!r.ok) fail(400, r.error);
     const pet = R.drawPet();
@@ -1384,13 +1736,87 @@ function createQuizApi({ dataFile = null, store = null, now = () => Date.now(), 
     const owned = inv.pets.find((p) => p.id === pet.id);
     if (owned) {
       owned.dupes++;
-      db.ledger.push({ id: newId('tx'), studentId: user.id, kind: 'refund', amount: R.REWARDS.duplicateRefund, reason: `Duplicate ${pet.name} refund`, refKey: refKey + ':refund', at: now() });
+      db.ledger.push({
+        id: newId('tx'),
+        studentId: user.id,
+        kind: 'refund',
+        amount: R.REWARDS.duplicateRefund,
+        reason: `Duplicate ${pet.name} refund`,
+        refKey: refKey + ':refund',
+        at: now(),
+      });
     } else {
       inv.pets.push({ id: pet.id, dupes: 0 });
     }
     db.ledger.find((t) => t.refKey === refKey).meta = { petId: pet.id, dupe: !!owned };
     save();
     return { pet, duplicatePet: !!owned, inventory: inv, wallet: wallet(user.id) };
+  });
+
+  route('POST', '/api/student/hero-summon', 'student', ({ user, body }) => {
+    const rid = requestId(body.requestId);
+    const refKey = `hero-summon:${user.id}:${rid}`;
+    const cost = R.HERO_SUMMON.pullCost;
+    const inv = R.inventory(db, user.id);
+    // Idempotent retry: the same requestId returns the same prize so a
+    // double-click (or retryablePost replay) can't double-charge or roll
+    // a different result.
+    const prev = db.ledger.find((t) => t.refKey === refKey);
+    if (prev) {
+      const meta = prev.meta || {};
+      let prize;
+      if (meta.kind === 'hero') {
+        const hero = R.HERO_CATALOG.find((h) => h.id === meta.heroId) || { id: meta.heroId, name: meta.heroId, emoji: '✨', type: 'hero', rarity: meta.rarity, weapon: '', skill: '', ultimate: '' };
+        prize = { kind: 'hero', rarity: meta.rarity, hero };
+      } else {
+        prize = { kind: 'resource', rarity: meta.rarity, resource: meta.resource, amount: meta.amount };
+      }
+      return {
+        prize,
+        pity: inv.heroPity,
+        duplicateHero: !!meta.dupe,
+        refund: meta.dupe ? Math.floor(cost * R.HERO_SUMMON.duplicateRefundFraction) : 0,
+        inventory: inv,
+        wallet: wallet(user.id),
+        repeat: true,
+      };
+    }
+    const pay = R.spend(db, user.id, cost, 'Hero Summon pull', refKey, now());
+    if (!pay.ok) fail(400, pay.error);
+    const roll = R.drawHeroSummon(inv.heroPity);
+    inv.heroPity = roll.pity;
+    const meta = { kind: roll.prize.kind, rarity: roll.prize.rarity };
+    let duplicateHero = false;
+    let refund = 0;
+    if (roll.prize.kind === 'hero') {
+      meta.heroId = roll.prize.hero.id;
+      if (inv.heroes.includes(roll.prize.hero.id)) {
+        duplicateHero = true;
+        inv.heroDupes[roll.prize.hero.id] = (inv.heroDupes[roll.prize.hero.id] || 0) + 1;
+        refund = Math.floor(cost * R.HERO_SUMMON.duplicateRefundFraction);
+        meta.dupe = true;
+        if (refund > 0) {
+          db.ledger.push({
+            id: newId('tx'),
+            studentId: user.id,
+            kind: 'refund',
+            amount: refund,
+            reason: `Duplicate ${roll.prize.hero.name} refund`,
+            refKey: refKey + ':refund',
+            at: now(),
+          });
+        }
+      } else {
+        inv.heroes.push(roll.prize.hero.id);
+      }
+    } else {
+      meta.resource = roll.prize.resource;
+      meta.amount = roll.prize.amount;
+      inv.resources[roll.prize.resource] = (inv.resources[roll.prize.resource] || 0) + roll.prize.amount;
+    }
+    db.ledger.find((t) => t.refKey === refKey).meta = meta;
+    save();
+    return { prize: roll.prize, pity: roll.pity, duplicateHero, refund, inventory: inv, wallet: wallet(user.id) };
   });
 
   route('POST', '/api/student/equip', 'student', ({ user, body }) => {
@@ -1409,16 +1835,27 @@ function createQuizApi({ dataFile = null, store = null, now = () => Date.now(), 
   });
 
   route('GET', '/api/student/ledger', 'student', ({ user }) => ({
-    coins: db.ledger.filter((t) => t.studentId === user.id).slice(-30).reverse().map(({ refKey, meta, ...t }) => t), // eslint-disable-line no-unused-vars
-    resources: db.resourceLog.filter((t) => t.studentId === user.id).slice(-30).reverse().map(({ refKey, ...t }) => t), // eslint-disable-line no-unused-vars
+    coins: db.ledger
+      .filter((t) => t.studentId === user.id)
+      .slice(-30)
+      .reverse()
+      .map(({ refKey, meta, ...t }) => t), // eslint-disable-line no-unused-vars
+    resources: db.resourceLog
+      .filter((t) => t.studentId === user.id)
+      .slice(-30)
+      .reverse()
+      .map(({ refKey, ...t }) => t), // eslint-disable-line no-unused-vars
   }));
 
   // ---------------- student: kingdom ----------------
   route('GET', '/api/student/kingdom', 'student', ({ user }) => {
     const k = E.kingdom(db, user.id);
     return {
-      buildings: k.buildings, castleLevel: E.castleLevel(k), resources: E.resources(db, user.id),
-      earnedToday: E.earnedToday(db, user.id, now()), dailyCap: E.RESOURCE_DAILY_CAP,
+      buildings: k.buildings,
+      castleLevel: E.castleLevel(k),
+      resources: E.resources(db, user.id),
+      earnedToday: E.earnedToday(db, user.id, now()),
+      dailyCap: E.RESOURCE_DAILY_CAP,
       catalog: { buildings: E.BUILDINGS, resources: E.RESOURCES },
     };
   });
@@ -1434,14 +1871,28 @@ function createQuizApi({ dataFile = null, store = null, now = () => Date.now(), 
   route('GET', '/api/student/classes/:classId/trades', 'student', ({ user, params }) => {
     const cls = studentClass(user, params.classId);
     const list = db.trades.filter((t) => t.classId === cls.id);
-    const view = (t) => ({ id: t.id, give: t.give, want: t.want, status: t.status, createdAt: t.createdAt, acceptedAt: t.acceptedAt || null, from: t.fromId === user.id ? 'You' : userName(t.fromId), mine: t.fromId === user.id, iAccepted: t.acceptedBy === user.id });
+    const view = (t) => ({
+      id: t.id,
+      give: t.give,
+      want: t.want,
+      status: t.status,
+      createdAt: t.createdAt,
+      acceptedAt: t.acceptedAt || null,
+      from: t.fromId === user.id ? 'You' : userName(t.fromId),
+      mine: t.fromId === user.id,
+      iAccepted: t.acceptedBy === user.id,
+    });
     return {
       enabled: cls.settings.tradingEnabled,
       limits: E.TRADE,
       resources: E.resources(db, user.id),
       market: list.filter((t) => t.status === 'open' && t.fromId !== user.id).map(view),
       mine: list.filter((t) => t.status === 'open' && t.fromId === user.id).map(view),
-      history: list.filter((t) => t.status !== 'open' && (t.fromId === user.id || t.acceptedBy === user.id)).slice(-10).reverse().map(view),
+      history: list
+        .filter((t) => t.status !== 'open' && (t.fromId === user.id || t.acceptedBy === user.id))
+        .slice(-10)
+        .reverse()
+        .map(view),
     };
   });
 
@@ -1499,7 +1950,12 @@ function createQuizApi({ dataFile = null, store = null, now = () => Date.now(), 
       const body = ['POST', 'PUT', 'PATCH'].includes(req.method) ? await readJson(req, r.limit) : {};
       const out = await r.handler({ req, params, body, user, token, query: url.searchParams });
       if (out && out.__raw !== undefined) {
-        res.writeHead(200, { 'Content-Type': out.contentType, 'Content-Disposition': `attachment; filename="${out.filename}"`, 'Cache-Control': 'no-store', 'X-Content-Type-Options': 'nosniff' });
+        res.writeHead(200, {
+          'Content-Type': out.contentType,
+          'Content-Disposition': `attachment; filename="${out.filename}"`,
+          'Cache-Control': 'no-store',
+          'X-Content-Type-Options': 'nosniff',
+        });
         res.end(out.__raw);
       } else if (Array.isArray(out) && typeof out[0] === 'number') send(res, out[0], out[1]);
       else send(res, 200, out);

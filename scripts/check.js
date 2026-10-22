@@ -1,5 +1,5 @@
 // Syntax-check the Node modules and the Vue app's plain JS modules.
-// (.vue files are compiled - and so checked - by `npm run build`.)
+// (.vue files are compiled - and so checked - by `pnpm build`.)
 const fs = require('node:fs');
 const path = require('node:path');
 const { spawnSync } = require('node:child_process');
