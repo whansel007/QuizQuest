@@ -89,7 +89,16 @@ async function createSyncedStore({ adapter, seedData = seed, saveDelay = SAVE_DE
   } else {
     const tables = {};
     await Promise.all(TABLES.map(async (spec) => {
-      tables[spec.table] = await adapter.selectAll(spec.table, orderOf(spec));
+      try {
+        tables[spec.table] = await adapter.selectAll(spec.table, orderOf(spec));
+      } catch (err) {
+        if (spec.optional || (err.message && err.message.includes('PGRST205'))) {
+          logger.log(`[supabase] table ${spec.table} not found in database yet, initializing empty.`);
+          tables[spec.table] = [];
+          return;
+        }
+        throw err;
+      }
     }));
     db = fromTables(tables, (table, obj, row) => {
       seqs.set(obj, row.seq);

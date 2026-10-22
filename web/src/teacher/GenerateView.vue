@@ -162,7 +162,7 @@ const outcomeText = (id) => course.value.topics.flatMap((t) => t.outcomes).find(
                   <template v-if="g.ok || g.createdQuestionIds.length">{{ g.createdQuestionIds.length }}</template>
                   <span v-else class="badge rejected">{{ g.error || 'none' }}</span>
                 </td>
-                <td>{{ g.rejected.length }}</td>
+                <td>{{ g.rejected?.length ?? 0 }}</td>
               </tr>
             </tbody>
           </table>
