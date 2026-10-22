@@ -9,3 +9,5 @@ knowledge/
 test-results/
 playwright-report/
 .workbuddy-ai
+# Local agent notes - personal, not shared with the team
+memory/
