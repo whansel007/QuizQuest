@@ -4,11 +4,10 @@
 // session itself runs in QuizRunner.vue.
 // ============================================================
 import { ref, computed, onMounted, onUnmounted } from 'vue';
-import { S, api } from '../api.js';
-import { pct, when, action } from '../ui.js';
+import { S, api, setTab } from '../api.js';
+import { action } from '../ui.js';
 import Heading from '../components/Heading.vue';
 import Field from '../components/Field.vue';
-import Meter from '../components/Meter.vue';
 import { store, loadHome } from './home.js';
 import ClassPicker from './ClassPicker.vue';
 import WalletBadge from './WalletBadge.vue';
@@ -17,7 +16,6 @@ import QuizRunner from './QuizRunner.vue';
 
 const error = ref('');
 const loaded = ref(false);
-const prog = ref(null);
 const quiz = ref(null); // { sid, initial } once a session is running
 const length = ref(8);
 const timer = ref(0);
@@ -32,7 +30,6 @@ const pet = computed(() => home.value.catalog.pets.find((p) => p.id === home.val
 onMounted(async () => {
   try {
     await loadHome();
-    if (S.classId) prog.value = await api('GET', `/api/student/classes/${S.classId}/progress`);
     if (!alive) return;
     acc.value = store.home.options.accommodation[0];
     loaded.value = true;
@@ -93,30 +90,10 @@ const onStart = action(async () => {
         </div>
       </div>
       <div v-if="cls.participation" class="note small">Your professor counts practice participation for this class: {{ cls.participation.points }} point(s) so far. You get one per completed session of 5+ questions (max {{ cls.participation.weeklyCap }} a week). Your score doesn't affect it.</div>
-      <div v-if="prog.awaitingMarking" class="note small">{{ prog.awaitingMarking }} of your written answers are waiting for your professor to confirm the mark.</div>
       <div class="panel">
-        <h3>Your practice indicator</h3>
-        <p class="small muted">Accuracy on your most recent {{ prog.window }} different questions per topic. It is a rough guide for what to practise next, not a measure of mastery or a grade.</p>
-        <div class="grid">
-          <!-- Topics with no questions yet and no practice history are left out. -->
-          <div v-for="t in prog.topics.filter((x) => x.n || x.bank)" :key="t.topicId || t.name" class="tile">
-            <div style="font-weight: 700">{{ t.name }}</div>
-            <template v-if="t.n">
-              <div class="v">{{ pct(t.accuracy) }}</div>
-              <Meter :value="t.accuracy" />
-              <div class="l" style="margin-top: 4px">{{ t.correct }} of {{ t.n }} recent question(s) · {{ t.bank }} in bank</div>
-            </template>
-            <div v-else class="l">Not practised yet · {{ t.bank }} in bank</div>
-          </div>
-        </div>
-      </div>
-      <div v-if="prog.sessions.length" class="panel">
-        <h3>Recent sessions</h3>
-        <table>
-          <tbody>
-            <tr v-for="s in prog.sessions" :key="s.id"><td>{{ when(s.at) }}</td><td>{{ s.correct }} / {{ s.total }} correct</td></tr>
-          </tbody>
-        </table>
+        <h3>See how your practice is going</h3>
+        <p class="small muted">My Progress shows your topic indicators, recent sessions and question report status.</p>
+        <button class="btn" @click="setTab('progress')">View my progress</button>
       </div>
     </template>
   </template>

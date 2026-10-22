@@ -120,6 +120,7 @@ http.interceptors.response.use(
   },
   async (err) => {
     if (axios.isCancel(err)) throw Object.assign(new Error('Cancelled.'), { name: 'AbortError' });
+    if (['ECONNABORTED', 'ETIMEDOUT'].includes(err.code)) throw new Error('The request timed out. Refresh progress before retrying; the server may still be processing it.');
     if (!err.response) throw new Error('Could not reach the server. Check your connection and try again.');
     const { config, status } = err.response;
     if (config.qqToken !== S.token) throw new Error('The active user changed.');
@@ -139,7 +140,7 @@ http.interceptors.response.use(
 // api('POST', '/api/...', body) -> parsed JSON, or throws Error(message)
 // `options.signal` (an AbortSignal) cancels the request with an AbortError.
 export async function api(method, url, data, options = {}) {
-  const res = await http.request({ method, url, data, signal: options.signal });
+  const res = await http.request({ method, url, data, signal: options.signal, timeout: options.timeout });
   return res.data;
 }
 

@@ -1,7 +1,7 @@
 <script setup>
 import {QUESTION_TYPES,QUESTION_LABELS} from './question-types.js';
 import { ref, reactive, computed, onMounted, onUnmounted, watch } from 'vue';
-import { S, api, setTab, reqId } from '../api.js';
+import { S, api as request, setTab, reqId } from '../api.js';
 import ImportMaterials from './ImportMaterials.vue';
 import MarkdownEditor from '../components/MarkdownEditor.vue';
 import { initialTags, topicLabel } from './courses.js';
@@ -10,6 +10,9 @@ import { when } from '../ui.js';
 import { suggestAssessment, sourceSummary } from './report-suggestions.mjs';
 // topic: the weekly topic whose files, reports and questions this works on
 const props = defineProps({ course: Object, topic: { type: Object, required: true }, target: Object });
+// These endpoints acknowledge durable jobs; inference runs in the background.
+// A lost response must release the UI while keeping the same recovery identity.
+const api = (method, url, data) => request(method, url, data, { timeout: 30000 });
 const attachments = ref({materialIds:[],names:{},pending:false,busy:false,ready:false});
 const jobs = ref([]), reportId = ref(''), review = ref(''), baseRevision = ref(0), error = ref(''), busy = ref(false), hasMaterial = ref(false);
 const types = QUESTION_TYPES;

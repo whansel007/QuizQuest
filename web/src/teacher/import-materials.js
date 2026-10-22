@@ -377,13 +377,15 @@ async function readPdf(bytes, progress, signal) {
 // figures get the figures described (their text layer is already read).
 async function describePdfPages(doc, pages, describe, progress, stats, signal) {
   const wanted = pages.filter((p) => p.scanned || p.images.length);
+  let attempted = 0;
   for (const [n, page] of wanted.entries()) {
     signal?.throwIfAborted();
     if (stats.stopped) break;
-    if (stats.transcribed + stats.described + stats.personal + stats.failed >= MAX_DESCRIBED) {
+    if (attempted >= MAX_DESCRIBED) {
       stats.overLimit = wanted.length - n;
       break;
     }
+    attempted++; // Empty successful responses still consume an AI attempt.
     const i = pages.indexOf(page);
     progress(page.scanned ? `Transcribing scanned page ${i + 1} with AI` : `Describing figures on page ${i + 1} with AI`);
     try {
