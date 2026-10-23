@@ -3,7 +3,7 @@
 // QuizQuest - app shell: sign-in, header, tabs
 // ============================================================
 import { computed, onMounted, ref } from 'vue';
-import { S, setTab, signOut, restoreSession } from './api.js';
+import { S, setTab, restoreSession } from './api.js';
 import { toastState } from './ui.js';
 import LoginView from './LoginView.vue';
 import ReviewView from './teacher/ReviewView.vue';
@@ -19,6 +19,7 @@ import HeroLabView from './student/HeroLabView.vue';
 import KingdomView from './student/KingdomView.vue';
 import PetsView from './student/PetsView.vue';
 import DebugMenu from './components/DebugMenu.vue';
+import AccountMenu from './components/AccountMenu.vue';
 
 const TABS = {
   teacher: [['analytics', 'Analytics', AnalyticsView], ['classes', 'Classes & Roster', ClassManagementView], ['review', 'Question bank', ReviewView], ['content', 'Source material', ContentView], ['generate', 'AI drafting', GenerateView], ['evaluation', 'Evaluation', EvaluationView], ['settings', 'Settings', SettingsView]],
@@ -50,7 +51,7 @@ const current = computed(() => {
     <div id="who">
       <template v-if="S.me">
         <span>{{ S.me.name }}</span>
-        <button class="btn small" @click="signOut">Switch user</button>
+        <AccountMenu />
         <DebugMenu v-if="S.me.role === 'student'" :key="S.token" />
       </template>
     </div>

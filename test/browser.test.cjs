@@ -98,6 +98,7 @@ test('switching professors refreshes course data and visits every teacher view',
   await page.locator('#tabs').getByRole('button', { name: 'Question bank', exact: true }).click();
   await page.getByRole('heading', { name: 'Question bank', exact: true }).waitFor();
   await page.getByRole('button', { name: 'Switch user' }).click();
+  await page.getByRole('menuitem', { name: 'Log out' }).click();
   await unlockTestAccounts(page); // the demo accounts are hidden again after signing out
   await page.getByRole('button', { name: 'Prof. Demo B' }).click();
   for (const name of ['Question bank', 'Source material', 'AI drafting', 'Analytics', 'Evaluation', 'Settings']) {
@@ -276,6 +277,7 @@ test('student and teacher screens fit 320px and 390px viewports', async (t) => {
     }
   }
   await page.getByRole('button', { name: 'Switch user' }).click();
+  await page.getByRole('menuitem', { name: 'Log out' }).click();
   await unlockTestAccounts(page);
   await page.getByRole('button', { name: 'Prof. Demo A' }).click();
   await page.setViewportSize({ width: 320, height: 800 });
