@@ -372,7 +372,7 @@ const attention = computed(() => {
   if (uncovered) out.push({ icon: '○', text: `${plural(uncovered, 'learning outcome')} with no published questions`, go: () => goTo('dash-topics') });
   const idle = a.value.participation.enrolled - a.value.participation.active7d;
   if (idle > 0) out.push({ icon: '○', text: `${idle} of ${a.value.participation.enrolled} students haven't practised${scope.value} in the last 7 days` });
-  if (!a.value.topicId && a.value.overview.unsortedFiles) out.push({ icon: '⇢', text: `${plural(a.value.overview.unsortedFiles, 'uploaded file')} not in a weekly topic yet`, go: () => goTopic({ topicId: '', tab: 'content' }) });
+  if (!a.value.topicId && a.value.overview.unsortedFiles) out.push({ icon: '⇢', text: `${plural(a.value.overview.unsortedFiles, 'uploaded file')} not in a weekly topic yet`, go: () => goTopic({ topicId: '', tab: 'generate' }) });
   return out;
 });
 

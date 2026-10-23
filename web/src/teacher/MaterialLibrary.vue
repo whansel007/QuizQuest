@@ -5,19 +5,15 @@
 import { ref, reactive, computed, markRaw, onMounted } from 'vue';
 import { S, api, rerender } from '../api.js';
 import { toast, action, when } from '../ui.js';
-import Heading from '../components/Heading.vue';
 import Field from '../components/Field.vue';
 import AsyncButton from '../components/AsyncButton.vue';
-import CoursePicker from './CoursePicker.vue';
 import TopicOutcomeFields from './TopicOutcomeFields.vue';
-import ImportMaterials from './ImportMaterials.vue';
-import TopicManager from './TopicManager.vue';
-import TopicPicker from './TopicPicker.vue';
 import { loadCourses, currentCourse, initialTags, syncTopic, topicLabel, NEW } from './courses.js';
 import { loadPdfJs, toBase64 } from './pdf.js';
 import { pdfPageHasFigure } from './import-materials.js';
 
 const error = ref('');
+const emit = defineEmits(['changed']);
 const loaded = ref(false);
 const courses = ref([]);
 const course = ref(null);
@@ -178,14 +174,8 @@ const plainLabel = 'font-weight:400;color:inherit;margin:10px 0';
 
 // ---- weekly topics: which topic's material is shown and uploaded to
 const topic = computed(() => course.value?.topics.find((t) => t.id === S.topicId) || null);
-const stamp = ref(0); // reloads the topic counts
 async function refresh() {
   passages.value = await api('GET', `/api/teacher/courses/${course.value.id}/passages`);
-  stamp.value++;
-}
-function selectTopic(id) {
-  S.topicId = id;
-  if (id) tags.topicId = id; // "Add material" follows the chosen topic
 }
 
 // Uploaded lecture files are listed once per file, collapsed. Versions that
@@ -215,7 +205,7 @@ const uploadFiles = computed(() => {
 });
 const replacedCount = computed(() => uploadFiles.value.filter((f) => !f.inUse).length);
 const manual = (topicId) => passages.value.filter((p) => p.topicId === topicId && !isUpload(p));
-const filesIn = (topicId) => uploadFiles.value.filter((f) => f.topicId === topicId && (f.inUse || showReplaced.value));
+const filesIn = (topicId) => uploadFiles.value.filter((f) => f.topicId === topicId && (topicId === null ? f.inUse || showReplaced.value : !f.inUse && showReplaced.value));
 // topics shown below: the chosen one, or every topic that has material
 const shownTopics = computed(() => (topic.value ? [topic.value] : course.value.topics.filter((t) => filesIn(t.id).length || manual(t.id).length)));
 // Files uploaded before weekly topics: move each into the week it belongs to
@@ -227,6 +217,7 @@ const moveFile = (f) => async () => {
   await api('PUT', `/api/teacher/courses/${course.value.id}/imports`, { passageIds: f.parts.map((p) => p.id), topicId: target.id });
   toast(`Moved ${f.name} to ${topicLabel(target)}`);
   await refresh();
+  emit('changed');
 };
 const fileSummary = (f) => `${f.parts.length} excerpt(s) · ${f.inUse ? 'in use' : f.legacy ? 'older import, not used by AI drafting' : 'replaced or removed'} · uploaded ${when(f.at)} · cited by ${f.usedBy} question(s)`;
 const partLabel = (f, p) => p.title.split(f.legacy ? ' — ' : ' · ').slice(1).join(' · ') || p.title;
@@ -237,15 +228,9 @@ const partLabel = (f, p) => p.title.split(f.legacy ? ' — ' : ' · ').slice(1).
   <template v-else-if="loaded">
     <p v-if="!course">You have no assigned courses.</p>
     <template v-else>
-      <Heading title="Source material">
-        <CoursePicker :courses="courses" />
-        <TopicPicker v-if="course.topics.length" :topics="course.topics" allow-all @change="selectTopic" />
-      </Heading>
-      <TopicManager :course="course" :stamp="stamp" @select="selectTopic" />
-      <ImportMaterials v-if="topic" :key="topic.id" :course="course" :topic="topic" @saved="refresh" />
-      <p v-else-if="course.topics.length" class="note small">Choose a weekly topic (top right, or click one above) to upload lecture files into it.</p>
+      <button class="btn small" @click="refresh">Refresh material library</button>
       <div class="panel">
-        <h3>Add material</h3>
+        <h3>Add notes or transcribe images</h3>
         <p class="small muted">Material is stored separately from questions and treated as reference content only: instructions inside it are never followed. Long documents are split into chunks so drafting only uses the relevant parts.</p>
         <Field label="Title" v-slot="{ id }"><input :id="id" v-model="title" type="text" placeholder="e.g. Week 3 notes: protocols" /></Field>
         <div class="row top"><TopicOutcomeFields v-model:topic-id="tags.topicId" v-model:outcome-id="tags.outcomeId" v-model:topic-name="tags.topicName" v-model:topic-week="tags.topicWeek" v-model:outcome-text="tags.outcomeText" :course="course" allow-new /></div>

@@ -131,6 +131,7 @@ async function action(fn) {
   clearTimeout(timer);
   try { if (refreshing) await refreshing; await fn(); await refresh(); schedulePoll(); } catch(e) { error.value = e.message; } finally { busy.value = false; }
 }
+const materialUploader = ref(null);
 function startReport() {
   if (busy.value || attachments.value.busy || attachments.value.pending || !attachments.value.ready) return;
   const materialIds=[...attachments.value.materialIds].sort();
@@ -139,6 +140,7 @@ function startReport() {
   if (!changed && dirty.value && !window.confirm('Keep editing the current report? Choose Cancel to keep editing, or OK to open the report for all uploaded material. Unsaved edits in this editor may be replaced.')) return;
   return action(async () => {
     const j = await api('POST',path+'/authoring',{kind:'report',topicId:props.topic.id,materialIds,confirmMaterialChange:changed});
+    materialUploader.value?.collapse();
     reportId.value=j.id; loadedId=''; review.value=''; baseRevision.value=0;
   });
 }
@@ -197,7 +199,7 @@ function download() {
     <span v-if="current.retryAt > Date.now()">Try again after {{ when(current.retryAt) }}.</span>
     <button v-if="['failed','interrupted'].includes(current.status) && !current.result.applicationUnsupported" class="btn" :disabled="running" @click="resume(current)">Resume saved work</button>
   </div>
-  <ImportMaterials :course="course" :topic="topic" :disabled="running" in-workflow @available="hasMaterial=$event" @state="attachments=$event" />
+  <ImportMaterials ref="materialUploader" :course="course" :topic="topic" :disabled="running" in-workflow @available="hasMaterial=$event" @state="attachments=$event" />
   <button v-if="hasMaterial" class="btn" :disabled="running || attachments.busy || attachments.pending || !attachments.ready" @click="startReport">Generate report</button>
   <p v-if="attachments.pending" class="small muted">Upload or remove selected files before generating a report.</p>
   <div v-if="reports.length || olderReports.length" class="panel">

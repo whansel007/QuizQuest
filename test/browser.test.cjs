@@ -101,7 +101,7 @@ test('switching professors refreshes course data and visits every teacher view',
   await page.getByRole('menuitem', { name: 'Log out' }).click();
   await unlockTestAccounts(page); // the demo accounts are hidden again after signing out
   await page.getByRole('button', { name: 'Prof. Demo B' }).click();
-  for (const name of ['Question bank', 'Source material', 'AI drafting', 'Analytics', 'Evaluation', 'Settings']) {
+  for (const name of ['Question bank', 'AI drafting', 'Analytics', 'Evaluation', 'Settings']) {
     await page.locator('#tabs').getByRole('button', { name, exact: true }).click();
     await page.locator('main h2').waitFor();
     assert.equal(await page.locator('main').getByText('Not found.', { exact: true }).count(), 0);
@@ -267,7 +267,7 @@ test('student and teacher screens fit 320px and 390px viewports', async (t) => {
   await unlockTestAccounts(page);
   await page.getByRole('button', { name: 'Prof. Demo A' }).click();
   await page.setViewportSize({ width: 320, height: 800 });
-  for (const name of ['Question bank', 'Source material', 'AI drafting', 'Analytics', 'Evaluation', 'Settings']) {
+  for (const name of ['Question bank', 'AI drafting', 'Analytics', 'Evaluation', 'Settings']) {
     await page.locator('#tabs').getByRole('button', { name, exact: true }).click();
     await page.locator('main h2').waitFor();
     const overflow = await page.evaluate(() => document.documentElement.scrollWidth - innerWidth);
@@ -368,7 +368,8 @@ test('kingdom builds drop new blocks in place and the summon reveal hands over t
 
 test('PDF upload extracts text locally and saves reviewed source material', async (t) => {
   const page = await pageFor(t, 'Prof. Demo A');
-  await page.locator('#tabs').getByRole('button', { name: 'Source material' }).click();
+  await page.locator('#tabs').getByRole('button', { name: 'AI drafting' }).click();
+  await page.getByText('Material library · Notes, images & older files',{exact:true}).click();
   // Small valid PDF fixture assembled in memory (no external tool or service).
   const text = 'Network latency is the time required for a packet to reach its destination.';
   const stream = `BT /F1 12 Tf 40 750 Td (${text}) Tj ET`;
@@ -395,8 +396,9 @@ test('PDF upload extracts text locally and saves reviewed source material', asyn
 
 test('"Add material" creates a new topic with a typed learning outcome', async (t) => {
   const page = await pageFor(t, 'Prof. Demo A');
-  await page.locator('#tabs').getByRole('button', { name: 'Source material' }).click();
-  const panel = page.locator('.panel', { has: page.getByRole('heading', { name: 'Add material', exact: true }) });
+  await page.locator('#tabs').getByRole('button', { name: 'AI drafting' }).click();
+  await page.getByText('Material library · Notes, images & older files',{exact:true}).click();
+  const panel = page.locator('.panel', { has: page.getByRole('heading', { name: 'Add notes or transcribe images', exact: true }) });
   await panel.getByLabel('Title').fill('Cloud notes');
   await panel.getByLabel('Topic', { exact: true }).selectOption({ label: '+ New topic…' });
   await panel.getByLabel('Week').fill('9');
@@ -419,7 +421,8 @@ test('"Add material" creates a new topic with a typed learning outcome', async (
   assert.deepEqual(topic.outcomes.map((o) => o.text), ['Explain what cloud computing offers']);
   assert.ok(srv.quiz.db.passages.some((p) => p.title === 'Cloud notes' && p.topicId === topic.id && p.outcomeId === topic.outcomes[0].id));
   // the new outcome is now offered in the list
-  await page.locator('.panel', { has: page.getByRole('heading', { name: 'Add material', exact: true }) }).getByLabel('Learning outcome', { exact: true }).locator('option', { hasText: 'Explain what cloud computing offers' }).waitFor({ state: 'attached' });
+  await page.getByText('Material library · Notes, images & older files',{exact:true}).click();
+  await page.locator('.panel', { has: page.getByRole('heading', { name: 'Add notes or transcribe images', exact: true }) }).getByLabel('Learning outcome', { exact: true }).locator('option', { hasText: 'Explain what cloud computing offers' }).waitFor({ state: 'attached' });
 });
 
 test('dashboard: very low accuracy is flagged, commonly missed means under 60%, and empty comparisons stay quiet', async (t) => {
@@ -786,23 +789,29 @@ test('weekly topics: narrow the dashboard, follow a next step, and add a topic f
   await page.waitForFunction(() => document.querySelectorAll('#dash-topics tbody tr:not(.subrow)').length === 3);
   assert.equal(await weeks.locator('tbody tr').count(), 3);
   // Source material's topic table follows its topic filter too
-  await page.locator('#tabs').getByRole('button', { name: 'Source material', exact: true }).click();
+  await page.locator('#tabs').getByRole('button', { name: 'AI drafting', exact: true }).click();
+  await page.getByText('Manage topics & learning outcomes',{exact:true}).click();
   await page.getByLabel('Weekly topic').selectOption('tp-sec');
-  await page.getByRole('heading', { name: 'Upload lecture material for Week 3 · Cyber hygiene' }).waitFor();
+  await page.getByRole('heading', { name: 'Upload Materials' }).waitFor();
+  await page.getByText('Manage topics & learning outcomes',{exact:true}).click();
+  await page.getByRole('button',{name:'Edit Cyber hygiene',exact:true}).waitFor();
   assert.deepEqual(await page.locator('.topic-table tbody tr:not(.subrow) td:first-child').allInnerTexts(), ['3']);
-  await page.getByLabel('Weekly topic').selectOption('');
+  await page.getByRole('button',{name:'Show all topics',exact:true}).click();
   await page.waitForFunction(() => document.querySelectorAll('.topic-table tbody tr:not(.subrow)').length === 3);
   // Source material: add Week 4; uploads then go into it
-  await page.locator('#tabs').getByRole('button', { name: 'Source material', exact: true }).click();
+  await page.locator('#tabs').getByRole('button', { name: 'AI drafting', exact: true }).click();
+  await page.getByText('Manage topics & learning outcomes',{exact:true}).click();
   await page.getByRole('button', { name: '+ Add topic' }).click();
   assert.equal(await page.getByLabel('Week', { exact: true }).inputValue(), '4', 'suggests the week after the latest');
   await page.getByLabel('Topic name').fill('Operating systems');
   await page.getByLabel('First learning outcome (optional)').fill('Explain what an operating system manages');
   await page.getByRole('button', { name: 'Add topic', exact: true }).click();
-  await page.getByRole('heading', { name: 'Upload lecture material for Week 4 · Operating systems' }).waitFor();
+  await page.getByText('Added Week 4 · Operating systems', {exact:true}).waitFor();
+  await page.getByRole('heading', { name: 'Upload Materials' }).waitFor();
   assert.equal(await page.getByLabel('Weekly topic').inputValue(), srv.quiz.db.topics.find((x) => x.name === 'Operating systems').id);
   assert.equal(srv.quiz.db.topics.find((x) => x.name === 'Operating systems').week, 4);
   // the new topic was never used, so it can be deleted again (keeps later tests unchanged)
+  await page.getByText('Manage topics & learning outcomes',{exact:true}).click();
   await page.getByRole('button', { name: 'Edit Operating systems' }).click();
   page.once('dialog', (d) => d.accept());
   await page.getByRole('button', { name: 'Delete topic' }).click();
