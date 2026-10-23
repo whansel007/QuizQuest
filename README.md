@@ -90,9 +90,9 @@ leaves the server.
   registered accounts. Passwordless test login is limited to those seeded
   synthetic users even when the server runs with `NODE_ENV=production`.
 
-New users can sign up from **Create an account** on the login page and choose
-**Student** or **Teacher**. A new teacher starts with an empty course of their
-own, where they can create classes.
+New users can sign up from **Create a student account** on the login page.
+Students only — teacher accounts are created by the team, so nobody can
+promote themselves by signing up.
 
 ## Using Supabase (optional)
 
