@@ -20,7 +20,7 @@
 // ============================================================
 
 const crypto = require('crypto');
-const { DEBUG_TUNING } = require('../../config/tuning.js');
+const { DEBUG_TUNING, ROOM_MAX_ACTIVE } = require('../../config/tuning.js');
 const { createStore } = require('./store');
 const { validateQuestion } = require('./validate');
 const { generate, GEN } = require('./generator');
@@ -1136,6 +1136,16 @@ function createQuizApi({ dataFile = null, store = null, now = () => Date.now(), 
 
   // ---------------- student: home & progress ----------------
   route('GET', '/api/student/debug-mode', 'student', ({ user }) => ({ enabled: isSeededDemoUser(user) }));
+  // Live Hero Lab rooms for the debug menu. Same gate as the rest of the menu:
+  // only synthetic demo accounts can see it.
+  route('GET', '/api/student/hero-lab/rooms', 'student', ({ user }) => {
+    if (!isSeededDemoUser(user)) fail(403, 'Debug tools are only available for synthetic demo accounts.');
+    const rooms = services.heroLab?.rooms?.list?.() || [];
+    return {
+      maxRooms: ROOM_MAX_ACTIVE,
+      rooms: rooms.map((room) => room.debugInfo()),
+    };
+  });
   route('POST', '/api/student/debug/wallet', 'student', ({ user, body }) => {
     if (!isSeededDemoUser(user)) fail(403, 'Debug tools are only available for synthetic demo accounts.');
     const balance = Number(body.balance);

@@ -70,3 +70,47 @@ export const GUARDIAN_BRACE_DURATION_S = 1.5;
 export const BUILDING_BONUS_PER_LEVEL = 0.1;
 export const BUILDING_LEVEL_CAP = 3;
 export const BASE_CAMPFIRE_HP = 100;
+
+// Rooms. Each room owns an independent run; a room stops ticking when its last
+// player leaves and is destroyed once it has been empty for ROOM_EMPTY_TTL_S.
+export const ROOM_EMPTY_TTL_S = 30;
+export const ROOM_MAX_ACTIVE = 50;
+export const ROOM_SWEEP_INTERVAL_MS = 1_000;
+
+// Room codes use consonants only so a code can never spell a word, and never Y.
+export const ROOM_CODE_LENGTH = 4;
+export const ROOM_CODE_ALPHABET = 'BCDFGHJKLMNPQRSTVWXZ';
+export const ROOM_MAX_PLAYERS = 4;
+
+// A disconnected hero waits this long for the same account to come back.
+export const RECONNECT_GRACE_S = 30;
+
+// Late joining: players who arrive after the run started wait for the next
+// wave break. LATE_JOIN_MAX_WAVE = 0 means "no limit".
+export const LOBBY_LATE_JOIN = true;
+export const LATE_JOIN_MAX_WAVE = 0;
+export const LATE_JOIN_INVULNERABILITY_S = 2;
+
+// Failed join attempts allowed per connection inside the window.
+export const JOIN_FAILURE_LIMIT = 5;
+export const JOIN_FAILURE_WINDOW_S = 60;
+
+// Lobby flow. The host starts a run; everyone sees a short countdown, then the
+// first wave begins. Heroes can swap freely until the countdown starts.
+export const COUNTDOWN_S = 3;
+
+// Training dummy: a lobby-only target that takes damage, shows numbers and
+// triggers on-hit talents, but never counts toward kills, combo or rewards.
+export const DUMMY_COUNT = 1;
+export const DUMMY_SPAWN_MIN = 150;
+export const DUMMY_SPAWN_MAX = 250;
+export const DUMMY_MIN_HERO_DISTANCE = 80;
+export const DUMMY_EMOJI = '🎯';
+export const DUMMY_SCALE = 1.2;
+export const DUMMY_HP = 300;
+export const DUMMY_RADIUS = 18;
+export const DUMMY_KNOCKBACK_MULT = 1.5;
+export const DUMMY_FRICTION = 0.88;
+export const DUMMY_RESPAWN_S = 3;
+export const DUMMY_FADE_MS = 400;
+

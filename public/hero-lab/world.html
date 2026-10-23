@@ -15,6 +15,12 @@
       <div class="health-track" role="meter" aria-label="Hero health" aria-valuemin="0" aria-valuemax="100" aria-valuenow="100"><span id="health-fill"></span></div>
       <span id="health-value">-- / --</span>
     </div>
+    <div id="room-row">
+      <button id="room-code" type="button" hidden title="Copy room code" aria-label="Copy room code">
+        <span class="room-code-label">ROOM</span><b id="room-code-value">----</b>
+      </button>
+      <span id="room-code-copied" role="status" hidden>Copied!</span>
+    </div>
     <div id="team-health" aria-label="Teammate health" hidden></div>
     <div id="downed-list" aria-label="Downed teammates" hidden></div>
   </aside>
@@ -27,7 +33,22 @@
     <div class="campfire-track"><span id="campfire-fill"></span></div>
   </aside>
   <aside id="boss-hud" aria-label="Boss health" hidden><strong id="boss-name">Brute King</strong><div class="boss-track"><span id="boss-health-fill"></span></div><span id="boss-health-value"></span></aside>
+  <aside id="player-list" aria-label="Players in this room" hidden>
+    <div id="player-list-rows"></div>
+  </aside>
   <div id="moment-banner" aria-live="assertive" hidden></div>
+  <section id="waiting-banner" aria-live="polite" hidden>
+    <strong>Joining after this wave…</strong>
+    <span id="waiting-detail">Spawning in the next break</span>
+  </section>
+  <div id="toast-stack" aria-live="polite"></div>
+  <div id="countdown" hidden aria-live="assertive"><span id="countdown-value">3</span></div>
+  <section id="lobby-bar" hidden aria-label="Lobby controls">
+    <label id="lobby-hero-label" for="lobby-hero">Hero</label>
+    <select id="lobby-hero" aria-label="Choose the hero you play this run"></select>
+    <button id="start-run" type="button" hidden>START RUN</button>
+    <span id="lobby-hint" hidden>Waiting for the host to start…</span>
+  </section>
   <div id="low-hp-vignette" aria-hidden="true" hidden></div>
   <section id="join-briefing" hidden aria-label="Defend the campfire briefing">
     <strong>Defend the campfire!</strong>
@@ -36,22 +57,22 @@
     <div class="briefing-tip"><span aria-hidden="true">🎮</span><span>Click fire | E skill | Q ultimate | WASD move</span></div>
     <small>Press any key or click to close</small>
   </section>
-  <aside id="settings-hud">
-    <button id="settings-button" type="button" aria-expanded="false" aria-controls="settings-panel">⚙ Settings</button>
-    <section id="settings-panel" hidden aria-label="Arena settings">
-      <strong>Settings</strong>
-      <label><input id="shake-setting" type="checkbox" checked> Screen shake</label>
-      <label for="shake-intensity-setting">Shake intensity <span id="shake-intensity-value"></span></label>
-      <input id="shake-intensity-setting" type="range">
-      <label><input id="numbers-setting" type="checkbox" checked> Damage numbers</label>
-      <label><input id="mute-setting" type="checkbox"> Mute sound</label>
-      <label for="volume-setting">Master volume</label>
-      <input id="volume-setting" type="range" min="0" max="1" step="0.01" value="0.55">
-    </section>
-  </aside>
   <aside id="bottom-left-hud">
     <div id="bottom-left-tools">
       <button id="briefing-button" type="button" aria-label="Show the game briefing" title="Show the game briefing">?</button>
+      <aside id="settings-hud">
+        <button id="settings-button" type="button" aria-expanded="false" aria-controls="settings-panel" aria-label="Arena settings" title="Settings">⚙</button>
+        <section id="settings-panel" hidden aria-label="Arena settings">
+          <strong>Settings</strong>
+          <label><input id="shake-setting" type="checkbox" checked> Screen shake</label>
+          <label for="shake-intensity-setting">Shake intensity <span id="shake-intensity-value"></span></label>
+          <input id="shake-intensity-setting" type="range">
+          <label><input id="numbers-setting" type="checkbox" checked> Damage numbers</label>
+          <label><input id="mute-setting" type="checkbox"> Mute sound</label>
+          <label for="volume-setting">Master volume</label>
+          <input id="volume-setting" type="range" min="0" max="1" step="0.01" value="0.55">
+        </section>
+      </aside>
       <div id="buff-icons" aria-label="Run buffs"></div>
     </div>
     <button id="info-button" type="button" aria-expanded="false" aria-controls="stats-panel">

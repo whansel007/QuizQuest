@@ -39,6 +39,22 @@ const healthFill = document.querySelector('#health-fill');
 const healthTrack = document.querySelector('.health-track');
 const healthValue = document.querySelector('#health-value');
 const teamHealth = document.querySelector('#team-health');
+const roomRow = document.querySelector('#room-row');
+const roomCodeButton = document.querySelector('#room-code');
+const roomCodeValue = document.querySelector('#room-code-value');
+const roomCodeCopied = document.querySelector('#room-code-copied');
+const waitingBanner = document.querySelector('#waiting-banner');
+const waitingDetail = document.querySelector('#waiting-detail');
+const abilityHud = document.querySelector('#ability-hud');
+const toastStack = document.querySelector('#toast-stack');
+const playerList = document.querySelector('#player-list');
+const playerListRows = document.querySelector('#player-list-rows');
+const lobbyBar = document.querySelector('#lobby-bar');
+const lobbyHero = document.querySelector('#lobby-hero');
+const startRunButton = document.querySelector('#start-run');
+const lobbyHint = document.querySelector('#lobby-hint');
+const countdownOverlay = document.querySelector('#countdown');
+const countdownValue = document.querySelector('#countdown-value');
 const buffIcons = document.querySelector('#buff-icons');
 const downedList = document.querySelector('#downed-list');
 const briefingButton = document.querySelector('#briefing-button');
@@ -74,9 +90,23 @@ const sheriffRefundLabel = sheriffSkillAbility.querySelector('.cooldown-refund-l
 let token = null;
 try { token = sessionStorage.getItem('qq-token'); } catch { /* standalone Hero Lab has no app session */ }
 const socket = window.io('/hero-lab', { auth: token ? { token } : {} });
-const heroId = new URLSearchParams(location.search).get('heroId');
+const query = new URLSearchParams(location.search);
+const heroId = query.get('heroId');
+const embedded = query.has('embedded') && window.parent !== window;
+const requestedRoomCode = (query.get('room') || '').trim().toUpperCase();
+const createRequested = query.get('create') === '1';
 const selectedHero = HEROES.find((hero) => hero.id === heroId);
 if (!selectedHero) location.replace('/hero-lab');
+// The hero this client is playing. Lobby swaps change it without a reload.
+let activeHeroId = selectedHero.id;
+
+// The room this client is attached to. Set from the URL, then kept from the
+// server's welcome so a socket reconnect rejoins the same room instead of
+// creating a second one.
+let activeRoomCode = requestedRoomCode;
+let joinFailed = false;
+// Set when the server detaches this socket from the room (leaving at dawn).
+let leftRoom = false;
 
 const keys = { up: false, down: false, left: false, right: false };
 const codeToKey = {
@@ -158,7 +188,7 @@ function addParticle(particle) {
 }
 
 function returnToKingdom() {
-  if (new URLSearchParams(location.search).has('embedded') && window.parent !== window) {
+  if (embedded) {
     window.parent.postMessage({ type: 'hero-lab-game-over' }, location.origin);
   } else location.replace('/hero-lab');
 }
@@ -167,7 +197,7 @@ function showRunResult(result) {
   latestRunResult = result;
   milestoneDawn.hidden = true;
   runResultPanel.hidden = false;
-  const bestKey = `hero-lab-best:${result.heroId || selectedHero.id}`;
+  const bestKey = `hero-lab-best:${result.heroId || activeHeroId}`;
   let personalBest = Number(result.wavesReached) || 0;
   try {
     personalBest = Math.max(personalBest, Number(localStorage.getItem(bestKey)) || 0);
@@ -192,7 +222,7 @@ function showRunResult(result) {
   document.querySelector('#run-result-teaser').textContent = `Brute King awaits at wave ${result.nextBossWave || ARENA_TUNING.run.bossTeaserWave}.`;
   runAgainHero.replaceChildren(...HEROES.map((hero) => {
     const option = document.createElement('option'); option.value = hero.id; option.textContent = `${hero.emoji} ${hero.name}`;
-    option.selected = hero.id === (result.heroId || selectedHero.id); return option;
+    option.selected = hero.id === (result.heroId || activeHeroId); return option;
   }));
 
   let runCount = 0;
@@ -217,8 +247,23 @@ document.querySelector('#dawn-continue').addEventListener('click', () => {
   socket.emit('milestone_choice', 'continue');
 });
 document.querySelector('#run-again').addEventListener('click', () => {
-  const nextHeroId = runAgainHero.value || selectedHero.id;
-  if (new URLSearchParams(location.search).has('embedded') && window.parent !== window) {
+  const nextHeroId = runAgainHero.value || activeHeroId;
+  // Leaving at dawn detaches the socket from the room: there is no lobby left
+  // to return to, so RUN AGAIN sends the player back to the hero picker.
+  if (leftRoom) { returnToKingdom(); return; }
+  // A finished run leaves the room in its lobby, so RUN AGAIN can simply swap
+  // the hero and drop the overlay — no reconnect, no reload.
+  if (state.room?.phase === 'lobby' && socket.connected && !joinFailed) {
+    if (nextHeroId !== activeHeroId) {
+      pendingHeroSwap = nextHeroId;
+      pendingHeroSwapAt = performance.now();
+      socket.emit('swap_hero', nextHeroId);
+    }
+    runResultPanel.hidden = true;
+    latestRunResult = null;
+    return;
+  }
+  if (embedded) {
     window.parent.postMessage({ type: 'hero-lab-run-again', heroId: nextHeroId }, location.origin);
   } else location.replace(`/hero-lab/world?heroId=${encodeURIComponent(nextHeroId)}`);
 });
@@ -252,6 +297,23 @@ shakeIntensitySetting.addEventListener('input', () => {
 numbersSetting.addEventListener('change', () => { settings.damageNumbers = numbersSetting.checked; saveSettings(); });
 muteSetting.addEventListener('change', () => { settings.muted = muteSetting.checked; saveSettings(); });
 volumeSetting.addEventListener('input', () => { settings.masterVolume = Number(volumeSetting.value); saveSettings(); });
+
+lobbyHero.replaceChildren(...HEROES.map((hero) => {
+  const option = document.createElement('option');
+  option.value = hero.id;
+  option.textContent = `${hero.emoji} ${hero.name}`;
+  return option;
+}));
+lobbyHero.value = activeHeroId;
+lobbyHero.addEventListener('change', () => {
+  if (!socket.connected) return;
+  pendingHeroSwap = lobbyHero.value;
+  pendingHeroSwapAt = performance.now();
+  socket.emit('swap_hero', lobbyHero.value);
+});
+startRunButton.addEventListener('click', () => {
+  if (socket.connected) socket.emit('start_run');
+});
 
 function shakeCamera(amount, source = 'event') {
   if (!settings.screenShake || settings.shakeIntensity <= SHAKE_MIN_INTENSITY) return;
@@ -383,9 +445,16 @@ function showMuzzleFlash(player) {
     recoil: ARENA_TUNING.muzzleFlash.recoilMinPx + Math.random() * (ARENA_TUNING.muzzleFlash.recoilMaxPx - ARENA_TUNING.muzzleFlash.recoilMinPx) });
 }
 
+function joinPayload() {
+  const payload = { heroId: activeHeroId };
+  if (activeRoomCode) payload.roomCode = activeRoomCode;
+  else if (createRequested) payload.create = true;
+  return payload;
+}
+
 socket.on('connect', () => {
   connectionStatus.textContent = 'Joining the field…';
-  if (selectedHero) socket.emit('join', { heroId: selectedHero.id });
+  if (selectedHero && !joinFailed) socket.emit('join', joinPayload());
 });
 socket.on('connect_error', (error) => {
   connectionStatus.textContent = `Could not connect to the server: ${error.message}`;
@@ -399,8 +468,18 @@ socket.on('disconnect', () => {
 });
 socket.on('welcome', (welcome) => {
   me = welcome.you;
+  joinFailed = false;
+  if (welcome.room?.code) activeRoomCode = welcome.room.code;
   connectionStatus.textContent = 'Connected';
+  if (embedded && welcome.room?.code) window.parent.postMessage({ type: 'hero-lab-room', code: welcome.room.code }, location.origin);
   openBriefing();
+});
+socket.on('join_error', ({ code, message } = {}) => {
+  joinFailed = true;
+  releaseKeys();
+  connectionStatus.textContent = message || 'Could not join the room';
+  if (embedded) window.parent.postMessage({ type: 'hero-lab-join-error', code, message }, location.origin);
+  else showBanner(message || 'Could not join the room');
 });
 socket.on('state', (snapshot) => {
   state = snapshot;
@@ -417,6 +496,36 @@ socket.on('state', (snapshot) => {
 });
 socket.on('notice', (message) => {
   connectionStatus.textContent = message;
+});
+socket.on('host_changed', ({ name } = {}) => { if (name) showToast(`${name} is now the host`); });
+socket.on('player_waiting', ({ name } = {}) => { if (name) showToast(`${name} is joining after this wave`); });
+socket.on('player_joined', ({ name } = {}) => { if (name) showToast(`${name} joined`); });
+socket.on('player_reconnected', ({ name } = {}) => { if (name) showToast(`${name} reconnected`); });
+socket.on('countdown', () => { playSound('waveStart'); });
+socket.on('run_started', () => {
+  countdownOverlay.hidden = true;
+  countdownLabel = '';
+  if (!runResultPanel.hidden) runResultPanel.hidden = true;
+});
+socket.on('hero_swapped', ({ playerId, heroId } = {}) => {
+  if (playerId === me && heroId) activeHeroId = heroId;
+});
+socket.on('start_rejected', ({ code } = {}) => {
+  if (code === 'not_host') showToast('Only the host can start the run');
+});
+socket.on('dummy_broken', ({ x, y } = {}) => {
+  for (let i = 0; i < 14; i++) {
+    const angle = Math.random() * Math.PI * 2;
+    const speed = 40 + Math.random() * 120;
+    addParticle({ x, y, vx: Math.cos(angle) * speed, vy: Math.sin(angle) * speed,
+      radius: 1.5 + Math.random() * 2.5, color: Math.random() > 0.5 ? '#f5d76e' : '#fff3bd',
+      alpha: 1, startedAt: performance.now(), expiresAt: performance.now() + 520 });
+  }
+  playSound('hit');
+});
+socket.on('left_room', () => {
+  leftRoom = true;
+  if (runResultPanel.hidden) returnToKingdom();
 });
 socket.on('wave_start', (event) => {
   showBanner(event.bossWave ? 'BOSS WAVE' : `WAVE ${event.wave}`, Boolean(event.bossWave));
@@ -479,7 +588,7 @@ socket.on('momentum_ready', (event) => {
 });
 socket.on('game_over', (result = {}) => {
   if (runResultPanel.hidden) showRunResult({ victory: false, reason: result.reason, wavesReached: state.wave?.number || 0,
-    wavesCleared: 0, kills: 0, damageDealt: 0, bonusDamage: 0, rewardCoins: 0, nextBossWave: ARENA_TUNING.run.bossTeaserWave, heroId: selectedHero.id });
+    wavesCleared: 0, kills: 0, damageDealt: 0, bonusDamage: 0, rewardCoins: 0, nextBossWave: ARENA_TUNING.run.bossTeaserWave, heroId: activeHeroId });
 });
 socket.on('hit', (hit) => {
   const fx = HERO_FX_COLORS[hit.heroId] || {};
@@ -695,7 +804,7 @@ function stopPrimaryFire() {
 }
 
 function setPrimaryHeld(held) {
-  if (selectedHero.id === 'sheriff' && socket.connected) socket.emit('primary_hold', Boolean(held));
+  if (activeHeroId === 'sheriff' && socket.connected) socket.emit('primary_hold', Boolean(held));
 }
 
 function onPointerMove(event) {
@@ -740,9 +849,144 @@ function toggleStats() {
 
 infoButton.addEventListener('click', toggleStats);
 
+let roomCodeCopiedTimer = null;
+
+function showToast(message) {
+  if (!toastStack || !message) return;
+  while (toastStack.children.length >= 4) toastStack.firstElementChild.remove();
+  const toast = document.createElement('div');
+  toast.className = 'toast';
+  toast.textContent = message;
+  toastStack.append(toast);
+  setTimeout(() => toast.classList.add('fade'), 2600);
+  setTimeout(() => toast.remove(), 3000);
+}
+
+roomCodeButton?.addEventListener('click', async () => {
+  const code = state.room?.code;
+  if (!code) return;
+  try {
+    await navigator.clipboard.writeText(code);
+  } catch {
+    // Clipboard access can be blocked inside the embedded frame.
+    const area = document.createElement('textarea');
+    area.value = code;
+    area.setAttribute('readonly', '');
+    area.style.position = 'fixed';
+    area.style.opacity = '0';
+    document.body.append(area);
+    area.select();
+    try { document.execCommand('copy'); } catch { /* clipboard unavailable */ }
+    area.remove();
+  }
+  roomCodeCopied.hidden = false;
+  clearTimeout(roomCodeCopiedTimer);
+  roomCodeCopiedTimer = setTimeout(() => { roomCodeCopied.hidden = true; }, 1200);
+});
+
+// Room code under the hero health bar, plus the spectate banner for players
+// who joined after the run started.
+let playerListSignature = '';
+let pendingHeroSwap = null;
+let pendingHeroSwapAt = 0;
+
+function renderPlayerList(room) {
+  const entries = [...(room.players || []), ...(room.waiting || [])];
+  playerList.hidden = entries.length === 0;
+  if (!entries.length) return;
+  const signature = entries.map((entry) => `${entry.id}:${entry.heroId}:${entry.host}:${entry.waiting}:${entry.disconnected}`).join('|');
+  if (signature === playerListSignature) return;
+  playerListSignature = signature;
+  playerListRows.replaceChildren(...entries.map((entry) => {
+    const row = document.createElement('div');
+    row.className = `player-row${entry.id === me ? ' me' : ''}${entry.waiting ? ' waiting' : ''}`;
+    const emoji = document.createElement('span'); emoji.className = 'player-emoji'; emoji.textContent = entry.emoji || '🙂';
+    const name = document.createElement('span'); name.className = 'player-name'; name.textContent = entry.name || 'Hero';
+    row.append(emoji, name);
+    if (entry.host) {
+      const crown = document.createElement('span'); crown.className = 'player-crown'; crown.textContent = '👑';
+      crown.title = 'Host'; crown.setAttribute('aria-label', 'Host'); row.append(crown);
+    }
+    if (entry.waiting) {
+      const tag = document.createElement('span'); tag.className = 'player-tag'; tag.textContent = 'joining'; row.append(tag);
+    } else if (entry.disconnected) {
+      const tag = document.createElement('span'); tag.className = 'player-tag'; tag.textContent = 'away'; row.append(tag);
+    }
+    return row;
+  }));
+}
+
+function renderLobbyBar(room) {
+  const inLobby = room.phase === 'lobby';
+  lobbyBar.hidden = !inLobby;
+  if (!inLobby) return;
+  const isHost = room.hostId === me;
+  startRunButton.hidden = !isHost;
+  lobbyHint.hidden = isHost;
+  const total = (room.players?.length || 0) + (room.waiting?.length || 0);
+  startRunButton.textContent = `START RUN (${total}/${room.maxPlayers || 4} players)`;
+  const mine = [...(room.players || []), ...(room.waiting || [])].find((entry) => entry.id === me);
+  if (!mine) return;
+  if (pendingHeroSwap) {
+    if (mine.heroId === pendingHeroSwap || performance.now() - pendingHeroSwapAt > 2000) pendingHeroSwap = null;
+    else return;
+  }
+  if (lobbyHero.value !== mine.heroId) lobbyHero.value = mine.heroId;
+}
+
+let countdownLabel = '';
+function renderCountdown(room, timestamp) {
+  const endsAt = room?.countdownEndsAt || 0;
+  if (!endsAt) {
+    countdownOverlay.hidden = true;
+    countdownLabel = '';
+    return;
+  }
+  const remaining = Math.max(0, endsAt - (state.serverTime + (timestamp - stateReceivedAt)));
+  countdownOverlay.hidden = remaining <= 0;
+  if (remaining <= 0) return;
+  const label = String(Math.max(1, Math.ceil(remaining / 1000)));
+  if (label === countdownLabel) return;
+  countdownLabel = label;
+  countdownValue.textContent = label;
+  // Replay the pop animation for every new number.
+  countdownValue.classList.remove('tick');
+  void countdownValue.offsetWidth;
+  countdownValue.classList.add('tick');
+}
+
+function updateRoomHud(timestamp = performance.now()) {
+  const room = state.room;
+  if (!room) return;
+  // The dev sandbox has no shareable code; hide the whole row so no divider is left behind.
+  if (roomRow) roomRow.hidden = !room.code;
+  roomCodeButton.hidden = !room.code;
+  if (room.code) roomCodeValue.textContent = room.code;
+  renderPlayerList(room);
+  renderLobbyBar(room);
+  renderCountdown(room, timestamp);
+  const isWaiting = Boolean(room.waiting?.some((entry) => entry.id === me));
+  waitingBanner.hidden = !isWaiting;
+  abilityHud.hidden = isWaiting;
+  if (!isWaiting) return;
+  const total = (room.players?.length || 0) + (room.waiting?.length || 0);
+  waitingDetail.textContent = `Spawning in the next break · ${total}/${room.maxPlayers || 4} players`;
+  heroName.textContent = 'Spectating';
+  healthValue.textContent = '-- / --';
+  healthFill.style.width = '0%';
+}
+
 function updateHud(timestamp = performance.now()) {
   const player = state.players?.find((candidate) => candidate.id === me);
-  if (state.wave && waveNumber && waveDetails) {
+  updateRoomHud();
+  const phase = state.room?.phase;
+  if (state.room && phase === 'lobby') {
+    waveNumber.textContent = 'Lobby';
+    waveDetails.textContent = state.room.hostId === me ? 'Press START RUN when everyone is in' : 'Waiting for the host to start…';
+  } else if (state.room && phase === 'countdown') {
+    waveNumber.textContent = 'Get ready';
+    waveDetails.textContent = 'The first wave is coming';
+  } else if (state.wave && waveNumber && waveDetails) {
     waveNumber.textContent = `Wave ${state.wave.number || 1}`;
     if (state.buffVote) {
       waveDetails.textContent = 'Choose a team buff';
@@ -939,7 +1183,7 @@ function onPointerDown(event) {
   if (event.button === 0) {
     setPrimaryHeld(true);
     fireWeapon('primary');
-    if (selectedHero.id === 'bubbles') {
+    if (activeHeroId === 'bubbles') {
       stopPrimaryFire();
       primaryFireTimer = setInterval(() => fireWeapon('primary'), GAME_CONFIG.heroes.bubbles.weaponCooldownMs);
     }
@@ -1075,18 +1319,20 @@ function draw(timestamp) {
 
       // Give the pale zombie emoji an opaque backdrop so it reads clearly on grass.
       context.save();
-      context.globalAlpha = 1;
+      const fading = monster.isDummy && monster.fadeRemainingMs > 0;
+      context.globalAlpha = fading ? Math.max(0, monster.fadeRemainingMs / 400) : 1;
       context.globalCompositeOperation = 'source-over';
       const pulse = monster.type === 'exploder' ? 1 + Math.sin(currentTime * 0.012) * 0.09 : 1;
       const scale = (monster.scale || 1) * pulse;
       const visualRadius = 20 * scale;
       const tint = monster.type === 'brute-king' ? '#7e222c' : monster.type === 'brute' ? '#514638'
-        : monster.type === 'exploder' ? '#b86b28' : '#426b36';
+        : monster.type === 'exploder' ? '#b86b28' : monster.type === 'dummy' ? '#b39058' : '#426b36';
       context.beginPath();
       context.arc(mx, my, visualRadius, 0, Math.PI * 2);
       context.fillStyle = hitFlash ? '#fff' : tint;
       context.fill();
-      context.strokeStyle = monster.isBoss ? '#ff5f69' : monster.type === 'exploder' ? '#ffb34f' : '#294a24';
+      context.strokeStyle = monster.isBoss ? '#ff5f69' : monster.type === 'exploder' ? '#ffb34f'
+        : monster.type === 'dummy' ? '#8a6a35' : '#294a24';
       context.lineWidth = monster.isBoss ? 4 : 2;
       context.stroke();
       context.font = `${32 * scale}px sans-serif`;
@@ -1103,11 +1349,13 @@ function draw(timestamp) {
       const mBarH = 4;
       const mBarX = mx - mBarW / 2;
       const mBarY = my - visualRadius;
-      context.fillStyle = 'rgba(0, 0, 0, 0.7)';
-      context.fillRect(mBarX - 1, mBarY - 1, mBarW + 2, mBarH + 2);
-      const mHpRatio = Math.max(0, monster.hp / monster.maxHp);
-      context.fillStyle = mHpRatio > 0.4 ? '#4caf50' : '#e53935';
-      context.fillRect(mBarX, mBarY, mBarW * mHpRatio, mBarH);
+      if (!fading) {
+        context.fillStyle = 'rgba(0, 0, 0, 0.7)';
+        context.fillRect(mBarX - 1, mBarY - 1, mBarW + 2, mBarH + 2);
+        const mHpRatio = Math.max(0, monster.hp / monster.maxHp);
+        context.fillStyle = mHpRatio > 0.4 ? '#4caf50' : '#e53935';
+        context.fillRect(mBarX, mBarY, mBarW * mHpRatio, mBarH);
+      }
       if (monster.type === 'skeleton' && monster.skeletonWindupMs > 0) {
         context.save(); context.globalAlpha = 0.55 + Math.sin(currentTime * 0.025) * 0.2;
         context.fillStyle = '#ff6868'; context.beginPath(); context.arc(mx, my, 24, 0, Math.PI * 2); context.fill();

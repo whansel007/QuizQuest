@@ -15,6 +15,9 @@ const saved = ref(false);
 const versionNotice = ref('');
 const versionDialog = ref(null);
 const debugDialog = ref(null);
+const rooms = ref([]);
+const maxRooms = ref(0);
+const roomsError = ref('');
 const appVersion = packageJson.version;
 const resources = () => Object.entries(store.home?.catalog.resources || {});
 const code = ['ArrowUp', 'ArrowUp', 'ArrowDown', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'ArrowLeft', 'ArrowRight', 'b', 'a', 'Enter'];
@@ -82,6 +85,17 @@ async function setResourceBalance(resource, nextBalance = resourceBalances.value
 function adjustWallet(amount) { return setWalletBalance(Math.max(DEBUG_TUNING.minimumBalance, Math.min(DEBUG_TUNING.maximumBalance, balance.value + amount))); }
 function adjustResource(resource, amount) { return setResourceBalance(resource, Math.max(DEBUG_TUNING.minimumBalance, Math.min(DEBUG_TUNING.maximumBalance, Number(resourceBalances.value[resource]) + amount))); }
 
+async function loadRooms() {
+  roomsError.value = '';
+  try {
+    const result = await api('GET', '/api/student/hero-lab/rooms');
+    rooms.value = result.rooms || [];
+    maxRooms.value = result.maxRooms || 0;
+  } catch (err) {
+    roomsError.value = err.message;
+  }
+}
+
 async function openMenu() {
   open.value = true;
   try {
@@ -90,6 +104,7 @@ async function openMenu() {
     resourceBalances.value = Object.fromEntries(Object.keys(home.catalog.resources).map((resource) => [resource, home.inventory.resources[resource] || 0]));
   }
   catch (err) { error.value = err.message; }
+  await loadRooms();
   await nextTick();
   debugDialog.value?.focus();
 }
@@ -141,6 +156,28 @@ onUnmounted(() => window.removeEventListener('keydown', konami, true));
       </form>
       <p v-if="saved" class="small">Balance updated.</p>
       <p v-if="error" class="note bad small">{{ error }}</p>
+      <section class="debug-rooms">
+        <div class="debug-rooms-head">
+          <strong>Live rooms <span class="muted small">{{ rooms.length }}/{{ maxRooms }}</span></strong>
+          <button class="btn small" type="button" @click="loadRooms">Refresh</button>
+        </div>
+        <p v-if="roomsError" class="note bad small">{{ roomsError }}</p>
+        <p v-else-if="rooms.length === 0" class="muted small">No active rooms. Open the World to create one.</p>
+        <table v-else class="debug-rooms-table">
+          <thead>
+            <tr><th scope="col">Room</th><th scope="col">Phase</th><th scope="col">Heroes</th><th scope="col">Wave</th><th scope="col">Tick</th></tr>
+          </thead>
+          <tbody>
+            <tr v-for="room in rooms" :key="room.id">
+              <td><code>{{ room.code || 'sandbox' }}</code></td>
+              <td>{{ room.phase }}</td>
+              <td>{{ room.players }}<span class="muted"> +{{ room.waiting }} waiting</span></td>
+              <td>{{ room.wave }}</td>
+              <td>{{ room.tickMs.toFixed(2) }} ms</td>
+            </tr>
+          </tbody>
+        </table>
+      </section>
     </div>
   </section>
 </template>
@@ -154,4 +191,9 @@ onUnmounted(() => window.removeEventListener('keydown', konami, true));
 .debug-trigger { flex:none; }
 .version-panel { width:min(320px,100%);min-height:110px;place-items:center; }
 .debug-close { position:absolute;top:10px;right:10px; }
+.debug-rooms { display:grid;gap:8px;padding-top:12px;border-top:1px solid #ffffff22; }
+.debug-rooms-head { display:flex;align-items:center;justify-content:space-between;gap:8px; }
+.debug-rooms-table { width:100%;border-collapse:collapse;font-size:.82rem; }
+.debug-rooms-table th,.debug-rooms-table td { padding:4px 6px;text-align:left;border-bottom:1px solid #ffffff14; }
+.debug-rooms-table th { color:#cbd5e1;font-weight:600; }
 </style>

@@ -153,6 +153,9 @@ function start(port, opts = {}) {
   const world = attachWorld(io, quiz.services);
   // The standalone Hero Lab shares the same input/state pattern on '/hero-lab'
   const heroLab = attachHeroLab(io, quiz.services);
+  // The debug menu reads live rooms through the API; the handle is attached
+  // after both exist so neither module has to know the other's construction.
+  quiz.services.heroLab = heroLab;
 
   // Smallest free slot (1..4). Slot = the player's identity: P1, P2...
   function freeSlot() {

@@ -22,6 +22,13 @@ test.after(async () => {
   server?.io.close();
 });
 
+test.afterEach(() => {
+  // A disconnected signed-in hero is kept for RECONNECT_GRACE_S, so each test
+  // starts from a clean room instead of inheriting the previous ghost.
+  const room = server.heroLab.rooms.peekDefaultRoom();
+  if (room) server.heroLab.rooms.destroy(room);
+});
+
 test('server exposes shared gameplay tuning to the Hero Lab client', async () => {
   const response = await fetch(`${base}/config/tuning.js`);
   assert.equal(response.status, 200);
@@ -56,6 +63,20 @@ function connectClient() {
     socket.once('connect', () => resolve(socket));
     socket.once('connect_error', reject);
   });
+}
+
+// Joins a client. The room starts in its lobby, so the first joinClient also
+// starts the run unless the test asks for `start: false`. Once a run is going,
+// a second client is a late joiner; spawn it straight away instead of waiting
+// for a wave break.
+async function joinClient(client, heroId, { start = true } = {}) {
+  const welcome = new Promise((resolve) => client.once('welcome', resolve));
+  client.emit('join', { heroId });
+  const info = await welcome;
+  const room = server.heroLab.rooms.peekDefaultRoom();
+  if (info.waiting) room.spawnWaitingPlayers();
+  if (start && room.phase() === 'lobby') room.startRunNow();
+  return info;
 }
 
 test('Hero Lab lets signed-in players select heroes they have not summoned', async (t) => {
@@ -119,9 +140,8 @@ test('Hero Lab server broadcasts authoritative movement to every client', async 
   const initial = await nextState(first, (state) => state.players.some((player) => player.id === firstId));
   const startingX = initial.players.find((player) => player.id === firstId).x;
 
-  const secondWelcome = new Promise((resolve) => second.once('welcome', resolve));
-  second.emit('join', { heroId: 'guardian' });
-  const { you: secondId } = await secondWelcome;
+  const secondWelcome = await joinClient(second, 'guardian');
+  const secondId = secondWelcome.you;
   const shared = await nextState(second, (state) => state.players.length === 2);
   assert.deepEqual(new Set(shared.players.map((player) => player.id)), new Set([firstId, secondId]));
 
@@ -182,10 +202,8 @@ test('respawn selects a separated point on the campfire ring', async (t) => {
   const first = await connectClient();
   const second = await connectClient();
   t.after(() => { first.disconnect(); second.disconnect(); });
-  const firstWelcome = new Promise((resolve) => first.once('welcome', resolve));
-  const secondWelcome = new Promise((resolve) => second.once('welcome', resolve));
-  first.emit('join', { heroId: 'sheriff' });
-  second.emit('join', { heroId: 'pilot' });
+  const firstWelcome = joinClient(first, 'sheriff');
+  const secondWelcome = joinClient(second, 'pilot');
   const [{ you: firstId }, { you: secondId }] = await Promise.all([firstWelcome, secondWelcome]);
   await nextState(first, (state) => state.players.some((player) => player.id === firstId)
     && state.players.some((player) => player.id === secondId));
@@ -358,8 +376,7 @@ test('signed-in kingdom bonuses are capped at three levels and sum Garden HP per
     clients.push(client);
   }
   const heroIds = ['electromancer', 'sheriff', 'bubbles', 'guardian'];
-  const welcomes = clients.map((client) => new Promise((resolve) => client.once('welcome', resolve)));
-  clients.forEach((client, index) => client.emit('join', { heroId: heroIds[index] }));
+  const welcomes = clients.map((client, index) => joinClient(client, heroIds[index]));
   const playerIds = (await Promise.all(welcomes)).map((welcome) => welcome.you);
   const shared = await nextState(clients[0], (state) => state.players.length === 4 && state.campfire.maxHp === 220);
   assert.equal(shared.campfire.maxHp, BASE_CAMPFIRE_HP + BASE_CAMPFIRE_HP * BUILDING_BONUS_PER_LEVEL * BUILDING_LEVEL_CAP * 4);
@@ -430,17 +447,19 @@ test('projectile onHit return value controls removal and a piercing projectile c
   assert.ok(!stateAfterSecondHit.projectiles.some((item) => item.id === projectile.id));
 });
 
-test('hero defense has a minimum damage floor, timed invulnerability, and ability cooldowns', async () => {
+test('hero defense reduces damage by a percentage, with a floor and timed invulnerability', async () => {
   const { Hero } = await import('../public/hero-lab/bases/hero.js');
+  const { GAME_CONFIG } = await import('../public/hero-lab/game-config.js');
   const hero = new Hero({ id: 'test', defense: 9 });
-  assert.equal(hero.damage(20, 10_000), 11);
+  const rounded = (value) => Number(value.toFixed(2));
+  assert.equal(rounded(hero.damage(20, 10_000)), rounded(20 * (1 - 9 / 100)), 'defense is a percentage reduction');
   assert.equal(hero.damage(20, 10_500), 0, 'damage cooldown prevents rapid repeated hits');
-  assert.equal(hero.damage(2, 11_001), 1, 'defense cannot reduce damage below the configured floor');
+  assert.equal(rounded(hero.damage(0.2, 11_001)), GAME_CONFIG.combat.minimumDamage, 'defense cannot reduce damage below the configured floor');
 
   const protectedHero = new Hero({ id: 'protected' });
   protectedHero.makeInvulnerable(1000, 20_000);
   assert.equal(protectedHero.damage(20, 20_500), 0);
-  assert.equal(protectedHero.damage(20, 21_001), 15);
+  assert.equal(rounded(protectedHero.damage(20, 21_001)), rounded(20 * (1 - GAME_CONFIG.heroDefaults.defense / 100)));
   assert.equal(protectedHero.canUseAbility('skill', 30_000), true);
   assert.equal(protectedHero.useAbility('skill', 30_000), true);
   assert.equal(protectedHero.canUseAbility('skill', 34_999), false);
@@ -491,7 +510,9 @@ test('enemy projectiles use server-side defense when they hit a hero', async (t)
   const bullet = new EnemyProjectile({ x: player.x, y: player.y, speed: 0, damage: 10 });
   server.heroLab.projectiles.set('test-enemy-projectile', bullet);
   const after = await nextState(client, (state) => state.players.find((candidate) => candidate.id === clientId)?.hp < before);
-  assert.equal(after.players.find((candidate) => candidate.id === clientId).hp, before - 5);
+  const expected = Math.round(before - 10 * (1 - player.hero.defense / 100));
+  assert.equal(after.players.find((candidate) => candidate.id === clientId).hp, expected,
+    'the server applies percentage defense before broadcasting the new health');
   assert.ok(!after.projectiles.some((projectile) => projectile.id === 'test-enemy-projectile'));
 });
 
@@ -499,7 +520,7 @@ test('Hero Lab server maintains campfire in the middle and spawns zombie monster
   const client = await connectClient();
   t.after(() => client.disconnect());
 
-  client.emit('join', { heroId: 'pilot' });
+  await joinClient(client, 'pilot');
 
   // Verify campfire state is in the center
   const stateWithCampfire = await nextState(client, (state) => state.campfire && state.campfire.x === 960 && state.campfire.y === 540);
@@ -512,33 +533,42 @@ test('Hero Lab server maintains campfire in the middle and spawns zombie monster
   const stateWithMonster = await nextState(client, (state) => Array.isArray(state.monsters) && state.monsters.length > 0);
   const zombie = stateWithMonster.monsters[0];
   assert.equal(zombie.emoji, '🧟');
-  assert.equal(zombie.hp, 20);
   const { Zombie } = await import('../public/hero-lab/enemies/zombie.js');
+  const { GAME_CONFIG } = await import('../public/hero-lab/game-config.js');
+  const expectedHp = Math.round(new Zombie().maxHp
+    * (1 + GAME_CONFIG.arenaTuning.enemies.wave.hpPerWave * stateWithMonster.wave.number));
+  assert.equal(zombie.hp, expectedHp, 'wave scaling applies to spawned enemy health');
   const serverZombie = [...server.heroLab.monsters.values()].find((monster) => monster.id === zombie.id);
   assert.ok(serverZombie instanceof Zombie);
-  assert.equal(serverZombie.maxHp, 20);
+  assert.equal(serverZombie.maxHp, expectedHp);
 });
 
-test('campfire loss ends the shared run for every connected player', async (t) => {
+test('campfire loss ends the run and returns everyone to the lobby', async (t) => {
   const first = await connectClient();
   const second = await connectClient();
   t.after(() => { first.disconnect(); second.disconnect(); });
-  const firstWelcome = new Promise((resolve) => first.once('welcome', resolve));
-  first.emit('join', { heroId: 'sheriff' });
-  const { you: firstId } = await firstWelcome;
-  const secondWelcome = new Promise((resolve) => second.once('welcome', resolve));
-  second.emit('join', { heroId: 'bubbles' });
-  const { you: secondId } = await secondWelcome;
+  const { you: firstId } = await joinClient(first, 'sheriff');
+  const { you: secondId } = await joinClient(second, 'bubbles');
   const shared = await nextState(first, (state) => state.players.length === 2);
   assert.equal(shared.players.find((p) => p.id === firstId).name, 'Sheriff');
   assert.equal(shared.players.find((p) => p.id === secondId).name, 'Bubbles');
   const endFirst = new Promise((resolve) => first.once('game_over', resolve));
   const endSecond = new Promise((resolve) => second.once('game_over', resolve));
+  const resultFirst = new Promise((resolve) => first.once('run_result', resolve));
+  // The room resets on the same tick it ends, so subscribe before triggering it.
+  const lobbyState = nextState(first, (state) => state.room?.phase === 'lobby' && state.wave.number === 0);
   server.heroLab.campfire.hp = 0;
   assert.deepEqual(await endFirst, { reason: 'campfire' });
   assert.deepEqual(await endSecond, { reason: 'campfire' });
-  const ended = await nextState(first, (state) => state.gameEnded);
-  assert.equal(ended.campfire.hp, 0);
+  assert.equal((await resultFirst).reason, 'campfire');
+  const lobby = await lobbyState;
+  assert.equal(lobby.gameEnded, false);
+  assert.equal(lobby.campfire.hp, lobby.campfire.maxHp);
+  // Stage 3: the run ends, the room does not. Both heroes are back in the lobby.
+  assert.equal(lobby.players.length, 2, 'players stay in the room after a wipe');
+  assert.ok(lobby.players.every((player) => player.hp === player.maxHp), 'heroes are restored');
+  assert.ok(lobby.players.every((player) => !player.downed));
+  assert.equal(lobby.room.phase, 'lobby');
 });
 
 test('Bombardier chooses the targeted bombing point with secondary fire', async (t) => {
@@ -584,19 +614,26 @@ test('wave buffs appear for a shared vote and a disconnected vote is removed', a
   const secondWelcome = new Promise((resolve) => second.once('welcome', resolve));
   second.emit('join', { heroId: 'guardian' });
   await secondWelcome;
-  await nextState(first, (state) => state.monsters.length === 8, 9000);
-  server.heroLab.monsters.clear();
+  server.heroLab.rooms.peekDefaultRoom().startRunNow();
+  await nextState(first, (state) => state.monsters.length > 0, 9000);
+  // Clear the rest of the wave so the break (and its vote) can start without
+  // waiting for every queued spawn.
+  server.heroLab.rooms.peekDefaultRoom().clearWave();
   const voteState = await nextState(first, (state) => state.buffVote?.cards?.length === 3);
-  assert.equal(new Set(voteState.buffVote.cards.map((card) => card.id)).size, 3);
-  const choice = voteState.buffVote.cards[0];
-  assert.ok(choice.value >= 5 && choice.value <= 25);
+  const cards = voteState.buffVote.cards;
+  assert.equal(new Set(cards.map((card) => card.id)).size, 3);
+  assert.ok(cards.every((card) => card.id && card.label && card.description));
+  assert.ok(cards.filter((card) => !card.rare).every((card) => Number.isFinite(card.value) && card.value > 0),
+    'stat cards carry a positive multiplier or percentage');
+  const choice = cards[0];
   first.emit('buff_vote', choice.id);
   await nextState(first, (state) => state.buffVote?.voteCount === 1);
   second.disconnect();
   const applied = await nextState(first, (state) => !state.buffVote && state.lastBuff);
   assert.equal(applied.lastBuff.id, choice.id);
   const updated = applied.players.find((player) => player.id === firstId);
-  if (choice.id === 'attack') assert.ok(updated.attack >= 12 + choice.value);
+  if (choice.id === 'attack') assert.ok(updated.attack >= 12 * (1 + choice.value) - 1e-6);
   if (choice.id === 'defense') assert.ok(updated.defense >= 5 + choice.value);
-  if (choice.id === 'speed') assert.ok(updated.speed >= 225 + choice.value);
+  if (choice.id === 'speed') assert.ok(updated.speed >= 225 * (1 + choice.value) - 1e-6);
+  if (choice.id === 'maxHp') assert.ok(updated.maxHp >= 105 * (1 + choice.value) - 1e-6);
 });
