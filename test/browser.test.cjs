@@ -809,3 +809,55 @@ test('weekly topics: narrow the dashboard, follow a next step, and add a topic f
   await page.getByRole('button', { name: 'Edit Operating systems' }).waitFor({ state: 'detached' });
   assert.ok(!srv.quiz.db.topics.some((x) => x.name === 'Operating systems'));
 });
+
+test('a student with no classes joins one with the code their professor generated', async (t) => {
+  // A teacher generates a code. Set up over the API so this test stays about
+  // the student-facing half, which is what was reported as unreachable.
+  const teacher = await fetch(`${base}/api/login`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ email: 'prof.a@quizquest.demo', password: 'quizquest' }),
+  }).then((r) => r.json());
+  const auth = { 'content-type': 'application/json', authorization: `Bearer ${teacher.token}` };
+  const [cls] = await fetch(`${base}/api/classes`, { headers: auth }).then((r) => r.json());
+  const { code } = await fetch(`${base}/api/classes/${cls.id}/join-codes`, { method: 'POST', headers: auth, body: '{}' }).then((r) => r.json());
+  assert.match(code, /^QQ-[2-9A-HJ-NP-Z]{5}$/, 'the generated code has the shape the student form advertises');
+
+  // A brand-new account, enrolled in nothing at all.
+  const email = `joiner.${Date.now()}@example.com`;
+  await fetch(`${base}/api/register`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ name: 'Joiner', email, password: 'longenough' }),
+  }).then((r) => r.json());
+
+  const page = await browser.newPage({ viewport: { width: 1280, height: 900 }, locale: 'en-SG' });
+  const errors = [];
+  page.on('pageerror', (e) => errors.push(e.message));
+  t.after(async () => { await page.close(); assert.deepEqual(errors, [], 'no unhandled browser errors'); });
+  await page.goto(base);
+  await page.getByLabel('Email', { exact: true }).fill(email);
+  await page.getByLabel('Email', { exact: true }).press('Enter');
+  await page.getByLabel('Password', { exact: true }).fill('longenough');
+  await page.getByRole('button', { name: 'Sign in' }).click();
+  await page.locator('#tabs').getByRole('button', { name: 'Practice', exact: true }).waitFor();
+
+  // With no classes the picker still offers the way in.
+  await page.getByText('No class enrolled').waitFor();
+  await page.getByRole('button', { name: '+ Join Class' }).click();
+  await page.getByLabel('Class Join Code').fill(code);
+  await page.getByRole('button', { name: 'Join Class', exact: true }).click();
+  await page.getByText(`Successfully enrolled in ${cls.name}!`).waitFor();
+
+  // The class is theirs now, on every view that offers the picker.
+  await page.getByText(cls.name, { exact: false }).first().waitFor();
+  await page.locator('#tabs').getByRole('button', { name: 'My Progress', exact: true }).click();
+  await page.getByRole('heading', { name: 'My Progress', exact: true }).waitFor();
+  await page.getByText(cls.name, { exact: false }).first().waitFor();
+
+  // The same code cannot be spent twice by the same student.
+  await page.getByRole('button', { name: '+ Join Class' }).click();
+  await page.getByLabel('Class Join Code').fill(code);
+  await page.getByRole('button', { name: 'Join Class', exact: true }).click();
+  await page.getByText('You are already enrolled in this class.').waitFor();
+});
