@@ -12,6 +12,8 @@ const props = defineProps({
   // reload when the dashboard reloads (period change, auto-refresh)
   stamp: { type: Number, default: 0 },
 });
+// the rows also feed "Needs attention" (a class far behind on a topic)
+const emit = defineEmits(['loaded']);
 const rows = ref(null);
 const error = ref('');
 let seq = 0;
@@ -22,6 +24,7 @@ async function load() {
     if (mine === seq) {
       rows.value = data;
       error.value = '';
+      emit('loaded', data);
     }
   } catch (err) {
     if (mine === seq) error.value = err.message;

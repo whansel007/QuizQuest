@@ -36,7 +36,7 @@ const max = computed(() => {
 });
 const ticks = computed(() => [0, 1, 2, 3, 4].map((k) => (max.value / 4) * k));
 const y = (v) => M.top + plotH.value * (1 - v / max.value);
-const step = computed(() => labelStep(props.rows.length, plotW.value));
+const step = computed(() => labelStep(props.rows.length, plotW.value, 56, props.rows.map((r) => r.label)));
 const cx = (i) => M.left + band.value * (i + 0.5);
 
 // 4px rounded data end, square at the baseline

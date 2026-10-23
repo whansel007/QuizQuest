@@ -20,6 +20,13 @@ const { connectSupabaseStore, projectUrl } = require('../src/db/supabase-store')
   for (const table of ['app_meta', ...TABLES.map((t) => t.table).reverse()]) {
     const keyCol = table === 'app_meta' ? 'key' : TABLES.find((t) => t.table === table).key[0];
     const { error } = await client.from(table).delete().not(keyCol, 'is', null);
+    // an optional table whose migration isn't applied yet has nothing to
+    // clear (the store skips it the same way when loading)
+    const optional = table !== 'app_meta' && TABLES.find((t) => t.table === table).optional;
+    if (error && optional && (error.code === 'PGRST205' || /schema cache/.test(error.message))) {
+      console.log(`Skipped ${table}: not in this database yet (apply the latest migration to add it).`);
+      continue;
+    }
     if (error) throw new Error(`Clearing ${table} failed: ${error.message}`);
   }
   await connectSupabaseStore(); // sees an empty project and seeds it

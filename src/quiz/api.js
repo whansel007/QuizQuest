@@ -66,6 +66,21 @@ const fail = (status, msg) => {
   throw new HttpError(status, msg);
 };
 const newId = (prefix) => prefix + '-' + crypto.randomUUID().slice(0, 8);
+// YYYY-MM-DD of an instant in a time zone (en-CA formats dates that way)
+const dayIn = (at, tz) => new Intl.DateTimeFormat('en-CA', { timeZone: tz }).format(new Date(at));
+const SEMESTER_MAX_DAYS = 366;
+// { start, end? } as YYYY-MM-DD; null (or an empty start) clears it
+function parseSemester(value) {
+  if (value === null || value?.start === '' || value?.start === null) return null;
+  const day = /^\d{4}-\d{2}-\d{2}$/;
+  const valid = (d) => typeof d === 'string' && day.test(d) && !Number.isNaN(Date.parse(d)) && new Date(d + 'T00:00:00Z').toISOString().slice(0, 10) === d;
+  if (!valid(value?.start)) fail(400, 'Pick the date the semester starts.');
+  const end = value.end || null;
+  if (end !== null && !valid(end)) fail(400, 'Pick a valid end date, or leave it empty.');
+  if (end && end < value.start) fail(400, 'The semester must end after it starts.');
+  if (end && (Date.parse(end) - Date.parse(value.start)) / 86400000 + 1 > SEMESTER_MAX_DAYS) fail(400, `A semester can be at most ${SEMESTER_MAX_DAYS} days.`);
+  return { start: value.start, ...(end && { end }) };
+}
 const str = (v, max, name) => {
   if (typeof v !== 'string' || !v.trim()) fail(400, `${name} is required.`);
   if (v.length > max) fail(400, `${name} is too long (max ${max} characters).`);
@@ -120,9 +135,9 @@ function createQuizApi({ dataFile = null, store = null, now = () => Date.now(), 
   const { db } = store;
   if (P.ensureDemoCredentials(db.users)) store.save();
   // Every change goes through save(), so counting saves tells us whether
-  // the data has changed (used to cache dashboard numbers). A save can also
-  // say what it touched, so one class practising doesn't throw away every
-  // other class's numbers, and shop/pet/trade activity keeps them:
+  // the data has changed (used to cache dashboard numbers). A save can say
+  // what it touched, so one class practising doesn't keep throwing away
+  // every other class's numbers:
   //   save()                      anything: every class's numbers refresh
   //   save({ classId })           one class's answers, sessions or marks
   //   save({ analytics: false })  nothing the dashboard shows (shop, pets, trades)
@@ -133,7 +148,6 @@ function createQuizApi({ dataFile = null, store = null, now = () => Date.now(), 
     else if (analytics) dataVersion++;
     store.save();
   };
-  // a cached entry stays valid while the version it was built from is unchanged
   const versionOfClass = (classId) => `${dataVersion}.${classVersions.get(classId) || 0}`;
   const persist = async () => {
     save();
@@ -246,6 +260,36 @@ function createQuizApi({ dataFile = null, store = null, now = () => Date.now(), 
     const topic = topicsOf(course.id).find((t) => t.id === topicId) || fail(400, 'Unknown topic.');
     const outcome = topic.outcomes.find((o) => o.id === outcomeId) || fail(400, 'Unknown learning outcome.');
     return { topic, outcome };
+  }
+
+  // "Add material": an existing topic or `newTopic: { name, week }`, and an
+  // existing outcome or a typed `outcomeText`. Nothing is stored here; the
+  // caller adds the new topic/outcome once the rest of the request is valid.
+  function materialTags(course, body) {
+    if (body.newTopic == null && body.outcomeText == null) return topicAndOutcome(course, body.topicId, body.outcomeId);
+    try {
+      const topics = topicsOf(course.id);
+      let topic, isNewTopic = false;
+      if (body.newTopic != null) {
+        const name = T.parseName(body.newTopic.name, topics);
+        const week = T.parseWeek(body.newTopic.week) ?? null;
+        topic = { id: newId('tp'), courseId: course.id, name, outcomes: [], ...(week && { week }) };
+        isNewTopic = true;
+      } else topic = topics.find((t) => t.id === body.topicId) || fail(400, 'Unknown topic.');
+      if (body.outcomeText == null) {
+        if (isNewTopic) fail(400, 'Enter a learning outcome for the new topic.');
+        const outcome = topic.outcomes.find((o) => o.id === body.outcomeId) || fail(400, 'Unknown learning outcome.');
+        return { topic, outcome, isNewTopic, isNewOutcome: false };
+      }
+      // re-typing an existing outcome reuses it instead of failing as a duplicate
+      const typed = typeof body.outcomeText === 'string' ? body.outcomeText.trim() : '';
+      const existing = topic.outcomes.find((o) => o.text.toLowerCase() === typed.toLowerCase());
+      if (existing) return { topic, outcome: existing, isNewTopic, isNewOutcome: false };
+      return { topic, outcome: { id: newId('lo'), text: T.parseOutcome(body.outcomeText, topic) }, isNewTopic, isNewOutcome: true };
+    } catch (e) {
+      if (e.status) fail(e.status, e.message);
+      throw e;
+    }
   }
 
   function questionTags(course, body) {
@@ -773,6 +817,7 @@ attemptId: attempt.id,
         id: c.id,
         title: c.title,
         coverageTarget: c.coverageTarget,
+        semester: c.semester || null,
         promptConfig: c.promptConfig || '',
         drafter: drafter
           ? 'Custom drafter'
@@ -808,11 +853,15 @@ attemptId: attempt.id,
         fail(400, 'Subject guidance must be under 1000 characters.');
       c.promptConfig = body.promptConfig.trim();
     }
+    // validate before changing anything
+    const semester = body.semester === undefined ? undefined : parseSemester(body.semester);
     if (body.coverageTarget !== undefined) {
       if (!Number.isInteger(body.coverageTarget) || body.coverageTarget < 1 || body.coverageTarget > 50)
         fail(400, 'Coverage target must be 1-50.');
       c.coverageTarget = body.coverageTarget;
     }
+    if (semester === null) delete c.semester;
+    else if (semester) c.semester = semester;
     save();
     return { ok: true };
   });
@@ -1050,7 +1099,7 @@ attemptId: attempt.id,
     'teacher',
     ({ user, params, body }) => {
       const c = teacherCourse(user, params.cid);
-      const { topic, outcome } = topicAndOutcome(c, body.topicId, body.outcomeId);
+      const { topic, outcome, isNewTopic, isNewOutcome } = materialTags(c, body);
       if (body.confirmNoPersonalData !== true) fail(400, 'Please confirm the material contains no student personal data.');
       const origin = ['paste', 'pdf', 'scan', 'diagram'].includes(body.origin) ? body.origin : 'paste';
       const p = {
@@ -1064,9 +1113,12 @@ attemptId: attempt.id,
         createdBy: user.id,
         createdAt: now(),
       };
+      // everything is validated: only now add the new topic / outcome
+      if (isNewTopic) db.topics.push(topic);
+      if (isNewOutcome) topic.outcomes.push(outcome);
       db.passages.push(p);
       save();
-      return [201, p];
+      return [201, { ...p, topic }];
     },
     { limit: 400 * 1024 },
   );
@@ -1245,6 +1297,8 @@ attemptId: attempt.id,
 
   // ---------------- teacher: marking free-response answers ----------------
   // ?topic=<id>: only answers to that weekly topic's questions (dashboard filter)
+  // Every answer still waiting for a mark, any period (it's a to-do list):
+  // the total, and the newest 50.
   route('GET', '/api/teacher/classes/:classId/marking', 'teacher', ({ user, params, query }) => {
     const cls = teacherClass(user, params.classId);
     const topicId = topicFilter(query, cls.courseId);
@@ -1319,7 +1373,6 @@ attemptId: attempt.id,
       item.result.npc = { ...session.npc };
       if (paid) item.result.rewards.push({ reason: 'Confirmed by professor', granted: paid, capped: false });
     }
-    // only this class's numbers change, so only this class's caches drop
     save({ classId: a.classId });
     return { ok: true, paid };
   });
@@ -1381,52 +1434,55 @@ attemptId: attempt.id,
   });
 
   // ---------------- teacher: analytics & evaluation ----------------
-  // Dashboard numbers are cached briefly per class + period: with
-  // auto-refresh every 30 s, an unchanged class costs nothing to re-serve.
-  // Any save() (new answer, mark, edit...) or 60 s passing refreshes it.
+  // Dashboard numbers are cached briefly (per class or course, period and
+  // topic): with auto-refresh every 30 s, an unchanged class costs nothing
+  // to re-serve. A save touching the class (or everything), or 60 s
+  // passing, refreshes it. Each of these reads every answer, so this matters.
   const ANALYTICS_TTL = 60000;
   const analyticsCache = new Map();
-  // Dashboard numbers are expensive to recompute, so keep the last value until
-  // the class it belongs to changes (or everything changes). A compute() that
-  // throws (e.g. a 404) caches nothing, because the throw escapes before the set.
-  const cachedNumber = (key, version, compute) => {
+  function cached(key, version, compute) {
     const hit = analyticsCache.get(key);
     if (hit && hit.version === version && now() - hit.at < ANALYTICS_TTL) return hit.value;
     const value = compute();
-    if (analyticsCache.size > 200) analyticsCache.clear(); // bounded: a few entries per class
+    if (analyticsCache.size > 500) analyticsCache.clear(); // bounded: a few entries per class
     analyticsCache.set(key, { version, at: now(), value });
     return value;
-  };
-  const period = (query) => {
+  }
+  const periodKey = (p) => `${p.range}|${p.from || ''}|${p.to || ''}|${p.topicId || ''}`;
+  // "This semester" takes its dates from the course: from the start to the
+  // end, or to today while it is still running (no `to`)
+  const period = (query, course, tz = APP_TZ) => {
     const p = parsePeriod((k) => query.get(k));
     if (p.error) fail(400, p.error);
-    return p;
+    if (p.range !== 'semester') return p;
+    const start = course.semester?.start || fail(409, 'Set when this semester starts in Settings to use "This semester".');
+    const today = dayIn(now(), tz);
+    if (start > today) fail(400, `This semester starts on ${start}. Pick another period until then.`);
+    const end = course.semester.end;
+    return { range: 'semester', from: start, ...(end && end < today && { to: end }) };
   };
+  const classTz = (cls) => (isValidTimeZone(cls.settings.timezone) ? cls.settings.timezone : APP_TZ);
   route('GET', '/api/teacher/classes/:classId/analytics', 'teacher', ({ user, params, query }) => {
     const cls = teacherClass(user, params.classId);
-    const p = { ...period(query), topicId: topicFilter(query, cls.courseId) };
-    const key = `${params.classId}|${p.range}|${p.from || ''}|${p.to || ''}|${p.topicId || ''}`;
-    return cachedNumber(key, versionOfClass(params.classId), () => classAnalytics(db, params.classId, now(), p));
+    const p = { ...period(query, db.courses.find((c) => c.id === cls.courseId), classTz(cls)), topicId: topicFilter(query, cls.courseId) };
+    return cached(`class|${params.classId}|${periodKey(p)}`, versionOfClass(params.classId), () => classAnalytics(db, params.classId, now(), p));
   });
 
   // One question in detail (dashboard drill-down), for this class's answers
   route('GET', '/api/teacher/classes/:classId/questions/:qid/insights', 'teacher', ({ user, params, query }) => {
-    teacherClass(user, params.classId);
-    const p = period(query);
-    const key = `insights|${params.classId}|${params.qid}|${p.range}|${p.from || ''}|${p.to || ''}`;
-    return cachedNumber(key, versionOfClass(params.classId), () => questionInsights(db, params.classId, params.qid, now(), p) || fail(404, 'Not found.'));
+    const cls = teacherClass(user, params.classId);
+    const p = period(query, db.courses.find((c) => c.id === cls.courseId), classTz(cls));
+    const key = `question|${params.classId}|${params.qid}|${periodKey(p)}`;
+    return cached(key, versionOfClass(params.classId), () => questionInsights(db, params.classId, params.qid, now(), p)) || fail(404, 'Not found.');
   });
 
   // The professor's classes of one course side by side (no student names)
   route('GET', '/api/teacher/courses/:cid/compare', 'teacher', ({ user, params, query }) => {
     const c = teacherCourse(user, params.cid);
     const ids = db.classes.filter((cl) => cl.courseId === c.id && cl.teacherIds.includes(user.id)).map((cl) => cl.id);
-    const p = { ...period(query), topicId: topicFilter(query, c.id) };
-    // the topic belongs in the key, or a filtered view would poison the unfiltered
-    // one; the entry is only valid while every class in the row is unchanged
-    const key = `compare|${ids.join(',')}|${p.range}|${p.from || ''}|${p.to || ''}|${p.topicId || ''}`;
-    const version = ids.map(versionOfClass).join('|');
-    return cachedNumber(key, version, () => courseComparison(db, ids, now(), p));
+    const p = { ...period(query, c), topicId: topicFilter(query, c.id) };
+    // fresh while none of these classes has changed
+    return cached(`compare|${ids.join(',')}|${periodKey(p)}`, ids.map(versionOfClass).join('/'), () => courseComparison(db, ids, now(), p));
   });
 
   route('GET', '/api/teacher/classes/:classId/participation.csv', 'teacher', ({ user, params }) => {
@@ -1550,7 +1606,7 @@ return studentProgress(db, user.id, cl);
       completedAt: null,
     };
     db.sessions.push(session);
-    save({ classId: session.classId });
+    save();
     return [201, { id: session.id }];
   });
 
@@ -1666,7 +1722,7 @@ return studentProgress(db, user.id, cl);
       resources: extras.resources,
       participation: extras.participation,
     };
-    save({ classId: s.classId });
+    save();
     return item.result;
   });
 
@@ -1705,7 +1761,7 @@ return studentProgress(db, user.id, cl);
     if (![1, 2, 3].includes(body.rating)) fail(400, 'Pick a rating.');
     const comment = typeof body.comment === 'string' ? body.comment.trim().slice(0, 300) : '';
     s.feedback = { rating: body.rating, comment, at: now() };
-    save({ classId: s.classId });
+    save();
     return { ok: true };
   });
 
@@ -1731,7 +1787,7 @@ return studentProgress(db, user.id, cl);
       id: newId('r'), studentId: user.id, classId: attempt.classId, version: attempt.version,
       attemptId: attempt.id, stem, category, reason: str(body.reason, 300, 'Reason'), at: now(), resolved: false,
     });
-    save({ classId: attempt.classId });
+    save();
     return { ok: true };
   });
 

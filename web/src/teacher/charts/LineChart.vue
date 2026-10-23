@@ -8,11 +8,14 @@
 // - lines draw in when the chart mounts (the parent remounts it for a new
 //   period, not for background refreshes)
 // - one tab stop: arrow keys move the crosshair (see keys.js)
+// - with 2+ series and room, each line is named at its right end (nudged
+//   apart so names never overlap); the legend stays for narrow charts
 // ============================================================
 import { ref, computed } from 'vue';
 import { useWidth, labelStep } from './useWidth.js';
 import { stepKey } from './keys.js';
 import { pct } from '../../ui.js';
+import { shortLabel } from './time-zones.mjs';
 
 const props = defineProps({
   // [{ id, name, slot }] - slot 1..8 picks --series-N
@@ -27,13 +30,18 @@ const props = defineProps({
 const el = ref(null);
 const width = useWidth(el);
 const M = { top: 10, right: 14, bottom: 26, left: 40 };
-const plotW = computed(() => Math.max(60, width.value - M.left - M.right));
+const LABEL_GAP = 13; // px between stacked end labels
+const LABEL_CHARS = 24;
+const endLabels = computed(() => props.series.length > 1 && width.value >= 460);
+// room on the right for the names (about 6.5px per character at 11px)
+const right = computed(() => (endLabels.value ? Math.min(170, 18 + 6.5 * Math.max(...props.series.map((s) => shortLabel(s.name, LABEL_CHARS).length))) : M.right));
+const plotW = computed(() => Math.max(60, width.value - M.left - right.value));
 const plotH = computed(() => props.height - M.top - M.bottom);
 const band = computed(() => plotW.value / Math.max(1, props.rows.length));
 const x = (i) => M.left + band.value * (i + 0.5);
 const y = (v) => M.top + plotH.value * (1 - v);
 const ticks = [0, 0.25, 0.5, 0.75, 1];
-const step = computed(() => labelStep(props.rows.length, plotW.value));
+const step = computed(() => labelStep(props.rows.length, plotW.value, 56, props.rows.map((r) => r.label)));
 const color = (s) => `var(--series-${s.slot})`;
 
 // One path per series; a bucket with no answers breaks the line
@@ -55,6 +63,22 @@ const dots = computed(() => props.series.flatMap((s) => props.rows.map((r, i) =>
   const c = r.cells[s.id];
   return c && c.value !== null ? { key: `${s.id}:${i}`, s, cx: x(i), cy: y(c.value), low: c.n < props.lowN } : null;
 }).filter(Boolean)));
+
+// each series named at the right edge, level with its latest point
+const named = computed(() => {
+  if (!endLabels.value) return [];
+  const placed = [];
+  for (const s of props.series) {
+    const i = props.rows.findLastIndex((r) => r.cells[s.id] && r.cells[s.id].value !== null);
+    if (i < 0) continue;
+    placed.push({ s, px: x(i), py: y(props.rows[i].cells[s.id].value), ly: y(props.rows[i].cells[s.id].value) + 4, text: shortLabel(s.name, LABEL_CHARS) });
+  }
+  placed.sort((a, b) => a.ly - b.ly);
+  for (let k = 1; k < placed.length; k++) placed[k].ly = Math.max(placed[k].ly, placed[k - 1].ly + LABEL_GAP);
+  const overflow = placed.length ? placed.at(-1).ly - (M.top + plotH.value) : 0;
+  if (overflow > 0) for (const l of placed) l.ly -= overflow; // keep them inside the chart
+  return placed;
+});
 
 const active = ref(null);
 const tipLeft = computed(() => {
@@ -98,6 +122,10 @@ function onKey(e) {
         <path v-for="p in paths" :key="p.s.id" class="line" pathLength="1" :d="p.d" fill="none" :stroke="color(p.s)" stroke-width="2" stroke-linejoin="round" stroke-linecap="round" />
         <circle v-for="d in dots" :key="d.key" class="pop" :cx="d.cx" :cy="d.cy" r="4"
           :fill="d.low ? 'var(--panel)' : color(d.s)" :stroke="d.low ? color(d.s) : 'var(--panel)'" stroke-width="2" />
+        <g v-for="l in named" :key="'n' + l.s.id">
+          <line class="leader" :x1="l.px + 5" :y1="l.py" :x2="M.left + plotW + 4" :y2="l.ly - 4" :style="{ stroke: color(l.s), strokeWidth: 2 }" />
+          <text class="direct-label" :x="M.left + plotW + 8" :y="l.ly">{{ l.text }}</text>
+        </g>
         <!-- hover areas: the whole column of each x -->
         <rect v-for="(r, i) in rows" :key="'h' + i" class="hit" :x="M.left + band * i" :y="M.top" :width="band" :height="plotH" @pointerenter="active = i" />
       </svg>

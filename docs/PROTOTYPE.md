@@ -146,8 +146,7 @@ The standalone `/hero-lab` route is an isolated test field in
 `public/hero-lab/`.
 Select a hero, move with WASD or the arrow keys, aim with the mouse, and test
 its weapon, skill (E), ultimate (Q), and talent without joining the
-multiplayer World. See `public/hero-lab/README_HERO-LAB.md` and
-`public/hero-lab/HOW_THIS_WORKS.md` for how it works.
+multiplayer World. See `public/hero-lab/README.md` for how it works.
 
 ### Deliberately not built
 
@@ -157,10 +156,8 @@ multiplayer World. See `public/hero-lab/README_HERO-LAB.md` and
 - **Per-request database queries and multiple server instances.** See
   *Architecture* above: Supabase is the database, but the server still keeps
   a working copy in memory (one instance only).
-- **Sign-up and account management.** Email + password sign-in works, but only
-  for the seeded demo accounts: there is no sign-up, password reset or admin
-  screen for assigning professor access yet. Login sessions live in server
-  memory (lost on restart). The World uses the same token.
+- **Real login.** Still "pick a demo user" (users are stored in Supabase).
+  Supabase Auth is the next step. The World uses the same token.
 
 ## AI features
 
