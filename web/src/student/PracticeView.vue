@@ -55,9 +55,9 @@ const onStart = action(async () => {
   <div v-if="error" class="note bad">{{ error }}</div>
   <QuizRunner v-else-if="quiz" :sid="quiz.sid" :initial="quiz.initial" />
   <template v-else-if="loaded">
-    <p v-if="!S.classId">You are not enrolled in any class.</p>
+    <Heading title="Practice"><ClassPicker /><WalletBadge /><ResourceBadge /></Heading>
+    <p v-if="!S.classId" class="note">You are not enrolled in any class yet. Enter the join code your professor gave you using <b>+ Join Class</b> above.</p>
     <template v-else>
-      <Heading title="Practice"><ClassPicker /><WalletBadge /><ResourceBadge /></Heading>
       <div v-if="resumable" class="note small">
         Unfinished session: {{ resumable.answered }} of {{ resumable.total }} answered. Timed questions keep their original deadline.
         <button class="btn small" @click="onResume">Resume practice</button>

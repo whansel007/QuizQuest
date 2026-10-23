@@ -94,9 +94,9 @@ async function post() {
 <template>
   <div v-if="error" class="note bad">{{ error }}</div>
   <template v-else-if="loaded">
-    <p v-if="!S.classId">You are not enrolled in any class.</p>
+    <Heading title="Kingdom"><ClassPicker /></Heading>
+    <p v-if="!S.classId" class="note">You are not enrolled in any class yet. Enter the join code your professor gave you using <b>+ Join Class</b> above.</p>
     <template v-else>
-      <Heading title="Kingdom"><ClassPicker /></Heading>
       <p class="small muted">Earn supplies by finishing practice sessions (🪵🪵🌿 each) and by answering questions at resource nodes in the World. Buildings are just for fun: no academic value.</p>
       <div class="tiles">
         <div v-for="(d, id) in R" :key="id" class="tile">
