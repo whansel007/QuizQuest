@@ -790,17 +790,17 @@ test('weekly topics: narrow the dashboard, follow a next step, and add a topic f
   assert.equal(await weeks.locator('tbody tr').count(), 3);
   // Source material's topic table follows its topic filter too
   await page.locator('#tabs').getByRole('button', { name: 'AI drafting', exact: true }).click();
-  await page.getByText('Manage topics & learning outcomes',{exact:true}).click();
+  await page.getByRole('heading',{name:'Manage topics & learning outcomes',exact:true}).waitFor(); // always open
   await page.getByLabel('Weekly topic').selectOption('tp-sec');
   await page.getByRole('heading', { name: 'Upload Materials' }).waitFor();
-  await page.getByText('Manage topics & learning outcomes',{exact:true}).click();
+  await page.getByRole('heading',{name:'Manage topics & learning outcomes',exact:true}).waitFor(); // always open
   await page.getByRole('button',{name:'Edit Cyber hygiene',exact:true}).waitFor();
   assert.deepEqual(await page.locator('.topic-table tbody tr:not(.subrow) td:first-child').allInnerTexts(), ['3']);
   await page.getByRole('button',{name:'Show all topics',exact:true}).click();
   await page.waitForFunction(() => document.querySelectorAll('.topic-table tbody tr:not(.subrow)').length === 3);
   // Source material: add Week 4; uploads then go into it
   await page.locator('#tabs').getByRole('button', { name: 'AI drafting', exact: true }).click();
-  await page.getByText('Manage topics & learning outcomes',{exact:true}).click();
+  await page.getByRole('heading',{name:'Manage topics & learning outcomes',exact:true}).waitFor(); // always open
   await page.getByRole('button', { name: '+ Add topic' }).click();
   assert.equal(await page.getByLabel('Week', { exact: true }).inputValue(), '4', 'suggests the week after the latest');
   await page.getByLabel('Topic name').fill('Operating systems');
@@ -811,7 +811,7 @@ test('weekly topics: narrow the dashboard, follow a next step, and add a topic f
   assert.equal(await page.getByLabel('Weekly topic').inputValue(), srv.quiz.db.topics.find((x) => x.name === 'Operating systems').id);
   assert.equal(srv.quiz.db.topics.find((x) => x.name === 'Operating systems').week, 4);
   // the new topic was never used, so it can be deleted again (keeps later tests unchanged)
-  await page.getByText('Manage topics & learning outcomes',{exact:true}).click();
+  await page.getByRole('heading',{name:'Manage topics & learning outcomes',exact:true}).waitFor(); // always open
   await page.getByRole('button', { name: 'Edit Operating systems' }).click();
   page.once('dialog', (d) => d.accept());
   await page.getByRole('button', { name: 'Delete topic' }).click();

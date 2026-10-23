@@ -68,10 +68,10 @@ const reportText = (r) => (!r ? '—' : r.saved ? `saved (v${r.revision})` : r.s
 <template>
   <div class="panel">
     <div class="row">
-      <h3 class="grow">Weekly topics</h3>
+      <h3 class="grow">Manage topics &amp; learning outcomes</h3>
       <button v-if="!adding" class="btn small" @click="adding = true">+ Add topic</button>
     </div>
-    <p class="small muted">Manage weekly topics and their learning outcomes.<template v-if="S.topicId && summary?.topics.length > 1"> <button class="linklike" @click="showAll = !showAll">{{ showAll ? 'Show selected topic' : 'Show all topics' }}</button></template></p>
+    <p class="small muted">Every class of this course shares these weekly topics.<template v-if="S.topicId && summary?.topics.length > 1">&nbsp;<button class="linklike" @click="showAll = !showAll">{{ showAll ? 'Show selected topic' : 'Show all topics' }}</button></template></p>
     <TopicForm v-if="adding" :course="course" @created="created" @cancel="adding = false" />
     <div v-if="error" class="note bad">{{ error }}</div>
     <p v-else-if="!summary" class="muted small">Loading…</p>

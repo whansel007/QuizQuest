@@ -4,6 +4,7 @@ import { ref, reactive, computed, onMounted, onUnmounted, watch } from 'vue';
 import { S, api as request, setTab, reqId } from '../api.js';
 import ImportMaterials from './ImportMaterials.vue';
 import MarkdownEditor from '../components/MarkdownEditor.vue';
+import GenerationStatus from './GenerationStatus.vue';
 import { initialTags, topicLabel } from './courses.js';
 import { draftStore } from './authoring-draft.js';
 import { when } from '../ui.js';
@@ -37,16 +38,45 @@ const running = computed(() => busy.value || jobs.value.some((j) => ['queued','r
 const dirty = computed(() => !!report.value && review.value.trim() !== (report.value.reviewedText || ''));
 const saved = computed(() => report.value?.reportSourceId && !dirty.value && baseRevision.value === report.value.reportRevision);
 const total = computed(() => types.reduce((a,type) => a + (Number(config.quantities[type]) || 0),0));
-const validCounts = computed(() => total.value >= 1 && total.value <= 10 && types.every(type => Number.isInteger(config.quantities[type]) && config.quantities[type] >= 0 && config.quantities[type] <= 10));
-const pendingGeneration=ref(null), notice=ref('');
+// Checked as the professor types, next to the total, not only under the Generate button.
+const badCount = (type) => !Number.isInteger(config.quantities[type]) || config.quantities[type] < 0 || config.quantities[type] > 10;
+const countProblem = computed(() =>
+  types.some(badCount) ? 'Each type takes a whole number from 0 to 10.'
+  : total.value > 10 ? `The maximum is 10; remove ${total.value - 10}.`
+  : total.value < 1 ? 'Choose at least one question.'
+  : '');
+const validCounts = computed(() => !countProblem.value);
+const pendingGeneration=ref(null);
+// Generation batches seen queued/running (or started) on this visit get the
+// floating status; one finished on an earlier visit never pops up stale.
+// The newest such batch replaces the previous one, so there is one status at most.
+const tracked = ref(new Set()), dismissed = ref('');
+const track = (id) => { if (!id) return; tracked.value.add(id); if (dismissed.value === id) dismissed.value = ''; }; // a resumed batch shows again
+watch(jobs, (list) => list.forEach((j) => { if (j.kind === 'generation' && ['queued','running'].includes(j.status)) track(j.id); }));
+const floating = computed(() => { const j = [...jobs.value].reverse().find((j) => tracked.value.has(j.id)); return j && j.id !== dismissed.value ? j : null; });
+const floatingTopic = computed(() => { const t = floating.value && jobTopic(floating.value); return t && t.id !== props.topic.id ? topicLabel(t) : ''; });
 // Says why Generate questions is disabled instead of leaving a silent grey button.
 const generateBlocked = computed(() =>
   running.value ? 'Wait for the current step to finish.'
   : pendingGeneration.value ? 'Retry or check the pending generation request above first.'
   : !saved.value ? (dirty.value ? 'Save your report changes first.' : 'Load the latest saved report first.')
   : !config.learningOutcome.trim() ? 'Enter a learning outcome.'
-  : !validCounts.value ? 'Choose whole-number quantities totalling 1–10 questions.'
+  : !validCounts.value ? 'Fix the question quantities above.'
   : '');
+// Where the professor is in the workflow: the first step not done yet.
+const STEPS = ['Upload', 'Knowledge report', 'Edit & save', 'Configure questions', 'Generate', 'Review & publish'];
+const steps = computed(() => {
+  const done = [
+    hasMaterial.value || !!report.value,
+    report.value?.status === 'complete',
+    !!saved.value,
+    !!saved.value && !!config.learningOutcome.trim() && validCounts.value,
+    generation.value?.status === 'complete' && !!generation.value.result.created?.length,
+    false, // publishing happens in the Question Bank
+  ];
+  const at = done.indexOf(false);
+  return STEPS.map((label, i) => ({ label, done: i < at, current: i === at }));
+});
 const sameIds = (a, b) => JSON.stringify([...a].sort()) === JSON.stringify([...b].sort());
 // Which files a report was made from, and whether that differs from what is attached now.
 const reportSources = computed(() => report.value ? sourceSummary(report.value.input.passageIds, attachments.value.names) : '');
@@ -79,10 +109,11 @@ async function refresh() {
     const data = await api('GET', path + '/authoring');
     if (disposed) return;
     jobs.value = data;
-    if(pendingGeneration.value && data.some(j=>j.input.attemptId===pendingGeneration.value.attemptId)) {
+    const acknowledged=pendingGeneration.value && data.find(j=>j.input.attemptId===pendingGeneration.value.attemptId);
+    if(acknowledged) {
       pendingGeneration.value=null;
+      track(acknowledged.id);
       try {await draftStore(attemptKey,null);} catch {error.value='The generation request was received, but browser recovery storage could not be updated. Refresh progress before retrying.';}
-      notice.value='Generation request received. Progress and saved drafts are shown below.';
     }
     if (!report.value) reportId.value = reports.value.at(-1)?.id || '';
     if (loadedId !== reportId.value && report.value?.status === 'complete') loadEditor();
@@ -115,6 +146,8 @@ onMounted(async () => {
   try { await refresh(); }
   catch (e) { error.value = e.message; }
   suggestFromReport();
+  // still empty: start from this topic's outcome, so Generate isn't blocked for nothing
+  if (!config.learningOutcome.trim()) config.learningOutcome = (props.topic.outcomes.find((o) => o.id === config.outcomeId) || props.topic.outcomes[0])?.text || '';
   restoring = false;
   schedulePoll();
 });
@@ -164,8 +197,8 @@ async function submitGeneration() {
   try {
     const job=await api('POST',path+'/authoring',payload);
     pendingGeneration.value=null;
+    track(job.id);
     await draftStore(attemptKey,null);
-    notice.value=job.status==='complete' ? 'This generation batch is complete. Review its saved drafts below.' : 'Generation batch started. You can return later; progress is saved.';
   } catch(e) {
     if(e.status && e.status<500) {pendingGeneration.value=null;await draftStore(attemptKey,null);}
     throw e;
@@ -174,27 +207,35 @@ async function submitGeneration() {
 function generate() {
   if(busy.value || running.value || pendingGeneration.value) return;
   return action(async()=>{
-    notice.value='';
     pendingGeneration.value={kind:'generation',attemptId:reqId(),analysisId:reportId.value,reportRevision:baseRevision.value,topicId:props.topic.id,learningOutcome:config.learningOutcome,assessmentStyle:config.assessmentStyle,
       quantities:Object.fromEntries(types.filter(type=>config.quantities[type]>0).map(type=>[type,config.quantities[type]]))};
     await submitGeneration();
   });
 }
-function resume(j) { return action(() => api('POST',path+`/authoring/${j.id}/resume`)); }
-// Opens the Question bank on this batch's topic, where its drafts are.
-function reviewDrafts() { S.qFilter='draft'; S.topicId=props.topic.id; setTab('review'); }
+function resume(j) { return action(async () => track((await api('POST',path+`/authoring/${j.id}/resume`)).id)); }
+// Opens the Question bank on this batch's topic, where its drafts are. The
+// bank loads its questions when it opens, so newly saved drafts are listed.
+function reviewDrafts(topicId=props.topic.id) { S.qFilter='draft'; S.topicId=topicId; setTab('review'); }
 function download() {
   const url=URL.createObjectURL(new Blob([review.value],{type:'text/markdown;charset=utf-8'}));
   const a=document.createElement('a'); a.href=url; a.download=`knowledge-report${props.topic.week ? '-week-' + props.topic.week : ''}.md`; a.click(); setTimeout(()=>URL.revokeObjectURL(url),1000);
 }
 </script>
 <template>
-  <p class="muted">For <b>{{ topicLabel(topic) }}</b>: Upload → Knowledge report → Edit &amp; save → Configure questions → Generate → Review &amp; publish</p>
-  <button class="btn small" :disabled="busy" @click="action(() => {})">Refresh progress</button>
+  <div class="workflow-head">
+    <p class="muted grow">Steps for <b>{{ topicLabel(topic) }}</b></p>
+    <!-- also reloads reports saved from another tab or by another professor -->
+    <button class="btn small" :disabled="busy" @click="action(() => {})">Refresh progress</button>
+  </div>
+  <ol class="workflow-steps" aria-label="Drafting steps">
+    <li v-for="(s, i) in steps" :key="s.label" :class="{ done: s.done, current: s.current }" :aria-current="s.current ? 'step' : undefined">
+      <span class="step-mark" aria-hidden="true">{{ s.done ? '✓' : i + 1 }}</span>{{ s.label }}<span v-if="s.done" class="sr-only"> (done)</span>
+    </li>
+  </ol>
   <div v-if="error" class="note bad" role="alert">{{ error }}</div>
-  <p v-if="notice" role="status" aria-live="polite">{{notice}}</p>
   <div v-if="pendingGeneration" :class="['note',busy?'':'warn']" role="status"><span v-if="busy">Submitting your generation request...</span><template v-else>A generation request needs confirmation. Retry the same request to recover its job without creating another batch. <button class="btn" :disabled="running" @click="action(submitGeneration)">Retry generation request</button><button class="btn" :disabled="running" @click="action(() => {})">Check request status</button></template></div>
-  <div v-if="current" class="note" role="status" aria-live="polite">
+  <!-- a batch in the floating status is shown there instead; dismissing it brings this back -->
+  <div v-if="current && current.id !== floating?.id" class="note" role="status" aria-live="polite">
     {{ current.message }}<template v-if="jobTopic(current) && jobTopic(current).id !== topic.id"> ({{ topicLabel(jobTopic(current)) }})</template> <span v-if="['queued','running'].includes(current.status)">You can return later; progress is saved.</span>
     <span v-if="current.retryAt > Date.now()">Try again after {{ when(current.retryAt) }}.</span>
     <button v-if="['failed','interrupted'].includes(current.status) && !current.result.applicationUnsupported" class="btn" :disabled="running" @click="resume(current)">Resume saved work</button>
@@ -231,17 +272,32 @@ function download() {
     <p v-if="usingSuggestion" class="small muted">Suggested from the report's learning objectives. Edit as needed; a new outcome is added to this topic.</p>
     <label for="assessment-style">Assessment Style</label><select id="assessment-style" v-model="config.assessmentStyle" :disabled="running"><option value="conceptual">Conceptual</option><option value="application">Application</option><option value="both">Both</option></select>
     <p>Choose quantities for each question type. Up to 10 questions per assessment; reuse this report for further assessments.</p>
-    <div class="row top"><label v-for="type in types" :key="type">{{ typeLabels[type] }}<input v-model.number="config.quantities[type]" :aria-label="typeLabels[type] + ' quantity'" type="number" min="0" max="10" step="1" :disabled="running" style="max-width:100px" /></label></div>
+    <div class="row top"><label v-for="type in types" :key="type">{{ typeLabels[type] }}<input v-model.number="config.quantities[type]" :aria-label="typeLabels[type] + ' quantity'" type="number" min="0" max="10" step="1" :disabled="running" :aria-invalid="badCount(type) || total > 10 ? 'true' : undefined" aria-describedby="quantity-total" style="max-width:100px" /></label></div>
     <p class="small muted">MCQ has one correct option; Multi-select has multiple correct options. Short Answer accepts text or numerical responses.</p>
-    <p>{{ total }} questions in total</p>
+    <p id="quantity-total" :class="{ 'count-problem': countProblem }">{{ total }} question{{ total === 1 ? '' : 's' }} in total<template v-if="countProblem"> · {{ countProblem }}</template></p>
     <button class="btn primary" :disabled="!!generateBlocked" @click="generate">Generate questions</button>
     <p v-if="generateBlocked" class="small muted" role="status">{{ generateBlocked }}</p>
   </div>
   <div v-for="warning in generation?.result.warnings || []" :key="warning" class="note warn" role="alert">{{ warning }}</div>
   <div v-if="generation?.result.created?.length" class="panel">
     <h3>Review and publish</h3>
-    <p role="status" aria-live="polite">{{ generation.result.created.length }} of {{ generation.input.count }} questions saved as drafts. Review answers and explanations before approval; AI checks can miss errors.</p>
+    <p>{{ generation.result.created.length }} of {{ generation.input.count }} questions saved as drafts. Review answers and explanations before approval; AI checks can miss errors.</p>
     <p>Edit, reject or regenerate individual questions in the Question Bank. Approve &amp; publish makes approved questions available to students.</p>
-    <button class="btn primary" @click="reviewDrafts">Review drafts</button>
+    <button class="btn primary" @click="reviewDrafts()">Review drafts</button>
   </div>
+  <GenerationStatus :job="floating" :topic-label="floatingTopic" :busy="running" @view="reviewDrafts(floating.input.topicId)" @resume="resume(floating)" @dismiss="dismissed = floating.id" />
 </template>
+
+<style scoped>
+.workflow-head { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+.workflow-head p { margin: 0; }
+.workflow-steps { display: flex; flex-wrap: wrap; gap: 6px; list-style: none; padding: 0; margin: 10px 0 16px; }
+.workflow-steps li { display: flex; align-items: center; gap: 6px; padding: 4px 10px 4px 4px; border: 1px solid var(--line); border-radius: 99px; background: var(--panel); color: var(--muted); font-size: 13px; }
+.step-mark { display: inline-grid; place-items: center; width: 20px; height: 20px; border-radius: 50%; background: var(--bg); font-size: 11px; font-weight: 700; }
+.workflow-steps li.done { color: var(--good); background: var(--good-soft); border-color: transparent; }
+.workflow-steps li.done .step-mark { background: var(--good); color: var(--panel); }
+.workflow-steps li.current { color: var(--accent); background: var(--accent-soft); border-color: var(--accent); font-weight: 600; }
+.workflow-steps li.current .step-mark { background: var(--accent); color: var(--accent-ink); }
+.count-problem { color: var(--bad); font-weight: 600; }
+.sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0; }
+</style>

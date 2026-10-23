@@ -99,7 +99,7 @@ const outcomeText = (id) => course.value.topics.flatMap((t) => t.outcomes).find(
         <p class="small muted">Lecture files, knowledge reports and questions are grouped by topic, and shared by all your classes for this course.</p>
         <TopicForm :course="course" @created="rerender" />
       </div>
-      <details v-if="topic" class="panel"><summary>Manage topics &amp; learning outcomes</summary><TopicManager :course="course" @select="id => { S.topicId = id; rerender(); }" /></details>
+      <TopicManager v-if="topic" :course="course" @select="id => { S.topicId = id; rerender(); }" />
       <AuthoringWorkflow v-if="course.authoringEnabled && topic" :key="topic.id" :course="course" :topic="topic" :target="workflowTarget" />
       <ImportMaterials v-if="!course.authoringEnabled && topic" :key="topic.id" :course="course" :topic="topic" />
       <details class="panel"><summary>Material library · Notes, images &amp; older files</summary><MaterialLibrary @changed="rerender" /></details>
