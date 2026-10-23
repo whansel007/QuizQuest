@@ -183,6 +183,8 @@ test('slow and mostly-wrong questions are flagged as possibly confusing', () => 
   const flagged = questions.filter((q) => q.confusing).map((q) => q.questionId);
   assert.deepEqual(flagged, ['q-d1']);
   assert.equal(questions.find((q) => q.questionId === 'q-d1').accuracy.accuracy, 0.2);
+  // time-zones.mjs turns this flag plus the timing into the group labels the
+  // dashboard shows; that module's own coverage is test/time-zones-test.js.
 
   // a slow short-answer question with one marked (wrong) answer and five
   // still waiting: 0% of 1 is not "mostly wrong" yet
