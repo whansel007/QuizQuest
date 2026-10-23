@@ -187,14 +187,18 @@ test('projectile onHit return value controls removal and a piercing projectile c
 test('hero defense has a minimum damage floor, timed invulnerability, and ability cooldowns', async () => {
   const { Hero } = await import('../public/hero-lab/bases/hero.js');
   const hero = new Hero({ id: 'test', defense: 9 });
-  assert.equal(hero.damage(20, 10_000), 11);
+  // Defense is a percentage reduction capped by the wave tuning, so a 9 defense
+  // hero takes 20 * 0.91 = 18.2, rounded through hp to 18.200000000000003.
+  assert.equal(hero.damage(20, 10_000), 18.200000000000003);
   assert.equal(hero.damage(20, 10_500), 0, 'damage cooldown prevents rapid repeated hits');
-  assert.equal(hero.damage(2, 11_001), 1, 'defense cannot reduce damage below the configured floor');
+  // 1 * 0.91 = 0.91 sits under the configured floor of 1, so the floor is what lands.
+  assert.equal(hero.damage(1, 11_001), 1, 'defense cannot reduce damage below the configured floor');
 
   const protectedHero = new Hero({ id: 'protected' });
   protectedHero.makeInvulnerable(1000, 20_000);
   assert.equal(protectedHero.damage(20, 20_500), 0);
-  assert.equal(protectedHero.damage(20, 21_001), 15);
+  // The default 5 defense is a 5% reduction, so 20 * 0.95 = 19.
+  assert.equal(protectedHero.damage(20, 21_001), 19);
   assert.equal(protectedHero.canUseAbility('skill', 30_000), true);
   assert.equal(protectedHero.useAbility('skill', 30_000), true);
   assert.equal(protectedHero.canUseAbility('skill', 34_999), false);
@@ -245,7 +249,12 @@ test('enemy projectiles use server-side defense when they hit a hero', async (t)
   const bullet = new EnemyProjectile({ x: player.x, y: player.y, speed: 0, damage: 10 });
   server.heroLab.projectiles.set('test-enemy-projectile', bullet);
   const after = await nextState(client, (state) => state.players.find((candidate) => candidate.id === clientId)?.hp < before);
-  assert.equal(after.players.find((candidate) => candidate.id === clientId).hp, before - 5);
+  // Hero.damage() treats defense as a percentage (capped by the wave's defenseReductionCap),
+  // so a 10-damage enemy bullet against Sheriff's defense 5 applies max(1, 10 * 0.95) = 9.5.
+  const { GAME_CONFIG } = await import('../public/hero-lab/game-config.js');
+  const reduction = Math.min(GAME_CONFIG.arenaTuning.enemies.wave.defenseReductionCap, Math.max(0, player.hero.defense / 100));
+  const applied = Math.max(GAME_CONFIG.combat.minimumDamage, bullet.damage * (1 - reduction));
+  assert.equal(after.players.find((candidate) => candidate.id === clientId).hp, Math.round(before - applied));
   assert.ok(!after.projectiles.some((projectile) => projectile.id === 'test-enemy-projectile'));
 });
 
@@ -266,11 +275,15 @@ test('Hero Lab server maintains campfire in the middle and spawns zombie monster
   const stateWithMonster = await nextState(client, (state) => Array.isArray(state.monsters) && state.monsters.length > 0);
   const zombie = stateWithMonster.monsters[0];
   assert.equal(zombie.emoji, '🧟');
-  assert.equal(zombie.hp, 20);
+  const { GAME_CONFIG } = await import('../public/hero-lab/game-config.js');
+  // The arena resets whenever nobody is connected, so the first zombie of this run is always a
+  // wave 1 spawn, and the server scales enemy max hp by the per-wave hp tuning.
+  const wave1ZombieHp = Math.round(GAME_CONFIG.enemies.zombie.hp * (1 + GAME_CONFIG.arenaTuning.enemies.wave.hpPerWave));
+  assert.equal(zombie.hp, wave1ZombieHp);
   const { Zombie } = await import('../public/hero-lab/enemies/zombie.js');
   const serverZombie = [...server.heroLab.monsters.values()].find((monster) => monster.id === zombie.id);
   assert.ok(serverZombie instanceof Zombie);
-  assert.equal(serverZombie.maxHp, 20);
+  assert.equal(serverZombie.maxHp, wave1ZombieHp);
 });
 
 test('campfire loss ends the shared run for every connected player', async (t) => {
@@ -291,8 +304,9 @@ test('campfire loss ends the shared run for every connected player', async (t) =
   server.heroLab.campfire.hp = 0;
   assert.deepEqual(await endFirst, { reason: 'campfire' });
   assert.deepEqual(await endSecond, { reason: 'campfire' });
-  const ended = await nextState(first, (state) => state.gameEnded);
-  assert.equal(ended.campfire.hp, 0);
+  const ended = await nextState(first, (state) => state.players.length === 0);
+  assert.deepEqual(ended.players, [], 'the ended run drops every connected player from the shared arena');
+  assert.equal(ended.campfire.hp, ended.campfire.maxHp, 'the ended run tears the arena down so the next run starts from a fresh campfire');
 });
 
 test('Bombardier chooses the targeted bombing point with secondary fire', async (t) => {
@@ -338,12 +352,30 @@ test('wave buffs appear for a shared vote and a disconnected vote is removed', a
   const secondWelcome = new Promise((resolve) => second.once('welcome', resolve));
   second.emit('join', { heroId: 'guardian' });
   await secondWelcome;
-  await nextState(first, (state) => state.monsters.length === 8, 9000);
+  // Waves are now sized from arenaTuning.enemies.wave (10 + 4 * wave = 14 on wave 1)
+  // instead of the old "5 + wave * (2 + wave)" = 8, so the old `monsters.length === 8`
+  // checkpoint fires while ~6 enemies are still queued. Clearing `monsters` only ends
+  // the wave once the spawn queue has drained (completeWave also requires
+  // enemiesLeftToSpawn === 0 and no spawn telegraphs), so wait for that first.
+  // `wave.enemiesRemaining` is `monsters.size + enemiesLeftToSpawn`, and a telegraph
+  // in flight is counted by neither, hence the extra telegraph check.
+  await nextState(first, (state) => state.monsters.length > 0
+    && state.spawnTelegraphs.length === 0
+    && state.wave.enemiesRemaining === state.monsters.length, 20000);
   server.heroLab.monsters.clear();
   const voteState = await nextState(first, (state) => state.buffVote?.cards?.length === 3);
   assert.equal(new Set(voteState.buffVote.cards.map((card) => card.id)).size, 3);
   const choice = voteState.buffVote.cards[0];
-  assert.ok(choice.value >= 5 && choice.value <= 25);
+  // Stat cards no longer roll a flat 5-25: each carries its configured
+  // arenaTuning.cards.stat value (defense is scaled to percentage points).
+  const { GAME_CONFIG } = await import('../public/hero-lab/game-config.js');
+  const { stat } = GAME_CONFIG.arenaTuning.cards;
+  const configuredCardValues = {
+    maxHp: stat.maxHp, attack: stat.attack, defense: stat.defense * 100,
+    speed: stat.speed, campfire: stat.campfireHp,
+  };
+  assert.equal(choice.value, configuredCardValues[choice.id],
+    'an offered card carries exactly its configured arenaTuning value');
   first.emit('buff_vote', choice.id);
   await nextState(first, (state) => state.buffVote?.voteCount === 1);
   second.disconnect();

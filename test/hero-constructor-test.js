@@ -32,16 +32,17 @@ test('Hero applies defense-reduced damage at most once per cooldown interval', a
   Date.now = () => now;
 
   try {
-    assert.equal(hero.damage(10), 5);
-    assert.equal(hero.hp, 95);
+    // defense is a percentage now, so the default 5 defense only shaves 5% off 10 damage
+    assert.equal(hero.damage(10), 9.5);
+    assert.equal(hero.hp, 90.5);
 
     now += 999;
     assert.equal(hero.damage(10), 0);
-    assert.equal(hero.hp, 95);
+    assert.equal(hero.hp, 90.5);
 
     now += 1;
-    assert.equal(hero.damage(10), 5);
-    assert.equal(hero.hp, 90);
+    assert.equal(hero.damage(10), 9.5);
+    assert.equal(hero.hp, 81);
   } finally {
     Date.now = originalNow;
   }
@@ -55,11 +56,13 @@ test('Hero damage cooldown is per instance and health cannot fall below zero', a
   Date.now = () => 10_000;
 
   try {
-    assert.equal(first.damage(20), 15);
+    // Defense is a percentage of incoming damage, so the default defense of 5
+    // absorbs 5% of each hit instead of a flat 5 points.
+    assert.equal(first.damage(20), 19);
     assert.equal(first.damage(1), 0);
-    assert.equal(second.damage(5), 1);
-    assert.equal(first.hp, 5);
-    assert.equal(second.hp, 19);
+    assert.equal(second.damage(5), 4.75);
+    assert.equal(first.hp, 1);
+    assert.equal(second.hp, 15.25);
   } finally {
     Date.now = originalNow;
   }
@@ -102,15 +105,18 @@ test('the selectable roster contains exactly the six configured heroes', async (
 
 test('Skeleton pauses to fire at a hero, then resumes walking toward the campfire', async () => {
   const { Skeleton } = await import('../public/hero-lab/enemies/skeleton.js');
+  const { GAME_CONFIG } = await import('../public/hero-lab/game-config.js');
   const skeleton = new Skeleton({ id: 'skeleton-test', x: 100, y: 100 });
   skeleton.nextShotAt = 1000;
   const campfire = { x: 400, y: 100, radius: 20, hp: 100 };
   const target = { x: 200, y: 100, hero: { damage: () => 0 } };
-  const shot = skeleton.update(1 / 30, campfire, target, 1000);
+  const firedAt = 1000 + GAME_CONFIG.arenaTuning.briefing.skeletonWindupMs;
+  assert.equal(skeleton.update(1 / 30, campfire, target, 1000), null, 'the skeleton telegraphs its shot instead of firing immediately');
+  const shot = skeleton.update(1 / 30, campfire, target, firedAt);
   assert.equal(shot.kind, 'enemy');
   const stoppedX = skeleton.x;
-  assert.equal(skeleton.update(1 / 30, campfire, target, 1200), null);
+  assert.equal(skeleton.update(1 / 30, campfire, target, firedAt + 200), null);
   assert.equal(skeleton.x, stoppedX, 'the skeleton stays stopped during its firing pause');
-  skeleton.update(1 / 30, campfire, target, 1600);
+  skeleton.update(1 / 30, campfire, target, firedAt + GAME_CONFIG.enemies.skeleton.pauseMs);
   assert.ok(skeleton.x > stoppedX, 'the skeleton resumes toward the campfire');
 });
