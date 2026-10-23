@@ -120,12 +120,21 @@ function createQuizApi({ dataFile = null, store = null, now = () => Date.now(), 
   const { db } = store;
   if (P.ensureDemoCredentials(db.users)) store.save();
   // Every change goes through save(), so counting saves tells us whether
-  // the data has changed (used to cache dashboard numbers).
+  // the data has changed (used to cache dashboard numbers). A save can also
+  // say what it touched, so one class practising doesn't throw away every
+  // other class's numbers, and shop/pet/trade activity keeps them:
+  //   save()                      anything: every class's numbers refresh
+  //   save({ classId })           one class's answers, sessions or marks
+  //   save({ analytics: false })  nothing the dashboard shows (shop, pets, trades)
   let dataVersion = 0;
-  const save = () => {
-    dataVersion++;
+  const classVersions = new Map();
+  const save = ({ classId = null, analytics = true } = {}) => {
+    if (classId) classVersions.set(classId, (classVersions.get(classId) || 0) + 1);
+    else if (analytics) dataVersion++;
     store.save();
   };
+  // a cached entry stays valid while the version it was built from is unchanged
+  const versionOfClass = (classId) => `${dataVersion}.${classVersions.get(classId) || 0}`;
   const persist = async () => {
     save();
     await store.flush?.();
@@ -1310,7 +1319,8 @@ attemptId: attempt.id,
       item.result.npc = { ...session.npc };
       if (paid) item.result.rewards.push({ reason: 'Confirmed by professor', granted: paid, capped: false });
     }
-    save();
+    // only this class's numbers change, so only this class's caches drop
+    save({ classId: a.classId });
     return { ok: true, paid };
   });
 
@@ -1376,6 +1386,17 @@ attemptId: attempt.id,
   // Any save() (new answer, mark, edit...) or 60 s passing refreshes it.
   const ANALYTICS_TTL = 60000;
   const analyticsCache = new Map();
+  // Dashboard numbers are expensive to recompute, so keep the last value until
+  // the class it belongs to changes (or everything changes). A compute() that
+  // throws (e.g. a 404) caches nothing, because the throw escapes before the set.
+  const cachedNumber = (key, version, compute) => {
+    const hit = analyticsCache.get(key);
+    if (hit && hit.version === version && now() - hit.at < ANALYTICS_TTL) return hit.value;
+    const value = compute();
+    if (analyticsCache.size > 200) analyticsCache.clear(); // bounded: a few entries per class
+    analyticsCache.set(key, { version, at: now(), value });
+    return value;
+  };
   const period = (query) => {
     const p = parsePeriod((k) => query.get(k));
     if (p.error) fail(400, p.error);
@@ -1385,25 +1406,27 @@ attemptId: attempt.id,
     const cls = teacherClass(user, params.classId);
     const p = { ...period(query), topicId: topicFilter(query, cls.courseId) };
     const key = `${params.classId}|${p.range}|${p.from || ''}|${p.to || ''}|${p.topicId || ''}`;
-    const hit = analyticsCache.get(key);
-    if (hit && hit.version === dataVersion && now() - hit.at < ANALYTICS_TTL) return hit.value;
-    const value = classAnalytics(db, params.classId, now(), p);
-    if (analyticsCache.size > 200) analyticsCache.clear(); // bounded: a few entries per class
-    analyticsCache.set(key, { version: dataVersion, at: now(), value });
-    return value;
+    return cachedNumber(key, versionOfClass(params.classId), () => classAnalytics(db, params.classId, now(), p));
   });
 
   // One question in detail (dashboard drill-down), for this class's answers
   route('GET', '/api/teacher/classes/:classId/questions/:qid/insights', 'teacher', ({ user, params, query }) => {
     teacherClass(user, params.classId);
-    return questionInsights(db, params.classId, params.qid, now(), period(query)) || fail(404, 'Not found.');
+    const p = period(query);
+    const key = `insights|${params.classId}|${params.qid}|${p.range}|${p.from || ''}|${p.to || ''}`;
+    return cachedNumber(key, versionOfClass(params.classId), () => questionInsights(db, params.classId, params.qid, now(), p) || fail(404, 'Not found.'));
   });
 
   // The professor's classes of one course side by side (no student names)
   route('GET', '/api/teacher/courses/:cid/compare', 'teacher', ({ user, params, query }) => {
     const c = teacherCourse(user, params.cid);
     const ids = db.classes.filter((cl) => cl.courseId === c.id && cl.teacherIds.includes(user.id)).map((cl) => cl.id);
-    return courseComparison(db, ids, now(), { ...period(query), topicId: topicFilter(query, c.id) });
+    const p = { ...period(query), topicId: topicFilter(query, c.id) };
+    // the topic belongs in the key, or a filtered view would poison the unfiltered
+    // one; the entry is only valid while every class in the row is unchanged
+    const key = `compare|${ids.join(',')}|${p.range}|${p.from || ''}|${p.to || ''}|${p.topicId || ''}`;
+    const version = ids.map(versionOfClass).join('|');
+    return cachedNumber(key, version, () => courseComparison(db, ids, now(), p));
   });
 
   route('GET', '/api/teacher/classes/:classId/participation.csv', 'teacher', ({ user, params }) => {
@@ -1527,7 +1550,7 @@ return studentProgress(db, user.id, cl);
       completedAt: null,
     };
     db.sessions.push(session);
-    save();
+    save({ classId: session.classId });
     return [201, { id: session.id }];
   });
 
@@ -1643,7 +1666,7 @@ return studentProgress(db, user.id, cl);
       resources: extras.resources,
       participation: extras.participation,
     };
-    save();
+    save({ classId: s.classId });
     return item.result;
   });
 
@@ -1682,7 +1705,7 @@ return studentProgress(db, user.id, cl);
     if (![1, 2, 3].includes(body.rating)) fail(400, 'Pick a rating.');
     const comment = typeof body.comment === 'string' ? body.comment.trim().slice(0, 300) : '';
     s.feedback = { rating: body.rating, comment, at: now() };
-    save();
+    save({ classId: s.classId });
     return { ok: true };
   });
 
@@ -1708,7 +1731,7 @@ return studentProgress(db, user.id, cl);
       id: newId('r'), studentId: user.id, classId: attempt.classId, version: attempt.version,
       attemptId: attempt.id, stem, category, reason: str(body.reason, 300, 'Reason'), at: now(), resolved: false,
     });
-    save();
+    save({ classId: attempt.classId });
     return { ok: true };
   });
 
@@ -1730,7 +1753,7 @@ return studentProgress(db, user.id, cl);
       if (pet) inv.pets.push({ id: pet.id, dupes: 0 });
       else inv.items.push(item.id);
     }
-    save();
+    save({ analytics: false });
     return { inventory: inv, wallet: wallet(user.id) };
   });
 
@@ -1766,7 +1789,7 @@ return studentProgress(db, user.id, cl);
       inv.pets.push({ id: pet.id, dupes: 0 });
     }
     db.ledger.find((t) => t.refKey === refKey).meta = { petId: pet.id, dupe: !!owned };
-    save();
+    save({ analytics: false });
     return { pet, duplicatePet: !!owned, inventory: inv, wallet: wallet(user.id) };
   });
 
@@ -1832,7 +1855,7 @@ return studentProgress(db, user.id, cl);
       inv.resources[roll.prize.resource] = (inv.resources[roll.prize.resource] || 0) + roll.prize.amount;
     }
     db.ledger.find((t) => t.refKey === refKey).meta = meta;
-    save();
+    save({ analytics: false });
     return { prize: roll.prize, pity: roll.pity, duplicateHero, refund, inventory: inv, wallet: wallet(user.id) };
   });
 
@@ -1847,7 +1870,7 @@ return studentProgress(db, user.id, cl);
       if (body.itemId !== null && !inv.items.includes(body.itemId)) fail(400, 'You do not own that item.');
       inv.equippedItem = body.itemId;
     }
-    save();
+    save({ analytics: false });
     return inv;
   });
 
@@ -1880,7 +1903,7 @@ return studentProgress(db, user.id, cl);
   route('POST', '/api/student/kingdom/build', 'student', ({ user, body }) => {
     const r = E.build(db, user.id, body.building, requestId(body.requestId), now());
     if (!r.ok) fail(400, r.error);
-    save();
+    save({ analytics: false });
     return { buildings: r.kingdom.buildings, castleLevel: E.castleLevel(r.kingdom), resources: E.resources(db, user.id) };
   });
 
@@ -1917,7 +1940,7 @@ return studentProgress(db, user.id, cl);
     const cls = studentClass(user, params.classId);
     const r = E.createTrade(db, { cls, studentId: user.id, give: body.give, want: body.want, now: now() });
     if (!r.ok) fail(400, r.error);
-    save();
+    save({ analytics: false });
     return [201, { id: r.trade.id }];
   });
 
@@ -1926,7 +1949,7 @@ return studentProgress(db, user.id, cl);
     const cls = studentClass(user, t.classId); // must be in the same class
     const r = E.acceptTrade(db, { cls, trade: t, studentId: user.id, now: now() });
     if (!r.ok) fail(409, r.error);
-    save();
+    save({ analytics: false });
     return { ok: true, resources: E.resources(db, user.id) };
   });
 
@@ -1934,7 +1957,7 @@ return studentProgress(db, user.id, cl);
     const t = db.trades.find((x) => x.id === params.tid && x.fromId === user.id) || fail(404, 'Not found.');
     const r = E.cancelTrade(db, { trade: t, now: now() });
     if (!r.ok) fail(409, r.error);
-    save();
+    save({ analytics: false });
     return { ok: true, resources: E.resources(db, user.id) };
   });
 

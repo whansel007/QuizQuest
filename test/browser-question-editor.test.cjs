@@ -2,6 +2,7 @@ const test=require('node:test');
 const assert=require('node:assert/strict');
 const {chromium}=require('playwright');
 const {start}=require('../server');
+const {unlockTestAccounts}=require('./support/accounts.cjs');
 let srv,browser,base,calls=0;
 test.before(async()=>{
   srv=start(0,{dataFile:null,authoringAI:async()=>{calls++;throw Error('Manual authoring must never infer');}});
@@ -13,7 +14,9 @@ test('four manual formats preserve code, answers and tags through preview, publi
   const page=await browser.newPage({viewport:{width:1280,height:1000}}),errors=[];
   page.on('pageerror',e=>errors.push(e.message));
   t.after(async()=>{await page.close();assert.deepEqual(errors,[]);});
-  await page.goto(base);await page.getByRole('button',{name:'Prof. Demo A',exact:false}).click();
+  await page.goto(base);await unlockTestAccounts(page);await page.getByRole('button',{name:'Prof. Demo A',exact:false}).click();
+  // professors land on Classes & Roster first, so open the tab these tests work in
+  await page.locator('#tabs').getByRole('button',{name:'Question bank',exact:true}).click();
   await page.getByRole('heading',{name:'Question bank',exact:true}).waitFor();
   const token=await page.evaluate(()=>sessionStorage.getItem('qq-token'));
   const headers={authorization:'Bearer '+token};
@@ -73,7 +76,10 @@ test('four manual formats preserve code, answers and tags through preview, publi
     assert.equal(await edit.getByLabel('Topic',{exact:true}).isDisabled(),true,'published taxonomy remains fixed');
     await edit.getByLabel('Explanation shown after answering',{exact:true}).fill('Updated explanation with `a < b` and **reasoning**.');
     await edit.getByRole('button',{name:'Save',exact:true}).click();await edit.waitFor({state:'detached'});
-    await page.reload();await page.getByRole('button',{name:/^Published \(/}).click();
+    await page.reload();
+    // the reload puts the professor back on Classes & Roster, so reopen the tab
+    await page.locator('#tabs').getByRole('button',{name:'Question bank',exact:true}).click();
+    await page.getByRole('button',{name:/^Published \(/}).click();
     const saved=await(await page.request.get(base+`/api/teacher/courses/${cid}/questions`,{headers})).json();
     const updated=saved.find(x=>x.id===q.id);assert.equal(updated.versions.length,2);assert.equal(updated.latest.stem,stems[type]);
     assert.equal(updated.latest.explanation,'Updated explanation with `a < b` and **reasoning**.');
@@ -125,7 +131,9 @@ test('question bank filters by topic and pages long lists',async t=>{
   // 14 extra drafts: 12 on Networking basics, 2 on Data representation.
   for(let i=0;i<14;i++) db.questions.push({...structuredClone(template),id:'q-page-'+i,status:'draft',topicId:i<12?'tp-net':'tp-data'});
   const drafts=(topic)=>db.questions.filter(q=>q.courseId==='c-comp' && q.status==='draft' && (!topic || q.topicId===topic)).length;
-  await page.goto(base);await page.getByRole('button',{name:'Prof. Demo A',exact:false}).click();
+  await page.goto(base);await unlockTestAccounts(page);await page.getByRole('button',{name:'Prof. Demo A',exact:false}).click();
+  // professors land on Classes & Roster first, so open the tab these tests work in
+  await page.locator('#tabs').getByRole('button',{name:'Question bank',exact:true}).click();
   await page.getByRole('heading',{name:'Question bank',exact:true}).waitFor();
   await page.getByRole('button',{name:/^Needs review/}).click();
   const cards=page.locator('.qcard'),pager=page.getByRole('navigation',{name:'Question pages',exact:true});

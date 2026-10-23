@@ -3,6 +3,7 @@ const assert = require('node:assert/strict');
 const { chromium } = require('playwright');
 const { start } = require('../server');
 const { lecture, pdf, pptx } = require('./support/lecture-fixtures.cjs');
+const { unlockTestAccounts } = require('./support/accounts.cjs');
 let srv, browser, base;
 let sequence = 0;
 let inferenceCalls = 0;
@@ -104,6 +105,7 @@ test('PDF/PPTX upload, saved Markdown editing, preview/download, generation and 
     assert.deepEqual(errors, []);
   });
   await page.goto(base);
+  await unlockTestAccounts(page);
   await page.getByRole('button', { name: 'Prof. Demo A' }).click();
   await page.locator('#tabs').getByRole('button', { name: 'AI drafting', exact: true }).click();
   await page.getByRole('button', { name: 'Choose files', exact: true }).waitFor();
@@ -309,7 +311,7 @@ test('unchanged intentional generation repeats, double clicks deduplicate, and a
     'Investigators compare elapsed packet travel intervals between endpoints during identical transfers. Identify the relevant reported quantity.');
   sequence=originalLength;t.after(()=>{stems.length=originalLength;sequence=originalSequence;});
   const page=await browser.newPage();t.after(()=>page.close());
-  await page.goto(base);await page.getByRole('button',{name:'Prof. Demo A'}).click();
+  await page.goto(base);await unlockTestAccounts(page);await page.getByRole('button',{name:'Prof. Demo A'}).click();
   await page.locator('#tabs').getByRole('button',{name:'AI drafting',exact:true}).click();
   await page.getByLabel('Learning outcome',{exact:true}).waitFor();
   await page.getByLabel('Learning outcome',{exact:true}).fill('Apply delay and bandwidth concepts to diagnose network scenarios.');
@@ -363,6 +365,7 @@ test('partial uploads recover filenames and retry only unsaved excerpts without 
   const page=await browser.newPage();
   t.after(()=>page.close());
   await page.goto(base);
+  await unlockTestAccounts(page);
   await page.getByRole('button',{name:'Prof. Demo A'}).click();
   await page.locator('#tabs').getByRole('button',{name:'AI drafting',exact:true}).click();
   await page.getByRole('button',{name:'Choose files',exact:true}).waitFor();
@@ -412,7 +415,7 @@ test('partial uploads recover filenames and retry only unsaved excerpts without 
 test('remove and replace uploads survive recovery, preserve reports, and require new-report confirmation', async t=>{
   const page=await browser.newPage(),stale=await browser.newPage();
   t.after(async()=>{await page.close();await stale.close();});
-  async function open(p){await p.goto(base);await p.getByRole('button',{name:'Prof. Demo A'}).click();await p.locator('#tabs').getByRole('button',{name:'AI drafting',exact:true}).click();await p.getByRole('button',{name:'Choose files',exact:true}).waitFor();await p.waitForFunction(()=>[...document.querySelectorAll('button')].some(b=>b.textContent==='Choose files' && !b.disabled));}
+  async function open(p){await p.goto(base);await unlockTestAccounts(p);await p.getByRole('button',{name:'Prof. Demo A'}).click();await p.locator('#tabs').getByRole('button',{name:'AI drafting',exact:true}).click();await p.getByRole('button',{name:'Choose files',exact:true}).waitFor();await p.waitForFunction(()=>[...document.querySelectorAll('button')].some(b=>b.textContent==='Choose files' && !b.disabled));}
   await open(page);
   const before=inferenceCalls,course=srv.quiz.db.courses.find(c=>c.id==='c-comp');
   const reports=JSON.stringify(course.authoringJobs),versions=JSON.stringify(srv.quiz.db.passages.filter(p=>p.origin==='report')),questions=JSON.stringify(srv.quiz.db.questions);
@@ -503,7 +506,7 @@ test('remove and replace uploads survive recovery, preserve reports, and require
 
 test('Application insufficiency is actionable and cannot silently generate conceptual replacements',async t=>{
   const page=await browser.newPage();t.after(async()=>{mockApplicationSupported=true;await page.close();});
-  await page.goto(base);await page.getByRole('button',{name:'Prof. Demo A'}).click();
+  await page.goto(base);await unlockTestAccounts(page);await page.getByRole('button',{name:'Prof. Demo A'}).click();
   await page.locator('#tabs').getByRole('button',{name:'AI drafting',exact:true}).click();
   const course=srv.quiz.db.courses.find(c=>c.id==='c-comp');
   const savedReport=course.authoringJobs.find(j=>j.kind==='analysis' && j.reportSourceId);
@@ -527,6 +530,7 @@ test('a stalled progress request releases controls and explicit refresh recovers
   const page = await browser.newPage();
   t.after(() => page.close());
   await page.goto(base);
+  await unlockTestAccounts(page);
   await page.getByRole('button', { name: 'Prof. Demo A' }).click();
   await page.locator('#tabs').getByRole('button', { name: 'AI drafting', exact: true }).click();
   await page.getByRole('button', { name: 'Choose files', exact: true }).waitFor();

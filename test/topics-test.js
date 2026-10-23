@@ -203,7 +203,7 @@ test('dashboard API: the topic filter is checked against the class\'s course', a
   // the marking queue follows the same filter
   const base = { classId: 'cl-a', courseId: 'c-comp', studentId: 's-01', questionId: 'q-x3', version: 1, type: 'short', text: 'Less delay.', correct: false, score: 0.3, needsReview: true, at: Date.now() };
   db.attempts.push({ ...base, id: 'at-mark-net', topicId: 'tp-net' }, { ...base, id: 'at-mark-sec', topicId: 'tp-sec' });
-  const queue = async (q) => (await req('GET', '/api/teacher/classes/cl-a/marking' + q, null, prof)).body.map((m) => m.attemptId).sort();
+  const queue = async (q) => (await req('GET', '/api/teacher/classes/cl-a/marking' + q, null, prof)).body.items.map((m) => m.attemptId).sort();
   assert.deepEqual(await queue(''), ['at-mark-net', 'at-mark-sec']);
   assert.deepEqual(await queue('?topic=tp-net'), ['at-mark-net']);
   assert.equal((await req('GET', '/api/teacher/classes/cl-a/marking?topic=tp-stats', null, prof)).status, 400);
