@@ -465,6 +465,19 @@ test('demo wallet editor records a server-side adjustment for the signed-in stud
   assert.equal((await call(null, 'POST', '/api/student/debug/wallet', { balance: 2 })).status, 401);
 });
 
+test('demo resource editor uses the catalog, saves balances, and rejects invalid resource types', async () => {
+  const token = await login('s-05');
+  const home = (await call(token, 'GET', '/api/student/home')).body;
+  for (const resource of Object.keys(home.catalog.resources)) {
+    const result = await call(token, 'POST', '/api/student/debug/resources', { resource, balance: 237 });
+    assert.equal(result.status, 200);
+    assert.equal(result.body.resources[resource], 237);
+    assert.ok(db().resourceLog.some((entry) => entry.studentId === 's-05' && entry.kind === 'debug' && Object.hasOwn(entry.delta, resource)));
+  }
+  assert.equal((await call(token, 'POST', '/api/student/debug/resources', { resource: 'coins', balance: 10 })).status, 400);
+  assert.equal((await call(null, 'POST', '/api/student/debug/resources', { resource: 'wood', balance: 10 })).status, 401);
+});
+
 test('kingdom: builds cost resources, repeat requests are idempotent', async () => {
   const t = await login('s-02');
   const k0 = (await call(t, 'GET', '/api/student/kingdom')).body;

@@ -104,10 +104,13 @@ function start(port, opts = {}) {
     }
     const pathname = req.url.split('?')[0];
     const isHeroLabPath = pathname === '/hero-lab' || pathname.startsWith('/hero-lab/');
+    const isTuningPath = pathname === '/config/tuning.js';
     // Keep the short URL used by the student hero picker and the run-again
     // button mapped to the actual standalone arena document.
     const heroLabPath = pathname === '/hero-lab/world' ? '/hero-lab/world.html' : pathname;
-    const file = TAG[pathname] || (isHeroLabPath
+    const file = TAG[pathname] || (isTuningPath
+      ? path.join(__dirname, 'config', 'tuning.js')
+      : isHeroLabPath
       ? path.resolve(heroLabDir, heroLabPath === '/hero-lab' ? 'index.html' : '.' + heroLabPath.slice('/hero-lab'.length))
       : path.join(distDir, pathname === '/' ? 'index.html' : pathname));
     if (isHeroLabPath && file !== heroLabDir && !file.startsWith(heroLabDir + path.sep)) {
@@ -116,7 +119,7 @@ function start(port, opts = {}) {
     }
     // Guard against path traversal attempts like GET /../server.js
     // (the trailing separator stops a sibling folder like "dist-old" matching)
-    if (!TAG[pathname] && !isHeroLabPath && !file.startsWith(distDir + path.sep)) {
+    if (!TAG[pathname] && !isHeroLabPath && !isTuningPath && !file.startsWith(distDir + path.sep)) {
       res.writeHead(403);
       return res.end();
     }
@@ -150,6 +153,9 @@ function start(port, opts = {}) {
   const world = attachWorld(io, quiz.services);
   // The standalone Hero Lab shares the same input/state pattern on '/hero-lab'
   const heroLab = attachHeroLab(io, quiz.services);
+  // The debug menu reads live rooms through the API; the handle is attached
+  // after both exist so neither module has to know the other's construction.
+  quiz.services.heroLab = heroLab;
 
   // Smallest free slot (1..4). Slot = the player's identity: P1, P2...
   function freeSlot() {

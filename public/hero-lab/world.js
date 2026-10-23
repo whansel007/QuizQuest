@@ -2,23 +2,35 @@ import { HEROES } from './hero-list.js';
 import { EnemyProjectile } from './projectiles/enemy-projectile.js';
 import { Projectile } from './bases/projectile.js';
 import { GAME_CONFIG, HERO_FX_COLORS } from './game-config.js';
+import { SHAKE_PLAYER_HIT_TRAUMA, SHAKE_ULTIMATE_TRAUMA, SHAKE_BOSS_SLAM_TRAUMA, SHAKE_EXPLOSION_BASE_TRAUMA,
+  SHAKE_EXPLOSION_RADIUS_SCALE, SHAKE_MAX_TRAUMA, SHAKE_DECAY, SHAKE_MAX_OFFSET, SHAKE_EXPLOSION_COOLDOWN_MS,
+  SHAKE_NOISE_HZ, SHAKE_NOISE_PRIMARY_PHASE, SHAKE_NOISE_PRIMARY_FREQUENCY, SHAKE_NOISE_SECONDARY_FREQUENCY, SHAKE_NOISE_SECONDARY_PHASE, SHAKE_DEFAULT_INTENSITY,
+  SHAKE_MIN_INTENSITY, SHAKE_MAX_INTENSITY, SHAKE_INTENSITY_STEP } from '../../config/tuning.js';
 import { playSound, setAudioOptions, setHeartbeat } from './arena-audio.js';
 
 const canvas = document.querySelector('#world');
-const context = canvas.getContext('2d');
+const ARENA_WIDTH = GAME_CONFIG.arena.width;
+const ARENA_HEIGHT = GAME_CONFIG.arena.height;
+// Rasterize close to the displayed viewport while keeping world coordinates fixed.
+const renderScale = Math.min(1, Math.max(0.4, Math.min(innerWidth / ARENA_WIDTH, innerHeight / ARENA_HEIGHT)));
+canvas.width = Math.round(ARENA_WIDTH * renderScale);
+canvas.height = Math.round(ARENA_HEIGHT * renderScale);
+const particleBudget = Math.max(100, Math.floor(GAME_CONFIG.arenaTuning.performance.maxParticles * renderScale * renderScale));
+const context = canvas.getContext('2d', { alpha: false, desynchronized: true });
 const backgroundCanvas = document.createElement('canvas');
 backgroundCanvas.width = canvas.width;
 backgroundCanvas.height = canvas.height;
 const backgroundContext = backgroundCanvas.getContext('2d');
-for (let y = 0; y < backgroundCanvas.height; y += 80) {
-  for (let x = 0; x < backgroundCanvas.width; x += 80) {
+backgroundContext.scale(renderScale, renderScale);
+for (let y = 0; y < ARENA_HEIGHT; y += 80) {
+  for (let x = 0; x < ARENA_WIDTH; x += 80) {
     backgroundContext.fillStyle = (Math.floor(x / 80) + Math.floor(y / 80)) % 2 ? '#79b456' : '#70a94f';
     backgroundContext.fillRect(x, y, 80, 80);
   }
 }
 backgroundContext.strokeStyle = '#456f35';
 backgroundContext.lineWidth = 1;
-backgroundContext.strokeRect(0.5, 0.5, canvas.width - 1, canvas.height - 1);
+backgroundContext.strokeRect(0.5, 0.5, ARENA_WIDTH - 1, ARENA_HEIGHT - 1);
 const connectionStatus = document.querySelector('#connection-status');
 const waveNumber = document.querySelector('#wave-number');
 const waveDetails = document.querySelector('#wave-details');
@@ -27,6 +39,22 @@ const healthFill = document.querySelector('#health-fill');
 const healthTrack = document.querySelector('.health-track');
 const healthValue = document.querySelector('#health-value');
 const teamHealth = document.querySelector('#team-health');
+const roomRow = document.querySelector('#room-row');
+const roomCodeButton = document.querySelector('#room-code');
+const roomCodeValue = document.querySelector('#room-code-value');
+const roomCodeCopied = document.querySelector('#room-code-copied');
+const waitingBanner = document.querySelector('#waiting-banner');
+const waitingDetail = document.querySelector('#waiting-detail');
+const abilityHud = document.querySelector('#ability-hud');
+const toastStack = document.querySelector('#toast-stack');
+const playerList = document.querySelector('#player-list');
+const playerListRows = document.querySelector('#player-list-rows');
+const lobbyBar = document.querySelector('#lobby-bar');
+const lobbyHero = document.querySelector('#lobby-hero');
+const startRunButton = document.querySelector('#start-run');
+const lobbyHint = document.querySelector('#lobby-hint');
+const countdownOverlay = document.querySelector('#countdown');
+const countdownValue = document.querySelector('#countdown-value');
 const buffIcons = document.querySelector('#buff-icons');
 const downedList = document.querySelector('#downed-list');
 const briefingButton = document.querySelector('#briefing-button');
@@ -50,16 +78,35 @@ const lowHpVignette = document.querySelector('#low-hp-vignette');
 const settingsButton = document.querySelector('#settings-button');
 const settingsPanel = document.querySelector('#settings-panel');
 const shakeSetting = document.querySelector('#shake-setting');
+const shakeIntensitySetting = document.querySelector('#shake-intensity-setting');
+const shakeIntensityValue = document.querySelector('#shake-intensity-value');
 const numbersSetting = document.querySelector('#numbers-setting');
 const muteSetting = document.querySelector('#mute-setting');
 const volumeSetting = document.querySelector('#volume-setting');
 const killStreakHud = document.querySelector('#kill-streak');
+const overloadFlash = document.querySelector('#overload-flash');
+const sheriffSkillAbility = document.querySelector('.ability[data-ability="skill"]');
+const sheriffRefundLabel = sheriffSkillAbility.querySelector('.cooldown-refund-label');
 let token = null;
 try { token = sessionStorage.getItem('qq-token'); } catch { /* standalone Hero Lab has no app session */ }
 const socket = window.io('/hero-lab', { auth: token ? { token } : {} });
-const heroId = new URLSearchParams(location.search).get('heroId');
+const query = new URLSearchParams(location.search);
+const heroId = query.get('heroId');
+const embedded = query.has('embedded') && window.parent !== window;
+const requestedRoomCode = (query.get('room') || '').trim().toUpperCase();
+const createRequested = query.get('create') === '1';
 const selectedHero = HEROES.find((hero) => hero.id === heroId);
 if (!selectedHero) location.replace('/hero-lab');
+// The hero this client is playing. Lobby swaps change it without a reload.
+let activeHeroId = selectedHero.id;
+
+// The room this client is attached to. Set from the URL, then kept from the
+// server's welcome so a socket reconnect rejoins the same room instead of
+// creating a second one.
+let activeRoomCode = requestedRoomCode;
+let joinFailed = false;
+// Set when the server detaches this socket from the room (leaving at dawn).
+let leftRoom = false;
 
 const keys = { up: false, down: false, left: false, right: false };
 const codeToKey = {
@@ -86,19 +133,35 @@ const previousPositions = new Map();
 const momentumVisualAlpha = new Map();
 const momentumPositions = new Map();
 const momentumReadyLabels = [];
+const chainCounters = new Map();
+const dynamiteReadyBounces = new Map();
+let sheriffRefundLabelState = null;
+let sheriffRefundLabelTimer = null;
 let lastLocalPosition = null;
 let localIdleSince = performance.now();
 let momentumNudge = null;
 let sessionNudgeCount = 0;
 try { sessionNudgeCount = Number(sessionStorage.getItem('hero-lab-momentum-nudges') || 0) || 0; } catch { /* session storage is optional */ }
 const ARENA_TUNING = GAME_CONFIG.arenaTuning;
+document.documentElement.style.setProperty('--cooldown-ring-transition', `${ARENA_TUNING.heroTweaks.cooldownRingTransitionMs}ms`);
+document.documentElement.style.setProperty('--sheriff-ready-glow-period', `${ARENA_TUNING.heroTweaks.sheriffReadyGlowPeriodMs}ms`);
+document.documentElement.style.setProperty('--sheriff-ready-ring-duration', `${ARENA_TUNING.heroTweaks.sheriffReadyRingMs}ms`);
+document.documentElement.style.setProperty('--sheriff-refund-pulse-duration', `${ARENA_TUNING.heroTweaks.sheriffRefundPulseMs}ms`);
+document.documentElement.style.setProperty('--sheriff-refund-label-duration', `${ARENA_TUNING.heroTweaks.sheriffRefundLabelMs}ms`);
+document.documentElement.style.setProperty('--overload-flash-duration', `${ARENA_TUNING.heroTweaks.electroOverloadFlashMs}ms`);
+document.documentElement.style.setProperty('--overload-feedback-duration', `${ARENA_TUNING.heroTweaks.electroOverloadFeedbackMs}ms`);
 const hasCard = (id) => (state.activeBuffs || []).some((buff) => buff.id === id);
-const settings = { screenShake: true, damageNumbers: true, masterVolume: ARENA_TUNING.sound.defaultMasterVolume, muted: false };
+const settings = { screenShake: true, shakeIntensity: SHAKE_DEFAULT_INTENSITY, damageNumbers: true, masterVolume: ARENA_TUNING.sound.defaultMasterVolume, muted: false };
 try { Object.assign(settings, JSON.parse(localStorage.getItem('hero-lab-settings') || '{}')); } catch { /* use defaults */ }
+const storedShakeIntensity = Number(settings.shakeIntensity);
+settings.shakeIntensity = Number.isFinite(storedShakeIntensity)
+  ? Math.max(SHAKE_MIN_INTENSITY, Math.min(SHAKE_MAX_INTENSITY, storedShakeIntensity)) : SHAKE_DEFAULT_INTENSITY;
 setAudioOptions({ volume: settings.masterVolume, mute: settings.muted });
 let lastTime = performance.now();
 let lastBuffRender = '';
-let cameraShake = { until: 0, intensity: 0, durationMs: 0 };
+let trauma = 0;
+let lastTraumaUpdateAt = performance.now();
+let lastExplosionTraumaAt = Number.NEGATIVE_INFINITY;
 let cameraZoom = { until: 0, scale: 1 };
 let combo = { count: 0, lastKillAt: 0 };
 let bannerTimer = null;
@@ -120,13 +183,12 @@ function saveSettings() {
 }
 
 function addParticle(particle) {
-  const maxParticles = ARENA_TUNING.performance.maxParticles;
-  if (particles.length >= maxParticles) return;
+  if (particles.length >= particleBudget) return;
   particles.push(particle);
 }
 
 function returnToKingdom() {
-  if (new URLSearchParams(location.search).has('embedded') && window.parent !== window) {
+  if (embedded) {
     window.parent.postMessage({ type: 'hero-lab-game-over' }, location.origin);
   } else location.replace('/hero-lab');
 }
@@ -135,7 +197,7 @@ function showRunResult(result) {
   latestRunResult = result;
   milestoneDawn.hidden = true;
   runResultPanel.hidden = false;
-  const bestKey = `hero-lab-best:${result.heroId || selectedHero.id}`;
+  const bestKey = `hero-lab-best:${result.heroId || activeHeroId}`;
   let personalBest = Number(result.wavesReached) || 0;
   try {
     personalBest = Math.max(personalBest, Number(localStorage.getItem(bestKey)) || 0);
@@ -144,19 +206,23 @@ function showRunResult(result) {
   document.querySelector('#run-result-title').textContent = result.victory ? 'Victory!' : 'Campfire extinguished';
   document.querySelector('#run-result-message').textContent = `${result.wavesCleared || 0} waves cleared · ${result.rewardCoins || 0} placeholder coins${result.victory ? ' claimed' : ' earned'}.`;
   runResultStats.replaceChildren();
+  const upgradeLines = result.attackBonusPercent > 0
+    ? [`Your ${result.attackBonusBuilding || 'Kingdom'} +${result.attackBonusPercent}% base attack bonus dealt ${result.bonusDamage || 0} extra damage`]
+    : [`Kingdom attack bonus: 0% · Extra damage: ${result.bonusDamage || 0}`];
+  if (result.campfireBonusPercent > 0) upgradeLines.push(`Garden +${result.campfireBonusPercent}% base campfire HP per player`);
   for (const line of [
     `Waves reached: ${result.wavesReached || 0}`,
     `Kills: ${result.kills || 0}`,
     `Damage dealt: ${result.damageDealt || 0}`,
     `Personal best with this hero: ${personalBest} waves`,
-    `Your upgrades dealt ${result.bonusDamage || 0} extra damage`,
+    ...upgradeLines,
   ]) {
     const item = document.createElement('span'); item.textContent = line; runResultStats.append(item);
   }
   document.querySelector('#run-result-teaser').textContent = `Brute King awaits at wave ${result.nextBossWave || ARENA_TUNING.run.bossTeaserWave}.`;
   runAgainHero.replaceChildren(...HEROES.map((hero) => {
     const option = document.createElement('option'); option.value = hero.id; option.textContent = `${hero.emoji} ${hero.name}`;
-    option.selected = hero.id === (result.heroId || selectedHero.id); return option;
+    option.selected = hero.id === (result.heroId || activeHeroId); return option;
   }));
 
   let runCount = 0;
@@ -181,8 +247,23 @@ document.querySelector('#dawn-continue').addEventListener('click', () => {
   socket.emit('milestone_choice', 'continue');
 });
 document.querySelector('#run-again').addEventListener('click', () => {
-  const nextHeroId = runAgainHero.value || selectedHero.id;
-  if (new URLSearchParams(location.search).has('embedded') && window.parent !== window) {
+  const nextHeroId = runAgainHero.value || activeHeroId;
+  // Leaving at dawn detaches the socket from the room: there is no lobby left
+  // to return to, so RUN AGAIN sends the player back to the hero picker.
+  if (leftRoom) { returnToKingdom(); return; }
+  // A finished run leaves the room in its lobby, so RUN AGAIN can simply swap
+  // the hero and drop the overlay — no reconnect, no reload.
+  if (state.room?.phase === 'lobby' && socket.connected && !joinFailed) {
+    if (nextHeroId !== activeHeroId) {
+      pendingHeroSwap = nextHeroId;
+      pendingHeroSwapAt = performance.now();
+      socket.emit('swap_hero', nextHeroId);
+    }
+    runResultPanel.hidden = true;
+    latestRunResult = null;
+    return;
+  }
+  if (embedded) {
     window.parent.postMessage({ type: 'hero-lab-run-again', heroId: nextHeroId }, location.origin);
   } else location.replace(`/hero-lab/world?heroId=${encodeURIComponent(nextHeroId)}`);
 });
@@ -190,6 +271,11 @@ document.querySelector('#return-kingdom').addEventListener('click', returnToKing
 document.querySelector('#session-stop').addEventListener('click', returnToKingdom);
 document.querySelector('#session-keep-going').addEventListener('click', () => { sessionSummary.hidden = true; });
 shakeSetting.checked = settings.screenShake;
+shakeIntensitySetting.value = String(settings.shakeIntensity);
+shakeIntensitySetting.min = String(SHAKE_MIN_INTENSITY);
+shakeIntensitySetting.max = String(SHAKE_MAX_INTENSITY);
+shakeIntensitySetting.step = String(SHAKE_INTENSITY_STEP);
+shakeIntensityValue.textContent = `${settings.shakeIntensity}%`;
 numbersSetting.checked = settings.damageNumbers;
 muteSetting.checked = settings.muted;
 volumeSetting.value = String(settings.masterVolume);
@@ -203,24 +289,61 @@ document.addEventListener('click', (event) => {
   if (button && button !== settingsButton && !button.disabled) playSound('uiClick');
 });
 shakeSetting.addEventListener('change', () => { settings.screenShake = shakeSetting.checked; saveSettings(); });
+shakeIntensitySetting.addEventListener('input', () => {
+  settings.shakeIntensity = Number(shakeIntensitySetting.value);
+  shakeIntensityValue.textContent = `${settings.shakeIntensity}%`;
+  saveSettings();
+});
 numbersSetting.addEventListener('change', () => { settings.damageNumbers = numbersSetting.checked; saveSettings(); });
 muteSetting.addEventListener('change', () => { settings.muted = muteSetting.checked; saveSettings(); });
 volumeSetting.addEventListener('input', () => { settings.masterVolume = Number(volumeSetting.value); saveSettings(); });
 
-function shakeCamera(intensity, durationMs) {
-  if (!settings.screenShake) return;
-  cameraShake = { until: performance.now() + durationMs, intensity: Math.max(cameraShake.intensity, intensity), durationMs };
+lobbyHero.replaceChildren(...HEROES.map((hero) => {
+  const option = document.createElement('option');
+  option.value = hero.id;
+  option.textContent = `${hero.emoji} ${hero.name}`;
+  return option;
+}));
+lobbyHero.value = activeHeroId;
+lobbyHero.addEventListener('change', () => {
+  if (!socket.connected) return;
+  pendingHeroSwap = lobbyHero.value;
+  pendingHeroSwapAt = performance.now();
+  socket.emit('swap_hero', lobbyHero.value);
+});
+startRunButton.addEventListener('click', () => {
+  if (socket.connected) socket.emit('start_run');
+});
+
+function shakeCamera(amount, source = 'event') {
+  if (!settings.screenShake || settings.shakeIntensity <= SHAKE_MIN_INTENSITY) return;
+  const now = performance.now();
+  if (source === 'explosion') {
+    if (now - lastExplosionTraumaAt < SHAKE_EXPLOSION_COOLDOWN_MS) return;
+    lastExplosionTraumaAt = now;
+  }
+  trauma = Math.min(SHAKE_MAX_TRAUMA, trauma + amount);
 }
 
-function showAreaEffect({ x, y, radius, kind = 'player', telegraphMs = 0, sourceAbility = 'weapon' }) {
+function smoothShakeNoise(timestamp, phase = SHAKE_NOISE_PRIMARY_PHASE) {
+  const samplePosition = timestamp * SHAKE_NOISE_HZ / 1000;
+  const sample = Math.floor(samplePosition);
+  const fraction = samplePosition - sample;
+  const eased = fraction * fraction * (3 - 2 * fraction);
+  const valueAt = (index) => (Math.sin(index * SHAKE_NOISE_PRIMARY_FREQUENCY + phase)
+    + Math.sin(index * SHAKE_NOISE_SECONDARY_FREQUENCY + phase + SHAKE_NOISE_SECONDARY_PHASE)) / 2;
+  return valueAt(sample) + (valueAt(sample + 1) - valueAt(sample)) * eased;
+}
+
+function showAreaEffect({ x, y, radius, kind = 'player', telegraphMs = 0, sourceAbility = 'weapon', color = null, sourceHeroId = null }) {
   const now = performance.now();
-  areaEffects.push({ x, y, radius, kind, sourceAbility, phase: telegraphMs > 0 ? 'telegraph' : 'detonation', startedAt: now,
+  areaEffects.push({ x, y, radius, kind, sourceAbility, color, sourceHeroId, phase: telegraphMs > 0 ? 'telegraph' : 'detonation', startedAt: now,
     durationMs: telegraphMs > 0 ? telegraphMs : ARENA_TUNING.areaEffects.detonationMs });
   if (areaEffects.length > 24) areaEffects.shift();
   if (telegraphMs <= 0) {
-    const factor = Math.min(1, radius / ARENA_TUNING.enemies.bruteKing.slamRadius);
-    const intensity = ARENA_TUNING.screenShake.majorMinPx + factor * (ARENA_TUNING.screenShake.majorMaxPx - ARENA_TUNING.screenShake.majorMinPx);
-    shakeCamera(intensity, ARENA_TUNING.screenShake.majorMs);
+    if (sourceAbility === 'boss-slam') shakeCamera(SHAKE_BOSS_SLAM_TRAUMA, 'major');
+    else if (sourceHeroId === 'guardian' && sourceAbility === 'ultimate') shakeCamera(SHAKE_ULTIMATE_TRAUMA, 'major');
+    else shakeCamera(SHAKE_EXPLOSION_BASE_TRAUMA + radius / SHAKE_EXPLOSION_RADIUS_SCALE, 'explosion');
   }
 }
 
@@ -241,6 +364,20 @@ function addDamageNumber({ x, y, damage, sourceId, targetId, bonus = false, colo
   damageTexts.push({ x, y, startY: y, value: damage, text: `-${Math.round(damage)}`, startedAt: now, lastHitAt: now,
     sourceId, targetId, bonus, alpha: 1, color: bonus ? '#ffe34f' : (color || '#fff'), scale: bonus ? ARENA_TUNING.damageNumbers.bonusScale : 1 });
   while (damageTexts.length > ARENA_TUNING.damageNumbers.maxVisible) damageTexts.shift();
+}
+
+function showElectroOverload(event) {
+  damageTexts.push({ x: event.heroX, y: event.heroY - 64, text: 'OVERLOAD!', alpha: 1, vy: -18,
+    color: HERO_FX_COLORS.electromancer.highlight, scale: 1.35 });
+  overloadFlash.classList.remove('show');
+  void overloadFlash.offsetWidth;
+  overloadFlash.classList.add('show');
+  setTimeout(() => overloadFlash.classList.remove('show'), ARENA_TUNING.heroTweaks.electroOverloadFlashMs);
+  const circle = document.querySelector('.ability[data-ability="ultimate"] .ability-circle');
+  circle.classList.remove('overload-pulse');
+  void circle.offsetWidth;
+  circle.classList.add('overload-pulse');
+  setTimeout(() => circle.classList.remove('overload-pulse'), ARENA_TUNING.heroTweaks.electroOverloadFeedbackMs);
 }
 
 function showBanner(text, boss = false, durationMs = ARENA_TUNING.waveMoments.bannerMs) {
@@ -308,9 +445,16 @@ function showMuzzleFlash(player) {
     recoil: ARENA_TUNING.muzzleFlash.recoilMinPx + Math.random() * (ARENA_TUNING.muzzleFlash.recoilMaxPx - ARENA_TUNING.muzzleFlash.recoilMinPx) });
 }
 
+function joinPayload() {
+  const payload = { heroId: activeHeroId };
+  if (activeRoomCode) payload.roomCode = activeRoomCode;
+  else if (createRequested) payload.create = true;
+  return payload;
+}
+
 socket.on('connect', () => {
   connectionStatus.textContent = 'Joining the field…';
-  if (selectedHero) socket.emit('join', { heroId: selectedHero.id });
+  if (selectedHero && !joinFailed) socket.emit('join', joinPayload());
 });
 socket.on('connect_error', (error) => {
   connectionStatus.textContent = `Could not connect to the server: ${error.message}`;
@@ -324,8 +468,18 @@ socket.on('disconnect', () => {
 });
 socket.on('welcome', (welcome) => {
   me = welcome.you;
+  joinFailed = false;
+  if (welcome.room?.code) activeRoomCode = welcome.room.code;
   connectionStatus.textContent = 'Connected';
+  if (embedded && welcome.room?.code) window.parent.postMessage({ type: 'hero-lab-room', code: welcome.room.code }, location.origin);
   openBriefing();
+});
+socket.on('join_error', ({ code, message } = {}) => {
+  joinFailed = true;
+  releaseKeys();
+  connectionStatus.textContent = message || 'Could not join the room';
+  if (embedded) window.parent.postMessage({ type: 'hero-lab-join-error', code, message }, location.origin);
+  else showBanner(message || 'Could not join the room');
 });
 socket.on('state', (snapshot) => {
   state = snapshot;
@@ -342,6 +496,36 @@ socket.on('state', (snapshot) => {
 });
 socket.on('notice', (message) => {
   connectionStatus.textContent = message;
+});
+socket.on('host_changed', ({ name } = {}) => { if (name) showToast(`${name} is now the host`); });
+socket.on('player_waiting', ({ name } = {}) => { if (name) showToast(`${name} is joining after this wave`); });
+socket.on('player_joined', ({ name } = {}) => { if (name) showToast(`${name} joined`); });
+socket.on('player_reconnected', ({ name } = {}) => { if (name) showToast(`${name} reconnected`); });
+socket.on('countdown', () => { playSound('waveStart'); });
+socket.on('run_started', () => {
+  countdownOverlay.hidden = true;
+  countdownLabel = '';
+  if (!runResultPanel.hidden) runResultPanel.hidden = true;
+});
+socket.on('hero_swapped', ({ playerId, heroId } = {}) => {
+  if (playerId === me && heroId) activeHeroId = heroId;
+});
+socket.on('start_rejected', ({ code } = {}) => {
+  if (code === 'not_host') showToast('Only the host can start the run');
+});
+socket.on('dummy_broken', ({ x, y } = {}) => {
+  for (let i = 0; i < 14; i++) {
+    const angle = Math.random() * Math.PI * 2;
+    const speed = 40 + Math.random() * 120;
+    addParticle({ x, y, vx: Math.cos(angle) * speed, vy: Math.sin(angle) * speed,
+      radius: 1.5 + Math.random() * 2.5, color: Math.random() > 0.5 ? '#f5d76e' : '#fff3bd',
+      alpha: 1, startedAt: performance.now(), expiresAt: performance.now() + 520 });
+  }
+  playSound('hit');
+});
+socket.on('left_room', () => {
+  leftRoom = true;
+  if (runResultPanel.hidden) returnToKingdom();
 });
 socket.on('wave_start', (event) => {
   showBanner(event.bossWave ? 'BOSS WAVE' : `WAVE ${event.wave}`, Boolean(event.bossWave));
@@ -362,7 +546,7 @@ socket.on('run_result', showRunResult);
 socket.on('ability_used', (event) => {
   if (event.ability === 'ultimate') {
     playSound('ultimateCast', { volume: event.playerId === me ? 1 : 0.65 });
-    shakeCamera(ARENA_TUNING.screenShake.majorMinPx, ARENA_TUNING.screenShake.majorMs);
+    shakeCamera(SHAKE_ULTIMATE_TRAUMA, 'major');
   }
 });
 socket.on('weapon_fired', (event) => {
@@ -376,16 +560,16 @@ socket.on('dash_hit', (event) => {
     addParticle({ x: player.x - player.aim.x * 20, y: player.y - player.aim.y * 20, vx: -player.aim.x * 90, vy: -player.aim.y * 90,
       radius: 2, color: HERO_FX_COLORS[event.heroId]?.highlight || '#fff', alpha: 0.9, decay: 0.08 });
   }
-  if (event.id === me) shakeCamera(ARENA_TUNING.screenShake.majorMinPx, ARENA_TUNING.screenShake.heroHitMs);
+  if (event.id === me) shakeCamera(SHAKE_PLAYER_HIT_TRAUMA);
 });
 socket.on('player_hit', (hit) => {
   if (hit.id !== me) return;
   addDamageNumber({ x: hit.x, y: hit.y - 24, damage: hit.damage, sourceId: hit.sourceId, targetId: hit.id, color: '#ff6161' });
-  shakeCamera(ARENA_TUNING.screenShake.heroHitMinPx + Math.random() * (ARENA_TUNING.screenShake.heroHitMaxPx - ARENA_TUNING.screenShake.heroHitMinPx), ARENA_TUNING.screenShake.heroHitMs);
+  if (hit.sourceAbility !== 'boss-slam') shakeCamera(SHAKE_PLAYER_HIT_TRAUMA);
   playSound('hit');
 });
 socket.on('campfire_hit', () => {
-  shakeCamera(ARENA_TUNING.screenShake.majorMinPx, ARENA_TUNING.screenShake.majorMs);
+  shakeCamera(SHAKE_PLAYER_HIT_TRAUMA);
   playSound('campfireDamaged');
   campfireHud.classList.remove('campfire-hit');
   void campfireHud.offsetWidth;
@@ -397,14 +581,14 @@ socket.on('hero_downed', (event) => {
 });
 socket.on('hero_respawn', (event) => {
   playSound('heroRespawn', { volume: event.playerId === me ? 1 : 0.7 });
-  if (event.playerId === me) shakeCamera(ARENA_TUNING.screenShake.majorMinPx, ARENA_TUNING.screenShake.majorMs);
+  if (event.playerId === me) shakeCamera(SHAKE_PLAYER_HIT_TRAUMA);
 });
 socket.on('momentum_ready', (event) => {
   if (event.playerId === me) momentumReadyLabels.push({ startedAt: performance.now(), bonus: event.bonus });
 });
 socket.on('game_over', (result = {}) => {
   if (runResultPanel.hidden) showRunResult({ victory: false, reason: result.reason, wavesReached: state.wave?.number || 0,
-    wavesCleared: 0, kills: 0, damageDealt: 0, bonusDamage: 0, rewardCoins: 0, nextBossWave: ARENA_TUNING.run.bossTeaserWave, heroId: selectedHero.id });
+    wavesCleared: 0, kills: 0, damageDealt: 0, bonusDamage: 0, rewardCoins: 0, nextBossWave: ARENA_TUNING.run.bossTeaserWave, heroId: activeHeroId });
 });
 socket.on('hit', (hit) => {
   const fx = HERO_FX_COLORS[hit.heroId] || {};
@@ -478,6 +662,43 @@ socket.on('area_effect', (effect) => {
 });
 socket.on('lightning_chain', (arc) => lightningArcs.push({ ...arc, expires: performance.now() + GAME_CONFIG.visuals.lightningArcMs,
   color: HERO_FX_COLORS.electromancer.highlight }));
+socket.on('electro_chain_refund', (event) => {
+  const now = performance.now();
+  chainCounters.set(event.playerId, { count: event.hitCount, startedAt: now });
+  addParticle({ x: event.x, y: event.y, vx: 0, vy: -16, radius: 4,
+    color: HERO_FX_COLORS.electromancer.highlight, alpha: 1, decay: 0.08, expiresAt: now + 300 });
+  if (event.playerId === me && event.cooldownRefilled) showElectroOverload(event);
+});
+socket.on('dynamite_ready', ({ playerId }) => {
+  dynamiteReadyBounces.set(playerId, performance.now());
+  if (playerId === me) {
+    playSound('dynamiteReady');
+    const circle = sheriffSkillAbility.querySelector('.ability-circle');
+    circle.classList.add('dynamite-ready-pulse');
+    setTimeout(() => circle.classList.remove('dynamite-ready-pulse'), ARENA_TUNING.heroTweaks.sheriffReadyRingMs);
+  }
+});
+socket.on('sheriff_cooldown_refund', (event) => {
+  if (event.playerId !== me) return;
+  const now = performance.now();
+  if (!sheriffRefundLabelState || now > sheriffRefundLabelState.mergeUntil) sheriffRefundLabelState = { totalMs: 0 };
+  sheriffRefundLabelState.totalMs += event.refundMs;
+  sheriffRefundLabelState.mergeUntil = now + ARENA_TUNING.heroTweaks.sheriffRefundMergeMs;
+  sheriffRefundLabel.textContent = `-${(sheriffRefundLabelState.totalMs / 1000).toFixed(1)}s`;
+  sheriffRefundLabel.hidden = false;
+  sheriffRefundLabel.classList.remove('show');
+  void sheriffRefundLabel.offsetWidth;
+  sheriffRefundLabel.classList.add('show');
+  const circle = sheriffSkillAbility.querySelector('.ability-circle');
+  circle.classList.remove('cooldown-refund-pulse');
+  void circle.offsetWidth;
+  circle.classList.add('cooldown-refund-pulse');
+  clearTimeout(sheriffRefundLabelTimer);
+  sheriffRefundLabelTimer = setTimeout(() => {
+    sheriffRefundLabel.hidden = true;
+    sheriffRefundLabel.classList.remove('show');
+  }, ARENA_TUNING.heroTweaks.sheriffRefundLabelMs);
+});
 socket.on('lightning_flash', (flash) => enemyFlashes.set(flash.id, performance.now() + GAME_CONFIG.visuals.enemyFlashMs));
 socket.on('ricochet_line', (arc) => lightningArcs.push({ ...arc, expires: performance.now() + GAME_CONFIG.arenaTuning.cards.effects.ricochetLineMs,
   color: HERO_FX_COLORS[arc.heroId]?.primary || '#fff' }));
@@ -492,7 +713,7 @@ socket.on('pickup_collected', (pickup) => {
 });
 socket.on('life_steal', (heal) => addParticle({ x: heal.x, y: heal.y - 22, vx: 0, vy: -25, radius: 10,
   color: '#88ff9c', text: `+${Math.round(heal.amount)}`, alpha: 1, decay: 0.03 }));
-socket.on('second_wind', () => { showBanner('SECOND WIND'); playSound('explosion'); shakeCamera(ARENA_TUNING.screenShake.majorMinPx, ARENA_TUNING.screenShake.majorMs); });
+socket.on('second_wind', () => { showBanner('SECOND WIND'); playSound('explosion'); shakeCamera(SHAKE_ULTIMATE_TRAUMA, 'major'); });
 socket.on('dash_extended', (popup) => {
   if (popup.id === me) damageTexts.push({ x: popup.x, y: popup.y - 36, text: `+${(popup.ms / 1000).toFixed(1)}s`, alpha: 1, vy: -28, color: '#a6ffb4' });
 });
@@ -560,8 +781,8 @@ function releaseKeys() {
 function getPointerCoordinates(event) {
   const rect = canvas.getBoundingClientRect();
   return {
-    x: ((event.clientX - rect.left) / rect.width) * canvas.width,
-    y: ((event.clientY - rect.top) / rect.height) * canvas.height,
+    x: ((event.clientX - rect.left) / rect.width) * ARENA_WIDTH,
+    y: ((event.clientY - rect.top) / rect.height) * ARENA_HEIGHT,
   };
 }
 
@@ -583,7 +804,7 @@ function stopPrimaryFire() {
 }
 
 function setPrimaryHeld(held) {
-  if (selectedHero.id === 'sheriff' && socket.connected) socket.emit('primary_hold', Boolean(held));
+  if (activeHeroId === 'sheriff' && socket.connected) socket.emit('primary_hold', Boolean(held));
 }
 
 function onPointerMove(event) {
@@ -628,9 +849,144 @@ function toggleStats() {
 
 infoButton.addEventListener('click', toggleStats);
 
+let roomCodeCopiedTimer = null;
+
+function showToast(message) {
+  if (!toastStack || !message) return;
+  while (toastStack.children.length >= 4) toastStack.firstElementChild.remove();
+  const toast = document.createElement('div');
+  toast.className = 'toast';
+  toast.textContent = message;
+  toastStack.append(toast);
+  setTimeout(() => toast.classList.add('fade'), 2600);
+  setTimeout(() => toast.remove(), 3000);
+}
+
+roomCodeButton?.addEventListener('click', async () => {
+  const code = state.room?.code;
+  if (!code) return;
+  try {
+    await navigator.clipboard.writeText(code);
+  } catch {
+    // Clipboard access can be blocked inside the embedded frame.
+    const area = document.createElement('textarea');
+    area.value = code;
+    area.setAttribute('readonly', '');
+    area.style.position = 'fixed';
+    area.style.opacity = '0';
+    document.body.append(area);
+    area.select();
+    try { document.execCommand('copy'); } catch { /* clipboard unavailable */ }
+    area.remove();
+  }
+  roomCodeCopied.hidden = false;
+  clearTimeout(roomCodeCopiedTimer);
+  roomCodeCopiedTimer = setTimeout(() => { roomCodeCopied.hidden = true; }, 1200);
+});
+
+// Room code under the hero health bar, plus the spectate banner for players
+// who joined after the run started.
+let playerListSignature = '';
+let pendingHeroSwap = null;
+let pendingHeroSwapAt = 0;
+
+function renderPlayerList(room) {
+  const entries = [...(room.players || []), ...(room.waiting || [])];
+  playerList.hidden = entries.length === 0;
+  if (!entries.length) return;
+  const signature = entries.map((entry) => `${entry.id}:${entry.heroId}:${entry.host}:${entry.waiting}:${entry.disconnected}`).join('|');
+  if (signature === playerListSignature) return;
+  playerListSignature = signature;
+  playerListRows.replaceChildren(...entries.map((entry) => {
+    const row = document.createElement('div');
+    row.className = `player-row${entry.id === me ? ' me' : ''}${entry.waiting ? ' waiting' : ''}`;
+    const emoji = document.createElement('span'); emoji.className = 'player-emoji'; emoji.textContent = entry.emoji || '🙂';
+    const name = document.createElement('span'); name.className = 'player-name'; name.textContent = entry.name || 'Hero';
+    row.append(emoji, name);
+    if (entry.host) {
+      const crown = document.createElement('span'); crown.className = 'player-crown'; crown.textContent = '👑';
+      crown.title = 'Host'; crown.setAttribute('aria-label', 'Host'); row.append(crown);
+    }
+    if (entry.waiting) {
+      const tag = document.createElement('span'); tag.className = 'player-tag'; tag.textContent = 'joining'; row.append(tag);
+    } else if (entry.disconnected) {
+      const tag = document.createElement('span'); tag.className = 'player-tag'; tag.textContent = 'away'; row.append(tag);
+    }
+    return row;
+  }));
+}
+
+function renderLobbyBar(room) {
+  const inLobby = room.phase === 'lobby';
+  lobbyBar.hidden = !inLobby;
+  if (!inLobby) return;
+  const isHost = room.hostId === me;
+  startRunButton.hidden = !isHost;
+  lobbyHint.hidden = isHost;
+  const total = (room.players?.length || 0) + (room.waiting?.length || 0);
+  startRunButton.textContent = `START RUN (${total}/${room.maxPlayers || 4} players)`;
+  const mine = [...(room.players || []), ...(room.waiting || [])].find((entry) => entry.id === me);
+  if (!mine) return;
+  if (pendingHeroSwap) {
+    if (mine.heroId === pendingHeroSwap || performance.now() - pendingHeroSwapAt > 2000) pendingHeroSwap = null;
+    else return;
+  }
+  if (lobbyHero.value !== mine.heroId) lobbyHero.value = mine.heroId;
+}
+
+let countdownLabel = '';
+function renderCountdown(room, timestamp) {
+  const endsAt = room?.countdownEndsAt || 0;
+  if (!endsAt) {
+    countdownOverlay.hidden = true;
+    countdownLabel = '';
+    return;
+  }
+  const remaining = Math.max(0, endsAt - (state.serverTime + (timestamp - stateReceivedAt)));
+  countdownOverlay.hidden = remaining <= 0;
+  if (remaining <= 0) return;
+  const label = String(Math.max(1, Math.ceil(remaining / 1000)));
+  if (label === countdownLabel) return;
+  countdownLabel = label;
+  countdownValue.textContent = label;
+  // Replay the pop animation for every new number.
+  countdownValue.classList.remove('tick');
+  void countdownValue.offsetWidth;
+  countdownValue.classList.add('tick');
+}
+
+function updateRoomHud(timestamp = performance.now()) {
+  const room = state.room;
+  if (!room) return;
+  // The dev sandbox has no shareable code; hide the whole row so no divider is left behind.
+  if (roomRow) roomRow.hidden = !room.code;
+  roomCodeButton.hidden = !room.code;
+  if (room.code) roomCodeValue.textContent = room.code;
+  renderPlayerList(room);
+  renderLobbyBar(room);
+  renderCountdown(room, timestamp);
+  const isWaiting = Boolean(room.waiting?.some((entry) => entry.id === me));
+  waitingBanner.hidden = !isWaiting;
+  abilityHud.hidden = isWaiting;
+  if (!isWaiting) return;
+  const total = (room.players?.length || 0) + (room.waiting?.length || 0);
+  waitingDetail.textContent = `Spawning in the next break · ${total}/${room.maxPlayers || 4} players`;
+  heroName.textContent = 'Spectating';
+  healthValue.textContent = '-- / --';
+  healthFill.style.width = '0%';
+}
+
 function updateHud(timestamp = performance.now()) {
   const player = state.players?.find((candidate) => candidate.id === me);
-  if (state.wave && waveNumber && waveDetails) {
+  updateRoomHud();
+  const phase = state.room?.phase;
+  if (state.room && phase === 'lobby') {
+    waveNumber.textContent = 'Lobby';
+    waveDetails.textContent = state.room.hostId === me ? 'Press START RUN when everyone is in' : 'Waiting for the host to start…';
+  } else if (state.room && phase === 'countdown') {
+    waveNumber.textContent = 'Get ready';
+    waveDetails.textContent = 'The first wave is coming';
+  } else if (state.wave && waveNumber && waveDetails) {
     waveNumber.textContent = `Wave ${state.wave.number || 1}`;
     if (state.buffVote) {
       waveDetails.textContent = 'Choose a team buff';
@@ -735,17 +1091,29 @@ function updateHud(timestamp = performance.now()) {
     circle.style.setProperty('--fill-color', color);
     const elapsedMs = Math.max(0, timestamp - stateReceivedAt);
     const remaining = Math.max(0, data.remainingMs - elapsedMs);
+    const lockoutRemaining = Math.max(0, (data.lockoutRemainingMs || 0) - elapsedMs);
     const fill = data.durationMs > 0 ? Math.max(0, Math.min(100, (1 - remaining / data.durationMs) * 100)) : 100;
     circle.style.setProperty('--fill', `${fill}%`);
-    circle.classList.toggle('ready', remaining <= 0);
+    circle.classList.toggle('ready', remaining <= 0 && lockoutRemaining <= 0);
+    circle.classList.toggle('locked', lockoutRemaining > 0);
+    const lockoutLabel = circle.querySelector('.ability-lockout');
+    if (lockoutLabel) lockoutLabel.textContent = lockoutRemaining > 0 ? String(Math.ceil(lockoutRemaining / 1000)) : '';
+    const isSheriffDynamite = player.heroId === 'sheriff' && id === 'skill';
+    element.classList.toggle('sheriff-skill-ready', isSheriffDynamite && remaining <= 0 && lockoutRemaining <= 0);
+    if (isSheriffDynamite) {
+      element.style.setProperty('--sheriff-ready-glow-period', `${ARENA_TUNING.heroTweaks.sheriffReadyGlowPeriodMs}ms`);
+      circle.style.setProperty('--fill-color', '#ffd34f');
+    }
     const key = `${me}:${id}`;
     const previous = abilityReadyAt.get(key);
     if (previous !== undefined && previous > 0 && remaining <= 0) {
-      circle.classList.remove('ready-pulse');
-      void circle.offsetWidth;
-      circle.classList.add('ready-pulse');
-      playSound(id === 'ultimate' ? 'ultimateReady' : 'abilityReady');
-      setTimeout(() => circle.classList.remove('ready-pulse'), ARENA_TUNING.waveMoments.abilityReadyPulseMs);
+      if (!isSheriffDynamite) {
+        circle.classList.remove('ready-pulse');
+        void circle.offsetWidth;
+        circle.classList.add('ready-pulse');
+        playSound(id === 'ultimate' ? 'ultimateReady' : 'abilityReady');
+        setTimeout(() => circle.classList.remove('ready-pulse'), ARENA_TUNING.waveMoments.abilityReadyPulseMs);
+      }
     }
     abilityReadyAt.set(key, remaining);
   });
@@ -756,7 +1124,7 @@ function updateHud(timestamp = performance.now()) {
   document.querySelector('#stat-speed').textContent = String(player.speed);
   const buildingBonus = player.buildingBonuses || {};
   const buildingRows = [];
-  if (buildingBonus.attackPercent > 0) buildingRows.push(`${player.type === 'magic' ? '📚 Library' : '🛠️ Workshop'} +${Math.round(buildingBonus.attackPercent * 100)}% damage`);
+  if (buildingBonus.attackPercent > 0) buildingRows.push(`${player.type === 'magic' ? '📚 Library' : '🛠️ Workshop'} +${Math.round(buildingBonus.attackPercent * 100)}% ${player.type === 'magic' ? 'magic' : 'physical'} attack`);
   if (buildingBonus.campfireMaxHpPercent > 0) buildingRows.push(`🌷 Garden +${Math.round(buildingBonus.campfireMaxHpPercent * 100)}% campfire max HP`);
   document.querySelector('#building-bonus-value').textContent = buildingRows.join(' · ') || 'None';
   document.querySelector('#building-bonus-stat').title = buildingRows.join(' · ') || 'No kingdom building bonuses apply to this hero';
@@ -815,7 +1183,7 @@ function onPointerDown(event) {
   if (event.button === 0) {
     setPrimaryHeld(true);
     fireWeapon('primary');
-    if (selectedHero.id === 'bubbles') {
+    if (activeHeroId === 'bubbles') {
       stopPrimaryFire();
       primaryFireTimer = setInterval(() => fireWeapon('primary'), GAME_CONFIG.heroes.bubbles.weaponCooldownMs);
     }
@@ -831,27 +1199,31 @@ function draw(timestamp) {
   }
   const dt = Math.min((currentTime - lastTime) / 1000, 0.1);
   lastTime = currentTime;
-  context.setTransform(1, 0, 0, 1, 0, 0);
+  context.setTransform(renderScale, 0, 0, renderScale, 0, 0);
   context.globalAlpha = 1;
   context.globalCompositeOperation = 'source-over';
   context.filter = 'none';
   context.shadowBlur = 0;
   context.setLineDash([]);
   context.save();
-  if (currentTime < cameraShake.until) {
-    const remaining = Math.max(0, (cameraShake.until - currentTime) / Math.max(1, cameraShake.durationMs));
-    const offset = cameraShake.intensity * remaining;
-    context.translate((Math.random() * 2 - 1) * offset, (Math.random() * 2 - 1) * offset);
-  } else cameraShake.intensity = 0;
+  const traumaElapsed = Math.max(0, (currentTime - lastTraumaUpdateAt) / 1000);
+  trauma = Math.max(0, trauma - SHAKE_DECAY * traumaElapsed);
+  lastTraumaUpdateAt = currentTime;
+  if (settings.screenShake && settings.shakeIntensity > SHAKE_MIN_INTENSITY && trauma > 0) {
+    const offset = trauma * trauma * SHAKE_MAX_OFFSET * settings.shakeIntensity / SHAKE_MAX_INTENSITY;
+    const noiseX = smoothShakeNoise(currentTime);
+    const noiseY = smoothShakeNoise(currentTime, SHAKE_NOISE_SECONDARY_PHASE);
+    context.translate(noiseX * offset, noiseY * offset);
+  }
   if (currentTime < cameraZoom.until) {
-    const centerX = canvas.width / 2, centerY = canvas.height / 2;
+    const centerX = ARENA_WIDTH / 2, centerY = ARENA_HEIGHT / 2;
     const progress = (currentTime - cameraZoom.startedAt) / (cameraZoom.until - cameraZoom.startedAt);
     const pulse = 1 - Math.abs(progress * 2 - 1);
     const scale = 1 + (cameraZoom.scale - 1) * pulse;
     context.translate(centerX, centerY); context.scale(scale, scale); context.translate(-centerX, -centerY);
   } else cameraZoom.scale = 1;
 
-  context.drawImage(backgroundCanvas, 0, 0);
+  context.drawImage(backgroundCanvas, 0, 0, ARENA_WIDTH, ARENA_HEIGHT);
 
   // 1. Draw Campfire in the middle
   const cf = state.campfire || {
@@ -947,18 +1319,20 @@ function draw(timestamp) {
 
       // Give the pale zombie emoji an opaque backdrop so it reads clearly on grass.
       context.save();
-      context.globalAlpha = 1;
+      const fading = monster.isDummy && monster.fadeRemainingMs > 0;
+      context.globalAlpha = fading ? Math.max(0, monster.fadeRemainingMs / 400) : 1;
       context.globalCompositeOperation = 'source-over';
       const pulse = monster.type === 'exploder' ? 1 + Math.sin(currentTime * 0.012) * 0.09 : 1;
       const scale = (monster.scale || 1) * pulse;
       const visualRadius = 20 * scale;
       const tint = monster.type === 'brute-king' ? '#7e222c' : monster.type === 'brute' ? '#514638'
-        : monster.type === 'exploder' ? '#b86b28' : '#426b36';
+        : monster.type === 'exploder' ? '#b86b28' : monster.type === 'dummy' ? '#b39058' : '#426b36';
       context.beginPath();
       context.arc(mx, my, visualRadius, 0, Math.PI * 2);
       context.fillStyle = hitFlash ? '#fff' : tint;
       context.fill();
-      context.strokeStyle = monster.isBoss ? '#ff5f69' : monster.type === 'exploder' ? '#ffb34f' : '#294a24';
+      context.strokeStyle = monster.isBoss ? '#ff5f69' : monster.type === 'exploder' ? '#ffb34f'
+        : monster.type === 'dummy' ? '#8a6a35' : '#294a24';
       context.lineWidth = monster.isBoss ? 4 : 2;
       context.stroke();
       context.font = `${32 * scale}px sans-serif`;
@@ -975,11 +1349,13 @@ function draw(timestamp) {
       const mBarH = 4;
       const mBarX = mx - mBarW / 2;
       const mBarY = my - visualRadius;
-      context.fillStyle = 'rgba(0, 0, 0, 0.7)';
-      context.fillRect(mBarX - 1, mBarY - 1, mBarW + 2, mBarH + 2);
-      const mHpRatio = Math.max(0, monster.hp / monster.maxHp);
-      context.fillStyle = mHpRatio > 0.4 ? '#4caf50' : '#e53935';
-      context.fillRect(mBarX, mBarY, mBarW * mHpRatio, mBarH);
+      if (!fading) {
+        context.fillStyle = 'rgba(0, 0, 0, 0.7)';
+        context.fillRect(mBarX - 1, mBarY - 1, mBarW + 2, mBarH + 2);
+        const mHpRatio = Math.max(0, monster.hp / monster.maxHp);
+        context.fillStyle = mHpRatio > 0.4 ? '#4caf50' : '#e53935';
+        context.fillRect(mBarX, mBarY, mBarW * mHpRatio, mBarH);
+      }
       if (monster.type === 'skeleton' && monster.skeletonWindupMs > 0) {
         context.save(); context.globalAlpha = 0.55 + Math.sin(currentTime * 0.025) * 0.2;
         context.fillStyle = '#ff6868'; context.beginPath(); context.arc(mx, my, 24, 0, Math.PI * 2); context.fill();
@@ -1035,9 +1411,13 @@ function draw(timestamp) {
     const effect = areaEffects[i];
     const progress = Math.min(1, (currentTime - effect.startedAt) / Math.max(1, effect.durationMs));
     if (progress >= 1) { areaEffects.splice(i, 1); continue; }
+    const electroStun = effect.sourceHeroId === 'electromancer' && effect.sourceAbility === 'skill';
+    const guardianSlam = effect.sourceHeroId === 'guardian' && effect.sourceAbility === 'ultimate' && effect.kind === 'player';
     const danger = effect.kind === 'enemy';
-    const fill = danger ? '#ef4654' : '#ffb347';
-    const edge = danger ? '#ff4d59' : '#ffe08a';
+    const fill = electroStun ? effect.color || HERO_FX_COLORS.electromancer.primary
+      : guardianSlam ? HERO_FX_COLORS.guardian.primary : danger ? '#ef4654' : '#ffb347';
+    const edge = electroStun ? HERO_FX_COLORS.electromancer.highlight
+      : guardianSlam ? HERO_FX_COLORS.guardian.highlight : danger ? '#ff4d59' : '#ffe08a';
     context.save(); context.beginPath(); context.arc(effect.x, effect.y, effect.radius, 0, Math.PI * 2);
     if (effect.phase === 'telegraph') {
       context.globalAlpha = 0.12; context.fillStyle = fill;
@@ -1092,6 +1472,13 @@ function draw(timestamp) {
     }
     if (player.dashing) spawnDashTrail(player);
     const center = { x: player.x, y: player.y };
+    if (player.guardianBrace) {
+      context.save();
+      context.globalAlpha = 0.55 + Math.sin(currentTime * 0.008) * 0.15;
+      context.strokeStyle = HERO_FX_COLORS.guardian.highlight; context.lineWidth = 4;
+      context.beginPath(); context.arc(center.x, center.y, 31, 0, Math.PI * 2); context.stroke();
+      context.restore();
+    }
     const tip = { x: center.x + player.aim.x * 48, y: center.y + player.aim.y * 48 };
     context.strokeStyle = player.id === me ? '#222' : '#777';
     context.fillStyle = context.strokeStyle;
@@ -1132,6 +1519,38 @@ function draw(timestamp) {
     context.textBaseline = 'middle';
     context.fillStyle = '#222';
     context.fillText(player.emoji, center.x - player.aim.x * recoil, center.y - player.aim.y * recoil);
+    if (player.guardianCharging && player.guardianDamageRamp > 0) {
+      const label = `+${Math.round(player.guardianDamageRamp * 100)}%`;
+      context.save();
+      context.font = 'bold 13px sans-serif'; context.textAlign = 'center'; context.textBaseline = 'middle';
+      const width = context.measureText(label).width + 16;
+      context.fillStyle = '#10243be8'; context.strokeStyle = HERO_FX_COLORS.guardian.highlight; context.lineWidth = 1.5;
+      context.beginPath(); context.roundRect(center.x - width / 2, center.y - 65, width, 22, 11); context.fill(); context.stroke();
+      context.fillStyle = '#fff'; context.fillText(label, center.x, center.y - 54); context.restore();
+    }
+    const chainCounter = chainCounters.get(player.id);
+    if (chainCounter) {
+      const age = currentTime - chainCounter.startedAt;
+      if (age >= ARENA_TUNING.heroTweaks.electroChainCounterMs) chainCounters.delete(player.id);
+      else {
+        const progress = Math.min(1, age / ARENA_TUNING.heroTweaks.electroChainCounterPopMs);
+        const scale = 1 + (ARENA_TUNING.heroTweaks.electroChainCounterScale - 1) * Math.sin(Math.PI * progress);
+        context.save(); context.translate(center.x, center.y - 68); context.scale(scale, scale);
+        context.font = 'bold 16px sans-serif'; context.textAlign = 'center'; context.textBaseline = 'middle';
+        context.lineWidth = 4; context.strokeStyle = '#10283b'; context.fillStyle = HERO_FX_COLORS.electromancer.highlight;
+        context.strokeText(`CHAIN x${chainCounter.count}`, 0, 0); context.fillText(`CHAIN x${chainCounter.count}`, 0, 0); context.restore();
+      }
+    }
+    const readyBounceAt = dynamiteReadyBounces.get(player.id);
+    if (readyBounceAt !== undefined) {
+      const age = currentTime - readyBounceAt;
+      if (age >= ARENA_TUNING.heroTweaks.sheriffReadyBounceMs) dynamiteReadyBounces.delete(player.id);
+      else {
+        const bounce = Math.sin(Math.PI * age / ARENA_TUNING.heroTweaks.sheriffReadyBounceMs) * 18;
+        context.save(); context.font = '20px sans-serif'; context.textAlign = 'center'; context.textBaseline = 'middle';
+        context.fillText('🧨', center.x, center.y - 49 - bounce); context.restore();
+      }
+    }
     if (muzzle && muzzleAge < ARENA_TUNING.muzzleFlash.durationMs) {
       const fx = HERO_FX_COLORS[player.heroId] || {};
       const x = center.x + player.aim.x * 38, y = center.y + player.aim.y * 38;
@@ -1143,7 +1562,7 @@ function draw(timestamp) {
     }
     context.font = '12px sans-serif';
     context.fillText(player.name, center.x, center.y + 30);
-    if (player.invulnerable && Math.floor(currentTime / ARENA_TUNING.respawn.flashIntervalMs) % 2 === 0) {
+    if ((player.invulnerable || player.ultimateFlash) && Math.floor(currentTime / ARENA_TUNING.respawn.flashIntervalMs) % 2 === 0) {
       context.save(); context.globalAlpha = 0.25; context.fillStyle = '#fff';
       context.beginPath(); context.arc(center.x, center.y, 25, 0, Math.PI * 2); context.fill(); context.restore();
     }
@@ -1188,7 +1607,7 @@ function draw(timestamp) {
     const arc=lightningArcs[i], remaining=arc.expires-currentTime;
     if(remaining<=0){lightningArcs.splice(i,1);continue;}
     context.save(); context.globalAlpha=Math.min(1,remaining/GAME_CONFIG.visuals.lightningArcMs);
-    context.strokeStyle=arc.color;context.lineWidth=4;context.shadowColor=HERO_FX_COLORS.electromancer.primary;context.shadowBlur=14;
+    context.strokeStyle=arc.color;context.lineWidth=4;context.shadowBlur=0;
     context.beginPath();context.moveTo(arc.x1,arc.y1);context.lineTo(arc.x2,arc.y2);context.stroke();context.restore();
   }
 
@@ -1210,10 +1629,10 @@ function draw(timestamp) {
 
   // 4. Update and draw active projectiles.
   for (const [id, p] of clientProjectiles.entries()) {
-    p.update(dt, canvas);
+    p.update(dt, GAME_CONFIG.arena);
 
     if (currentTime - (p.lastTrailAt || 0) >= ARENA_TUNING.performance.projectileTrailIntervalMs
-      && particles.length < ARENA_TUNING.performance.maxParticles) {
+      && particles.length < particleBudget) {
       p.lastTrailAt = currentTime;
       addParticle({
         x: p.x + (Math.random() - 0.5) * 6,
@@ -1228,8 +1647,8 @@ function draw(timestamp) {
     }
 
     if (p.dead) {
-      const edgeX = Math.max(0, Math.min(canvas.width, p.x));
-      const edgeY = Math.max(0, Math.min(canvas.height, p.y));
+      const edgeX = Math.max(0, Math.min(ARENA_WIDTH, p.x));
+      const edgeY = Math.max(0, Math.min(ARENA_HEIGHT, p.y));
       for (let i = 0; i < 8; i++) {
         const angle = Math.random() * Math.PI * 2;
         const speed = 30 + Math.random() * 70;
@@ -1323,8 +1742,9 @@ function spawnDashTrail(player) {
   previousPositions.set(player.id,{x:player.x,y:player.y});
   if(!prior || Math.hypot(player.x-prior.x,player.y-prior.y)<2)return;
   const spec=GAME_CONFIG.visuals.dashTrail;
+  const ramp = player.guardianCharging ? Math.min(1, player.guardianDamageRamp / GAME_CONFIG.arenaTuning.heroTweaks.guardianUltimateRampCap) : 0;
   for(let i=0;i<spec.count;i++) addParticle({x:prior.x+(Math.random()-.5)*16,y:prior.y+(Math.random()-.5)*16,
-    vx:(Math.random()-.5)*35,vy:(Math.random()-.5)*35,radius:spec.radius+Math.random()*2,color:HERO_FX_COLORS[player.heroId]?.highlight || '#d8dfc7',alpha:.8,decay:spec.decay});
+    vx:(Math.random()-.5)*35,vy:(Math.random()-.5)*35,radius:spec.radius+Math.random()*2+ramp*2,color:ramp > 0.4 ? HERO_FX_COLORS[player.heroId]?.highlight : HERO_FX_COLORS[player.heroId]?.primary || '#d8dfc7',alpha:.65+ramp*.35,decay:spec.decay});
 }
 
 canvas.addEventListener('pointermove', onPointerMove);

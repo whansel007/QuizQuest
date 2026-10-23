@@ -19,6 +19,7 @@ export default defineConfig({
       '^/tag$': node,
       '/client.js': node,
       '/hero-lab': node,
+      '/config/tuning.js': node,
     },
   },
 });

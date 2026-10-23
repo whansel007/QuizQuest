@@ -19,13 +19,16 @@ route remains available for quick sandbox playtests.
 ## Heroes and talents
 
 - **Sheriff:** yellow, long-range revolver bullets; fast, flashing dynamite;
-  Deadeye fires a stream from the hero's current position and aim. Kills reduce
-  Dynamite's cooldown. Dynamite kills count by default and can be disabled in
-  the config.
+  Deadeye fires a stream from the hero's current position and aim. Quick Draw
+  refunds 0.4 seconds from Dynamite's remaining cooldown per kill. Dynamite
+  kills count; a single blast can refund at most 2 seconds total.
 - **Guardian:** a short-range shield bash, a longer invulnerable Shield Rush,
-  and a steerable 10-second invulnerable charge. Any kill during a dash extends
-  its timer and shows a `+time` popup. A configurable cap prevents endless
-  chaining.
+  and a steerable invulnerable charge. Any kill during a dash extends its timer
+  and shows a `+time` popup, within the existing cap. Each Unbreakable Charge
+  hit increases damage to later hits by 10%, to a +100% cap; ending the charge
+  triggers a 150 px ground slam for 2x attack damage before the ramp. Press Q
+  again to slam early. The optional 40% post-Rush damage-reduction brace lasts
+  1.5 seconds and is disabled by default.
 - **Pilot:** a fragile base form fires a seven-pellet shotgun and can dash in
   any aimed direction. Kills reduce the Mech Suit cooldown. The temporary mech
   is invulnerable and changes the weapon to a short-range explosive fist and
@@ -36,14 +39,20 @@ route remains available for quick sandbox playtests.
   If targeting times out or is canceled, Q is not consumed.
 - **Bubbles:** rapid blue bubble spray chips enemies at short range. E launches a
   Bubble Trap that carries the first enemy it hits and explodes after traveling.
-  If the base explosion would kill the trapped enemy, it uses the larger,
-  stronger finisher explosion. Q wraps Bubbles in a fast-moving bubble for six
+  A kill from the trap triggers its larger finisher blast and halves the
+  remaining skill cooldown.
+  When the trapped enemy is within the finisher blast's lethal damage, the trap
+  uses its larger, stronger explosion. Q wraps Bubbles in a fast-moving bubble for six
   seconds. It pops around the hero when time expires, or early when Bubbles uses
   primary fire or E. The pop damages nearby enemies. Bubbles has no healing mode.
 - **Electromancer:** a larger lightning orb, a traveling stun zone, and delayed
   chain lightning. The chain jumps through every enemy it can reach, hitting
-  each target once per chain. Overload increases damage to stunned enemies.
-  Stunned enemies show an ⚡ indicator while they remain stunned.
+  each target once per chain. Overload refunds 4% of the 35-second base ultimate
+  cooldown per hit (1.4 seconds), or twice as much on a stunned target. The
+  refund stays based on the unmodified base cooldown, even with Rally; a
+  five-second lockout prevents an immediate recast. Overload no longer adds
+  damage to stunned enemies. Stunned enemies show an ⚡ indicator while they
+  remain stunned.
 Every hero has a passive talent name and description in the Info panel. Talent
 effects run on the server. Monster kills carry the attacking hero and ability
 through projectile hits and explosions so kill-based talents can apply.
@@ -64,11 +73,13 @@ through projectile hits and explosions so kill-based talents can apply.
   leaves. If campfire HP reaches zero, the shared run ends for every player and
   waves stop.
 - When a signed-in student joins through the app, saved kingdom levels are
-  applied server-side: Library adds 10 attack per level to magic heroes,
-  Workshop adds 10 attack per level to physical heroes, and Garden adds 10
-  campfire max HP per level to the shared run. Each player's Garden bonus is
-  applied once per run; bonuses from players in the shared run add together.
-  Tower has no combat effect yet. Each building is capped at level 3.
+  applied server-side: Library adds 10% of base attack per level to magic
+  heroes, Workshop adds 10% of base attack per level to physical heroes, and
+  Garden adds 10% of base campfire max HP per level for each player in the
+  shared run. Each player's Garden bonus is applied once per run; bonuses from
+  players in the shared run add together. At level 3, Garden adds 30 HP to the
+  100 HP base campfire (130 HP solo); four players with Garden level 3 each
+  produce 220 max HP. Tower has no combat effect yet. Buildings cap at level 3.
 
 ## HUD and server rules
 
@@ -93,12 +104,14 @@ campfire healing, wave growth, building bonuses, buff range, vote timeout, and
 HUD colors.
 
 The playtest brief left exact values open, so these are configurable starting
-points: Sheriff cuts Dynamite cooldown by 1.4 seconds per qualifying kill;
-Guardian gains 1.2 seconds per dash kill with a 60-second cap; Pilot gains 650
-milliseconds on Mech Suit per kill; Bombardier fires five bombs at one-second
-intervals inside a 280-pixel target circle; Bubbles' finisher activates when
-the trapped enemy has no more HP than the base explosion damage; Overload adds
-50% damage; and campfire healing is 1.5 HP per second within 115 pixels.
+points: Sheriff refunds 0.4 seconds of Dynamite cooldown per kill (capped at 2
+seconds per blast); Guardian gains 0.15 seconds per dash kill within the
+existing 1.2x dash-duration cap; Pilot gains 1 second on Mech Suit per kill;
+Bombardier fires five bombs at one-second intervals inside a 280-pixel target
+circle; Bubbles' finisher activates when the trapped enemy has no more HP than
+the base explosion damage; Chain Lightning refunds 4% of its base ultimate
+cooldown per hit (doubled for stunned targets), with a 5-second lockout; and
+campfire healing is 1.5 HP per second within 150 pixels.
 
 Wave voting lasts 10 seconds in multiplayer and has no timer in solo. Ties are
 random, disconnected votes are removed, and if nobody votes the server randomly
@@ -184,8 +197,8 @@ root. For a manual playtest:
    Dynamite, then use Deadeye while moving and changing aim. Confirm the stream
    follows the hero and kills shorten Dynamite's cooldown.
 2. Choose Guardian. Dash through a group with E and Q. Confirm the trail,
-   invulnerability, and `+time` popup after a kill. Chain kills and check the
-   configured dash cap.
+   invulnerability, and `+time` popup after a kill. Chain kills, check the ramp
+   pill and end slam, and verify the configured dash cap.
 3. Choose Pilot. Fire at a group up close and at range to compare the shotgun.
    Use E toward and away from enemies. Activate Q, then try the rotating fist
    and longer knockback dash. Confirm invulnerability and HUD label changes.
@@ -196,8 +209,9 @@ root. For a manual playtest:
    group. Check the normal and lethal finisher explosions. Use Q and watch the
    growing bubble pop. Confirm there is no healing mode.
 6. Choose Electromancer. Use E to stun enemies and see the electric ring and ⚡
-   status. Use primary and Q against stunned targets to see Overload and the
-   delayed lightning arcs.
+   status. Use Q on a group; check the CHAIN counter, cooldown refill, doubled
+   stunned-target refunds, and the 5-second lockout. Confirm stunned targets do
+   not take Overload bonus damage.
 7. Use two tabs. Let enemies reach the campfire to see the global game-over
    overlay. In another run, clear a wave, vote in both tabs, and verify the
    same winning buff updates both players. Disconnect one voter during a vote

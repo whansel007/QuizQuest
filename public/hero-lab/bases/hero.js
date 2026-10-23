@@ -53,7 +53,9 @@ export class Hero {
 
   canUseAbility(name, now = Date.now()) {
     const ability = this.cooldowns[name];
-    return !!ability && now >= ability.readyAt;
+    if (!ability || now < ability.readyAt) return false;
+    if (name === 'ultimate' && this.id === 'electromancer' && now < (this.ultimateLockoutUntil || 0)) return false;
+    return true;
   }
 
   useAbility(name, now = Date.now(), durationMs = null) {
@@ -75,7 +77,10 @@ export class Hero {
 
     const previousHp = this.hp;
     const reduction = Math.min(GAME_CONFIG.arenaTuning.enemies.wave.defenseReductionCap, Math.max(0, this.defense / 100));
-    const applied = Math.max(GAME_CONFIG.combat.minimumDamage, amount * (1 - reduction));
+    const braceReduction = this.id === 'guardian' && this.braceUntil > now
+      && GAME_CONFIG.arenaTuning.heroTweaks.guardianBraceEnabled
+      ? GAME_CONFIG.arenaTuning.heroTweaks.guardianBraceReduction : 0;
+    const applied = Math.max(GAME_CONFIG.combat.minimumDamage, amount * (1 - reduction) * (1 - braceReduction));
     this.hp = Math.max(0, this.hp - applied);
     this.#lastDamageAt = now;
     return previousHp - this.hp;
