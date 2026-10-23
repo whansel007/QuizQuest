@@ -114,6 +114,8 @@ test('hashes are salted and verify only the right password', () => {
 
 test('sign-up creates a student account that can sign in', async (t) => {
   const { quiz, call } = await boot(t);
+  // `role` is sent on purpose: self sign-up must never honour it, so a
+  // student cannot promote themselves just by asking.
   const r = await call('POST', '/api/register', { name: ' New Student ', email: 'New@School.edu ', password: 'longenough', role: 'teacher' });
   assert.equal(r.status, 200);
   assert.ok(r.body.token);
@@ -125,6 +127,13 @@ test('sign-up creates a student account that can sign in', async (t) => {
   assert.equal(me.body.role, 'student');
   const login = await call('POST', '/api/login', { email: 'new@school.edu', password: 'longenough' });
   assert.equal(login.status, 200);
+});
+
+test('the /api/auth/register alias is a second door, and it also makes a student', async (t) => {
+  const { call } = await boot(t);
+  const r = await call('POST', '/api/auth/register', { name: 'Alias', email: 'alias@school.edu', password: 'longenough', role: 'teacher' });
+  assert.equal(r.status, 201);
+  assert.equal(r.body.user.role, 'student');
 });
 
 test('sign-up rejects taken emails and bad input', async (t) => {

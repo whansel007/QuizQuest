@@ -540,34 +540,36 @@ attemptId: attempt.id,
     return startSession(user);
   });
 
-  // Self sign-up as a student (the default) or a teacher. A new teacher gets
-  // an empty course of their own, since classes can only be made in a course
-  // and there is no course-creation screen.
-  const SIGNUP_ROLES = ['student', 'teacher'];
-  function register(body) {
+  // Self sign-up always makes a student. Teacher accounts are created by
+  // the team (seed data / database), so nobody can promote themselves.
+  route('POST', '/api/register', null, ({ body }) => {
     const name = str(body.name, NAME_MAX, 'Name');
     const email = P.normEmail(body.email);
-    const role = body.role === undefined ? 'student' : body.role;
-    if (!SIGNUP_ROLES.includes(role)) fail(400, 'Choose student or teacher.');
     if (!EMAIL_RE.test(email) || email.length > 254) fail(400, 'Enter a valid email address.');
     if (typeof body.password !== 'string' || body.password.length < P.PASSWORD_MIN) fail(400, `Use a password of at least ${P.PASSWORD_MIN} characters.`);
     if (body.password.length > P.PASSWORD_MAX) fail(400, `Use a password of at most ${P.PASSWORD_MAX} characters.`);
     if (db.users.some((u) => u.email === email)) fail(409, 'An account with this email already exists. Sign in instead.');
-    const user = { id: newId(role === 'teacher' ? 't' : 's'), name, role, email, passwordHash: P.hashPassword(body.password), createdAt: now() };
+    const user = { id: newId('s'), name, role: 'student', email, passwordHash: P.hashPassword(body.password), createdAt: now() };
     db.users.push(user);
-    if (role === 'teacher') {
-      db.courses.push({ id: newId('c'), title: `${name}'s course`, teacherIds: [user.id], coverageTarget: 4, promptConfig: '' });
-      save();
-    } else save({ analytics: false });
+    save({ analytics: false });
     return startSession(user);
-  }
-
-  route('POST', '/api/register', null, ({ body }) => register(body));
+  });
 
   // Same behaviour under the /api/auth/* prefix, so Task 1A's documented
   // contract keeps working alongside the shorter route above. This one answers
   // 201 because Task 1A's API documentation specifies "created".
-  route('POST', '/api/auth/register', null, ({ body }) => [201, register(body)]);
+  route('POST', '/api/auth/register', null, ({ body }) => {
+    const name = str(body.name, NAME_MAX, 'Name');
+    const email = P.normEmail(body.email);
+    if (!EMAIL_RE.test(email) || email.length > 254) fail(400, 'Enter a valid email address.');
+    if (typeof body.password !== 'string' || body.password.length < P.PASSWORD_MIN) fail(400, `Use a password of at least ${P.PASSWORD_MIN} characters.`);
+    if (body.password.length > P.PASSWORD_MAX) fail(400, `Use a password of at most ${P.PASSWORD_MAX} characters.`);
+    if (db.users.some((u) => u.email === email)) fail(409, 'An account with this email already exists. Sign in instead.');
+    const user = { id: newId('s'), name, role: 'student', email, passwordHash: P.hashPassword(body.password), createdAt: now() };
+    db.users.push(user);
+    save({ analytics: false });
+    return [201, startSession(user)];
+  });
 
   route('POST', '/api/auth/forgot-password', null, ({ body }) => {
     const email = P.normEmail(body.email);
