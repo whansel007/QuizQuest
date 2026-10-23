@@ -7,7 +7,7 @@ test('should create a student account and sign the student in', async ({ page })
   const email = `new.student.${Date.now()}@example.com`;
 
   await page.goto('/');
-  await page.getByRole('button', { name: 'Create a student account' }).click();
+  await page.getByRole('button', { name: 'Create an account' }).click();
   await page.getByRole('textbox', { name: 'Name' }).fill('New Student');
   await page.getByRole('textbox', { name: 'Email' }).fill(email);
   await page.locator('#signup-password').fill('longenough');
@@ -20,7 +20,7 @@ test('should create a student account and sign the student in', async ({ page })
 
 test('should refuse an email that already has an account', async ({ page }) => {
   await page.goto('/');
-  await page.getByRole('button', { name: 'Create a student account' }).click();
+  await page.getByRole('button', { name: 'Create an account' }).click();
   await page.getByRole('textbox', { name: 'Name' }).fill('Copy Cat');
   await page.getByRole('textbox', { name: 'Email' }).fill('student01@quizquest.demo');
   await page.locator('#signup-password').fill('longenough');
@@ -30,7 +30,7 @@ test('should refuse an email that already has an account', async ({ page }) => {
 
 test('should ask for a longer password', async ({ page }) => {
   await page.goto('/');
-  await page.getByRole('button', { name: 'Create a student account' }).click();
+  await page.getByRole('button', { name: 'Create an account' }).click();
   await page.getByRole('textbox', { name: 'Name' }).fill('Short Pass');
   await page.getByRole('textbox', { name: 'Email' }).fill('short.pass@example.com');
   await page.locator('#signup-password').fill('abc');

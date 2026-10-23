@@ -1,7 +1,7 @@
 <script setup>
 // Sign-in page, in two steps: email, then password (the card slides
 // between them). "Create an account" swaps in a one-step sign-up form
-// (students only; teacher accounts are set up by the team). Synthetic test
+// where the user picks student or teacher. Synthetic test
 // accounts are available from Tools after entering the Konami code.
 import { ref, computed, watch, nextTick, onMounted, onBeforeUnmount } from 'vue';
 import { api, signIn, signUp } from './api.js';
@@ -64,6 +64,7 @@ const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const PASSWORD_MIN = 8; // same as the server's passwords.js
 const step = ref('email'); // 'email' | 'password' | 'signup'
 const name = ref('');
+const role = ref('student'); // 'student' | 'teacher', sign-up only
 const nameInput = ref(null);
 const forward = ref(true); // slide direction
 const email = ref('');
@@ -128,7 +129,7 @@ async function register() {
   if (error.value) return;
   busy.value = true;
   try {
-    await signUp({ name: name.value.trim(), email: e, password: password.value });
+    await signUp({ name: name.value.trim(), email: e, password: password.value, role: role.value });
   } catch (err) {
     error.value = err.message;
   } finally {
@@ -222,7 +223,12 @@ const floaters = ['?', '★', '✓', 'A', '+', '!', '◆', '?'];
 
           <form v-else-if="step === 'signup'" key="signup" novalidate @submit.prevent="register">
             <h2>Create your account</h2>
-            <p class="qq-sub">Students can sign up here. Teachers, ask the team for an account.</p>
+            <p class="qq-sub">Join as a student to practise, or as a teacher to run classes.</p>
+            <fieldset class="qq-role">
+              <legend class="qq-label">I am a</legend>
+              <label :class="{ on: role === 'student' }"><input v-model="role" type="radio" name="signup-role" value="student"> Student</label>
+              <label :class="{ on: role === 'teacher' }"><input v-model="role" type="radio" name="signup-role" value="teacher"> Teacher</label>
+            </fieldset>
             <label for="signup-name" class="qq-label">Name</label>
             <input id="signup-name" ref="nameInput" v-model="name" class="qq-input" type="text" autocomplete="name" maxlength="60" @input="error = ''">
             <label for="signup-email" class="qq-label">Email</label>
@@ -266,7 +272,7 @@ const floaters = ['?', '★', '✓', 'A', '+', '!', '◆', '?'];
         </Transition>
 
         <div class="qq-card-foot">
-          <p v-if="step !== 'signup'" class="qq-register">Not registered yet? <button type="button" class="qq-inline-link" @click="toSignup">Create a student account</button></p>
+          <p v-if="step !== 'signup'" class="qq-register">Not registered yet? <button type="button" class="qq-inline-link" @click="toSignup">Create an account</button></p>
           <button type="button" class="qq-link" aria-label="Tools and version" title="Tools and version" @click="openTools">🔧</button>
         </div>
       </div>
@@ -292,4 +298,9 @@ const floaters = ['?', '★', '✓', 'A', '+', '!', '◆', '?'];
 .qq-debug-backdrop { position:fixed;z-index:50;inset:0;background:#101322bb;display:grid;place-items:center;padding:16px; }
 .qq-debug-panel { position:relative;width:min(320px,100%);min-height:110px;padding:24px;border-radius:18px;background:#fff;display:grid;place-items:center;box-shadow:0 20px 80px #0005; }
 .qq-debug-close { position:absolute;top:10px;right:10px;border:0;background:transparent;font-size:24px;cursor:pointer; }
+.qq-role { display:grid;grid-template-columns:1fr 1fr;gap:8px;margin:0 0 4px;padding:0;border:0; }
+.qq-role legend { grid-column:1 / -1;padding:0; }
+.qq-role label { display:flex;align-items:center;justify-content:center;gap:6px;padding:10px;border:2px solid #d9dcef;border-radius:12px;cursor:pointer;font-weight:600; }
+.qq-role label.on { border-color:#6c5ce7;background:#f1efff; }
+.qq-role input { margin:0; }
 </style>
