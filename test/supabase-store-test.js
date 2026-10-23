@@ -139,3 +139,15 @@ test('SUPABASE_URL copied as the REST endpoint is reduced to the project URL', (
   }
   assert.throws(() => projectUrl('abc.supabase.co'), /not a valid URL/);
 });
+
+test('class join codes are saved and reloaded like every other table', async () => {
+  const pg = await openPglite();
+  const s = await open(pg);
+  const cls = s.db.classes[0];
+  s.db.classJoinCodes.push({ id: '00000000-0000-4000-8000-000000000001', classId: cls.id, codeHash: 'a'.repeat(64), expiresAt: null, usageLimit: 5, usageCount: 0, revoked: false, createdBy: cls.teacherIds?.[0] ?? null, createdAt: Date.now() });
+  s.save();
+  await s.flush();
+  assert.equal(s.pending(), false, 'nothing left waiting to be written');
+  const again = await open(pg);
+  assert.deepEqual(again.db.classJoinCodes.map((c) => [c.id, c.classId, c.usageLimit, c.revoked]), [['00000000-0000-4000-8000-000000000001', cls.id, 5, false]]);
+});

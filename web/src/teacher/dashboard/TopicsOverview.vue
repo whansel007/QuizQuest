@@ -28,7 +28,7 @@ function next(t) {
   if (!t.report?.saved) return { label: 'Make knowledge report', tab: 'generate' };
   return { label: 'Draft questions', tab: 'generate' };
 }
-const reportText = (r) => (!r ? '—' : r.saved ? 'saved' : r.status === 'complete' ? 'not saved' : r.status);
+const reportText = (r) => (!r ? 'not made yet' : r.saved ? 'saved' : r.status === 'complete' ? 'made, not saved' : r.status === 'running' ? 'being made' : r.status);
 const plural = (n, one) => `${n} ${one}${n === 1 ? '' : 's'}`;
 </script>
 
@@ -39,7 +39,7 @@ const plural = (n, one) => `${n} ${one}${n === 1 ? '' : 's'}`;
     <div v-else class="table-wrap">
       <table class="dash-table">
         <thead>
-          <tr><th>Week</th><th>Topic</th><th title="Uploaded files and added passages">Material</th><th>Report</th><th>Questions</th><th>First-attempt accuracy</th><th></th><th>Practised</th><th class="no-print">Next step</th></tr>
+          <tr><th>Week</th><th>Topic</th><th title="Uploaded files and added passages">Material</th><th title="The knowledge report AI drafting makes from this topic's material">Report</th><th>Questions</th><th>First-attempt accuracy</th><th></th><th>Practised</th><th class="no-print">Next step</th></tr>
         </thead>
         <tbody>
           <tr v-for="t in rows" :key="t.topicId">

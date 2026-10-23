@@ -1,0 +1,7 @@
+[
+  { "value": "answer", "label": "Answer seems incorrect" },
+  { "value": "ambiguous", "label": "Unclear question or multiple possible answers" },
+  { "value": "explanation", "label": "Explanation seems incorrect" },
+  { "value": "typo", "label": "Typo or formatting problem" },
+  { "value": "other", "label": "Other problem" }
+]

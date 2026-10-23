@@ -1,18 +1,18 @@
 // ============================================================
 // Where a question sits on the time x accuracy chart. The two lines are
-// the server's: "slow" = the slowest quarter of questions, "mostly wrong"
-// = under maxAccuracy. "Worth rereading" is exactly the server's
+// the server's: "slow" = the slowest quarter of questions, "often wrong"
+// = under maxAccuracy (60%), "mostly right" = maxAccuracy or more. "Worth rereading" is exactly the server's
 // "possibly confusing" flag. With too few questions to know what is slow
-// (slowMs null), questions are only split into mostly right / wrong.
+// (slowMs null), questions are only split into mostly right / often wrong.
 // ============================================================
 
 export const ZONE_ORDER = ['reread', 'quickWrong', 'slowRight', 'fine', 'wrong', 'right', 'few'];
 export const ZONES = {
-  reread: { label: 'Worth rereading', hint: 'slow and mostly wrong, which often points to unclear wording or a hard concept' },
-  quickWrong: { label: 'Quick but mostly wrong', hint: 'answered fast but often wrong, which can mean a tempting wrong option or a common misconception' },
+  reread: { label: 'Worth rereading', hint: 'slow and often wrong, which often points to unclear wording or a hard concept' },
+  quickWrong: { label: 'Quick but often wrong', hint: 'answered fast but often wrong, which can mean a tempting wrong option or a common misconception' },
   slowRight: { label: 'Slow but mostly right', hint: 'takes thought, but most students get there' },
   fine: { label: 'Quick and mostly right', hint: 'no sign of trouble' },
-  wrong: { label: 'Mostly wrong', hint: 'too few questions yet to tell what counts as slow' },
+  wrong: { label: 'Often wrong', hint: 'too few questions yet to tell what counts as slow' },
   right: { label: 'Mostly right', hint: 'too few questions yet to tell what counts as slow' },
   few: { label: 'Not enough answers', hint: 'too few answers yet (or still awaiting marking) to place it' },
 };

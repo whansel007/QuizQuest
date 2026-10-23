@@ -183,6 +183,8 @@ test('slow and mostly-wrong questions are flagged as possibly confusing', () => 
   const flagged = questions.filter((q) => q.confusing).map((q) => q.questionId);
   assert.deepEqual(flagged, ['q-d1']);
   assert.equal(questions.find((q) => q.questionId === 'q-d1').accuracy.accuracy, 0.2);
+  // time-zones.mjs turns this flag plus the timing into the group labels the
+  // dashboard shows; that module's own coverage is test/time-zones-test.js.
 
   // a slow short-answer question with one marked (wrong) answer and five
   // still waiting: 0% of 1 is not "mostly wrong" yet
@@ -397,6 +399,49 @@ test('the analytics route checks the period and the professor', async () => {
     assert.equal((await put({ timezone: 'Asia/Singapore' })).status, 200);
     assert.equal((await call(prof, url)).body.participation.attempts, before + 1, 'refreshed after a change');
     assert.equal(await compared(), comparedBefore + 1, 'comparison refreshed too');
+  } finally {
+    srv.io.close();
+  }
+});
+
+test('"This semester" runs from the course setting to today, or to its end', async () => {
+  const srv = start(0, { dataFile: null });
+  await new Promise((r) => srv.httpServer.once('listening', r));
+  const base = 'http://localhost:' + srv.httpServer.address().port;
+  const send = async (token, method, path, body) => {
+    const res = await fetch(base + path, { method, headers: { 'content-type': 'application/json', authorization: 'Bearer ' + token }, ...(body !== undefined ? { body: JSON.stringify(body) } : {}) });
+    return { status: res.status, body: await res.json() };
+  };
+  const login = async (userId) => (await (await fetch(base + '/api/login', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ userId }) })).json()).token;
+  const day = (offset) => new Date(Date.now() + offset * 86400000).toISOString().slice(0, 10);
+  try {
+    const prof = await login('t-a');
+    const course = srv.quiz.db.courses.find((c) => c.id === 'c-comp');
+    const url = '/api/teacher/classes/cl-a/analytics?range=semester';
+    // the demo course has a semester that began eight weeks ago
+    const seeded = await send(prof, 'GET', url);
+    assert.equal(seeded.status, 200);
+    assert.equal(seeded.body.from, course.semester.start);
+    assert.equal(seeded.body.to, null, 'still running: it ends today');
+    assert.equal(seeded.body.trend.bucket, 'week');
+    assert.equal(seeded.body.participation.attempts, (await send(prof, 'GET', '/api/teacher/classes/cl-a/analytics?range=all')).body.participation.attempts, 'all demo answers are this semester');
+    // settings are validated before anything changes
+    for (const semester of [{ start: '2026-13-01' }, { start: day(-10), end: day(-20) }, { start: day(-400), end: day(-1) }]) {
+      assert.equal((await send(prof, 'PUT', '/api/teacher/courses/c-comp/settings', { semester })).status, 400);
+    }
+    assert.equal((await send(await login('t-b'), 'PUT', '/api/teacher/courses/c-comp/settings', { semester: { start: day(-5) } })).status, 404);
+    // an ended semester stops at its end; one in the future is refused
+    assert.equal((await send(prof, 'PUT', '/api/teacher/courses/c-comp/settings', { semester: { start: day(-90), end: day(-60) } })).status, 200);
+    const ended = (await send(prof, 'GET', url)).body;
+    assert.equal(ended.to, day(-60));
+    assert.equal(ended.participation.attempts, 0, 'the demo answers came after it ended');
+    assert.equal((await send(prof, 'PUT', '/api/teacher/courses/c-comp/settings', { semester: { start: day(30) } })).status, 200);
+    assert.equal((await send(prof, 'GET', url)).status, 400);
+    // cleared: "This semester" asks for the date, and the course list says so
+    assert.equal((await send(prof, 'PUT', '/api/teacher/courses/c-comp/settings', { semester: null })).status, 200);
+    assert.equal((await send(prof, 'GET', url)).status, 409);
+    assert.equal((await send(prof, 'GET', '/api/teacher/courses/c-comp/compare?range=semester')).status, 409);
+    assert.equal((await send(prof, 'GET', '/api/teacher/courses')).body.find((c) => c.id === 'c-comp').semester, null);
   } finally {
     srv.io.close();
   }

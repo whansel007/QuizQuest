@@ -26,8 +26,66 @@ async function pageFor(t, name, viewport = { width: 1280, height: 900 }, options
   await unlockTestAccounts(page);
   await page.getByRole('button', { name, exact: false }).click();
   await page.getByRole('button', { name: 'Switch user', exact: true }).waitFor();
+  if (name.startsWith('Prof.')) await page.locator('#tabs').getByRole('button', { name: 'Question bank', exact: true }).click();
   return page;
 }
+
+test('student reports survive a failed submission and show a professor response in My Progress', async (t) => {
+  const page = await pageFor(t, 'Student 01');
+  await page.getByRole('button', { name: 'Start practice', exact: true }).click();
+  await page.locator('.quiz-head').waitFor();
+  const choices = page.locator('.options button');
+  if (await choices.count()) {
+    await choices.first().click();
+    if (await page.getByRole('button', { name: 'Submit answer' }).count()) await page.getByRole('button', { name: 'Submit answer' }).click();
+  } else {
+    if (await page.getByLabel('Numeric answer').count()) await page.getByLabel('Numeric answer').fill('42');
+    else await page.getByLabel('Written answer').fill('My practice answer.');
+    await page.getByRole('button', { name: 'Submit answer' }).click();
+  }
+  await page.getByRole('button', { name: 'Report a problem with this question', exact: true }).click();
+  await page.getByLabel('Problem category').selectOption('ambiguous');
+  const reason = 'Browser workflow: the wording could be clearer.';
+  await page.getByLabel('Report this question to your professor').fill(reason);
+  await page.route('**/api/student/questions/*/report', (route) => route.fulfill({
+    status: 503, contentType: 'application/json', body: '{"error":"Please retry this report."}',
+  }), { times: 1 });
+  await page.getByRole('button', { name: 'Send report', exact: true }).click();
+  await page.getByRole('alert').getByText('Please retry this report.').waitFor();
+  assert.equal(await page.getByLabel('Report this question to your professor').inputValue(), reason);
+  await page.getByRole('button', { name: 'Send report', exact: true }).click();
+  await page.getByText(/Report sent\. You can follow/).waitFor();
+  await page.locator('#tabs').getByRole('button', { name: 'My Progress', exact: true }).click();
+  await page.getByRole('heading', { name: 'My Progress', exact: true }).waitFor();
+  await page.getByText(reason, { exact: false }).waitFor();
+
+  const professor = await pageFor(t, 'Prof. Demo A');
+  await professor.locator('#tabs').getByRole('button', { name: 'Question bank', exact: true }).click();
+  await professor.getByRole('button', { name: /^Reported \(/ }).click();
+  const report = professor.locator('.qcard .note').filter({ hasText: reason });
+  await report.getByLabel('Professor response (optional, visible to the student)').fill('I checked the notes and clarified the question.');
+  await report.getByRole('button', { name: 'Mark resolved', exact: true }).click();
+  await professor.getByText('Report resolved. The student can see the status in My Progress.', { exact: true }).waitFor();
+  await page.getByRole('button', { name: 'Refresh progress', exact: true }).click();
+  await page.getByLabel('Report status', { exact: true }).selectOption('resolved');
+  await page.getByText('I checked the notes and clarified the question.', { exact: false }).waitFor();
+  if (process.env.QA_SCREENSHOTS) await page.screenshot({ path: require('node:path').join(process.env.QA_SCREENSHOTS, 'Progress-desktop.png'), fullPage: true });
+});
+
+test('My Progress handles empty history, a failed load and narrow screens', async (t) => {
+  const page = await pageFor(t, 'Student 12', { width: 390, height: 844 });
+  await page.route('**/api/student/classes/*/reports', (route) => route.fulfill({
+    status: 503, contentType: 'application/json', body: '{"error":"Progress temporarily unavailable."}',
+  }), { times: 1 });
+  await page.locator('#tabs').getByRole('button', { name: 'My Progress', exact: true }).click();
+  await page.getByRole('alert').waitFor();
+  await page.getByRole('button', { name: 'Refresh progress', exact: true }).click();
+  await page.getByText('No completed practice sessions yet.', { exact: true }).waitFor();
+  await page.getByText('You have not reported any questions in this class.', { exact: true }).waitFor();
+  assert.equal(await page.getByText('Not practised yet', { exact: true }).count(), 3);
+  assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth), true);
+  if (process.env.QA_SCREENSHOTS) await page.screenshot({ path: require('node:path').join(process.env.QA_SCREENSHOTS, 'Progress-empty-mobile.png'), fullPage: true });
+});
 async function unlockTestAccounts(page) {
   await page.getByRole('button', { name: 'Tools and version' }).click();
   for (const key of ['ArrowUp', 'ArrowUp', 'ArrowDown', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'ArrowLeft', 'ArrowRight', 'b', 'a', 'Enter']) {
@@ -37,8 +95,11 @@ async function unlockTestAccounts(page) {
 }
 test('switching professors refreshes course data and visits every teacher view', async (t) => {
   const page = await pageFor(t, 'Prof. Demo A');
+  await page.locator('#tabs').getByRole('button', { name: 'Question bank', exact: true }).click();
   await page.getByRole('heading', { name: 'Question bank', exact: true }).waitFor();
   await page.getByRole('button', { name: 'Switch user' }).click();
+  await page.getByRole('menuitem', { name: 'Log out' }).click();
+  await unlockTestAccounts(page); // the demo accounts are hidden again after signing out
   await page.getByRole('button', { name: 'Prof. Demo B' }).click();
   for (const name of ['Question bank', 'Source material', 'AI drafting', 'Analytics', 'Evaluation', 'Settings']) {
     await page.locator('#tabs').getByRole('button', { name, exact: true }).click();
@@ -57,11 +118,12 @@ test('a delayed start cannot replace Pets after navigation', async (t) => {
   await page.getByRole('button', { name: 'Start practice' }).click();
   await seen;
   await page.locator('#tabs').getByRole('button', { name: 'Pets & shop' }).click();
-  await page.getByRole('heading', { name: 'Pets & shop' }).waitFor();
+  // the tab is still "Pets & shop" but the view it opens is Hero Summon
+  await page.getByRole('heading', { name: 'Hero Summon', exact: true }).waitFor();
   release();
   await page.waitForResponse((r) => r.url().endsWith('/api/student/sessions'));
   await page.waitForTimeout(100);
-  assert.equal(await page.getByRole('heading', { name: 'Pets & shop' }).count(), 1);
+  assert.equal(await page.getByRole('heading', { name: 'Hero Summon', exact: true }).count(), 1);
   assert.equal(await page.locator('.quiz-head').count(), 0);
 });
 test('practice Next recovers from a failed request and the session finishes', async (t) => {
@@ -118,6 +180,8 @@ test('signing in with email and password', async (t) => {
   await page.getByRole('button', { name: 'Continue' }).click();
   await password.fill('quizquest');
   await password.press('Enter');
+  // professors land on Classes & Roster
+  await page.locator('#tabs').getByRole('button', { name: 'Question bank', exact: true }).click();
   await page.getByRole('heading', { name: 'Question bank', exact: true }).waitFor();
 });
 test('the Konami debug menu exposes test accounts and fills the sign-in form', async (t) => {
@@ -146,44 +210,28 @@ test('an unavailable API shows a useful error and the debug account list can be 
   await page.getByRole('button', { name: 'Student 01' }).waitFor();
 });
 
-test('hero lab selects heroes and allows movement, aiming, and action tests', async (t) => {
+test('hero lab picks a hero and hands off to the arena', async (t) => {
   const page = await browser.newPage();
+  const errors = [];
+  page.on('pageerror', (e) => errors.push(e.message));
+  page.on('console', (m) => { if (m.type() === 'error') errors.push(m.text()); });
   t.after(() => page.close());
   await page.goto(`${base}/hero-lab`);
-  await page.getByRole('heading', { name: 'Hero test field' }).waitFor();
-  assert.equal(await page.getByRole('heading', { name: 'Hero stats' }).count(), 0);
-  await page.getByRole('button', { name: '🏹 Ranger' }).click();
-  await page.getByRole('heading', { name: 'Hero stats' }).waitFor();
-  await page.getByRole('button', { name: 'Test weapon' }).click();
-  await page.getByText(/Ranger tested Longbow/).waitFor();
-  await page.keyboard.press('e');
-  await page.getByText(/Ranger tested Volley/).waitFor();
-  await page.keyboard.press('q');
-  await page.getByText(/Ranger tested Starfall/).waitFor();
-  await page.getByRole('button', { name: 'Test talent' }).click();
-  await page.getByText(/Ranger tested Keen Eye/).waitFor();
-  const before = await page.locator('canvas').evaluate((canvas) => canvas.toDataURL());
-  await page.locator('canvas').hover({ position: { x: 200, y: 100 } });
-  await page.waitForTimeout(50);
-  const aimed = await page.locator('canvas').evaluate((canvas) => canvas.toDataURL());
-  assert.notEqual(aimed, before, 'aim arrow follows the pointer');
-  await page.keyboard.down('ArrowRight');
-  await page.waitForTimeout(100);
-  await page.keyboard.up('ArrowRight');
-  assert.notEqual(await page.locator('canvas').evaluate((canvas) => canvas.toDataURL()), aimed, 'hero moves in the world');
-  await page.getByRole('button', { name: '🛡️ Guardian' }).click();
-  await page.getByText(/Weapon: Iron Mace/).waitFor();
-  const consoleMessages = [];
-  page.on('console', (msg) => consoleMessages.push(msg.text()));
-  await page.getByRole('button', { name: 'Fullscreen' }).waitFor();
-  await page.locator('canvas').click({ button: 'left' });
-  await page.getByText(/Guardian activated primary fire/).waitFor();
-  await page.locator('canvas').click({ button: 'right' });
-  await page.getByText(/Guardian activated secondary fire/).waitFor();
-  assert.ok(consoleMessages.some((msg) => msg.includes('[Weapon] Primary fire status:')), 'logged primary fire status');
-  assert.ok(consoleMessages.some((msg) => msg.includes('[Weapon] Secondary fire status:')), 'logged secondary fire status');
-  await page.getByRole('button', { name: 'Test AI' }).click();
-  assert.ok(consoleMessages.some((msg) => msg.includes('[AI] Requesting a multiple choice question from the server Gemini client')), 'logged AI request initiation');
+  await page.getByRole('heading', { name: 'Choose your hero' }).waitFor();
+  assert.deepEqual(errors, [], 'the picker loads its hero list without errors');
+  const cards = page.locator('#hero-list button');
+  assert.equal(await cards.count(), 6);
+  for (const hero of ['Guardian', 'Sheriff', 'Pilot', 'Bombardier', 'Bubbles', 'Electromancer']) {
+    assert.ok(await cards.filter({ hasText: hero }).count(), `${hero} is offered`);
+  }
+  await cards.filter({ hasText: 'Sheriff' }).click();
+  await page.waitForURL(/\/hero-lab\/world\?heroId=sheriff/);
+  const canvas = page.locator('canvas#world');
+  await canvas.waitFor();
+  assert.equal(await canvas.getAttribute('aria-label'), 'Hero Lab World game arena');
+  // the arena picks up the hero it was handed, rather than booting blind
+  await page.waitForFunction(() => document.querySelector('#hero-name')?.textContent?.includes('Sheriff'));
+  assert.deepEqual(errors, [], 'the arena starts without errors');
 });
 
 test('refreshing a timed quiz offers resume without resetting the server deadline', async (t) => {
@@ -205,15 +253,18 @@ test('student and teacher screens fit 320px and 390px viewports', async (t) => {
   const page = await pageFor(t, 'Student 02', { width: 320, height: 800 });
   for (const width of [320, 390]) {
     await page.setViewportSize({ width, height: 800 });
-    for (const name of ['Practice', 'World', 'Kingdom', 'Pets & shop']) {
+    // the tab is still "Pets & shop" but the view it opens is Hero Summon
+    for (const [name, heading] of [['Practice', 'Practice'], ['My Progress', 'My Progress'], ['World', 'World'], ['Kingdom', 'Kingdom'], ['Pets & shop', 'Hero Summon']]) {
       await page.locator('#tabs').getByRole('button', { name, exact: true }).click();
-      await page.getByRole('heading', { name, exact: true }).waitFor();
+      await page.getByRole('heading', { name: heading, exact: true }).waitFor();
       const overflow = await page.evaluate(() => document.documentElement.scrollWidth - innerWidth);
       assert.ok(overflow <= 1, `${name} overflows ${width}px by ${overflow}px`);
       if (process.env.QA_SCREENSHOTS && width === 320) await page.screenshot({ path: require('node:path').join(process.env.QA_SCREENSHOTS, name.replace(/\W+/g, '-') + '.png'), fullPage: true });
     }
   }
   await page.getByRole('button', { name: 'Switch user' }).click();
+  await page.getByRole('menuitem', { name: 'Log out' }).click();
+  await unlockTestAccounts(page);
   await page.getByRole('button', { name: 'Prof. Demo A' }).click();
   await page.setViewportSize({ width: 320, height: 800 });
   for (const name of ['Question bank', 'Source material', 'AI drafting', 'Analytics', 'Evaluation', 'Settings']) {
@@ -254,30 +305,31 @@ test('an answer accepted before a lost response can be retried exactly once', as
   await page.getByRole('button', { name: /Next question|See results/ }).waitFor();
 });
 
-test('an egg purchase with a lost response reuses its purchase key', async (t) => {
+test('a summon with a lost response reuses its purchase key', async (t) => {
   const page = await pageFor(t, 'Student 02');
   srv.quiz.db.ledger.push({ id: 'test-funds', studentId: 's-02', amount: 200, kind: 'refund', refKey: 'test-funds', at: Date.now() });
   await page.locator('#tabs').getByRole('button', { name: 'Pets & shop' }).click();
-  const open = page.getByRole('button', { name: 'Open an egg' });
+  // the summon button is labelled with its coin cost, not a fixed "Open an egg"
+  const open = page.getByRole('button', { name: /Summon ·/ });
   await open.waitFor();
   let body;
-  await page.route('**/shop/egg', async (route) => {
+  await page.route('**/hero-summon', async (route) => {
     body = route.request().postDataJSON();
     await route.fetch();
     await route.abort();
   }, { times: 1 });
   await open.click();
   await page.locator('#toast.bad').waitFor();
-  const spent = srv.quiz.db.ledger.filter((r) => r.refKey?.startsWith('egg:s-02:') && r.kind === 'spend').length;
-  const response = page.waitForResponse((r) => r.url().endsWith('/shop/egg'));
+  const spent = srv.quiz.db.ledger.filter((r) => r.refKey?.startsWith('hero-summon:s-02:') && r.kind === 'spend').length;
+  const response = page.waitForResponse((r) => r.url().endsWith('/hero-summon'));
   await open.click();
   const r = await response;
   assert.deepEqual(r.request().postDataJSON(), body);
   assert.equal((await r.json()).repeat, true);
-  assert.equal(srv.quiz.db.ledger.filter((r) => r.refKey?.startsWith('egg:s-02:') && r.kind === 'spend').length, spent);
+  assert.equal(srv.quiz.db.ledger.filter((r) => r.refKey?.startsWith('hero-summon:s-02:') && r.kind === 'spend').length, spent);
 });
 
-test('kingdom builds drop new blocks in place and the egg reveal hands over the pet', async (t) => {
+test('kingdom builds drop new blocks in place and the summon reveal hands over the hero', async (t) => {
   const page = await pageFor(t, 'Student 03');
   const R = require('../src/quiz/rewards');
   R.inventory(srv.quiz.db, 's-03').resources = { wood: 40, crystal: 40, herb: 40 };
@@ -292,19 +344,26 @@ test('kingdom builds drop new blocks in place and the egg reveal hands over the 
   assert.equal(await page.locator('.tile .v').first().innerText(), '🪵 35');
 
   srv.quiz.db.ledger.push({ id: 'test-funds-3', studentId: 's-03', amount: 100, kind: 'refund', refKey: 'test-funds-3', at: Date.now() });
-  const draw = R.drawPet;
-  R.drawPet = () => R.PETS.find((p) => p.id === 'owl');
-  t.after(() => { R.drawPet = draw; });
+  // The Pets & shop tab now summons heroes, not eggs: pin the pull to one hero.
+  // 'bubbles' is not a starter (sheriff + electromancer are), so it is a real new hero.
+  const draw = R.drawHeroSummon;
+  R.drawHeroSummon = (pity) => ({
+    prize: { kind: 'hero', rarity: 'epic', hero: R.HERO_CATALOG.find((h) => h.id === 'bubbles') },
+    pity: { totalPulls: pity.totalPulls + 1, sinceHero: 0, sinceEpic: 0 },
+  });
+  t.after(() => { R.drawHeroSummon = draw; });
   await page.locator('#tabs').getByRole('button', { name: 'Pets & shop' }).click();
-  await page.getByRole('button', { name: /Open an egg/ }).click();
+  await page.getByRole('button', { name: /Summon ·/ }).click();
   const dialog = page.getByRole('dialog');
   await dialog.waitFor();
   await dialog.click(); // skip the wobble
-  await dialog.getByRole('heading', { name: /Owl/ }).waitFor();
-  await dialog.getByRole('button', { name: 'Equip Owl' }).click();
+  await dialog.getByRole('heading', { name: /Bubbles/ }).waitFor();
+  await dialog.getByText('New hero!', { exact: true }).waitFor();
+  await dialog.getByRole('button', { name: 'Continue', exact: true }).click();
   await dialog.waitFor({ state: 'detached' });
-  await page.locator('.pet-card.equipped', { hasText: 'Owl' }).waitFor();
-  await page.getByRole('cell', { name: 'Opened an egg' }).waitFor();
+  // the pulled hero lands in the collection and the pull shows in coin history
+  await page.locator('.hero-collection-card', { hasText: 'Bubbles' }).getByText('Owned').waitFor();
+  await page.getByRole('cell', { name: 'Hero Summon pull' }).waitFor();
 });
 
 test('PDF upload extracts text locally and saves reviewed source material', async (t) => {
@@ -332,6 +391,115 @@ test('PDF upload extracts text locally and saves reviewed source material', asyn
   await page.getByRole('button', { name: 'Save passage' }).click();
   await page.getByText('Passage saved', { exact: true }).waitFor();
   assert.ok(srv.quiz.db.passages.some((p) => p.title === 'network-test' && p.text.includes(text)));
+});
+
+test('"Add material" creates a new topic with a typed learning outcome', async (t) => {
+  const page = await pageFor(t, 'Prof. Demo A');
+  await page.locator('#tabs').getByRole('button', { name: 'Source material' }).click();
+  const panel = page.locator('.panel', { has: page.getByRole('heading', { name: 'Add material', exact: true }) });
+  await panel.getByLabel('Title').fill('Cloud notes');
+  await panel.getByLabel('Topic', { exact: true }).selectOption({ label: '+ New topic…' });
+  await panel.getByLabel('Week').fill('9');
+  await panel.getByLabel('New topic name').fill('Cloud computing');
+  await panel.getByLabel('Learning outcome for the new topic').fill('Explain what cloud computing offers');
+  await panel.getByLabel('Text', { exact: true }).fill('Cloud computing rents computing resources over the internet.');
+  await panel.getByRole('button', { name: 'Preview', exact: true }).click();
+  await panel.getByRole('checkbox', { name: /I confirm/ }).check();
+  await panel.getByRole('button', { name: 'Save passage' }).click();
+  await page.getByText('Passage saved to the new topic Week 9 · Cloud computing').waitFor();
+  const topic = srv.quiz.db.topics.find((x) => x.name === 'Cloud computing');
+  // later tests share this server and expect the seeded weeks only
+  t.after(() => {
+    const { passages } = srv.quiz.db;
+    for (let i = passages.length - 1; i >= 0; i--) if (passages[i].topicId === topic.id) passages.splice(i, 1);
+    srv.quiz.db.topics.splice(srv.quiz.db.topics.indexOf(topic), 1);
+    srv.quiz.services.save();
+  });
+  assert.equal(topic.week, 9);
+  assert.deepEqual(topic.outcomes.map((o) => o.text), ['Explain what cloud computing offers']);
+  assert.ok(srv.quiz.db.passages.some((p) => p.title === 'Cloud notes' && p.topicId === topic.id && p.outcomeId === topic.outcomes[0].id));
+  // the new outcome is now offered in the list
+  await page.locator('.panel', { has: page.getByRole('heading', { name: 'Add material', exact: true }) }).getByLabel('Learning outcome', { exact: true }).locator('option', { hasText: 'Explain what cloud computing offers' }).waitFor({ state: 'attached' });
+});
+
+test('dashboard: very low accuracy is flagged, commonly missed means under 60%, and empty comparisons stay quiet', async (t) => {
+  const page = await pageFor(t, 'Prof. Demo A');
+  await page.locator('#tabs').getByRole('button', { name: 'Analytics', exact: true }).click();
+  const attention = page.locator('.panel', { has: page.getByRole('heading', { name: 'Needs attention' }) });
+  // the seeded video-call question: 0 of 5 right on first attempts (earlier
+  // tests answer at random, so others may join it). One question opens
+  // straight away; several go to their list.
+  const lowest = attention.getByRole('button', { name: /\d+ questions? under 25% correct on first attempts/ });
+  const one = /^1 question /.test(await lowest.innerText());
+  await lowest.click();
+  if (one) {
+    const dialog = page.getByRole('dialog');
+    await dialog.waitFor();
+    await page.keyboard.press('Escape');
+    await dialog.waitFor({ state: 'hidden' });
+  } else await page.waitForFunction(() => document.activeElement?.closest('#dash-missed'));
+  // Group A is far behind Group C on a topic (class names, no students)
+  await attention.getByRole('button', { name: /^.+: \d+% correct here vs \d+% in Computing - Tutorial Group C$/ }).waitFor();
+  // the comparison explanation opens from a button, not only on hover
+  const info = page.getByRole('button', { name: 'How the answers submitted comparison works' });
+  await info.click();
+  assert.equal(await info.getAttribute('aria-expanded'), 'true');
+  await page.getByText(/counted up to the same time of day|in the 30 days before\./).first().waitFor();
+  await info.click();
+  assert.equal(await info.getAttribute('aria-expanded'), 'false');
+  await page.locator('.dash-nav, nav').getByRole('button', { name: 'Commonly missed' }).first().click();
+  const missed = page.locator('#dash-missed');
+  await missed.getByText(/^Questions under 60% correct on first attempts/).waitFor();
+  const firsts = await missed.locator('.small.muted').filter({ hasText: 'first attempts' }).allInnerTexts();
+  for (const line of firsts.filter((l) => l.includes(' · first attempts '))) assert.ok(Number(line.match(/first attempts (\d+)%/)[1]) < 60, line);
+  // 50% is no longer "mostly right": the time table's groups use the 60% line
+  const time = page.locator('#dash-time');
+  await time.getByRole('columnheader', { name: 'Correct (all answers)' }).waitFor();
+  const https = time.locator('tr', { hasText: 'What does HTTPS add to HTTP?' });
+  // 50% is under the 60% "mostly right" line, so this question is in a *wrong*
+  // group. Which one depends on whether it lands above the slow threshold, so
+  // accept both: "Worth rereading" is the slow-and-wrong group, and its own hint
+  // reads "slow and often wrong".
+  assert.match(await https.innerText(), /often wrong|Worth rereading/i);
+  // downloads are named by what they hold, for whom and when
+  const download = page.waitForEvent('download');
+  await missed.getByRole('button', { name: 'Download CSV' }).click();
+  assert.match((await download).suggestedFilename(), /^Commonly missed questions - Computing - Tutorial Group A - All topics - last 30 days to \d{1,2} \w{3} \d{4}\.csv$/);
+  // no World answers yet: no "(0 in World)" and no empty Practice vs World panel
+  assert.equal(await page.getByText('(0 in World)').count(), 0);
+  assert.equal(await page.getByRole('heading', { name: 'Practice vs World' }).count(), 0);
+  // the seeded previous period is empty, so the tiles say "up from 0" instead of "+120"
+  await page.getByText(/^▲ up from 0 in the 30 days before/).first().waitFor();
+});
+
+test('dashboard: "This semester" uses the dates set in Settings', async (t) => {
+  const course = srv.quiz.db.courses.find((c) => c.id === 'c-comp');
+  const seeded = { ...course.semester };
+  t.after(() => { course.semester = seeded; srv.quiz.services.save(); });
+  const page = await pageFor(t, 'Prof. Demo A');
+  const tabs = page.locator('#tabs');
+  await tabs.getByRole('button', { name: 'Analytics', exact: true }).click();
+  await page.getByLabel('Period').selectOption('semester');
+  await page.getByText(/students who practised \(this semester, from \d{1,2} \w{3} \d{4}\)/).waitFor();
+  // the comparison says before what
+  await page.getByText(/in the \d+ days before the semester/).first().waitFor();
+  // without dates the dashboard stays put and points to Settings
+  await tabs.getByRole('button', { name: 'Settings', exact: true }).click();
+  await page.getByLabel('Semester starts').fill('');
+  await page.getByRole('button', { name: 'Clear dates' }).click();
+  await page.getByText('Semester dates cleared').waitFor();
+  // the remembered "This semester" falls back to 30 days, and says why
+  await tabs.getByRole('button', { name: 'Analytics', exact: true }).click();
+  await page.getByText(/students who practised \(last 30 days\)/).waitFor();
+  await page.getByText('This course has no semester dates yet.').waitFor();
+  await page.getByLabel('Period').selectOption('semester');
+  await page.getByText('This course has no semester dates yet.').waitFor();
+  await page.getByText(/students who practised \(last 30 days\)/).waitFor();
+  await page.getByRole('button', { name: 'Set when the semester starts in Settings' }).click();
+  await page.getByLabel('Semester starts').fill(seeded.start);
+  await page.getByRole('button', { name: 'Save dates' }).click();
+  await page.getByText('Semester dates saved').waitFor();
+  assert.deepEqual(course.semester, { start: seeded.start });
 });
 
 test('dashboard: period filter, question detail, and a jump to the Question bank', async (t) => {
@@ -579,9 +747,9 @@ test('with reduced motion, nothing keeps looping (the shortened animations would
   const page = await pageFor(t, 'Student 04', undefined, { reducedMotion: 'reduce' });
   const running = () => page.evaluate(() => document.getAnimations().filter((a) => a.playState === 'running').map((a) => a.animationName || a.constructor.name));
   const settle = () => page.waitForTimeout(300);
-  // the egg machine idles with a wiggling callout; the kingdom previews pulse
+  // the summon machine idles with a wiggling callout; the kingdom previews pulse
   await page.locator('#tabs').getByRole('button', { name: 'Pets & shop' }).click();
-  await page.getByRole('button', { name: /Open an egg/ }).waitFor();
+  await page.getByRole('button', { name: /Summon ·/ }).waitFor();
   await settle();
   assert.deepEqual(await running(), [], 'Pets & shop');
   const R = require('../src/quiz/rewards');
@@ -640,4 +808,56 @@ test('weekly topics: narrow the dashboard, follow a next step, and add a topic f
   await page.getByRole('button', { name: 'Delete topic' }).click();
   await page.getByRole('button', { name: 'Edit Operating systems' }).waitFor({ state: 'detached' });
   assert.ok(!srv.quiz.db.topics.some((x) => x.name === 'Operating systems'));
+});
+
+test('a student with no classes joins one with the code their professor generated', async (t) => {
+  // A teacher generates a code. Set up over the API so this test stays about
+  // the student-facing half, which is what was reported as unreachable.
+  const teacher = await fetch(`${base}/api/login`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ email: 'prof.a@quizquest.demo', password: 'quizquest' }),
+  }).then((r) => r.json());
+  const auth = { 'content-type': 'application/json', authorization: `Bearer ${teacher.token}` };
+  const [cls] = await fetch(`${base}/api/classes`, { headers: auth }).then((r) => r.json());
+  const { code } = await fetch(`${base}/api/classes/${cls.id}/join-codes`, { method: 'POST', headers: auth, body: '{}' }).then((r) => r.json());
+  assert.match(code, /^QQ-[2-9A-HJ-NP-Z]{5}$/, 'the generated code has the shape the student form advertises');
+
+  // A brand-new account, enrolled in nothing at all.
+  const email = `joiner.${Date.now()}@example.com`;
+  await fetch(`${base}/api/register`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ name: 'Joiner', email, password: 'longenough' }),
+  }).then((r) => r.json());
+
+  const page = await browser.newPage({ viewport: { width: 1280, height: 900 }, locale: 'en-SG' });
+  const errors = [];
+  page.on('pageerror', (e) => errors.push(e.message));
+  t.after(async () => { await page.close(); assert.deepEqual(errors, [], 'no unhandled browser errors'); });
+  await page.goto(base);
+  await page.getByLabel('Email', { exact: true }).fill(email);
+  await page.getByLabel('Email', { exact: true }).press('Enter');
+  await page.getByLabel('Password', { exact: true }).fill('longenough');
+  await page.getByRole('button', { name: 'Sign in' }).click();
+  await page.locator('#tabs').getByRole('button', { name: 'Practice', exact: true }).waitFor();
+
+  // With no classes the picker still offers the way in.
+  await page.getByText('No class enrolled').waitFor();
+  await page.getByRole('button', { name: '+ Join Class' }).click();
+  await page.getByLabel('Class Join Code').fill(code);
+  await page.getByRole('button', { name: 'Join Class', exact: true }).click();
+  await page.getByText(`Successfully enrolled in ${cls.name}!`).waitFor();
+
+  // The class is theirs now, on every view that offers the picker.
+  await page.getByText(cls.name, { exact: false }).first().waitFor();
+  await page.locator('#tabs').getByRole('button', { name: 'My Progress', exact: true }).click();
+  await page.getByRole('heading', { name: 'My Progress', exact: true }).waitFor();
+  await page.getByText(cls.name, { exact: false }).first().waitFor();
+
+  // The same code cannot be spent twice by the same student.
+  await page.getByRole('button', { name: '+ Join Class' }).click();
+  await page.getByLabel('Class Join Code').fill(code);
+  await page.getByRole('button', { name: 'Join Class', exact: true }).click();
+  await page.getByText('You are already enrolled in this class.').waitFor();
 });

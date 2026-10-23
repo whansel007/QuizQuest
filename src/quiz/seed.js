@@ -89,6 +89,8 @@ const SKILL_C = {
 };
 
 function seed(now = Date.now()) {
+  // the demo semester began eight weeks ago, so "This semester" has data
+  const semesterStart = new Date(now - 8 * 7 * 86400000).toISOString().slice(0, 10);
   const rand = mulberry32(42);
   const db = {
     schema: SCHEMA,
@@ -98,8 +100,8 @@ function seed(now = Date.now()) {
       ...['01', '02', '03', '04', '05', '06', '07', '08', '09', '10', '11', '12'].map((n) => ({ id: 's-' + n, name: 'Student ' + n, role: 'student' })),
     ],
     courses: [
-      { id: 'c-comp', title: 'Intro to Computing (demo)', teacherIds: ['t-a'], coverageTarget: 4, promptConfig: 'Prefer short applied scenarios over pure recall. Use plain British English.' },
-      { id: 'c-stats', title: 'Intro to Statistics (demo)', teacherIds: ['t-b'], coverageTarget: 4, promptConfig: 'Show working in explanations.' },
+      { id: 'c-comp', title: 'Intro to Computing (demo)', teacherIds: ['t-a'], coverageTarget: 4, promptConfig: 'Prefer short applied scenarios over pure recall. Use plain British English.', semester: { start: semesterStart } },
+      { id: 'c-stats', title: 'Intro to Statistics (demo)', teacherIds: ['t-b'], coverageTarget: 4, promptConfig: 'Show working in explanations.', semester: { start: semesterStart } },
     ],
     topics: [
       { id: 'tp-data', courseId: 'c-comp', name: 'Data representation', week: 1, outcomes: [

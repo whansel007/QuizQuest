@@ -1,0 +1,65 @@
+{
+  "date": "2026-10-16",
+  "branch": "fix/quizquest-debugging",
+  "scope": "Offline code and workflow audit; no live Gemini or Supabase calls. Existing docs/authoring-incident.json preserved.",
+  "confirmedDefects": [
+    {
+      "issue": "Authoring UI can remain busy indefinitely when an HTTP response never arrives",
+      "rootCause": "Axios has no configured deadline; api() also ignored supplied timeout options.",
+      "reproduction": "A loopback server withholding its response did not time out until the test watchdog aborted. A browser-held progress response reproduced the blocked controls.",
+      "fix": "Forward explicit timeout options and apply a 30-second timeout only to AuthoringWorkflow requests. Preserve uncertain generation attempt IDs and use the existing explicit refresh/retry recovery.",
+      "files": ["web/src/api.js", "web/src/teacher/AuthoringWorkflow.vue", "test/api-timeout-test.js", "test/browser-authoring.test.cjs"]
+    },
+    {
+      "issue": "Learning outcome suggestions contain sample questions and answers",
+      "rootCause": "The objectives extractor accepted every list item until the next Markdown heading; Q/A-labelled items and bold sample-question section labels were not recognized.",
+      "reproduction": "Two new unit regressions failed with question and answer text included in the suggested outcome.",
+      "fix": "Exclude question text and explicit Q/A/solution labels, and stop at plain or bold sample-question section markers. Retain explicit objective items and source-citation removal; do not infer outcomes from other report prose.",
+      "files": ["web/src/teacher/report-suggestions.mjs", "test/report-suggestions-test.js"]
+    },
+    {
+      "issue": "Empty successful scan transcription bypasses the 40-page AI limit",
+      "rootCause": "The cap counted successful nonempty transcriptions, personal-data responses and failures, but omitted empty successful responses.",
+      "reproduction": "A synthetic 45-page PDF with an empty mock response on each page made 45 describe calls instead of at most 40.",
+      "fix": "Count each attempted scanned page independently of its result; retain unread pages and PDF cleanup. The browser extraction harness now honors BROWSER_CHANNEL so installed Edge can be used.",
+      "files": ["web/src/teacher/import-materials.js", "test/browser-import.test.cjs"]
+    }
+  ],
+  "existingSafeguardsVerified": [
+    "Idle and terminal authoring jobs do not schedule periodic GET requests; active jobs poll at 2500 ms. GET authoring does not invoke inference.",
+    "Generation attempts deduplicate retried submissions; explicit new attempts can create new batches. Restart marks active jobs interrupted and requires explicit resume.",
+    "Gemini transport attempts and lifetime authoring budgets are bounded. Mock quota, unavailable-provider, malformed-output and transcription failures are covered.",
+    "Generation uses saved report revisions, checkpoints candidates and accepted drafts, independently verifies answers and preserves partial results.",
+    "Supabase failed writes keep a pending retry; API persist checks pending() and rejects undurable acknowledgments. Local PGlite covers persistence/reload and transient-write retry.",
+    "Imports are idempotent; report edits use revision checks; detach/replace preserves historical source material.",
+    "Question publication, gameplay, grading/replay, provisional short-answer marking, course ownership and API body validation have offline regression coverage."
+  ],
+  "remainingRisks": [
+    "The historical 86.5 KB response size and live stuck-generation incident were not reproduced from retained runtime logs. Active polling still returns report content; no speculative API redesign was made.",
+    "Live Gemini 503 causes, live transcription quality and Supabase connection termination remain unverified external-service hypotheses.",
+    "The browser deadline does not cancel server-side jobs. Backend persistence has no explicit application-level deadline; permanently stalled network/storage operations were not validated against a real provider.",
+    "Persistence is a single-process in-memory mirror with sequential table writes, not a cross-table transaction. Abrupt process loss before a successful checkpoint can lose unsaved state.",
+    "Passwordless demo login intentionally allows choosing a teacher account. This is not production authentication; replacing it would change the existing feature contract.",
+    "Learning outcome filtering is structural, not semantic validation of arbitrary prose. Instructor review remains necessary. Existing saved outcomes are not rewritten."
+  ],
+  "recovery": "Tested browser timeout, lost acknowledgments, duplicate requests, transient persistence failures, interrupted jobs, partial generation and bounded AI errors recover through existing refresh/retry/resume flows without deleting saved work. Permanent outages and cross-process deployment are not guaranteed.",
+  "verification": {
+    "offlineSuite": "node --require ./test/support/offline.cjs --test test/*-test.js: 240 passed, 1 existing skip, 0 failed",
+    "browserSuite": "BROWSER_CHANNEL=msedge; node --require ./test/support/offline.cjs --test test/browser*.test.cjs: 29 passed, 0 failed",
+    "syntax": "node scripts/check.js: 80 files passed; modified report-suggestions.mjs also passed node --check",
+    "productionBuild": "node node_modules/vite/bin/vite.js build: passed",
+    "diff": "git diff --check: passed",
+    "initialFailures": "Outcome and deadline regressions failed before their fixes; empty scans reproduced 45 versus 40 attempts. Initial browser suite had 7 fixture setup failures because browser-import ignored BROWSER_CHANNEL and bundled Chromium was absent; final suite uses installed Edge and passes.",
+    "logs": ["tmp/audit-final-tests.log", "tmp/audit-browser-final.log", "tmp/audit-check-final.log", "tmp/audit-build.log"]
+  },
+  "constraints": {
+    "liveProviderCalls": 0,
+    "environmentOrCredentialsEdited": false,
+    "usageLedgersEdited": false,
+    "activeServicesRestarted": false,
+    "databaseOperations": "In-memory local PGlite fixtures only",
+    "committed": false,
+    "pushed": false,
+    "branchChanged": false
+  }
+}
