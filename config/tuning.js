@@ -15,8 +15,9 @@ export const RESPAWN_MIN_SEPARATION = 40;
 export const RESPAWN_CANDIDATE_ATTEMPTS = 10;
 
 // Camera-shake calibration. The offset is trauma^2 * SHAKE_MAX_OFFSET, so the
-// quadratic curve keeps small events subtle and big events punchy. These values
-// are tuned so every source is actually perceptible at 100% intensity (in px):
+// quadratic curve keeps small events subtle and big events punchy. The px
+// ladder below is what the NEUTRAL 50% slider setting produces (the old
+// slider's 100%); the player can scale the whole ladder 0-200% live:
 //   player hit 1.4 | own weak hit 2.0 | own strong hit 3.2 | kill blow 5.4
 //   boss slam 7.3 | ultimate 9.0 | mass kill (cap) 13.0
 // The earlier MAX_OFFSET of 8 made every source sub-pixel (0.16-2.88px), which
@@ -45,10 +46,63 @@ export const SHAKE_NOISE_PRIMARY_PHASE = 0;
 export const SHAKE_NOISE_PRIMARY_FREQUENCY = 0.41;
 export const SHAKE_NOISE_SECONDARY_FREQUENCY = 0.73;
 export const SHAKE_NOISE_SECONDARY_PHASE = 1.7;
-export const SHAKE_DEFAULT_INTENSITY = 100;
+// The slider runs 0-200% with a neutral default of 50%: 50% reproduces exactly
+// what the old 0-100 slider produced at 100% (offset = trauma^2 *
+// SHAKE_MAX_OFFSET * slider / SHAKE_SLIDER_REFERENCE). Saved settings from the
+// old scale migrate v -> v / 2 (see SETTINGS_VERSION in world.js).
+export const SHAKE_DEFAULT_INTENSITY = 50;
+export const SHAKE_SLIDER_REFERENCE = 50;
 export const SHAKE_MIN_INTENSITY = 0;
-export const SHAKE_MAX_INTENSITY = 100;
+export const SHAKE_MAX_INTENSITY = 200;
 export const SHAKE_INTENSITY_STEP = 1;
+// Hard ceiling on the camera translate so the top of the slider cannot turn
+// the arena into a slideshow.
+export const SHAKE_ABSOLUTE_CAP_PX = 40;
+
+// --- Hit-flash feedback (aura damage must not strobe) -----------------------
+// A flash request that arrives inside the cooldown is ignored: it must not
+// extend or restart a flash already in progress. Thorns Fire damages at 30Hz,
+// so without its own longer cooldown enemies standing in the ring strobe
+// white continuously instead of pulsing about twice per second.
+export const HIT_FLASH_MIN_INTERVAL_MS = 120;
+export const THORNS_FLASH_INTERVAL_MS = 500;
+// Thorns damage numbers merge into one running total per enemy (muted orange),
+// so a 10 damage/s aura does not spam a number per tick.
+export const THORNS_NUMBER_MERGE_MS = 1_000;
+export const THORNS_NUMBER_COLOR = '#e8a05a';
+
+// --- Area rings and telegraphs (visibility pass) ----------------------------
+// Every ring and area marker is drawn as a dark under-stroke plus a bright
+// dashed main stroke (plain strokes and alpha fills only - no shadowBlur, no
+// filters). The arena floor is a #70a94f/#79b456 checkerboard, so ring colors
+// are chosen to contrast with that green.
+export const AREA_RING_WIDTH = 4;
+export const AREA_TELEGRAPH_WIDTH = 5;
+export const AREA_DASH_ON = 14;
+export const AREA_DASH_OFF = 10;
+export const AREA_UNDERSTROKE_EXTRA_PX = 3;
+export const AREA_UNDERSTROKE_ALPHA = 0.45;
+export const AREA_RING_STROKE_ALPHA = 0.8;
+export const AREA_TELEGRAPH_STROKE_ALPHA = 0.9;
+export const AREA_RING_FILL_ALPHA = 0.12;
+export const AREA_TELEGRAPH_FILL_START_ALPHA = 0.2;
+export const AREA_TELEGRAPH_FILL_END_ALPHA = 0.45;
+// Danger zones get a slightly stronger fill so enemy telegraphs stand out.
+export const AREA_ENEMY_FILL_END_ALPHA = 0.55;
+// Enemy telegraphs wider than this radius get a centre marker so the danger
+// zone centre is unambiguous.
+export const AREA_ENEMY_MARKER_MIN_RADIUS = 100;
+export const AREA_COLORS = Object.freeze({
+  understroke: '#000000',
+  healStroke: '#B8FFE0',
+  healFill: '#3CFF8A',
+  thornsStroke: '#FF8A1F',
+  thornsFill: '#FF8A1F',
+  playerStroke: '#FFC93C',
+  playerFill: '#FFC93C',
+  enemyStroke: '#FF3B3B',
+  enemyFill: '#FF3B3B',
+});
 export const FRAME_TIME_TARGET_MS = 20;
 // Render frame cap. On a machine that can't hold 60fps an uncapped loop
 // alternates 16.7ms and 33ms frames (visible judder, and burst frames blow the

@@ -55,6 +55,10 @@ export function createProfiler({ getStats, getRoomCode, getToken }) {
   let overlay = null;
   let rows = null;
   let chips = null;
+  // The overlay is a Settings-panel-only tool: while hidden it does zero DOM
+  // work and the server poll is paused; only the cheap per-frame counters
+  // (typed arrays + window sums) keep running.
+  let visible = false;
 
   function recordFrame(now, drawMs) {
     if (lastFrameAt) {
@@ -140,13 +144,25 @@ export function createProfiler({ getStats, getRoomCode, getToken }) {
   function build() {
     overlay = document.createElement('div');
     overlay.id = 'perf-overlay';
-    overlay.style.cssText = [
-      'position:fixed', 'right:8px', 'top:50%', 'transform:translateY(-50%)',
-      'z-index:30', 'display:grid', 'gap:4px', 'padding:8px 10px', 'min-width:196px',
-      'font:11px/1.35 ui-monospace,SFMono-Regular,Menlo,monospace',
-      'color:#dff5e3', 'background:rgba(10,20,14,.82)', 'border:1px solid rgba(140,220,160,.35)',
-      'border-radius:8px', 'pointer-events:auto', 'user-select:text',
-    ].join(';');
+    // Mounted inside the Settings panel when that mount point exists, so the
+    // overlay can never appear during normal play. Without the mount point it
+    // falls back to a floating panel (standalone/debug use).
+    const mount = typeof document !== 'undefined' ? document.getElementById('perf-mount') : null;
+    overlay.style.cssText = (mount
+      ? [
+        'position:static', 'width:100%', 'min-width:0', 'margin:2px 0 0',
+        'display:grid', 'gap:4px', 'padding:8px 10px',
+        'font:11px/1.35 ui-monospace,SFMono-Regular,Menlo,monospace',
+        'color:#dff5e3', 'background:rgba(10,20,14,.82)', 'border:1px solid rgba(140,220,160,.35)',
+        'border-radius:8px', 'pointer-events:auto', 'user-select:text',
+      ]
+      : [
+        'position:fixed', 'right:8px', 'top:50%', 'transform:translateY(-50%)',
+        'z-index:30', 'display:grid', 'gap:4px', 'padding:8px 10px', 'min-width:196px',
+        'font:11px/1.35 ui-monospace,SFMono-Regular,Menlo,monospace',
+        'color:#dff5e3', 'background:rgba(10,20,14,.82)', 'border:1px solid rgba(140,220,160,.35)',
+        'border-radius:8px', 'pointer-events:auto', 'user-select:text',
+      ]).join(';');
     const title = document.createElement('strong');
     title.textContent = 'PERF';
     title.style.cssText = 'font-size:10px;letter-spacing:.12em;color:#9fe3b0';
@@ -173,7 +189,8 @@ export function createProfiler({ getStats, getRoomCode, getToken }) {
       chipRow.append(chip);
     }
     overlay.append(chipRow);
-    document.body.append(overlay);
+    (mount || document.body).append(overlay);
+    overlay.style.display = 'none';
   }
 
   function chipStyle(on) {
@@ -194,7 +211,8 @@ export function createProfiler({ getStats, getRoomCode, getToken }) {
   }
 
   function render(force = false) {
-    if (!overlay || !rows) return;
+    // Hidden = no formatting, no DOM writes at all.
+    if (!visible || !overlay || !rows) return;
     const now = performance.now();
     if (!force && now - lastDomUpdate < PERF_OVERLAY_UPDATE_MS) return;
     lastDomUpdate = now;
@@ -216,10 +234,11 @@ export function createProfiler({ getStats, getRoomCode, getToken }) {
     toggle,
     onSoundToggle: null,
     samples,
-    isVisible: () => Boolean(overlay),
-    setVisible(visible) {
-      if (!overlay) return;
-      overlay.style.display = visible ? 'grid' : 'none';
+    isVisible: () => visible,
+    setVisible(next) {
+      visible = Boolean(next);
+      if (overlay) overlay.style.display = visible ? 'grid' : 'none';
+      if (visible) render(true);
     },
     exportTrace() {
       const frames = [];
@@ -258,14 +277,17 @@ export function createProfiler({ getStats, getRoomCode, getToken }) {
     } catch { enabled = false; }
     // The visible overlay is the debug-menu-gated tool, but the measurement data
     // is always exposed so the lag investigation can read frame stats without
-    // forcing the overlay open. ?profiler=1 also forces the overlay on.
+    // forcing the overlay open. ?profiler=1 also passes the gate (builds the
+    // overlay), but visibility is still controlled by the Settings panel, so
+    // the pop-up can never appear during normal play.
     window.__heroLabPerf = api;
     const forced = typeof location !== 'undefined' && new URLSearchParams(location.search).has('profiler');
     if (!enabled && !forced) return false;
     build();
-    render(true);
-    window.setInterval(() => { void pollServer(); }, PERF_STATS_POLL_MS);
-    window.setInterval(() => render(true), PERF_OVERLAY_UPDATE_MS);
+    // Both timers no-op while the overlay is hidden (no DOM work, no polling);
+    // recordFrame keeps the minimal counters running regardless.
+    window.setInterval(() => { if (visible) { void pollServer(); } }, PERF_STATS_POLL_MS);
+    window.setInterval(() => { if (visible) render(true); }, PERF_OVERLAY_UPDATE_MS);
     return true;
   }
 

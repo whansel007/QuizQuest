@@ -5,8 +5,13 @@ import { GAME_CONFIG, HERO_FX_COLORS } from './game-config.js';
 import { SHAKE_PLAYER_HIT_TRAUMA, SHAKE_ULTIMATE_TRAUMA, SHAKE_BOSS_SLAM_TRAUMA, SHAKE_EXPLOSION_BASE_TRAUMA,
   SHAKE_EXPLOSION_RADIUS_SCALE, SHAKE_MAX_TRAUMA, SHAKE_DECAY, SHAKE_MAX_OFFSET, SHAKE_EXPLOSION_COOLDOWN_MS,
   SHAKE_NOISE_HZ, SHAKE_NOISE_PRIMARY_PHASE, SHAKE_NOISE_PRIMARY_FREQUENCY, SHAKE_NOISE_SECONDARY_FREQUENCY, SHAKE_NOISE_SECONDARY_PHASE, SHAKE_DEFAULT_INTENSITY,
-  SHAKE_MIN_INTENSITY, SHAKE_MAX_INTENSITY, SHAKE_INTENSITY_STEP,
+  SHAKE_MIN_INTENSITY, SHAKE_MAX_INTENSITY, SHAKE_INTENSITY_STEP, SHAKE_SLIDER_REFERENCE, SHAKE_ABSOLUTE_CAP_PX,
   SHAKE_HIT_TRAUMA, SHAKE_HIT_DAMAGE_REFERENCE, SHAKE_HIT_MIN_INTERVAL_MS, SHAKE_KILL_TRAUMA,
+  HIT_FLASH_MIN_INTERVAL_MS, THORNS_FLASH_INTERVAL_MS, THORNS_NUMBER_MERGE_MS, THORNS_NUMBER_COLOR,
+  AREA_RING_WIDTH, AREA_TELEGRAPH_WIDTH, AREA_DASH_ON, AREA_DASH_OFF, AREA_UNDERSTROKE_EXTRA_PX,
+  AREA_UNDERSTROKE_ALPHA, AREA_RING_STROKE_ALPHA, AREA_TELEGRAPH_STROKE_ALPHA, AREA_RING_FILL_ALPHA,
+  AREA_TELEGRAPH_FILL_START_ALPHA, AREA_TELEGRAPH_FILL_END_ALPHA, AREA_ENEMY_FILL_END_ALPHA,
+  AREA_ENEMY_MARKER_MIN_RADIUS, AREA_COLORS,
   MAX_BURSTS_PER_FRAME, KILL_BURST_THRESHOLD, KILL_BURST_WINDOW_MS, KILL_MASS_SHAKE_TRAUMA, KILL_MASS_PUFF_PARTICLES,
   FRAME_TIME_TARGET_MS, ADAPTIVE_RESTORE_MS, ADAPTIVE_SAMPLE_FRAMES, QUALITY_PARTICLE_FACTOR, FRAME_CAP_FPS } from '../../config/tuning.js';
 import { playSound, setAudioOptions, setHeartbeat, audioStats, setAudioEnabled, warmUpAudio } from './arena-audio.js';
@@ -86,6 +91,7 @@ const shakeIntensitySetting = document.querySelector('#shake-intensity-setting')
 const shakeIntensityValue = document.querySelector('#shake-intensity-value');
 const numbersSetting = document.querySelector('#numbers-setting');
 const qualitySetting = document.querySelector('#quality-setting');
+const perfSetting = document.querySelector('#perf-setting');
 const muteSetting = document.querySelector('#mute-setting');
 const volumeSetting = document.querySelector('#volume-setting');
 const killStreakHud = document.querySelector('#kill-streak');
@@ -130,6 +136,9 @@ const damageTexts = [];
 const lightningArcs = [];
 const enemyFlashes = new Map();
 const enemyHitFlashUntil = new Map();
+// Last time each enemy was ALLOWED to start a hit flash. Aura/repeating
+// damage (Thorns Fire) must not restart a flash that is already playing.
+const lastEnemyFlashAt = new Map();
 const enemyHitFx = new Map();
 const deathSprites = [];
 const damageNumberMerge = new Map();
@@ -181,7 +190,20 @@ document.documentElement.style.setProperty('--overload-flash-duration', `${ARENA
 document.documentElement.style.setProperty('--overload-feedback-duration', `${ARENA_TUNING.heroTweaks.electroOverloadFeedbackMs}ms`);
 const hasCard = (id) => (state.activeBuffs || []).some((buff) => buff.id === id);
 const settings = { screenShake: true, shakeIntensity: SHAKE_DEFAULT_INTENSITY, damageNumbers: true, masterVolume: ARENA_TUNING.sound.defaultMasterVolume, muted: false, effectsQuality: 'auto' };
-try { Object.assign(settings, JSON.parse(localStorage.getItem('hero-lab-settings') || '{}')); } catch { /* use defaults */ }
+// Settings schema version. v1 -> v2 re-scaled the shake slider from 0-100
+// (default 100) to 0-200 (default 50), so an old stored value v migrates to
+// v / 2 and old 100 lands exactly on the new neutral 50.
+const SETTINGS_VERSION = 2;
+let storedSettings = {};
+try { storedSettings = JSON.parse(localStorage.getItem('hero-lab-settings') || '{}'); } catch { /* use defaults */ }
+if (storedSettings && storedSettings.settingsVersion !== SETTINGS_VERSION) {
+  if (Number.isFinite(Number(storedSettings.shakeIntensity))) {
+    storedSettings.shakeIntensity = Number(storedSettings.shakeIntensity) / 2;
+  }
+  storedSettings.settingsVersion = SETTINGS_VERSION;
+}
+Object.assign(settings, storedSettings);
+settings.settingsVersion = SETTINGS_VERSION;
 if (!['auto', 'high', 'medium', 'low'].includes(settings.effectsQuality)) settings.effectsQuality = 'auto';
 const storedShakeIntensity = Number(settings.shakeIntensity);
 settings.shakeIntensity = Number.isFinite(storedShakeIntensity)
@@ -322,6 +344,42 @@ function glowSprite(color, inner, outer) {
   c.fillRect(0, 0, size, size);
   sprite = { canvas, size };
   _glowSprites.set(key, sprite);
+  return sprite;
+}
+
+// Pre-rendered permanent area rings (heal ring, Thorns ring). Each sprite is
+// the full ring treatment - dark under-stroke, dashed bright main stroke and
+// the translucent inner fill - rasterized once per radius and blitted with
+// drawImage, so the two permanent rings cost one blit each per frame instead
+// of ~6 stroked arcs. Transient telegraphs still draw live: their radius and
+// fill alpha change every frame.
+const _ringSprites = new Map();
+function ringSprite(key, radius, strokeColor, fillColor, width, strokeAlpha) {
+  let sprite = _ringSprites.get(key);
+  if (sprite) return sprite;
+  const pad = Math.ceil(width / 2 + AREA_UNDERSTROKE_EXTRA_PX + 2);
+  const size = Math.ceil((radius + pad) * 2);
+  const canvas = document.createElement('canvas');
+  canvas.width = size;
+  canvas.height = size;
+  const c = canvas.getContext('2d');
+  const center = size / 2;
+  // Inner fill first so the strokes stay crisp on top of it.
+  c.beginPath(); c.arc(center, center, radius, 0, Math.PI * 2);
+  c.globalAlpha = AREA_RING_FILL_ALPHA; c.fillStyle = fillColor; c.fill();
+  // Dark under-stroke: guarantees the bright stroke reads on any floor.
+  c.globalAlpha = AREA_UNDERSTROKE_ALPHA;
+  c.strokeStyle = AREA_COLORS.understroke;
+  c.lineWidth = width + AREA_UNDERSTROKE_EXTRA_PX;
+  c.beginPath(); c.arc(center, center, radius, 0, Math.PI * 2); c.stroke();
+  // Bright dashed main stroke.
+  c.globalAlpha = strokeAlpha;
+  c.strokeStyle = strokeColor;
+  c.lineWidth = width;
+  c.setLineDash([AREA_DASH_ON, AREA_DASH_OFF]);
+  c.beginPath(); c.arc(center, center, radius, 0, Math.PI * 2); c.stroke();
+  sprite = { canvas, size };
+  _ringSprites.set(key, sprite);
   return sprite;
 }
 
@@ -517,7 +575,15 @@ settingsButton.addEventListener('click', () => {
   settingsPanel.hidden = !settingsPanel.hidden;
   settingsButton.setAttribute('aria-expanded', String(!settingsPanel.hidden));
   playSound('uiClick');
+  updatePerfVisibility();
 });
+// The performance overlay lives inside the Settings panel: it is visible only
+// while the panel is open AND its own toggle is checked, and closing Settings
+// hides it no matter what.
+function updatePerfVisibility() {
+  profiler.setVisible(!settingsPanel.hidden && Boolean(perfSetting?.checked));
+}
+perfSetting?.addEventListener('change', () => { updatePerfVisibility(); playSound('uiClick'); });
 document.addEventListener('click', (event) => {
   const button = event.target.closest?.('button');
   if (button && button !== settingsButton && !button.disabled) playSound('uiClick');
@@ -587,9 +653,13 @@ function showAreaEffect({ x, y, radius, kind = 'player', telegraphMs = 0, source
   }
 }
 
-function addDamageNumber({ x, y, damage, sourceId, targetId, bonus = false, color = null }) {
+function addDamageNumber({ x, y, damage, sourceId, targetId, bonus = false, color = null, mergeWindowMs = null }) {
   if (!settings.damageNumbers || !effectToggles.numbers) return;
   const now = performance.now();
+  // Aura damage merges over a much longer window (THORNS_NUMBER_MERGE_MS) so a
+  // damage-over-time tick shows one running total per enemy, not a number per
+  // server tick.
+  const mergeWindow = mergeWindowMs ?? ARENA_TUNING.damageNumbers.mergeMs;
   // Mass-kill window: collapse every hit into one running total instead of a
   // number per enemy.
   if (isMassKillWindow(now)) {
@@ -611,7 +681,7 @@ function addDamageNumber({ x, y, damage, sourceId, targetId, bonus = false, colo
   }
   const mergeKey = `${sourceId}|${targetId}`;
   const existing = damageNumberMerge.get(mergeKey);
-  if (existing && now - existing.lastHitAt <= ARENA_TUNING.damageNumbers.mergeMs) {
+  if (existing && now - existing.lastHitAt <= mergeWindow) {
     existing.value += damage;
     existing.text = `-${Math.round(existing.value)}`;
     existing.glyph = textGlyph(existing.text, existing.color, 13 * existing.scale);
@@ -876,11 +946,26 @@ socket.on('game_over', (result = {}) => {
 function handleHit(hit) {
   const fx = HERO_FX_COLORS[hit.heroId] || {};
   const now = performance.now();
+  // Thorns Fire (and any future aura/repeating source) is pure damage-over-
+  // time: it gets a slower flash cadence, no knockback, no sparks and no
+  // sound, so an enemy standing in the ring pulses instead of strobing.
+  const auraHit = hit.sourceAbility === 'thorns';
   addDamageNumber({ x: hit.x + (Math.random() - 0.5) * 10, y: hit.y - 12, damage: hit.damage,
-    sourceId: hit.sourceId, targetId: hit.id, bonus: hit.bonus, color: '#fff' });
+    sourceId: hit.sourceId, targetId: hit.id, bonus: hit.bonus,
+    color: auraHit ? THORNS_NUMBER_COLOR : '#fff',
+    mergeWindowMs: auraHit ? THORNS_NUMBER_MERGE_MS : null });
   if (hit.id) {
-    if (effectToggles.flash) enemyHitFlashUntil.set(hit.id, now + ARENA_TUNING.hitFlashMs);
-    if (effectToggles.knockback) {
+    if (effectToggles.flash) {
+      // Per-enemy cooldown: a request inside the window is ignored entirely,
+      // so a running flash is never extended or restarted.
+      const lastFlashAt = lastEnemyFlashAt.get(hit.id) || 0;
+      const flashInterval = auraHit ? THORNS_FLASH_INTERVAL_MS : HIT_FLASH_MIN_INTERVAL_MS;
+      if (now - lastFlashAt >= flashInterval) {
+        lastEnemyFlashAt.set(hit.id, now);
+        enemyHitFlashUntil.set(hit.id, now + ARENA_TUNING.hitFlashMs);
+      }
+    }
+    if (effectToggles.knockback && !auraHit) {
       const direction = Math.atan2(hit.y - (hit.sourceY ?? hit.y), hit.x - (hit.sourceX ?? hit.x));
       const maxDamage = GAME_CONFIG.arenaTuning.damageNumbers.knockbackScaleDamage || 10;
       let amount = ARENA_TUNING.knockback.normalMinPx + (ARENA_TUNING.knockback.normalMaxPx - ARENA_TUNING.knockback.normalMinPx) * Math.min(1, hit.damage / maxDamage);
@@ -900,8 +985,9 @@ function handleHit(hit) {
   // Impact sparks are the first thing adaptive quality drops; they are pure
   // decoration and never affect gameplay. During a mass-kill window they are
   // skipped entirely: 40+ simultaneous hits would each spawn ~3 sparks, and
-  // the window's single big puff already carries the feedback.
-  if (effectToggles.sparks && effectiveQuality() === 'high' && !isMassKillWindow(performance.now())) {
+  // the window's single big puff already carries the feedback. Aura damage
+  // (Thorns) never spawns sparks at all.
+  if (effectToggles.sparks && !auraHit && effectiveQuality() === 'high' && !isMassKillWindow(performance.now())) {
     for (let i = 0; i < ARENA_TUNING.impactSparks.particlesMin + Math.floor(Math.random() * (ARENA_TUNING.impactSparks.particlesMax - ARENA_TUNING.impactSparks.particlesMin + 1)); i++) {
       const angle = Math.random() * Math.PI * 2;
       const speed = 30 + Math.random() * 60;
@@ -918,7 +1004,7 @@ function handleHit(hit) {
       });
     }
   }
-  if (effectToggles.sound) playSound('hit');
+  if (effectToggles.sound && !auraHit) playSound('hit');
 }
 function handleMonsterKilled(data) {
   const fx = HERO_FX_COLORS[data.heroId] || {};
@@ -1003,12 +1089,28 @@ if (typeof window !== 'undefined' && new URLSearchParams(location.search).has('p
         handleMonsterKilled({ x, y, sourceId: me, emoji: '👹', enemyType: 'zombie', heroId: activeHeroId, sourceX: 400, sourceY: 300 });
       }
     },
-    simulateHits(n = 1, damage = 12, sourceId = me) {
+    simulateHits(n = 1, damage = 12, sourceId = me, options = {}) {
+      const targetId = options.targetId || null;
+      const sourceAbility = options.sourceAbility || 'weapon';
       for (let i = 0; i < n; i += 1) {
         const angle = (i / Math.max(1, n)) * Math.PI * 2;
         const x = 400 + Math.cos(angle) * 110;
         const y = 300 + Math.sin(angle) * 110;
-        handleHit({ x, y, damage, sourceId, id: `simhit_${i}_${performance.now()}`, enemyType: 'zombie', heroId: activeHeroId, sourceX: 400, sourceY: 300, bonus: false });
+        handleHit({ x, y, damage, sourceId, id: targetId || `simhit_${i}_${performance.now()}`, enemyType: 'zombie', heroId: activeHeroId, sourceX: 400, sourceY: 300, bonus: false, sourceAbility });
+      }
+    },
+    // Read-only: the timestamp until which an enemy's hit flash is active (0 =
+    // none). Lets a test observe whether a flash request was suppressed by the
+    // per-enemy cooldown.
+    flashUntil(id) {
+      return enemyHitFlashUntil.get(id) || 0;
+    },
+    // Replays the real telegraph/detonation path so ring rendering cost can be
+    // measured with several markers on screen.
+    simulateAreaEffects(n = 4, radius = 130, kind = 'enemy', telegraphMs = 600) {
+      for (let i = 0; i < n; i += 1) {
+        const angle = (i / Math.max(1, n)) * Math.PI * 2;
+        showAreaEffect({ x: 500 + Math.cos(angle) * 150, y: 400 + Math.sin(angle) * 150, radius, kind, telegraphMs, sourceAbility: 'enemy-slam' });
       }
     },
     clearEffects() {
@@ -1017,6 +1119,7 @@ if (typeof window !== 'undefined' && new URLSearchParams(location.search).has('p
       deathSprites.length = 0;
       damageNumberMerge.clear();
       enemyHitFlashUntil.clear();
+      lastEnemyFlashAt.clear();
       enemyHitFx.clear();
     },
     // Times the render pass directly (bypassing requestAnimationFrame, which
@@ -1039,17 +1142,25 @@ if (typeof window !== 'undefined' && new URLSearchParams(location.search).has('p
       return { setting: settings.effectsQuality, effective: effectiveQuality(), budget: particleBudget, massKillWindow: isMassKillWindow(performance.now()) };
     },
     // Read-only view of the camera-shake state, so the hit/kill kick can be
-    // verified without eyeballing pixels.
+    // verified without eyeballing pixels. offsetPx mirrors the live formula
+    // (trauma^2 * SHAKE_MAX_OFFSET * slider / 50, hard-capped in px).
     shake() {
       const now = performance.now();
       return {
         trauma: Math.round(trauma * 1000) / 1000,
-        offsetPx: Math.round(trauma * trauma * SHAKE_MAX_OFFSET * settings.shakeIntensity / SHAKE_MAX_INTENSITY * 100) / 100,
+        offsetPx: Math.round(Math.min(SHAKE_ABSOLUTE_CAP_PX,
+          trauma * trauma * SHAKE_MAX_OFFSET * settings.shakeIntensity / SHAKE_SLIDER_REFERENCE) * 100) / 100,
         screenShake: settings.screenShake,
         intensity: settings.shakeIntensity,
         toggle: effectToggles.shake,
         massWindow: isMassKillWindow(now),
       };
+    },
+    // Test-only: move the shake slider so the re-scaled ladder (50% = old
+    // 100%) can be verified end to end.
+    setShakeIntensity(value) {
+      settings.shakeIntensity = Math.max(SHAKE_MIN_INTENSITY, Math.min(SHAKE_MAX_INTENSITY, Number(value)));
+      return settings.shakeIntensity;
     },
     // Fill a fixed number of each effect entity so the render cost of each type
     // can be calibrated independently of the kill burst's randomness. When
@@ -1768,7 +1879,11 @@ function drawScene(timestamp) {
   trauma = Math.max(0, trauma - SHAKE_DECAY * traumaElapsed);
   lastTraumaUpdateAt = currentTime;
   if (settings.screenShake && settings.shakeIntensity > SHAKE_MIN_INTENSITY && trauma > 0) {
-    const offset = trauma * trauma * SHAKE_MAX_OFFSET * settings.shakeIntensity / SHAKE_MAX_INTENSITY;
+    // Slider re-scale: 50% is the neutral point and reproduces exactly what the
+    // old 0-100 slider produced at 100% (trauma^2 * SHAKE_MAX_OFFSET *
+    // slider / 50), with a hard px cap so 200% cannot become a slideshow.
+    const offset = Math.min(SHAKE_ABSOLUTE_CAP_PX,
+      trauma * trauma * SHAKE_MAX_OFFSET * settings.shakeIntensity / SHAKE_SLIDER_REFERENCE);
     const noiseX = smoothShakeNoise(currentTime);
     const noiseY = smoothShakeNoise(currentTime, SHAKE_NOISE_SECONDARY_PHASE);
     context.translate(noiseX * offset, noiseY * offset);
@@ -1797,14 +1912,21 @@ function drawScene(timestamp) {
     maxHp: GAME_CONFIG.campfire.hp,
   };
   if (cf) {
+    // Permanent rings: pre-rendered sprites (under-stroke + dashed main stroke
+    // + fill), blitted once each. The sprite stroke is baked at full alpha so
+    // the heal ring's gentle pulse keeps the stroke at or above the
+    // AREA_RING_STROKE_ALPHA floor; the Thorns ring stays steady.
     context.save();
-    context.globalAlpha = 0.42 + Math.sin(currentTime * 0.0015) * 0.08;
-    context.setLineDash([2, 9]);
-    context.strokeStyle = '#86f09b'; context.lineWidth = 3;
-    context.beginPath(); context.arc(cf.x, cf.y, ARENA_TUNING.campfire.healRadius, 0, Math.PI * 2); context.stroke();
+    const pulse = AREA_RING_STROKE_ALPHA + (1 - AREA_RING_STROKE_ALPHA) * (0.5 + 0.5 * Math.sin(currentTime * 0.0015));
+    const healRing = ringSprite('heal', ARENA_TUNING.campfire.healRadius,
+      AREA_COLORS.healStroke, AREA_COLORS.healFill, AREA_RING_WIDTH, 1);
+    context.globalAlpha = pulse;
+    context.drawImage(healRing.canvas, cf.x - healRing.size / 2, cf.y - healRing.size / 2);
     if ((state.activeBuffs || []).some((buff) => buff.id === 'thorns')) {
-      context.setLineDash([3, 7]); context.strokeStyle = '#ff9b43'; context.lineWidth = 2;
-      context.beginPath(); context.arc(cf.x, cf.y, ARENA_TUNING.cards.effects.thornsRadius, 0, Math.PI * 2); context.stroke(); context.setLineDash([]);
+      const thornsRing = ringSprite('thorns', ARENA_TUNING.cards.effects.thornsRadius,
+        AREA_COLORS.thornsStroke, AREA_COLORS.thornsFill, AREA_RING_WIDTH, 1);
+      context.globalAlpha = 1;
+      context.drawImage(thornsRing.canvas, cf.x - thornsRing.size / 2, cf.y - thornsRing.size / 2);
     }
     context.restore();
 
@@ -1978,24 +2100,55 @@ function drawScene(timestamp) {
     const effect = areaEffects[i];
     const progress = Math.min(1, (currentTime - effect.startedAt) / Math.max(1, effect.durationMs));
     if (progress >= 1) { areaEffects.splice(i, 1); continue; }
+    // Color rules (config AREA_COLORS): enemy danger zones are strong red,
+    // player area effects are bright yellow-orange, and the Electromancer's
+    // stun burst keeps its own blue FX color so its identity survives.
     const electroStun = effect.sourceHeroId === 'electromancer' && effect.sourceAbility === 'skill';
-    const guardianSlam = effect.sourceHeroId === 'guardian' && effect.sourceAbility === 'ultimate' && effect.kind === 'player';
     const danger = effect.kind === 'enemy';
-    const fill = electroStun ? effect.color || HERO_FX_COLORS.electromancer.primary
-      : guardianSlam ? HERO_FX_COLORS.guardian.primary : danger ? '#ef4654' : '#ffb347';
-    const edge = electroStun ? HERO_FX_COLORS.electromancer.highlight
-      : guardianSlam ? HERO_FX_COLORS.guardian.highlight : danger ? '#ff4d59' : '#ffe08a';
-    context.save(); context.beginPath(); context.arc(effect.x, effect.y, effect.radius, 0, Math.PI * 2);
+    const stroke = electroStun ? HERO_FX_COLORS.electromancer.primary : danger ? AREA_COLORS.enemyStroke : AREA_COLORS.playerStroke;
+    const fillColor = electroStun ? HERO_FX_COLORS.electromancer.primary : danger ? AREA_COLORS.enemyFill : AREA_COLORS.playerFill;
+    context.save();
     if (effect.phase === 'telegraph') {
-      context.globalAlpha = 0.12; context.fillStyle = fill;
-      context.beginPath(); context.moveTo(effect.x, effect.y);
-      context.arc(effect.x, effect.y, effect.radius * progress, -Math.PI / 2, -Math.PI / 2 + Math.PI * 2 * progress);
-      context.closePath(); context.fill();
-      context.globalAlpha = 0.9; context.strokeStyle = edge; context.lineWidth = 3; context.setLineDash([8, 8]);
+      // Inner fill rises 20% -> 45% (danger zones slightly stronger) while the
+      // OUTLINE stays at full brightness for the whole telegraph.
+      const endAlpha = danger ? AREA_ENEMY_FILL_END_ALPHA : AREA_TELEGRAPH_FILL_END_ALPHA;
+      const fillAlpha = AREA_TELEGRAPH_FILL_START_ALPHA + (endAlpha - AREA_TELEGRAPH_FILL_START_ALPHA) * progress;
+      context.globalAlpha = fillAlpha;
+      context.fillStyle = fillColor;
+      context.beginPath(); context.arc(effect.x, effect.y, effect.radius, 0, Math.PI * 2); context.fill();
+      // Dark under-stroke keeps the bright outline readable on the green floor.
+      context.globalAlpha = AREA_UNDERSTROKE_ALPHA;
+      context.strokeStyle = AREA_COLORS.understroke;
+      context.lineWidth = AREA_TELEGRAPH_WIDTH + AREA_UNDERSTROKE_EXTRA_PX;
       context.beginPath(); context.arc(effect.x, effect.y, effect.radius, 0, Math.PI * 2); context.stroke();
+      // Bright dashed main stroke (never fades).
+      context.globalAlpha = AREA_TELEGRAPH_STROKE_ALPHA;
+      context.strokeStyle = stroke;
+      context.lineWidth = AREA_TELEGRAPH_WIDTH;
+      context.setLineDash([AREA_DASH_ON, AREA_DASH_OFF]);
+      context.beginPath(); context.arc(effect.x, effect.y, effect.radius, 0, Math.PI * 2); context.stroke();
+      context.setLineDash([]);
+      // Large enemy telegraphs get a centre marker so the danger zone centre
+      // is unambiguous even at a glance.
+      if (danger && effect.radius >= AREA_ENEMY_MARKER_MIN_RADIUS) {
+        const marker = emojiGlyph('💀', 26);
+        context.globalAlpha = 0.9;
+        context.drawImage(marker.canvas, effect.x - marker.w / 2, effect.y - marker.h / 2, marker.w, marker.h);
+      }
     } else {
-      context.globalAlpha = (1 - progress) * 0.32; context.fillStyle = fill; context.fill();
-      context.globalAlpha = 1 - progress; context.strokeStyle = edge; context.lineWidth = 4; context.setLineDash([]);
+      // Detonation: the flash stays bright, then the ring expands and fades.
+      const endAlpha = danger ? AREA_ENEMY_FILL_END_ALPHA : AREA_TELEGRAPH_FILL_END_ALPHA;
+      context.globalAlpha = endAlpha * (1 - progress * 0.6);
+      context.fillStyle = fillColor;
+      context.beginPath(); context.arc(effect.x, effect.y, effect.radius, 0, Math.PI * 2); context.fill();
+      context.globalAlpha = AREA_UNDERSTROKE_ALPHA * (1 - progress * 0.5);
+      context.strokeStyle = AREA_COLORS.understroke;
+      context.lineWidth = AREA_TELEGRAPH_WIDTH + AREA_UNDERSTROKE_EXTRA_PX;
+      context.beginPath(); context.arc(effect.x, effect.y, effect.radius, 0, Math.PI * 2); context.stroke();
+      context.globalAlpha = 1 - progress * 0.5;
+      context.strokeStyle = stroke;
+      context.lineWidth = AREA_TELEGRAPH_WIDTH;
+      context.setLineDash([]);
       context.beginPath(); context.arc(effect.x, effect.y, effect.radius * (ARENA_TUNING.areaEffects.ringStartScale + (1 - ARENA_TUNING.areaEffects.ringStartScale) * progress), 0, Math.PI * 2); context.stroke();
     }
     context.restore();
