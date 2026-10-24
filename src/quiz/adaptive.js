@@ -26,7 +26,14 @@ const ADAPTIVE = {
 // Per-topic stats for one student in one class.
 // attempts must be pre-filtered to (studentId, classId).
 function topicStats(attempts, topics) {
-  const byTime = attempts.filter((a) => !a.needsReview).sort((a, b) => b.at - a.at);
+  // `at` only has second precision, so two attempts in the same second tie on
+  // timestamp alone. Break that tie by stored order: the later-created attempt
+  // is the newer one, and a stable sort would otherwise keep the older one.
+  const byTime = attempts
+    .map((a, i) => [a, i])
+    .filter(([a]) => !a.needsReview)
+    .sort((x, y) => y[0].at - x[0].at || y[1] - x[1])
+    .map(([a]) => a);
   const latestPerQuestion = new Map(); // qid -> most recent attempt
   for (const a of byTime) if (!latestPerQuestion.has(a.questionId)) latestPerQuestion.set(a.questionId, a);
 

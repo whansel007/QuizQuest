@@ -31,6 +31,9 @@ export function syncTopic(course, { required = false } = {}) {
   return topics.find((t) => t.id === S.topicId) || null;
 }
 
+// TopicOutcomeFields value for "create a new topic / type a new outcome"
+export const NEW = '+new';
+
 // Starting topic + outcome for a TopicOutcomeFields pair
 export function initialTags(course, init = {}) {
   const topic = course.topics.find((t) => t.id === init.topicId) || course.topics[0];

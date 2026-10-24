@@ -3,7 +3,7 @@
 // QuizQuest - app shell: sign-in, header, tabs
 // ============================================================
 import { computed, onMounted, ref } from 'vue';
-import { S, setTab, signOut, restoreSession } from './api.js';
+import { S, setTab, restoreSession } from './api.js';
 import { toastState } from './ui.js';
 import LoginView from './LoginView.vue';
 import ReviewView from './teacher/ReviewView.vue';
@@ -14,14 +14,16 @@ import EvaluationView from './teacher/EvaluationView.vue';
 import SettingsView from './teacher/SettingsView.vue';
 import ClassManagementView from './teacher/ClassManagementView.vue';
 import PracticeView from './student/PracticeView.vue';
+import ProgressView from './student/ProgressView.vue';
 import HeroLabView from './student/HeroLabView.vue';
 import KingdomView from './student/KingdomView.vue';
 import PetsView from './student/PetsView.vue';
 import DebugMenu from './components/DebugMenu.vue';
+import AccountMenu from './components/AccountMenu.vue';
 
 const TABS = {
-  teacher: [['classes', 'Classes & Roster', ClassManagementView], ['review', 'Question bank', ReviewView], ['content', 'Source material', ContentView], ['generate', 'AI drafting', GenerateView], ['analytics', 'Analytics', AnalyticsView], ['evaluation', 'Evaluation', EvaluationView], ['settings', 'Settings', SettingsView]],
-  student: [['practice', 'Practice', PracticeView], ['world', 'World', HeroLabView], ['kingdom', 'Kingdom', KingdomView], ['pets', 'Pets & shop', PetsView]],
+  teacher: [['analytics', 'Analytics', AnalyticsView], ['classes', 'Classes & Roster', ClassManagementView], ['review', 'Question bank', ReviewView], ['content', 'Source material', ContentView], ['generate', 'AI drafting', GenerateView], ['evaluation', 'Evaluation', EvaluationView], ['settings', 'Settings', SettingsView]],
+  student: [['practice', 'Practice', PracticeView], ['progress', 'My Progress', ProgressView], ['world', 'World', HeroLabView], ['kingdom', 'Kingdom', KingdomView], ['pets', 'Pets & shop', PetsView]],
 };
 
 const ready = ref(false);
@@ -43,13 +45,13 @@ const current = computed(() => {
   <template v-else-if="ready">
   <header id="top">
     <div class="brand">Quiz<span>Quest</span> <small>prototype</small></div>
-    <nav id="tabs">
+    <nav id="tabs" :class="{ crowded: tabs.length > 5 }">
       <button v-for="[id, label] in tabs" :key="id" :aria-current="current && current[0] === id ? 'page' : null" @click="setTab(id)">{{ label }}</button>
     </nav>
     <div id="who">
       <template v-if="S.me">
         <span>{{ S.me.name }}</span>
-        <button class="btn small" @click="signOut">Switch user</button>
+        <AccountMenu />
         <DebugMenu v-if="S.me.role === 'student'" :key="S.token" />
       </template>
     </div>

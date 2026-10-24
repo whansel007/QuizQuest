@@ -8,6 +8,16 @@ let sequence = 0;
 let inferenceCalls = 0;
 let holdNextInference = 0;
 let mockApplicationSupported = true;
+
+// The demo accounts are hidden behind Tools and version + the Konami code
+// (as in browser.test.cjs); professors then land on Classes & Roster.
+async function pickDemo(page, name) {
+  await page.getByRole('button', { name: 'Tools and version' }).click();
+  for (const key of ['ArrowUp', 'ArrowUp', 'ArrowDown', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'ArrowLeft', 'ArrowRight', 'b', 'a', 'Enter']) await page.keyboard.press(key);
+  await page.getByRole('heading', { name: 'Test accounts' }).waitFor();
+  await page.getByRole('button', { name, exact: false }).click();
+  await page.getByRole('button', { name: 'Switch user', exact: true }).waitFor();
+}
 const stems = [
   'A video call has enough capacity but responses are delayed. Which property explains this?',
   'Traffic arriving at a link exceeds its capacity. What happens to the waiting packets?',
@@ -104,7 +114,7 @@ test('PDF/PPTX upload, saved Markdown editing, preview/download, generation and 
     assert.deepEqual(errors, []);
   });
   await page.goto(base);
-  await page.getByRole('button', { name: 'Prof. Demo A' }).click();
+  await pickDemo(page, 'Prof. Demo A');
   await page.locator('#tabs').getByRole('button', { name: 'AI drafting', exact: true }).click();
   await page.getByRole('button', { name: 'Choose files', exact: true }).waitFor();
   await page.waitForFunction(()=>[...document.querySelectorAll('button')].some(b=>b.textContent==='Choose files' && !b.disabled));
@@ -309,7 +319,7 @@ test('unchanged intentional generation repeats, double clicks deduplicate, and a
     'Investigators compare elapsed packet travel intervals between endpoints during identical transfers. Identify the relevant reported quantity.');
   sequence=originalLength;t.after(()=>{stems.length=originalLength;sequence=originalSequence;});
   const page=await browser.newPage();t.after(()=>page.close());
-  await page.goto(base);await page.getByRole('button',{name:'Prof. Demo A'}).click();
+  await page.goto(base);await pickDemo(page, 'Prof. Demo A');
   await page.locator('#tabs').getByRole('button',{name:'AI drafting',exact:true}).click();
   await page.getByLabel('Learning outcome',{exact:true}).waitFor();
   await page.getByLabel('Learning outcome',{exact:true}).fill('Apply delay and bandwidth concepts to diagnose network scenarios.');
@@ -363,7 +373,7 @@ test('partial uploads recover filenames and retry only unsaved excerpts without 
   const page=await browser.newPage();
   t.after(()=>page.close());
   await page.goto(base);
-  await page.getByRole('button',{name:'Prof. Demo A'}).click();
+  await pickDemo(page, 'Prof. Demo A');
   await page.locator('#tabs').getByRole('button',{name:'AI drafting',exact:true}).click();
   await page.getByRole('button',{name:'Choose files',exact:true}).waitFor();
   await page.waitForFunction(()=>[...document.querySelectorAll('button')].some(b=>b.textContent==='Choose files' && !b.disabled));
@@ -412,7 +422,7 @@ test('partial uploads recover filenames and retry only unsaved excerpts without 
 test('remove and replace uploads survive recovery, preserve reports, and require new-report confirmation', async t=>{
   const page=await browser.newPage(),stale=await browser.newPage();
   t.after(async()=>{await page.close();await stale.close();});
-  async function open(p){await p.goto(base);await p.getByRole('button',{name:'Prof. Demo A'}).click();await p.locator('#tabs').getByRole('button',{name:'AI drafting',exact:true}).click();await p.getByRole('button',{name:'Choose files',exact:true}).waitFor();await p.waitForFunction(()=>[...document.querySelectorAll('button')].some(b=>b.textContent==='Choose files' && !b.disabled));}
+  async function open(p){await p.goto(base);await pickDemo(p, 'Prof. Demo A');await p.locator('#tabs').getByRole('button',{name:'AI drafting',exact:true}).click();await p.getByRole('button',{name:'Choose files',exact:true}).waitFor();await p.waitForFunction(()=>[...document.querySelectorAll('button')].some(b=>b.textContent==='Choose files' && !b.disabled));}
   await open(page);
   const before=inferenceCalls,course=srv.quiz.db.courses.find(c=>c.id==='c-comp');
   const reports=JSON.stringify(course.authoringJobs),versions=JSON.stringify(srv.quiz.db.passages.filter(p=>p.origin==='report')),questions=JSON.stringify(srv.quiz.db.questions);
@@ -503,7 +513,7 @@ test('remove and replace uploads survive recovery, preserve reports, and require
 
 test('Application insufficiency is actionable and cannot silently generate conceptual replacements',async t=>{
   const page=await browser.newPage();t.after(async()=>{mockApplicationSupported=true;await page.close();});
-  await page.goto(base);await page.getByRole('button',{name:'Prof. Demo A'}).click();
+  await page.goto(base);await pickDemo(page, 'Prof. Demo A');
   await page.locator('#tabs').getByRole('button',{name:'AI drafting',exact:true}).click();
   const course=srv.quiz.db.courses.find(c=>c.id==='c-comp');
   const savedReport=course.authoringJobs.find(j=>j.kind==='analysis' && j.reportSourceId);
@@ -521,4 +531,27 @@ test('Application insufficiency is actionable and cannot silently generate conce
   assert.equal(course.authoringJobs.at(-1).result.created.length,0);
   assert.equal(savedReport.reviewedText,reportText);
   assert.equal(await page.getByRole('button',{name:'Resume saved work',exact:true}).count(),0);
+});
+
+test('a stalled progress request releases controls and explicit refresh recovers without inference', async t => {
+  const page = await browser.newPage();
+  t.after(() => page.close());
+  await page.goto(base);
+  await pickDemo(page, 'Prof. Demo A');
+  await page.locator('#tabs').getByRole('button', { name: 'AI drafting', exact: true }).click();
+  await page.getByRole('button', { name: 'Choose files', exact: true }).waitFor();
+  await page.waitForFunction(() => [...document.querySelectorAll('button')].some(b => b.textContent === 'Choose files' && !b.disabled));
+  const before = inferenceCalls;
+  let held, requests = 0;
+  await page.route('**/authoring', route => { held = route; requests++; }, { times: 1 });
+  const refresh = page.getByRole('button', { name: 'Refresh progress', exact: true });
+  await refresh.click();
+  await page.getByRole('alert').filter({ hasText: 'The request timed out.' }).waitFor({ timeout: 45000 });
+  assert.equal(await refresh.isEnabled(), true, 'timeout clears busy state');
+  await held.abort().catch(() => {});
+  assert.equal(requests, 1);
+  await refresh.click();
+  await page.waitForFunction(() => [...document.querySelectorAll('button')].some(b => b.textContent === 'Refresh progress' && !b.disabled));
+  assert.equal(await page.getByRole('alert').filter({ hasText: 'The request timed out.' }).count(), 0);
+  assert.equal(inferenceCalls, before, 'recovery reads progress without generation');
 });

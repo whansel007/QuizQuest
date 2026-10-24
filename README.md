@@ -21,6 +21,7 @@ pets, kingdom buildings and loot in a co-op multiplayer World.
 - **Adaptive practice:** broad at first, then ~70% general / ~30% weaker topics,
   favouring questions similar to ones the student got wrong. Timers, extra
   time and resume after refresh.
+- **My Progress and reports:** per-class topic indicators with question counts, confirmed session scores, and question report history with professor responses.
 - **Marking and analytics:** short answers get a provisional grade and the
   professor's mark wins. Class analytics and evaluation dashboards.
 - **Gamification:** server-side coins, pets and eggs, kingdom buildings, a class
@@ -89,7 +90,9 @@ leaves the server.
   registered accounts. Passwordless test login is limited to those seeded
   synthetic users even when the server runs with `NODE_ENV=production`.
 
-There is no sign-up page yet: only the seeded accounts can sign in.
+New users can sign up from **Create a student account** on the login page.
+Students only — teacher accounts are created by the team, so nobody can
+promote themselves by signing up.
 
 ## Using Supabase (optional)
 
@@ -105,7 +108,7 @@ Never put it in the code, in `web/`, or in a chat. If it leaks, rotate it in the
 Supabase dashboard.
 
 Run **one server at a time** per Supabase project. See
-[PROTOTYPE.md](PROTOTYPE.md#supabase-setup) for details and troubleshooting.
+[PROTOTYPE.md](docs/PROTOTYPE.md#supabase-setup) for details and troubleshooting.
 
 ## Commands
 
@@ -245,7 +248,8 @@ docs/               API research
 
 ## Documentation
 
-- [PROTOTYPE.md](PROTOTYPE.md): full guide (architecture, Supabase, hosting, features)
-- [AUDIT.md](AUDIT.md): implementation audit and known limitations
+- [PROTOTYPE.md](docs/PROTOTYPE.md): full guide (architecture, Supabase, hosting, features)
+- [Student progress and reporting](docs/STUDENT_PROGRESS_REPORTING.md): calculations, report workflow, code map and testing
+- [docs/AUDIT.md](docs/AUDIT.md): implementation audit and known limitations
 - [docs/API_RECOMMENDATIONS.md](docs/API_RECOMMENDATIONS.md): useful APIs for later phases
-- [public/tag/HOW_THIS_WORKS.md](../public/tag/HOW_THIS_WORKS.md): how the original Circle Tag game works (at `/tag`)
+- [public/tag/HOW_THIS_WORKS.md](public/tag/HOW_THIS_WORKS.md): how the original Circle Tag game works (at `/tag`)

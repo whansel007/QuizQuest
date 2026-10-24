@@ -110,7 +110,8 @@ test('failed World grading releases the node and the player can retry', async ()
 });
 
 test('World answer replay returns the outcome without paying twice', async () => {
-  const s = connect(await login('s-04'));
+  const token = await login('s-04');
+  const s = connect(token);
   await once(s, 'connect');
   s.emit('join', { classId: 'cl-a' });
   const w = await once(s, 'welcome');
@@ -122,6 +123,14 @@ test('World answer replay returns the outcome without paying twice', async () =>
   const submission = rightAnswer(p.challenge);
   s.emit('answer', { id: ch.id, submission });
   const first = await once(s, 'result');
+  // The World result can be reported using the same owned-attempt API as Practice.
+  const attempt = db().attempts.find((a) => a.id === first.attemptId);
+  assert.equal(attempt.context, 'world');
+  const report = await fetch(base + `/api/student/questions/${attempt.questionId}/report`, {
+    method: 'POST', headers: { 'content-type': 'application/json', authorization: 'Bearer ' + token },
+    body: JSON.stringify({ attemptId: first.attemptId, category: 'explanation', reason: 'Please check this World question explanation.' }),
+  });
+  assert.equal((await report.json()).ok, true);
   const attempts = db().attempts.length;
   s.emit('answer', { id: ch.id, submission });
   assert.deepEqual(await once(s, 'result'), first);

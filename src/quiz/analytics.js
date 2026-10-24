@@ -12,7 +12,7 @@
 // every accuracy figure (their automatic mark is only provisional) and
 // counted separately as "awaiting marking".
 //
-// A period (last 7 / 30 days, all time, or custom dates) scopes
+// A period (last 7 / 30 days, this semester, all time, or custom dates) scopes
 // everything. Days and weeks follow the class's time zone (default
 // Singapore), so an answer at 7am on Tuesday counts on Tuesday.
 // An optional weekly topic (period.topicId) narrows everything to that
@@ -23,15 +23,18 @@ const { TYPE_LABELS } = require('./formats');
 const { sortTopics, topicSummary } = require('./topics');
 const { DAY, DEFAULT_TZ, isValidTimeZone, localDate, instantOf, mondayOf, weekdayHour } = require('./time');
 
-const RANGES = { '7d': 7, '30d': 30, all: null, custom: null };
+// semester: from the course's semester start (see api.js semesterPeriod)
+const RANGES = { '7d': 7, '30d': 30, all: null, custom: null, semester: null };
 const MAX_CUSTOM_DAYS = 366;
 const MIN_N = 3; // first attempts before a question can be "commonly missed"
 const LOW_N = 5; // trend points / per-question figures from fewer answers are flagged
 const MAX_WEEKS = 12; // all-time trend shows at most this many recent weeks
 const DAILY_BUCKETS_UP_TO = 14; // periods up to this many days chart per day, longer per week
 const DIFFICULTIES = ['easy', 'medium', 'hard'];
-// "Possibly confusing": slow (top quarter of question times) AND mostly wrong
-const CONFUSING = { slowQuantile: 0.75, maxAccuracy: 0.5 };
+// "Possibly confusing": slow (top quarter of question times) AND often
+// wrong (under 60% correct). The same line splits "often wrong" from
+// "mostly right" on the dashboard, so a 50/50 question is never "mostly right".
+const CONFUSING = { slowQuantile: 0.75, maxAccuracy: 0.6 };
 // Difficulty tag vs results: easy should mostly be right, hard mostly not
 const DIFFICULTY_CHECK = { minN: 5, easyBelow: 0.5, hardAbove: 0.85 };
 // A wrong option almost nobody picks isn't working as a distractor
@@ -59,6 +62,7 @@ const isDate = (d) => DATE_RE.test(d || '') && !Number.isNaN(Date.parse(d)) && n
 function parsePeriod(get) {
   const range = get('range') || 'all';
   if (!Object.hasOwn(RANGES, range)) return { error: 'Unknown period.' };
+  // the semester's dates come from the course, not the query
   if (range !== 'custom') return { range };
   const from = get('from');
   const to = get('to');
@@ -82,9 +86,10 @@ function context(db, classId, now, period) {
   let since = -Infinity;
   let until = Infinity;
   let days = null;
-  if (period.range === 'custom') {
+  if (period.range === 'custom' || period.range === 'semester') {
     const first = Date.parse(period.from);
-    const last = Date.parse(period.to);
+    // a semester still running has no `to`: it ends today
+    const last = period.to ? Date.parse(period.to) : today;
     days = (last - first) / DAY + 1;
     since = instantOf(first, tz);
     until = instantOf(last + DAY, tz);
@@ -171,7 +176,7 @@ function timing(list) {
 }
 
 // Time and accuracy per question, with the "possibly confusing" flag:
-// slower than most questions AND mostly answered wrongly, on enough answers.
+// slower than most questions AND often answered wrongly, on enough answers.
 function timeByQuestion(questionsById, byQuestion, topics) {
   const out = [];
   for (const [qid, list] of byQuestion) {
@@ -187,7 +192,7 @@ function timeByQuestion(questionsById, byQuestion, topics) {
   }
   const enough = out.filter((q) => q.n >= LOW_N);
   const slowMs = quantile(enough.map((q) => q.meanMs).sort((x, y) => x - y), CONFUSING.slowQuantile);
-  // "mostly wrong" needs enough MARKED answers: unmarked short answers count
+  // "often wrong" needs enough MARKED answers: unmarked short answers count
   // towards the time but not the accuracy
   for (const q of out) {
     q.confusing = Boolean(slowMs !== null && q.n >= LOW_N && q.meanMs >= slowMs && q.accuracy.n >= LOW_N && q.accuracy.accuracy < CONFUSING.maxAccuracy);

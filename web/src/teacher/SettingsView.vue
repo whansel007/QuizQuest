@@ -1,6 +1,6 @@
 <script setup>
 // ============================================================
-// Settings: subject guidance, coverage, class toggles, trade log
+// Settings: subject guidance, coverage, semester dates, class toggles, trade log
 // ============================================================
 import { ref, onMounted, useId } from 'vue';
 import { api, rerender } from '../api.js';
@@ -16,6 +16,8 @@ const courses = ref([]);
 const course = ref(null);
 const guidance = ref('');
 const target = ref(1);
+// "This semester" on Analytics runs from the start to the end (or to today)
+const semester = ref({ start: '', end: '' });
 const classTrades = ref({});
 onMounted(async () => {
   try {
@@ -25,6 +27,7 @@ onMounted(async () => {
     if (c) {
       guidance.value = c.promptConfig;
       target.value = c.coverageTarget;
+      semester.value = { start: c.semester?.start || '', end: c.semester?.end || '' };
       const lists = await Promise.all(c.classes.map((cl) => api('GET', `/api/teacher/classes/${cl.id}/trades`)));
       classTrades.value = Object.fromEntries(c.classes.map((cl, i) => [cl.id, lists[i]]));
     }
@@ -33,6 +36,13 @@ onMounted(async () => {
     error.value = err.message;
   }
 });
+
+async function saveSemester() {
+  const { start, end } = semester.value;
+  await api('PUT', `/api/teacher/courses/${course.value.id}/settings`, { semester: start ? { start, end: end || null } : null });
+  toast(start ? 'Semester dates saved' : 'Semester dates cleared');
+  await loadCourses(true);
+}
 
 async function save() {
   await api('PUT', `/api/teacher/courses/${course.value.id}/settings`, { promptConfig: guidance.value, coverageTarget: Number(target.value) });
@@ -90,6 +100,15 @@ const targetId = useId();
           <input :id="targetId" v-model="target" type="number" min="1" max="50" style="max-width: 100px" />
           <AsyncButton class="btn primary" :run="save">Save</AsyncButton>
         </div>
+      </div>
+      <div class="panel">
+        <h3>Semester dates</h3>
+        <p class="small muted">Used by "This semester" on the Analytics dashboard: from the start date to today, or to the end date once the semester is over. Update them at the start of each term.</p>
+        <form class="row" @submit.prevent>
+          <label class="small" style="margin: 0">Semester starts <input v-model="semester.start" type="date" :max="semester.end || undefined" /></label>
+          <label class="small" style="margin: 0">Ends (optional) <input v-model="semester.end" type="date" :min="semester.start || undefined" :disabled="!semester.start" /></label>
+          <AsyncButton class="btn primary" :run="saveSemester">{{ semester.start ? 'Save dates' : 'Clear dates' }}</AsyncButton>
+        </form>
       </div>
       <div v-for="cl in course.classes" :key="cl.id" class="panel">
         <h3>{{ cl.name }}</h3>

@@ -315,7 +315,34 @@ async function describeImages(bytes, pages, describe, progress, stats, signal) {
   stats.described = [...results.values()].filter(Boolean).length;
 }
 
-// Reads every page's text and keeps the document open for transcribeScans().
+// True when a PDF page draws a picture (photo, chart or diagram exported as
+// an image) covering a significant share of the page. Follows the
+// transformation matrix to each image's drawn size. Diagrams drawn as vector
+// shapes are not detected: code blocks and tables draw shapes too.
+export async function pdfPageHasFigure(lib, page) {
+  const { OPS, Util } = lib;
+  const ops = await page.getOperatorList();
+  const [x0, y0, x1, y1] = page.view;
+  const pageArea = Math.abs((x1 - x0) * (y1 - y0)) || 1;
+  const images = [OPS.paintImageXObject, OPS.paintInlineImageXObject, OPS.paintImageMaskXObject];
+  let ctm = [1, 0, 0, 1, 0, 0];
+  const stack = [];
+  for (const [i, fn] of ops.fnArray.entries()) {
+    const args = ops.argsArray[i];
+    if (fn === OPS.save) stack.push(ctm);
+    else if (fn === OPS.restore) ctm = stack.pop() || ctm;
+    else if (fn === OPS.transform) ctm = Util.transform(ctm, args);
+    else if (fn === OPS.paintFormXObjectBegin) {
+      stack.push(ctm);
+      if (args?.[0]) ctm = Util.transform(ctm, args[0]);
+    } else if (fn === OPS.paintFormXObjectEnd) ctm = stack.pop() || ctm;
+    // images are drawn into the unit square, so the matrix determinant is their area
+    else if (images.includes(fn) && Math.abs(ctm[0] * ctm[3] - ctm[1] * ctm[2]) >= SIGNIFICANT_AREA * pageArea) return true;
+  }
+  return false;
+}
+
+// Reads every page's text and keeps the document open for describePdfPages().
 // The caller destroys the returned task.
 async function readPdf(bytes, progress, signal) {
   const lib = await loadPdfJs();
@@ -334,7 +361,10 @@ async function readPdf(bytes, progress, signal) {
         .join('')
         .replace(/[ \t]+/g, ' ')
         .trim();
-      pages.push({ label: `Page ${n}`, text, images: [], scanned: text.length < 30, warning: '' });
+      const scanned = text.length < 30;
+      // a scanned page is one big image; its text is transcribed instead
+      const figure = !scanned && (await pdfPageHasFigure(lib, p));
+      pages.push({ label: `Page ${n}`, text, images: figure ? [`page:${n}`] : [], scanned, warning: '' });
       p.cleanup();
     }
     return { pages, doc, task };
@@ -343,12 +373,21 @@ async function readPdf(bytes, progress, signal) {
     throw e;
   }
 }
-async function transcribeScans(doc, pages, describe, progress, stats, signal) {
-  for (const [i, page] of pages.entries()) {
-    if (!page.scanned) continue;
+// Sends rendered pages to AI: scanned pages are transcribed, and pages with
+// figures get the figures described (their text layer is already read).
+async function describePdfPages(doc, pages, describe, progress, stats, signal) {
+  const wanted = pages.filter((p) => p.scanned || p.images.length);
+  let attempted = 0;
+  for (const [n, page] of wanted.entries()) {
     signal?.throwIfAborted();
-    if (stats.stopped || stats.transcribed + stats.personal + stats.failed >= MAX_DESCRIBED) break;
-    progress(`Transcribing scanned page ${i + 1} with AI`);
+    if (stats.stopped) break;
+    if (attempted >= MAX_DESCRIBED) {
+      stats.overLimit = wanted.length - n;
+      break;
+    }
+    attempted++; // Empty successful responses still consume an AI attempt.
+    const i = pages.indexOf(page);
+    progress(page.scanned ? `Transcribing scanned page ${i + 1} with AI` : `Describing figures on page ${i + 1} with AI`);
     try {
       const p = await doc.getPage(i + 1);
       const vp1 = p.getViewport({ scale: 1 });
@@ -359,11 +398,17 @@ async function transcribeScans(doc, pages, describe, progress, stats, signal) {
       await p.render({ canvasContext: canvas.getContext('2d'), viewport: vp }).promise;
       p.cleanup();
       const blob = await new Promise((r) => canvas.toBlob(r, 'image/jpeg', 0.85));
-      const r = await describe(blob, 'text');
+      const r = await describe(blob, page.scanned ? 'text' : 'figures');
       stats.streak = 0;
+      const text = String(r.text || '').trim();
       if (r.containsPersonalData) stats.personal++;
-      else if (String(r.text || '').trim()) {
-        page.text = `[Scanned page, AI-transcribed: check against the original]\n${String(r.text).trim()}`;
+      else if (!page.scanned) {
+        // empty text: the AI judged the picture decorative, so it counts as read
+        if (text) page.text += `\n\n[Figure description, AI-generated: check against the original]\n${text}`;
+        page.images = [];
+        if (text) stats.described++;
+      } else if (text) {
+        page.text = `[Scanned page, AI-transcribed: check against the original]\n${text}`;
         page.scanned = false;
         stats.transcribed++;
       }
@@ -384,7 +429,7 @@ function summarize(pages, stats, describe, kind) {
   if (stats.unsupported) notes.push(`${plural(stats.unsupported, 'image')} use a format the browser cannot read (such as EMF). Describe them in the report yourself.`);
   if (stats.failed) notes.push(`${plural(stats.failed, 'image')} could not be described by AI. Describe ${stats.failed === 1 ? 'it' : 'them'} in the report yourself.`);
   if (stats.personal) notes.push(`${plural(stats.personal, 'image')} looked like they contained personal data and were skipped.`);
-  if (stats.overLimit) notes.push(`Only the first ${MAX_DESCRIBED} images were sent to AI; ${stats.overLimit} more were not.`);
+  if (stats.overLimit) notes.push(`Only the first ${MAX_DESCRIBED} ${kind === 'page' ? 'pages' : 'images'} were sent to AI; ${stats.overLimit} more were not.`);
   if (stats.stopped) notes.push(`AI description stopped early: ${stats.stopped}`);
   return notes.join(' ');
 }
@@ -413,7 +458,7 @@ export async function extractFile(file, progress = () => {}, { describe, accept 
     const fingerprint = JSON.stringify(pages.map((p) => [p.label, p.text]));
     if (!(await accept(fingerprint))) return null;
     signal?.throwIfAborted();
-    if (describe && pdf) await transcribeScans(pdf.doc, pages, describe, progress, stats, signal);
+    if (describe && pdf) await describePdfPages(pdf.doc, pages, describe, progress, stats, signal);
     else if (describe) await describeImages(bytes, pages, describe, progress, stats, signal);
     stats.scanned = pages.filter((p) => p.scanned).length;
     return { pages, note: summarize(pages, stats, describe, kind), fingerprint };

@@ -4,9 +4,10 @@ import { api, rerender, setTab } from '../api.js';
 import { toast } from '../ui.js';
 import AsyncButton from '../components/AsyncButton.vue';
 import QuestionEditor from './QuestionEditor.vue';
+import ReportReview from './ReportReview.vue';
 import QuestionDetails from './QuestionDetails.vue';
-import {QUESTION_LABELS} from './question-types.js';
-import { topicLabel } from './courses.js';
+import { QUESTION_LABELS } from './question-types.js';
+import { ORIGIN, topicLabel } from './courses.js';
 
 const props = defineProps({ q: { type: Object, required: true }, course: { type: Object, required: true }, passages: { type: Array, required: true } });
 const { q, course } = props;
@@ -28,11 +29,6 @@ const setStatus = (a) => async () => {
   toast({ approve: 'Published', reject: 'Rejected', withdraw: 'Withdrawn from practice', republish: 'Published again' }[a]);
   rerender();
 };
-const resolve = (r) => async () => {
-  await api('POST', `/api/teacher/questions/${q.id}/reports/${r.id}/resolve`);
-  toast('Report marked resolved');
-  rerender();
-};
 async function regenerate() {
   await api('POST', `/api/teacher/questions/${q.id}/regenerate`);
   toast('Replacement queued. Your original draft is kept.');
@@ -47,6 +43,7 @@ async function regenerate() {
       <span class="badge">{{ QUESTION_LABELS[type] || q.typeLabel }}</span>
       <span class="badge plain">{{ v.difficulty }}</span>
       <span class="badge plain">v{{ v.v }}{{ q.publishedVersion && q.publishedVersion !== v.v ? ` (live: v${q.publishedVersion})` : '' }}</span>
+      <span v-if="q.origin" class="badge plain">{{ ORIGIN[q.origin] || q.origin }}</span>
       <span class="small muted">{{ topic ? topicLabel(topic) : q.assessment?.topic }}</span>
     </div>
     <QuestionDetails :value="v" :sample="q.sample" />
@@ -55,9 +52,11 @@ async function regenerate() {
     <div v-if="totalAttempts" class="small muted">{{ totalAttempts }} attempt(s) across {{ q.versions.filter((x) => x.attempts).length }} version(s)</div>
     </details>
     <div v-if="v.warnings?.length" class="note warn small" style="margin-top: 8px">{{ v.warnings.join(' ') }}</div>
-    <div v-for="r in q.reports.filter((x) => !x.resolved)" :key="r.id" class="note bad small" style="margin-top: 8px">
-      <b>Student report: </b>{{ r.reason }} <AsyncButton class="btn small" :run="resolve(r)">Mark resolved</AsyncButton>
-    </div>
+    <ReportReview v-for="r in q.reports.filter((x) => !x.resolved)" :key="r.id" :question-id="q.id" :report="r" />
+    <details v-if="q.reports.some((r) => r.resolved)" style="margin-top: 8px">
+      <summary>Resolved reports ({{ q.reports.filter((r) => r.resolved).length }})</summary>
+      <ReportReview v-for="r in q.reports.filter((x) => x.resolved)" :key="r.id" :question-id="q.id" :report="r" />
+    </details>
     <div class="actions">
       <AsyncButton v-if="['draft', 'rejected'].includes(q.status)" class="btn good" :run="setStatus('approve')">Approve &amp; publish</AsyncButton>
       <AsyncButton v-if="q.status === 'published'" class="btn bad" :run="setStatus('withdraw')">Withdraw</AsyncButton>

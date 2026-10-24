@@ -203,8 +203,51 @@ test('dashboard API: the topic filter is checked against the class\'s course', a
   // the marking queue follows the same filter
   const base = { classId: 'cl-a', courseId: 'c-comp', studentId: 's-01', questionId: 'q-x3', version: 1, type: 'short', text: 'Less delay.', correct: false, score: 0.3, needsReview: true, at: Date.now() };
   db.attempts.push({ ...base, id: 'at-mark-net', topicId: 'tp-net' }, { ...base, id: 'at-mark-sec', topicId: 'tp-sec' });
-  const queue = async (q) => (await req('GET', '/api/teacher/classes/cl-a/marking' + q, null, prof)).body.map((m) => m.attemptId).sort();
+  const queue = async (q) => (await req('GET', '/api/teacher/classes/cl-a/marking' + q, null, prof)).body.items.map((m) => m.attemptId).sort();
   assert.deepEqual(await queue(''), ['at-mark-net', 'at-mark-sec']);
   assert.deepEqual(await queue('?topic=tp-net'), ['at-mark-net']);
   assert.equal((await req('GET', '/api/teacher/classes/cl-a/marking?topic=tp-stats', null, prof)).status, 400);
+});
+
+test('"Add material" can create a new topic and a typed learning outcome with the passage', async (t) => {
+  const db = seed();
+  const { req, login } = await serve(t, db);
+  const prof = await login('t-a');
+  const path = '/api/teacher/courses/c-comp/passages';
+  const base = { title: 'Notes', text: 'Packets carry data across a network.', confirmNoPersonalData: true };
+  const topicCount = db.topics.length;
+
+  // a rejected request creates nothing
+  assert.equal((await req('POST', path, { ...base, newTopic: { name: 'Cloud basics', week: 6 } }, prof)).status, 400, 'a new topic needs a typed outcome');
+  assert.equal((await req('POST', path, { ...base, newTopic: { name: 'networking basics' }, outcomeText: 'Explain clouds' }, prof)).status, 400, 'duplicate topic name');
+  assert.equal((await req('POST', path, { ...base, newTopic: { name: 'Cloud basics', week: 99 }, outcomeText: 'Explain clouds' }, prof)).status, 400);
+  assert.equal((await req('POST', path, { ...base, title: '', newTopic: { name: 'Cloud basics' }, outcomeText: 'Explain clouds' }, prof)).status, 400);
+  assert.equal((await req('POST', path, { ...base, confirmNoPersonalData: false, topicId: 'tp-net', outcomeText: 'Explain clouds' }, prof)).status, 400);
+  assert.equal(db.topics.length, topicCount);
+  assert.ok(!db.topics.find((x) => x.id === 'tp-net').outcomes.some((o) => o.text === 'Explain clouds'));
+
+  const made = await req('POST', path, { ...base, newTopic: { name: 'Cloud basics', week: 6 }, outcomeText: '  Explain what the cloud is  ' }, prof);
+  assert.equal(made.status, 201);
+  const topic = db.topics.find((x) => x.id === made.body.topicId);
+  assert.equal(topic.name, 'Cloud basics');
+  assert.equal(topic.week, 6);
+  assert.deepEqual(topic.outcomes, [{ id: made.body.outcomeId, text: 'Explain what the cloud is' }]);
+  assert.equal(made.body.topic.id, topic.id);
+
+  // a typed outcome on an existing topic is added to it; re-typing it reuses it
+  const net = db.topics.find((x) => x.id === 'tp-net');
+  const before = net.outcomes.length;
+  const typed = await req('POST', path, { ...base, topicId: 'tp-net', outcomeText: 'Compare latency and bandwidth' }, prof);
+  assert.equal(typed.status, 201);
+  assert.equal(net.outcomes.length, before + 1);
+  const again = await req('POST', path, { ...base, topicId: 'tp-net', outcomeText: 'compare LATENCY and bandwidth' }, prof);
+  assert.equal(again.body.outcomeId, typed.body.outcomeId);
+  assert.equal(net.outcomes.length, before + 1);
+
+  // the course list shows the new topic and outcome
+  const course = (await req('GET', '/api/teacher/courses', null, prof)).body.find((c) => c.id === 'c-comp');
+  assert.ok(course.topics.some((x) => x.id === topic.id));
+  // picking existing ones still works, and still requires them
+  assert.equal((await req('POST', path, { ...base, topicId: 'tp-net', outcomeId: typed.body.outcomeId }, prof)).status, 201);
+  assert.equal((await req('POST', path, { ...base, topicId: 'tp-net' }, prof)).status, 400);
 });
