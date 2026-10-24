@@ -730,8 +730,9 @@ attemptId: attempt.id,
     const usageLimit = Number.isInteger(body?.usageLimit) && body.usageLimit > 0 ? body.usageLimit : null;
     db.classJoinCodes = db.classJoinCodes || [];
     const rec = {
-      id: newId('code'),
+      id: crypto.randomUUID(),
       classId: cls.id,
+      code: rawCode,
       codeHash,
       expiresAt,
       usageLimit,
@@ -745,7 +746,6 @@ attemptId: attempt.id,
     return [201, { id: rec.id, code: rawCode, expiresAt, usageLimit, usageCount: 0, revoked: false }];
   });
 
-  // Never returns the code itself, only its state.
   route('GET', '/api/classes/:classId/join-codes', 'teacher', ({ user, params }) => {
     const cls = teacherClass(user, params.classId);
     db.classJoinCodes = db.classJoinCodes || [];
@@ -753,6 +753,7 @@ attemptId: attempt.id,
       .filter((c) => c.classId === cls.id)
       .map((c) => ({
         id: c.id,
+        code: c.code || null,
         expiresAt: c.expiresAt,
         usageLimit: c.usageLimit,
         usageCount: c.usageCount,
@@ -773,11 +774,33 @@ attemptId: attempt.id,
 
   // Redemption is checked and applied in one pass: an unknown, revoked,
   // expired or exhausted code never creates an enrolment.
+  // Supports QQ-XXXXX, prefix-less XXXXX, and fallback by code ID.
   route('POST', '/api/classes/join', 'student', ({ user, body }) => {
     const raw = (body?.code || '').trim();
     if (!raw) fail(400, 'Please enter a join code.');
     db.classJoinCodes = db.classJoinCodes || [];
-    const codeRecord = db.classJoinCodes.find((c) => c.codeHash === hashJoinCode(raw) && !c.revoked);
+
+    const norm = raw.toUpperCase();
+    const withPrefix = norm.startsWith('QQ-') ? norm : `QQ-${norm}`;
+    const rawHashed = hashJoinCode(norm);
+    const prefixedHashed = hashJoinCode(withPrefix);
+
+    const codeRecord = db.classJoinCodes.find((c) => {
+      if (c.revoked) return false;
+      if (c.codeHash === rawHashed || c.codeHash === prefixedHashed) return true;
+      if (c.code && (c.code.toUpperCase() === norm || c.code.toUpperCase() === withPrefix)) return true;
+      if (c.id) {
+        const idUpper = c.id.toUpperCase();
+        if (
+          idUpper === norm ||
+          idUpper === `CODE-${norm.replace(/^CODE-?/i, '')}` ||
+          idUpper.replace(/^CODE-?/i, '') === norm.replace(/^CODE-?/i, '')
+        )
+          return true;
+      }
+      return false;
+    });
+
     if (!codeRecord) fail(404, 'Invalid or revoked join code.');
     if (codeRecord.expiresAt && codeRecord.expiresAt < now()) fail(400, 'This join code has expired.');
     if (codeRecord.usageLimit && codeRecord.usageCount >= codeRecord.usageLimit)
@@ -1549,11 +1572,12 @@ attemptId: attempt.id,
     const classes = db.enrolments
       .filter((e) => e.studentId === user.id)
       .map((e) => {
-        const cl = db.classes.find((c) => c.id === e.classId);
+        const cl = db.classes.find((c) => c.id === e.classId && !c.archivedAt);
+        if (!cl) return null;
         return {
           id: cl.id,
           name: cl.name,
-          course: db.courses.find((c) => c.id === cl.courseId).title,
+          course: db.courses.find((c) => c.id === cl.courseId)?.title || 'Course',
           tradingEnabled: cl.settings.tradingEnabled,
           participation: cl.settings.participation?.enabled
             ? {
@@ -1562,7 +1586,8 @@ attemptId: attempt.id,
               }
             : null,
         };
-      });
+      })
+      .filter(Boolean);
     return {
       classes,
       resumable: classes

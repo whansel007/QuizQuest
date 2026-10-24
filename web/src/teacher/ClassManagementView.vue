@@ -338,7 +338,7 @@ function copyToClipboard(text) {
         <table v-else class="data-table">
           <thead>
             <tr>
-              <th>Code ID</th>
+              <th>Join Code</th>
               <th>Usage</th>
               <th>Expires</th>
               <th>Status</th>
@@ -347,7 +347,20 @@ function copyToClipboard(text) {
           </thead>
           <tbody>
             <tr v-for="c in joinCodes" :key="c.id">
-              <td><code>{{ c.id }}</code></td>
+              <td>
+                <div style="display: flex; align-items: center; gap: 8px;">
+                  <code class="code-badge-table">{{ c.code || c.id }}</code>
+                  <button
+                    v-if="c.code && !c.revoked && !c.isExpired"
+                    type="button"
+                    class="btn small"
+                    style="padding: 2px 8px; font-size: 11px;"
+                    @click="copyToClipboard(c.code)"
+                  >
+                    Copy
+                  </button>
+                </div>
+              </td>
               <td>{{ c.usageCount }} / {{ c.usageLimit ? c.usageLimit : '∞' }}</td>
               <td class="small muted">{{ c.expiresAt ? new Date(c.expiresAt).toLocaleDateString() : 'Never' }}</td>
               <td>
@@ -528,6 +541,15 @@ function copyToClipboard(text) {
   border: 1px dashed var(--good);
   color: var(--good);
   margin-left: 8px;
+}
+.code-badge-table {
+  font-family: monospace;
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 1px;
+  padding: 2px 6px;
+  border-radius: 4px;
+  background: var(--panel-sub, rgba(255, 255, 255, 0.05));
 }
 .empty-state {
   text-align: center;

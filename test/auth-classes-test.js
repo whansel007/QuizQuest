@@ -114,15 +114,18 @@ test('Task 1B: Class creation, join codes, student redemption and roster', async
     const rawCode = codeRes.body.code;
     const codeId = codeRes.body.id;
     assert.ok(rawCode.startsWith('QQ-'));
+    assert.match(codeId, /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i, 'join code id is a valid UUID');
 
     // 3. Professor lists join codes
     const codesList = await call(tToken, 'GET', `/api/classes/${classId}/join-codes`);
     assert.equal(codesList.status, 200);
     assert.equal(codesList.body.length, 1);
+    assert.equal(codesList.body[0].code, rawCode, 'listing includes the readable join code');
     assert.equal(codesList.body[0].usageLimit, 5);
 
-    // 4. Student redeems join code
-    const joinRes = await call(sToken, 'POST', '/api/classes/join', { code: rawCode });
+    // 4. Student redeems join code (can omit QQ- prefix or use lowercase)
+    const codeWithoutPrefix = rawCode.replace(/^QQ-/, '').toLowerCase();
+    const joinRes = await call(sToken, 'POST', '/api/classes/join', { code: codeWithoutPrefix });
     assert.equal(joinRes.status, 200);
     assert.ok(joinRes.body.ok);
     assert.equal(joinRes.body.class.id, classId);
@@ -136,19 +139,25 @@ test('Task 1B: Class creation, join codes, student redemption and roster', async
     assert.equal(roster.status, 200);
     assert.ok(roster.body.some((m) => m.id === sId));
 
-    // 7. Professor removes student from class
+    // 7. Another student redeems via codeId fallback
+    const s2Reg = await call(null, 'POST', '/api/auth/register', { name: 'Charlie', email: 'charlie@example.com', password: 'password123' });
+    const joinViaId = await call(s2Reg.body.token, 'POST', '/api/classes/join', { code: codeId });
+    assert.equal(joinViaId.status, 200);
+    assert.ok(joinViaId.body.ok);
+
+    // 8. Professor removes student from class
     const removeRes = await call(tToken, 'DELETE', `/api/classes/${classId}/members/${sId}`);
     assert.equal(removeRes.status, 200);
     const rosterAfter = await call(tToken, 'GET', `/api/classes/${classId}/members`);
     assert.ok(!rosterAfter.body.some((m) => m.id === sId));
 
-    // 8. Revoking join code
+    // 9. Revoking join code
     const revokeRes = await call(tToken, 'DELETE', `/api/classes/${classId}/join-codes/${codeId}`);
     assert.equal(revokeRes.status, 200);
 
-    // 9. Revoked code cannot be redeemed
-    const s2Reg = await call(null, 'POST', '/api/auth/register', { name: 'Charlie', email: 'charlie@example.com', password: 'password123' });
-    const joinRevoked = await call(s2Reg.body.token, 'POST', '/api/classes/join', { code: rawCode });
+    // 10. Revoked code cannot be redeemed
+    const s3Reg = await call(null, 'POST', '/api/auth/register', { name: 'Dan', email: 'dan@example.com', password: 'password123' });
+    const joinRevoked = await call(s3Reg.body.token, 'POST', '/api/classes/join', { code: rawCode });
     assert.equal(joinRevoked.status, 404);
   } finally {
     await close();
