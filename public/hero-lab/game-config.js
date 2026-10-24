@@ -2,7 +2,8 @@
 // override the defaults, while the server remains the authority for timing.
 // The primary colors are also the hue family for every client-side weapon
 // effect. Keep all projectile, trail, flash, spark and bounce colors sourced here.
-import { ELECTRO_STUN_PROJECTILE_SCALE, ELECTRO_STUN_RADIUS_SCALE, PARTICLE_LIMIT,
+import { ELECTRO_STUN_PROJECTILE_SCALE, ELECTRO_STUN_RADIUS_SCALE, PARTICLE_CAP,
+  KILL_SOUND_MIN_INTERVAL_MS, HIT_SOUND_MIN_INTERVAL_MS,
   SHERIFF_KILL_REFUND_S, GUARDIAN_ULT_RAMP_PER_HIT, GUARDIAN_ULT_RAMP_CAP,
   GUARDIAN_SLAM_RADIUS, GUARDIAN_SLAM_DAMAGE_MULT, GUARDIAN_SLAM_KNOCKBACK,
   GUARDIAN_ULT_EARLY_END, GUARDIAN_BRACE_ENABLED, GUARDIAN_BRACE_REDUCTION,
@@ -29,8 +30,8 @@ export const HERO_FX_COLORS = Object.freeze({
 export const ARENA_TUNING = Object.freeze({
   hitFlashMs: 80,
   knockback: { normalMinPx: 6, normalMaxPx: 12, killPx: 20, bruteMultiplier: 0.5, kingMultiplier: 0, visualMs: 150 },
-  deathBurst: { particlesMin: 6, particlesMax: 10, durationMinMs: 300, durationMaxMs: 400, scaleStart: 1, scalePeak: 1.25, scaleEnd: 0 },
-  damageNumbers: { risePx: 40, durationMs: 600, mergeMs: 150, maxVisible: 30, teammateOpacity: 0.5, bonusScale: 1.25, knockbackScaleDamage: 10 },
+  deathBurst: { particlesMin: 4, particlesMax: 6, durationMinMs: 300, durationMaxMs: 400, scaleStart: 1, scalePeak: 1.25, scaleEnd: 0 },
+  damageNumbers: { risePx: 40, durationMs: 600, mergeMs: 150, maxVisible: 20, teammateOpacity: 0.5, bonusScale: 1.25, knockbackScaleDamage: 10 },
   muzzleFlash: { frames: 2, durationMs: 60, recoilMinPx: 2, recoilMaxPx: 4 },
   impactSparks: { particlesMin: 3, particlesMax: 4, durationMs: 150 },
   screenShake: { heroHitMinPx: 2, heroHitMaxPx: 3, heroHitMs: 100, majorMinPx: 6, majorMaxPx: 10, majorMs: 200 },
@@ -41,8 +42,8 @@ export const ARENA_TUNING = Object.freeze({
   sound: {
     shotPitchVariance: 0.08, maxVoices: 6, killSemitonePerStep: 1, maxKillPitchSteps: 8, heartbeatIntervalMs: 650, defaultMasterVolume: 0.55,
     profiles: {
-      shoot: { frequency: 500, durationMs: 55, gain: 0.08, type: 'square' }, hit: { frequency: 180, durationMs: 70, gain: 0.09, type: 'triangle' },
-      kill: { frequency: 580, durationMs: 150, gain: 0.12, type: 'sine' }, pickup: { frequency: 900, durationMs: 180, gain: 0.1, type: 'sine' },
+      shoot: { frequency: 500, durationMs: 55, gain: 0.08, type: 'square' }, hit: { frequency: 180, durationMs: 70, gain: 0.09, type: 'triangle', minIntervalMs: HIT_SOUND_MIN_INTERVAL_MS },
+      kill: { frequency: 580, durationMs: 150, gain: 0.12, type: 'sine', minIntervalMs: KILL_SOUND_MIN_INTERVAL_MS }, pickup: { frequency: 900, durationMs: 180, gain: 0.1, type: 'sine' },
       abilityReady: { frequency: 760, durationMs: 110, gain: 0.08, type: 'sine' }, ultimateReady: { frequency: 990, durationMs: 220, gain: 0.1, type: 'sine' },
       dynamiteReady: SHERIFF_READY_SOUND,
       ultimateCast: { frequency: 360, durationMs: 300, gain: 0.12, type: 'sawtooth' }, explosion: { frequency: 95, durationMs: 260, gain: 0.18, type: 'triangle' },
@@ -56,7 +57,7 @@ export const ARENA_TUNING = Object.freeze({
   waveMoments: { bannerMs: 1500, bannerMaxMs: 2000, bannerScaleStart: 1, bannerScalePeak: 1.3, bannerScaleEnd: 1, clearedBannerMs: 1000, clearedHealFraction: 0.1, bossZoom: 1.05, bossZoomMs: 300, abilityReadyPulseMs: 300 },
   briefing: { durationMs: 8000, fadeMs: 300, spawnTelegraphMs: 500, skeletonWindupMs: 400 },
   momentum: { bonus: 0.2, distancePx: 30, windowMs: 500, glowAlpha: 0.35, fadeMs: 150, streakCount: 3, streakLifeMs: 120, readyRisePx: 30, readyMs: 700, idleNudgeMs: 4000, nudgeDurationMs: 2500, nudgeMaxPerSession: 2 },
-  performance: { hudUpdateMs: 100, aimUpdateMs: 40, projectileTrailIntervalMs: 50, maxParticles: PARTICLE_LIMIT },
+  performance: { hudUpdateMs: 100, aimUpdateMs: 40, projectileTrailIntervalMs: 50, maxParticles: PARTICLE_CAP },
   respawn: { baseMs: 12000, teammateSpeedMultiplier: 2.5, soloMs: 6000, soloCampfireCost: 0.1, respawnHpFraction: 0.5, invulnerabilityMs: 2000, flashIntervalMs: 120 },
   run: { milestoneEvery: 10, coinsPerWave: 5, victoryRewardMultiplier: 1.5, defeatRewardMultiplier: 0.5, sessionRuns: 3, bossTeaserWave: 5, leaveFadeMs: 400 },
   buildingBonuses: { perLevel: BUILDING_BONUS_PER_LEVEL, levelCap: BUILDING_LEVEL_CAP },

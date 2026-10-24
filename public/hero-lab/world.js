@@ -5,8 +5,12 @@ import { GAME_CONFIG, HERO_FX_COLORS } from './game-config.js';
 import { SHAKE_PLAYER_HIT_TRAUMA, SHAKE_ULTIMATE_TRAUMA, SHAKE_BOSS_SLAM_TRAUMA, SHAKE_EXPLOSION_BASE_TRAUMA,
   SHAKE_EXPLOSION_RADIUS_SCALE, SHAKE_MAX_TRAUMA, SHAKE_DECAY, SHAKE_MAX_OFFSET, SHAKE_EXPLOSION_COOLDOWN_MS,
   SHAKE_NOISE_HZ, SHAKE_NOISE_PRIMARY_PHASE, SHAKE_NOISE_PRIMARY_FREQUENCY, SHAKE_NOISE_SECONDARY_FREQUENCY, SHAKE_NOISE_SECONDARY_PHASE, SHAKE_DEFAULT_INTENSITY,
-  SHAKE_MIN_INTENSITY, SHAKE_MAX_INTENSITY, SHAKE_INTENSITY_STEP } from '../../config/tuning.js';
-import { playSound, setAudioOptions, setHeartbeat } from './arena-audio.js';
+  SHAKE_MIN_INTENSITY, SHAKE_MAX_INTENSITY, SHAKE_INTENSITY_STEP,
+  SHAKE_HIT_TRAUMA, SHAKE_HIT_DAMAGE_REFERENCE, SHAKE_HIT_MIN_INTERVAL_MS, SHAKE_KILL_TRAUMA,
+  MAX_BURSTS_PER_FRAME, KILL_BURST_THRESHOLD, KILL_BURST_WINDOW_MS, KILL_MASS_SHAKE_TRAUMA, KILL_MASS_PUFF_PARTICLES,
+  FRAME_TIME_TARGET_MS, ADAPTIVE_RESTORE_MS, ADAPTIVE_SAMPLE_FRAMES, QUALITY_PARTICLE_FACTOR, FRAME_CAP_FPS } from '../../config/tuning.js';
+import { playSound, setAudioOptions, setHeartbeat, audioStats, setAudioEnabled, warmUpAudio } from './arena-audio.js';
+import { createProfiler, effectToggles } from './perf-profiler.js';
 
 const canvas = document.querySelector('#world');
 const ARENA_WIDTH = GAME_CONFIG.arena.width;
@@ -15,7 +19,7 @@ const ARENA_HEIGHT = GAME_CONFIG.arena.height;
 const renderScale = Math.min(1, Math.max(0.4, Math.min(innerWidth / ARENA_WIDTH, innerHeight / ARENA_HEIGHT)));
 canvas.width = Math.round(ARENA_WIDTH * renderScale);
 canvas.height = Math.round(ARENA_HEIGHT * renderScale);
-const particleBudget = Math.max(100, Math.floor(GAME_CONFIG.arenaTuning.performance.maxParticles * renderScale * renderScale));
+let particleBudget = Math.max(100, Math.floor(GAME_CONFIG.arenaTuning.performance.maxParticles * renderScale * renderScale));
 const context = canvas.getContext('2d', { alpha: false, desynchronized: true });
 const backgroundCanvas = document.createElement('canvas');
 backgroundCanvas.width = canvas.width;
@@ -81,12 +85,16 @@ const shakeSetting = document.querySelector('#shake-setting');
 const shakeIntensitySetting = document.querySelector('#shake-intensity-setting');
 const shakeIntensityValue = document.querySelector('#shake-intensity-value');
 const numbersSetting = document.querySelector('#numbers-setting');
+const qualitySetting = document.querySelector('#quality-setting');
 const muteSetting = document.querySelector('#mute-setting');
 const volumeSetting = document.querySelector('#volume-setting');
 const killStreakHud = document.querySelector('#kill-streak');
 const overloadFlash = document.querySelector('#overload-flash');
 const sheriffSkillAbility = document.querySelector('.ability[data-ability="skill"]');
 const sheriffRefundLabel = sheriffSkillAbility.querySelector('.cooldown-refund-label');
+// The ability tiles are static markup; cache the list so the 10Hz HUD refresh
+// does not re-query the document every tick.
+const abilityElements = document.querySelectorAll('.ability[data-ability]');
 let token = null;
 try { token = sessionStorage.getItem('qq-token'); } catch { /* standalone Hero Lab has no app session */ }
 const socket = window.io('/hero-lab', { auth: token ? { token } : {} });
@@ -124,6 +132,10 @@ const enemyFlashes = new Map();
 const enemyHitFlashUntil = new Map();
 const enemyHitFx = new Map();
 const deathSprites = [];
+const damageNumberMerge = new Map();
+// Merge key for the single running-total damage number shown during a
+// mass-kill window instead of one number per enemy.
+const MASS_NUMBER_KEY = '__mass__';
 const leavingPlayers = [];
 const areaEffects = [];
 const muzzleFlashes = new Map();
@@ -141,6 +153,23 @@ let lastLocalPosition = null;
 let localIdleSince = performance.now();
 let momentumNudge = null;
 let sessionNudgeCount = 0;
+
+// Debug-only profiler. It stays dormant unless the account passes the debug
+// gate; the effect toggles stay readable either way (all true by default).
+const profiler = createProfiler({
+  getStats: () => ({
+    particles: particles.length,
+    damageTexts: damageTexts.length,
+    audioVoices: audioStats().voices,
+    monsters: state.monsters?.length || 0,
+    projectiles: clientProjectiles.size,
+    heapMb: performance.memory ? performance.memory.usedJSHeapSize / 1048576 : 0,
+  }),
+  getRoomCode: () => activeRoomCode,
+  getToken: () => token,
+});
+profiler.onSoundToggle = (on) => setAudioEnabled(on);
+void profiler.start();
 try { sessionNudgeCount = Number(sessionStorage.getItem('hero-lab-momentum-nudges') || 0) || 0; } catch { /* session storage is optional */ }
 const ARENA_TUNING = GAME_CONFIG.arenaTuning;
 document.documentElement.style.setProperty('--cooldown-ring-transition', `${ARENA_TUNING.heroTweaks.cooldownRingTransitionMs}ms`);
@@ -151,8 +180,9 @@ document.documentElement.style.setProperty('--sheriff-refund-label-duration', `$
 document.documentElement.style.setProperty('--overload-flash-duration', `${ARENA_TUNING.heroTweaks.electroOverloadFlashMs}ms`);
 document.documentElement.style.setProperty('--overload-feedback-duration', `${ARENA_TUNING.heroTweaks.electroOverloadFeedbackMs}ms`);
 const hasCard = (id) => (state.activeBuffs || []).some((buff) => buff.id === id);
-const settings = { screenShake: true, shakeIntensity: SHAKE_DEFAULT_INTENSITY, damageNumbers: true, masterVolume: ARENA_TUNING.sound.defaultMasterVolume, muted: false };
+const settings = { screenShake: true, shakeIntensity: SHAKE_DEFAULT_INTENSITY, damageNumbers: true, masterVolume: ARENA_TUNING.sound.defaultMasterVolume, muted: false, effectsQuality: 'auto' };
 try { Object.assign(settings, JSON.parse(localStorage.getItem('hero-lab-settings') || '{}')); } catch { /* use defaults */ }
+if (!['auto', 'high', 'medium', 'low'].includes(settings.effectsQuality)) settings.effectsQuality = 'auto';
 const storedShakeIntensity = Number(settings.shakeIntensity);
 settings.shakeIntensity = Number.isFinite(storedShakeIntensity)
   ? Math.max(SHAKE_MIN_INTENSITY, Math.min(SHAKE_MAX_INTENSITY, storedShakeIntensity)) : SHAKE_DEFAULT_INTENSITY;
@@ -162,6 +192,9 @@ let lastBuffRender = '';
 let trauma = 0;
 let lastTraumaUpdateAt = performance.now();
 let lastExplosionTraumaAt = Number.NEGATIVE_INFINITY;
+// Rate limit for the per-hit camera kick, so a fast weapon (or a chain of
+// ticks landing in one frame) cannot machine-gun the camera.
+let lastHitShakeAt = 0;
 let cameraZoom = { until: 0, scale: 1 };
 let combo = { count: 0, lastKillAt: 0 };
 let bannerTimer = null;
@@ -182,10 +215,210 @@ function saveSettings() {
   setAudioOptions({ volume: settings.masterVolume, mute: settings.muted });
 }
 
-function addParticle(particle) {
-  if (particles.length >= particleBudget) return;
-  particles.push(particle);
+// Pre-rendered glyph cache. Every kill-effect used to call ctx.fillText (and
+// rebuild a font string) per particle/number/sprite every frame. We render each
+// distinct glyph once to a small offscreen canvas and blit it with drawImage,
+// which is far cheaper and removes the per-frame string + font allocation.
+// The cache is capped: glyph keys include free-form text (damage values), so
+// an uncapped map would grow for the whole session. Rare labels simply
+// re-render after a clear.
+const GLYPH_CACHE_CAP = 256;
+const particlePool = [];
+const _glyphCache = new Map();
+function _makeGlyph(key, size, draw) {
+  let entry = _glyphCache.get(key);
+  if (entry) return entry;
+  if (_glyphCache.size >= GLYPH_CACHE_CAP) _glyphCache.clear();
+  const pad = 6;
+  const w = Math.ceil(size) + pad * 2;
+  const h = Math.ceil(size) + pad * 2;
+  const dpr = 2;
+  const canvas = document.createElement('canvas');
+  canvas.width = w * dpr;
+  canvas.height = h * dpr;
+  const c = canvas.getContext('2d');
+  c.scale(dpr, dpr);
+  c.textAlign = 'center';
+  c.textBaseline = 'middle';
+  draw(c, w, h);
+  entry = { canvas, w, h };
+  _glyphCache.set(key, entry);
+  return entry;
 }
+function emojiGlyph(emoji, size) {
+  return _makeGlyph(`e:${emoji}:${Math.round(size)}`, size, (c, w, h) => {
+    c.font = `${Math.round(size)}px sans-serif`;
+    c.fillText(emoji, w / 2, h / 2);
+  });
+}
+function textGlyph(text, color, size) {
+  return _makeGlyph(`t:${text}:${color}:${Math.round(size)}`, size, (c, w, h) => {
+    c.font = `bold ${Math.round(size)}px sans-serif`;
+    c.fillStyle = color;
+    c.fillText(text, w / 2, h / 2);
+  });
+}
+function whiteGlyph(emoji, size) {
+  return _makeGlyph(`w:${emoji}:${Math.round(size)}`, size, (c, w, h) => {
+    c.font = `${Math.round(size)}px sans-serif`;
+    c.fillText(emoji, w / 2, h / 2);
+    c.globalCompositeOperation = 'source-in';
+    c.fillStyle = '#fff';
+    c.fillRect(0, 0, w, h);
+  });
+}
+
+// Emoji sizes in the kill path are continuous (radius * 2, 32 * scale), so a
+// per-frame glyph key would rebuild a string for every particle. Instead each
+// emoji is pre-rendered once per size bucket and the draw loop picks the
+// nearest bucket by index - no string work per particle per frame.
+const GLYPH_SIZE_BUCKETS = [12, 16, 20, 24, 28, 32, 40, 48];
+const _emojiGlyphBuckets = new Map();
+const _whiteGlyphBuckets = new Map();
+function _nearestBucket(size) {
+  let best = 0;
+  let bestDiff = Infinity;
+  for (let i = 0; i < GLYPH_SIZE_BUCKETS.length; i += 1) {
+    const diff = Math.abs(GLYPH_SIZE_BUCKETS[i] - size);
+    if (diff < bestDiff) { bestDiff = diff; best = i; }
+  }
+  return best;
+}
+function particleEmojiGlyph(emoji, size) {
+  let buckets = _emojiGlyphBuckets.get(emoji);
+  if (!buckets) {
+    buckets = GLYPH_SIZE_BUCKETS.map((bucketSize) => emojiGlyph(emoji, bucketSize));
+    _emojiGlyphBuckets.set(emoji, buckets);
+  }
+  return buckets[_nearestBucket(size)];
+}
+function particleWhiteGlyph(emoji, size) {
+  let buckets = _whiteGlyphBuckets.get(emoji);
+  if (!buckets) {
+    buckets = GLYPH_SIZE_BUCKETS.map((bucketSize) => whiteGlyph(emoji, bucketSize));
+    _whiteGlyphBuckets.set(emoji, buckets);
+  }
+  return buckets[_nearestBucket(size)];
+}
+
+// One cached radial-glow sprite per color, blitted with drawImage. Replaces a
+// per-projectile createRadialGradient every frame.
+const _glowSprites = new Map();
+function glowSprite(color, inner, outer) {
+  const key = `${color}|${inner}|${outer}`;
+  let sprite = _glowSprites.get(key);
+  if (sprite) return sprite;
+  const size = 64;
+  const canvas = document.createElement('canvas');
+  canvas.width = size;
+  canvas.height = size;
+  const c = canvas.getContext('2d');
+  const gradient = c.createRadialGradient(size / 2, size / 2, 0, size / 2, size / 2, size / 2);
+  gradient.addColorStop(0, inner);
+  gradient.addColorStop(0.3, outer);
+  gradient.addColorStop(0.62, `${color}aa`);
+  gradient.addColorStop(1, 'transparent');
+  c.fillStyle = gradient;
+  c.fillRect(0, 0, size, size);
+  sprite = { canvas, size };
+  _glowSprites.set(key, sprite);
+  return sprite;
+}
+
+// Pre-render the kill-path emoji once at load (spec 2A). Without this, the
+// first mass kill of a session builds every glyph's offscreen canvas inside a
+// single frame - measured at 100-270 ms in headless software rendering.
+// Deferred one tick so the first paint is never blocked; lazy rendering stays
+// as the fallback for anything not in this list.
+const KILL_PATH_EMOJIS = ['🧟', '😈', '💀', '💣', '👑', '🔴', '✨'];
+const PREWARM_GLYPH_SIZES = [12, 32, 40];
+function prewarmKillGlyphs() {
+  try {
+    for (const emoji of KILL_PATH_EMOJIS) {
+      for (const size of PREWARM_GLYPH_SIZES) {
+        particleEmojiGlyph(emoji, size);
+        particleWhiteGlyph(emoji, size);
+      }
+    }
+  } catch { /* best-effort: unknown emoji still renders lazily */ }
+}
+if (typeof window !== 'undefined') setTimeout(prewarmKillGlyphs, 0);
+
+function addParticle(particle) {
+  // Hard cap: when full, recycle the OLDEST particle so a new kill effect is
+  // never silently skipped (the kill sound and flash still play regardless).
+  if (particles.length >= particleBudget) {
+    const oldest = particles.shift();
+    if (oldest) particlePool.push(oldest);
+  }
+  const p = particlePool.pop() || {};
+  // Normalize the two draw-path discriminators explicitly instead of deleting
+  // stale keys: delete forces pooled objects into dictionary mode, which makes
+  // every later property access slower. Shape stays stable across reuse.
+  p.emoji = particle.emoji;
+  p.text = particle.text;
+  Object.assign(p, particle);
+  particles.push(p);
+}
+
+// --- Kill-path visual budget (STEP 2A / 2G / 2H) ---------------------------
+// A mass kill used to spawn one full burst per enemy, which blew the frame
+// budget. Now: at most MAX_BURSTS_PER_FRAME full bursts per rendered frame
+// (the rest get a single cheap puff), and once kills arrive faster than
+// KILL_BURST_THRESHOLD per KILL_BURST_WINDOW_MS the window collapses to one
+// big puff, one merged damage number and one louder sound. Adaptive quality
+// steps the particle budget down when frames run long.
+const recentKillTimes = [];
+let massKillUntil = 0;
+let massKillAnnounced = false;
+let burstsThisFrame = 0;
+let autoQualityLevel = 'high';
+let adaptiveGoodMs = 0;
+const adaptiveFrameTimes = [];
+
+// Registers a kill and returns true when this kill is the one that crosses the
+// mass-kill threshold (it becomes the window's single big puff + sound + shake).
+function registerKill(now) {
+  recentKillTimes.push(now);
+  while (recentKillTimes.length > 0 && now - recentKillTimes[0] > KILL_BURST_WINDOW_MS) recentKillTimes.shift();
+  if (recentKillTimes.length > KILL_BURST_THRESHOLD && now >= massKillUntil) {
+    massKillUntil = now + KILL_BURST_WINDOW_MS;
+    massKillAnnounced = false;
+    return true;
+  }
+  return false;
+}
+function isMassKillWindow(now) { return now < massKillUntil; }
+
+function effectiveQuality() {
+  return settings.effectsQuality === 'auto' ? autoQualityLevel : settings.effectsQuality;
+}
+applyEffectsQuality();
+function applyEffectsQuality() {
+  const factor = QUALITY_PARTICLE_FACTOR[effectiveQuality()] ?? 1;
+  particleBudget = Math.max(40, Math.floor(GAME_CONFIG.arenaTuning.performance.maxParticles * renderScale * renderScale * factor));
+}
+
+// One shared puff for a whole mass-kill window: plain arc particles, no glyphs.
+function spawnMassKillPuff(x, y, fx) {
+  const now = performance.now();
+  for (let i = 0; i < KILL_MASS_PUFF_PARTICLES; i += 1) {
+    const angle = (i / KILL_MASS_PUFF_PARTICLES) * Math.PI * 2;
+    addParticle({
+      x, y,
+      vx: Math.cos(angle) * (30 + Math.random() * 50),
+      vy: Math.sin(angle) * (30 + Math.random() * 50),
+      radius: 3 + Math.random() * 3,
+      color: i % 2 ? (fx.primary || '#81c784') : (fx.highlight || '#4caf50'),
+      alpha: 1,
+      startedAt: now,
+      durationMs: 320,
+      expiresAt: now + 320,
+    });
+  }
+  shakeCamera(KILL_MASS_SHAKE_TRAUMA, 'major');
+}
+
 
 function returnToKingdom() {
   if (embedded) {
@@ -277,6 +510,7 @@ shakeIntensitySetting.max = String(SHAKE_MAX_INTENSITY);
 shakeIntensitySetting.step = String(SHAKE_INTENSITY_STEP);
 shakeIntensityValue.textContent = `${settings.shakeIntensity}%`;
 numbersSetting.checked = settings.damageNumbers;
+qualitySetting.value = settings.effectsQuality;
 muteSetting.checked = settings.muted;
 volumeSetting.value = String(settings.masterVolume);
 settingsButton.addEventListener('click', () => {
@@ -295,6 +529,11 @@ shakeIntensitySetting.addEventListener('input', () => {
   saveSettings();
 });
 numbersSetting.addEventListener('change', () => { settings.damageNumbers = numbersSetting.checked; saveSettings(); });
+qualitySetting.addEventListener('change', () => {
+  settings.effectsQuality = qualitySetting.value;
+  applyEffectsQuality();
+  saveSettings();
+});
 muteSetting.addEventListener('change', () => { settings.muted = muteSetting.checked; saveSettings(); });
 volumeSetting.addEventListener('input', () => { settings.masterVolume = Number(volumeSetting.value); saveSettings(); });
 
@@ -316,6 +555,7 @@ startRunButton.addEventListener('click', () => {
 });
 
 function shakeCamera(amount, source = 'event') {
+  if (!effectToggles.shake) return;
   if (!settings.screenShake || settings.shakeIntensity <= SHAKE_MIN_INTENSITY) return;
   const now = performance.now();
   if (source === 'explosion') {
@@ -348,12 +588,33 @@ function showAreaEffect({ x, y, radius, kind = 'player', telegraphMs = 0, source
 }
 
 function addDamageNumber({ x, y, damage, sourceId, targetId, bonus = false, color = null }) {
-  if (!settings.damageNumbers) return;
+  if (!settings.damageNumbers || !effectToggles.numbers) return;
   const now = performance.now();
-  const existing = damageTexts.find((entry) => entry.targetId === targetId && entry.sourceId === sourceId && now - entry.lastHitAt <= ARENA_TUNING.damageNumbers.mergeMs);
-  if (existing) {
+  // Mass-kill window: collapse every hit into one running total instead of a
+  // number per enemy.
+  if (isMassKillWindow(now)) {
+    let entry = damageNumberMerge.get(MASS_NUMBER_KEY);
+    if (!entry) {
+      entry = { x, y, startY: y - 12, value: 0, text: '', startedAt: now, lastHitAt: now,
+        sourceId: null, targetId: MASS_NUMBER_KEY, mergeKey: MASS_NUMBER_KEY, bonus: false, alpha: 1, color: '#ffea00', scale: 1, glyph: null };
+      damageTexts.push(entry);
+      damageNumberMerge.set(MASS_NUMBER_KEY, entry);
+    }
+    entry.value += damage;
+    entry.text = `-${Math.round(entry.value)}`;
+    entry.glyph = textGlyph(entry.text, entry.color, 13 * entry.scale);
+    entry.lastHitAt = now;
+    entry.startedAt = now;
+    entry.x = x;
+    entry.startY = y - 12;
+    return;
+  }
+  const mergeKey = `${sourceId}|${targetId}`;
+  const existing = damageNumberMerge.get(mergeKey);
+  if (existing && now - existing.lastHitAt <= ARENA_TUNING.damageNumbers.mergeMs) {
     existing.value += damage;
     existing.text = `-${Math.round(existing.value)}`;
+    existing.glyph = textGlyph(existing.text, existing.color, 13 * existing.scale);
     existing.lastHitAt = now;
     existing.color = bonus ? '#ffe34f' : (color || '#fff');
     existing.bonus ||= bonus;
@@ -361,9 +622,20 @@ function addDamageNumber({ x, y, damage, sourceId, targetId, bonus = false, colo
     existing.startY = y - 12;
     return;
   }
-  damageTexts.push({ x, y, startY: y, value: damage, text: `-${Math.round(damage)}`, startedAt: now, lastHitAt: now,
-    sourceId, targetId, bonus, alpha: 1, color: bonus ? '#ffe34f' : (color || '#fff'), scale: bonus ? ARENA_TUNING.damageNumbers.bonusScale : 1 });
-  while (damageTexts.length > ARENA_TUNING.damageNumbers.maxVisible) damageTexts.shift();
+  const entryColor = bonus ? '#ffe34f' : (color || '#fff');
+  const entry = { x, y, startY: y, value: damage, text: `-${Math.round(damage)}`, startedAt: now, lastHitAt: now,
+    sourceId, targetId, mergeKey, bonus, alpha: 1, color: entryColor, scale: bonus ? ARENA_TUNING.damageNumbers.bonusScale : 1, glyph: null };
+  entry.glyph = textGlyph(entry.text, entryColor, 13 * entry.scale);
+  damageTexts.push(entry);
+  damageNumberMerge.set(mergeKey, entry);
+  while (damageTexts.length > ARENA_TUNING.damageNumbers.maxVisible) {
+    let dropIdx = -1;
+    for (let j = 0; j < damageTexts.length; j++) { if (!damageTexts[j].bonus) { dropIdx = j; break; } }
+    if (dropIdx === -1) dropIdx = 0;
+    const removed = damageTexts[dropIdx];
+    damageNumberMerge.delete(removed.mergeKey);
+    damageTexts.splice(dropIdx, 1);
+  }
 }
 
 function showElectroOverload(event) {
@@ -422,19 +694,25 @@ function openBriefing(force = false) {
 
 briefingButton.addEventListener('click', (event) => { event.stopPropagation(); openBriefing(true); });
 
-function updateKillStreak(sourceId) {
+function updateKillStreak(sourceId, announceMass = false) {
   if (sourceId !== me) return;
   const now = performance.now();
   combo.count = now - combo.lastKillAt <= ARENA_TUNING.killStreak.windowMs ? combo.count + 1 : 1;
   combo.lastKillAt = now;
+  const semitone = Math.min(combo.count - 1, ARENA_TUNING.sound.maxKillPitchSteps) * ARENA_TUNING.sound.killSemitonePerStep;
+  if (effectToggles.sound) {
+    // Mass-kill window: the announcing kill plays one louder sound; the rest
+    // are silent (the audio layer's 45 ms throttle also caps the steady rate).
+    if (announceMass) playSound('kill', { semitones: semitone, volume: 0.9 });
+    else if (!isMassKillWindow(now)) playSound('kill', { semitones: semitone });
+  }
+  if (!effectToggles.combo) return;
   killStreakHud.hidden = false;
   killStreakHud.textContent = `x${combo.count}`;
   killStreakHud.style.setProperty('--streak-scale-peak', String(ARENA_TUNING.killStreak.scalePeak));
   killStreakHud.classList.remove('pop');
   void killStreakHud.offsetWidth;
   killStreakHud.classList.add('pop');
-  const semitone = Math.min(combo.count - 1, ARENA_TUNING.sound.maxKillPitchSteps) * ARENA_TUNING.sound.killSemitonePerStep;
-  playSound('kill', { semitones: semitone });
 }
 
 function showMuzzleFlash(player) {
@@ -514,12 +792,14 @@ socket.on('start_rejected', ({ code } = {}) => {
   if (code === 'not_host') showToast('Only the host can start the run');
 });
 socket.on('dummy_broken', ({ x, y } = {}) => {
-  for (let i = 0; i < 14; i++) {
-    const angle = Math.random() * Math.PI * 2;
-    const speed = 40 + Math.random() * 120;
-    addParticle({ x, y, vx: Math.cos(angle) * speed, vy: Math.sin(angle) * speed,
-      radius: 1.5 + Math.random() * 2.5, color: Math.random() > 0.5 ? '#f5d76e' : '#fff3bd',
-      alpha: 1, startedAt: performance.now(), expiresAt: performance.now() + 520 });
+  if (effectToggles.burst) {
+    for (let i = 0; i < 14; i++) {
+      const angle = Math.random() * Math.PI * 2;
+      const speed = 40 + Math.random() * 120;
+      addParticle({ x, y, vx: Math.cos(angle) * speed, vy: Math.sin(angle) * speed,
+        radius: 1.5 + Math.random() * 2.5, color: Math.random() > 0.5 ? '#f5d76e' : '#fff3bd',
+        alpha: 1, startedAt: performance.now(), expiresAt: performance.now() + 520 });
+    }
   }
   playSound('hit');
 });
@@ -590,65 +870,234 @@ socket.on('game_over', (result = {}) => {
   if (runResultPanel.hidden) showRunResult({ victory: false, reason: result.reason, wavesReached: state.wave?.number || 0,
     wavesCleared: 0, kills: 0, damageDealt: 0, bonusDamage: 0, rewardCoins: 0, nextBossWave: ARENA_TUNING.run.bossTeaserWave, heroId: activeHeroId });
 });
-socket.on('hit', (hit) => {
+// The hit and kill handlers are extracted into named functions so the lag
+// investigation can replay the exact client-side kill path with each visual
+// effect toggled (see window.__heroLabKillTest below).
+function handleHit(hit) {
   const fx = HERO_FX_COLORS[hit.heroId] || {};
+  const now = performance.now();
   addDamageNumber({ x: hit.x + (Math.random() - 0.5) * 10, y: hit.y - 12, damage: hit.damage,
     sourceId: hit.sourceId, targetId: hit.id, bonus: hit.bonus, color: '#fff' });
   if (hit.id) {
-    enemyHitFlashUntil.set(hit.id, performance.now() + ARENA_TUNING.hitFlashMs);
-    const direction = Math.atan2(hit.y - (hit.sourceY ?? hit.y), hit.x - (hit.sourceX ?? hit.x));
-    const maxDamage = GAME_CONFIG.arenaTuning.damageNumbers.knockbackScaleDamage || 10;
-    let amount = ARENA_TUNING.knockback.normalMinPx + (ARENA_TUNING.knockback.normalMaxPx - ARENA_TUNING.knockback.normalMinPx) * Math.min(1, hit.damage / maxDamage);
-    if (hit.enemyType === 'brute') amount *= ARENA_TUNING.knockback.bruteMultiplier;
-    if (hit.enemyType === 'brute-king') amount *= ARENA_TUNING.knockback.kingMultiplier;
-    enemyHitFx.set(hit.id, { x: Math.cos(direction) * amount, y: Math.sin(direction) * amount, startedAt: performance.now(), durationMs: ARENA_TUNING.knockback.visualMs });
+    if (effectToggles.flash) enemyHitFlashUntil.set(hit.id, now + ARENA_TUNING.hitFlashMs);
+    if (effectToggles.knockback) {
+      const direction = Math.atan2(hit.y - (hit.sourceY ?? hit.y), hit.x - (hit.sourceX ?? hit.x));
+      const maxDamage = GAME_CONFIG.arenaTuning.damageNumbers.knockbackScaleDamage || 10;
+      let amount = ARENA_TUNING.knockback.normalMinPx + (ARENA_TUNING.knockback.normalMaxPx - ARENA_TUNING.knockback.normalMinPx) * Math.min(1, hit.damage / maxDamage);
+      if (hit.enemyType === 'brute') amount *= ARENA_TUNING.knockback.bruteMultiplier;
+      if (hit.enemyType === 'brute-king') amount *= ARENA_TUNING.knockback.kingMultiplier;
+      enemyHitFx.set(hit.id, { x: Math.cos(direction) * amount, y: Math.sin(direction) * amount, startedAt: now, durationMs: ARENA_TUNING.knockback.visualMs });
+    }
   }
-  for (let i = 0; i < ARENA_TUNING.impactSparks.particlesMin + Math.floor(Math.random() * (ARENA_TUNING.impactSparks.particlesMax - ARENA_TUNING.impactSparks.particlesMin + 1)); i++) {
-    const angle = Math.random() * Math.PI * 2;
-    const speed = 30 + Math.random() * 60;
-    addParticle({
-      x: hit.x,
-      y: hit.y,
-      vx: Math.cos(angle) * speed,
-      vy: Math.sin(angle) * speed,
-      radius: 1.5 + Math.random() * 2,
-      color: Math.random() > 0.4 ? (fx.primary || '#fff') : (fx.highlight || '#fff'),
-      alpha: 1,
-      startedAt: performance.now(),
-      expiresAt: performance.now() + ARENA_TUNING.impactSparks.durationMs,
-    });
+  // Camera kick when YOUR hit connects - attacks used to feel weak because
+  // weapon hits produced no shake at all. Damage-scaled, rate-limited, and
+  // silent during a mass-kill window (that window plays its single shake).
+  if (hit.sourceId === me && !isMassKillWindow(now) && now - lastHitShakeAt >= SHAKE_HIT_MIN_INTERVAL_MS) {
+    lastHitShakeAt = now;
+    const scale = 0.6 + 0.4 * Math.min(1, (Number(hit.damage) || 0) / SHAKE_HIT_DAMAGE_REFERENCE);
+    shakeCamera(SHAKE_HIT_TRAUMA * scale);
   }
-  playSound('hit');
-});
-socket.on('monster_killed', (data) => {
+  // Impact sparks are the first thing adaptive quality drops; they are pure
+  // decoration and never affect gameplay. During a mass-kill window they are
+  // skipped entirely: 40+ simultaneous hits would each spawn ~3 sparks, and
+  // the window's single big puff already carries the feedback.
+  if (effectToggles.sparks && effectiveQuality() === 'high' && !isMassKillWindow(performance.now())) {
+    for (let i = 0; i < ARENA_TUNING.impactSparks.particlesMin + Math.floor(Math.random() * (ARENA_TUNING.impactSparks.particlesMax - ARENA_TUNING.impactSparks.particlesMin + 1)); i++) {
+      const angle = Math.random() * Math.PI * 2;
+      const speed = 30 + Math.random() * 60;
+      addParticle({
+        x: hit.x,
+        y: hit.y,
+        vx: Math.cos(angle) * speed,
+        vy: Math.sin(angle) * speed,
+        radius: 1.5 + Math.random() * 2,
+        color: Math.random() > 0.4 ? (fx.primary || '#fff') : (fx.highlight || '#fff'),
+        alpha: 1,
+        startedAt: performance.now(),
+        expiresAt: performance.now() + ARENA_TUNING.impactSparks.durationMs,
+      });
+    }
+  }
+  if (effectToggles.sound) playSound('hit');
+}
+function handleMonsterKilled(data) {
   const fx = HERO_FX_COLORS[data.heroId] || {};
-  updateKillStreak(data.sourceId);
-  const direction = Math.atan2(data.y - (data.sourceY ?? data.y), data.x - (data.sourceX ?? data.x));
-  const killPush = ARENA_TUNING.knockback.killPx * (data.enemyType === 'brute' ? ARENA_TUNING.knockback.bruteMultiplier : data.enemyType === 'brute-king' ? ARENA_TUNING.knockback.kingMultiplier : 1);
-  deathSprites.push({ x: data.x + Math.cos(direction) * killPush, y: data.y + Math.sin(direction) * killPush, emoji: data.emoji || '💀', startedAt: performance.now(),
-    durationMs: ARENA_TUNING.deathBurst.durationMinMs + Math.floor(Math.random() * (ARENA_TUNING.deathBurst.durationMaxMs - ARENA_TUNING.deathBurst.durationMinMs + 1)),
-    scalePeak: ARENA_TUNING.deathBurst.scalePeak });
-  const fragmentCount = ARENA_TUNING.deathBurst.particlesMin + Math.floor(Math.random() * (ARENA_TUNING.deathBurst.particlesMax - ARENA_TUNING.deathBurst.particlesMin + 1));
-  for (let i = 0; i < fragmentCount; i++) {
-    const angle = Math.random() * Math.PI * 2;
-    const speed = 40 + Math.random() * 90;
-    const lifeMs = ARENA_TUNING.deathBurst.durationMinMs + Math.floor(Math.random() * (ARENA_TUNING.deathBurst.durationMaxMs - ARENA_TUNING.deathBurst.durationMinMs + 1));
-    addParticle({
-      x: data.x,
-      y: data.y,
-      vx: Math.cos(angle) * speed,
-      vy: Math.sin(angle) * speed,
-      radius: 2 + Math.random() * 2.5,
-      color: Math.random() > 0.5 ? (fx.primary || '#81c784') : (fx.highlight || '#4caf50'),
-      emoji: data.emoji || '✨',
-      alpha: 1,
-      startedAt: performance.now(),
-      durationMs: lifeMs,
-      expiresAt: performance.now() + lifeMs,
-    });
+  const now = performance.now();
+  // Kill-path budget: crossing KILL_BURST_THRESHOLD within the window makes
+  // this kill the window's single big puff + sound + shake.
+  const announceMass = registerKill(now);
+  const massWindow = isMassKillWindow(now);
+  updateKillStreak(data.sourceId, announceMass);
+  if (effectToggles.burst) {
+    if (announceMass) {
+      spawnMassKillPuff(data.x, data.y, fx);
+    } else if (massWindow) {
+      // Reduced mode: no per-kill sprite, burst or number.
+    } else if (burstsThisFrame < MAX_BURSTS_PER_FRAME) {
+      burstsThisFrame += 1;
+      const direction = Math.atan2(data.y - (data.sourceY ?? data.y), data.x - (data.sourceX ?? data.x));
+    const killPush = ARENA_TUNING.knockback.killPx * (data.enemyType === 'brute' ? ARENA_TUNING.knockback.bruteMultiplier : data.enemyType === 'brute-king' ? ARENA_TUNING.knockback.kingMultiplier : 1);
+    deathSprites.push({ x: data.x + Math.cos(direction) * killPush, y: data.y + Math.sin(direction) * killPush, emoji: data.emoji || '💀', startedAt: performance.now(),
+      durationMs: ARENA_TUNING.deathBurst.durationMinMs + Math.floor(Math.random() * (ARENA_TUNING.deathBurst.durationMaxMs - ARENA_TUNING.deathBurst.durationMinMs + 1)),
+      scalePeak: ARENA_TUNING.deathBurst.scalePeak });
+    const fragmentCount = ARENA_TUNING.deathBurst.particlesMin + Math.floor(Math.random() * (ARENA_TUNING.deathBurst.particlesMax - ARENA_TUNING.deathBurst.particlesMin + 1));
+    for (let i = 0; i < fragmentCount; i++) {
+      const angle = Math.random() * Math.PI * 2;
+      const speed = 40 + Math.random() * 90;
+      const lifeMs = ARENA_TUNING.deathBurst.durationMinMs + Math.floor(Math.random() * (ARENA_TUNING.deathBurst.durationMaxMs - ARENA_TUNING.deathBurst.durationMinMs + 1));
+      addParticle({
+        x: data.x,
+        y: data.y,
+        vx: Math.cos(angle) * speed,
+        vy: Math.sin(angle) * speed,
+        radius: 2 + Math.random() * 2.5,
+        color: Math.random() > 0.5 ? (fx.primary || '#81c784') : (fx.highlight || '#4caf50'),
+        emoji: data.emoji || '✨',
+        alpha: 1,
+        startedAt: now,
+        durationMs: lifeMs,
+        expiresAt: now + lifeMs,
+      });
+    }
+    } else {
+      // Over the per-frame burst budget: a single cheap puff, no glyph sprite.
+      addParticle({ x: data.x, y: data.y, vx: 0, vy: -18, radius: 3, color: fx.primary || '#81c784',
+        alpha: 1, startedAt: now, durationMs: 240, expiresAt: now + 240 });
+    }
   }
-  if (data.sourceId !== me) playSound('kill', { volume: 0.5 });
+  if (effectToggles.sound && data.sourceId !== me) {
+    // One louder sound for the whole mass-kill window, normal sound otherwise.
+    if (announceMass) playSound('kill', { volume: 0.9 });
+    else if (!massWindow) playSound('kill', { volume: 0.5 });
+  }
+  // Extra camera kick on YOUR killing blow (stacks with the hit kick toward a
+  // boss-slam-sized moment). The mass window already plays its single shake.
+  if (data.sourceId === me && !massWindow) shakeCamera(SHAKE_KILL_TRAUMA);
+}
+// The server batches hit and kill events into one message per tick; a payload
+// is either a single event (low volume, e.g. the training dummy) or an array
+// (mass kills). Both shapes run through the same handlers.
+socket.on('hit', (payload) => {
+  if (Array.isArray(payload)) { for (let i = 0; i < payload.length; i += 1) handleHit(payload[i]); }
+  else handleHit(payload);
 });
+socket.on('monster_killed', (payload) => {
+  if (Array.isArray(payload)) { for (let i = 0; i < payload.length; i += 1) handleMonsterKilled(payload[i]); }
+  else handleMonsterKilled(payload);
+});
+
+// Debug-only measurement hook (only present with ?profiler=1). Replays the
+// client kill path so each effect's frame cost can be isolated. It never runs
+// in normal play and does not change game state beyond the effect arrays.
+if (typeof window !== 'undefined' && new URLSearchParams(location.search).has('profiler')) {
+  // Measurement harness only: make damage numbers spawn so their draw cost is
+  // observable. Normal play keeps the user's saved setting.
+  try { settings.damageNumbers = true; } catch { /* settings may be read-only */ }
+  window.__heroLabKillTest = {
+    simulateKills(n = 40) {
+      for (let i = 0; i < n; i += 1) {
+        const angle = (i / n) * Math.PI * 2;
+        const x = 400 + Math.cos(angle) * 110;
+        const y = 300 + Math.sin(angle) * 110;
+        handleHit({ x, y, damage: 12, sourceId: me, id: `sim_${i}`, enemyType: 'zombie', heroId: activeHeroId, sourceX: 400, sourceY: 300, bonus: false });
+        handleMonsterKilled({ x, y, sourceId: me, emoji: '👹', enemyType: 'zombie', heroId: activeHeroId, sourceX: 400, sourceY: 300 });
+      }
+    },
+    simulateHits(n = 1, damage = 12, sourceId = me) {
+      for (let i = 0; i < n; i += 1) {
+        const angle = (i / Math.max(1, n)) * Math.PI * 2;
+        const x = 400 + Math.cos(angle) * 110;
+        const y = 300 + Math.sin(angle) * 110;
+        handleHit({ x, y, damage, sourceId, id: `simhit_${i}_${performance.now()}`, enemyType: 'zombie', heroId: activeHeroId, sourceX: 400, sourceY: 300, bonus: false });
+      }
+    },
+    clearEffects() {
+      particles.length = 0;
+      damageTexts.length = 0;
+      deathSprites.length = 0;
+      damageNumberMerge.clear();
+      enemyHitFlashUntil.clear();
+      enemyHitFx.clear();
+    },
+    // Times the render pass directly (bypassing requestAnimationFrame, which
+    // headless Chromium throttles) so each scenario's draw cost is measured
+    // consistently. Returns the average milliseconds per drawScene call.
+    measureRender(iterations = 60) {
+      let sum = 0;
+      for (let i = 0; i < iterations; i += 1) {
+        const startedAt = performance.now();
+        drawScene(performance.now());
+        sum += performance.now() - startedAt;
+      }
+      return sum / iterations;
+    },
+    counts() {
+      return { particles: particles.length, numbers: damageTexts.length, sprites: deathSprites.length, budget: particleBudget };
+    },
+    // Read-only view of the adaptive-quality state (Auto level + live budget).
+    quality() {
+      return { setting: settings.effectsQuality, effective: effectiveQuality(), budget: particleBudget, massKillWindow: isMassKillWindow(performance.now()) };
+    },
+    // Read-only view of the camera-shake state, so the hit/kill kick can be
+    // verified without eyeballing pixels.
+    shake() {
+      const now = performance.now();
+      return {
+        trauma: Math.round(trauma * 1000) / 1000,
+        offsetPx: Math.round(trauma * trauma * SHAKE_MAX_OFFSET * settings.shakeIntensity / SHAKE_MAX_INTENSITY * 100) / 100,
+        screenShake: settings.screenShake,
+        intensity: settings.shakeIntensity,
+        toggle: effectToggles.shake,
+        massWindow: isMassKillWindow(now),
+      };
+    },
+    // Fill a fixed number of each effect entity so the render cost of each type
+    // can be calibrated independently of the kill burst's randomness. When
+    // `plain` is true the particles use a solid arc (like impact sparks)
+    // instead of an emoji glyph (like death-burst fragments).
+    fillParticles(n, plain = false) {
+      particles.length = 0;
+      const now = performance.now();
+      for (let i = 0; i < n; i += 1) {
+        const p = { x: 120, y: 120, vx: 0, vy: 0, radius: 3, color: '#fff', alpha: 1, startedAt: now, durationMs: 5e5, expiresAt: now + 5e5 };
+        if (!plain) p.emoji = '✨';
+        particles.push(p);
+      }
+    },
+    fillNumbers(n) {
+      damageTexts.length = 0;
+      const now = performance.now();
+      for (let i = 0; i < n; i += 1) damageTexts.push({ text: '12', x: 120, y: 120, bonus: false, sourceId: me, targetId: `t${i}`, color: '#fff', startedAt: now, durationMs: 5e5, expiresAt: now + 5e5 });
+    },
+    fillSprites(n) {
+      deathSprites.length = 0;
+      const now = performance.now();
+      for (let i = 0; i < n; i += 1) deathSprites.push({ x: 120, y: 120, emoji: '💀', startedAt: now, durationMs: 5e5, scalePeak: 1.6 });
+    },
+    // Keep any freshly spawned effect entities alive through the measurement so
+    // drawScene neither culls nor animates them away while we time it.
+    freezeLife() {
+      const now = performance.now();
+      for (const part of particles) { part.startedAt = now; part.durationMs = 5e5; part.expiresAt = now + 5e5; part.alpha = 1; }
+      for (const dtObj of damageTexts) { dtObj.startedAt = now; dtObj.durationMs = 5e5; dtObj.expiresAt = now + 5e5; }
+      for (const sprite of deathSprites) { sprite.startedAt = now; sprite.durationMs = 5e5; }
+    },
+    // Median of several warmup+timed runs, to damp GC/JIT noise. Median (not
+    // best) keeps an inverted outlier from masking a real effect-cost delta.
+    measureRenderMedian(iterations = 60, runs = 5) {
+      const samples = [];
+      for (let r = 0; r < runs; r += 1) {
+        // Warmup pass (discard) to settle font caches / JIT.
+        for (let i = 0; i < 10; i += 1) drawScene(performance.now());
+        const startedAt = performance.now();
+        for (let i = 0; i < iterations; i += 1) drawScene(performance.now());
+        samples.push((performance.now() - startedAt) / iterations);
+      }
+      samples.sort((a, b) => a - b);
+      return samples[Math.floor(samples.length / 2)];
+    },
+  };
+}
 socket.on('area_telegraph', (effect) => showAreaEffect({ ...effect, telegraphMs: effect.telegraphMs || ARENA_TUNING.areaEffects.targetedTelegraphMs }));
 socket.on('area_effect', (effect) => {
   showAreaEffect(effect);
@@ -924,7 +1373,7 @@ function renderLobbyBar(room) {
   startRunButton.hidden = !isHost;
   lobbyHint.hidden = isHost;
   const total = (room.players?.length || 0) + (room.waiting?.length || 0);
-  startRunButton.textContent = `START RUN (${total}/${room.maxPlayers || 4} players)`;
+  setHudText(startRunButton, `START RUN (${total}/${room.maxPlayers || 4} players)`);
   const mine = [...(room.players || []), ...(room.waiting || [])].find((entry) => entry.id === me);
   if (!mine) return;
   if (pendingHeroSwap) {
@@ -935,6 +1384,9 @@ function renderLobbyBar(room) {
 }
 
 let countdownLabel = '';
+let teamHealthSignature = null;
+let downedListSignature = null;
+let buffIconsSignature = null;
 function renderCountdown(room, timestamp) {
   const endsAt = room?.countdownEndsAt || 0;
   if (!endsAt) {
@@ -955,25 +1407,50 @@ function renderCountdown(room, timestamp) {
   countdownValue.classList.add('tick');
 }
 
+// ---- HUD dirty-checking -----------------------------------------------------
+// The HUD refreshes 10x/second. Writing a textContent/style value that is
+// already correct still forces style recalc + layout on that frame, and on a
+// loaded machine that is enough to miss a vsync (a 16.7ms frame becomes 33ms).
+// Every write below is skipped when the value is unchanged, so a steady-state
+// HUD update costs almost nothing and only real changes touch the DOM.
+const hudTextCache = new Map();
+function setHudText(element, value) {
+  if (hudTextCache.get(element) === value) return;
+  hudTextCache.set(element, value);
+  element.textContent = value;
+}
+const hudStyleCache = new Map();
+function setHudStyle(element, prop, value) {
+  let entry = hudStyleCache.get(element);
+  if (!entry) { entry = new Map(); hudStyleCache.set(element, entry); }
+  if (entry.get(prop) === value) return;
+  entry.set(prop, value);
+  element.style[prop] = value;
+}
+function setHudHidden(element, value) {
+  if (element.hidden === value) return;
+  element.hidden = value;
+}
+
 function updateRoomHud(timestamp = performance.now()) {
   const room = state.room;
   if (!room) return;
   // The dev sandbox has no shareable code; hide the whole row so no divider is left behind.
-  if (roomRow) roomRow.hidden = !room.code;
-  roomCodeButton.hidden = !room.code;
-  if (room.code) roomCodeValue.textContent = room.code;
+  if (roomRow) setHudHidden(roomRow, !room.code);
+  setHudHidden(roomCodeButton, !room.code);
+  if (room.code) setHudText(roomCodeValue, room.code);
   renderPlayerList(room);
   renderLobbyBar(room);
   renderCountdown(room, timestamp);
   const isWaiting = Boolean(room.waiting?.some((entry) => entry.id === me));
-  waitingBanner.hidden = !isWaiting;
-  abilityHud.hidden = isWaiting;
+  setHudHidden(waitingBanner, !isWaiting);
+  setHudHidden(abilityHud, isWaiting);
   if (!isWaiting) return;
   const total = (room.players?.length || 0) + (room.waiting?.length || 0);
-  waitingDetail.textContent = `Spawning in the next break · ${total}/${room.maxPlayers || 4} players`;
-  heroName.textContent = 'Spectating';
-  healthValue.textContent = '-- / --';
-  healthFill.style.width = '0%';
+  setHudText(waitingDetail, `Spawning in the next break · ${total}/${room.maxPlayers || 4} players`);
+  setHudText(heroName, 'Spectating');
+  setHudText(healthValue, '-- / --');
+  setHudStyle(healthFill, 'width', '0%');
 }
 
 function updateHud(timestamp = performance.now()) {
@@ -981,50 +1458,57 @@ function updateHud(timestamp = performance.now()) {
   updateRoomHud();
   const phase = state.room?.phase;
   if (state.room && phase === 'lobby') {
-    waveNumber.textContent = 'Lobby';
-    waveDetails.textContent = state.room.hostId === me ? 'Press START RUN when everyone is in' : 'Waiting for the host to start…';
+    setHudText(waveNumber, 'Lobby');
+    setHudText(waveDetails, state.room.hostId === me ? 'Press START RUN when everyone is in' : 'Waiting for the host to start…');
   } else if (state.room && phase === 'countdown') {
-    waveNumber.textContent = 'Get ready';
-    waveDetails.textContent = 'The first wave is coming';
+    setHudText(waveNumber, 'Get ready');
+    setHudText(waveDetails, 'The first wave is coming');
   } else if (state.wave && waveNumber && waveDetails) {
-    waveNumber.textContent = `Wave ${state.wave.number || 1}`;
+    setHudText(waveNumber, `Wave ${state.wave.number || 1}`);
     if (state.buffVote) {
-      waveDetails.textContent = 'Choose a team buff';
+      setHudText(waveDetails, 'Choose a team buff');
     } else if (state.wave.nextWaveInMs > 0) {
       const remaining = Math.max(0, state.wave.nextWaveInMs - (timestamp - stateReceivedAt));
-      waveDetails.textContent = remaining > 300
+      setHudText(waveDetails, remaining > 300
         ? `Wave cleared · Next wave in ${Math.ceil(remaining / 1000)}s`
-        : 'Next wave starting…';
+        : 'Next wave starting…');
     } else {
-      waveDetails.textContent = `${state.wave.twist ? `${state.wave.twist.label} · ` : ''}Enemies left: ${state.wave.enemiesRemaining}`;
+      setHudText(waveDetails, `${state.wave.twist ? `${state.wave.twist.label} · ` : ''}Enemies left: ${state.wave.enemiesRemaining}`);
     }
   }
   const fire = state.campfire;
   if (fire) {
     const ratio = Math.max(0, Math.min(1, fire.hp / Math.max(1, fire.maxHp)));
-    campfireFill.style.width = `${ratio * 100}%`;
-    campfireFill.style.backgroundColor = ratio > 0.5 ? '#55ce69' : ratio > 0.25 ? '#ffc34d' : '#f04b54';
-    campfireValue.textContent = `${fire.hp} / ${fire.maxHp}`;
+    setHudStyle(campfireFill, 'width', `${ratio * 100}%`);
+    setHudStyle(campfireFill, 'backgroundColor', ratio > 0.5 ? '#55ce69' : ratio > 0.25 ? '#ffc34d' : '#f04b54');
+    setHudText(campfireValue, `${fire.hp} / ${fire.maxHp}`);
     setHeartbeat(ratio < ARENA_TUNING.lowHp.threshold);
   }
   const boss = state.boss;
-  bossHud.hidden = !boss;
+  setHudHidden(bossHud, !boss);
   if (boss) {
     const ratio = Math.max(0, Math.min(1, boss.hp / Math.max(1, boss.maxHp)));
-    bossHealthFill.style.width = `${ratio * 100}%`;
-    bossHealthValue.textContent = `${boss.name} · ${boss.hp} / ${boss.maxHp}`;
+    setHudStyle(bossHealthFill, 'width', `${ratio * 100}%`);
+    setHudText(bossHealthValue, `${boss.name} · ${boss.hp} / ${boss.maxHp}`);
   }
   if (!player) return;
 
-  heroName.textContent = `${player.emoji} ${player.name}`;
+  setHudText(heroName, `${player.emoji} ${player.name}`);
   const hpRatio = player.maxHp > 0 ? Math.max(0, Math.min(1, player.hp / player.maxHp)) : 0;
-  healthFill.style.width = `${hpRatio * 100}%`;
-  healthFill.style.background = hpRatio <= .25 ? '#ef5350' : hpRatio <= .55 ? '#ffb74d' : '#64d985';
-  healthTrack.setAttribute('aria-valuemax', String(player.maxHp));
-  healthTrack.setAttribute('aria-valuenow', String(player.hp));
-  healthValue.textContent = `${player.hp} / ${player.maxHp}`;
-  lowHpVignette.hidden = hpRatio >= ARENA_TUNING.lowHp.threshold;
-  lowHpVignette.style.setProperty('--low-hp-pulse-duration', `${1000 / ARENA_TUNING.lowHp.pulseHz}ms`);
+  setHudStyle(healthFill, 'width', `${hpRatio * 100}%`);
+  setHudStyle(healthFill, 'background', hpRatio <= .25 ? '#ef5350' : hpRatio <= .55 ? '#ffb74d' : '#64d985');
+  const maxHpAttr = String(player.maxHp);
+  const hpAttr = String(player.hp);
+  if (healthTrack.getAttribute('aria-valuemax') !== maxHpAttr || healthTrack.getAttribute('aria-valuenow') !== hpAttr) {
+    healthTrack.setAttribute('aria-valuemax', maxHpAttr);
+    healthTrack.setAttribute('aria-valuenow', hpAttr);
+  }
+  setHudText(healthValue, `${player.hp} / ${player.maxHp}`);
+  setHudHidden(lowHpVignette, hpRatio >= ARENA_TUNING.lowHp.threshold);
+  const pulseDuration = `${1000 / ARENA_TUNING.lowHp.pulseHz}ms`;
+  if (lowHpVignette.style.getPropertyValue('--low-hp-pulse-duration') !== pulseDuration) {
+    lowHpVignette.style.setProperty('--low-hp-pulse-duration', pulseDuration);
+  }
   if (player.downed) {
     lastLocalPosition = null;
     localIdleSince = timestamp;
@@ -1045,64 +1529,89 @@ function updateHud(timestamp = performance.now()) {
   }
   if (timestamp - combo.lastKillAt > ARENA_TUNING.killStreak.windowMs) {
     combo.count = 0;
-    killStreakHud.hidden = true;
+    setHudHidden(killStreakHud, true);
   }
 
   const teammates = (state.players || []).filter((candidate) => candidate.id !== me);
-  teamHealth.hidden = teammates.length === 0;
-  teamHealth.replaceChildren(...teammates.map((teammate) => {
-    const row = document.createElement('div'); row.className = 'teammate-health';
-    const label = document.createElement('span'); label.className = 'teammate-health-label';
-    label.textContent = `${teammate.emoji || ''} ${teammate.name}`;
-    const value = document.createElement('span'); value.className = 'teammate-health-value';
-    value.textContent = `${teammate.hp}/${teammate.maxHp}`;
-    const track = document.createElement('span'); track.className = 'teammate-health-track';
-    const fill = document.createElement('span'); fill.className = 'teammate-health-fill';
-    fill.style.width = `${Math.max(0, Math.min(100, teammate.hp / Math.max(1, teammate.maxHp) * 100))}%`;
-    track.append(fill); row.append(label, value, track); return row;
-  }));
+  setHudHidden(teamHealth, teammates.length === 0);
+  // Rebuild the rows only when the roster or a teammate's hp actually changes;
+  // replaceChildren() ten times a second is pure churn otherwise.
+  const teamSignature = teammates
+    .map((teammate) => `${teammate.id}:${teammate.hp}:${teammate.maxHp}:${teammate.emoji || ''}:${teammate.name || ''}`)
+    .join('|');
+  if (teamSignature !== teamHealthSignature) {
+    teamHealthSignature = teamSignature;
+    teamHealth.replaceChildren(...teammates.map((teammate) => {
+      const row = document.createElement('div'); row.className = 'teammate-health';
+      const label = document.createElement('span'); label.className = 'teammate-health-label';
+      label.textContent = `${teammate.emoji || ''} ${teammate.name}`;
+      const value = document.createElement('span'); value.className = 'teammate-health-value';
+      value.textContent = `${teammate.hp}/${teammate.maxHp}`;
+      const track = document.createElement('span'); track.className = 'teammate-health-track';
+      const fill = document.createElement('span'); fill.className = 'teammate-health-fill';
+      fill.style.width = `${Math.max(0, Math.min(100, teammate.hp / Math.max(1, teammate.maxHp) * 100))}%`;
+      track.append(fill); row.append(label, value, track); return row;
+    }));
+  }
   const downedPlayers = (state.players || []).filter((candidate) => candidate.downed);
-  downedList.hidden = downedPlayers.length === 0;
-  downedList.replaceChildren(...downedPlayers.map((candidate) => {
-    const item = document.createElement('div');
-    const seconds = Math.ceil(candidate.respawnRemainingMs / 1000);
-    item.textContent = `${candidate.emoji || '👻'} ${candidate.name}: ${seconds}s${candidate.respawnSpeedMultiplier > 1 ? ` · x${candidate.respawnSpeedMultiplier}` : ''}`;
-    return item;
-  }));
+  setHudHidden(downedList, downedPlayers.length === 0);
+  // The respawn countdown re-renders once per second (the seconds value is part
+  // of the signature), not ten times a second.
+  const downedSignature = downedPlayers
+    .map((candidate) => `${candidate.id}:${Math.ceil(candidate.respawnRemainingMs / 1000)}:${candidate.respawnSpeedMultiplier > 1 ? candidate.respawnSpeedMultiplier : ''}`)
+    .join('|');
+  if (downedSignature !== downedListSignature) {
+    downedListSignature = downedSignature;
+    downedList.replaceChildren(...downedPlayers.map((candidate) => {
+      const item = document.createElement('div');
+      const seconds = Math.ceil(candidate.respawnRemainingMs / 1000);
+      item.textContent = `${candidate.emoji || '👻'} ${candidate.name}: ${seconds}s${candidate.respawnSpeedMultiplier > 1 ? ` · x${candidate.respawnSpeedMultiplier}` : ''}`;
+      return item;
+    }));
+  }
   const buffEmoji = { maxHp: '❤️', attack: '⚔️', defense: '🛡️', speed: '🏃', campfire: '🔥', thorns: '🔥', scavenger: '💚', overcharge: '⚡', rally: '📣', 'glass-cannon': '💥', 'second-wind': '🕊️', 'life-steal': '🩸', ricochet: '↗️', volatile: '☄️', 'powder-keg': '🧨' };
-  buffIcons.replaceChildren(...(state.activeBuffs || []).map((buff) => {
-    const icon = document.createElement('span');
-    icon.className = 'buff-icon';
-    icon.textContent = buffEmoji[buff.id] || '✨';
-    icon.title = `${buff.label}: ${buff.description}`;
-    icon.setAttribute('aria-label', icon.title);
-    return icon;
-  }));
+  const buffSignature = (state.activeBuffs || []).map((buff) => buff.id).join('|');
+  if (buffSignature !== buffIconsSignature) {
+    buffIconsSignature = buffSignature;
+    buffIcons.replaceChildren(...(state.activeBuffs || []).map((buff) => {
+      const icon = document.createElement('span');
+      icon.className = 'buff-icon';
+      icon.textContent = buffEmoji[buff.id] || '✨';
+      icon.title = `${buff.label}: ${buff.description}`;
+      icon.setAttribute('aria-label', icon.title);
+      return icon;
+    }));
+  }
 
   const color = GAME_CONFIG.hud[player.type] || GAME_CONFIG.hud.physical;
-  document.querySelectorAll('.ability[data-ability]').forEach((element) => {
+  abilityElements.forEach((element) => {
     const id = element.dataset.ability;
     const data = player.abilities?.[id];
     const circle = element.querySelector('.ability-circle');
     const name = element.querySelector('.ability-name');
     if (!data) return;
-    name.textContent = data.name || id;
-    element.dataset.type = player.type || 'physical';
-    circle.style.setProperty('--fill-color', color);
+    setHudText(name, data.name || id);
+    const heroType = player.type || 'physical';
+    if (element.dataset.type !== heroType) element.dataset.type = heroType;
+    if (circle.style.getPropertyValue('--fill-color') !== color) circle.style.setProperty('--fill-color', color);
     const elapsedMs = Math.max(0, timestamp - stateReceivedAt);
     const remaining = Math.max(0, data.remainingMs - elapsedMs);
     const lockoutRemaining = Math.max(0, (data.lockoutRemainingMs || 0) - elapsedMs);
     const fill = data.durationMs > 0 ? Math.max(0, Math.min(100, (1 - remaining / data.durationMs) * 100)) : 100;
-    circle.style.setProperty('--fill', `${fill}%`);
+    const fillValue = `${fill}%`;
+    if (circle.style.getPropertyValue('--fill') !== fillValue) circle.style.setProperty('--fill', fillValue);
     circle.classList.toggle('ready', remaining <= 0 && lockoutRemaining <= 0);
     circle.classList.toggle('locked', lockoutRemaining > 0);
     const lockoutLabel = circle.querySelector('.ability-lockout');
-    if (lockoutLabel) lockoutLabel.textContent = lockoutRemaining > 0 ? String(Math.ceil(lockoutRemaining / 1000)) : '';
+    if (lockoutLabel) setHudText(lockoutLabel, lockoutRemaining > 0 ? String(Math.ceil(lockoutRemaining / 1000)) : '');
     const isSheriffDynamite = player.heroId === 'sheriff' && id === 'skill';
     element.classList.toggle('sheriff-skill-ready', isSheriffDynamite && remaining <= 0 && lockoutRemaining <= 0);
     if (isSheriffDynamite) {
-      element.style.setProperty('--sheriff-ready-glow-period', `${ARENA_TUNING.heroTweaks.sheriffReadyGlowPeriodMs}ms`);
-      circle.style.setProperty('--fill-color', '#ffd34f');
+      const glowPeriod = `${ARENA_TUNING.heroTweaks.sheriffReadyGlowPeriodMs}ms`;
+      if (element.style.getPropertyValue('--sheriff-ready-glow-period') !== glowPeriod) {
+        element.style.setProperty('--sheriff-ready-glow-period', glowPeriod);
+      }
+      if (circle.style.getPropertyValue('--fill-color') !== '#ffd34f') circle.style.setProperty('--fill-color', '#ffd34f');
     }
     const key = `${me}:${id}`;
     const previous = abilityReadyAt.get(key);
@@ -1190,8 +1699,57 @@ function onPointerDown(event) {
   }
 }
 
+// Timed wrapper: the profiler records the frame delta and the JS cost of one
+// draw pass, so a slow frame can be separated from a slow draw.
+// Frame pacing: rAF still fires every vsync, but we only render on a fixed
+// schedule (FRAME_CAP_FPS). Skipped vsyncs return before any work, so each
+// presented frame gets a guaranteed 1000/FRAME_CAP_FPS budget. The schedule
+// advances exactly one interval per drawn frame and never falls behind the
+// clock, so a long stall (GC, tab restore) resyncs instead of bursting.
+let nextFrameAt = -1;
 function draw(timestamp) {
   requestAnimationFrame(draw);
+  if (FRAME_CAP_FPS > 0) {
+    const frameIntervalMs = 1000 / FRAME_CAP_FPS;
+    if (nextFrameAt < 0) nextFrameAt = timestamp;
+    else if (timestamp < nextFrameAt) return;
+    nextFrameAt = Math.max(nextFrameAt + frameIntervalMs, timestamp);
+  }
+  burstsThisFrame = 0;
+  const startedAt = performance.now();
+  drawScene(timestamp);
+  const drawMs = performance.now() - startedAt;
+  profiler.recordFrame(timestamp || performance.now(), drawMs);
+  sampleAdaptiveQuality(drawMs);
+}
+
+// Adaptive quality (STEP 2H). When the average draw time over the last
+// ADAPTIVE_SAMPLE_FRAMES frames exceeds the target, step effects quality down
+// one level; restore one level after ADAPTIVE_RESTORE_MS of good frames. Only
+// active while the user leaves Effects quality on Auto. Gameplay is identical
+// at every level - only particle budget, sparks and teammate numbers change.
+function sampleAdaptiveQuality(drawMs) {
+  adaptiveFrameTimes.push(drawMs);
+  if (adaptiveFrameTimes.length < ADAPTIVE_SAMPLE_FRAMES) return;
+  let total = 0;
+  for (let i = 0; i < adaptiveFrameTimes.length; i += 1) total += adaptiveFrameTimes[i];
+  const avg = total / adaptiveFrameTimes.length;
+  adaptiveFrameTimes.length = 0;
+  if (settings.effectsQuality !== 'auto') return;
+  if (avg > FRAME_TIME_TARGET_MS) {
+    if (autoQualityLevel === 'high') { autoQualityLevel = 'medium'; adaptiveGoodMs = 0; applyEffectsQuality(); }
+    else if (autoQualityLevel === 'medium') { autoQualityLevel = 'low'; adaptiveGoodMs = 0; applyEffectsQuality(); }
+  } else if (autoQualityLevel !== 'high') {
+    adaptiveGoodMs += ADAPTIVE_SAMPLE_FRAMES * avg;
+    if (adaptiveGoodMs >= ADAPTIVE_RESTORE_MS) {
+      autoQualityLevel = autoQualityLevel === 'low' ? 'medium' : 'high';
+      adaptiveGoodMs = 0;
+      applyEffectsQuality();
+    }
+  }
+}
+
+function drawScene(timestamp) {
   const currentTime = timestamp || performance.now();
   if (currentTime - lastHudUpdateAt >= ARENA_TUNING.performance.hudUpdateMs) {
     updateHud(currentTime);
@@ -1223,7 +1781,12 @@ function draw(timestamp) {
     context.translate(centerX, centerY); context.scale(scale, scale); context.translate(-centerX, -centerY);
   } else cameraZoom.scale = 1;
 
-  context.drawImage(backgroundCanvas, 0, 0, ARENA_WIDTH, ARENA_HEIGHT);
+  // Overscan the background by the maximum shake offset so the camera
+  // translate can never expose an unpainted strip at the arena edge (the
+  // canvas is opaque and never cleared, so a strip would show stale pixels).
+  const shakeOverscan = SHAKE_MAX_OFFSET;
+  context.drawImage(backgroundCanvas, -shakeOverscan, -shakeOverscan,
+    ARENA_WIDTH + shakeOverscan * 2, ARENA_HEIGHT + shakeOverscan * 2);
 
   // 1. Draw Campfire in the middle
   const cf = state.campfire || {
@@ -1338,10 +1901,13 @@ function draw(timestamp) {
       context.font = `${32 * scale}px sans-serif`;
       context.textAlign = 'center';
       context.textBaseline = 'middle';
-      context.filter = hitFlash ? 'brightness(0) invert(1)' : 'none';
-      context.fillText(monster.emoji || '🧟', mx, my);
-      if (monster.isBoss) { context.filter = 'none'; context.font = '24px sans-serif'; context.fillText('👑', mx, my - visualRadius - 9); }
-      context.filter = 'none';
+      if (hitFlash) {
+        const g = particleWhiteGlyph(monster.emoji || '🧟', 32 * scale);
+        context.drawImage(g.canvas, mx - g.w / 2, my - g.h / 2, g.w, g.h);
+      } else {
+        context.fillText(monster.emoji || '🧟', mx, my);
+      }
+      if (monster.isBoss) { context.font = '24px sans-serif'; context.fillText('👑', mx, my - visualRadius - 9); }
       context.restore();
 
       // Monster health bar
@@ -1373,9 +1939,9 @@ function draw(timestamp) {
 
   for (let i = deathSprites.length - 1; i >= 0; i--) {
     const death = deathSprites[i];
+    const g = particleEmojiGlyph(death.emoji, 32 * death.scalePeak);
     if (currentTime < death.startedAt) {
-      context.font = '32px sans-serif'; context.textAlign = 'center'; context.textBaseline = 'middle';
-      context.fillText(death.emoji, death.x, death.y);
+      context.drawImage(g.canvas, death.x - g.w / 2, death.y - g.h / 2, g.w, g.h);
       continue;
     }
     const progress = Math.min(1, (currentTime - death.startedAt) / death.durationMs);
@@ -1384,8 +1950,9 @@ function draw(timestamp) {
       ? ARENA_TUNING.deathBurst.scaleStart + (death.scalePeak - ARENA_TUNING.deathBurst.scaleStart) * (progress / 0.25)
       : death.scalePeak * (1 - (progress - 0.25) / 0.75);
     context.save(); context.globalAlpha = 1 - progress; context.translate(death.x, death.y); context.scale(scale, scale);
-    context.font = '32px sans-serif'; context.textAlign = 'center'; context.textBaseline = 'middle'; context.fillText(death.emoji, 0, 0); context.restore();
+    context.drawImage(g.canvas, -g.w / 2, -g.h / 2, g.w, g.h); context.restore();
   }
+  context.globalAlpha = 1;
 
   for (const spawn of state.spawnTelegraphs || []) {
     const elapsed = Math.max(0, currentTime - stateReceivedAt);
@@ -1668,11 +2235,13 @@ function draw(timestamp) {
     }
 
     if (p.heroId === 'electromancer' && p.shape === 'orb') {
-      const glow = context.createRadialGradient(p.x, p.y, p.radius * 0.3, p.x, p.y, p.radius * 2.1);
-      glow.addColorStop(0, '#f4fdff'); glow.addColorStop(0.3, HERO_FX_COLORS.electromancer.highlight);
-      glow.addColorStop(0.62, `${HERO_FX_COLORS.electromancer.primary}aa`); glow.addColorStop(1, 'transparent');
-      context.save(); context.globalAlpha = 0.82; context.fillStyle = glow;
-      context.beginPath(); context.arc(p.x, p.y, p.radius * 2.1, 0, Math.PI * 2); context.fill(); context.restore();
+      // Cached glow sprite (rendered once per color) blitted with drawImage,
+      // instead of building a radial gradient per orb per frame.
+      const sprite = glowSprite(HERO_FX_COLORS.electromancer.primary, '#f4fdff', HERO_FX_COLORS.electromancer.highlight);
+      const glowRadius = p.radius * 2.1;
+      context.save(); context.globalAlpha = 0.82;
+      context.drawImage(sprite.canvas, p.x - glowRadius, p.y - glowRadius, glowRadius * 2, glowRadius * 2);
+      context.restore();
     }
     p.draw(context);
   }
@@ -1689,27 +2258,33 @@ function draw(timestamp) {
     } else part.alpha -= part.decay || 0.04;
     if (part.alpha <= 0) {
       particles.splice(i, 1);
+      particlePool.push(part);
       continue;
     }
-    context.save();
+    const r = part.radius * 2.4 + 4;
+    if (part.x < -r || part.x > ARENA_WIDTH + r || part.y < -r || part.y > ARENA_HEIGHT + r) continue;
     context.globalAlpha = Math.max(0, part.alpha);
-    context.fillStyle = part.color;
-    if (part.emoji || part.text) {
-      context.font = `bold ${Math.max(10, part.radius * (part.emoji ? 2 : 1.4))}px sans-serif`;
-      context.textAlign = 'center'; context.textBaseline = 'middle'; context.fillText(part.emoji || part.text, part.x, part.y);
+    if (part.emoji) {
+      const g = particleEmojiGlyph(part.emoji, part.radius * 2);
+      context.drawImage(g.canvas, part.x - g.w / 2, part.y - g.h / 2, g.w, g.h);
+    } else if (part.text) {
+      const g = textGlyph(part.text, part.color || '#fff', 14);
+      context.drawImage(g.canvas, part.x - g.w / 2, part.y - g.h / 2, g.w, g.h);
     } else {
+      context.fillStyle = part.color || '#fff';
       context.beginPath();
       context.arc(part.x, part.y, part.radius * Math.max(0.2, part.alpha), 0, Math.PI * 2);
       context.fill();
     }
-    context.restore();
   }
+  context.globalAlpha = 1;
 
   // 6. Update and draw floating damage numbers
+  const hideTeammateNumbers = effectiveQuality() !== 'high';
   for (let i = damageTexts.length - 1; i >= 0; i--) {
     const dtObj = damageTexts[i];
     if (dtObj.startedAt !== undefined) {
-      const progress = Math.min(1, (currentTime - dtObj.startedAt) / ARENA_TUNING.damageNumbers.durationMs);
+      const progress = Math.min(1, (currentTime - dtObj.startedAt) / (dtObj.durationMs || ARENA_TUNING.damageNumbers.durationMs));
       dtObj.y = dtObj.startY - ARENA_TUNING.damageNumbers.risePx * progress;
       dtObj.alpha = 1 - progress;
     } else {
@@ -1717,17 +2292,18 @@ function draw(timestamp) {
       dtObj.alpha -= 1.6 * dt;
     }
     if (dtObj.alpha <= 0) {
+      if (dtObj.mergeKey) damageNumberMerge.delete(dtObj.mergeKey);
       damageTexts.splice(i, 1);
       continue;
     }
-    context.save();
+    if (dtObj.x < -30 || dtObj.x > ARENA_WIDTH + 30 || dtObj.y < -30 || dtObj.y > ARENA_HEIGHT + 30) continue;
+    // Reduced quality hides teammates' numbers; your own stay (gameplay feel).
+    if (hideTeammateNumbers && dtObj.sourceId && dtObj.sourceId !== me) continue;
+    const g = dtObj.glyph || textGlyph(dtObj.text, dtObj.color || '#ffea00', 13 * (dtObj.scale || 1));
     context.globalAlpha = Math.max(0, dtObj.alpha * (dtObj.sourceId && dtObj.sourceId !== me ? ARENA_TUNING.damageNumbers.teammateOpacity : 1));
-    context.font = `bold ${13 * (dtObj.scale || 1)}px sans-serif`;
-    context.fillStyle = dtObj.color || '#ffea00';
-    context.textAlign = 'center';
-    context.fillText(dtObj.text, dtObj.x, dtObj.y);
-    context.restore();
+    context.drawImage(g.canvas, dtObj.x - g.w / 2, dtObj.y - g.h / 2, g.w, g.h);
   }
+  context.globalAlpha = 1;
   context.restore();
   context.setTransform(1, 0, 0, 1, 0, 0);
   context.globalAlpha = 1;
@@ -1749,6 +2325,15 @@ function spawnDashTrail(player) {
 
 canvas.addEventListener('pointermove', onPointerMove);
 canvas.addEventListener('pointerdown', onPointerDown);
+// Pre-warm the audio context on the first user input so the first kill/hit
+// sound has no context-resume hitch.
+const warmAudioOnFirstInput = () => {
+  warmUpAudio();
+  window.removeEventListener('pointerdown', warmAudioOnFirstInput);
+  window.removeEventListener('keydown', warmAudioOnFirstInput);
+};
+window.addEventListener('pointerdown', warmAudioOnFirstInput);
+window.addEventListener('keydown', warmAudioOnFirstInput);
 canvas.addEventListener('contextmenu', (event) => event.preventDefault());
 addEventListener('keydown', onKeyDown);
 addEventListener('keyup', onKeyUp);

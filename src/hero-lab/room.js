@@ -5,7 +5,7 @@ const {
   ROOM_MAX_PLAYERS, RECONNECT_GRACE_S, LOBBY_LATE_JOIN, LATE_JOIN_MAX_WAVE, LATE_JOIN_INVULNERABILITY_S,
   COUNTDOWN_S, DUMMY_COUNT, DUMMY_SPAWN_MIN, DUMMY_SPAWN_MAX, DUMMY_MIN_HERO_DISTANCE,
   DUMMY_EMOJI, DUMMY_SCALE, DUMMY_HP, DUMMY_RADIUS, DUMMY_KNOCKBACK_MULT, DUMMY_FRICTION,
-  DUMMY_RESPAWN_S, DUMMY_FADE_MS,
+  DUMMY_RESPAWN_S, DUMMY_FADE_MS, PERF_TICK_HISTORY, LOG_DEBUG,
 } = require('../../config/tuning.js');
 const { Projectile } = require('../../public/hero-lab/bases/projectile.js');
 const { Zombie } = require('../../public/hero-lab/enemies/zombie.js');
@@ -28,6 +28,7 @@ function createRoom({ io, services = null, id, code = null, isDefault = false, l
   // never reach a socket that belongs to another room. Private messages use
   // `direct.to(socketId)`, which is safe because a socket lives in one room.
   const nsp = io.of('/hero-lab').to(id);
+  const heroLabNamespace = io.of('/hero-lab');
   const direct = io.of('/hero-lab');
   const createdAt = Date.now();
 
@@ -49,10 +50,41 @@ function createRoom({ io, services = null, id, code = null, isDefault = false, l
   let activeTwist = null;
   let partyKillCount = 0;
   let secondWindUsed = false;
+  // Maintained incrementally (see spawnDummies/damageDummy) so enemyCount()
+  // never re-scans the monster map.
+  let liveDummyCount = 0;
 
   let projectileCounter = 0;
   let monsterSeq = 0;
   let chainCastCounter = 0;
+
+  // Per-tick event batching: hit and kill events are collected during the tick
+  // and flushed once at the end, so a 40-kill explosion costs two messages
+  // instead of eighty. Arrays are reused (length = 0) to avoid per-tick allocs.
+  let pendingHits = [];
+  let pendingKills = [];
+  let inTick = false;
+  function queueHit(payload) {
+    pendingHits.push(payload);
+    if (!inTick) flushKillEvents();
+  }
+  function queueKill(payload) {
+    pendingKills.push(payload);
+    if (!inTick) flushKillEvents();
+  }
+  function flushKillEvents() {
+    // Kills are flushed before hits so the client's mass-kill window (opened by
+    // the kill batch) is already active when the matching hit batch arrives -
+    // that lets the client skip per-hit sparks for the whole burst.
+    if (pendingKills.length > 0) {
+      nsp.emit('monster_killed', pendingKills.length === 1 ? pendingKills[0] : pendingKills);
+      pendingKills = [];
+    }
+    if (pendingHits.length > 0) {
+      nsp.emit('hit', pendingHits.length === 1 ? pendingHits[0] : pendingHits);
+      pendingHits = [];
+    }
+  }
 
   let waveNumber = 0;
   let enemiesLeftToSpawn = 0;
@@ -84,7 +116,7 @@ function createRoom({ io, services = null, id, code = null, isDefault = false, l
 
   function resetGame() {
     projectiles.clear();
-    monsters.clear();
+    monsters.clear(); liveDummyCount = 0;
     pickups.clear();
     traps.clear();
     timedEffects.length = 0;
@@ -147,7 +179,7 @@ function createRoom({ io, services = null, id, code = null, isDefault = false, l
   function startRun(now) {
     setPhase('running');
     countdownEndsAt = 0;
-    monsters.clear();
+    monsters.clear(); liveDummyCount = 0;
     for (const player of players.values()) {
       player.hero.hp = player.hero.maxHp;
       player.hero.invulnerableUntil = 0;
@@ -213,9 +245,11 @@ function createRoom({ io, services = null, id, code = null, isDefault = false, l
   }
 
   // --- Training dummy -------------------------------------------------------
+  // liveDummyCount is maintained incrementally so enemyCount() stays O(1)
+  // instead of re-scanning the monster map every tick (spec 2F).
   function spawnDummies(now) {
     if (phase !== 'lobby') return;
-    const existing = [...monsters.values()].filter((monster) => monster.isDummy).length;
+    const existing = liveDummyCount;
     for (let index = existing; index < DUMMY_COUNT; index++) {
       const point = chooseDummySpawnPoint();
       const dummy = {
@@ -247,6 +281,7 @@ function createRoom({ io, services = null, id, code = null, isDefault = false, l
         },
       };
       monsters.set(dummy.id, dummy);
+      liveDummyCount += 1;
     }
   }
 
@@ -279,6 +314,7 @@ function createRoom({ io, services = null, id, code = null, isDefault = false, l
     }
     if (dummy.dead) {
       monsters.delete(dummy.id);
+      liveDummyCount -= 1;
       nsp.emit('dummy_broken', { id: dummy.id, x: dummy.x, y: dummy.y, emoji: DUMMY_EMOJI });
       nextDummySpawnAt = Date.now() + DUMMY_RESPAWN_S * 1000;
     }
@@ -290,7 +326,7 @@ function createRoom({ io, services = null, id, code = null, isDefault = false, l
   function updateDummies(dt, now) {
     for (const dummy of [...monsters.values()]) {
       if (!dummy.isDummy) continue;
-      if (dummy.fadeStartedAt && now - dummy.fadeStartedAt >= DUMMY_FADE_MS) { monsters.delete(dummy.id); continue; }
+      if (dummy.fadeStartedAt && now - dummy.fadeStartedAt >= DUMMY_FADE_MS) { monsters.delete(dummy.id); liveDummyCount -= 1; continue; }
       for (const player of players.values()) {
         if (player.downed || player.disconnected) continue;
         const dx = dummy.x - player.x, dy = dummy.y - player.y;
@@ -317,9 +353,7 @@ function createRoom({ io, services = null, id, code = null, isDefault = false, l
   }
 
   function dummyCount() {
-    let count = 0;
-    for (const monster of monsters.values()) if (monster.isDummy) count += 1;
-    return count;
+    return liveDummyCount;
   }
 
   function enemyCount() {
@@ -515,7 +549,7 @@ function createRoom({ io, services = null, id, code = null, isDefault = false, l
   // Diagnostics helper: empties the current wave so the break can run without
   // waiting for every enemy to spawn. Used by tests and the debug menu.
   function clearWave() {
-    monsters.clear();
+    monsters.clear(); liveDummyCount = 0;
     spawnTelegraphs.length = 0;
     spawnQueue = [];
     enemiesLeftToSpawn = 0;
@@ -584,7 +618,9 @@ function createRoom({ io, services = null, id, code = null, isDefault = false, l
     }
     lastBuff = { ...chosen };
     runBuffs.push({ ...chosen });
-    console.log(`[Hero Lab] Card picked: ${chosen.label} (${chosen.id})`);
+    // Per-card-pick log stays behind the config flag (spec 2F); hot paths
+    // (per-kill, per-hit, per-tick) contain no logging at all.
+    if (LOG_DEBUG) console.log(`[Hero Lab] Card picked: ${chosen.label} (${chosen.id})`);
     buffVote = null; buffVotes.clear(); nextWaveAt = now + WAVE_BREAK_MS;
     nsp.emit('buff_applied', lastBuff);
   }
@@ -1202,7 +1238,7 @@ function createRoom({ io, services = null, id, code = null, isDefault = false, l
         if (recovered > 0) nsp.emit('life_steal', { playerId: killer.id, x: killer.x, y: killer.y, amount: recovered });
       }
     }
-    if (damage > 0) nsp.emit('hit', { type: 'monster', id: monster.id, x: monster.x, y: monster.y, damage,
+    if (damage > 0) queueHit({ type: 'monster', id: monster.id, x: monster.x, y: monster.y, damage,
       sourceId: source.ownerId, heroId: killer?.heroId || null, sourceAbility: source.sourceAbility || 'weapon', bonus: false,
       sourceX: killer?.x, sourceY: killer?.y,
       enemyType: monster.type, boss: Boolean(monster.isBoss), elite: Boolean(monster.isElite) });
@@ -1210,7 +1246,7 @@ function createRoom({ io, services = null, id, code = null, isDefault = false, l
       monsters.delete(monster.id);
       partyKillCount += 1;
       if (killer) killer.kills = (killer.kills || 0) + 1;
-      nsp.emit('monster_killed', { id: monster.id, x: monster.x, y: monster.y, sourceId: source.ownerId,
+      queueKill({ id: monster.id, x: monster.x, y: monster.y, sourceId: source.ownerId,
         heroId: killer?.heroId || null, sourceX: killer?.x, sourceY: killer?.y, emoji: monster.emoji, sourceAbility: source.sourceAbility || 'weapon',
         enemyType: monster.type, boss: Boolean(monster.isBoss), elite: Boolean(monster.isElite), finisher: Boolean(source.finisher) });
       if (hasRunEffect('scavenger') && Math.random() < GAME_CONFIG.arenaTuning.cards.effects.scavengerDropChance)
@@ -1412,7 +1448,7 @@ function createRoom({ io, services = null, id, code = null, isDefault = false, l
     const castId = ++chainCastCounter;
     const cast = { castId, ownerId: player.id, planned: targets.length, processed: 0, hitCount: 0, stunnedHitCount: 0, refundedMs: 0 };
     if (targets.length === 0) {
-      console.info('[Hero Lab] Electromancer Chain Lightning', { castId, enemiesHit: 0, stunnedEnemiesHit: 0, secondsRefunded: 0 });
+      if (LOG_DEBUG) console.info('[Hero Lab] Electromancer Chain Lightning', { castId, enemiesHit: 0, stunnedEnemiesHit: 0, secondsRefunded: 0 });
       return;
     }
     pendingChainCasts.set(castId, cast);
@@ -1687,7 +1723,7 @@ function createRoom({ io, services = null, id, code = null, isDefault = false, l
       if (cast) {
         cast.processed += 1;
         if (cast.processed >= cast.planned) {
-          console.info('[Hero Lab] Electromancer Chain Lightning', {
+          if (LOG_DEBUG) console.info('[Hero Lab] Electromancer Chain Lightning', {
             castId: cast.castId, enemiesHit: cast.hitCount, stunnedEnemiesHit: cast.stunnedHitCount,
             secondsRefunded: Number((cast.refundedMs / 1000).toFixed(3)),
           });
@@ -1970,16 +2006,61 @@ function createRoom({ io, services = null, id, code = null, isDefault = false, l
   let destroyed = false;
   let lastTickMs = 0;
   let lastTickAt = 0;
+  // Rolling window of tick costs, used by the profiler for average and worst
+  // tick time. Fixed-size typed array: no allocation per tick.
+  const tickHistory = new Float64Array(PERF_TICK_HISTORY);
+  let tickHistoryIndex = 0;
+  let tickHistoryCount = 0;
 
   // The loop body is timed so the debug menu can show what a room costs per
   // tick without instrumenting the game code itself.
   function runTick() {
     const startedAt = performance.now();
+    inTick = true;
     try {
       tick();
     } finally {
+      inTick = false;
+      // One batched hit event and one batched kill event per tick.
+      flushKillEvents();
       lastTickMs = performance.now() - startedAt;
       lastTickAt = Date.now();
+      tickHistory[tickHistoryIndex] = lastTickMs;
+      tickHistoryIndex = (tickHistoryIndex + 1) % PERF_TICK_HISTORY;
+      if (tickHistoryCount < PERF_TICK_HISTORY) tickHistoryCount += 1;
+    }
+  }
+
+  // Average and worst tick cost over the last PERF_TICK_HISTORY ticks (~1 s at
+  // 30 Hz). Read by the profiler overlay only; O(32) per call.
+  function tickStats() {
+    if (tickHistoryCount === 0) return { avgMs: 0, worstMs: 0, samples: 0 };
+    let sum = 0;
+    let worst = 0;
+    for (let i = 0; i < tickHistoryCount; i += 1) {
+      const value = tickHistory[i];
+      sum += value;
+      if (value > worst) worst = value;
+    }
+    return { avgMs: sum / tickHistoryCount, worstMs: worst, samples: tickHistoryCount };
+  }
+
+  // Cumulative bytes written to this room's sockets. The profiler diffs this
+  // over time; engine.io hides the raw counter, so read it off the net socket.
+  // Best-effort and defensive: never let a missing counter crash debugInfo().
+  function bytesSent() {
+    try {
+      const members = heroLabNamespace.adapter.rooms.get(id);
+      if (!members) return 0;
+      let total = 0;
+      for (const socketId of members) {
+        const socket = heroLabNamespace.sockets.get(socketId);
+        const bytes = socket?.conn?.transport?.socket?._socket?.bytesWritten;
+        if (typeof bytes === 'number') total += bytes;
+      }
+      return total;
+    } catch {
+      return 0;
     }
   }
 
@@ -2002,7 +2083,7 @@ function createRoom({ io, services = null, id, code = null, isDefault = false, l
     stop();
     players.clear();
     waiting.clear();
-    monsters.clear();
+    monsters.clear(); liveDummyCount = 0;
     projectiles.clear();
     buffVotes.clear();
     dawnPending.clear();
@@ -2014,6 +2095,7 @@ function createRoom({ io, services = null, id, code = null, isDefault = false, l
 
   // Everything the debug menu shows for one room.
   function debugInfo() {
+    const ticks = tickStats();
     return {
       id,
       code,
@@ -2024,10 +2106,48 @@ function createRoom({ io, services = null, id, code = null, isDefault = false, l
       waiting: waiting.size,
       wave: waveNumber,
       tickMs: Math.round(lastTickMs * 100) / 100,
+      tickAvgMs: Math.round(ticks.avgMs * 100) / 100,
+      tickWorstMs: Math.round(ticks.worstMs * 100) / 100,
+      tickSamples: ticks.samples,
+      bytesSent: bytesSent(),
       lastTickAt,
       uptimeS: Math.round((Date.now() - createdAt) / 1000),
       campfire: { hp: Math.round(campfire.hp), maxHp: campfire.maxHp },
     };
+  }
+
+  // Profiler harness: drop a ring of enemies around the campfire so the
+  // measurement pass can reproduce a crowded fight on demand. Debug-gated at
+  // the HTTP layer; never reachable from a game client.
+  function debugSpawnEnemies(count = 40, hp = 0, radius = 120) {
+    if (phase !== 'running') return 0;
+    const now = Date.now();
+    let spawned = 0;
+    for (let i = 0; i < count; i += 1) {
+      const angle = (i / count) * Math.PI * 2;
+      const ring = radius + (i % 5) * 12;
+      monsterSeq += 1;
+      const monster = new Zombie({ id: `enemy_${monsterSeq}`, x: campfire.x + Math.cos(angle) * ring,
+        y: campfire.y + Math.sin(angle) * ring, now });
+      if (hp > 0 && hp < monster.maxHp) monster.maxHp = hp;
+      monster.hp = monster.maxHp;
+      monsters.set(monster.id, monster);
+      spawned += 1;
+    }
+    broadcastState(now);
+    return spawned;
+  }
+
+  // Profiler harness: kill every enemy in one tick, which is the burst the
+  // client sees after a Bombardier ultimate or an Electromancer chain.
+  function debugKillAll() {
+    let killed = 0;
+    for (const monster of [...monsters.values()]) {
+      if (monster.isDummy) continue;
+      damageMonster(monster, monster.hp + 1, { ownerId: hostId, sourceAbility: 'debug' });
+      if (monster.dead) killed += 1;
+    }
+    return killed;
   }
 
   return {
@@ -2050,6 +2170,9 @@ function createRoom({ io, services = null, id, code = null, isDefault = false, l
       return true;
     },
     spawnDummies: () => spawnDummies(Date.now()),
+    debugSpawnEnemies,
+    debugKillAll,
+    tickStats,
     // Test/debug shortcut: open the dawn milestone without clearing a wave.
     openMilestone: () => {
       if (phase !== 'running' || players.size === 0) return false;
