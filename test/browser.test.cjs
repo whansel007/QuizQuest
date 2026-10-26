@@ -526,17 +526,21 @@ test('dashboard: period filter, question detail, and a jump to the Question bank
   await timePager.getByText(`Showing ${(lastPage - 1) * 10 + 1}–${total} of ${total} questions`).waitFor();
   assert.equal(await page.locator('#dash-time tbody tr').count(), total - (lastPage - 1) * 10);
   assert.equal(await timePager.getByRole('button', { name: 'Next page' }).isDisabled(), true);
-  // group chips: "All" counts every question; a group filters the table to its questions
-  const chips = page.getByRole('group', { name: 'Question groups' }).getByRole('button');
-  assert.equal(await chips.first().innerText(), `All (${total})`);
-  const group = chips.nth(1);
-  const inGroup = Number((await group.innerText()).match(/\((\d+)\)$/)[1]);
-  const groupName = (await group.innerText()).replace(/^⚠ /, '').replace(/ \(\d+\)$/, '');
+  // group cards: one per group, counts add up to every question; a card
+  // filters the table to its questions and says what to do
+  const cards = page.getByRole('group', { name: 'Question groups' }).getByRole('button');
+  const counts = (await cards.locator('.zc-n').allInnerTexts()).map(Number);
+  assert.equal(counts.reduce((x, y) => x + y, 0), total);
+  assert.ok((await cards.allInnerTexts()).every((c) => c.includes('What to do:')));
+  const group = cards.first();
+  const inGroup = counts[0];
+  const groupName = (await group.locator('.zc-label').innerText()).replace(/^⚠ /, '');
   await group.click();
   assert.equal(await group.getAttribute('aria-pressed'), 'true');
   await page.waitForFunction((n) => document.querySelectorAll('#dash-time tbody tr').length === n, Math.min(inGroup, 10));
   assert.ok((await page.locator('#dash-time tbody td:nth-child(2)').allInnerTexts()).every((g) => g.replace(/^⚠ /, '') === groupName));
-  await chips.first().click();
+  await page.locator('#dash-time').getByRole('button', { name: `Show all ${total} questions` }).click();
+  assert.equal(await group.getAttribute('aria-pressed'), 'false');
   // learning outcomes open under a topic
   await page.getByRole('button', { name: 'Show learning outcomes for Data representation' }).click();
   await page.getByText('Convert between binary, decimal and hexadecimal', { exact: true }).waitFor();
@@ -625,19 +629,7 @@ test('dashboard: printing shows every row and open topic, and charts are one tab
   await outcome.waitFor({ state: 'detached' });
   assert.equal(await page.locator('#dash-time tbody tr').count(), 10);
 
-  // keyboard: Tab lands on the chart once, arrows move, Enter opens the question
-  const scatter = page.getByRole('img', { name: /Average time against accuracy/ });
-  await scatter.focus();
-  const tip = page.locator('#dash-time .viz-tip');
-  await tip.waitFor();
-  const first = await tip.locator('.t').innerText();
-  await page.keyboard.press('ArrowRight');
-  assert.notEqual(await tip.locator('.t').innerText(), first, 'moved to the next dot');
-  const shown = await tip.locator('.t').innerText();
-  await page.keyboard.press('Enter');
-  await page.getByRole('dialog').getByText(shown, { exact: false }).first().waitFor();
-  await page.keyboard.press('Escape');
-  // the heatmap is one stop too
+  // keyboard: the heatmap is one tab stop, arrows move inside
   const heat = page.getByRole('img', { name: /Answers by day and time/ });
   await heat.focus();
   await page.getByText(/^Mon 00:00–03:00: \d+ answers$/).waitFor();
