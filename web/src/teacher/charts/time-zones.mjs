@@ -1,20 +1,22 @@
 // ============================================================
-// Where a question sits on the time x accuracy chart. The two lines are
+// Which group a question falls in, by time and accuracy. The two lines are
 // the server's: "slow" = the slowest quarter of questions, "often wrong"
 // = under maxAccuracy (60%), "mostly right" = maxAccuracy or more. "Worth rereading" is exactly the server's
 // "possibly confusing" flag. With too few questions to know what is slow
 // (slowMs null), questions are only split into mostly right / often wrong.
+// Each group says what it likely means (hint) and what to do (action);
+// `act` marks the groups that ask the professor to do something.
 // ============================================================
 
 export const ZONE_ORDER = ['reread', 'quickWrong', 'slowRight', 'fine', 'wrong', 'right', 'few'];
 export const ZONES = {
-  reread: { label: 'Worth rereading', hint: 'slow and often wrong, which often points to unclear wording or a hard concept' },
-  quickWrong: { label: 'Quick but often wrong', hint: 'answered fast but often wrong, which can mean a tempting wrong option or a common misconception' },
-  slowRight: { label: 'Slow but mostly right', hint: 'takes thought, but most students get there' },
-  fine: { label: 'Quick and mostly right', hint: 'no sign of trouble' },
-  wrong: { label: 'Often wrong', hint: 'too few questions yet to tell what counts as slow' },
-  right: { label: 'Mostly right', hint: 'too few questions yet to tell what counts as slow' },
-  few: { label: 'Not enough answers', hint: 'too few answers yet (or still awaiting marking) to place it' },
+  reread: { act: true, label: 'Worth rereading', hint: 'slow and often wrong, which often points to unclear wording or a hard concept', action: 'Reread the question and its answer key. If both are clear, the concept may need reteaching.' },
+  quickWrong: { act: true, label: 'Quick but often wrong', hint: 'answered fast but often wrong, which can mean a tempting wrong option or a common misconception', action: 'Open it and look at the most chosen wrong answer: that is the misconception to address in class.' },
+  slowRight: { label: 'Slow but mostly right', hint: 'takes thought, but most students get there', action: 'Usually nothing to fix. If it was meant to be quick, check it is not longer to read than it needs to be.' },
+  fine: { label: 'Quick and mostly right', hint: 'no sign of trouble', action: 'Nothing to do.' },
+  wrong: { act: true, label: 'Often wrong', hint: 'too few questions yet to tell what counts as slow', action: 'Open it to see the most chosen wrong answer, and check the wording.' },
+  right: { label: 'Mostly right', hint: 'too few questions yet to tell what counts as slow', action: 'Nothing to do.' },
+  few: { label: 'Not enough answers', hint: 'too few answers yet (or still awaiting marking) to place it', action: 'Nothing yet: wait for more answers, or mark the ones waiting.' },
 };
 
 // q: { n, meanMs, accuracy (0..1 or null), flagged }

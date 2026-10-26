@@ -898,15 +898,15 @@ button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible
 /* Categorical series colours: fixed slot order, validated for colour-blind
    separation against the light (#fff) and dark (#1d2029) panels. A topic
    keeps its slot (its order in the course) whatever is filtered. */
-.viz {
-  position: relative;
+.viz { position: relative; }
+.viz, .cell-bar {
   --viz-grid: #e8e6df;
   --viz-axis: #c3c2b7;
   --series-1: #2a78d6; --series-2: #eb6834; --series-3: #05a873; --series-4: #cd8300;
   --series-5: #dc709a; --series-6: #008300; --series-7: #4a3aa7; --series-8: #e34948;
 }
 @media (prefers-color-scheme: dark) {
-  .viz {
+  .viz, .cell-bar {
     --viz-grid: #2c2f3a;
     --viz-axis: #3d4150;
     --series-1: #3987e5; --series-2: #d95926; --series-3: #199e70; --series-4: #c98500;
@@ -972,20 +972,24 @@ button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible
 .tile .delta-hint { margin: 4px 0 0; }
 .chart-title { font-size: 13px; font-weight: 600; margin-bottom: 4px; }
 .multiples { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(240px, 100%), 1fr)); gap: 12px; }
-.viz .refline { stroke: var(--muted); stroke-width: 1; opacity: 0.6; }
-.viz .lifted { stroke-width: 3; }
-.viz-legend .k.dot { width: 9px; height: 9px; border-radius: 50%; }
-/* time vs accuracy: named corners, the shaded "worth rereading" corner, direct labels */
-.viz .zone-shade { fill: var(--warn-soft); }
-.viz .corner { font-size: 11px; fill: var(--muted); font-weight: 600; }
-.viz .corner.warn { fill: var(--warn); }
-.viz .axis-title { font-weight: 600; }
+/* time vs accuracy: one card per group (the groups to act on first), and
+   thin bars in the table cells with the "slow" / "often wrong" line marked */
+.zone-cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(170px, 100%), 1fr)); gap: 10px; margin: 4px 0 10px; }
+.zone-card { display: flex; flex-direction: column; gap: 4px; text-align: left; font: inherit; font-size: 13px; color: var(--ink); background: var(--bg); border: 1px solid var(--line); border-radius: var(--radius); padding: 10px 12px; cursor: pointer; }
+.zone-card.act { background: var(--panel); }
+.zone-card.warn { background: var(--warn-soft); border-color: var(--warn); }
+.zone-card:hover { border-color: var(--accent); }
+.zone-card[aria-pressed="true"] { border-color: var(--accent); box-shadow: inset 0 0 0 1px var(--accent); }
+.zone-card .zc-head { display: flex; align-items: baseline; gap: 8px; }
+.zone-card .zc-n { font-size: 22px; font-weight: 800; font-variant-numeric: tabular-nums; }
+.zone-card .zc-label { font-weight: 700; }
+.zone-card.warn .zc-label { color: var(--warn); }
+.zone-card .zc-action b { font-weight: 600; }
+.cell-bar { position: relative; display: block; height: 4px; min-width: 64px; margin-top: 4px; border-radius: 2px; background: var(--line); }
+.cell-bar > span { display: block; height: 100%; border-radius: 2px; background: var(--series-1); }
+.cell-bar > i { position: absolute; top: -2px; bottom: -2px; width: 2px; margin-left: -1px; background: var(--ink); }
 .viz .direct-label { font-size: 11px; fill: var(--ink); font-weight: 600; paint-order: stroke; stroke: var(--panel); stroke-width: 3px; stroke-linejoin: round; }
 .viz .leader { stroke: var(--muted); stroke-width: 1; }
-.viz .faded { opacity: 0.18; }
-.zone-chips { margin: 4px 0 8px; }
-.zone-chips button.warn { border-color: var(--warn); color: var(--warn); }
-.zone-chips button.warn[aria-pressed="true"] { background: var(--warn); border-color: var(--warn); color: var(--panel); }
 .zone-hint { margin: -2px 0 8px; }
 .how-measured { margin: -4px 0 10px; }
 .how-measured summary { cursor: pointer; }
@@ -1099,7 +1103,7 @@ dialog.insight::backdrop { background: rgba(10, 12, 20, 0.45); }
     --accent: #3343b8; --accent-soft: #eef0fb; --good: #1f7a45; --bad: #b33232; --warn: #8a5a00;
     --good-soft: #eaf5ee; --bad-soft: #fbeeee; --warn-soft: #fdf3df; --shadow: none;
   }
-  .viz { --viz-grid: #e5e5e5; --viz-axis: #bbbbbb; --series-1: #2a78d6; --series-2: #eb6834; --series-3: #05a873; --series-4: #cd8300; --series-5: #dc709a; --series-6: #008300; --series-7: #4a3aa7; --series-8: #e34948; }
+  .viz, .cell-bar { --viz-grid: #e5e5e5; --viz-axis: #bbbbbb; --series-1: #2a78d6; --series-2: #eb6834; --series-3: #05a873; --series-4: #cd8300; --series-5: #dc709a; --series-6: #008300; --series-7: #4a3aa7; --series-8: #e34948; }
   body { background: #fff; color: #111; font-size: 12px; }
   header#top, footer, .no-print, dialog, details.viz-table, .viz-tip, #toast { display: none !important; }
   /* charts are drawn for the screen's width: scale them to the page's (they carry a viewBox) */
