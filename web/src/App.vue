@@ -7,7 +7,6 @@ import { S, setTab, restoreSession } from './api.js';
 import { toastState } from './ui.js';
 import LoginView from './LoginView.vue';
 import ReviewView from './teacher/ReviewView.vue';
-import ContentView from './teacher/ContentView.vue';
 import GenerateView from './teacher/GenerateView.vue';
 import AnalyticsView from './teacher/AnalyticsView.vue';
 import EvaluationView from './teacher/EvaluationView.vue';
@@ -22,7 +21,7 @@ import DebugMenu from './components/DebugMenu.vue';
 import AccountMenu from './components/AccountMenu.vue';
 
 const TABS = {
-  teacher: [['analytics', 'Analytics', AnalyticsView], ['classes', 'Classes & Roster', ClassManagementView], ['review', 'Question bank', ReviewView], ['content', 'Source material', ContentView], ['generate', 'AI drafting', GenerateView], ['evaluation', 'Evaluation', EvaluationView], ['settings', 'Settings', SettingsView]],
+  teacher: [['analytics', 'Analytics', AnalyticsView], ['classes', 'Classes & Roster', ClassManagementView], ['review', 'Question bank', ReviewView], ['generate', 'AI drafting', GenerateView], ['evaluation', 'Evaluation', EvaluationView], ['settings', 'Settings', SettingsView]],
   student: [['practice', 'Practice', PracticeView], ['progress', 'My Progress', ProgressView], ['world', 'World', HeroLabView], ['kingdom', 'Kingdom', KingdomView], ['pets', 'Pets & shop', PetsView]],
 };
 
@@ -35,7 +34,7 @@ onMounted(async () => {
 const tabs = computed(() => (S.me ? TABS[S.me.role] : []));
 const current = computed(() => {
   if (!S.me) return null;
-  return tabs.value.find(([id]) => id === S.tab) || tabs.value[0];
+  return tabs.value.find(([id]) => id === (S.tab === 'content' ? 'generate' : S.tab)) || tabs.value[0];
 });
 </script>
 

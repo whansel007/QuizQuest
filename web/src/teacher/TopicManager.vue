@@ -20,6 +20,7 @@ const emit = defineEmits(['select']);
 const summary = ref(null);
 const error = ref('');
 const adding = ref(false);
+const showAll = ref(false);
 const editing = ref(null); // { id, week, name, addOutcome }
 
 async function load() {
@@ -33,7 +34,7 @@ async function load() {
 watch(() => props.stamp, load, { immediate: true });
 
 // follows the page's topic filter: one row when a topic is chosen
-const rows = computed(() => (summary.value?.topics || []).filter((t) => !S.topicId || t.topicId === S.topicId));
+const rows = computed(() => (summary.value?.topics || []).filter((t) => showAll.value || !S.topicId || t.topicId === S.topicId));
 const topicOf = (id) => props.course.topics.find((t) => t.id === id);
 function edit(row) {
   editing.value = { id: row.topicId, week: row.week ?? '', name: row.name, addOutcome: '' };
@@ -67,10 +68,10 @@ const reportText = (r) => (!r ? '—' : r.saved ? `saved (v${r.revision})` : r.s
 <template>
   <div class="panel">
     <div class="row">
-      <h3 class="grow">Weekly topics</h3>
+      <h3 class="grow">Manage topics &amp; learning outcomes</h3>
       <button v-if="!adding" class="btn small" @click="adding = true">+ Add topic</button>
     </div>
-    <p class="small muted">Group lecture files, knowledge reports and questions under the week they are taught. All your classes for this course share these topics.<template v-if="S.topicId && summary?.topics.length > 1"> Showing the chosen topic only. <button class="linklike" @click="emit('select', '')">Show all topics</button></template></p>
+    <p class="small muted">Every class of this course shares these weekly topics.<template v-if="S.topicId && summary?.topics.length > 1">&nbsp;<button class="linklike" @click="showAll = !showAll">{{ showAll ? 'Show selected topic' : 'Show all topics' }}</button></template></p>
     <TopicForm v-if="adding" :course="course" @created="created" @cancel="adding = false" />
     <div v-if="error" class="note bad">{{ error }}</div>
     <p v-else-if="!summary" class="muted small">Loading…</p>
@@ -84,7 +85,7 @@ const reportText = (r) => (!r ? '—' : r.saved ? `saved (v${r.revision})` : r.s
               <tr>
                 <td class="num">{{ row.week ?? '—' }}</td>
                 <td class="label">
-                  <button class="linklike" :aria-label="row.topicId === S.topicId ? 'Show material for all topics' : `Show material for ${topicLabel(topicOf(row.topicId))}`" @click="emit('select', row.topicId === S.topicId ? '' : row.topicId)">{{ row.name }}</button>
+                  <button class="linklike" :aria-label="`Show material for ${topicLabel(topicOf(row.topicId))}`" @click="emit('select', row.topicId)">{{ row.name }}</button>
                   <div class="small muted">{{ topicOf(row.topicId)?.outcomes.length || 0 }} learning outcome(s){{ row.passages ? ` · ${row.passages} added passage(s)` : '' }}</div>
                 </td>
                 <td class="num">{{ row.files }}</td>

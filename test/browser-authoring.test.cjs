@@ -139,13 +139,29 @@ test('PDF/PPTX upload, saved Markdown editing, preview/download, generation and 
   await page.locator('#tabs').getByRole('button', { name: 'AI drafting', exact: true }).click();
   await page.getByText('networks.pptx',{exact:true}).waitFor();
   await page.getByRole('checkbox', { name: /This is authorised course material/ }).check();
-  assert.match(await page.getByLabel('Lecture file upload status').innerText(), /Read — not uploaded yet/);
+  assert.match(await page.getByLabel('Upload materials', {exact:true}).innerText(), /Ready to upload/);
   const beforeUpload = inferenceCalls;
   await page.getByRole('button', { name: 'Upload files', exact: true }).click();
-  await page.getByText('All uploaded material is saved.', {exact:true}).waitFor();
+  await page.getByText('Upload complete. You do not need to upload these files again.', {exact:true}).waitFor();
   assert.equal(inferenceCalls, beforeUpload, 'uploading alone uses zero inference');
   assert.equal(srv.quiz.db.courses.find(c=>c.id==='c-comp').authoringJobs?.length || 0, 0);
-  assert.equal(await page.getByLabel('Lecture file upload status').getByText('Uploaded', {exact:true}).count(), 3);
+  assert.equal(await page.getByLabel('Successfully uploaded files', {exact:true}).getByText('Uploaded', {exact:true}).count(), 3);
+  assert.equal(await page.locator('#tabs').getByRole('button', {name:'Source material',exact:true}).count(), 0);
+  const disclosure = page.locator('.saved-toggle');
+  await disclosure.focus(); await page.keyboard.press('Enter');
+  assert.equal(await disclosure.getAttribute('aria-expanded'), 'false');
+  await page.keyboard.press('Tab');
+  assert.equal(await page.evaluate(() => document.activeElement.textContent), 'Choose files');
+  await page.keyboard.press('Shift+Tab');
+  await page.keyboard.press('Space');
+  assert.equal(await disclosure.getAttribute('aria-expanded'), 'true');
+  for (const width of [390, 768, 1280]) {
+    await page.setViewportSize({ width, height: 900 });
+    await page.emulateMedia({ reducedMotion: 'reduce' });
+    assert.ok(await page.locator('.saved-region').evaluate(el => parseFloat(getComputedStyle(el).transitionDuration) <= 0.001));
+    assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);
+    await page.screenshot({ path: `tmp/drafting-uploads-${width}.png`, fullPage: true });
+  }
   assert.ok(srv.quiz.db.passages.filter(p=>p.importHash).every(p=>p.topicId==='tp-data'),'uploads go into the selected weekly topic');
   // Recover uploaded filenames from server even without browser recovery data.
   await page.evaluate(() => new Promise((resolve, reject) => {
@@ -154,8 +170,8 @@ test('PDF/PPTX upload, saved Markdown editing, preview/download, generation and 
   }));
   await page.reload();
   await page.locator('#tabs').getByRole('button', { name: 'AI drafting', exact: true }).click();
-  await page.getByLabel('Lecture file upload status').getByText('networks.pptx',{exact:true}).waitFor();
-  assert.equal(await page.getByLabel('Lecture file upload status').getByText('Uploaded', {exact:true}).count(), 3);
+  await page.getByLabel('Successfully uploaded files', {exact:true}).getByText('networks.pptx',{exact:true}).waitFor();
+  assert.equal(await page.getByLabel('Successfully uploaded files', {exact:true}).getByText('Uploaded', {exact:true}).count(), 3);
   assert.equal(inferenceCalls, beforeUpload);
   // Selecting the same saved files again must not upload duplicate excerpts.
   let uploadRequests=0, reportPosts=0, activePolls=0, generationBody;
@@ -175,6 +191,7 @@ test('PDF/PPTX upload, saved Markdown editing, preview/download, generation and 
   await page.getByRole('button', { name: 'Generate report', exact: true }).evaluate(button=>{button.click();button.click();});
   const reportEditor=page.getByLabel('Knowledge report (Markdown)',{exact:true});
   await reportEditor.waitFor();
+  assert.equal(await page.locator('.saved-toggle').getAttribute('aria-expanded'), 'false');
   assert.equal(reportPosts,1,'same-tick clicks start one job');
   assert.ok(activePolls >= 2,'an authorized active job is polled through completion');
   const beforeReuse=inferenceCalls;
@@ -240,7 +257,7 @@ test('PDF/PPTX upload, saved Markdown editing, preview/download, generation and 
   assert.equal(await page.getByRole('spinbutton',{name:'Maths variation quantity',exact:true}).count(),0);
   // questions are filed under the selected weekly topic (the first one by default)
   await page.getByText('Questions are filed under Week 1 · Data representation.',{exact:true}).waitFor();
-  await page.getByLabel('Learning outcome', { exact: true }).fill('Apply delay and bandwidth concepts to diagnose network scenarios.');
+  await page.getByRole('textbox', {name:'Learning outcome', exact: true }).fill('Apply delay and bandwidth concepts to diagnose network scenarios.');
   assert.equal(await page.getByLabel('Assessment Style',{exact:true}).inputValue(),'both');
   await page.getByLabel('Assessment Style',{exact:true}).selectOption('both');
   await page.waitForTimeout(150);
@@ -251,9 +268,9 @@ test('PDF/PPTX upload, saved Markdown editing, preview/download, generation and 
   }));
   await page.reload();
   await page.locator('#tabs').getByRole('button',{name:'AI drafting',exact:true}).click();
-  await page.getByLabel('Learning outcome',{exact:true}).waitFor();
+  await page.getByRole('textbox',{name:'Learning outcome',exact:true}).waitFor();
   assert.equal(await page.getByLabel('Weekly topic',{exact:true}).inputValue(),'tp-data');
-  assert.equal(await page.getByLabel('Learning outcome',{exact:true}).inputValue(),'Apply delay and bandwidth concepts to diagnose network scenarios.');
+  assert.equal(await page.getByRole('textbox',{name:'Learning outcome',exact:true}).inputValue(),'Apply delay and bandwidth concepts to diagnose network scenarios.');
   assert.equal(await page.getByLabel('Assessment Style',{exact:true}).inputValue(),'both');
   assert.equal(await page.getByRole('heading',{name:'Coverage',exact:true}).count(),0);
   assert.equal(await page.getByRole('button',{name:/Fill gap/}).count(),0);
@@ -321,8 +338,8 @@ test('unchanged intentional generation repeats, double clicks deduplicate, and a
   const page=await browser.newPage();t.after(()=>page.close());
   await page.goto(base);await pickDemo(page, 'Prof. Demo A');
   await page.locator('#tabs').getByRole('button',{name:'AI drafting',exact:true}).click();
-  await page.getByLabel('Learning outcome',{exact:true}).waitFor();
-  await page.getByLabel('Learning outcome',{exact:true}).fill('Apply delay and bandwidth concepts to diagnose network scenarios.');
+  await page.getByRole('textbox',{name:'Learning outcome',exact:true}).waitFor();
+  await page.getByRole('textbox',{name:'Learning outcome',exact:true}).fill('Apply delay and bandwidth concepts to diagnose network scenarios.');
   await page.getByLabel('Assessment Style',{exact:true}).selectOption('application');
   for(const name of ['True/False','Short Answer','Multi-select'])await page.getByRole('spinbutton',{name:name+' quantity',exact:true}).fill('0');
   await page.getByRole('spinbutton',{name:'MCQ quantity',exact:true}).fill('1');
@@ -391,7 +408,7 @@ test('partial uploads recover filenames and retry only unsaved excerpts without 
   await page.locator('p[role=status]',{hasText:'Uploading excerpt 1 of 3'}).getByRole('button',{name:'Cancel',exact:true}).click();
   release();
   await page.getByText('Upload stopped: 1 of 3 excerpts saved. Click Upload files to finish, or Remove the file.',{exact:true}).waitFor();
-  await page.getByText('1 file is not uploaded yet.',{exact:false}).waitFor();
+  await page.getByLabel('Upload materials', {exact:true}).getByText(/Ready to upload/).waitFor();
   assert.equal(srv.quiz.db.passages.filter(p=>p.importHash).length,count+1);
   let imports=0;
   await page.route('**/import',async route=>{
@@ -402,19 +419,19 @@ test('partial uploads recover filenames and retry only unsaved excerpts without 
   await page.getByRole('checkbox',{name:/This is authorised course material/}).check();
   await page.getByRole('button',{name:'Upload files',exact:true}).click();
   await page.getByText(/mock storage failure/).waitFor();
-  await page.getByText('Partially uploaded (1/2 excerpts)',{exact:true}).waitFor();
+  await page.getByText('Upload failed · 1/2 excerpts saved', {exact:true}).waitFor();
   await page.unroute('**/import');
   await page.reload();
   await page.locator('#tabs').getByRole('button',{name:'AI drafting',exact:true}).click();
-  await page.getByText('Partially uploaded (1/2 excerpts)',{exact:true}).waitFor();
+  await page.getByText('Upload failed · 1/2 excerpts saved', {exact:true}).waitFor();
   await page.getByRole('checkbox',{name:/This is authorised course material/}).check();
   await page.getByRole('button',{name:'Upload files',exact:true}).click();
-  await page.getByText('All uploaded material is saved.',{exact:true}).waitFor();
+  await page.getByText('Upload complete. You do not need to upload these files again.',{exact:true}).waitFor();
   assert.equal(srv.quiz.db.passages.filter(p=>p.importHash).length,count+3);
   assert.equal(inferenceCalls,before);
-  const status=page.getByLabel('Lecture file upload status');
+  const status=page.getByLabel('Successfully uploaded files', {exact:true});
   for(const name of ['recovery-test.pdf','recovery-test.pptx']) {
-    const row=status.locator('li').filter({hasText:name});
+    const row=status.locator('article').filter({hasText:name});
     assert.match(await row.innerText(),/Uploaded/);
   }
 });
@@ -441,7 +458,7 @@ test('remove and replace uploads survive recovery, preserve reports, and require
   await page.getByText('Files read. Not uploaded yet: tick the confirmation below and click Upload files.',{exact:true}).waitFor();
   await page.getByRole('checkbox',{name:/This is authorised course material/}).check();
   await page.getByRole('button',{name:'Upload files',exact:true}).click();
-  await page.getByText('All uploaded material is saved.',{exact:true}).waitFor();
+  await page.getByText('Upload complete. You do not need to upload these files again.',{exact:true}).waitFor();
   await open(stale);
   await stale.getByRole('button',{name:'Remove remove-me.pdf',exact:true}).waitFor();
   // A failed detach leaves the uploaded row available for retry.
@@ -461,21 +478,22 @@ test('remove and replace uploads survive recovery, preserve reports, and require
   // instead of silently keeping the old copy.
   await page.getByRole('button',{name:'Replace replace-me.pptx',exact:true}).click();
   await page.getByLabel('Replacement lecture file',{exact:true}).setInputFiles({name:'replace-me.pptx',mimeType:'application/vnd.openxmlformats-officedocument.presentationml.presentation',buffer:pptx()});
-  await page.getByLabel('Lecture file upload status').locator('li',{hasText:'replace-me.pptx'}).filter({hasText:'Read — not uploaded yet'}).waitFor();
+  await page.getByText('These files are already listed. Nothing new to upload.',{exact:true}).waitFor();
   assert.equal(await page.getByRole('button',{name:'Remove replace-me.pptx',exact:true}).count(),1);
   // Extract/validate a replacement before detaching the original.
   await page.getByRole('button',{name:'Replace replace-me.pptx',exact:true}).click();
   await page.getByLabel('Replacement lecture file',{exact:true}).setInputFiles({name:'empty.txt',mimeType:'text/plain',buffer:Buffer.from('')});
   await page.getByText(/No readable text found/).waitFor();
+  await page.getByRole('button',{name:'Remove empty.txt',exact:true}).click();
   assert.equal(await page.getByRole('button',{name:'Remove replace-me.pptx',exact:true}).count(),1);
   await page.getByRole('button',{name:'Replace replace-me.pptx',exact:true}).click();
   await page.getByLabel('Replacement lecture file',{exact:true}).setInputFiles({name:'replacement.pdf',mimeType:'application/pdf',buffer:pdf()});
   await page.getByText('Files read. Not uploaded yet: tick the confirmation below and click Upload files.',{exact:true}).waitFor();
-  assert.equal(await page.getByRole('button',{name:'Remove replace-me.pptx',exact:true}).count(),0);
+  assert.equal(await page.getByRole('button',{name:'Remove replace-me.pptx',exact:true}).count(),1);
   assert.equal(await page.getByRole('button',{name:'Generate report',exact:true}).isDisabled(),true);
   await page.getByRole('checkbox',{name:/This is authorised course material/}).check();
   await page.getByRole('button',{name:'Upload files',exact:true}).click();
-  await page.getByText('All uploaded material is saved.',{exact:true}).waitFor();
+  await page.getByText('Upload complete. You do not need to upload these files again.',{exact:true}).waitFor();
   await page.reload();await page.locator('#tabs').getByRole('button',{name:'AI drafting',exact:true}).click();
   await page.getByRole('button',{name:'Remove replacement.pdf',exact:true}).waitFor();
   assert.equal(await page.getByRole('button',{name:'Remove replace-me.pptx',exact:true}).count(),0);
@@ -500,6 +518,7 @@ test('remove and replace uploads survive recovery, preserve reports, and require
   assert.equal(JSON.stringify(srv.quiz.db.passages.filter(p=>p.origin==='report')),versions);
   const afterGeneration=inferenceCalls;
   // Removing every attachment hides generation but leaves report history.
+  await page.locator('.saved-toggle').click();
   while(await page.getByRole('button',{name:/^Remove /}).count()) {
     await page.getByRole('button',{name:/^Remove /}).first().click();
     await page.getByRole('button',{name:'Choose files',exact:true}).isEnabled();
@@ -519,8 +538,8 @@ test('Application insufficiency is actionable and cannot silently generate conce
   const savedReport=course.authoringJobs.find(j=>j.kind==='analysis' && j.reportSourceId);
   const select=page.getByRole('combobox',{name:'Knowledge report',exact:true});
   if(course.authoringJobs.filter(j=>j.kind==='analysis' && j.input.reportBased).length>1){await select.waitFor();page.once('dialog',d=>d.accept());await select.selectOption(savedReport.id);}
-  await page.getByLabel('Learning outcome',{exact:true}).waitFor();
-  await page.getByLabel('Learning outcome',{exact:true}).fill('Evaluate a novel problem requiring a method missing from this report.');
+  await page.getByRole('textbox',{name:'Learning outcome',exact:true}).waitFor();
+  await page.getByRole('textbox',{name:'Learning outcome',exact:true}).fill('Evaluate a novel problem requiring a method missing from this report.');
   await page.getByLabel('Assessment Style',{exact:true}).selectOption('application');
   await page.getByRole('spinbutton',{name:'MCQ quantity',exact:true}).fill('1');
   const before=inferenceCalls,reportText=savedReport.reviewedText;
