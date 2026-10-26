@@ -55,9 +55,16 @@ const track = (id) => { if (!id) return; tracked.value.add(id); if (dismissed.va
 watch(jobs, (list) => list.forEach((j) => { if (j.kind === 'generation' && ['queued','running'].includes(j.status)) track(j.id); }));
 const floating = computed(() => { const j = [...jobs.value].reverse().find((j) => tracked.value.has(j.id)); return j && j.id !== dismissed.value ? j : null; });
 const floatingTopic = computed(() => { const t = floating.value && jobTopic(floating.value); return t && t.id !== props.topic.id ? topicLabel(t) : ''; });
+// The job in the way, so the greyed button says what is running and where.
+const blockingJob = computed(() => jobs.value.find((j) => ['queued', 'running'].includes(j.status)));
+const blockingWhere = computed(() => {
+  const t = blockingJob.value && jobTopic(blockingJob.value);
+  return t && t.id !== props.topic.id ? ` for ${topicLabel(t)}` : '';
+});
 // Says why Generate questions is disabled instead of leaving a silent grey button.
 const generateBlocked = computed(() =>
-  running.value ? 'Wait for the current step to finish.'
+  busy.value ? 'Wait for the current step to finish.'
+  : blockingJob.value ? `${blockingJob.value.kind === 'generation' ? 'A question batch is still running' : 'A knowledge report is still being made'}${blockingWhere.value}. Wait for it to finish.`
   : pendingGeneration.value ? 'Retry or check the pending generation request above first.'
   : !saved.value ? (dirty.value ? 'Save your report changes first.' : 'Load the latest saved report first.')
   : !config.learningOutcome.trim() ? 'Enter a learning outcome.'

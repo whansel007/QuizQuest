@@ -219,7 +219,10 @@ test('hero lab picks a hero and hands off to the arena', async (t) => {
   await page.goto(`${base}/hero-lab`);
   await page.getByRole('heading', { name: 'Choose your hero' }).waitFor();
   assert.deepEqual(errors, [], 'the picker loads its hero list without errors');
-  const cards = page.locator('#hero-list button');
+  // The picker offers each hero as a link into the arena, so the cards are
+  // anchors, not buttons.
+  const cards = page.locator('#hero-list a');
+  await cards.first().waitFor();
   assert.equal(await cards.count(), 6);
   for (const hero of ['Guardian', 'Sheriff', 'Pilot', 'Bombardier', 'Bubbles', 'Electromancer']) {
     assert.ok(await cards.filter({ hasText: hero }).count(), `${hero} is offered`);

@@ -95,6 +95,15 @@ describe('GenerationStatus', () => {
     await wrapper.setProps({ busy: true });
     expect(button('Resume saved work').attributes('disabled')).toBeDefined();
   });
+  it('shows when the batch will retry, including while it is still waiting for capacity', async () => {
+    const retryAt = Date.now() + 60 * 60 * 1000;
+    open({ job: job('running', 2, { message: 'Waiting for AI capacity. Your progress is saved.', retryAt }) });
+    // The retry time is what a waiting professor needs most, so it stays
+    // visible while the batch is active, not only once the batch has stopped.
+    expect(wrapper.text()).toContain('Try again after');
+    await wrapper.setProps({ job: job('failed', 2, { retryAt }) });
+    expect(wrapper.text()).toContain('Try again after');
+  });
   it('names another weekly topic and points to warnings without repeating them', () => {
     open({ job: job('complete', 5, { result: { created: ['a', 'b', 'c', 'd', 'e'], warnings: ['Long warning text'] } }), topicLabel: 'Week 2 · Networks' });
     expect(wrapper.text()).toContain('Week 2 · Networks');
