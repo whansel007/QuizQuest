@@ -63,27 +63,84 @@ html, body { width: 100%; height: 100%; margin: 0; overflow: hidden; background:
 #bottom-left-tools #buff-icons { max-width: 220px; }
 #info-button { display: grid; justify-items: center; gap: .25rem; padding: 0; color: white; font: inherit; font-size: .72rem; background: transparent; border: 0; cursor: pointer; }
 #info-button:focus-visible { outline: 2px solid white; outline-offset: 3px; border-radius: .5rem; }
-.ability-circle { position: relative; display: grid; width: 62px; height: 62px; place-items: center; color: white; background: linear-gradient(to top, var(--fill-color) var(--fill, 100%), #353b47 var(--fill, 100%)); border: 2px solid rgb(255 255 255 / 75%); border-radius: 50%; box-shadow: 0 3px 12px #0007; font-weight: 800; transition: --fill var(--cooldown-ring-transition, 100ms) linear; }
+/* Ability button cluster, bottom-right. Three round buttons in a grid:
+   M1 smallest bottom-left, E medium above Q (centred over it), Q biggest
+   bottom-right. M1 and Q share a bottom baseline (both carry the key-label
+   strip). Geometry comes from config/tuning.js as CSS custom properties set
+   at boot; the fallbacks keep the layout sane before that runs. */
+#ability-hud, .hud-debug-cluster {
+  display: grid;
+  grid-template-columns: var(--btn-size-primary, 56px) var(--btn-size-ult, 88px);
+  column-gap: var(--btn-gap-x, 12px);
+  row-gap: var(--btn-label-clearance, 22px);
+  align-items: end;
+  color: white;
+}
+#ability-hud { position: fixed; z-index: 1; right: 1rem; bottom: 1rem; }
+.ability { display: grid; justify-items: center; gap: var(--btn-label-gap, 4px); text-align: center; }
+.ability[data-ability="weapon"] { grid-area: 2 / 1; --btn-size: var(--btn-size-primary, 56px); }
+.ability[data-ability="skill"] { grid-area: 1 / 2; justify-self: center; --btn-size: var(--btn-size-skill, 70px); }
+.ability[data-ability="ultimate"] { grid-area: 2 / 2; --btn-size: var(--btn-size-ult, 88px); }
+.ability-circle {
+  position: relative; display: grid;
+  width: var(--btn-size, 62px); height: var(--btn-size, 62px);
+  place-items: center; color: white;
+  /* Cooldown drains counter-clockwise from 12 o'clock, so the bright colour
+     sweeps back clockwise as the ability recharges. */
+  background: conic-gradient(from 0deg, var(--fill-color) var(--fill, 100%), #353b47 0);
+  border: var(--btn-outline-width, 4px) solid var(--btn-outline-color, #101018);
+  border-radius: 50%;
+  box-shadow: 0 3px 12px #0007;
+  font-weight: 800;
+  transition: --fill var(--cooldown-ring-transition, 100ms) linear;
+}
+/* Pure-white inline SVG icon at ~55% of the button diameter. */
+.ability-icon { display: grid; place-items: center; width: calc(var(--btn-icon-scale, .55) * 100%); height: calc(var(--btn-icon-scale, .55) * 100%); color: #fff; pointer-events: none; }
+.ability-icon svg { display: block; width: 100%; height: 100%; }
+@keyframes ability-ready { 50% { box-shadow: 0 0 0 9px #fff8, 0 0 24px var(--fill-color); transform: scale(1.12); } }
+@keyframes ready-glow { 50% { box-shadow: 0 0 10px 3px #ffd34f99, 0 0 22px #ffbe3d66; } }
+@keyframes dynamite-ready-ring { 100% { opacity: 0; transform: scale(1.35); } }
+@keyframes cooldown-refund-jump { 50% { box-shadow: 0 0 0 5px #ffe17caa, 0 0 18px #ffc43d; transform: scale(1.08); } }
+@keyframes overload-ring { 20% { box-shadow: 0 0 0 10px #66d8ffcc, 0 0 30px #48cfff; transform: scale(1.12); } }
 @property --fill { syntax: '<percentage>'; inherits: false; initial-value: 100%; }
 .ability-circle.ready { background: var(--fill-color); }
 .ability-circle.ready-pulse { animation: ability-ready .3s ease-out; }
-@keyframes ability-ready { 50% { box-shadow: 0 0 0 9px #fff8, 0 0 24px var(--fill-color); transform: scale(1.12); } }
 .ability-circle.locked { filter: saturate(.7); }
 .ability-lockout { position: absolute; right: -2px; bottom: 3px; display: none; min-width: 1.1rem; padding: 0 .2rem; border-radius: 99px; color: #fff; background: #263244; font-size: .65rem; line-height: 1.1rem; }
 .ability-circle.locked .ability-lockout { display: block; }
-.ability.sheriff-skill-ready .ability-circle { --fill-color: #ffd34f !important; }
-.ability.sheriff-skill-ready .ability-circle.ready { animation: dynamite-ready-glow var(--sheriff-ready-glow-period, 1s) ease-in-out infinite; }
-@keyframes dynamite-ready-glow { 50% { box-shadow: 0 0 10px 3px #ffd34f99, 0 0 22px #ffbe3d66; } }
+/* Amber highlight buttons turn bright gold while READY (generalized from the
+   Sheriff Dynamite's ready fill; the weapon slot keeps amber because it
+   re-arms between shots). */
+.ability.highlight-ready .ability-circle { --fill-color: var(--ready-highlight-color, #ffd34f) !important; }
+/* Skill and ultimate buttons breathe the ready glow while ready. The one-shot
+   ready pulse plays first, then the glow takes over (composed below). */
+.ability[data-ability="skill"] .ability-circle.ready,
+.ability[data-ability="ultimate"] .ability-circle.ready { animation: ready-glow var(--ready-glow-period, 1s) ease-in-out infinite; }
+.ability[data-ability="skill"] .ability-circle.ready-pulse,
+.ability[data-ability="ultimate"] .ability-circle.ready-pulse { animation: ready-glow var(--ready-glow-period, 1s) ease-in-out infinite, ability-ready .3s ease-out; }
 .ability-circle.dynamite-ready-pulse::after { position: absolute; inset: -5px; border: 2px solid #ffe17c; border-radius: inherit; content: ''; animation: dynamite-ready-ring var(--sheriff-ready-ring-duration, 300ms) ease-out both; }
-@keyframes dynamite-ready-ring { 100% { opacity: 0; transform: scale(1.35); } }
 .ability-circle.cooldown-refund-pulse { animation: cooldown-refund-jump var(--sheriff-refund-pulse-duration, 100ms) ease-out; }
-@keyframes cooldown-refund-jump { 50% { box-shadow: 0 0 0 5px #ffe17caa, 0 0 18px #ffc43d; transform: scale(1.08); } }
+.ability-circle.overload-pulse { animation: overload-ring var(--overload-feedback-duration, 900ms) ease-out; }
+/* Key label below the circle: bold white with a dark outline so it stays
+   readable over any background. */
+.ability-key {
+  display: grid; place-items: center;
+  min-height: var(--btn-label-height, 22px);
+  padding: 0 .3rem;
+  color: #fff;
+  font: 800 var(--btn-label-size, 13px) / 1 system-ui;
+  letter-spacing: .02em;
+  text-shadow:
+    -1px 0 var(--btn-outline-color, #101018), 1px 0 var(--btn-outline-color, #101018),
+    0 -1px var(--btn-outline-color, #101018), 0 1px var(--btn-outline-color, #101018),
+    -1px -1px var(--btn-outline-color, #101018), 1px -1px var(--btn-outline-color, #101018),
+    -1px 1px var(--btn-outline-color, #101018), 1px 1px var(--btn-outline-color, #101018),
+    0 2px 4px rgb(0 0 0 / 55%);
+}
 .cooldown-refund-label { color: #ffe17c; font-size: .68rem; font-weight: 800; text-shadow: 0 1px 3px #000; }
 .cooldown-refund-label.show { animation: refund-label-fade var(--sheriff-refund-label-duration, 500ms) ease-out both; }
 @keyframes refund-label-fade { 15% { opacity: 1; transform: translateY(0); } 100% { opacity: 0; transform: translateY(-8px); } }
-.ability-circle.overload-pulse { animation: overload-ring var(--overload-feedback-duration, 900ms) ease-out; }
-@keyframes overload-ring { 20% { box-shadow: 0 0 0 10px #66d8ffcc, 0 0 30px #48cfff; transform: scale(1.12); } }
-.info-circle { --fill-color: #606978; --fill: 100%; font-size: 1.15rem; }
+.info-circle { --btn-size: 62px; --fill-color: #606978; --fill: 100%; font-size: 1.15rem; }
 #stats-panel { display: grid; min-width: 176px; gap: .2rem; padding: .65rem .8rem; color: #fff; background: rgb(17 24 39 / 91%); border: 1px solid rgb(255 255 255 / 25%); border-radius: .65rem; box-shadow: 0 4px 16px #0005; font-size: .82rem; }
 #stats-panel span { display: flex; justify-content: space-between; gap: 1rem; color: #d1d5db; }
 #stats-panel b { color: white; font-variant-numeric: tabular-nums; }
@@ -99,13 +156,11 @@ html, body { width: 100%; height: 100%; margin: 0; overflow: hidden; background:
 .buff-card:disabled { opacity: .65; cursor: default; }
 #targeting-hint { position: fixed; z-index: 2; top: 5.5rem; left: 50%; padding: .45rem .7rem; transform: translateX(-50%); color: white; background: #172033e8; border-radius: .5rem; }
 #connection-status { max-width: 250px; padding: .25rem .45rem; color: #fff; background: rgb(17 24 39 / 70%); border-radius: .3rem; font-size: .75rem; }
-#ability-hud { position: fixed; z-index: 1; right: 1rem; bottom: 1rem; display: flex; align-items: end; gap: .7rem; color: white; }
-.ability { display: grid; width: 76px; justify-items: center; gap: .3rem; text-align: center; }
-.ability[data-type="physical"] { --fill-color: #48a8ff; }
-.ability[data-type="magic"] { --fill-color: #b17cff; }
-.ability-name { max-width: 84px; overflow-wrap: anywhere; color: #fff; font-size: .72rem; line-height: 1.15; text-shadow: 0 1px 3px #000; }
-.ability-key { font-size: .9rem; text-shadow: 0 1px 3px #000; }
 #stats-panel[hidden] { display: none; }
+#ability-hud[hidden] { display: none; }
+/* Sits above the ability cluster (1rem margin + cluster height + 1rem gap) so
+   toasts never cover the buttons. */
+#toast-stack { position: fixed; z-index: 9; right: 1rem; bottom: calc(1rem + var(--ability-cluster-height, 232px) + 1rem); display: grid; gap: .4rem; justify-items: end; pointer-events: none; }
 #milestone-dawn, #run-result, #session-summary { position: fixed; z-index: 9; inset: 0; display: grid; align-content: center; justify-items: center; gap: .8rem; padding: 1.2rem; color: #fff; text-align: center; background: rgb(17 24 39 / 92%); }
 #milestone-dawn[hidden], #run-result[hidden], #session-summary[hidden] { display: none; }
 #milestone-dawn > strong { color: #ffe08a; font-size: clamp(3rem, 10vw, 6rem); letter-spacing: .1em; text-shadow: 0 0 24px #ffc84e88; }
@@ -125,13 +180,33 @@ html, body { width: 100%; height: 100%; margin: 0; overflow: hidden; background:
   #wave-details { font-size: .73rem; }
   #campfire-hud { top: 8.9rem; }
   #waiting-banner { top: 13rem; padding: .6rem .9rem; }
-  #ability-hud { right: .5rem; bottom: .55rem; gap: .25rem; }
-  .ability { width: 60px; }
-  .ability .ability-circle { width: 50px; height: 50px; }
-  .ability-name { font-size: .65rem; }
+  #ability-hud { right: .5rem; bottom: .55rem; }
   #bottom-left-hud { bottom: .55rem; left: .55rem; }
   #bottom-left-tools { max-width: calc(100vw - 1rem); gap: .35rem; }
 }
+
+/* Debug-only row of all six heroes' button clusters (?profiler=1 gate). */
+#hud-debug-clusters {
+  position: fixed; z-index: 3; left: 50%;
+  bottom: calc(1rem + var(--ability-cluster-height, 232px) + 1.5rem);
+  display: flex; align-items: end; gap: 1.1rem;
+  max-width: calc(100vw - 2rem); padding: .55rem .75rem;
+  transform: translateX(-50%);
+  color: #fff; background: rgb(17 24 39 / 90%); border: 1px solid #ffffff44; border-radius: .7rem;
+  box-shadow: 0 4px 16px #0006;
+}
+#hud-debug-clusters[hidden] { display: none; }
+.hud-debug-hero { display: grid; justify-items: center; gap: .3rem; }
+.hud-debug-hero > strong { color: #cbd5e1; font-size: .66rem; font-weight: 700; white-space: nowrap; }
+.hud-debug-hero .ability-key { min-height: auto; font-size: 11px; }
+
+/* Settings -> Icon credits (generated from assets/icons/CREDITS.json). */
+#icon-credits { font-size: .76rem; }
+#icon-credits summary { color: #cbd5e1; font-weight: 700; cursor: pointer; }
+#icon-credits a { color: #9ecbff; }
+#icon-credits p { margin: .35rem 0 0; color: #d1d5db; }
+#icon-credits ul { display: grid; gap: .2rem; margin: .35rem 0 0; padding-left: 1.1rem; }
+#icon-credits li { color: #d1d5db; }
 
 #room-row { display: flex; align-items: center; gap: .5rem; padding-top: .4rem; border-top: 1px solid #ffffff26; }
 #room-row[hidden] { display: none; }
@@ -146,8 +221,6 @@ html, body { width: 100%; height: 100%; margin: 0; overflow: hidden; background:
 #waiting-banner[hidden] { display: none; }
 #waiting-banner strong { font-size: 1.15rem; }
 #waiting-banner span { color: #cbd5e1; font-size: .8rem; }
-#ability-hud[hidden] { display: none; }
-#toast-stack { position: fixed; z-index: 9; right: 1rem; bottom: 6.5rem; display: grid; gap: .4rem; justify-items: end; pointer-events: none; }
 .toast { padding: .45rem .7rem; color: #fff; background: rgb(17 24 39 / 92%); border: 1px solid #ffffff33; border-radius: .5rem; font-size: .8rem; animation: toast-in .18s ease-out; transition: opacity .35s ease; }
 .toast.fade { opacity: 0; }
 @keyframes toast-in { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }

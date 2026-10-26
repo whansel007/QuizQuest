@@ -1539,6 +1539,24 @@ attemptId: attempt.id,
       rooms: rooms.map((room) => room.debugInfo()),
     };
   });
+  // Profiler harness for the lag investigation: fill a live room with a ring of
+  // enemies on demand. Same gate as the rest of the debug menu.
+  route('POST', '/api/student/hero-lab/stress', 'student', ({ user, body }) => {
+    if (!isSeededDemoUser(user)) fail(403, 'Debug tools are only available for synthetic demo accounts.');
+    const room = services.heroLab?.rooms?.findByCode?.(String(body?.roomCode || '').trim().toUpperCase());
+    if (!room) fail(404, 'Room not found');
+    const spawned = room.debugSpawnEnemies(Number(body?.count) || 40, Number(body?.hp) || 0);
+    return { spawned, wave: room.debugInfo().wave };
+  });
+  // Profiler harness: kill every enemy in one tick - the burst a client sees
+  // after a Bombardier ultimate or an Electromancer chain. Same debug gate.
+  route('POST', '/api/student/hero-lab/mass-kill', 'student', ({ user, body }) => {
+    if (!isSeededDemoUser(user)) fail(403, 'Debug tools are only available for synthetic demo accounts.');
+    const room = services.heroLab?.rooms?.findByCode?.(String(body?.roomCode || '').trim().toUpperCase());
+    if (!room) fail(404, 'Room not found');
+    const killed = room.debugKillAll();
+    return { killed, wave: room.debugInfo().wave };
+  });
   route('POST', '/api/student/debug/wallet', 'student', ({ user, body }) => {
     if (!isSeededDemoUser(user)) fail(403, 'Debug tools are only available for synthetic demo accounts.');
     const balance = Number(body.balance);

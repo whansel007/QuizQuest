@@ -266,6 +266,47 @@ test('Electromancer Chain Lightning refunds stunned hits and enforces the five-s
   assert.equal(player.hero.canUseAbility('ultimate', Date.now()), true, 'Q is usable after the minimum lockout expires');
 });
 
+test('Electromancer Stun Field detonates on contact, not while the ball is still in flight', async (t) => {
+  const client = await connectClient();
+  t.after(() => client.disconnect());
+  const welcome = new Promise((resolve) => client.once('welcome', resolve));
+  client.emit('join', { heroId: 'electromancer' });
+  const { you } = await welcome;
+  await nextState(client, (state) => state.players.some((player) => player.id === you));
+
+  const { Zombie } = await import('../public/hero-lab/enemies/zombie.js');
+  const { Projectile } = await import('../public/hero-lab/bases/projectile.js');
+  server.heroLab.monsters.clear();
+
+  // Park a live stun ball 100 px short of a monster: inside the 120 px blast
+  // radius, but far outside the ball's own body-contact distance.
+  const ball = new Projectile({ id: 'stun-ball', ownerId: you, heroId: 'electromancer',
+    x: 400, y: 300, vx: 0, vy: 0, radius: 16, speed: 0, damage: 11,
+    explosionRadius: 120, stunMs: 1900, sourceAbility: 'skill', lifetimeMs: 60_000 });
+  server.heroLab.projectiles.set(ball.id, ball);
+  const bystander = new Zombie({ id: 'stun-bystander', x: 500, y: 300, hp: 200, maxHp: 200, speed: 0 });
+  server.heroLab.monsters.set(bystander.id, bystander);
+
+  const areaEffects = [];
+  client.on('area_effect', (event) => { if (event.sourceHeroId === 'electromancer') areaEffects.push(event); });
+
+  // In flight: standing in the blast radius must not set the ball off.
+  await new Promise((resolve) => setTimeout(resolve, 300));
+  assert.equal(bystander.hp, 200, 'the blast radius alone must not damage a monster');
+  assert.equal(bystander.stunnedUntil, undefined, 'the blast radius alone must not stun a monster');
+  assert.equal(areaEffects.length, 0, 'no field visual while the ball is still flying');
+  assert.ok(server.heroLab.projectiles.has(ball.id), 'the ball keeps flying');
+
+  // Contact: slide the monster onto the ball and let it detonate.
+  bystander.x = ball.x;
+  bystander.y = ball.y;
+  await nextState(client, (state) => !state.projectiles.some((item) => item.id === ball.id));
+  assert.equal(bystander.hp, 189, 'contact applies the ball damage exactly once');
+  assert.ok(bystander.stunnedUntil > Date.now(), 'contact stuns the monster');
+  assert.equal(areaEffects.length, 1, 'the field visual is emitted once, on detonation');
+  assert.ok(!server.heroLab.projectiles.has(ball.id), 'the ball is spent');
+});
+
 test('Sheriff Quick Draw caps one Dynamite blast at two seconds and signals readiness once', async (t) => {
   const client = await connectClient();
   t.after(() => client.disconnect());
@@ -484,7 +525,7 @@ test('enemies damage the campfire on a contact cooldown instead of every server 
   assert.equal(campfire.hp, 88);
 });
 
-test('Sheriff Deadeye only emits its bullet stream while primary fire is held', async () => {
+test('Sheriff Bullet Rush only emits its bullet stream while primary fire is held', async () => {
   const { Sheriff } = await import('../public/hero-lab/heroes/roster.js');
   const { GAME_CONFIG } = await import('../public/hero-lab/game-config.js');
   const sheriff = new Sheriff();

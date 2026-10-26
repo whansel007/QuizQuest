@@ -2,7 +2,8 @@
 // override the defaults, while the server remains the authority for timing.
 // The primary colors are also the hue family for every client-side weapon
 // effect. Keep all projectile, trail, flash, spark and bounce colors sourced here.
-import { ELECTRO_STUN_PROJECTILE_SCALE, ELECTRO_STUN_RADIUS_SCALE, PARTICLE_LIMIT,
+import { ELECTRO_STUN_PROJECTILE_SCALE, ELECTRO_STUN_RADIUS_SCALE, PARTICLE_CAP,
+  KILL_SOUND_MIN_INTERVAL_MS, HIT_SOUND_MIN_INTERVAL_MS,
   SHERIFF_KILL_REFUND_S, GUARDIAN_ULT_RAMP_PER_HIT, GUARDIAN_ULT_RAMP_CAP,
   GUARDIAN_SLAM_RADIUS, GUARDIAN_SLAM_DAMAGE_MULT, GUARDIAN_SLAM_KNOCKBACK,
   GUARDIAN_ULT_EARLY_END, GUARDIAN_BRACE_ENABLED, GUARDIAN_BRACE_REDUCTION,
@@ -11,7 +12,7 @@ import { ELECTRO_STUN_PROJECTILE_SCALE, ELECTRO_STUN_RADIUS_SCALE, PARTICLE_LIMI
   ELECTRO_CHAIN_COUNTER_SCALE, ELECTRO_CHAIN_COUNTER_MS, ELECTRO_CHAIN_COUNTER_POP_MS, ELECTRO_OVERLOAD_FLASH_MS,
   ELECTRO_OVERLOAD_FEEDBACK_MS, SHERIFF_BLAST_REFUND_CAP_S, SHERIFF_READY_RING_MS,
   SHERIFF_READY_BOUNCE_MS, SHERIFF_REFUND_LABEL_MS, SHERIFF_REFUND_MERGE_MS,
-  SHERIFF_REFUND_PULSE_MS, SHERIFF_READY_GLOW_PERIOD_MS, SHERIFF_REFUND_GROUP_TTL_MS, SHERIFF_READY_SOUND,
+  SHERIFF_REFUND_PULSE_MS, READY_GLOW_PERIOD_MS, SHERIFF_REFUND_GROUP_TTL_MS, SHERIFF_READY_SOUND,
   COOLDOWN_RING_TRANSITION_MS,
   BASE_CAMPFIRE_HP } from '../../config/tuning.js';
 
@@ -24,13 +25,76 @@ export const HERO_FX_COLORS = Object.freeze({
   electromancer: { primary: '#6edcff', highlight: '#d4f7ff' },
 });
 
+// Ability button icons: the single source of truth for the HUD ability
+// clusters, the World-page hero preview and the Settings icon-credits entry.
+// Paths are relative to hero-lab/. Every file is a CC BY 3.0 icon from
+// game-icons.net with the library background rect removed and the silhouette
+// fill switched to currentColor; per-icon provenance lives in
+// assets/icons/CREDITS.json.
+export const ABILITY_ICONS = Object.freeze({
+  sheriff: Object.freeze({
+    primary: 'assets/icons/sheriff-primary.svg',
+    skill: 'assets/icons/sheriff-skill.svg',
+    ultimate: 'assets/icons/sheriff-ultimate.svg',
+    talent: 'assets/icons/sheriff-talent.svg',
+  }),
+  pilot: Object.freeze({
+    primary: 'assets/icons/pilot-primary.svg',
+    skill: 'assets/icons/pilot-skill.svg',
+    ultimate: 'assets/icons/pilot-ultimate.svg',
+    talent: 'assets/icons/pilot-talent.svg',
+    // Swapped in while the Mech Suit is up (MECH_ICON_SWAP).
+    mechPrimary: 'assets/icons/pilot-mechPrimary.svg',
+    mechSkill: 'assets/icons/pilot-mechSkill.svg',
+  }),
+  guardian: Object.freeze({
+    primary: 'assets/icons/guardian-primary.svg',
+    skill: 'assets/icons/guardian-skill.svg',
+    ultimate: 'assets/icons/guardian-ultimate.svg',
+    talent: 'assets/icons/guardian-talent.svg',
+  }),
+  bombardier: Object.freeze({
+    primary: 'assets/icons/bombardier-primary.svg',
+    skill: 'assets/icons/bombardier-skill.svg',
+    ultimate: 'assets/icons/bombardier-ultimate.svg',
+    talent: 'assets/icons/bombardier-talent.svg',
+  }),
+  bubbles: Object.freeze({
+    primary: 'assets/icons/bubbles-primary.svg',
+    skill: 'assets/icons/bubbles-skill.svg',
+    ultimate: 'assets/icons/bubbles-ultimate.svg',
+    talent: 'assets/icons/bubbles-talent.svg',
+  }),
+  electromancer: Object.freeze({
+    primary: 'assets/icons/electromancer-primary.svg',
+    skill: 'assets/icons/electromancer-skill.svg',
+    ultimate: 'assets/icons/electromancer-ultimate.svg',
+    talent: 'assets/icons/electromancer-talent.svg',
+  }),
+});
+
+// Slots that sit on the amber highlight colour family instead of the hero's
+// own type family. Stage 2 reads this next to the button colours above.
+export const ABILITY_BTN_HIGHLIGHT = Object.freeze({
+  sheriff: Object.freeze(['skill']),
+  pilot: Object.freeze(['ultimate']),
+  guardian: Object.freeze(['ultimate']),
+  bombardier: Object.freeze(['primary']),
+  bubbles: Object.freeze(['skill']),
+  electromancer: Object.freeze(['ultimate']),
+});
+
+// While Pilot's Mech Suit is up the weapon slot shows the mech punch and moves
+// onto the highlight family; the ultimate keeps its normal type colour.
+export const ABILITY_BTN_HIGHLIGHT_MECH = Object.freeze({ pilot: Object.freeze(['primary']) });
+
 // Values from the arena update brief live together here so effects and later
 // workstreams can be tuned without scattering constants through the logic.
 export const ARENA_TUNING = Object.freeze({
   hitFlashMs: 80,
   knockback: { normalMinPx: 6, normalMaxPx: 12, killPx: 20, bruteMultiplier: 0.5, kingMultiplier: 0, visualMs: 150 },
-  deathBurst: { particlesMin: 6, particlesMax: 10, durationMinMs: 300, durationMaxMs: 400, scaleStart: 1, scalePeak: 1.25, scaleEnd: 0 },
-  damageNumbers: { risePx: 40, durationMs: 600, mergeMs: 150, maxVisible: 30, teammateOpacity: 0.5, bonusScale: 1.25, knockbackScaleDamage: 10 },
+  deathBurst: { particlesMin: 4, particlesMax: 6, durationMinMs: 300, durationMaxMs: 400, scaleStart: 1, scalePeak: 1.25, scaleEnd: 0 },
+  damageNumbers: { risePx: 40, durationMs: 600, mergeMs: 150, maxVisible: 20, teammateOpacity: 0.5, bonusScale: 1.25, knockbackScaleDamage: 10 },
   muzzleFlash: { frames: 2, durationMs: 60, recoilMinPx: 2, recoilMaxPx: 4 },
   impactSparks: { particlesMin: 3, particlesMax: 4, durationMs: 150 },
   screenShake: { heroHitMinPx: 2, heroHitMaxPx: 3, heroHitMs: 100, majorMinPx: 6, majorMaxPx: 10, majorMs: 200 },
@@ -41,8 +105,8 @@ export const ARENA_TUNING = Object.freeze({
   sound: {
     shotPitchVariance: 0.08, maxVoices: 6, killSemitonePerStep: 1, maxKillPitchSteps: 8, heartbeatIntervalMs: 650, defaultMasterVolume: 0.55,
     profiles: {
-      shoot: { frequency: 500, durationMs: 55, gain: 0.08, type: 'square' }, hit: { frequency: 180, durationMs: 70, gain: 0.09, type: 'triangle' },
-      kill: { frequency: 580, durationMs: 150, gain: 0.12, type: 'sine' }, pickup: { frequency: 900, durationMs: 180, gain: 0.1, type: 'sine' },
+      shoot: { frequency: 500, durationMs: 55, gain: 0.08, type: 'square' }, hit: { frequency: 180, durationMs: 70, gain: 0.09, type: 'triangle', minIntervalMs: HIT_SOUND_MIN_INTERVAL_MS },
+      kill: { frequency: 580, durationMs: 150, gain: 0.12, type: 'sine', minIntervalMs: KILL_SOUND_MIN_INTERVAL_MS }, pickup: { frequency: 900, durationMs: 180, gain: 0.1, type: 'sine' },
       abilityReady: { frequency: 760, durationMs: 110, gain: 0.08, type: 'sine' }, ultimateReady: { frequency: 990, durationMs: 220, gain: 0.1, type: 'sine' },
       dynamiteReady: SHERIFF_READY_SOUND,
       ultimateCast: { frequency: 360, durationMs: 300, gain: 0.12, type: 'sawtooth' }, explosion: { frequency: 95, durationMs: 260, gain: 0.18, type: 'triangle' },
@@ -56,7 +120,7 @@ export const ARENA_TUNING = Object.freeze({
   waveMoments: { bannerMs: 1500, bannerMaxMs: 2000, bannerScaleStart: 1, bannerScalePeak: 1.3, bannerScaleEnd: 1, clearedBannerMs: 1000, clearedHealFraction: 0.1, bossZoom: 1.05, bossZoomMs: 300, abilityReadyPulseMs: 300 },
   briefing: { durationMs: 8000, fadeMs: 300, spawnTelegraphMs: 500, skeletonWindupMs: 400 },
   momentum: { bonus: 0.2, distancePx: 30, windowMs: 500, glowAlpha: 0.35, fadeMs: 150, streakCount: 3, streakLifeMs: 120, readyRisePx: 30, readyMs: 700, idleNudgeMs: 4000, nudgeDurationMs: 2500, nudgeMaxPerSession: 2 },
-  performance: { hudUpdateMs: 100, aimUpdateMs: 40, projectileTrailIntervalMs: 50, maxParticles: PARTICLE_LIMIT },
+  performance: { hudUpdateMs: 100, aimUpdateMs: 40, projectileTrailIntervalMs: 50, maxParticles: PARTICLE_CAP },
   respawn: { baseMs: 12000, teammateSpeedMultiplier: 2.5, soloMs: 6000, soloCampfireCost: 0.1, respawnHpFraction: 0.5, invulnerabilityMs: 2000, flashIntervalMs: 120 },
   run: { milestoneEvery: 10, coinsPerWave: 5, victoryRewardMultiplier: 1.5, defeatRewardMultiplier: 0.5, sessionRuns: 3, bossTeaserWave: 5, leaveFadeMs: 400 },
   buildingBonuses: { perLevel: BUILDING_BONUS_PER_LEVEL, levelCap: BUILDING_LEVEL_CAP },
@@ -112,7 +176,7 @@ export const ARENA_TUNING = Object.freeze({
     electroOverloadFlashMs: ELECTRO_OVERLOAD_FLASH_MS, electroOverloadFeedbackMs: ELECTRO_OVERLOAD_FEEDBACK_MS,
     sheriffReadyRingMs: SHERIFF_READY_RING_MS, sheriffReadyBounceMs: SHERIFF_READY_BOUNCE_MS,
     sheriffRefundLabelMs: SHERIFF_REFUND_LABEL_MS, sheriffRefundMergeMs: SHERIFF_REFUND_MERGE_MS,
-    sheriffRefundPulseMs: SHERIFF_REFUND_PULSE_MS, sheriffReadyGlowPeriodMs: SHERIFF_READY_GLOW_PERIOD_MS,
+    sheriffRefundPulseMs: SHERIFF_REFUND_PULSE_MS, readyGlowPeriodMs: READY_GLOW_PERIOD_MS,
     cooldownRingTransitionMs: COOLDOWN_RING_TRANSITION_MS,
   },
 });

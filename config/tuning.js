@@ -14,27 +14,130 @@ export const RESPAWN_RING_MAX = 110;
 export const RESPAWN_MIN_SEPARATION = 40;
 export const RESPAWN_CANDIDATE_ATTEMPTS = 10;
 
-export const SHAKE_PLAYER_HIT_TRAUMA = 0.15;
-export const SHAKE_ULTIMATE_TRAUMA = 0.35;
-export const SHAKE_BOSS_SLAM_TRAUMA = 0.4;
+// Camera-shake calibration. The offset is trauma^2 * SHAKE_MAX_OFFSET, so the
+// quadratic curve keeps small events subtle and big events punchy. The px
+// ladder below is what the NEUTRAL 50% slider setting produces (the old
+// slider's 100%); the player can scale the whole ladder 0-200% live:
+//   player hit 1.4 | own weak hit 2.0 | own strong hit 3.2 | kill blow 5.4
+//   boss slam 7.3 | ultimate 9.0 | mass kill (cap) 13.0
+// The earlier MAX_OFFSET of 8 made every source sub-pixel (0.16-2.88px), which
+// read as "no screen shake at all"; 20 was still too soft in playtest. The
+// player can still scale everything with the in-game shake-intensity slider.
+export const SHAKE_PLAYER_HIT_TRAUMA = 0.2;
+export const SHAKE_ULTIMATE_TRAUMA = 0.5;
+export const SHAKE_BOSS_SLAM_TRAUMA = 0.45;
+// Camera kick when the player's OWN hit connects. Weapon hits used to produce
+// no shake at all, which made attacks feel weak. Scaled by damage and
+// rate-limited so fast weapons don't chatter; skipped during a mass-kill
+// window (that window already plays its single shake).
+export const SHAKE_HIT_TRAUMA = 0.3;
+export const SHAKE_HIT_DAMAGE_REFERENCE = 25;
+export const SHAKE_HIT_MIN_INTERVAL_MS = 110;
+// Extra kick on the killing blow (hit + kill together land near a boss slam).
+export const SHAKE_KILL_TRAUMA = 0.15;
 export const SHAKE_EXPLOSION_BASE_TRAUMA = 0.04;
 export const SHAKE_EXPLOSION_RADIUS_SCALE = 1_000;
 export const SHAKE_MAX_TRAUMA = 0.6;
 export const SHAKE_DECAY = 1.8;
-export const SHAKE_MAX_OFFSET = 8;
+export const SHAKE_MAX_OFFSET = 36;
 export const SHAKE_EXPLOSION_COOLDOWN_MS = 120;
 export const SHAKE_NOISE_HZ = 25;
 export const SHAKE_NOISE_PRIMARY_PHASE = 0;
 export const SHAKE_NOISE_PRIMARY_FREQUENCY = 0.41;
 export const SHAKE_NOISE_SECONDARY_FREQUENCY = 0.73;
 export const SHAKE_NOISE_SECONDARY_PHASE = 1.7;
-export const SHAKE_DEFAULT_INTENSITY = 100;
+// The slider runs 0-200% with a neutral default of 50%: 50% reproduces exactly
+// what the old 0-100 slider produced at 100% (offset = trauma^2 *
+// SHAKE_MAX_OFFSET * slider / SHAKE_SLIDER_REFERENCE). Saved settings from the
+// old scale migrate v -> v / 2 (see SETTINGS_VERSION in world.js).
+export const SHAKE_DEFAULT_INTENSITY = 50;
+export const SHAKE_SLIDER_REFERENCE = 50;
 export const SHAKE_MIN_INTENSITY = 0;
-export const SHAKE_MAX_INTENSITY = 100;
+export const SHAKE_MAX_INTENSITY = 200;
 export const SHAKE_INTENSITY_STEP = 1;
+// Hard ceiling on the camera translate so the top of the slider cannot turn
+// the arena into a slideshow.
+export const SHAKE_ABSOLUTE_CAP_PX = 40;
+
+// --- Hit-flash feedback (aura damage must not strobe) -----------------------
+// A flash request that arrives inside the cooldown is ignored: it must not
+// extend or restart a flash already in progress. Thorns Fire damages at 30Hz,
+// so without its own longer cooldown enemies standing in the ring strobe
+// white continuously instead of pulsing about twice per second.
+export const HIT_FLASH_MIN_INTERVAL_MS = 120;
+export const THORNS_FLASH_INTERVAL_MS = 500;
+// Thorns damage numbers merge into one running total per enemy (muted orange),
+// so a 10 damage/s aura does not spam a number per tick.
+export const THORNS_NUMBER_MERGE_MS = 1_000;
+export const THORNS_NUMBER_COLOR = '#e8a05a';
+
+// --- Area rings and telegraphs (visibility pass) ----------------------------
+// Every ring and area marker is drawn as a dark under-stroke plus a bright
+// dashed main stroke (plain strokes and alpha fills only - no shadowBlur, no
+// filters). The arena floor is a #70a94f/#79b456 checkerboard, so ring colors
+// are chosen to contrast with that green.
+export const AREA_RING_WIDTH = 4;
+export const AREA_TELEGRAPH_WIDTH = 5;
+export const AREA_DASH_ON = 14;
+export const AREA_DASH_OFF = 10;
+export const AREA_UNDERSTROKE_EXTRA_PX = 3;
+export const AREA_UNDERSTROKE_ALPHA = 0.45;
+export const AREA_RING_STROKE_ALPHA = 0.8;
+export const AREA_TELEGRAPH_STROKE_ALPHA = 0.9;
+export const AREA_RING_FILL_ALPHA = 0.12;
+export const AREA_TELEGRAPH_FILL_START_ALPHA = 0.2;
+export const AREA_TELEGRAPH_FILL_END_ALPHA = 0.45;
+// Danger zones get a slightly stronger fill so enemy telegraphs stand out.
+export const AREA_ENEMY_FILL_END_ALPHA = 0.55;
+// Enemy telegraphs wider than this radius get a centre marker so the danger
+// zone centre is unambiguous.
+export const AREA_ENEMY_MARKER_MIN_RADIUS = 100;
+export const AREA_COLORS = Object.freeze({
+  understroke: '#000000',
+  healStroke: '#B8FFE0',
+  healFill: '#3CFF8A',
+  thornsStroke: '#FF8A1F',
+  thornsFill: '#FF8A1F',
+  playerStroke: '#FFC93C',
+  playerFill: '#FFC93C',
+  enemyStroke: '#FF3B3B',
+  enemyFill: '#FF3B3B',
+});
 export const FRAME_TIME_TARGET_MS = 20;
-export const PARTICLE_LIMIT = 300;
+// Render frame cap. On a machine that can't hold 60fps an uncapped loop
+// alternates 16.7ms and 33ms frames (visible judder, and burst frames blow the
+// 16.7ms budget). A fixed schedule gives every frame a guaranteed
+// 1000/FRAME_CAP_FPS budget and an even cadence, which reads as smoother than
+// erratic 30-60fps. Input is event/timer driven, so this costs no input
+// latency. 0 disables the cap (render every vsync).
+export const FRAME_CAP_FPS = 24;
+// Hard ceiling on live particles. Binds only above ~200 live particles, i.e.
+// mass kills and sustained explosions; normal combat never reaches it.
+export const PARTICLE_CAP = 200;
 export const HITSTOP_ENABLED = false;
+
+// Kill-path visual budget. These are the levers called out in the lag-fix spec;
+// they are named constants so the values live in one place, not scattered.
+// MAX_BURSTS_PER_FRAME bounds how many enemies in one tick get the full
+// burst+sprite treatment (the rest collapse to the shared puff); normal play
+// with 1-2 kills per frame never reaches it.
+export const DEATH_BURST_COUNT_MIN = 4;
+export const DEATH_BURST_COUNT_MAX = 6;
+export const MAX_BURSTS_PER_FRAME = 3;
+export const KILL_MASS_PUFF_PARTICLES = 8;
+export const DAMAGE_NUMBER_CAP = 20;
+export const KILL_SOUND_MIN_INTERVAL_MS = 45;
+export const HIT_SOUND_MIN_INTERVAL_MS = 40;
+export const KILL_BURST_THRESHOLD = 8;
+export const KILL_BURST_WINDOW_MS = 200;
+export const KILL_MASS_SHAKE_TRAUMA = 0.6;
+export const LOG_DEBUG = false;
+
+// Adaptive effects quality. Auto steps the particle budget down when the frame
+// average exceeds FRAME_TIME_TARGET_MS, and back up after a calm window.
+export const ADAPTIVE_RESTORE_MS = 5_000;
+export const ADAPTIVE_SAMPLE_FRAMES = 60;
+export const QUALITY_PARTICLE_FACTOR = Object.freeze({ high: 1, medium: 0.6, low: 0.35 });
 
 export const ELECTRO_CHAIN_REFUND_PCT = 0.04;
 export const ELECTRO_STUN_REFUND_MULT = 2;
@@ -52,7 +155,9 @@ export const SHERIFF_READY_BOUNCE_MS = 800;
 export const SHERIFF_REFUND_LABEL_MS = 500;
 export const SHERIFF_REFUND_MERGE_MS = 300;
 export const SHERIFF_REFUND_PULSE_MS = 100;
-export const SHERIFF_READY_GLOW_PERIOD_MS = 1_000;
+// Ready-glow period shared by every skill/ultimate button (generalized from
+// the Sheriff dynamite's gold glow).
+export const READY_GLOW_PERIOD_MS = 1_000;
 export const COOLDOWN_RING_TRANSITION_MS = 100;
 export const SHERIFF_REFUND_GROUP_TTL_MS = 9_000;
 export const SHERIFF_READY_SOUND = Object.freeze({ frequency: 1_175, durationMs: 260, gain: 0.12, type: 'sine' });
@@ -113,4 +218,52 @@ export const DUMMY_KNOCKBACK_MULT = 1.5;
 export const DUMMY_FRICTION = 0.88;
 export const DUMMY_RESPAWN_S = 3;
 export const DUMMY_FADE_MS = 400;
+
+// --- Ability HUD button cluster (bottom-right restyle) ---------------------
+// Three round buttons: M1 smallest on the bottom row left of Q, E medium
+// directly above Q (centred over it), Q biggest bottom-right. M1 and Q share
+// a bottom baseline because both carry the key-label strip. Every button has
+// a thick near-black outline and a pure-white icon; the key label sits below
+// the circle, outside it.
+export const BTN_SIZE_PRIMARY = 56;
+export const BTN_SIZE_SKILL = 70;
+export const BTN_SIZE_ULT = 88;
+export const BTN_OUTLINE_WIDTH = 4;
+export const BTN_OUTLINE_COLOR = '#101018';
+// Horizontal gap between the circles (spec: about 10-14 px).
+export const BTN_GAP_X = 12;
+// Circle bottom -> key label top, and the height of the label strip.
+export const BTN_LABEL_GAP = 4;
+export const BTN_LABEL_HEIGHT = 22;
+export const BTN_LABEL_SIZE = 13;
+// The E key label sits in the gap between the E and Q circles, so its strip
+// must clear the Q circle by at least this much (spec: >= 22 px).
+export const BTN_LABEL_CLEARANCE = 22;
+// White icon diameter as a fraction of the button diameter (spec: ~55%).
+export const BTN_ICON_SCALE = 0.55;
+// Pilot Mech Suit swaps the M1/E icons to the mech pair while it is up.
+export const MECH_ICON_SWAP = true;
+// Button colours per hero TYPE family, stepping lightest (primary) to medium
+// (skill) to darkest (ultimate) so size and shade both tell the hierarchy.
+// The WHITE icon must keep >= 3:1 contrast against every value (WCAG 1.4.11
+// non-text contrast). The highlight family started at #D99A00/#C48400/#A86E00
+// and failed on primary (2.45:1), so it was darkened just enough to pass
+// while keeping the step order; verify with scratch/_stage2_contrast.js.
+export const BTN_COLORS = Object.freeze({
+  physical: Object.freeze({ primary: '#2F96D4', skill: '#1E78C8', ultimate: '#2F3AB8' }),
+  magic: Object.freeze({ primary: '#9B7BE8', skill: '#7B4FD8', ultimate: '#4B2AA8' }),
+  highlight: Object.freeze({ primary: '#C08400', skill: '#A86E00', ultimate: '#8A5800' }),
+});
+// Amber highlight buttons turn bright gold while READY (generalized from the
+// Sheriff Dynamite's ready colour).
+export const BTN_HIGHLIGHT_READY_COLOR = '#ffd34f';
+
+// Performance profiler. Debug builds only (same gate as the debug menu): the
+// overlay samples once a second and keeps a short trace for kill bursts.
+export const PERF_SAMPLE_WINDOW_MS = 1_000;
+export const PERF_OVERLAY_UPDATE_MS = 500;
+export const PERF_TICK_HISTORY = 32;
+export const PERF_FRAME_HISTORY = 240;
+export const PERF_SLOW_FRAME_MS = 25;
+export const PERF_STATS_POLL_MS = 1_000;
 
