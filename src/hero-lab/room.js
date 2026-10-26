@@ -1522,6 +1522,9 @@ function createRoom({ io, services = null, id, code = null, isDefault = false, l
         ultimateFlash: hero.ultimateFlashUntil > now,
         talent: hero.talent, targeting: hero.targetingUntil > now,
         guardianCharging: heroId === 'guardian' && hero.chargeUntil > now,
+        // Pilot Mech Suit state, so the client can swap the M1/E icons and
+        // move the weapon slot onto the highlight colour family.
+        mech: heroId === 'pilot' && hero.mechUntil > now,
         guardianDamageRamp: heroId === 'guardian' ? hero.chargeDamageBonus || 0 : 0,
         guardianBrace: heroId === 'guardian' && hero.braceUntil > now,
         dashing: heroId === 'guardian' ? hero.dashingUntil > now || Boolean(players.get(id)?.controlledBurst && players.get(id).controlledBurst.until > now) : Boolean(players.get(id)?.dashState && players.get(id).dashState.until > now),
@@ -1809,17 +1812,22 @@ function createRoom({ io, services = null, id, code = null, isDefault = false, l
     // 4. Move projectiles
     for (const [id, proj] of projectiles.entries()) {
       proj.update(dt, ARENA_CONFIG);
+      // Stun balls detonate on body contact only: the blast radius must not
+      // set them off while the ball is still in flight. On contact the ball
+      // applies its damage and stun to everything inside the radius, emits
+      // the field visual once, and is spent.
       if (proj.stunMs > 0 && proj.explosionRadius > 0) {
-        for (const monster of monsters.values()) {
-          if (proj.hitTargets.has(monster.id) || Math.hypot(monster.x-proj.x,monster.y-proj.y) > proj.explosionRadius+monster.radius) continue;
-          proj.hitTargets.add(monster.id);
-          damageMonster(monster,proj.damage,{ownerId:proj.ownerId,sourceAbility:'skill'});
-          monster.stunnedUntil=now+proj.stunMs;
-          if (!proj.areaVisualSent) {
-            proj.areaVisualSent = true;
-            nsp.emit('area_effect',{x:proj.x,y:proj.y,radius:proj.explosionRadius,kind:'player',telegraphMs:0,
-              color:GAME_CONFIG.heroFxColors.electromancer.primary,sourceHeroId:'electromancer',sourceAbility:'skill'});
+        const contact = [...monsters.values()].find((monster) => proj.collidesWith(monster));
+        if (contact) {
+          for (const monster of monsters.values()) {
+            if (Math.hypot(monster.x-proj.x,monster.y-proj.y) > proj.explosionRadius+monster.radius) continue;
+            damageMonster(monster,proj.damage,{ownerId:proj.ownerId,sourceAbility:'skill'});
+            monster.stunnedUntil=now+proj.stunMs;
           }
+          nsp.emit('area_effect',{x:proj.x,y:proj.y,radius:proj.explosionRadius,kind:'player',telegraphMs:0,
+            color:GAME_CONFIG.heroFxColors.electromancer.primary,sourceHeroId:'electromancer',sourceAbility:'skill'});
+          projectiles.delete(id);
+          continue;
         }
       }
       if (proj.trapTargetId) {

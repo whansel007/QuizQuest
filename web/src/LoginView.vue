@@ -290,6 +290,6 @@ const floaters = ['?', '★', '✓', 'A', '+', '!', '◆', '?'];
 
 <style scoped>
 .qq-debug-backdrop { position:fixed;z-index:50;inset:0;background:#101322bb;display:grid;place-items:center;padding:16px; }
-.qq-debug-panel { position:relative;width:min(320px,100%);min-height:110px;padding:24px;border-radius:18px;background:#fff;display:grid;place-items:center;box-shadow:0 20px 80px #0005; }
+.qq-debug-panel { position:relative;width:min(320px,100%);min-height:110px;padding:24px;border-radius:18px;background:var(--qq-card,#fff);color:var(--qq-ink,#13213f);display:grid;place-items:center;box-shadow:0 20px 80px #0005;border:1px solid var(--qq-line,#dbe6f6); }
 .qq-debug-close { position:absolute;top:10px;right:10px;border:0;background:transparent;font-size:24px;cursor:pointer; }
 </style>

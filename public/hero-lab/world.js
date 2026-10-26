@@ -1,7 +1,7 @@
 import { HEROES } from './hero-list.js';
 import { EnemyProjectile } from './projectiles/enemy-projectile.js';
 import { Projectile } from './bases/projectile.js';
-import { GAME_CONFIG, HERO_FX_COLORS } from './game-config.js';
+import { GAME_CONFIG, HERO_FX_COLORS, ABILITY_ICONS, ABILITY_BTN_HIGHLIGHT, ABILITY_BTN_HIGHLIGHT_MECH } from './game-config.js';
 import { SHAKE_PLAYER_HIT_TRAUMA, SHAKE_ULTIMATE_TRAUMA, SHAKE_BOSS_SLAM_TRAUMA, SHAKE_EXPLOSION_BASE_TRAUMA,
   SHAKE_EXPLOSION_RADIUS_SCALE, SHAKE_MAX_TRAUMA, SHAKE_DECAY, SHAKE_MAX_OFFSET, SHAKE_EXPLOSION_COOLDOWN_MS,
   SHAKE_NOISE_HZ, SHAKE_NOISE_PRIMARY_PHASE, SHAKE_NOISE_PRIMARY_FREQUENCY, SHAKE_NOISE_SECONDARY_FREQUENCY, SHAKE_NOISE_SECONDARY_PHASE, SHAKE_DEFAULT_INTENSITY,
@@ -13,7 +13,10 @@ import { SHAKE_PLAYER_HIT_TRAUMA, SHAKE_ULTIMATE_TRAUMA, SHAKE_BOSS_SLAM_TRAUMA,
   AREA_TELEGRAPH_FILL_START_ALPHA, AREA_TELEGRAPH_FILL_END_ALPHA, AREA_ENEMY_FILL_END_ALPHA,
   AREA_ENEMY_MARKER_MIN_RADIUS, AREA_COLORS,
   MAX_BURSTS_PER_FRAME, KILL_BURST_THRESHOLD, KILL_BURST_WINDOW_MS, KILL_MASS_SHAKE_TRAUMA, KILL_MASS_PUFF_PARTICLES,
-  FRAME_TIME_TARGET_MS, ADAPTIVE_RESTORE_MS, ADAPTIVE_SAMPLE_FRAMES, QUALITY_PARTICLE_FACTOR, FRAME_CAP_FPS } from '../../config/tuning.js';
+  FRAME_TIME_TARGET_MS, ADAPTIVE_RESTORE_MS, ADAPTIVE_SAMPLE_FRAMES, QUALITY_PARTICLE_FACTOR, FRAME_CAP_FPS,
+  BTN_SIZE_PRIMARY, BTN_SIZE_SKILL, BTN_SIZE_ULT, BTN_OUTLINE_WIDTH, BTN_OUTLINE_COLOR,
+  BTN_GAP_X, BTN_LABEL_GAP, BTN_LABEL_HEIGHT, BTN_LABEL_SIZE, BTN_LABEL_CLEARANCE,
+  BTN_ICON_SCALE, MECH_ICON_SWAP, BTN_COLORS, BTN_HIGHLIGHT_READY_COLOR } from '../../config/tuning.js';
 import { playSound, setAudioOptions, setHeartbeat, audioStats, setAudioEnabled, warmUpAudio } from './arena-audio.js';
 import { createProfiler, effectToggles } from './perf-profiler.js';
 
@@ -182,12 +185,152 @@ void profiler.start();
 try { sessionNudgeCount = Number(sessionStorage.getItem('hero-lab-momentum-nudges') || 0) || 0; } catch { /* session storage is optional */ }
 const ARENA_TUNING = GAME_CONFIG.arenaTuning;
 document.documentElement.style.setProperty('--cooldown-ring-transition', `${ARENA_TUNING.heroTweaks.cooldownRingTransitionMs}ms`);
-document.documentElement.style.setProperty('--sheriff-ready-glow-period', `${ARENA_TUNING.heroTweaks.sheriffReadyGlowPeriodMs}ms`);
+document.documentElement.style.setProperty('--ready-glow-period', `${ARENA_TUNING.heroTweaks.readyGlowPeriodMs}ms`);
 document.documentElement.style.setProperty('--sheriff-ready-ring-duration', `${ARENA_TUNING.heroTweaks.sheriffReadyRingMs}ms`);
 document.documentElement.style.setProperty('--sheriff-refund-pulse-duration', `${ARENA_TUNING.heroTweaks.sheriffRefundPulseMs}ms`);
 document.documentElement.style.setProperty('--sheriff-refund-label-duration', `${ARENA_TUNING.heroTweaks.sheriffRefundLabelMs}ms`);
 document.documentElement.style.setProperty('--overload-flash-duration', `${ARENA_TUNING.heroTweaks.electroOverloadFlashMs}ms`);
 document.documentElement.style.setProperty('--overload-feedback-duration', `${ARENA_TUNING.heroTweaks.electroOverloadFeedbackMs}ms`);
+
+// --- Ability button cluster: geometry, icons, colours ----------------------
+// The three HUD buttons are static markup; this section owns the inline-SVG
+// icons (fetched once, cached, pure white via currentColor), the per-slot
+// colours and the Pilot mech swap. Geometry constants live in config/tuning.js
+// and are pushed to CSS custom properties here so hud.css stays a consumer.
+const ABILITY_CLUSTER_HEIGHT_PX = BTN_SIZE_SKILL + BTN_LABEL_GAP + BTN_LABEL_HEIGHT
+  + BTN_LABEL_CLEARANCE + BTN_SIZE_ULT + BTN_LABEL_GAP + BTN_LABEL_HEIGHT;
+const setBtnVar = (name, value) => document.documentElement.style.setProperty(name, value);
+setBtnVar('--btn-size-primary', `${BTN_SIZE_PRIMARY}px`);
+setBtnVar('--btn-size-skill', `${BTN_SIZE_SKILL}px`);
+setBtnVar('--btn-size-ult', `${BTN_SIZE_ULT}px`);
+setBtnVar('--btn-outline-width', `${BTN_OUTLINE_WIDTH}px`);
+setBtnVar('--btn-outline-color', BTN_OUTLINE_COLOR);
+setBtnVar('--btn-gap-x', `${BTN_GAP_X}px`);
+setBtnVar('--btn-label-gap', `${BTN_LABEL_GAP}px`);
+setBtnVar('--btn-label-height', `${BTN_LABEL_HEIGHT}px`);
+setBtnVar('--btn-label-size', `${BTN_LABEL_SIZE}px`);
+setBtnVar('--btn-label-clearance', `${BTN_LABEL_CLEARANCE}px`);
+setBtnVar('--btn-icon-scale', String(BTN_ICON_SCALE));
+setBtnVar('--ability-cluster-height', `${ABILITY_CLUSTER_HEIGHT_PX}px`);
+setBtnVar('--ready-highlight-color', BTN_HIGHLIGHT_READY_COLOR);
+
+// data-ability ("weapon") -> config slot ("primary").
+const ABILITY_SLOT = { weapon: 'primary', skill: 'skill', ultimate: 'ultimate' };
+
+// Slots that sit on the amber highlight colour family instead of the hero's
+// own type family (Pilot's mech form swaps the set).
+function heroHighlightSlots(heroId, mechActive) {
+  if (mechActive && ABILITY_BTN_HIGHLIGHT_MECH[heroId]) return ABILITY_BTN_HIGHLIGHT_MECH[heroId];
+  return ABILITY_BTN_HIGHLIGHT[heroId] || [];
+}
+
+// Button colour for one slot: the amber highlight family replaces the type
+// family for the hero's listed slots (Pilot's mech form swaps the set).
+function heroButtonColor(heroId, heroType, slot, mechActive) {
+  if (heroHighlightSlots(heroId, mechActive).includes(slot)) return BTN_COLORS.highlight[slot];
+  return (BTN_COLORS[heroType] || BTN_COLORS.physical)[slot];
+}
+
+// Inline-SVG icon cache: path -> <svg>. Icons load once and are cloned per
+// button, so the 10Hz HUD refresh never touches the network. A failed load
+// shows a neutral white ring and warns once per path; the HUD never crashes.
+const iconSvgCache = new Map();
+const iconLoadFailed = new Set();
+const FALLBACK_ICON_SVG = '<svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg" aria-hidden="true" focusable="false"><circle cx="50" cy="50" r="36" fill="none" stroke="currentColor" stroke-width="9"/></svg>';
+
+function fallbackIconSvg() {
+  const host = document.createElement('div');
+  host.innerHTML = FALLBACK_ICON_SVG;
+  return host.firstElementChild;
+}
+
+async function loadAbilityIcon(path) {
+  if (iconSvgCache.has(path)) return iconSvgCache.get(path);
+  if (iconLoadFailed.has(path)) return null;
+  try {
+    const response = await fetch(path);
+    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+    const parsed = new DOMParser().parseFromString(await response.text(), 'image/svg+xml');
+    const svg = parsed.querySelector('svg');
+    if (!svg || parsed.querySelector('parsererror')) throw new Error('not a usable SVG');
+    svg.removeAttribute('width');
+    svg.removeAttribute('height');
+    svg.setAttribute('aria-hidden', 'true');
+    svg.setAttribute('focusable', 'false');
+    iconSvgCache.set(path, svg);
+    return svg;
+  } catch (error) {
+    iconLoadFailed.add(path);
+    console.warn(`[hero-lab] ability icon failed to load (${path}): ${error.message}. Showing the fallback circle.`);
+    return null;
+  }
+}
+
+function setAbilityIcon(host, path) {
+  const cached = iconSvgCache.get(path);
+  if (cached) {
+    host.replaceChildren(cached.cloneNode(true));
+    return;
+  }
+  // Interim ring so the button never sits empty while the file loads.
+  host.replaceChildren(fallbackIconSvg());
+  if (iconLoadFailed.has(path)) return;
+  loadAbilityIcon(path).then((svg) => {
+    if (svg && host.isConnected) host.replaceChildren(svg.cloneNode(true));
+  });
+}
+
+function applyClusterIcons(heroId, mechActive, elements) {
+  const map = ABILITY_ICONS[heroId];
+  if (!map) return;
+  for (const element of elements) {
+    const slot = ABILITY_SLOT[element.dataset.ability];
+    const host = element.querySelector('.ability-icon');
+    if (!slot || !host) continue;
+    let path = map[slot];
+    if (MECH_ICON_SWAP && mechActive) {
+      if (slot === 'primary' && map.mechPrimary) path = map.mechPrimary;
+      if (slot === 'skill' && map.mechSkill) path = map.mechSkill;
+    }
+    if (path) setAbilityIcon(host, path);
+  }
+}
+
+// Applied on hero change and whenever the Pilot's mech form toggles.
+let hudIconHeroId = null;
+let hudIconMech = false;
+function applyAbilityIcons(heroId, mechActive) {
+  applyClusterIcons(heroId, mechActive, abilityElements);
+  hudIconHeroId = heroId;
+  hudIconMech = mechActive;
+}
+
+// Settings -> "Icon credits": the license line is static markup, the author
+// list is generated from CREDITS.json so swapping an icon stays correct.
+async function renderIconCredits() {
+  const list = document.querySelector('#icon-credits-list');
+  if (!list) return;
+  try {
+    const response = await fetch('assets/icons/CREDITS.json');
+    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+    const credits = await response.json();
+    const byAuthor = new Map();
+    for (const entry of Object.values(credits.icons || {})) {
+      if (!byAuthor.has(entry.author)) byAuthor.set(entry.author, []);
+      byAuthor.get(entry.author).push(`${entry.hero} ${entry.slot} (${entry.originalFile})`);
+    }
+    list.replaceChildren(...[...byAuthor.entries()].map(([author, items]) => {
+      const item = document.createElement('li');
+      const name = document.createElement('strong');
+      name.textContent = author;
+      item.append(name, ` — ${items.join(', ')}`);
+      return item;
+    }));
+  } catch {
+    // Best-effort: the license sentence above stands on its own.
+  }
+}
+void renderIconCredits();
 const hasCard = (id) => (state.activeBuffs || []).some((buff) => buff.id === id);
 const settings = { screenShake: true, shakeIntensity: SHAKE_DEFAULT_INTENSITY, damageNumbers: true, masterVolume: ARENA_TUNING.sound.defaultMasterVolume, muted: false, effectsQuality: 'auto' };
 // Settings schema version. v1 -> v2 re-scaled the shake slider from 0-100
@@ -1208,6 +1351,57 @@ if (typeof window !== 'undefined' && new URLSearchParams(location.search).has('p
       return samples[Math.floor(samples.length / 2)];
     },
   };
+
+  // Debug-only: all six heroes' button clusters in a row with the real
+  // colours, so every type family and highlight slot is checkable at a
+  // glance. The toggle lives in the Settings panel and only exists here.
+  const hudDebugRow = document.querySelector('#hud-debug-clusters');
+  const hudDebugLabel = document.createElement('label');
+  hudDebugLabel.innerHTML = '<input id="hud-debug-setting" type="checkbox"> Show all hero HUD clusters';
+  settingsPanel.append(hudDebugLabel);
+  const hudDebugInput = hudDebugLabel.querySelector('input');
+  const hudDebugHeroes = HEROES.map((hero) => {
+    const column = document.createElement('div');
+    column.className = 'hud-debug-hero';
+    const title = document.createElement('strong');
+    title.textContent = hero.name;
+    const cluster = document.createElement('div');
+    cluster.className = 'hud-debug-cluster';
+    const buttons = [['weapon', 'M1'], ['skill', 'E'], ['ultimate', 'Q']].map(([ability, key]) => {
+      const button = document.createElement('div');
+      button.className = 'ability';
+      button.dataset.ability = ability;
+      const circle = document.createElement('span');
+      circle.className = 'ability-circle';
+      circle.append(Object.assign(document.createElement('span'), { className: 'ability-icon' }));
+      const label = document.createElement('span');
+      label.className = 'ability-key';
+      label.textContent = key;
+      button.append(circle, label);
+      cluster.append(button);
+      return { ability, circle, button };
+    });
+    column.append(title, cluster);
+    hudDebugRow.append(column);
+    return { hero, buttons };
+  });
+  for (const { hero, buttons } of hudDebugHeroes) {
+    applyClusterIcons(hero.id, false, buttons.map((entry) => entry.button));
+    for (const { ability, circle } of buttons) {
+      circle.style.setProperty('--fill-color', heroButtonColor(hero.id, hero.type, ABILITY_SLOT[ability], false));
+      circle.style.setProperty('--fill', '100%');
+    }
+  }
+  const setHudDebugVisible = (visible) => {
+    hudDebugRow.hidden = !visible;
+    hudDebugInput.checked = visible;
+  };
+  hudDebugInput.addEventListener('change', () => setHudDebugVisible(hudDebugInput.checked));
+  window.__heroLabHudDebug = {
+    show: () => setHudDebugVisible(true),
+    hide: () => setHudDebugVisible(false),
+    toggle: () => setHudDebugVisible(hudDebugRow.hidden),
+  };
 }
 socket.on('area_telegraph', (effect) => showAreaEffect({ ...effect, telegraphMs: effect.telegraphMs || ARENA_TUNING.areaEffects.targetedTelegraphMs }));
 socket.on('area_effect', (effect) => {
@@ -1694,17 +1888,19 @@ function updateHud(timestamp = performance.now()) {
     }));
   }
 
-  const color = GAME_CONFIG.hud[player.type] || GAME_CONFIG.hud.physical;
+  const mechActive = MECH_ICON_SWAP && Boolean(player.mech);
+  if (player.heroId !== hudIconHeroId || mechActive !== hudIconMech) applyAbilityIcons(player.heroId, mechActive);
+  const highlightSlots = heroHighlightSlots(player.heroId, mechActive);
   abilityElements.forEach((element) => {
     const id = element.dataset.ability;
     const data = player.abilities?.[id];
     const circle = element.querySelector('.ability-circle');
-    const name = element.querySelector('.ability-name');
     if (!data) return;
-    setHudText(name, data.name || id);
     const heroType = player.type || 'physical';
+    const slot = ABILITY_SLOT[id];
     if (element.dataset.type !== heroType) element.dataset.type = heroType;
-    if (circle.style.getPropertyValue('--fill-color') !== color) circle.style.setProperty('--fill-color', color);
+    const slotColor = heroButtonColor(player.heroId, heroType, slot, mechActive);
+    if (circle.style.getPropertyValue('--fill-color') !== slotColor) circle.style.setProperty('--fill-color', slotColor);
     const elapsedMs = Math.max(0, timestamp - stateReceivedAt);
     const remaining = Math.max(0, data.remainingMs - elapsedMs);
     const lockoutRemaining = Math.max(0, (data.lockoutRemainingMs || 0) - elapsedMs);
@@ -1715,19 +1911,23 @@ function updateHud(timestamp = performance.now()) {
     circle.classList.toggle('locked', lockoutRemaining > 0);
     const lockoutLabel = circle.querySelector('.ability-lockout');
     if (lockoutLabel) setHudText(lockoutLabel, lockoutRemaining > 0 ? String(Math.ceil(lockoutRemaining / 1000)) : '');
-    const isSheriffDynamite = player.heroId === 'sheriff' && id === 'skill';
-    element.classList.toggle('sheriff-skill-ready', isSheriffDynamite && remaining <= 0 && lockoutRemaining <= 0);
-    if (isSheriffDynamite) {
-      const glowPeriod = `${ARENA_TUNING.heroTweaks.sheriffReadyGlowPeriodMs}ms`;
-      if (element.style.getPropertyValue('--sheriff-ready-glow-period') !== glowPeriod) {
-        element.style.setProperty('--sheriff-ready-glow-period', glowPeriod);
-      }
-      if (circle.style.getPropertyValue('--fill-color') !== '#ffd34f') circle.style.setProperty('--fill-color', '#ffd34f');
+    // Amber highlight buttons turn bright gold while READY (generalized from
+    // the Sheriff Dynamite), and every skill/ultimate button breathes the
+    // ready glow (hud.css). The weapon slot keeps its amber highlight: it
+    // re-arms between shots, so a ready colour change there would strobe on
+    // every shot.
+    const isHighlightSlot = id !== 'weapon' && highlightSlots.includes(slot);
+    const ready = remaining <= 0 && lockoutRemaining <= 0;
+    element.classList.toggle('highlight-ready', isHighlightSlot && ready);
+    if (isHighlightSlot && ready && circle.style.getPropertyValue('--fill-color') !== BTN_HIGHLIGHT_READY_COLOR) {
+      circle.style.setProperty('--fill-color', BTN_HIGHLIGHT_READY_COLOR);
     }
     const key = `${me}:${id}`;
     const previous = abilityReadyAt.get(key);
     if (previous !== undefined && previous > 0 && remaining <= 0) {
-      if (!isSheriffDynamite) {
+      // The Sheriff dynamite announces ready through its own server event
+      // (ring pulse + sound), so it skips the shared one-shot pulse.
+      if (!(player.heroId === 'sheriff' && id === 'skill')) {
         circle.classList.remove('ready-pulse');
         void circle.offsetWidth;
         circle.classList.add('ready-pulse');
@@ -1801,6 +2001,10 @@ function onPointerDown(event) {
   }
   if (event.button === 2) { fireWeapon('secondary'); return; }
   if (event.button === 0) {
+    // While the Bombardier ultimate is targeting, primary fire confirms the
+    // strike location (same emit as the right-click confirm) instead of
+    // firing the weapon.
+    if (player?.targeting) { fireWeapon('secondary'); return; }
     setPrimaryHeld(true);
     fireWeapon('primary');
     if (activeHeroId === 'bubbles') {
@@ -2138,18 +2342,23 @@ function drawScene(timestamp) {
     } else {
       // Detonation: the flash stays bright, then the ring expands and fades.
       const endAlpha = danger ? AREA_ENEMY_FILL_END_ALPHA : AREA_TELEGRAPH_FILL_END_ALPHA;
+      const ringRadius = effect.radius * (ARENA_TUNING.areaEffects.ringStartScale + (1 - ARENA_TUNING.areaEffects.ringStartScale) * progress);
       context.globalAlpha = endAlpha * (1 - progress * 0.6);
       context.fillStyle = fillColor;
       context.beginPath(); context.arc(effect.x, effect.y, effect.radius, 0, Math.PI * 2); context.fill();
+      // The dark under-stroke rides the expanding ring so the bright stroke
+      // keeps a readable edge on the floor. Drawn at the full radius instead,
+      // it stayed put while the ring expanded past it and read as a black
+      // border around the explosion.
       context.globalAlpha = AREA_UNDERSTROKE_ALPHA * (1 - progress * 0.5);
       context.strokeStyle = AREA_COLORS.understroke;
       context.lineWidth = AREA_TELEGRAPH_WIDTH + AREA_UNDERSTROKE_EXTRA_PX;
-      context.beginPath(); context.arc(effect.x, effect.y, effect.radius, 0, Math.PI * 2); context.stroke();
+      context.beginPath(); context.arc(effect.x, effect.y, ringRadius, 0, Math.PI * 2); context.stroke();
       context.globalAlpha = 1 - progress * 0.5;
       context.strokeStyle = stroke;
       context.lineWidth = AREA_TELEGRAPH_WIDTH;
       context.setLineDash([]);
-      context.beginPath(); context.arc(effect.x, effect.y, effect.radius * (ARENA_TUNING.areaEffects.ringStartScale + (1 - ARENA_TUNING.areaEffects.ringStartScale) * progress), 0, Math.PI * 2); context.stroke();
+      context.beginPath(); context.arc(effect.x, effect.y, ringRadius, 0, Math.PI * 2); context.stroke();
     }
     context.restore();
   }

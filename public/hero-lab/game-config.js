@@ -12,7 +12,7 @@ import { ELECTRO_STUN_PROJECTILE_SCALE, ELECTRO_STUN_RADIUS_SCALE, PARTICLE_CAP,
   ELECTRO_CHAIN_COUNTER_SCALE, ELECTRO_CHAIN_COUNTER_MS, ELECTRO_CHAIN_COUNTER_POP_MS, ELECTRO_OVERLOAD_FLASH_MS,
   ELECTRO_OVERLOAD_FEEDBACK_MS, SHERIFF_BLAST_REFUND_CAP_S, SHERIFF_READY_RING_MS,
   SHERIFF_READY_BOUNCE_MS, SHERIFF_REFUND_LABEL_MS, SHERIFF_REFUND_MERGE_MS,
-  SHERIFF_REFUND_PULSE_MS, SHERIFF_READY_GLOW_PERIOD_MS, SHERIFF_REFUND_GROUP_TTL_MS, SHERIFF_READY_SOUND,
+  SHERIFF_REFUND_PULSE_MS, READY_GLOW_PERIOD_MS, SHERIFF_REFUND_GROUP_TTL_MS, SHERIFF_READY_SOUND,
   COOLDOWN_RING_TRANSITION_MS,
   BASE_CAMPFIRE_HP } from '../../config/tuning.js';
 
@@ -24,6 +24,69 @@ export const HERO_FX_COLORS = Object.freeze({
   bubbles: { primary: '#55dfff', highlight: '#c6f8ff' },
   electromancer: { primary: '#6edcff', highlight: '#d4f7ff' },
 });
+
+// Ability button icons: the single source of truth for the HUD ability
+// clusters, the World-page hero preview and the Settings icon-credits entry.
+// Paths are relative to hero-lab/. Every file is a CC BY 3.0 icon from
+// game-icons.net with the library background rect removed and the silhouette
+// fill switched to currentColor; per-icon provenance lives in
+// assets/icons/CREDITS.json.
+export const ABILITY_ICONS = Object.freeze({
+  sheriff: Object.freeze({
+    primary: 'assets/icons/sheriff-primary.svg',
+    skill: 'assets/icons/sheriff-skill.svg',
+    ultimate: 'assets/icons/sheriff-ultimate.svg',
+    talent: 'assets/icons/sheriff-talent.svg',
+  }),
+  pilot: Object.freeze({
+    primary: 'assets/icons/pilot-primary.svg',
+    skill: 'assets/icons/pilot-skill.svg',
+    ultimate: 'assets/icons/pilot-ultimate.svg',
+    talent: 'assets/icons/pilot-talent.svg',
+    // Swapped in while the Mech Suit is up (MECH_ICON_SWAP).
+    mechPrimary: 'assets/icons/pilot-mechPrimary.svg',
+    mechSkill: 'assets/icons/pilot-mechSkill.svg',
+  }),
+  guardian: Object.freeze({
+    primary: 'assets/icons/guardian-primary.svg',
+    skill: 'assets/icons/guardian-skill.svg',
+    ultimate: 'assets/icons/guardian-ultimate.svg',
+    talent: 'assets/icons/guardian-talent.svg',
+  }),
+  bombardier: Object.freeze({
+    primary: 'assets/icons/bombardier-primary.svg',
+    skill: 'assets/icons/bombardier-skill.svg',
+    ultimate: 'assets/icons/bombardier-ultimate.svg',
+    talent: 'assets/icons/bombardier-talent.svg',
+  }),
+  bubbles: Object.freeze({
+    primary: 'assets/icons/bubbles-primary.svg',
+    skill: 'assets/icons/bubbles-skill.svg',
+    ultimate: 'assets/icons/bubbles-ultimate.svg',
+    talent: 'assets/icons/bubbles-talent.svg',
+  }),
+  electromancer: Object.freeze({
+    primary: 'assets/icons/electromancer-primary.svg',
+    skill: 'assets/icons/electromancer-skill.svg',
+    ultimate: 'assets/icons/electromancer-ultimate.svg',
+    talent: 'assets/icons/electromancer-talent.svg',
+  }),
+});
+
+// Slots that sit on the amber highlight colour family instead of the hero's
+// own type family. Stage 2 reads this next to the button colours above.
+export const ABILITY_BTN_HIGHLIGHT = Object.freeze({
+  sheriff: Object.freeze(['skill']),
+  pilot: Object.freeze(['ultimate']),
+  guardian: Object.freeze(['ultimate']),
+  bombardier: Object.freeze(['primary']),
+  bubbles: Object.freeze(['skill']),
+  electromancer: Object.freeze(['ultimate']),
+});
+
+// While Pilot's Mech Suit is up the weapon slot shows the mech punch and moves
+// onto the highlight family; the ultimate keeps its normal type colour.
+export const ABILITY_BTN_HIGHLIGHT_MECH = Object.freeze({ pilot: Object.freeze(['primary']) });
 
 // Values from the arena update brief live together here so effects and later
 // workstreams can be tuned without scattering constants through the logic.
@@ -113,7 +176,7 @@ export const ARENA_TUNING = Object.freeze({
     electroOverloadFlashMs: ELECTRO_OVERLOAD_FLASH_MS, electroOverloadFeedbackMs: ELECTRO_OVERLOAD_FEEDBACK_MS,
     sheriffReadyRingMs: SHERIFF_READY_RING_MS, sheriffReadyBounceMs: SHERIFF_READY_BOUNCE_MS,
     sheriffRefundLabelMs: SHERIFF_REFUND_LABEL_MS, sheriffRefundMergeMs: SHERIFF_REFUND_MERGE_MS,
-    sheriffRefundPulseMs: SHERIFF_REFUND_PULSE_MS, sheriffReadyGlowPeriodMs: SHERIFF_READY_GLOW_PERIOD_MS,
+    sheriffRefundPulseMs: SHERIFF_REFUND_PULSE_MS, readyGlowPeriodMs: READY_GLOW_PERIOD_MS,
     cooldownRingTransitionMs: COOLDOWN_RING_TRANSITION_MS,
   },
 });

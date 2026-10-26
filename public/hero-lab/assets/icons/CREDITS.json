@@ -1,0 +1,245 @@
+{
+  "source": "game-icons.net",
+  "sourceUrl": "https://game-icons.net/",
+  "license": "CC BY 3.0",
+  "licenseUrl": "https://creativecommons.org/licenses/by/3.0/",
+  "attribution": "Icons made by {author} from game-icons.net",
+  "libraryPath": "public/hero-lab/game-icons.net.svg/icons/ffffff/000000/1x1/<author>/<file>.svg",
+  "note": "Copies here have the library background rect removed and the silhouette fill set to currentColor; viewBox is unchanged (0 0 512 512).",
+  "icons": {
+    "sheriff-primary.svg": {
+      "hero": "sheriff",
+      "slot": "primary",
+      "ability": "Revolver",
+      "author": "delapouite",
+      "originalFile": "revolver.svg",
+      "originalPath": "game-icons.net.svg/icons/ffffff/000000/1x1/delapouite/revolver.svg",
+      "license": "CC BY 3.0"
+    },
+    "sheriff-skill.svg": {
+      "hero": "sheriff",
+      "slot": "skill",
+      "ability": "Dynamite",
+      "author": "delapouite",
+      "originalFile": "dynamite.svg",
+      "originalPath": "game-icons.net.svg/icons/ffffff/000000/1x1/delapouite/dynamite.svg",
+      "license": "CC BY 3.0"
+    },
+    "sheriff-ultimate.svg": {
+      "hero": "sheriff",
+      "slot": "ultimate",
+      "ability": "Bullet Rush",
+      "author": "lorc",
+      "originalFile": "bullets.svg",
+      "originalPath": "game-icons.net.svg/icons/ffffff/000000/1x1/lorc/bullets.svg",
+      "license": "CC BY 3.0"
+    },
+    "sheriff-talent.svg": {
+      "hero": "sheriff",
+      "slot": "talent",
+      "ability": "Quick Draw",
+      "author": "lorc",
+      "originalFile": "stopwatch.svg",
+      "originalPath": "game-icons.net.svg/icons/ffffff/000000/1x1/lorc/stopwatch.svg",
+      "license": "CC BY 3.0"
+    },
+    "pilot-primary.svg": {
+      "hero": "pilot",
+      "slot": "primary",
+      "ability": "Scattershot",
+      "author": "delapouite",
+      "originalFile": "sawed-off-shotgun.svg",
+      "originalPath": "game-icons.net.svg/icons/ffffff/000000/1x1/delapouite/sawed-off-shotgun.svg",
+      "license": "CC BY 3.0"
+    },
+    "pilot-skill.svg": {
+      "hero": "pilot",
+      "slot": "skill",
+      "ability": "Dash",
+      "author": "lorc",
+      "originalFile": "sprint.svg",
+      "originalPath": "game-icons.net.svg/icons/ffffff/000000/1x1/lorc/sprint.svg",
+      "license": "CC BY 3.0"
+    },
+    "pilot-ultimate.svg": {
+      "hero": "pilot",
+      "slot": "ultimate",
+      "ability": "Mech Suit",
+      "author": "delapouite",
+      "originalFile": "battle-mech.svg",
+      "originalPath": "game-icons.net.svg/icons/ffffff/000000/1x1/delapouite/battle-mech.svg",
+      "license": "CC BY 3.0"
+    },
+    "pilot-talent.svg": {
+      "hero": "pilot",
+      "slot": "talent",
+      "ability": "Adrenaline",
+      "author": "delapouite",
+      "originalFile": "health-capsule.svg",
+      "originalPath": "game-icons.net.svg/icons/ffffff/000000/1x1/delapouite/health-capsule.svg",
+      "license": "CC BY 3.0"
+    },
+    "pilot-mechPrimary.svg": {
+      "hero": "pilot",
+      "slot": "mechPrimary",
+      "ability": "Mech Punch",
+      "author": "delapouite",
+      "originalFile": "armor-punch.svg",
+      "originalPath": "game-icons.net.svg/icons/ffffff/000000/1x1/delapouite/armor-punch.svg",
+      "license": "CC BY 3.0"
+    },
+    "pilot-mechSkill.svg": {
+      "hero": "pilot",
+      "slot": "mechSkill",
+      "ability": "Impact Dash",
+      "author": "delapouite",
+      "originalFile": "rocket-thruster.svg",
+      "originalPath": "game-icons.net.svg/icons/ffffff/000000/1x1/delapouite/rocket-thruster.svg",
+      "license": "CC BY 3.0"
+    },
+    "guardian-primary.svg": {
+      "hero": "guardian",
+      "slot": "primary",
+      "ability": "Shield Bash",
+      "author": "delapouite",
+      "originalFile": "roman-shield.svg",
+      "originalPath": "game-icons.net.svg/icons/ffffff/000000/1x1/delapouite/roman-shield.svg",
+      "license": "CC BY 3.0"
+    },
+    "guardian-skill.svg": {
+      "hero": "guardian",
+      "slot": "skill",
+      "ability": "Shield Rush",
+      "author": "delapouite",
+      "originalFile": "boulder-dash.svg",
+      "originalPath": "game-icons.net.svg/icons/ffffff/000000/1x1/delapouite/boulder-dash.svg",
+      "license": "CC BY 3.0"
+    },
+    "guardian-ultimate.svg": {
+      "hero": "guardian",
+      "slot": "ultimate",
+      "ability": "Unbreakable Charge",
+      "author": "delapouite",
+      "originalFile": "charging-bull.svg",
+      "originalPath": "game-icons.net.svg/icons/ffffff/000000/1x1/delapouite/charging-bull.svg",
+      "license": "CC BY 3.0"
+    },
+    "guardian-talent.svg": {
+      "hero": "guardian",
+      "slot": "talent",
+      "ability": "Unstoppable",
+      "author": "delapouite",
+      "originalFile": "upgrade.svg",
+      "originalPath": "game-icons.net.svg/icons/ffffff/000000/1x1/delapouite/upgrade.svg",
+      "license": "CC BY 3.0"
+    },
+    "bombardier-primary.svg": {
+      "hero": "bombardier",
+      "slot": "primary",
+      "ability": "Blast Bomb",
+      "author": "lorc",
+      "originalFile": "rolling-bomb.svg",
+      "originalPath": "game-icons.net.svg/icons/ffffff/000000/1x1/lorc/rolling-bomb.svg",
+      "license": "CC BY 3.0"
+    },
+    "bombardier-skill.svg": {
+      "hero": "bombardier",
+      "slot": "skill",
+      "ability": "Proximity Trap",
+      "author": "lorc",
+      "originalFile": "land-mine.svg",
+      "originalPath": "game-icons.net.svg/icons/ffffff/000000/1x1/lorc/land-mine.svg",
+      "license": "CC BY 3.0"
+    },
+    "bombardier-ultimate.svg": {
+      "hero": "bombardier",
+      "slot": "ultimate",
+      "ability": "Targeted Bombing",
+      "author": "delapouite",
+      "originalFile": "falling-bomb.svg",
+      "originalPath": "game-icons.net.svg/icons/ffffff/000000/1x1/delapouite/falling-bomb.svg",
+      "license": "CC BY 3.0"
+    },
+    "bombardier-talent.svg": {
+      "hero": "bombardier",
+      "slot": "talent",
+      "ability": "Demolitionist",
+      "author": "lorc",
+      "originalFile": "spiky-explosion.svg",
+      "originalPath": "game-icons.net.svg/icons/ffffff/000000/1x1/lorc/spiky-explosion.svg",
+      "license": "CC BY 3.0"
+    },
+    "bubbles-primary.svg": {
+      "hero": "bubbles",
+      "slot": "primary",
+      "ability": "Bubble Spray",
+      "author": "lorc",
+      "originalFile": "bubbles.svg",
+      "originalPath": "game-icons.net.svg/icons/ffffff/000000/1x1/lorc/bubbles.svg",
+      "license": "CC BY 3.0"
+    },
+    "bubbles-skill.svg": {
+      "hero": "bubbles",
+      "slot": "skill",
+      "ability": "Bubble Trap",
+      "author": "lorc",
+      "originalFile": "boiling-bubbles.svg",
+      "originalPath": "game-icons.net.svg/icons/ffffff/000000/1x1/lorc/boiling-bubbles.svg",
+      "license": "CC BY 3.0"
+    },
+    "bubbles-ultimate.svg": {
+      "hero": "bubbles",
+      "slot": "ultimate",
+      "ability": "Bubble Rush",
+      "author": "lorc",
+      "originalFile": "rolling-energy.svg",
+      "originalPath": "game-icons.net.svg/icons/ffffff/000000/1x1/lorc/rolling-energy.svg",
+      "license": "CC BY 3.0"
+    },
+    "bubbles-talent.svg": {
+      "hero": "bubbles",
+      "slot": "talent",
+      "ability": "Finisher",
+      "author": "lorc",
+      "originalFile": "goo-explosion.svg",
+      "originalPath": "game-icons.net.svg/icons/ffffff/000000/1x1/lorc/goo-explosion.svg",
+      "license": "CC BY 3.0"
+    },
+    "electromancer-primary.svg": {
+      "hero": "electromancer",
+      "slot": "primary",
+      "ability": "Lightning Orb",
+      "author": "sbed",
+      "originalFile": "electric.svg",
+      "originalPath": "game-icons.net.svg/icons/ffffff/000000/1x1/sbed/electric.svg",
+      "license": "CC BY 3.0"
+    },
+    "electromancer-skill.svg": {
+      "hero": "electromancer",
+      "slot": "skill",
+      "ability": "Stun Field",
+      "author": "lorc",
+      "originalFile": "unstable-orb.svg",
+      "originalPath": "game-icons.net.svg/icons/ffffff/000000/1x1/lorc/unstable-orb.svg",
+      "license": "CC BY 3.0"
+    },
+    "electromancer-ultimate.svg": {
+      "hero": "electromancer",
+      "slot": "ultimate",
+      "ability": "Chain Lightning",
+      "author": "willdabeast",
+      "originalFile": "chain-lightning.svg",
+      "originalPath": "game-icons.net.svg/icons/ffffff/000000/1x1/willdabeast/chain-lightning.svg",
+      "license": "CC BY 3.0"
+    },
+    "electromancer-talent.svg": {
+      "hero": "electromancer",
+      "slot": "talent",
+      "ability": "Overload",
+      "author": "lorc",
+      "originalFile": "power-lightning.svg",
+      "originalPath": "game-icons.net.svg/icons/ffffff/000000/1x1/lorc/power-lightning.svg",
+      "license": "CC BY 3.0"
+    }
+  }
+}

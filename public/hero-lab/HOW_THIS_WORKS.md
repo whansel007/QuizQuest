@@ -19,7 +19,7 @@ route remains available for quick sandbox playtests.
 ## Heroes and talents
 
 - **Sheriff:** yellow, long-range revolver bullets; fast, flashing dynamite;
-  Deadeye fires a stream from the hero's current position and aim. Quick Draw
+  Bullet Rush fires a stream from the hero's current position and aim. Quick Draw
   refunds 0.4 seconds from Dynamite's remaining cooldown per kill. Dynamite
   kills count; a single blast can refund at most 2 seconds total.
 - **Guardian:** a short-range shield bash, a longer invulnerable Shield Rush,
@@ -194,7 +194,7 @@ Run `npm run check`, `npm test`, and `npm run test:browser` from the repository
 root. For a manual playtest:
 
 1. Choose Sheriff. Open Information and read **Quick Draw**. Fire primary and
-   Dynamite, then use Deadeye while moving and changing aim. Confirm the stream
+   Dynamite, then use Bullet Rush while moving and changing aim. Confirm the stream
    follows the hero and kills shorten Dynamite's cooldown.
 2. Choose Guardian. Dash through a group with E and Q. Confirm the trail,
    invulnerability, and `+time` popup after a kill. Chain kills, check the ramp

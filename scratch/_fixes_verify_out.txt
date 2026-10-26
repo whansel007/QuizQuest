@@ -1,0 +1,102 @@
+PASS  sheriff weapon is ready at load  — fill=100%
+PASS  sheriff weapon (weapon) never gets highlight-ready  — highlightReady=false fill=#2F96D4
+PASS  sheriff weapon (weapon) has no ready glow  — none
+PASS  sheriff skill is ready at load  — fill=100%
+PASS  sheriff skill (amber) turns gold when ready  — highlightReady=true fill=#ffd34f
+PASS  sheriff skill breathes ready-glow when ready  — animation=ready-glow
+PASS  sheriff ultimate is ready at load  — fill=100%
+PASS  sheriff ultimate breathes ready-glow when ready  — animation=ready-glow
+PASS  guardian weapon is ready at load  — fill=100%
+PASS  guardian weapon (weapon) never gets highlight-ready  — highlightReady=false fill=#2F96D4
+PASS  guardian weapon (weapon) has no ready glow  — none
+PASS  guardian skill is ready at load  — fill=100%
+PASS  guardian skill breathes ready-glow when ready  — animation=ready-glow
+PASS  guardian ultimate is ready at load  — fill=100%
+PASS  guardian ultimate (amber) turns gold when ready  — highlightReady=true fill=#ffd34f
+PASS  guardian ultimate breathes ready-glow when ready  — animation=ready-glow
+PASS  pilot weapon is ready at load  — fill=100%
+PASS  pilot weapon (weapon) never gets highlight-ready  — highlightReady=false fill=#2F96D4
+PASS  pilot weapon (weapon) has no ready glow  — none
+PASS  pilot skill is ready at load  — fill=100%
+PASS  pilot skill breathes ready-glow when ready  — animation=ready-glow
+PASS  pilot ultimate is ready at load  — fill=100%
+PASS  pilot ultimate (amber) turns gold when ready  — highlightReady=true fill=#ffd34f
+PASS  pilot ultimate breathes ready-glow when ready  — animation=ready-glow
+PASS  bombardier weapon is ready at load  — fill=100%
+PASS  bombardier weapon (weapon) never gets highlight-ready  — highlightReady=false fill=#C08400
+PASS  bombardier weapon (weapon) has no ready glow  — none
+PASS  bombardier skill is ready at load  — fill=100%
+PASS  bombardier skill breathes ready-glow when ready  — animation=ready-glow
+PASS  bombardier ultimate is ready at load  — fill=100%
+PASS  bombardier ultimate breathes ready-glow when ready  — animation=ready-glow
+PASS  bubbles weapon is ready at load  — fill=100%
+PASS  bubbles weapon (weapon) never gets highlight-ready  — highlightReady=false fill=#9B7BE8
+PASS  bubbles weapon (weapon) has no ready glow  — none
+PASS  bubbles skill is ready at load  — fill=100%
+PASS  bubbles skill (amber) turns gold when ready  — highlightReady=true fill=#ffd34f
+PASS  bubbles skill breathes ready-glow when ready  — animation=ready-glow
+PASS  bubbles ultimate is ready at load  — fill=100%
+PASS  bubbles ultimate breathes ready-glow when ready  — animation=ready-glow
+PASS  electromancer weapon is ready at load  — fill=100%
+PASS  electromancer weapon (weapon) never gets highlight-ready  — highlightReady=false fill=#9B7BE8
+PASS  electromancer weapon (weapon) has no ready glow  — none
+PASS  electromancer skill is ready at load  — fill=100%
+PASS  electromancer skill breathes ready-glow when ready  — animation=ready-glow
+PASS  electromancer ultimate is ready at load  — fill=100%
+PASS  electromancer ultimate (amber) turns gold when ready  — highlightReady=true fill=#ffd34f
+PASS  electromancer ultimate breathes ready-glow when ready  — animation=ready-glow
+PASS  root --ready-highlight-color is #ffd34f  — #ffd34f
+PASS  root --ready-glow-period is 1s (1000ms)  — 1000ms
+PASS  targeting hint visible after Q
+PASS  LEFT-click confirms the strike (hint hides)  — ult fill 100% -> 0.7607499999776501%
+PASS  LEFT-click starts the ultimate cooldown  — ult fill=0.7607499999776501%
+PASS  LEFT-click does NOT fire the weapon  — weapon fill=100%
+PASS  cooling ultimate renders the conic sweep  — conic-gradient(rgb(75, 42, 168) 0.4295%, rgb(53, 59, 71) 0de
+
+  ring-band trace (t ms | nonFloor dark yellow red):
+      1 |     2797   98     74   3
+     34 |     2989   97     74   2
+     63 |     2989   97     74   2
+     96 |     2989   98     74   0
+    133 |     2989   97     74   0
+    166 |     2989   97     75   0
+    219 |     2989   96     76   0
+    260 |     2988   96     76   0
+    338 |     2864    1      1   0
+    433 |     2857    5    121   2
+    479 |      403    2      3   3
+    521 |      243    2      1   2
+    565 |       70   16      0   3
+    604 |       71   17      0   3
+    638 |       72   17      0   3
+    676 |       72   17      0   3
+    722 |       72   17      0   3
+    762 |       72   17      0   3
+    807 |       72   17      0   3
+    848 |       72   17      0   3
+    885 |       72   17      0   3
+    926 |       72   18      0   3
+    965 |       72   18      0   3
+   1028 |       72   18      0   3
+   1066 |       72   18      0   3
+   1112 |       72   18      0   3
+   1193 |       81   18      1   3
+   1241 |       79   18      1   3
+  (telegraph ended ~t=260ms; detonation frames: 20)
+PASS  detonation shows the bright ring (yellow > 30 somewhere)  — maxYellow=121
+PASS  no all-black ring frames during detonation  — frames=0
+PASS  dark ring pixels stay low (was ~250-289 before the fix)  — maxDark=18
+PASS  RIGHT-click still confirms the strike  — ult fill=0.4902499999776433%
+
+sweep screenshot saved (_fixes_sweep.png); sample points in _fixes_sweep_points.json
+
+login panel light: bg=rgba(255, 255, 255, 0.94) text=rgb(19, 33, 63)
+login panel dark:  bg=rgba(13, 24, 50, 0.9) text=rgb(230, 239, 255)
+PASS  login panel text readable in LIGHT mode (>=4.5:1)  — 15.9:1
+PASS  login panel text readable in DARK mode (>=4.5:1)  — 15.6:1
+PASS  dark-mode panel is NOT white-on-white  — textLum=0.86 bgLum=0.008
+
+61/61 checks passed
+CONSOLE WARNINGS/ERRORS: [
+  'warning: Canvas2D: Multiple readback operations using getImageData are faster with the willReadFrequently attribute set to true. See: https://html.spec.whatwg.org/multipage/canvas.html#concept-canvas-will-read-frequently'
+]

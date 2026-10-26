@@ -155,7 +155,9 @@ export const SHERIFF_READY_BOUNCE_MS = 800;
 export const SHERIFF_REFUND_LABEL_MS = 500;
 export const SHERIFF_REFUND_MERGE_MS = 300;
 export const SHERIFF_REFUND_PULSE_MS = 100;
-export const SHERIFF_READY_GLOW_PERIOD_MS = 1_000;
+// Ready-glow period shared by every skill/ultimate button (generalized from
+// the Sheriff dynamite's gold glow).
+export const READY_GLOW_PERIOD_MS = 1_000;
 export const COOLDOWN_RING_TRANSITION_MS = 100;
 export const SHERIFF_REFUND_GROUP_TTL_MS = 9_000;
 export const SHERIFF_READY_SOUND = Object.freeze({ frequency: 1_175, durationMs: 260, gain: 0.12, type: 'sine' });
@@ -216,6 +218,45 @@ export const DUMMY_KNOCKBACK_MULT = 1.5;
 export const DUMMY_FRICTION = 0.88;
 export const DUMMY_RESPAWN_S = 3;
 export const DUMMY_FADE_MS = 400;
+
+// --- Ability HUD button cluster (bottom-right restyle) ---------------------
+// Three round buttons: M1 smallest on the bottom row left of Q, E medium
+// directly above Q (centred over it), Q biggest bottom-right. M1 and Q share
+// a bottom baseline because both carry the key-label strip. Every button has
+// a thick near-black outline and a pure-white icon; the key label sits below
+// the circle, outside it.
+export const BTN_SIZE_PRIMARY = 56;
+export const BTN_SIZE_SKILL = 70;
+export const BTN_SIZE_ULT = 88;
+export const BTN_OUTLINE_WIDTH = 4;
+export const BTN_OUTLINE_COLOR = '#101018';
+// Horizontal gap between the circles (spec: about 10-14 px).
+export const BTN_GAP_X = 12;
+// Circle bottom -> key label top, and the height of the label strip.
+export const BTN_LABEL_GAP = 4;
+export const BTN_LABEL_HEIGHT = 22;
+export const BTN_LABEL_SIZE = 13;
+// The E key label sits in the gap between the E and Q circles, so its strip
+// must clear the Q circle by at least this much (spec: >= 22 px).
+export const BTN_LABEL_CLEARANCE = 22;
+// White icon diameter as a fraction of the button diameter (spec: ~55%).
+export const BTN_ICON_SCALE = 0.55;
+// Pilot Mech Suit swaps the M1/E icons to the mech pair while it is up.
+export const MECH_ICON_SWAP = true;
+// Button colours per hero TYPE family, stepping lightest (primary) to medium
+// (skill) to darkest (ultimate) so size and shade both tell the hierarchy.
+// The WHITE icon must keep >= 3:1 contrast against every value (WCAG 1.4.11
+// non-text contrast). The highlight family started at #D99A00/#C48400/#A86E00
+// and failed on primary (2.45:1), so it was darkened just enough to pass
+// while keeping the step order; verify with scratch/_stage2_contrast.js.
+export const BTN_COLORS = Object.freeze({
+  physical: Object.freeze({ primary: '#2F96D4', skill: '#1E78C8', ultimate: '#2F3AB8' }),
+  magic: Object.freeze({ primary: '#9B7BE8', skill: '#7B4FD8', ultimate: '#4B2AA8' }),
+  highlight: Object.freeze({ primary: '#C08400', skill: '#A86E00', ultimate: '#8A5800' }),
+});
+// Amber highlight buttons turn bright gold while READY (generalized from the
+// Sheriff Dynamite's ready colour).
+export const BTN_HIGHLIGHT_READY_COLOR = '#ffd34f';
 
 // Performance profiler. Debug builds only (same gate as the debug menu): the
 // overlay samples once a second and keeps a short trace for kill bursts.

@@ -8,7 +8,7 @@ Base stats are shown before kingdom upgrades and wave buffs. Attack values are b
 
 | Hero | Type | HP | Attack | Defense | Speed | Weapon | Skill | Ultimate | Talent |
 | --- | --- | ---: | ---: | ---: | ---: | --- | --- | --- | --- |
-| Sheriff 🤠 | Physical | 105 | 12 | 5 | 225 | Revolver | Dynamite | Deadeye | Quick Draw — each kill refunds 0.4 s; one Dynamite blast refunds at most 2 s. |
+| Sheriff 🤠 | Physical | 105 | 12 | 5 | 225 | Revolver | Dynamite | Bullet Rush | Quick Draw — each kill refunds 0.4 s; one Dynamite blast refunds at most 2 s. |
 | Guardian 🛡️ | Physical | 155 | 18 | 12 | 190 | Shield Bash | Shield Rush | Unbreakable Charge | Unstoppable — dash kills extend the dash; Charge ramps damage and ends with a slam. |
 | Pilot 🧑‍✈️ | Physical | 78 | 10 | 2 | 245 | Scattershot | Dash | Mech Suit | Adrenaline — kills bring Mech Suit closer. |
 | Bombardier 💣 | Magic | 95 | 22 | 3 | 210 | Blast Bomb | Proximity Trap | Targeted Bombing | Demolitionist — primary fire explodes. |
@@ -31,7 +31,7 @@ Cooldowns below are the base server values, before run buffs and hero talents. W
 ### Sheriff
 
 - **Revolver:** Fires one fast bullet. **Dynamite (E):** Throws a fast explosive with a 1.5 s lifetime and 115 px blast radius; it deals 1.6× attack damage.
-- **Deadeye (Q):** Lasts 5 s and fires an 8 px bullet every 0.18 s while primary fire is held. Aim and position continue updating during the stream.
+- **Bullet Rush (Q):** Lasts 5 s and fires an 8 px bullet every 0.18 s while primary fire is held. Aim and position continue updating during the stream.
 - **Quick Draw:** Each qualifying kill refunds 0.4 s from Dynamite's remaining cooldown. Dynamite kills qualify, but a single Dynamite blast can refund at most 2 s total. Dynamite's base cooldown remains 8 s.
 
 ### Guardian
@@ -51,7 +51,7 @@ Cooldowns below are the base server values, before run buffs and hero talents. W
 
 - **Blast Bomb:** Bomb travels at 410 px/s, then explodes at its 0.85 s lifetime or range end, dealing 1.2× attack damage in a 100 px radius.
 - **Proximity Trap (E):** Places a trap at Bombardier's position. It triggers within 125 px, then deals 2.2× attack damage in a 130 px blast.
-- **Targeted Bombing (Q):** Opens a 5 s targeting window. Right-click confirms a 280 px pattern and schedules five bombs at 1 s intervals. Each blast uses a 135 px radius and 1.7× attack damage. The 40 s cooldown starts on confirmation; canceling or timing out does not consume it.
+- **Targeted Bombing (Q):** Opens a 5 s targeting window. Left-click confirms a 280 px pattern and schedules five bombs at 1 s intervals. Each blast uses a 135 px radius and 1.7× attack damage. The 40 s cooldown starts on confirmation; canceling or timing out does not consume it.
 
 ### Bubbles
 
@@ -88,7 +88,7 @@ At level 3, the Library or Workshop grants +30% matching attack. With the 100 HP
 | Weapon | Left mouse button |
 | Skill | `E` |
 | Ultimate | `Q` |
-| Bombardier target | Activate ultimate with `Q`, aim, then right-click to confirm; `Esc` cancels |
+| Bombardier target | Activate ultimate with `Q`, aim, then left-click to confirm; `Esc` cancels |
 | Hero information | `I` or the Information button |
 
 ## Game loop
