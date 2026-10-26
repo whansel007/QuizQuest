@@ -73,7 +73,9 @@ onUnmounted(() => reserve(null));
     </template>
     <p v-if="status.detail" class="small">{{ status.detail }}</p>
     <p v-if="status.active" class="small muted">You can keep working or leave this page; progress is saved.</p>
-    <p v-else-if="job.retryAt > Date.now()" class="small">Try again after {{ when(job.retryAt) }}.</p>
+    <!-- The retry time matters most while the batch waits for capacity, so it
+         is shown in every state, not only once the batch has stopped. -->
+    <p v-if="job.retryAt > Date.now()" class="small">Try again after {{ when(job.retryAt) }}.</p>
     <p v-if="status.warnings" class="small">{{ status.warnings === 1 ? '1 warning is' : status.warnings + ' warnings are' }} shown with the generation results.</p>
     <div v-if="status.saved || status.canResume" class="gen-status-actions">
       <button v-if="status.saved" type="button" class="btn small primary" @click="emit('view')">View Question Bank</button>

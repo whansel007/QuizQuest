@@ -114,7 +114,8 @@ describe('QuestionCard Integration', () => {
     expect(wrapper.text()).toContain('v2 (live: v1)');
   });
 
-  // Verify that open student reports are shown and resolved ones are hidden.
+  // Verify that open student reports are listed and resolved ones are kept
+  // for the record in a collapsed section, never in the open list.
   it('shows open student reports only', () => {
     const wrapper = mountCard(question('published', {
       reports: [
@@ -123,9 +124,21 @@ describe('QuestionCard Integration', () => {
       ],
     }));
 
-    expect(wrapper.text()).toContain('Option C is also correct');
-    expect(wrapper.text()).not.toContain('Typo in the question');
+    const reports = wrapper.findAll('.note').filter((n) => n.text().includes('Student report'));
+    const open = reports.filter((n) => n.text().includes('Awaiting review'));
+    const resolved = reports.filter((n) => n.text().includes('Resolved'));
+    expect(open.length).toBe(1);
+    expect(open[0].text()).toContain('Option C is also correct');
+    expect(resolved.length).toBe(1);
+    expect(resolved[0].text()).toContain('Typo in the question');
     expect(buttons(wrapper)).toContain('Mark resolved');
+
+    // The resolved report is only reachable through the collapsed section.
+    const collapsed = wrapper.findAll('details').filter((d) => d.text().includes('Resolved reports'));
+    expect(collapsed.length).toBe(1);
+    expect(collapsed[0].text()).toContain('Resolved reports (1)');
+    expect(collapsed[0].text()).toContain('Typo in the question');
+    expect(collapsed[0].attributes('open')).toBeUndefined();
   });
 
   // Verify that clicking Edit opens the editor under the card.

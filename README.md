@@ -13,11 +13,11 @@ pets, kingdom buildings and loot in a co-op multiplayer World.
 
 - **Question bank:** single answer, select-all, true/false, numeric, short answer
   and maths templates (fresh numbers per student), with versioning and review.
-- **Source material:** paste text or import multiple PDFs, PPTX decks (with
-  speaker notes), TXT, Markdown or CSV files. Text is extracted in the
-  browser, so the PDF itself never leaves the professor's machine.
-- **AI drafting:** questions drafted from retrieved course material, always saved
-  as drafts for professor review. An offline drafter works without an AI key.
+- **AI drafting:** weekly topics, lecture-file upload (PDF, PPTX decks with
+  speaker notes, TXT, Markdown or CSV), a knowledge report, and questions
+  drafted from that material, always saved as drafts for professor review. Text
+  is extracted in the browser, so the PDF itself never leaves the professor's
+  machine. An offline drafter works without an AI key.
 - **Adaptive practice:** broad at first, then ~70% general / ~30% weaker topics,
   favouring questions similar to ones the student got wrong. Timers, extra
   time and resume after refresh.
