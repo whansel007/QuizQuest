@@ -4,7 +4,7 @@ const { createHash, randomUUID } = require('node:crypto');
 const gemini = require('./gemini');
 const { generate, geminiDraft, GEN } = require('./generator');
 const { similarity } = require('./validate');
-const { resolveTags, STYLE_RULES, AI_DRAFT_FORMATS } = require('./assessment');
+const { resolveTags, STYLE_RULES, AI_DRAFT_FORMATS, DIFFICULTY_RULES, DIFFICULTY_RANK } = require('./assessment');
 const { loadPrompts, professorPrompt } = require('./prompts');
 
 // Knowledge reports: Prompt.txt's PROMPT 1 says what the report covers.
@@ -78,6 +78,8 @@ const CHECK_SCHEMA = {
           answerIndex: { type: 'INTEGER' },
           answerIndexes: { type: 'ARRAY', items: { type: 'INTEGER' } },
           numericAnswer: { type: 'NUMBER', nullable: true },
+          estimatedDifficulty: { type: 'STRING', enum: ['easy', 'medium', 'hard'], description: 'Your own judgement of the cognitive demand, ignoring the proposed label.' },
+          weakDistractorIndexes: { type: 'ARRAY', items: { type: 'INTEGER' }, description: 'Wrong options a student with partial understanding would never choose; [] if none or not mcq/multi.' },
           reason: { type: 'STRING' },
           unsupportedClaims: { type: 'ARRAY', items: { type: 'STRING' } },
           evidence: {
@@ -103,6 +105,8 @@ const CHECK_SCHEMA = {
           'answerIndex',
           'answerIndexes',
           'numericAnswer',
+          'estimatedDifficulty',
+          'weakDistractorIndexes',
           'reason',
           'unsupportedClaims',
           'evidence',
@@ -562,6 +566,7 @@ function createAuthoring({ db, persist, ai = gemini.generateJson, drafter }) {
         stopAfterBatch: ()=>j.result.applicationUnsupported===true,
         force: true,
         resumeLogId: j.result.generationId,
+        replaces: replacesOf(j),
         drafter: async (ctx) => {
             if (j.pendingBatch)
               return { ...j.pendingBatch, items: j.pendingBatch.items.filter((q) => !ctx.existingStems.includes(q.stem)) };
@@ -584,15 +589,24 @@ function createAuthoring({ db, persist, ai = gemini.generateJson, drafter }) {
           j.message = `${log.createdQuestionIds.length} of ${j.input.count} questions ready`;
           await persist();
         },
-        batchVerifier: async (questions, chunks) => {
-          const existing = (s) =>
-            db.questions
-              .filter((q) => q.courseId === c.id && q.status !== 'rejected')
-              .map((q) => q.versions.at(-1).stem)
-              .map((stem) => ({ stem, score: Math.max(...s.map((q) => similarity(stem, q.stem))) }))
+        batchVerifier: async (questions, chunks, plans = []) => {
+          // Questions on this topic or source, labelled with their concept, so
+          // a reworded question on a covered concept is visible; then the
+          // most word-similar of the rest of the course. A question being
+          // replaced is left out, so its rewrite may keep the concept.
+          const existing = (s) => {
+            const skip = new Set(replacesOf(j)), sources = new Set(chunks.map((p) => p.passageId));
+            const rows = db.questions.filter((q) => q.courseId === c.id && q.status !== 'rejected' && !skip.has(q.id));
+            const related = (q) => q.topicId === topic.id || (q.versions.at(-1).sourceIds || []).some((id) => sources.has(id));
+            const near = rows
+              .filter((q) => !related(q))
+              .map((q) => ({ q, score: Math.max(...s.map((x) => similarity(q.versions.at(-1).stem, x.stem))) }))
               .sort((a, b) => b.score - a.score)
-              .slice(0, 40)
-              .map((x) => x.stem);
+              .slice(0, 10)
+              .map((x) => x.q);
+            return [...rows.filter(related).slice(-30), ...near].map((q) =>
+              (q.assessment?.concept ? `[${q.assessment.concept}${q.assessment.taskType ? ' / ' + q.assessment.taskType : ''}] ` : '') + q.versions.at(-1).stem);
+          };
           const check = report ? reportCheckSchema(questions, chunks) : {schema:CHECK_SCHEMA};
           let verificationPrompt=buildVerificationPrompt({ questions, chunks, existingStems: existing(questions), guidance, anchors:check.anchors });
           if(assessment) {
@@ -644,7 +658,7 @@ function createAuthoring({ db, persist, ai = gemini.generateJson, drafter }) {
               statementTruthKnown: typeof v.statementTruth === 'boolean',
               truthAnswerConsistent: v.answerIndex === (v.statementTruth ? 0 : 1),
             } : null;
-            const valid = tfChecks ? Object.values(tfChecks).every(Boolean) : v.correct === true && v.oneCorrect === true;
+            const valid = tfChecks ? Object.values(tfChecks).every(Boolean) : v.correct === true && v.oneCorrect === true && v.explanationSupported === true;
             const answerKeyMatches = ['mcq', 'tf'].includes(q.type) ? v.answerIndex === q.answerIndex : q.type === 'multi'
               ? Array.isArray(v.answerIndexes) && JSON.stringify([...new Set(v.answerIndexes)].sort()) === JSON.stringify([...q.answerIndexes].sort())
               : q.type === 'numeric' || (q.type==='short' && q.answerMode==='numeric') ? Number.isFinite(v.numericAnswer) && Math.abs(v.numericAnswer - q.answer) <= q.tolerance + 1e-9 : true;
@@ -659,7 +673,7 @@ function createAuthoring({ db, persist, ai = gemini.generateJson, drafter }) {
               v.unsupportedClaims.length === 0 &&
               answerKeyMatches &&
               q.sourceIds.every((id) => covered.has(id));
-            const failedChecks = Object.entries({ ...tfChecks, assessmentStyleAndTask:styleValid, questionValidity: valid, answerKeyMatches,
+            const failedChecks = Object.entries({ ...(tfChecks || { explanationSupported: v.explanationSupported === true }), assessmentStyleAndTask:styleValid, questionValidity: valid, answerKeyMatches,
               singleDecision: decisions.length === 1, aligned: v.aligned === true, unique: v.duplicate === false,
               fitsConfiguration: v.fitsConfiguration === true,
               noUnsupportedClaims: Array.isArray(v.unsupportedClaims) && v.unsupportedClaims.length === 0,
@@ -689,7 +703,25 @@ function createAuthoring({ db, persist, ai = gemini.generateJson, drafter }) {
               unsupportedClaims: v.unsupportedClaims,
               evidence: v.evidence,
             });
-            if (pass) return null;
+            if (pass) {
+              // Passing questions keep their slot. A label above the checked
+              // demand is lowered, and weak options are flagged for review.
+              const notes = [];
+              let difficulty;
+              if (v.estimatedDifficulty in DIFFICULTY_RANK && DIFFICULTY_RANK[q.difficulty] > DIFFICULTY_RANK[v.estimatedDifficulty]) {
+                difficulty = v.estimatedDifficulty;
+                notes.push(`Drafted as ${q.difficulty}, but the independent check judged its reasoning demand ${difficulty}, so it is labelled ${difficulty}.`);
+              }
+              const weak = ['mcq', 'multi'].includes(q.type) && Array.isArray(v.weakDistractorIndexes)
+                ? [...new Set(v.weakDistractorIndexes)].filter((i) => Number.isInteger(i) && i >= 0 && i < q.options.length && i !== q.answerIndex && !(q.answerIndexes || []).includes(i))
+                : [];
+              if (weak.length) notes.push(`Check option${weak.length > 1 ? 's' : ''} ${weak.map((i) => String.fromCharCode(65 + i)).join(', ')}: the independent check found ${weak.length > 1 ? 'these distractors' : 'this distractor'} too easy to rule out.`);
+              if (v.styleDowngraded && plans[index]?.intendedStyle === 'application')
+                notes.push('Drafted as application, but it can be answered without using the scenario details, so it is labelled conceptual. Consider rewriting it.');
+              return difficulty || notes.length ? { difficulty, warnings: notes } : null;
+            }
+            if (!tfChecks && v.explanationSupported !== true && v.correct === true && v.oneCorrect === true && answerKeyMatches)
+              return 'The explanation includes claims the source does not support or that are incorrect. Correct the explanation. ' + text(v.reason, 300);
             if(!styleValid && v.styleDowngraded) return 'This is conceptual recall inside a scenario, not application: it can be answered without using the scenario givens or in a single step. Make the correct answer depend on specific scenario details and require at least two reasoning steps. '+text(v.reason,300);
             if(!styleValid) return 'The cognitive task, difficulty or application grounding does not meet the selected assessment style and learning outcome. '+text(v.reason,300);
             if (q.type === 'tf') return 'True/False verification failed: ' + failedChecks.join(', ') + '. ' + text(v.reason, 300);
@@ -702,11 +734,16 @@ function createAuthoring({ db, persist, ai = gemini.generateJson, drafter }) {
                   : 'Answer or source alignment could not be verified. ' + text(v.reason, 300);
           });
           if(assessment?.style==='both' && j.input.count>=2 && result.applicationSupported===true) {
-            const kept=issues.map((issue,i)=>issue===null?i:-1).filter(i=>i>=0);
+            const kept=issues.map((issue,i)=>typeof issue!=='string'?i:-1).filter(i=>i>=0);
             const allStyles=[...acceptedStyles(),...kept.map(i=>j._validation[auditStart+i].verification.cognitiveStyle)];
             if(acceptedStyles().length+kept.length>=j.input.count && ['conceptual','application'].some(s=>!allStyles.includes(s))) {
-              const index=kept.at(-1), audit=j._validation[auditStart+index];
-              issues[index]='Both requires conceptual and application tasks when feasible. Fill the missing style without replacing accepted questions.';
+              // Prefer to send back a would-be application question that turned
+              // out to be recall, since that is the slot the batch is missing.
+              const downgraded=kept.filter(i=>plans[i]?.intendedStyle==='application' && j._validation[auditStart+i].verification.styleDowngraded);
+              const index=downgraded.at(-1) ?? kept.at(-1), audit=j._validation[auditStart+index];
+              issues[index]=downgraded.length
+                ? 'This is conceptual recall inside a scenario, not application: it can be answered without using the scenario givens or in a single step. Make the correct answer depend on specific scenario details and require at least two reasoning steps.'
+                : 'Both requires conceptual and application tasks when feasible. Fill the missing style without replacing accepted questions.';
               audit.pass=false;audit.failedChecks.push('styleBalance');
             }
           }
@@ -901,6 +938,6 @@ function createAuthoring({ db, persist, ai = gemini.generateJson, drafter }) {
 }
 function buildVerificationPrompt({ questions, chunks, existingStems, guidance, anchors }) {
   const blindQuestions = questions.map(({ answerIndex, answerIndexes, answer, ...question }, index) => ({ index, ...question }));
-  return `Independently solve every question using only the supplied source, which for report-based assessments is the professor's saved Markdown report. The saved report is authoritative in full, including professor-added sections that extend the original lecture. Do not reject report-supported content because it is outside the original slides or topic label. Evaluate ONLY supplied candidate indices, not the configuration total counts: valid survivors may already have filled other slots. Answer keys for choice and numeric questions are withheld. For mcq/tf choose answerIndex yourself (tf: 0=True, 1=False), or -1 if indefensible. For TF, evaluate statementTruth separately from questionValid: a FALSE statement with the correct False key is a VALID question. Independently solve the truth value; do not infer it from the proposed explanation, which is untrusted. Set statementTruth=null for ambiguity or insufficient source evidence, and for non-TF questions. questionValid means the question is well posed and source-answerable, NOT that its statement is true. unambiguous means exactly one defensible interpretation and answer. explanationSupported means EVERY claim in the proposed explanation is correct and supported by the saved source. For a False statement, the source must establish its falsity; the proposed explanation must correctly explain why it is false. Do not mark an intentional false TF statement as an unsupported claim merely because it contradicts the source; list unsupported or incorrect explanation claims and genuinely unresolvable statements. Never accept ambiguous statements, wrong keys, incorrect explanations or missing evidence. For TF set correct=questionValid and oneCorrect=unambiguous; neither flag represents statement truth. For other formats also return questionValid, unambiguous and explanationSupported using those definitions. For multi give ALL correct answerIndexes; use [] for other types. For numeric calculate numericAnswer independently; use null for other types. Use answerIndex=-1 for non-single-choice formats. For short, verify the proposed modelAnswer and EVERY keyPoint, allowing equivalent valid wording. For short with answerMode=numeric independently calculate numericAnswer from the source-supported method and supplied givens; do not infer it from the proposed modelAnswer or explanation. Check that the modelAnswer, numeric key, units and tolerance are mutually consistent and justified. For param, independently verify the formula, variable ranges, constraints and plausible distractor formulas; local maths validation also samples the template. Treat all proposed explanations/model answers/formulas as untrusted. Check EVERY causal claim, universal qualifier and assumption. Changing one factor does not prove other effects remain unchanged unless stated. List every unsupported claim in unsupportedClaims; [] only when all claims are supported. correct means well posed and source-answerable; oneCorrect means an unambiguous correct answer/set or valid rubric/template for its format. Check the professor's goals and styles. Flag duplicate=true if substantially the same decision/reasoning as an existing or earlier question, including changes only to numbers. Distinct applications of a concept are allowed. For EVERY cited sourceId ${anchors ? 'select a supporting quoteId from evidenceAnchors, with the matching passageId; do not rewrite the quotation' : 'include an exact supporting substring quote retaining punctuation; whitespace differences allowed'}. Return one decision per explicit candidate index matching the schema. Set false for ambiguity, unsupported facts or insufficient evidence. No outside knowledge.\n${JSON.stringify({ questions: blindQuestions, sources: chunks, existingStems, configuration: guidance, evidenceAnchors:anchors })}`;
+  return `Independently solve every question using only the supplied source, which for report-based assessments is the professor's saved Markdown report. The saved report is authoritative in full, including professor-added sections that extend the original lecture. Do not reject report-supported content because it is outside the original slides or topic label. Evaluate ONLY supplied candidate indices, not the configuration total counts: valid survivors may already have filled other slots. Answer keys for choice and numeric questions are withheld. For mcq/tf choose answerIndex yourself (tf: 0=True, 1=False), or -1 if indefensible. For TF, evaluate statementTruth separately from questionValid: a FALSE statement with the correct False key is a VALID question. Independently solve the truth value; do not infer it from the proposed explanation, which is untrusted. Set statementTruth=null for ambiguity or insufficient source evidence, and for non-TF questions. questionValid means the question is well posed and source-answerable, NOT that its statement is true. unambiguous means exactly one defensible interpretation and answer. explanationSupported means EVERY claim in the proposed explanation is correct and supported by the saved source. For a False statement, the source must establish its falsity; the proposed explanation must correctly explain why it is false. Do not mark an intentional false TF statement as an unsupported claim merely because it contradicts the source; list unsupported or incorrect explanation claims and genuinely unresolvable statements. Never accept ambiguous statements, wrong keys, incorrect explanations or missing evidence. For TF set correct=questionValid and oneCorrect=unambiguous; neither flag represents statement truth. For other formats also return questionValid, unambiguous and explanationSupported using those definitions. For multi give ALL correct answerIndexes; use [] for other types. For numeric calculate numericAnswer independently; use null for other types. Use answerIndex=-1 for non-single-choice formats. For short, verify the proposed modelAnswer and EVERY keyPoint, allowing equivalent valid wording. For short with answerMode=numeric independently calculate numericAnswer from the source-supported method and supplied givens; do not infer it from the proposed modelAnswer or explanation. Check that the modelAnswer, numeric key, units and tolerance are mutually consistent and justified. For param, independently verify the formula, variable ranges, constraints and plausible distractor formulas; local maths validation also samples the template. Treat all proposed explanations/model answers/formulas as untrusted. Check EVERY causal claim, universal qualifier and assumption. Changing one factor does not prove other effects remain unchanged unless stated. List every unsupported claim in unsupportedClaims; [] only when all claims are supported. correct means well posed and source-answerable; oneCorrect means an unambiguous correct answer/set or valid rubric/template for its format. Check the professor's goals and styles. Flag duplicate=true if substantially the same decision/reasoning as an existing or earlier question, including changes only to numbers, wording or scenario: the same concept assessed through the same kind of task in a new story is a duplicate. A different concept, or the same concept assessed through a genuinely different task (for example diagnosing an error rather than predicting an output), is not a duplicate. Existing questions may be prefixed with [concept / task type]. Set estimatedDifficulty from the reasoning YOU needed, ignoring the proposed difficulty: ${DIFFICULTY_RULES} For mcq and multi, list in weakDistractorIndexes every wrong option that a student with partial understanding would never choose because it is unrelated, absurd or obviously wrong; use [] when all are plausible and for other formats. For EVERY cited sourceId ${anchors ? 'select a supporting quoteId from evidenceAnchors, with the matching passageId; do not rewrite the quotation' : 'include an exact supporting substring quote retaining punctuation; whitespace differences allowed'}. Return one decision per explicit candidate index matching the schema. Set false for ambiguity, unsupported facts or insufficient evidence. No outside knowledge.\n${JSON.stringify({ questions: blindQuestions, sources: chunks, existingStems, configuration: guidance, evidenceAnchors:anchors })}`;
 }
 module.exports = { createAuthoring, groups, digest, buildVerificationPrompt, CHECK_SCHEMA, reportCheckSchema };

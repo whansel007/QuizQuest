@@ -20,7 +20,7 @@ const crypto = require('crypto');
 const { validateQuestion, duplicateContent } = require('./validate');
 const { retrieve } = require('./retrieval');
 const gemini = require('./gemini');
-const { STYLE_RULES, APPLICATION_GUIDE, BLUEPRINT_SCHEMA } = require('./assessment');
+const { STYLE_RULES, APPLICATION_GUIDE, COVERAGE_GUIDE, BLUEPRINT_SCHEMA, DIFFICULTY_RULES, sameConcept, planOf } = require('./assessment');
 const designGuidance = require('./design-guidance');
 const { loadPrompts, professorPrompt } = require('./prompts');
 const { dayKey } = require('./time');
@@ -29,7 +29,7 @@ const GEN = {
   maxBatch: 10,
   dailyCallsPerCourse: 30,
   retries: 2, // re-ask the model this many times on malformed output
-  promptVersion: 'v4',
+  promptVersion: 'v5',
   aiFormats: ['mcq', 'tf', 'multi', 'numeric', 'short', 'param'],
 };
 
@@ -49,11 +49,11 @@ const SYSTEM_PROMPT = [
 ].join(' ');
 
 const FORMAT_RULES = {
-  mcq: 'type "mcq": exactly 4 options, answerIndex = index of the single correct option, plausible distractors.',
-  tf: 'type "tf": stem is a statement; answerIndex 0 = True, 1 = False. Aim for a mix of true and false statements.',
-  multi: 'type "multi": 4-5 options, answerIndexes = indexes of ALL correct options (at least 2 correct, at least 1 wrong).',
+  mcq: 'type "mcq": exactly 4 options, answerIndex = index of the single correct option, plausible distractors. Each wrong option must reflect a specific misconception or misapplication from the source; keep options similar in length and form, and never use "all of the above" or "none of the above".',
+  tf: 'type "tf": stem is a statement; answerIndex 0 = True, 1 = False. Aim for a mix of true and false statements. Test a meaningful relationship or a common misconception, not a trivial detail; a false statement should be a plausible misconception.',
+  multi: 'type "multi": 4-5 options, answerIndexes = indexes of ALL correct options (at least 2 correct, at least 1 wrong). Every option is a separate judgement about the same stem or scenario, and each correct option must be defensible on its own.',
   numeric: 'type "numeric": the answer is a single number in "answer"; give "tolerance" (0 for exact) and "unit" (may be empty).',
-  short: 'type "short": a question accepting a text or numerical answer in the existing text response. Give modelAnswer as a string and 2-4 keyPoints forming a precise grading rubric. For a purely numerical answer set answerMode="numeric" and supply finite answer, nonnegative tolerance, unit, modelAnswer and keyPoints; these reuse numeric checking inside Short Answer. Independently calculate the value and explain the source-supported method. For text or answers requiring explanatory work set answerMode="text" and use the modelAnswer/keyPoints rubric. Do not output a numeric or param question type when short is requested.',
+  short: 'type "short": a question accepting a text or numerical answer in the existing text response. Ask the student to explain, justify, apply, write or trace code rather than name a term. Give modelAnswer as a string and 2-4 keyPoints forming a precise grading rubric that credits the reasoning steps, not just keywords. For a purely numerical answer set answerMode="numeric" and supply finite answer, nonnegative tolerance, unit, modelAnswer and keyPoints; these reuse numeric checking inside Short Answer. Independently calculate the value and explain the source-supported method. For text or answers requiring explanatory work set answerMode="text" and use the modelAnswer/keyPoints rubric. Do not output a numeric or param question type when short is requested.',
   param:
     'type "param": a calculation template. Put placeholders like {a} in the stem. Define "variables" [{name,min,max,step}], "answerExpr" (formula using + - * / ^ ( ) and sqrt, abs, round, min, max), 2-3 "distractorExprs" that model COMMON MISTAKES, optional "constraint" (e.g. "a != b"), "decimals" (0-2) and "unit". The explanation may use {answer} and variable placeholders.',
 };
@@ -153,9 +153,10 @@ function generationRules(sourceKind) {
       ' Use only source-supported subject knowledge and methods.',
     '- Number and types: write exactly the number and types of questions requested below, not a fixed 10 multiple-choice questions. The professor chose them for this batch.',
     '- "4 options, one correct answer, and an explanation" applies to single-answer (mcq) questions. Other requested types follow their own format rules below, and every question has an explanation.',
-    '- Difficulty: mix moderate questions (difficulty "medium") and challenging ones (difficulty "hard"). Use "easy" only when the assessment configuration or subject guidance asks for easier questions.',
+    '- Difficulty: mix moderate questions (difficulty "medium") and challenging ones (difficulty "hard"). Use "easy" only when the assessment configuration or subject guidance asks for easier questions. ' + DIFFICULTY_RULES + ' If a question makes less demand than its label, make the task harder rather than keep the label.',
     '- Style: test understanding and application of concepts, coding and calculations rather than recall of definitions. Write coding or calculation questions only where the source supports them. When the assessment configuration asks for conceptual questions, write conceptual questions that test understanding instead of application tasks.',
-    '- Coverage: cover different important topics and reasoning tasks from the source. Changing only numbers or paraphrasing the same decision is a duplicate.',
+    '- Coverage: cover different important topics and reasoning tasks from the source, giving each question a different concept where the source allows. Changing only the scenario, numbers or wording of the same decision is a duplicate.',
+    '- Sample questions in the source are illustrations of how ideas can be tested. Do not reproduce them or write light variations of them.',
     '- Cite only passages actually needed to support the answer and explanation.',
     "- Precedence, highest first: these rules and the response schema; the professor's settings for this batch (topic, learning outcome, question types and quantities, assessment configuration); the instructor's subject guidance for this course; then the professor instructions above.",
     '- Write maths and units in plain text (e.g. 1 px = 1/96 inch, x^2 + 1); never use LaTeX or $ delimiters, which are not rendered. Use × for multiplication, not *.',
@@ -166,6 +167,10 @@ function buildUserPrompt(ctx, prompts = loadPrompts()) {
   const { course, topic, outcome, count, format, chunks, quantities } = ctx;
   // Strip anything that could close our delimiter early
   const safe = (s) => String(s).replace(/<\/?chunk[^>]*>/gi, '');
+  // Questions on the same topic or source come first, with their concepts, so
+  // the drafter sees what is covered rather than the course's latest stems.
+  const related = ctx.relatedQuestions || [];
+  const relatedStems = new Set(related.map((r) => r.stem));
   return [
     professorPrompt(prompts.generation),
     '',
@@ -178,7 +183,12 @@ function buildUserPrompt(ctx, prompts = loadPrompts()) {
     `Write ${count} question(s). Format rules: ${quantities ? Object.keys(quantities).map((type) => FORMAT_RULES[type]).join('\n') : FORMAT_RULES[format]}`,
     quantities ? `Required quantities by type (return exactly these remaining slots): ${JSON.stringify(quantities)}` : null,
     'Professor assessment configuration: ' + (ctx.guidance || ''),
-    'Do not repeat these existing stems: ' + JSON.stringify((ctx.existingStems || []).slice(-80)),
+    related.length
+      ? 'Existing questions on this topic or source, as [concept / task type] stem. Do not repeat a concept with the same task type, and prefer concepts not listed yet: ' +
+        JSON.stringify(related.slice(-60).map((r) =>
+          (r.concept ? `[${r.concept}${r.taskType ? ' / ' + r.taskType : ''}] ` : '') + r.stem.slice(0, 200) + (r.rejected ? ' (rejected by the professor)' : '')))
+      : null,
+    'Do not repeat these existing stems: ' + JSON.stringify((ctx.existingStems || []).filter((s) => !relatedStems.has(s)).slice(related.length ? -20 : -80)),
     'Repair feedback from previous invalid slots: ' + JSON.stringify(ctx.validationFeedback || []),
     'Return {"questions":[...]}, matching the response schema.',
     '',
@@ -209,7 +219,7 @@ async function geminiDraft(ctx, client = gemini.generateJson) {
   }
   const guide=ctx.assessment && ctx.assessment.style!=='conceptual' ? '\n'+APPLICATION_GUIDE : '';
   const { json, raw, model } = await client({
-    system: SYSTEM_PROMPT + (ctx.assessment ? ' '+STYLE_RULES+guide : ''),
+    system: SYSTEM_PROMPT + (ctx.assessment ? ' '+STYLE_RULES+guide+'\n'+COVERAGE_GUIDE : ''),
     parts: [{ text: buildUserPrompt(ctx) }],
     schema,
   });
@@ -245,6 +255,7 @@ async function generate({
   onBatchComplete = async () => {},
   checkpoint = async () => {},
   resumeLogId,
+  replaces = [],
 }) {
   count = count === undefined ? 1 : count;
   if (!Number.isInteger(count) || count < 1 || count > GEN.maxBatch)
@@ -367,6 +378,25 @@ async function generate({
   const existingStems = db.questions
     .filter((q) => q.courseId === course.id && q.status !== 'rejected')
     .map((q) => ({ id: q.id, stem: q.versions.at(-1).stem }));
+  // Questions on this topic or citing this source. A question being replaced
+  // does not count, so a rewrite may keep its concept.
+  const related = () => db.questions
+    .filter((q) => q.courseId === course.id && !replaces.includes(q.id) &&
+      (q.topicId === topic.id || (q.versions.at(-1).sourceIds || []).some((id) => allowed.has(id))))
+    .map((q) => ({ concept: q.assessment?.concept, taskType: q.assessment?.taskType, stem: q.versions.at(-1).stem,
+      rejected: q.status === 'rejected', ownJob: q.generationId === log.id }));
+  // A job of up to 5 questions uses each concept once; 6-10 allows a second
+  // question on a concept, through a different task type.
+  const conceptCap = Math.max(1, Math.ceil(count / 5));
+  const conceptRepeat = (plan) => {
+    if (!plan.concept) return null;
+    const same = related().filter((r) => !r.rejected && r.concept && sameConcept(r.concept, plan.concept));
+    if (same.some((r) => r.ownJob && (r.taskType === plan.taskType || same.filter((x) => x.ownJob).length >= conceptCap)))
+      return `This repeats the concept "${plan.concept}", which another question in this batch already assesses. Choose a different concept from the source.`;
+    if (same.some((r) => !r.ownJob && plan.taskType && r.taskType === plan.taskType))
+      return `An existing question already assesses "${plan.concept}" with a ${plan.taskType} task. Choose a different concept, or assess this one through a different task type.`;
+    return null;
+  };
   let lastError,
     hadOutput = false,
     calls = 0;
@@ -390,6 +420,7 @@ async function generate({
           quantities: remaining(),
           count: Math.min(batchSize, count - log.createdQuestionIds.length),
           existingStems: existingStems.map((q) => q.stem),
+          relatedQuestions: related(),
           validationFeedback: log.rejected.slice(-5).map(({ stem, errors }) => ({ stem, errors })),
         });
         if (!out || !Array.isArray(out.items)) throw new Error('Missing questions array');
@@ -402,6 +433,7 @@ async function generate({
         continue;
       }
       const items = out.items.slice(0, Math.min(batchSize, count - log.createdQuestionIds.length));
+      const plans = items.map(planOf);
       const eligible = items
         .map((item, index) => ({ index, ...validateQuestion(item, { allowedSourceIds: allowed, requireSource: true, existingStems }) }))
         .filter((c) => !c.errors.length && matches(c.q) && (c.q.type !== 'mcq' || c.q.options?.length === 4) && (c.q.type!=='multi' || c.q.answerIndexes.length>=2));
@@ -410,6 +442,7 @@ async function generate({
         const issues = await batchVerifier(
           eligible.map((c) => c.q),
           chunks,
+          eligible.map((c) => plans[c.index]),
         );
         eligible.forEach((c, i) =>
           batchIssues.set(c.index, issues?.[i] === null ? null : issues?.[i] || 'Answer verification was incomplete.'),
@@ -428,7 +461,16 @@ async function generate({
           )
         )
           errors.push('This repeats another question or changes only its quantities.');
-        if (batchIssues.get(index)) errors.push(batchIssues.get(index));
+        // A verdict is null (pass), a string (the reason it failed) or an
+        // object: a pass with a corrected difficulty and reviewer warnings.
+        const verdict = batchIssues.get(index);
+        if (typeof verdict === 'string') errors.push(verdict);
+        else if (verdict) {
+          if (verdict.difficulty) q.difficulty = verdict.difficulty;
+          warnings.push(...(verdict.warnings || []));
+        }
+        const repeat = !errors.length && conceptRepeat(plans[index]);
+        if (repeat) errors.push(repeat);
         if (!errors.length && verifier) {
           try {
             const issue = await verifier(q, chunks);
@@ -450,7 +492,7 @@ async function generate({
           outcomeId: outcome.id,
           status: 'draft',
           origin: provider === 'gemini' ? 'ai' : provider,
-          ...(assessment ? {assessment:{...assessment,...questionMetadata(q)}} : {}),
+          ...(assessment ? {assessment:{...assessment,...plans[index],...questionMetadata(q)}} : {}),
           generationId: log.id,
           createdAt: now,
           createdBy: userId,

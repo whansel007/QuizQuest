@@ -31,7 +31,15 @@ Derived from `BRANDBOOK.md` (the QuizQuest brand book) — sections 1 and 9.
 - Name things the way the game does — adventurer, campfire, the clearing, the
   guild — but keep the subject vocabulary exact. The world is the setting, not
   the topic.
-- Keep stems short and scannable. One idea per question.
+- Keep the frame to one short clause, such as "The guild's scribe runs this
+  test:". Never shorten, hide or rename the givens to make room for it.
+- For code, data and calculations, the game world only says who is doing the
+  task. The code, numbers and results stay exactly as the subject needs them.
+- Use a quest or character only when it carries the givens the question needs.
+  If it adds nothing, leave it out: a plain, clear question is better than a
+  decorated one.
+- Keep wording scannable, and assess one skill per question. A hard question
+  may still need several givens or steps.
 
 ## What this must never do
 
