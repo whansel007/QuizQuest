@@ -82,3 +82,30 @@ test('uploads need no topic, and an unchanged excerpt re-uploaded with a new fil
   // A topic, when given, must still be valid.
   assert.equal((await req('POST',path+'/import',{...upload,topicId:'nope',outcomeId:'nope'},teacher)).status,400);
 });
+
+test('a note the professor wrote is part of the report material',async t=>{
+  const db=seed(),course=db.courses.find(c=>c.id==='c-comp');
+  let calls=0;
+  const api=createQuizApi({store:{db,save(){},flush:async()=>{},pending:()=>false},authoringAI:async()=>{calls++;return {json:{markdown,insufficient:false}};}});
+  const server=http.createServer((req,res)=>api.handle(req,res));
+  await new Promise(r=>server.listen(0,'127.0.0.1',r));t.after(()=>new Promise(r=>server.close(r)));
+  const base=`http://127.0.0.1:${server.address().port}`,path='/api/teacher/courses/c-comp';
+  async function req(method,url,body,token){const r=await fetch(base+url,{method,headers:{'content-type':'application/json',...(token?{authorization:'Bearer '+token}:{})},...(body?{body:JSON.stringify(body)}:{})});return {status:r.status,body:await r.json()};}
+  const teacher=(await req('POST','/api/login',{userId:'t-a'})).body.token;
+  // The professor writes a note for Week 2, instead of uploading a file.
+  const note=(await req('POST',path+'/passages',{topicId:'tp-net',outcomeId:'lo-net-1',title:'Latency notes',text:'Latency is the delay before data arrives.',origin:'paste',confirmNoPersonalData:true},teacher)).body;
+  assert.equal(note.importHash,undefined,'a note is not an uploaded excerpt');
+  // The report is made from that note.
+  const start=await req('POST',path+'/authoring',{kind:'report',topicId:'tp-net',materialIds:[note.id]},teacher);
+  assert.equal(start.status,202);
+  const job=course.authoringJobs.find(j=>j.id===start.body.id);await settled(job);
+  assert.equal(job.status,'complete');
+  assert.deepEqual(job.input.passageIds,[note.id],'the note is the material of the report');
+  // A note from another topic is not part of this topic's report.
+  const elsewhere=(await req('POST',path+'/passages',{topicId:'tp-data',outcomeId:'lo-data-1',title:'Number notes',text:'Binary uses two symbols.',origin:'paste',confirmNoPersonalData:true},teacher)).body;
+  assert.equal((await req('POST',path+'/authoring',{kind:'report',topicId:'tp-net',materialIds:[note.id,elsewhere.id]},teacher)).status,409,'material from another topic is refused');
+  // A note of another course is not part of it either.
+  const foreign=(await req('POST','/api/teacher/courses/c-stats/passages',{topicId:'tp-stats',outcomeId:'lo-stats-1',title:'Mean notes',text:'The mean is the sum divided by the count.',origin:'paste',confirmNoPersonalData:true},teacher)).body;
+  assert.equal((await req('POST',path+'/authoring',{kind:'report',topicId:'tp-net',materialIds:[note.id,foreign.id]},teacher)).status,409,'material from another course is refused');
+  assert.equal(calls,1,'only the report that was started used the AI');
+});

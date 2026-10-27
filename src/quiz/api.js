@@ -216,6 +216,9 @@ function createQuizApi({ dataFile = null, store = null, now = () => Date.now(), 
       generationId: q.generationId,
       publishedVersion: q.publishedVersion,
       createdAt: q.createdAt,
+      // What the drafter judged this draft to assess: the professor needs it
+      // to see what a rewrite would change.
+      cognitiveStyle: q.assessment?.cognitiveStyle || null,
       latest,
       typeLabel: TYPE_LABELS[latest.type || 'mcq'],
       sample: latest.type === 'param' ? instantiate(latest) : null,
@@ -1028,6 +1031,22 @@ attemptId: attempt.id,
       const j = authoring.regenerate(c, q, user.id);
       await persist();
       return [202, { id: j.id }];
+    }),
+  );
+  // Rewrite several drafts in one go, in the style the professor asks for.
+  route(
+    'POST',
+    '/api/teacher/questions/regenerate',
+    'teacher',
+    statusReply(async ({ user, body }) => {
+      const ids = Array.isArray(body?.ids) ? body.ids.filter((id) => typeof id === 'string') : [];
+      if (!ids.length) fail(400, 'Select at least one question to regenerate.');
+      if (ids.length > 10) fail(400, 'Regenerate up to 10 questions at a time.');
+      const qs = ids.map((id) => teacherQuestion(user, id)),
+        c = teacherCourse(user, qs[0].courseId);
+      const j = authoring.regenerateMany(c, qs, user.id, body?.assessmentStyle);
+      await persist();
+      return [202, { id: j.id, count: qs.length }];
     }),
   );
 

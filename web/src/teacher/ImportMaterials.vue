@@ -53,8 +53,13 @@ const warningSummary = computed(() => {
   return concerns.join(' · ') || 'Review AI descriptions before assessing';
 });
 const pendingFiles = computed(() => pending.value.length + failures.value.length);
+// The notes the professor wrote for this topic are course material too, so a
+// report is made from them as well as from the uploaded excerpts. The old
+// slide imports are kept for question history only and are not used here.
+const legacyImport = (p) => !p.importHash && (p.origin === 'pptx' || p.origin === 'pdf') && / — (Slide|Page) \d+$/.test(p.title);
+const notes = ref([]);
 function emitState() {
-  const materialIds = [...new Set(pages.value.filter(p=>p.saved).map(p=>p.id))];
+  const materialIds = [...new Set([...pages.value.filter(p=>p.saved).map(p=>p.id), ...notes.value.map(p=>p.id)])];
   emit('available', materialIds.length > 0);
   emit('state', { materialIds, names: names.value, pending: pendingFiles.value > 0, busy: busy.value, ready: !loading.value && verified.value });
 }
@@ -69,6 +74,7 @@ async function sync() {
   names.value = Object.fromEntries(all.map((p) => [p.id, p.fileName || p.title.split(' · ')[0]]));
   const material = all.filter(p=>p.attached !== false && (p.topicId ?? null) === topicId);
   const stored = material.filter(p=>p.importHash);
+  notes.value = material.filter(p=>!p.importHash && !legacyImport(p));
   const matches = (p,s) => s.title===p.title && s.text===p.text && s.documentId===p.documentId;
   // Server attachment state is authoritative for previously uploaded drafts.
   pages.value = pages.value.filter(p=>!p.saved || stored.some(s=>matches(p,s)));
@@ -292,6 +298,7 @@ async function save(onlyId = '') {
   <section class="panel upload-materials" aria-label="Upload materials">
     <h3>Upload Materials</h3>
     <p class="small muted">PDF, PowerPoint, Word, TXT, Markdown or CSV · Up to 100 MB each, 20 files at once.</p>
+    <p v-if="notes.length" class="small muted">{{ notes.length }} note(s) in this topic are part of the report: {{ notes.map((n) => n.title).join(' · ') }}</p>
     <p v-if="!pendingFiles && !busy" class="small muted">{{ savedFiles.length ? 'Add another lecture file to this topic.' : 'Choose lecture files to get started.' }}</p>
     <input ref="fileInput" aria-label="Lecture files" type="file" multiple :accept="ACCEPT" :disabled="locked" style="display:none" @change="choose" />
     <input ref="replaceInput" aria-label="Replacement lecture file" type="file" :accept="ACCEPT" :disabled="locked" style="display:none" @change="choose($event,replaceTarget,retryTarget)" />

@@ -9,7 +9,15 @@ import QuestionDetails from './QuestionDetails.vue';
 import { QUESTION_LABELS } from './question-types.js';
 import { ORIGIN, topicLabel } from './courses.js';
 
-const props = defineProps({ q: { type: Object, required: true }, course: { type: Object, required: true }, passages: { type: Array, required: true } });
+const props = defineProps({
+  q: { type: Object, required: true },
+  course: { type: Object, required: true },
+  passages: { type: Array, required: true },
+  // The guard rails: the professor ticks the drafts they want rewritten
+  selectable: { type: Boolean, default: false },
+  selected: { type: Boolean, default: false },
+});
+const emit = defineEmits(['toggle']);
 const { q, course } = props;
 const topic = course.topics.find((t) => t.id === q.topicId);
 const v = q.latest;
@@ -39,9 +47,14 @@ async function regenerate() {
 <template>
   <div :id="'qcard-' + q.id" class="panel qcard" tabindex="-1">
     <div class="meta">
+      <label v-if="selectable" class="qsel">
+        <input type="checkbox" :checked="selected" :aria-label="`Rewrite this ${QUESTION_LABELS[type] || q.typeLabel} question`" @change="emit('toggle', q.id)" />
+        <span>Rewrite</span>
+      </label>
       <span :class="'badge ' + q.status">{{ q.status }}</span>
       <span class="badge">{{ QUESTION_LABELS[type] || q.typeLabel }}</span>
       <span class="badge plain">{{ v.difficulty }}</span>
+      <span v-if="q.cognitiveStyle" class="badge plain">{{ q.cognitiveStyle === 'application' ? 'Application' : 'Conceptual' }}</span>
       <span class="badge plain">v{{ v.v }}{{ q.publishedVersion && q.publishedVersion !== v.v ? ` (live: v${q.publishedVersion})` : '' }}</span>
       <span v-if="q.origin" class="badge plain">{{ ORIGIN[q.origin] || q.origin }}</span>
       <span class="small muted">{{ topic ? topicLabel(topic) : q.assessment?.topic }}</span>
@@ -78,4 +91,6 @@ async function regenerate() {
 .question-provenance { margin:14px 0; }
 summary { cursor:pointer; color:var(--muted); font-size:.85rem; }
 .actions { border-top:1px solid var(--line); padding-top:14px; margin-top:16px; }
+.qsel { display:inline-flex; align-items:center; gap:6px; font-size:.8rem; cursor:pointer; }
+.qsel input { width:18px; height:18px; accent-color:var(--accent); cursor:pointer; }
 </style>

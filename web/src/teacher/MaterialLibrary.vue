@@ -205,7 +205,10 @@ const uploadFiles = computed(() => {
 });
 const replacedCount = computed(() => uploadFiles.value.filter((f) => !f.inUse).length);
 const manual = (topicId) => passages.value.filter((p) => p.topicId === topicId && !isUpload(p));
-const filesIn = (topicId) => uploadFiles.value.filter((f) => f.topicId === topicId && (topicId === null ? f.inUse || showReplaced.value : !f.inUse && showReplaced.value));
+// A topic lists the files it uses; the replaced versions are only added when
+// the professor asks to see them. Files that are not in a topic yet are
+// listed under "Files not in a topic", so they can be moved into one.
+const filesIn = (topicId) => uploadFiles.value.filter((f) => f.topicId === topicId && (f.inUse || showReplaced.value));
 // topics shown below: the chosen one, or every topic that has material
 const shownTopics = computed(() => (topic.value ? [topic.value] : course.value.topics.filter((t) => filesIn(t.id).length || manual(t.id).length)));
 // Files uploaded before weekly topics: move each into the week it belongs to

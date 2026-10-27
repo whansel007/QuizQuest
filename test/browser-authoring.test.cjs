@@ -530,7 +530,9 @@ test('remove and replace uploads survive recovery, preserve reports, and require
     await page.getByRole('button',{name:'Choose files',exact:true}).isEnabled();
     await page.waitForFunction(()=>![...document.querySelectorAll('button')].some(b=>b.textContent==='Choose files' && b.disabled));
   }
-  assert.equal(await page.getByRole('button',{name:'Generate report',exact:true}).count(),0);
+  // The topic still has its own notes, and notes are report material too.
+  await page.getByText(/note\(s\) in this topic are part of the report/).waitFor();
+  assert.equal(await page.getByRole('button',{name:'Generate report',exact:true}).count(),1);
   assert.equal(inferenceCalls,afterGeneration);
   assert.equal(JSON.stringify(srv.quiz.db.passages.filter(p=>p.origin==='report')),versions);
   assert.equal(await page.getByRole('combobox',{name:'Knowledge report',exact:true}).count(),1);
@@ -579,4 +581,41 @@ test('a stalled progress request releases controls and explicit refresh recovers
   await page.waitForFunction(() => [...document.querySelectorAll('button')].some(b => b.textContent === 'Refresh progress' && !b.disabled));
   assert.equal(await page.getByRole('alert').filter({ hasText: 'The request timed out.' }).count(), 0);
   assert.equal(inferenceCalls, before, 'recovery reads progress without generation');
+});
+
+test('a pending generation request belongs to its own topic', async t => {
+  const page = await browser.newPage();
+  t.after(() => page.close());
+  await page.goto(base);
+  await pickDemo(page, 'Prof. Demo A');
+  await page.locator('#tabs').getByRole('button', { name: 'AI drafting', exact: true }).click();
+  await page.getByLabel('Weekly topic').waitFor();
+  // A request that never reached the server is kept in the browser, so it can
+  // be retried without creating another batch. It belongs to one topic.
+  const pending = { kind: 'generation', attemptId: 'attempt-for-week-2', analysisId: 'a', reportRevision: 0, topicId: 'tp-net', learningOutcome: 'Describe how data moves across a network', assessmentStyle: 'conceptual', quantities: { mcq: 1 } };
+  await page.evaluate(async value => {
+    const db = await new Promise((res, rej) => {
+      const r = indexedDB.open('quizquest-authoring', 1);
+      r.onsuccess = () => res(r.result);
+      r.onerror = () => rej(r.error);
+    });
+    await new Promise((res, rej) => {
+      const tx = db.transaction('drafts', 'readwrite');
+      tx.objectStore('drafts').put(value, 'generation-attempt:t-a:c-comp:tp-net');
+      tx.oncomplete = res;
+      tx.onerror = () => rej(tx.error);
+    });
+    db.close();
+  }, pending);
+  const banner = page.getByRole('status').filter({ hasText: 'A generation request needs confirmation.' });
+  // Week 2 is the topic the request belongs to.
+  await page.getByLabel('Weekly topic').selectOption('tp-net');
+  await banner.waitFor();
+  // Another topic is neither blocked by it nor given its retry button.
+  await page.getByLabel('Weekly topic').selectOption('tp-data');
+  await banner.waitFor({ state: 'detached' });
+  assert.equal(await page.getByRole('button', { name: 'Retry generation request', exact: true }).count(), 0);
+  // And the request is still there when the professor comes back to Week 2.
+  await page.getByLabel('Weekly topic').selectOption('tp-net');
+  await banner.waitFor();
 });

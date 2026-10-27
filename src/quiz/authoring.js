@@ -2,7 +2,7 @@
 // extras in both JSON and Postgres; no parallel database or migration needed.
 const { createHash, randomUUID } = require('node:crypto');
 const gemini = require('./gemini');
-const { generate, geminiDraft } = require('./generator');
+const { generate, geminiDraft, GEN } = require('./generator');
 const { similarity } = require('./validate');
 const { resolveTags, STYLE_RULES, AI_DRAFT_FORMATS } = require('./assessment');
 const quoteText = (s) =>
@@ -213,12 +213,18 @@ function createAuthoring({ db, persist, ai = gemini.generateJson, drafter }) {
       // without one, every attached file of the course is used (older reports).
       const topicId = reportBased && raw.topicId !== undefined ? raw.topicId : undefined;
       if (topicId !== undefined && !db.topics.some((t) => t.id === topicId && t.courseId === c.id)) error(400, 'Unknown topic.');
-      const material = reportBased && db.passages.filter((p) => p.courseId === c.id && p.origin !== 'report' && p.attached !== false && (raw.materialIds === undefined || p.importHash)
-        && (topicId === undefined || p.topicId === topicId));
+      // The upload workflow supplies its attachment set explicitly, so the
+      // report is made from exactly those passages: the uploaded excerpts and
+      // the notes the professor wrote for the topic. Legacy course-material
+      // callers can still analyse manually entered sources.
       if (reportBased && raw.materialIds !== undefined && !Array.isArray(raw.materialIds)) error(400, 'Choose attached file excerpts.');
+      const listed = reportBased && raw.materialIds !== undefined ? raw.materialIds : null;
+      const material = reportBased && db.passages.filter((p) => p.courseId === c.id && p.origin !== 'report' && p.attached !== false
+        && (listed === null || listed.includes(p.id))
+        && (topicId === undefined || p.topicId === topicId));
       if (reportBased && raw.materialIds && hash([...raw.materialIds].sort()) !== hash(material.map((p) => p.id).sort()))
         error(409, 'Attached files changed. Refresh the upload list before generating a report.');
-      if (reportBased && !material.length) error(400, topicId === undefined ? 'Upload lecture material before generating a knowledge report.' : 'Upload lecture material for this topic before generating a knowledge report.');
+      if (reportBased && !material.length) error(400, topicId === undefined ? 'Add material before generating a knowledge report.' : 'Add material for this topic before generating a knowledge report.');
       if (reportBased && (material.length > 1000 || material.reduce((n,p)=>n+p.text.length,0) > 3000000))
         error(400, 'There is too much material for one report. Remove older material in Source material, then try again.');
       const pp = sources(c, reportBased ? { passageIds: material.map((p) => p.id) } : raw);
@@ -744,12 +750,73 @@ function createAuthoring({ db, persist, ai = gemini.generateJson, drafter }) {
     await persist();
     return j;
   }
-  function regenerate(c, q, userId) {
-    if (!['draft', 'rejected'].includes(q.status)) error(409, 'Only unpublished drafts can be regenerated.');
-    const parent = jobs(c).find((j) => j.kind === 'generation' && j.result.created?.includes(q.id));
-    if (!parent) error(409, 'Open AI drafting to choose material and create a replacement.');
+  // The professor ticks the drafts they want rewritten and asks for the style
+  // the replacements should be written in. One batch job covers them all: it
+  // keeps each question's format and the topic they share, so the replacements
+  // land in the same place as the drafts they replace.
+  const REWRITE_STYLES = ['conceptual', 'application', 'both'];
+  const replacesOf = (j) => (Array.isArray(j.replaces) ? j.replaces : [j.replaces]).filter(Boolean);
+
+  function regenerate(c, q, userId, requestedStyle) {
+    return rewrite(c, [q], userId, requestedStyle);
+  }
+  function regenerateMany(c, qs, userId, requestedStyle) {
+    return rewrite(c, qs, userId, requestedStyle);
+  }
+  function rewrite(c, list, userId, requestedStyle) {
+    const qs = [...list];
+    if (!qs.length) error(400, 'Select at least one question to regenerate.');
+    if (qs.length > GEN.maxBatch) error(400, `Regenerate up to ${GEN.maxBatch} questions at a time.`);
+    if (!gemini.enabled() && ai === gemini.generateJson)
+      error(400, 'AI drafting is unavailable. Ask your administrator to configure Gemini.');
+    const parents = new Map();
+    for (const q of qs) {
+      if (!['draft', 'rejected'].includes(q.status)) error(409, 'Only unpublished drafts can be regenerated.');
+      const parent = jobs(c).find((j) => j.kind === 'generation' && j.result.created?.includes(q.id));
+      if (!parent) error(409, 'Open AI drafting to choose material and create a replacement.');
+      parents.set(q.id, parent);
+    }
+    // One rewrite reads one topic and one learning outcome, so the batch has
+    // to sit inside one.
+    const topicId = qs[0].topicId,
+      outcomeId = qs[0].outcomeId;
+    if (qs.some((q) => q.topicId !== topicId || q.outcomeId !== outcomeId))
+      error(400, 'Select questions from one topic and learning outcome - they are rewritten together.');
+    // A single rewrite keeps the style the question already has. A batch is
+    // rewritten in the style the professor asked for.
+    const own = qs.length === 1 ? qs[0].assessment?.cognitiveStyle : undefined;
+    const style = REWRITE_STYLES.includes(requestedStyle) ? requestedStyle : own;
+    if (qs.length > 1 && !style)
+      error(400, 'Choose the assessment style for the rewrite: conceptual, application or both.');
+    const parent = parents.get(qs[0].id);
     const a = analysis(c, parent.input.analysisId);
-    const prior = jobs(c).find((j) => j.replaces === q.id);
+    // Keep the format of every selected question, so a short answer does not
+    // come back as multiple choice.
+    const quantities = {};
+    for (const q of qs) {
+      const type = q.versions.at(-1).type;
+      if (!AI_DRAFT_FORMATS.includes(type))
+        error(400, 'Only multiple choice, true/false, short answer and multiple answer questions can be regenerated.');
+      quantities[type] = (quantities[type] || 0) + 1;
+    }
+    const input = {
+      ...parent.input,
+      topicId,
+      outcomeId,
+      count: qs.length,
+      ...(style ? { assessmentStyle: style } : {}),
+      quantities,
+      ...(a.input.reportBased ? { reportRevision: a.reportRevision, reportSourceId: a.reportSourceId } : {}),
+    };
+    const ids = qs.map((q) => q.id).sort();
+    const prior = jobs(c).find((j) => {
+      const r = replacesOf(j);
+      return (
+        r.length === ids.length &&
+        ids.every((id) => r.includes(id)) &&
+        (j.input?.assessmentStyle || undefined) === (input.assessmentStyle || undefined)
+      );
+    });
     if (prior) return prior;
     if (jobs(c).some((j) => ['queued', 'running'].includes(j.status))) error(409, 'Another step is already running.');
     const j = {
@@ -757,11 +824,9 @@ function createAuthoring({ db, persist, ai = gemini.generateJson, drafter }) {
       provider: 'gemini',
       sourceDigest: a.input.reportBased ? hash([a.sourceDigest, a.reviewedText]) : parent.sourceDigest,
       id: 'job-' + randomUUID(),
-      key: hash(['regenerate', q.id]),
-      input: { ...parent.input, topicId:q.topicId, outcomeId:q.outcomeId, count: 1, ...(q.assessment?.cognitiveStyle ? {assessmentStyle:q.assessment.cognitiveStyle} : {}), ...(a.input.reportBased ? {
-        quantities: { [q.versions.at(-1).type]: 1 }, reportRevision: a.reportRevision, reportSourceId: a.reportSourceId,
-      } : {}) },
-      replaces: q.id,
+      key: hash(['regenerate', ...ids, input.assessmentStyle || '']),
+      input,
+      replaces: ids,
       result: {},
       _recovery: null,
       status: 'queued',
@@ -770,13 +835,16 @@ function createAuthoring({ db, persist, ai = gemini.generateJson, drafter }) {
       attempts: 0,
       calls: 0,
       metrics: [],
-      message: 'Preparing a replacement; your original draft is kept.',
+      message:
+        qs.length > 1
+          ? `Preparing ${qs.length} replacements; your original drafts are kept.`
+          : 'Preparing a replacement; your original draft is kept.',
     };
     jobs(c).push(j);
     kick(c, j);
     return j;
   }
-  return { start, resume, review, jobs, regenerate };
+  return { start, resume, review, jobs, regenerate, regenerateMany };
 }
 function buildVerificationPrompt({ questions, chunks, existingStems, guidance, anchors }) {
   const blindQuestions = questions.map(({ answerIndex, answerIndexes, answer, ...question }, index) => ({ index, ...question }));

@@ -76,7 +76,13 @@ const passwordInput = ref(null);
 const initial = computed(() => (email.value.trim()[0] || '?').toUpperCase());
 
 function focusStep() {
-  ({ email: emailInput, password: passwordInput, signup: nameInput })[step.value].value?.focus();
+  const el = ({ email: emailInput, password: passwordInput, signup: nameInput })[step.value].value;
+  if (!el) return;
+  // The card slides in before the field is focused, so the user may already
+  // be typing in one of the fields. Never pull the focus away from them.
+  const active = document.activeElement;
+  if (active && active !== document.body && active !== el) return;
+  el.focus();
 }
 function next() {
   error.value = '';

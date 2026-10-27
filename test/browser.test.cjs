@@ -184,6 +184,28 @@ test('signing in with email and password', async (t) => {
   await page.locator('#tabs').getByRole('button', { name: 'Question bank', exact: true }).click();
   await page.getByRole('heading', { name: 'Question bank', exact: true }).waitFor();
 });
+test('the sign-up form does not steal the focus from the field being typed in', async (t) => {
+  const page = await browser.newPage();
+  t.after(() => page.close());
+  await page.goto(base);
+  // Slow the slide right down, so the focus lands while the card is still
+  // moving in and the app still has its eye on the name field.
+  await page.addStyleTag({ content: '.qq-step-enter-active { transition-duration: 2s !important; }' });
+  await page.getByRole('button', { name: 'Create a student account' }).click();
+  const name = page.locator('#signup-name');
+  const password = page.locator('#signup-password');
+  await name.waitFor({ state: 'attached' });
+  // The user starts typing in the password field before the card settles.
+  await page.evaluate(() => document.querySelector('#signup-password').focus());
+  await page.waitForTimeout(3000);
+  assert.equal(
+    await page.evaluate(() => document.activeElement.id),
+    'signup-password',
+    'the focus stays in the field the user is typing in',
+  );
+  await password.fill('longenough');
+  assert.equal(await name.inputValue(), '', 'the password never lands in the name field');
+});
 test('the Konami debug menu exposes test accounts and fills the sign-in form', async (t) => {
   const page = await browser.newPage();
   t.after(() => page.close());
@@ -426,6 +448,43 @@ test('"Add material" creates a new topic with a typed learning outcome', async (
   // the new outcome is now offered in the list
   await page.getByText('Material library · Notes, images & older files',{exact:true}).click();
   await page.locator('.panel', { has: page.getByRole('heading', { name: 'Add notes or transcribe images', exact: true }) }).getByLabel('Learning outcome', { exact: true }).locator('option', { hasText: 'Explain what cloud computing offers' }).waitFor({ state: 'attached' });
+});
+
+test('the material library lists the files of a topic, not only its notes', async (t) => {
+  const page = await pageFor(t, 'Prof. Demo A');
+  // A lecture file uploaded for Week 2, the way the upload panel does it.
+  const login = await (
+    await fetch(base + '/api/login', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ userId: 't-a' }) })
+  ).json();
+  const auth = { 'content-type': 'application/json', authorization: 'Bearer ' + login.token };
+  const upload = await fetch(base + '/api/teacher/courses/c-comp/import', {
+    method: 'POST',
+    headers: auth,
+    body: JSON.stringify({
+      topicId: 'tp-net', outcomeId: 'lo-net-1', confirmNoPersonalData: true, origin: 'pdf',
+      documentId: 'e'.repeat(64), fileName: 'week2.pdf', title: 'week2.pdf · Page 1',
+      text: 'Routers forward packets towards another network.',
+    }),
+  });
+  assert.equal(upload.status, 201);
+  t.after(() => {
+    const { passages } = srv.quiz.db;
+    for (let i = passages.length - 1; i >= 0; i--) if (passages[i].fileName === 'week2.pdf') passages.splice(i, 1);
+    srv.quiz.services.save();
+  });
+  await page.locator('#tabs').getByRole('button', { name: 'AI drafting' }).click();
+  await page.getByLabel('Weekly topic').selectOption('tp-net');
+  await page.getByText('Material library · Notes, images & older files', { exact: true }).click();
+  // The topic counts the file it uses and lists it.
+  const heading = page.getByRole('heading', { name: /Week 2 · Networking basics/ });
+  await heading.waitFor();
+  assert.match(await heading.innerText(), /1 file\(s\)/, 'the topic counts the file it uses');
+  const topic = page.locator('.panel', { has: heading });
+  await topic.getByText('week2.pdf', { exact: false }).first().waitFor();
+  assert.equal(await page.getByText('No material in this topic yet.').count(), 0, 'the topic is not empty');
+  // The file is in a topic, so it is not waiting to be moved into one.
+  const unsorted = page.locator('.panel', { has: page.getByRole('heading', { name: /Files not in a topic/ }) });
+  if (await unsorted.count()) assert.equal(await unsorted.getByText('week2.pdf', { exact: false }).count(), 0);
 });
 
 test('dashboard: very low accuracy is flagged, commonly missed means under 60%, and empty comparisons stay quiet', async (t) => {

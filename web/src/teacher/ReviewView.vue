@@ -3,12 +3,14 @@
 // Question bank & review
 // ============================================================
 import { ref, computed, onMounted, nextTick, watch } from 'vue';
-import { S, api } from '../api.js';
+import { S, api, setTab } from '../api.js';
+import { toast } from '../ui.js';
 import Heading from '../components/Heading.vue';
 import CoursePicker from './CoursePicker.vue';
 import QuestionCard from './QuestionCard.vue';
 import QuestionEditor from './QuestionEditor.vue';
 import Pager from '../components/Pager.vue';
+import AsyncButton from '../components/AsyncButton.vue';
 import { usePaged } from '../components/paged.js';
 import { loadCourses, currentCourse, syncTopic, topicLabel } from './courses.js';
 
@@ -84,6 +86,42 @@ function openNew() {
   newKey.value++;
   creating.value = true;
 }
+
+// ---------------------------------------------------------------
+// The guard rails: tick the drafts to rewrite, ask for the style
+// ---------------------------------------------------------------
+const selected = ref([]);
+const rewriteStyle = ref('application');
+// Only AI drafts can be rewritten, and only while they are unpublished.
+const canRewrite = (q) => !!(course.value?.authoringEnabled && q.generationId && ['draft', 'rejected'].includes(q.status));
+const rewritable = computed(() => shown.value.filter(canRewrite));
+const onPage = computed(() => paged.items.filter(canRewrite));
+const allOnPage = computed(() => onPage.value.length > 0 && onPage.value.every((q) => selected.value.includes(q.id)));
+// One rewrite reads one topic and one learning outcome.
+const oneTopic = computed(() => new Set(selected.value.map((id) => {
+  const q = questions.value.find((x) => x.id === id);
+  return `${q?.topicId}|${q?.outcomeId}`;
+})).size <= 1);
+
+function toggle(id) {
+  selected.value = selected.value.includes(id) ? selected.value.filter((x) => x !== id) : [...selected.value, id];
+}
+function togglePage() {
+  const ids = onPage.value.map((q) => q.id);
+  selected.value = allOnPage.value ? selected.value.filter((id) => !ids.includes(id)) : [...new Set([...selected.value, ...ids])];
+}
+async function rewriteSelected() {
+  const n = selected.value.length;
+  if (!n) return;
+  await api('POST', '/api/teacher/questions/regenerate', { ids: selected.value, assessmentStyle: rewriteStyle.value });
+  toast(`${n} replacement${n === 1 ? '' : 's'} queued. Your original draft${n === 1 ? ' is' : 's are'} kept.`);
+  // The AI drafting view opens on a topic: point it at the one the
+  // rewritten drafts belong to, so the bank keeps showing them.
+  const topic = questions.value.find((q) => q.id === selected.value[0])?.topicId;
+  if (topic) S.topicId = topic;
+  selected.value = [];
+  setTab('generate');
+}
 </script>
 
 <template>
@@ -110,10 +148,27 @@ function openNew() {
       <div ref="listTop" class="chips">
         <button v-for="[id, label, fn] in filters" :key="id" :aria-pressed="S.qFilter === id ? 'true' : 'false'" @click="S.qFilter = id">{{ `${label} (${inTopic.filter(fn).length})` }}</button>
       </div>
+      <div v-if="rewritable.length" class="panel rewrite-bar">
+        <label class="qsel">
+          <input type="checkbox" :checked="allOnPage" aria-label="Select every rewritable question on this page" @change="togglePage" />
+          <span>Select page</span>
+        </label>
+        <span v-if="selected.length" class="small"><strong>{{ selected.length }}</strong> selected</span>
+        <label class="field" for="rewrite-style">Rewrite as
+          <select id="rewrite-style" v-model="rewriteStyle">
+            <option value="application">Application</option>
+            <option value="conceptual">Conceptual</option>
+            <option value="both">Both</option>
+          </select>
+        </label>
+        <AsyncButton class="btn primary" :run="rewriteSelected" :disabled="!selected.length || !oneTopic">Rewrite selected</AsyncButton>
+        <button v-if="selected.length" class="btn" @click="selected = []">Clear</button>
+      </div>
+      <p v-if="selected.length && !oneTopic" class="note warn small">Select questions from one topic and learning outcome - they are rewritten together.</p>
       <Pager :paged="{ ...paged, go: goPage }" label="Question pages (top)" noun="questions" />
       <div>
         <template v-if="shown.length">
-          <QuestionCard v-for="q in paged.items" :key="q.id" :q="q" :course="course" :passages="passages" />
+          <QuestionCard v-for="q in paged.items" :key="q.id" :q="q" :course="course" :passages="passages" :selectable="canRewrite(q)" :selected="selected.includes(q.id)" @toggle="toggle" />
         </template>
         <p v-else class="muted">
           Nothing here{{ S.topicId ? ' for this topic' : '' }}.
@@ -125,3 +180,10 @@ function openNew() {
     </template>
   </template>
 </template>
+
+<style scoped>
+.rewrite-bar { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 14px; margin: 12px 0; }
+.rewrite-bar .field { margin: 0; display: flex; align-items: center; gap: 8px; }
+.qsel { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; cursor: pointer; }
+.qsel input { width: 18px; height: 18px; accent-color: var(--accent); cursor: pointer; }
+</style>
