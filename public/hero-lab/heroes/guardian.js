@@ -11,7 +11,18 @@ export class Guardian extends Hero {
   fire() { return shot(this, { ...this.spec.shield, damage: this.attack * this.spec.shield.damageMultiplier }); }
   skill(now = Date.now()) {
     const s = this.spec.skillDash;
-    return { type: 'controlled_burst', ...s };
+    const aim = this.aim;
+    const length = Math.hypot(aim.x, aim.y);
+    const dir = length > 1e-4 ? { x: aim.x / length, y: aim.y / length } : { x: 1, y: 0 };
+    return {
+      type: 'dash',
+      direction: dir,
+      distance: s.distance,
+      durationMs: s.durationMs,
+      invulnerableMs: s.invulnerableMs,
+      fanDirection: dir,
+      fan: s.fan,
+    };
   }
   ultimate(now) {
     this.chargeUntil = now + this.spec.charge.durationMs; this.dashingUntil = this.chargeUntil; this.dashStartedAt = now;

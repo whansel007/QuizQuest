@@ -9,7 +9,7 @@ Base stats are shown before kingdom upgrades and wave buffs. Attack values are b
 | Hero | Type | HP | Attack | Defense | Speed | Weapon | Skill | Ultimate | Talent |
 | --- | --- | ---: | ---: | ---: | ---: | --- | --- | --- | --- |
 | Sheriff 🤠 | Physical | 105 | 12 | 5 | 225 | Revolver | Dynamite | Bullet Rush | Quick Draw — each kill refunds 0.4 s; one Dynamite blast refunds at most 2 s. |
-| Guardian 🛡️ | Physical | 155 | 18 | 12 | 190 | Shield Bash | Shield Rush | Unbreakable Charge | Unstoppable — dash kills extend the dash; Charge ramps damage and ends with a slam. |
+| Guardian 🛡️ | Physical | 155 | 18 | 12 | 190 | Shield Bash | Shield Rush | Unbreakable Charge | Unstoppable — a kill during Unbreakable Charge extends the charge; Charge ramps damage and ends with a slam. |
 | Pilot 🧑‍✈️ | Physical | 78 | 10 | 2 | 245 | Scattershot | Dash | Mech Suit | Adrenaline — kills bring Mech Suit closer. |
 | Bombardier 💣 | Magic | 95 | 22 | 3 | 210 | Blast Bomb | Proximity Trap | Targeted Bombing | Demolitionist — primary fire explodes. |
 | Bubbles 🫧 | Magic | 110 | 12 | 4 | 220 | Bubble Spray | Bubble Trap | Bubble Rush | Finisher — Bubble Trap kills trigger a larger explosion and halve the remaining skill cooldown. |
@@ -37,8 +37,8 @@ Cooldowns below are the base server values, before run buffs and hero talents. W
 ### Guardian
 
 - **Shield Bash:** Throws a short-lived shield projectile (0.24 s) for 0.8× attack damage.
-- **Shield Rush (E):** A 0.7 s mouse-aimed burst at 3.2× movement speed, with 0.7 s of invulnerability. It deals 1.2× attack damage and knocks enemies back. Kills can add 0.15 s per kill, up to 1.2× the base dash duration (0.84 s total).
-- **Unbreakable Charge (Q):** A steerable 6 s charge at 440 px/s with invulnerability. It hits the same enemy at most once every 0.35 s. Each hit increases damage to subsequent hits by 10%, up to +100%. Kills can extend the charge by 0.15 s each, up to 7.2 s total. When the charge ends, Guardian slams for 2× attack damage (before the ramp) in a 150 px radius, with knockback. Press Q again to end early. The optional 40% damage-reduction brace for 1.5 s after Shield Rush is implemented but disabled by default.
+- **Shield Rush (E):** A quick 300 px mouse-aimed hop over 0.25 s, invulnerable for the dash plus 0.3 s after. It ends in a 130° fan shockwave (210 px radius) dealing 1.0× attack damage and pushing enemies radially away — brutes are pushed half as far, bosses and the Brute King not at all. Each enemy is hit at most once. The old kill-extension on the skill is gone.
+- **Unbreakable Charge (Q):** A steerable 6 s charge at 440 px/s with invulnerability. It hits the same enemy at most once every 0.35 s. Each hit increases damage to subsequent hits by 10%, up to +100%. Kills can extend the charge by 0.15 s each, up to 7.2 s total. When the charge ends, Guardian slams for 2× attack damage (before the ramp) in a 150 px radius, with knockback. Press Q again to end early. The optional 40% damage-reduction brace for 1.5 s after the dash is implemented but disabled by default.
 
 ### Pilot
 

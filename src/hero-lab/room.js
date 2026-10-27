@@ -3,8 +3,9 @@ const { GAME_CONFIG } = require('../../public/hero-lab/game-config.js');
 const {
   RESPAWN_RING_MIN, RESPAWN_RING_MAX, RESPAWN_MIN_SEPARATION, RESPAWN_CANDIDATE_ATTEMPTS,
   ROOM_MAX_PLAYERS, RECONNECT_GRACE_S, LOBBY_LATE_JOIN, LATE_JOIN_MAX_WAVE, LATE_JOIN_INVULNERABILITY_S,
-  COUNTDOWN_S, DUMMY_COUNT, DUMMY_SPAWN_MIN, DUMMY_SPAWN_MAX, DUMMY_MIN_HERO_DISTANCE,
-  DUMMY_EMOJI, DUMMY_SCALE, DUMMY_HP, DUMMY_RADIUS, DUMMY_KNOCKBACK_MULT, DUMMY_FRICTION,
+  COUNTDOWN_S, DUMMY_TOTAL, DUMMY_CLUSTER_MIN, DUMMY_CLUSTER_MAX, DUMMY_SPACING_MIN, DUMMY_SPACING_MAX,
+  DUMMY_CLUSTER_DIAMETER_MAX,
+  DUMMY_MIN_HERO_DISTANCE, DUMMY_EMOJI, DUMMY_SCALE, DUMMY_HP, DUMMY_RADIUS, DUMMY_KNOCKBACK_MULT, DUMMY_FRICTION,
   DUMMY_RESPAWN_S, DUMMY_FADE_MS, PERF_TICK_HISTORY, LOG_DEBUG,
 } = require('../../config/tuning.js');
 const { Projectile } = require('../../public/hero-lab/bases/projectile.js');
@@ -91,6 +92,10 @@ function createRoom({ io, services = null, id, code = null, isDefault = false, l
   let enemiesSpawnedThisWave = 0;
   let nextEnemyAt = 0;
   let nextWaveAt = 0;
+  // Between-wave break phase: 'rest' | 'vote' | 'ready' | 'dawn' | null.
+  // Each phase has its own deadline so voting never eats into the rest.
+  let breakPhase = null;
+  let breakPhaseEndsAt = 0;
   let gameEnded = false;
   let buffVote = null;
   let lastBuff = null;
@@ -104,7 +109,8 @@ function createRoom({ io, services = null, id, code = null, isDefault = false, l
   let countdownEndsAt = 0;
   let nextDummySpawnAt = 0;
   let wavesCleared = 0;
-  const { enemySpawnIntervalMs: ENEMY_SPAWN_INTERVAL_MS, breakMs: WAVE_BREAK_MS } = GAME_CONFIG.waves;
+  const { enemySpawnIntervalMs: ENEMY_SPAWN_INTERVAL_MS } = GAME_CONFIG.waves;
+  const BREAK = GAME_CONFIG.breakPhases;
 
   const campfire = {
     x: ARENA_CONFIG.width / 2,
@@ -128,6 +134,8 @@ function createRoom({ io, services = null, id, code = null, isDefault = false, l
     lastBuff = null;
     dawnWave = 0;
     dawnPending.clear();
+    breakPhase = null;
+    breakPhaseEndsAt = 0;
     wavesCleared = 0;
     runBuffs.length = 0;
     spawnQueue = [];
@@ -149,6 +157,8 @@ function createRoom({ io, services = null, id, code = null, isDefault = false, l
     enemiesSpawnedThisWave = 0;
     nextEnemyAt = 0;
     nextWaveAt = 0;
+    breakPhase = null;
+    breakPhaseEndsAt = 0;
     countdownEndsAt = 0;
     nextDummySpawnAt = 0;
   }
@@ -215,6 +225,7 @@ function createRoom({ io, services = null, id, code = null, isDefault = false, l
       player.wavesReached = 0;
       player.overchargeShots = 0;
       player.sheriffDynamiteReady = true;
+      player.pilotMechReady = true;
       player.sheriffBlastRefunds.clear();
       player.momentumSamples.length = 0;
       player.momentumActive = false;
@@ -244,14 +255,105 @@ function createRoom({ io, services = null, id, code = null, isDefault = false, l
     broadcastState(now);
   }
 
-  // --- Training dummy -------------------------------------------------------
+  // --- Training dummies -----------------------------------------------------
   // liveDummyCount is maintained incrementally so enemyCount() stays O(1)
   // instead of re-scanning the monster map every tick (spec 2F).
   function spawnDummies(now) {
     if (phase !== 'lobby') return;
     const existing = liveDummyCount;
-    for (let index = existing; index < DUMMY_COUNT; index++) {
-      const point = chooseDummySpawnPoint();
+    const needed = Math.max(0, DUMMY_TOTAL - existing);
+    if (needed === 0) return;
+
+    // Build a set of valid points for the missing dummies. We generate the
+    // whole cluster together so we can enforce spacing between dummies (≥
+    // DUMMY_SPACING_MIN, ≤ DUMMY_SPACING_MAX from at least one neighbour) and
+    // keep every dummy inside the cluster ring around the campfire.
+    const living = [...players.values()].filter((player) => !player.downed && !player.disconnected);
+    const current = [...monsters.values()].filter((m) => m.isDummy && !m.dead && !m.fadeStartedAt);
+    const newPoints = [];
+
+    for (let n = 0; n < needed; n++) {
+      let point = null;
+      for (let attempt = 0; attempt < RESPAWN_CANDIDATE_ATTEMPTS; attempt++) {
+        const angle = Math.random() * Math.PI * 2;
+        const radius = DUMMY_CLUSTER_MIN + Math.random() * (DUMMY_CLUSTER_MAX - DUMMY_CLUSTER_MIN);
+        const candidate = { x: campfire.x + Math.cos(angle) * radius, y: campfire.y + Math.sin(angle) * radius };
+        if (candidate.x < DUMMY_RADIUS || candidate.x > ARENA_CONFIG.width - DUMMY_RADIUS
+          || candidate.y < DUMMY_RADIUS || candidate.y > ARENA_CONFIG.height - DUMMY_RADIUS) continue;
+
+        // Keep away from heroes.
+        const nearestHero = living.length
+          ? Math.min(...living.map((player) => Math.hypot(player.x - candidate.x, player.y - candidate.y)))
+          : Number.POSITIVE_INFINITY;
+        if (nearestHero < DUMMY_MIN_HERO_DISTANCE) continue;
+
+        // Keep away from existing and already-chosen dummies.
+        const allOthers = [...current, ...newPoints];
+        const nearestDummy = allOthers.length
+          ? Math.min(...allOthers.map((other) => Math.hypot(other.x - candidate.x, other.y - candidate.y)))
+          : Number.POSITIVE_INFINITY;
+        if (nearestDummy < DUMMY_SPACING_MIN) continue;
+
+        // For cluster cohesion AND chain-lightning reachability: every dummy
+        // must be within DUMMY_CLUSTER_DIAMETER_MAX of ALL other dummies. The
+        // Electromancer chain hops at most 220 px between targets, so a cluster
+        // diameter ≤ 200 guarantees the chain reaches all 4 dummies regardless
+        // of the order nearest-neighbour selects them.
+        if (allOthers.length > 0) {
+          const tooFar = allOthers.some((other) => Math.hypot(other.x - candidate.x, other.y - candidate.y) > DUMMY_CLUSTER_DIAMETER_MAX);
+          if (tooFar) continue;
+          const hasCloseNeighbour = allOthers.some((other) => Math.hypot(other.x - candidate.x, other.y - candidate.y) <= DUMMY_SPACING_MAX);
+          if (!hasCloseNeighbour) continue;
+        }
+
+        point = candidate;
+        break;
+      }
+      if (!point && newPoints.length > 0) {
+        // Fallback: pick a random direction from an existing dummy, clamped to
+        // the campfire ring and arena bounds, and within the cluster diameter.
+        const anchor = newPoints[Math.floor(Math.random() * newPoints.length)];
+        const angle = Math.random() * Math.PI * 2;
+        const stepDist = DUMMY_SPACING_MIN + 10 + Math.random() * (DUMMY_CLUSTER_DIAMETER_MAX - DUMMY_SPACING_MIN - 10);
+        const fx = clamp(anchor.x + Math.cos(angle) * stepDist, DUMMY_RADIUS, ARENA_CONFIG.width - DUMMY_RADIUS);
+        const fy = clamp(anchor.y + Math.sin(angle) * stepDist, DUMMY_RADIUS, ARENA_CONFIG.height - DUMMY_RADIUS);
+        // Verify diameter constraint against all existing dummies.
+        const allOthers = [...current, ...newPoints];
+        const diameterOk = allOthers.every((other) => Math.hypot(other.x - fx, other.y - fy) <= DUMMY_CLUSTER_DIAMETER_MAX);
+        const dist = Math.hypot(fx - campfire.x, fy - campfire.y);
+        if (diameterOk && dist >= DUMMY_CLUSTER_MIN && dist <= DUMMY_CLUSTER_MAX) {
+          point = { x: fx, y: fy };
+        } else {
+          // Project onto the ring at the same angle, tight to the anchor.
+          const a = Math.atan2(fy - campfire.y, fx - campfire.x);
+          const r = Math.max(DUMMY_CLUSTER_MIN, Math.min(DUMMY_CLUSTER_MAX, dist));
+          const px = clamp(campfire.x + Math.cos(a) * r, DUMMY_RADIUS, ARENA_CONFIG.width - DUMMY_RADIUS);
+          const py = clamp(campfire.y + Math.sin(a) * r, DUMMY_RADIUS, ARENA_CONFIG.height - DUMMY_RADIUS);
+          const diameterOk2 = allOthers.every((other) => Math.hypot(other.x - px, other.y - py) <= DUMMY_CLUSTER_DIAMETER_MAX);
+          if (diameterOk2) {
+            point = { x: px, y: py };
+          }
+        }
+      }
+      if (!point) {
+        // Last-resort: place deterministically near the first dummy so the
+        // cluster diameter stays under DUMMY_CLUSTER_DIAMETER_MAX. If there is
+        // no existing dummy (first one), drop it on the campfire ring; otherwise
+        // spread around the first placed dummy on a small circle.
+        const anchor = newPoints.length > 0 ? newPoints[0]
+          : { x: campfire.x + Math.cos(Math.random() * Math.PI * 2) * (DUMMY_CLUSTER_MIN + DUMMY_CLUSTER_MAX) / 2,
+              y: campfire.y + Math.sin(Math.random() * Math.PI * 2) * (DUMMY_CLUSTER_MIN + DUMMY_CLUSTER_MAX) / 2 };
+        const spread = DUMMY_SPACING_MIN + 20;
+        const a = (n) * (Math.PI * 2 / Math.max(1, needed));
+        point = {
+          x: clamp(anchor.x + Math.cos(a) * spread, DUMMY_RADIUS, ARENA_CONFIG.width - DUMMY_RADIUS),
+          y: clamp(anchor.y + Math.sin(a) * spread, DUMMY_RADIUS, ARENA_CONFIG.height - DUMMY_RADIUS),
+        };
+      }
+      newPoints.push(point);
+    }
+
+    for (const point of newPoints) {
       const dummy = {
         id: `dummy_${++monsterSeq}`,
         x: point.x,
@@ -285,23 +387,8 @@ function createRoom({ io, services = null, id, code = null, isDefault = false, l
     }
   }
 
-  function chooseDummySpawnPoint() {
-    const living = [...players.values()].filter((player) => !player.downed && !player.disconnected);
-    let fallback = null;
-    for (let attempt = 0; attempt < RESPAWN_CANDIDATE_ATTEMPTS; attempt++) {
-      const angle = Math.random() * Math.PI * 2;
-      const radius = DUMMY_SPAWN_MIN + Math.random() * (DUMMY_SPAWN_MAX - DUMMY_SPAWN_MIN);
-      const candidate = { x: campfire.x + Math.cos(angle) * radius, y: campfire.y + Math.sin(angle) * radius };
-      if (candidate.x < DUMMY_RADIUS || candidate.x > ARENA_CONFIG.width - DUMMY_RADIUS
-        || candidate.y < DUMMY_RADIUS || candidate.y > ARENA_CONFIG.height - DUMMY_RADIUS) continue;
-      fallback ||= candidate;
-      const nearest = living.length
-        ? Math.min(...living.map((player) => Math.hypot(player.x - candidate.x, player.y - candidate.y)))
-        : Number.POSITIVE_INFINITY;
-      if (nearest >= DUMMY_MIN_HERO_DISTANCE) return candidate;
-    }
-    return fallback || { x: campfire.x + DUMMY_SPAWN_MIN, y: campfire.y };
-  }
+  // Obsolete: spawnDummies now generates the full cluster internally.
+  function chooseDummySpawnPoint() { return null; }
 
   // Dummy damage: same hit feedback as an enemy, no kills, no combo, no stats.
   function damageDummy(dummy, amount, source) {
@@ -315,6 +402,9 @@ function createRoom({ io, services = null, id, code = null, isDefault = false, l
     if (dummy.dead) {
       monsters.delete(dummy.id);
       liveDummyCount -= 1;
+      // A broken dummy counts as a kill for kill-triggered TALENTS only: no
+      // kill count, combo, reward or wave progress.
+      applyKillTalents(owner, source);
       nsp.emit('dummy_broken', { id: dummy.id, x: dummy.x, y: dummy.y, emoji: DUMMY_EMOJI });
       nextDummySpawnAt = Date.now() + DUMMY_RESPAWN_S * 1000;
     }
@@ -477,7 +567,7 @@ function createRoom({ io, services = null, id, code = null, isDefault = false, l
       { id: 'attack', label: 'Attack', value: GAME_CONFIG.arenaTuning.cards.stat.attack, description: `Every hero gains ${GAME_CONFIG.arenaTuning.cards.stat.attack * 100}% attack.` },
       { id: 'defense', label: 'Defense', value: GAME_CONFIG.arenaTuning.cards.stat.defense * 100, description: `Every hero gains ${GAME_CONFIG.arenaTuning.cards.stat.defense * 100} percentage points of damage reduction.` },
       { id: 'speed', label: 'Fleet Footed', value: GAME_CONFIG.arenaTuning.cards.stat.speed, description: `Every hero gains ${GAME_CONFIG.arenaTuning.cards.stat.speed * 100}% speed.` },
-      { id: 'campfire', label: 'Campfire Heart', value: GAME_CONFIG.arenaTuning.cards.stat.campfireHp, description: `Campfire max HP +${GAME_CONFIG.arenaTuning.cards.stat.campfireHp * 100}%; heals ${GAME_CONFIG.arenaTuning.cards.stat.campfireHealMissing * 100}% of missing HP.` },
+      { id: 'campfire', label: 'Campfire Heart', value: GAME_CONFIG.arenaTuning.cards.stat.campfireHp, description: `Campfire max HP +${GAME_CONFIG.arenaTuning.cards.stat.campfireHp * 100}%, and its HP rises by the same amount.` },
     ];
     const effectCards = [
       ['thorns', 'Thorns Fire', `Campfire deals ${GAME_CONFIG.arenaTuning.cards.effects.thornsDamagePerSecond} damage/s within ${GAME_CONFIG.arenaTuning.cards.effects.thornsRadius} px.`],
@@ -561,16 +651,14 @@ function createRoom({ io, services = null, id, code = null, isDefault = false, l
     for (const player of players.values()) player.wavesParticipated = (player.wavesParticipated || 0) + 1;
     const missing = Math.max(0, campfire.maxHp - campfire.hp);
     campfire.hp = Math.min(campfire.maxHp, campfire.hp + missing * GAME_CONFIG.arenaTuning.waveMoments.clearedHealFraction);
-    nsp.emit('wave_end', { wave: waveNumber });
-    // Late joiners enter during the break: after WAVE CLEARED, before the vote
-    // opens, so they can vote and are ready for the next wave.
+    nsp.emit('wave_end', { wave: waveNumber, boss: waveNumber > 0 && waveNumber % GAME_CONFIG.arenaTuning.enemies.bruteKing.everyWaves === 0 });
+    // Late joiners enter at the START of the rest phase, so they can vote when
+    // it opens and are ready for the next wave.
     spawnWaitingPlayers(now);
     activeTwist = null;
-    if (waveNumber % GAME_CONFIG.arenaTuning.run.milestoneEvery === 0) {
-      beginMilestone(waveNumber);
-      return;
-    }
-    beginBuffVote(now);
+    // The break now runs REST -> VOTE -> READY; the vote opens only after the
+    // rest is over, so card picking never eats into the players' downtime.
+    startRestPhase(now);
   }
 
   // Dawn milestone: every surviving hero decides whether to continue or leave.
@@ -580,6 +668,87 @@ function createRoom({ io, services = null, id, code = null, isDefault = false, l
     dawnPending = new Set(players.keys());
     for (const player of players.values()) { player.dawnWaiting = true; player.keys = {}; player.primaryHeld = false; }
     nsp.emit('milestone_dawn', { wave, nextWave: wave + 1 });
+  }
+
+  // --- Between-wave break: REST -> VOTE -> READY ----------------------------
+  // Each phase carries its own deadline, so the vote timer never includes the
+  // rest. The tick advances them in order through advanceBreakPhase().
+  function setBreakPhase(next, endsAt) {
+    breakPhase = next;
+    breakPhaseEndsAt = endsAt;
+  }
+
+  function startRestPhase(now) {
+    const clearedBoss = waveNumber > 0 && waveNumber % GAME_CONFIG.arenaTuning.enemies.bruteKing.everyWaves === 0;
+    setBreakPhase('rest', now + (clearedBoss ? BREAK.bossRestMs : BREAK.restMs));
+    nextWaveAt = 0;
+  }
+
+  // Short pre-wave beat: the next wave banner lands at the end of it.
+  function enterReadyPhase(now) {
+    setBreakPhase('ready', now + BREAK.readyMs);
+    nextWaveAt = now + BREAK.readyMs;
+  }
+
+  // Heroes still downed when the vote opens get up immediately: no campfire
+  // cost, half HP and the usual 2 s respawn shield.
+  function reviveDownedForVote(now) {
+    for (const player of players.values()) {
+      if (!player.downed) continue;
+      respawnPlayer(player, now);
+    }
+  }
+
+  // Scavenger hearts and Supply Drop orbs left on the ground do not survive
+  // the rest phase.
+  function clearGroundLoot() { pickups.clear(); }
+
+  function openVote(now) {
+    reviveDownedForVote(now);
+    beginBuffVote(now);
+    setBreakPhase('vote', buffVote && buffVote.endsAt > 0 ? buffVote.endsAt : 0);
+  }
+
+  // Everyone who had not decided at the dawn deadline continues by default.
+  function autoContinueDawn() {
+    for (const player of players.values()) {
+      if (!dawnPending.has(player.id)) continue;
+      dawnPending.delete(player.id);
+      player.dawnWaiting = false;
+    }
+    dawnWave = 0;
+  }
+
+  function advanceBreakPhase(now) {
+    if (!breakPhase) return;
+    if (breakPhase === 'rest') {
+      if (now < breakPhaseEndsAt) return;
+      clearGroundLoot();
+      if (waveNumber % GAME_CONFIG.arenaTuning.run.milestoneEvery === 0) {
+        beginMilestone(waveNumber);
+        setBreakPhase('dawn', now + BREAK.dawnDecisionTimeoutMs);
+        return;
+      }
+      openVote(now);
+      return;
+    }
+    if (breakPhase === 'vote') {
+      // A solo room has no vote timer (endsAt === 0); it ends as soon as the
+      // hero votes, handled by finishBuffVote.
+      if (buffVote && buffVote.endsAt > 0 && now >= buffVote.endsAt) finishBuffVote(now);
+      return;
+    }
+    if (breakPhase === 'dawn') {
+      if (now < breakPhaseEndsAt) return;
+      autoContinueDawn();
+      if (players.size > 0) enterReadyPhase(now);
+      return;
+    }
+    if (breakPhase === 'ready' && now >= breakPhaseEndsAt) {
+      // Do NOT start the wave here: the existing nextWaveAt gate earlier in the
+      // tick already owns that, and calling startWave twice would skip a wave.
+      setBreakPhase(null, 0);
+    }
   }
 
   // Applies one stat card to one hero. Split out of finishBuffVote so a late
@@ -614,14 +783,17 @@ function createRoom({ io, services = null, id, code = null, isDefault = false, l
     if (chosen.id === 'campfire') {
       const addedMax = campfire.maxHp * chosen.value;
       campfire.maxHp += addedMax;
-      campfire.hp += (campfire.maxHp - campfire.hp) * GAME_CONFIG.arenaTuning.cards.stat.campfireHealMissing;
+      // The card grants real HP too, not just headroom: the campfire heals by
+      // exactly the amount its maximum grew.
+      campfire.hp = Math.min(campfire.maxHp, campfire.hp + addedMax);
     }
     lastBuff = { ...chosen };
     runBuffs.push({ ...chosen });
     // Per-card-pick log stays behind the config flag (spec 2F); hot paths
     // (per-kill, per-hit, per-tick) contain no logging at all.
     if (LOG_DEBUG) console.log(`[Hero Lab] Card picked: ${chosen.label} (${chosen.id})`);
-    buffVote = null; buffVotes.clear(); nextWaveAt = now + WAVE_BREAK_MS;
+    buffVote = null; buffVotes.clear();
+    enterReadyPhase(now);
     nsp.emit('buff_applied', lastBuff);
   }
 
@@ -652,6 +824,17 @@ function createRoom({ io, services = null, id, code = null, isDefault = false, l
     player.downed = true;
     player.keys = {};
     player.primaryHeld = false;
+    if (player.heroId === 'sheriff') {
+      player.hero.barrageUntil = now;
+      player.hero.ultimateFlashUntil = now;
+    } else if (player.heroId === 'guardian') {
+      player.hero.chargeUntil = now;
+      player.hero.dashingUntil = now;
+      player.hero.chargeDamageBonus = 0;
+    } else if (player.heroId === 'pilot') {
+      player.hero.mechUntil = now;
+      player.hero.refreshForm(now);
+    }
     player.respawnSolo = players.size === 1;
     player.respawnDurationMs = player.respawnSolo ? GAME_CONFIG.arenaTuning.respawn.soloMs : GAME_CONFIG.arenaTuning.respawn.baseMs;
     player.respawnRemainingMs = player.respawnDurationMs;
@@ -793,6 +976,7 @@ function createRoom({ io, services = null, id, code = null, isDefault = false, l
       accountId: user?.id || null,
       bubbleRush: null,
       sheriffDynamiteReady: true,
+      pilotMechReady: true,
       sheriffBlastRefunds: new Map(),
       dawnWaiting: false,
       downed: false,
@@ -833,7 +1017,7 @@ function createRoom({ io, services = null, id, code = null, isDefault = false, l
     for (const entry of [...waiting.values()]) {
       waiting.delete(entry.id);
       const player = spawnPlayer(entry.id, entry.heroId, entry.user, now, { lateJoin: true });
-      nsp.emit('player_joined', { playerId: player.id, name: player.name, emoji: player.emoji });
+      nsp.emit('player_joined', { playerId: player.id, heroId: player.heroId, name: player.name, emoji: player.emoji });
       log(`[Hero Lab] ${player.name} spawned in ${id} at wave ${waveNumber}`);
     }
   }
@@ -866,7 +1050,7 @@ function createRoom({ io, services = null, id, code = null, isDefault = false, l
       || [...waiting.values()].sort((a, b) => a.joinedAt - b.joinedAt)[0]
       || null;
     hostId = next ? next.id : null;
-    if (next) nsp.emit('host_changed', { hostId, name: next.name });
+    if (next) nsp.emit('host_changed', { hostId, heroId: next.heroId, name: next.name, emoji: next.emoji });
     log(`[Hero Lab] host is now ${next ? next.name : 'nobody'} in ${id}`);
   }
 
@@ -893,7 +1077,7 @@ function createRoom({ io, services = null, id, code = null, isDefault = false, l
       stop();
       return;
     }
-    if (dawnWave && dawnPending.size === 0) { dawnWave = 0; nextWaveAt = now + WAVE_BREAK_MS; }
+    if (dawnWave && dawnPending.size === 0) { dawnWave = 0; enterReadyPhase(now); }
     else if (buffVote && [...players.keys()].every((key) => buffVotes.has(key))) finishBuffVote(now);
     broadcastState(now);
   }
@@ -925,7 +1109,7 @@ function createRoom({ io, services = null, id, code = null, isDefault = false, l
       if (returning) {
         resumePlayer(socket, returning, now);
         socket.emit('welcome', welcomePayload(socket, false));
-        nsp.emit('player_reconnected', { playerId: socket.id, name: returning.name });
+        nsp.emit('player_reconnected', { playerId: socket.id, heroId: returning.heroId, name: returning.name, emoji: returning.emoji });
         broadcastState(now);
         return { ok: true, waiting: false, resumed: true };
       }
@@ -948,7 +1132,7 @@ function createRoom({ io, services = null, id, code = null, isDefault = false, l
         accountId: user?.id || null, user, joinedAt: now,
       });
       socket.emit('welcome', welcomePayload(socket, true));
-      nsp.emit('player_waiting', { playerId: socket.id, name: hero.name, emoji: hero.emoji });
+      nsp.emit('player_waiting', { playerId: socket.id, heroId, name: hero.name, emoji: hero.emoji });
       log(`[Hero Lab] ${hero.name} waiting in ${id} (wave ${waveNumber})`);
       broadcastState(now);
       return { ok: true, waiting: true };
@@ -1004,6 +1188,7 @@ function createRoom({ io, services = null, id, code = null, isDefault = false, l
     player.dashState = null;
     player.controlledBurst = null;
     player.sheriffDynamiteReady = true;
+    player.pilotMechReady = true;
     player.sheriffBlastRefunds.clear();
     recomputeCampfire();
     nsp.emit('hero_swapped', { playerId: player.id, heroId, name: hero.name, emoji: hero.emoji });
@@ -1046,7 +1231,7 @@ function createRoom({ io, services = null, id, code = null, isDefault = false, l
     }
     if (dawnPending.size === 0) {
       dawnWave = 0;
-      if (players.size > 0) nextWaveAt = Date.now() + WAVE_BREAK_MS;
+      if (players.size > 0) enterReadyPhase(Date.now());
       else { gameEnded = true; resetGame(); }
     }
     broadcastState();
@@ -1116,15 +1301,9 @@ function createRoom({ io, services = null, id, code = null, isDefault = false, l
     player.hero.useAbility('skill', now);
     if (player.heroId === 'sheriff') player.sheriffDynamiteReady = false;
     nsp.emit('ability_used', { playerId: player.id, heroId: player.heroId, ability: 'skill' });
-    if (skill.type === 'controlled_burst') {
-      player.controlledBurst = { until: now + skill.durationMs, speedMultiplier: skill.speedMultiplier, direction: { ...player.aim },
-        capUntil: now + skill.durationMs * GAME_CONFIG.arenaTuning.heroTweaks.guardianDashMaxBaseMultiplier,
-        damageMultiplier: skill.damageMultiplier, lastHitAt: new Map() };
-      player.hero.dashingUntil = player.controlledBurst.until;
+    if (skill.type === 'dash') {
       if (skill.invulnerableMs > 0) player.hero.makeInvulnerable(skill.invulnerableMs, now);
-    } else if (skill.type === 'dash') {
-      if (skill.invulnerableMs > 0) player.hero.makeInvulnerable(skill.invulnerableMs, now);
-      if (skill.durationMs) player.dashState = { ...skill, guardianDash: player.heroId === 'guardian', until: now + skill.durationMs, hit: new Set() };
+      if (skill.durationMs) player.dashState = { ...skill, guardianDash: player.heroId === 'guardian', until: now + skill.durationMs, startedAt: now, startX: player.x, startY: player.y, hit: new Set() };
       else {
         player.x = clamp(player.x + skill.direction.x * skill.distance, ARENA_CONFIG.radius, ARENA_CONFIG.width - ARENA_CONFIG.radius);
         player.y = clamp(player.y + skill.direction.y * skill.distance, ARENA_CONFIG.radius, ARENA_CONFIG.height - ARENA_CONFIG.radius);
@@ -1157,6 +1336,7 @@ function createRoom({ io, services = null, id, code = null, isDefault = false, l
     player.hero.useAbility('ultimate', now);
     if (player.heroId === 'electromancer') player.hero.ultimateLockoutUntil = now + GAME_CONFIG.arenaTuning.heroTweaks.electroUltimateMinLockoutMs;
     if (player.heroId === 'guardian') player.hero.chargeDamageBonus = 0;
+    if (player.heroId === 'pilot') player.pilotMechReady = false;
     nsp.emit('ability_used', { playerId: player.id, heroId: player.heroId, ability: 'ultimate' });
     if (result instanceof Projectile) addProjectile(player, result);
     else if (result.type === 'bubble_rush') {
@@ -1213,6 +1393,64 @@ function createRoom({ io, services = null, id, code = null, isDefault = false, l
     }
   }
 
+  // Kill-triggered talents, shared by real monster kills and the lobby training
+  // dummies so a talent can be practised on a dummy exactly as it behaves on a
+  // monster. Dummies still never count toward kills, combo, rewards or the
+  // wave counter - only the talent fires.
+  function applyKillTalents(killer, source) {
+    if (!killer) return;
+    if (killer.heroId === 'sheriff' && (source.sourceAbility !== 'skill' || killer.hero.spec.kills.countDynamiteKills)) {
+      const cd = killer.hero.cooldowns.skill;
+      const now = Date.now();
+      const remainingMs = Math.max(0, cd.readyAt - now);
+      let cutMs = Math.min(remainingMs, GAME_CONFIG.arenaTuning.heroTweaks.sheriffTalentCooldownCutSec * 1000);
+      if (source.sourceAbility === 'skill' && source.refundGroupId) {
+        const refunded = killer.sheriffBlastRefunds.get(source.refundGroupId) || { amountMs: 0, lastAt: now };
+        const capRemainingMs = Math.max(0, GAME_CONFIG.arenaTuning.heroTweaks.sheriffBlastRefundCapMs - refunded.amountMs);
+        cutMs = Math.min(cutMs, capRemainingMs);
+        refunded.amountMs += cutMs;
+        refunded.lastAt = now;
+        killer.sheriffBlastRefunds.set(source.refundGroupId, refunded);
+      }
+      if (cutMs > 0) {
+        cd.readyAt = Math.max(now, cd.readyAt - cutMs);
+        nsp.emit('sheriff_cooldown_refund', { playerId: killer.id, x: killer.x, y: killer.y,
+          refundMs: cutMs, sourceAbility: source.sourceAbility });
+      }
+    }
+    if (killer.heroId === 'pilot') {
+      const cd = killer.hero.cooldowns.ultimate;
+      const now = Date.now();
+      const maxCut = cd.durationMs * GAME_CONFIG.arenaTuning.heroTweaks.pilotTalentCycleReductionCap;
+      const perKillCut = GAME_CONFIG.arenaTuning.heroTweaks.pilotTalentCooldownCutSec * 1000;
+      const cut = Math.max(0, Math.min(perKillCut, maxCut - (cd.cutThisCycleMs || 0), cd.readyAt - now));
+      if (cut > 0) {
+        cd.readyAt -= cut;
+        cd.cutThisCycleMs = (cd.cutThisCycleMs || 0) + cut;
+        // Same clock popup as Quick Draw, above the hero and on the Q button.
+        nsp.emit('pilot_cooldown_refund', { playerId: killer.id, x: killer.x, y: killer.y, refundMs: cut });
+      }
+    }
+    if (killer.heroId === 'bubbles' && source.sourceAbility === 'skill') {
+      const cooldown = killer.hero.cooldowns.skill;
+      const now = Date.now();
+      const refund = killer.hero.spec.bubbleTrap.killCooldownRefundFraction || 0;
+      // A fixed slice of the TOTAL cooldown, not of whatever is left.
+      const cut = cooldown.durationMs * refund;
+      if (cut > 0 && cooldown.readyAt > now) cooldown.readyAt = Math.max(now, cooldown.readyAt - cut);
+    }
+    // Unstoppable now applies ONLY to Unbreakable Charge (the ultimate). The
+    // Shield Rush rework no longer extends from kills, so the skill's dashState
+    // is left untouched here.
+    if (killer.heroId === 'guardian' && killer.hero.chargeUntil > Date.now()) {
+      const cut = GAME_CONFIG.arenaTuning.heroTweaks.guardianKillExtensionSec * 1000;
+      killer.hero.dashingUntil = Math.min(killer.hero.dashCapUntil, killer.hero.dashingUntil + cut);
+      killer.hero.makeInvulnerable(cut, Date.now());
+      killer.hero.chargeUntil = killer.hero.dashingUntil;
+      nsp.emit('dash_extended', { id: killer.id, x: killer.x, y: killer.y, ms: cut });
+    }
+  }
+
   function damageMonster(monster, amount, sourceId) {
     const source = typeof sourceId === 'object' ? sourceId : { ownerId: sourceId, sourceAbility: 'weapon' };
     if (monster.isDummy) {
@@ -1255,51 +1493,7 @@ function createRoom({ io, services = null, id, code = null, isDefault = false, l
         dropPickup(monster.x, monster.y, 0, GAME_CONFIG.arenaTuning.cards.effects.scavengerLifetimeMs, 'supply',
           GAME_CONFIG.arenaTuning.waveTwists.supplyDropHealFraction);
       }
-      if (killer?.heroId === 'sheriff' && (source.sourceAbility !== 'skill' || killer.hero.spec.kills.countDynamiteKills)) {
-        const cd = killer.hero.cooldowns.skill;
-        const now = Date.now();
-        const remainingMs = Math.max(0, cd.readyAt - now);
-        let cutMs = Math.min(remainingMs, GAME_CONFIG.arenaTuning.heroTweaks.sheriffTalentCooldownCutSec * 1000);
-        if (source.sourceAbility === 'skill' && source.refundGroupId) {
-          const refunded = killer.sheriffBlastRefunds.get(source.refundGroupId) || { amountMs: 0, lastAt: now };
-          const capRemainingMs = Math.max(0, GAME_CONFIG.arenaTuning.heroTweaks.sheriffBlastRefundCapMs - refunded.amountMs);
-          cutMs = Math.min(cutMs, capRemainingMs);
-          refunded.amountMs += cutMs;
-          refunded.lastAt = now;
-          killer.sheriffBlastRefunds.set(source.refundGroupId, refunded);
-        }
-        if (cutMs > 0) {
-          cd.readyAt = Math.max(now, cd.readyAt - cutMs);
-          nsp.emit('sheriff_cooldown_refund', { playerId: killer.id, x: killer.x, y: killer.y,
-            refundMs: cutMs, sourceAbility: source.sourceAbility });
-        }
-      }
-      if (killer?.heroId === 'pilot') {
-        const cd = killer.hero.cooldowns.ultimate;
-        const now = Date.now();
-        const maxCut = cd.durationMs * GAME_CONFIG.arenaTuning.heroTweaks.pilotTalentCycleReductionCap;
-        const perKillCut = GAME_CONFIG.arenaTuning.heroTweaks.pilotTalentCooldownCutSec * 1000;
-        const cut = Math.max(0, Math.min(perKillCut, maxCut - (cd.cutThisCycleMs || 0), cd.readyAt - now));
-        if (cut > 0) { cd.readyAt -= cut; cd.cutThisCycleMs = (cd.cutThisCycleMs || 0) + cut; }
-      }
-      if (killer?.heroId === 'bubbles' && source.sourceAbility === 'skill') {
-        const cooldown = killer.hero.cooldowns.skill;
-        const now = Date.now();
-        const remaining = Math.max(0, cooldown.readyAt - now);
-        const refund = killer.hero.spec.bubbleTrap.killCooldownRefundFraction || 0;
-        if (remaining > 0 && refund > 0) cooldown.readyAt = now + remaining * (1 - refund);
-      }
-      if (killer?.heroId === 'guardian' && (killer.hero.dashingUntil > Date.now() || killer.hero.chargeUntil > Date.now())) {
-        const cut = GAME_CONFIG.arenaTuning.heroTweaks.guardianKillExtensionSec * 1000;
-        if (killer.controlledBurst?.until > Date.now()) {
-          killer.controlledBurst.until = Math.min(killer.controlledBurst.capUntil, killer.controlledBurst.until + cut);
-          killer.hero.dashingUntil = killer.controlledBurst.until;
-        } else killer.hero.dashingUntil = Math.min(killer.hero.dashCapUntil, killer.hero.dashingUntil + cut);
-        killer.hero.makeInvulnerable(cut, Date.now());
-        if (killer.hero.chargeUntil > Date.now()) killer.hero.chargeUntil = killer.hero.dashingUntil;
-        for (const member of players.values()) if (member.dashState?.guardianDash) member.dashState.until = killer.hero.dashingUntil;
-        nsp.emit('dash_extended', { id: killer.id, x: killer.x, y: killer.y, ms: cut });
-      }
+      applyKillTalents(killer, source);
       if (monster.type === 'exploder') {
         const spec = GAME_CONFIG.arenaTuning.enemies.exploder;
         resolveEnemyBlast({ x: monster.x, y: monster.y, radius: spec.deathRadius,
@@ -1341,6 +1535,52 @@ function createRoom({ io, services = null, id, code = null, isDefault = false, l
       y: dy / length * GAME_CONFIG.arenaTuning.heroTweaks.guardianDashPushPx * multiplier,
       startedAt: now, durationMs: GAME_CONFIG.arenaTuning.heroTweaks.guardianDashPushMs, lastProgress: 0 };
     nsp.emit('dash_hit', { id: player.id, heroId: player.heroId, x: player.x, y: player.y, monsterId: monster.id });
+  }
+
+  // Guardian Shield Rush rework: a short dash whose landing triggers a
+  // fan-shaped shockwave. The cone is centered on the locked dash direction;
+  // every enemy inside (radius measured from the landing point) is damaged for
+  // 1.0x attack and pushed radially away from the Guardian. Brutes take half the
+  // push, bosses and Kings take none (but are still damaged), and training
+  // dummies are pushed using their 1.5x knockback rule. Each enemy is hit at
+  // most once because the fan is a single instantaneous event.
+  function applyGuardianFan(player, dir, fan, now) {
+    const angleRad = Math.atan2(dir.y, dir.x);
+    const half = (fan.angleDeg * Math.PI / 180) / 2;
+    const radius = fan.radius;
+    const startX = player.x, startY = player.y;
+    const hits = [];
+    for (const monster of monsters.values()) {
+      if (monster.dead) continue;
+      const dx = monster.x - startX, dy = monster.y - startY;
+      const dist = Math.hypot(dx, dy);
+      if (dist > radius + monster.radius) continue;
+      if (dist < 1e-3) continue;
+      const monAngle = Math.atan2(dy, dx);
+      let diff = monAngle - angleRad;
+      while (diff > Math.PI) diff -= 2 * Math.PI;
+      while (diff < -Math.PI) diff += 2 * Math.PI;
+      if (Math.abs(diff) > half) continue;
+      const kx = dx / dist, ky = dy / dist;
+      const isBoss = monster.isBoss || monster.type === 'brute-king';
+      const pushMult = monster.isDummy ? DUMMY_KNOCKBACK_MULT
+        : isBoss ? 0
+        : monster.type === 'brute' ? 0.5 : 1;
+      const push = fan.knockback * pushMult;
+      if (!monster.isDummy) {
+        damageMonster(monster, player.hero.attack * fan.damageMult, { ownerId: player.id, sourceAbility: 'skill' });
+      }
+      if (monster.isDummy) {
+        monster.knockbackX += kx * push;
+        monster.knockbackY += ky * push;
+      } else if (push > 0) {
+        monster.dashPush = { x: kx * push, y: ky * push, startedAt: now, durationMs: fan.knockbackMs, lastProgress: 0 };
+      }
+      hits.push({ id: monster.id, x: monster.x, y: monster.y });
+    }
+    nsp.emit('area_effect', { x: startX, y: startY, radius, sourceAbility: 'skill', sourceHeroId: 'guardian',
+      angleRad, angleDeg: fan.angleDeg, color: GAME_CONFIG.heroFxColors.guardian.primary, hits,
+      durationMs: GAME_CONFIG.arenaTuning.heroTweaks.guardianFanFadeMs });
   }
 
   function damageNearby(player, spec, now) {
@@ -1463,6 +1703,14 @@ function createRoom({ io, services = null, id, code = null, isDefault = false, l
         nextWaveInMs: nextWaveAt ? Math.max(0, nextWaveAt - now) : 0,
         twist: activeTwist,
       },
+      // Between-wave break: which phase is running and when it ends, so the
+      // HUD can show the "Rest Ns" pill without guessing.
+      break: breakPhase ? {
+        phase: breakPhase,
+        endsAt: breakPhaseEndsAt,
+        wave: waveNumber,
+        remainingMs: breakPhaseEndsAt ? Math.max(0, breakPhaseEndsAt - now) : 0,
+      } : null,
       boss: (() => { const boss = [...monsters.values()].find((monster) => monster.isBoss); return boss ? { hp: Math.max(0, Math.round(boss.hp)), maxHp: boss.maxHp, name: 'Brute King' } : null; })(),
       gameEnded,
       dawn: dawnWave ? { wave: dawnWave, decisionsRemaining: dawnPending.size } : null,
@@ -1527,7 +1775,9 @@ function createRoom({ io, services = null, id, code = null, isDefault = false, l
         mech: heroId === 'pilot' && hero.mechUntil > now,
         guardianDamageRamp: heroId === 'guardian' ? hero.chargeDamageBonus || 0 : 0,
         guardianBrace: heroId === 'guardian' && hero.braceUntil > now,
-        dashing: heroId === 'guardian' ? hero.dashingUntil > now || Boolean(players.get(id)?.controlledBurst && players.get(id).controlledBurst.until > now) : Boolean(players.get(id)?.dashState && players.get(id).dashState.until > now),
+        dashing: heroId === 'guardian'
+          ? (hero.dashingUntil > now || Boolean(players.get(id)?.dashState && players.get(id).dashState.until > now))
+          : Boolean(players.get(id)?.dashState && players.get(id).dashState.until > now),
         downed: Boolean(downed), respawnRemainingMs: respawnRemainingMs || 0, respawnDurationMs: respawnDurationMs || 0,
         respawnSpeedMultiplier: respawnSpeedMultiplier || 1, momentumActive: Boolean(momentumActive), dawnWaiting: Boolean(dawnWaiting),
         bubbleRush: bubbleRush ? { remainingMs: Math.max(0, bubbleRush.endsAt - now), durationMs: bubbleRush.durationMs } : null,
@@ -1543,6 +1793,7 @@ function createRoom({ io, services = null, id, code = null, isDefault = false, l
           lockoutRemainingMs: key === 'ultimate' && heroId === 'electromancer' ? Math.max(0, hero.ultimateLockoutUntil - now) : 0,
         }])),
         invulnerable: hero.invulnerableUntil > now,
+        hitFlash: Boolean(hero.hitFlashUntil > now),
       })),
       projectiles: [...projectiles.values()].map(({ id, ownerId, heroId, x, y, vx, vy, radius, color, kind, type, emoji, rotateToAim, flashColors, flashIntervalMs, shape, sourceAbility, createdAt, lifetimeMs, fadeLastFraction }) => ({
         id,
@@ -1590,16 +1841,14 @@ function createRoom({ io, services = null, id, code = null, isDefault = false, l
       if (player.downed || player.dawnWaiting || player.disconnected) continue;
       const dx = Number(player.keys.right) - Number(player.keys.left);
       const dy = Number(player.keys.down) - Number(player.keys.up);
-      const controlledBurst = player.controlledBurst?.until > now ? player.controlledBurst : null;
-      if (dx || dy || controlledBurst) {
+      if (dx || dy) {
         const length = Math.hypot(dx, dy);
-        const burst = Math.max(controlledBurst ? controlledBurst.speedMultiplier : 1,
-          player.bubbleRush?.speedMultiplier || 1,
+        const burst = Math.max(player.bubbleRush?.speedMultiplier || 1,
           activeTwist?.id === 'fast-night' ? 1 + GAME_CONFIG.arenaTuning.waveTwists.fastNightHeroSpeed : 1);
         const step = player.hero.speed * burst / ARENA_CONFIG.tickHz;
         const oldX = player.x, oldY = player.y;
-        const moveX = controlledBurst ? controlledBurst.direction.x : dx / length;
-        const moveY = controlledBurst ? controlledBurst.direction.y : dy / length;
+        const moveX = dx / length;
+        const moveY = dy / length;
         player.x = clamp(player.x + moveX * step, ARENA_CONFIG.radius, ARENA_CONFIG.width - ARENA_CONFIG.radius);
         player.y = clamp(player.y + moveY * step, ARENA_CONFIG.radius, ARENA_CONFIG.height - ARENA_CONFIG.radius);
         const distance = Math.hypot(player.x - oldX, player.y - oldY);
@@ -1631,32 +1880,21 @@ function createRoom({ io, services = null, id, code = null, isDefault = false, l
       if (player.downed || player.dawnWaiting) continue;
       syncHeroAimAndPosition(player);
       if(player.heroId==='guardian' && player.hero.dashingUntil>now) player.hero.makeInvulnerable(player.hero.dashingUntil-now,now);
-      if (player.controlledBurst) {
-        if (now >= player.controlledBurst.until) {
-          player.controlledBurst = null;
-          if (player.heroId === 'guardian' && GAME_CONFIG.arenaTuning.heroTweaks.guardianBraceEnabled)
-            player.hero.braceUntil = now + GAME_CONFIG.arenaTuning.heroTweaks.guardianBraceDurationMs;
-        }
-        else {
-          player.hero.makeInvulnerable(player.controlledBurst.until - now, now);
-          const dash = player.controlledBurst;
-          for (const monster of monsters.values()) {
-            const lastHit = dash.lastHitAt.get(monster.id) ?? Number.NEGATIVE_INFINITY;
-            if (now - lastHit < GAME_CONFIG.arenaTuning.heroTweaks.guardianRepeatHitCooldownMs
-              || Math.hypot(monster.x - player.x, monster.y - player.y) > monster.radius + ARENA_CONFIG.radius + 8) continue;
-            dash.lastHitAt.set(monster.id, now);
-            damageMonster(monster, player.hero.attack * dash.damageMultiplier, { ownerId: player.id, sourceAbility: 'skill' });
-            pushFromDash(monster, player, now);
-          }
-        }
-      }
       if (player.dashState) {
         const dash=player.dashState;
-        if(now>=dash.until){player.dashState=null;}
+        if(now>=dash.until){
+          // Snap to the exact landing point so the dash always covers its full
+          // distance regardless of how the tick grid lines up with the duration.
+          player.x=clamp(dash.startX+dash.direction.x*dash.distance,ARENA_CONFIG.radius,ARENA_CONFIG.width-ARENA_CONFIG.radius);
+          player.y=clamp(dash.startY+dash.direction.y*dash.distance,ARENA_CONFIG.radius,ARENA_CONFIG.height-ARENA_CONFIG.radius);
+          const fan=dash.fan, fanDirection=dash.fanDirection;
+          player.dashState=null;
+          if(fan && fanDirection) applyGuardianFan(player, fanDirection, fan, now);
+        }
         else {
-          const step=dash.distance/Math.max(1,dash.durationMs)*1000/ARENA_CONFIG.tickHz;
-          player.x=clamp(player.x+dash.direction.x*step,ARENA_CONFIG.radius,ARENA_CONFIG.width-ARENA_CONFIG.radius);
-          player.y=clamp(player.y+dash.direction.y*step,ARENA_CONFIG.radius,ARENA_CONFIG.height-ARENA_CONFIG.radius);
+          const frac=Math.min(1,(now-dash.startedAt)/dash.durationMs);
+          player.x=clamp(dash.startX+dash.direction.x*dash.distance*frac,ARENA_CONFIG.radius,ARENA_CONFIG.width-ARENA_CONFIG.radius);
+          player.y=clamp(dash.startY+dash.direction.y*dash.distance*frac,ARENA_CONFIG.radius,ARENA_CONFIG.height-ARENA_CONFIG.radius);
           if(dash.damageMultiplier) for(const monster of monsters.values()) {
             if(dash.hit.has(monster.id)||Math.hypot(monster.x-player.x,monster.y-player.y)>monster.radius+ARENA_CONFIG.radius+8)continue;
             dash.hit.add(monster.id);damageMonster(monster,player.hero.attack*dash.damageMultiplier,{ownerId:player.id,sourceAbility:'skill'});
@@ -1938,7 +2176,7 @@ function createRoom({ io, services = null, id, code = null, isDefault = false, l
       if (healed > 0) nsp.emit('pickup_collected', { playerId: collector.id, x: collector.x, y: collector.y, amount: healed });
     }
 
-    if (buffVote && buffVote.endsAt > 0 && now >= buffVote.endsAt) finishBuffVote(now);
+    // Break phases own the vote timer (see advanceBreakPhase).
 
     if (!gameEnded) for (const player of players.values()) {
       if (!player.downed && player.hero.hp <= 0) downPlayer(player, now);
@@ -1961,6 +2199,7 @@ function createRoom({ io, services = null, id, code = null, isDefault = false, l
     }
     if (!gameEnded && campfire.hp <= 0) {
       gameEnded=true; campfire.hp=0; nextWaveAt=0; enemiesLeftToSpawn=0; spawnTelegraphs.length = 0;
+      breakPhase = null; breakPhaseEndsAt = 0; buffVote = null; buffVotes.clear();
       if (pendingCampfireDamage > 0) {
         nsp.emit('campfire_hit', { x: campfire.x, y: campfire.y, damage: pendingCampfireDamage });
         pendingCampfireDamage = 0;
@@ -1982,9 +2221,13 @@ function createRoom({ io, services = null, id, code = null, isDefault = false, l
     if (buffVote && players.size > 0 && [...players.keys()].every((id) => buffVotes.has(id))) finishBuffVote(now);
     if (players.size === 0 && waveNumber > 0) resetGame();
 
-    // 8. Start a five-second break only after every enemy in the wave is gone.
+    // 8. Run the break sequence (REST -> VOTE -> READY), then start the wave.
+    advanceBreakPhase(now);
+
+    // 9. A wave is only complete once every enemy is gone AND no break is
+    // already running (the break itself spans several ticks).
     if (
-      phase === 'running' && players.size > 0 && !gameEnded && !buffVote && !dawnWave && waveNumber > 0
+      phase === 'running' && players.size > 0 && !gameEnded && !buffVote && !dawnWave && !breakPhase && waveNumber > 0
       && enemiesLeftToSpawn === 0 && spawnTelegraphs.length === 0 && enemyCount() === 0 && nextWaveAt === 0
     ) {
       completeWave(now);
@@ -1999,6 +2242,13 @@ function createRoom({ io, services = null, id, code = null, isDefault = false, l
           player.sheriffDynamiteReady = true;
           nsp.emit('dynamite_ready', { playerId: player.id, x: player.x, y: player.y });
         }
+      }
+      // Pilot's Mech Suit gets the same "it's back" moment (robot bounce above
+      // the hero). Never while the mech is still up.
+      if (player.heroId === 'pilot' && !player.pilotMechReady
+        && !(player.hero.mechUntil > now) && now >= player.hero.cooldowns.ultimate.readyAt) {
+        player.pilotMechReady = true;
+        nsp.emit('mech_ready', { playerId: player.id, x: player.x, y: player.y });
       }
     }
 
@@ -2158,6 +2408,18 @@ function createRoom({ io, services = null, id, code = null, isDefault = false, l
     return killed;
   }
 
+  // Test/debug shortcut: break every lobby training dummy in one tick, so a probe
+  // can confirm that a dummy kill fires the same kill talents a real kill does.
+  function debugKillDummies() {
+    let killed = 0;
+    for (const monster of [...monsters.values()]) {
+      if (!monster.isDummy || monster.dead) continue;
+      damageDummy(monster, monster.hp + 1, { ownerId: hostId, sourceAbility: 'debug' });
+      if (monster.dead) killed += 1;
+    }
+    return killed;
+  }
+
   return {
     id,
     code,
@@ -2168,6 +2430,14 @@ function createRoom({ io, services = null, id, code = null, isDefault = false, l
     swapHero,
     start, stop, destroy,
     clearWave,
+    // Break-phase introspection and a test/debug shortcut that ends the current
+    // break phase immediately (so tests do not have to wait out REST/PRE_WAVE).
+    breakInfo: () => (breakPhase ? { phase: breakPhase, endsAt: breakPhaseEndsAt } : null),
+    skipBreakPhase: () => {
+      if (!breakPhase) return false;
+      breakPhaseEndsAt = Date.now() - 1;
+      return true;
+    },
     spawnWaitingPlayers: () => spawnWaitingPlayers(Date.now()),
     startCountdown: () => beginCountdown(Date.now()),
     // Skips the 3-2-1 wait; used by tests and the debug menu.
@@ -2180,6 +2450,7 @@ function createRoom({ io, services = null, id, code = null, isDefault = false, l
     spawnDummies: () => spawnDummies(Date.now()),
     debugSpawnEnemies,
     debugKillAll,
+    debugKillDummies,
     tickStats,
     // Test/debug shortcut: open the dawn milestone without clearing a wave.
     openMilestone: () => {

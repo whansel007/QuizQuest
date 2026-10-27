@@ -22,13 +22,15 @@ route remains available for quick sandbox playtests.
   Bullet Rush fires a stream from the hero's current position and aim. Quick Draw
   refunds 0.4 seconds from Dynamite's remaining cooldown per kill. Dynamite
   kills count; a single blast can refund at most 2 seconds total.
-- **Guardian:** a short-range shield bash, a longer invulnerable Shield Rush,
-  and a steerable invulnerable charge. Any kill during a dash extends its timer
-  and shows a `+time` popup, within the existing cap. Each Unbreakable Charge
-  hit increases damage to later hits by 10%, to a +100% cap; ending the charge
-  triggers a 150 px ground slam for 2x attack damage before the ramp. Press Q
-  again to slam early. The optional 40% post-Rush damage-reduction brace lasts
-  1.5 seconds and is disabled by default.
+- **Guardian:** a short-range shield bash, a quick mouse-aimed Shield Rush dash
+  that ends in a fan shockwave, and a steerable invulnerable charge. Unstoppable
+  now applies only to the charge: a kill during Unbreakable Charge extends its
+  timer and shows a `+time` popup, within the existing cap. The skill itself no
+  longer extends on kills. Each Unbreakable Charge hit increases damage to later
+  hits by 10%, to a +100% cap; ending the charge triggers a 150 px ground slam
+  for 2x attack damage before the ramp. Press Q again to slam early. The optional
+  40% post-dash damage-reduction brace lasts 1.5 seconds and is disabled by
+  default.
 - **Pilot:** a fragile base form fires a seven-pellet shotgun and can dash in
   any aimed direction. Kills reduce the Mech Suit cooldown. The temporary mech
   is invulnerable and changes the weapon to a short-range explosive fist and
@@ -39,8 +41,8 @@ route remains available for quick sandbox playtests.
   If targeting times out or is canceled, Q is not consumed.
 - **Bubbles:** rapid blue bubble spray chips enemies at short range. E launches a
   Bubble Trap that carries the first enemy it hits and explodes after traveling.
-  A kill from the trap triggers its larger finisher blast and halves the
-  remaining skill cooldown.
+  A kill from the trap triggers its larger finisher blast and cuts half of the
+  skill's total cooldown, whatever is left of it.
   When the trapped enemy is within the finisher blast's lethal damage, the trap
   uses its larger, stronger explosion. Q wraps Bubbles in a fast-moving bubble for six
   seconds. It pops around the hero when time expires, or early when Bubbles uses
@@ -53,22 +55,43 @@ route remains available for quick sandbox playtests.
   five-second lockout prevents an immediate recast. Overload no longer adds
   damage to stunned enemies. Stunned enemies show an ⚡ indicator while they
   remain stunned.
-Every hero has a passive talent name and description in the Info panel. Talent
-effects run on the server. Monster kills carry the attacking hero and ability
-through projectile hits and explosions so kill-based talents can apply.
+Every hero has a passive talent (name, icon, one-line description and the button
+it works with) defined once in `game-config.js`. The World-page hero preview and
+the in-game Info panel both read that single entry, so they can never disagree.
+Talent effects run on the server. Monster kills carry the attacking hero and
+ability through projectile hits and explosions so kill-based talents can apply.
+Breaking a training dummy in the lobby fires the same kill talents, so a talent
+can be practised before a run starts; dummies still never count toward kills,
+combo, rewards or the wave counter.
 
 ## Enemies, campfire, and waves
 
 - Zombies walk to the campfire. Devils chase the nearest hero. Skeletons pause
   periodically to fire a red bullet at the nearest hero, then resume walking.
 - Heroes slowly recover health while standing near the campfire.
-- When a wave is cleared, the server shows three randomly selected team-buff
-  cards from max HP, attack, defense, speed, and campfire max HP. Every
-  connected player votes once. The winning flat bonus applies to every hero,
-  or to the campfire for its max-HP card. If the vote ties, the
-  server chooses randomly among tied cards. A disconnected player's vote is
-  removed; if all remaining players have voted, the result is applied. Voting
-  also ends after the configured timeout.
+- When a wave is cleared the break runs in three phases, so voting never eats
+  into the downtime:
+  1. REST (8 s, or 12 s after a boss wave). No cards yet. Heroes can move,
+     fight and heal, and the top HUD shows a `Rest Ns` countdown pill. Ground
+     loot from the wave is cleared when the rest ends, and any downed hero is
+     revived for free when the vote opens.
+  2. VOTE (up to 10 s). The server shows three randomly selected team-buff
+     cards from max HP, attack, defense, speed, and campfire max HP. Every
+     connected player votes once; the phase ends early as soon as everyone has
+     voted. The winning flat bonus applies to every hero, or to the campfire
+     for its max-HP card. The campfire's max-HP card also replenishes its
+     current HP by the same amount it adds to the maximum. If the vote ties,
+     the server chooses randomly among tied cards. A disconnected player's
+     vote is removed.
+  3. READY (2 s). A short "Next wave starting…" beat before the next wave
+     banner.
+- Every fifth wave is a Brute King wave. When the boss dies the client shows a
+  gold `BOSS DEFEATED!` banner, plays the wave-end fanfare and bursts confetti
+  from both top corners for 3 s. Ordinary wave clears show the normal
+  `WAVE CLEARED` banner and no confetti.
+- At each milestone wave the break holds on DAWN instead of opening the vote:
+  every hero chooses to leave with their rewards or continue. Undecided heroes
+  auto-continue after 30 s.
 - Wave buffs last for the run. The server resets them when the last player
   leaves. If campfire HP reaches zero, the shared run ends for every player and
   waves stop.
@@ -84,7 +107,8 @@ through projectile hits and explosions so kill-based talents can apply.
 ## HUD and server rules
 
 - The top-left HUD shows your health and a compact live health list for other
-  players. The centered top HUD shows wave status and enemy count.
+  players. The centered top HUD shows wave status and enemy count, plus a
+  `Rest Ns` pill beside it during the rest phase of a break.
 - The bottom-right weapon, skill, and ultimate circles use server cooldowns.
   Pilot's labels and stats change during the mech form. Bombardier's targeting
   state is shown above the arena.
@@ -100,12 +124,14 @@ through projectile hits and explosions so kill-based talents can apply.
 
 Game-feel values live in [`game-config.js`](./game-config.js), including hero
 stats and cooldowns, projectile visuals, talent effects, enemy behavior,
-campfire healing, wave growth, building bonuses, buff range, vote timeout, and
-HUD colors.
+campfire healing, wave growth, building bonuses, buff range, vote timeout, the
+break-phase durations (`breakPhases`), the boss confetti (`confetti`), and
+HUD colors. The raw numbers themselves live in
+[`config/tuning.js`](../../config/tuning.js).
 
 The playtest brief left exact values open, so these are configurable starting
 points: Sheriff refunds 0.4 seconds of Dynamite cooldown per kill (capped at 2
-seconds per blast); Guardian gains 0.15 seconds per dash kill within the
+seconds per blast); Guardian gains 0.15 seconds per Unbreakable Charge kill within the
 existing 1.2x dash-duration cap; Pilot gains 1 second on Mech Suit per kill;
 Bombardier fires five bombs at one-second intervals inside a 280-pixel target
 circle; Bubbles' finisher activates when the trapped enemy has no more HP than
@@ -196,9 +222,11 @@ root. For a manual playtest:
 1. Choose Sheriff. Open Information and read **Quick Draw**. Fire primary and
    Dynamite, then use Bullet Rush while moving and changing aim. Confirm the stream
    follows the hero and kills shorten Dynamite's cooldown.
-2. Choose Guardian. Dash through a group with E and Q. Confirm the trail,
-   invulnerability, and `+time` popup after a kill. Chain kills, check the ramp
-   pill and end slam, and verify the configured dash cap.
+2. Choose Guardian. Dash with E and steerable-charge with Q. Confirm the
+   trail and invulnerability on both. On E, check the fan shockwave at the
+   landing point and that enemies are pushed (brutes less, bosses not at all).
+   Confirm the `+time` popup appears only on Q kills, not on E. Chain Q kills,
+   check the ramp pill and end slam, and verify the configured dash cap.
 3. Choose Pilot. Fire at a group up close and at range to compare the shotgun.
    Use E toward and away from enemies. Activate Q, then try the rotating fist
    and longer knockback dash. Confirm invulnerability and HUD label changes.

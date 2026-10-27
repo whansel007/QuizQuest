@@ -1,0 +1,30 @@
+const { chromium } = require('C:/Users/William/Documents/GitHub/QuizQuest/node_modules/.pnpm/playwright@1.62.1/node_modules/playwright');
+const { start } = require('../server');
+(async () => {
+  const server = start(0, { dataFile: null });
+  await new Promise((r) => server.httpServer.once('listening', r));
+  const BASE = `http://127.0.0.1:${server.httpServer.address().port}`;
+  const browser = await chromium.launch();
+  const page = await browser.newPage({ viewport: { width: 1280, height: 720 } });
+  const r = await page.request.post(`${BASE}/api/login`, { data: { userId: 's-01' } });
+  const token = (await r.json()).token;
+  await page.addInitScript((t) => sessionStorage.setItem('qq-token', t), token);
+  await page.goto(`${BASE}/hero-lab/world.html?heroId=sheriff&create=1`);
+  await page.waitForSelector('#ability-hud .ability[data-ability="ultimate"] .ability-icon svg', { timeout: 20000 });
+  await page.waitForTimeout(800);
+  const room = server.heroLab.rooms.list().find((c) => c.playerCount() > 0);
+  const player = [...room.players.values()][0];
+  player.hero.attack = 13.200000000000001;
+  player.hero.defense = 4.400000000000001;
+  player.hero.buildingBonuses = { attackPercent: 0.1, campfireMaxHpPercent: 0.05 };
+  await page.keyboard.press('KeyI');
+  await page.waitForTimeout(700);
+  const box = await page.evaluate(() => {
+    const el = document.querySelector('#stats-card');
+    const b = el.getBoundingClientRect();
+    return { x: Math.max(0, Math.round(b.x) - 10), y: Math.max(0, Math.round(b.y) - 10), width: Math.round(b.width) + 20, height: Math.round(b.height) + 20 };
+  });
+  await page.screenshot({ path: 'scratch/_phaseC_card.png', clip: box });
+  console.log(JSON.stringify(box));
+  await browser.close(); server.io.close(); server.httpServer.close(); process.exit(0);
+})().catch((e) => { console.error(e); process.exit(1); });

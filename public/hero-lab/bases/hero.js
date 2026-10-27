@@ -83,6 +83,7 @@ export class Hero {
     const applied = Math.max(GAME_CONFIG.combat.minimumDamage, amount * (1 - reduction) * (1 - braceReduction));
     this.hp = Math.max(0, this.hp - applied);
     this.#lastDamageAt = now;
+    this.hitFlashUntil = now + GAME_CONFIG.arenaTuning.hitFlashMs;
     return previousHp - this.hp;
   }
 

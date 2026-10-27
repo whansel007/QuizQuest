@@ -155,6 +155,9 @@ export const SHERIFF_READY_BOUNCE_MS = 800;
 export const SHERIFF_REFUND_LABEL_MS = 500;
 export const SHERIFF_REFUND_MERGE_MS = 300;
 export const SHERIFF_REFUND_PULSE_MS = 100;
+// How long the clock-emoji Quick Draw refund popup floats above the hero.
+// Matches the Dynamite-ready bounce so both read as one feedback language.
+export const SHERIFF_REFUND_POPUP_MS = 800;
 // Ready-glow period shared by every skill/ultimate button (generalized from
 // the Sheriff dynamite's gold glow).
 export const READY_GLOW_PERIOD_MS = 1_000;
@@ -171,6 +174,29 @@ export const GUARDIAN_ULT_EARLY_END = true;
 export const GUARDIAN_BRACE_ENABLED = false;
 export const GUARDIAN_BRACE_REDUCTION = 0.4;
 export const GUARDIAN_BRACE_DURATION_S = 1.5;
+// Unstoppable: a kill during Unbreakable Charge adds this much dash time.
+export const GUARDIAN_DASH_KILL_EXTENSION_S = 0.15;
+
+// Guardian Shield Rush rework: a short dash that ends in a fan-shaped shockwave.
+// These replace the old dash-through-enemies Shield Rush. The ultimate
+// (Unbreakable Charge) is untouched.
+export const GUARDIAN_RUSH_DISTANCE = 300;
+export const GUARDIAN_RUSH_DURATION_S = 0.25;
+export const GUARDIAN_RUSH_IFRAME_AFTER_S = 0.3;
+export const GUARDIAN_FAN_ANGLE_DEG = 130;
+export const GUARDIAN_FAN_RADIUS = 210;
+export const GUARDIAN_FAN_DAMAGE_MULT = 1.0;
+export const GUARDIAN_FAN_KNOCKBACK = 260;
+export const GUARDIAN_FAN_KNOCKBACK_MS = 300;
+// Purely-visual: how long the fan wedge lingers and fades on the floor.
+export const GUARDIAN_FAN_FADE_MS = 220;
+
+// Adrenaline: each kill cuts this much Mech Suit cooldown, up to the cycle cap.
+export const PILOT_MECH_COOLDOWN_CUT_S = 1;
+export const PILOT_MECH_CYCLE_CAP_PCT = 50;
+
+// Finisher: a Bubble Trap kill refunds this fraction of the REMAINING cooldown.
+export const BUBBLES_TRAP_KILL_REFUND = 0.5;
 
 export const BUILDING_BONUS_PER_LEVEL = 0.1;
 export const BUILDING_LEVEL_CAP = 3;
@@ -204,11 +230,75 @@ export const JOIN_FAILURE_WINDOW_S = 60;
 // first wave begins. Heroes can swap freely until the countdown starts.
 export const COUNTDOWN_S = 3;
 
+// Between-wave break, in three separate phases so voting never eats the rest:
+//   REST  -> no vote, heroes can move/fight/heal, pill counts down
+//   VOTE  -> the three buff cards, ends early once everyone has voted
+//   READY -> short pre-wave beat before the next wave banner
+// BOSS_REST_DURATION_S applies to the rest after a boss wave.
+export const REST_DURATION_S = 8;
+export const BOSS_REST_DURATION_S = 12;
+export const VOTE_DURATION_S = 10;
+export const PRE_WAVE_S = 2;
+// The dawn milestone holds the break until every hero has chosen; undecided
+// heroes auto-CONTINUE after this long.
+export const DAWN_DECISION_TIMEOUT_S = 30;
+
+// Boss-defeated confetti (client-side only, never changes game state).
+export const CONFETTI_COUNT = 120;
+export const CONFETTI_DURATION_S = 3;
+// "BOSS DEFEATED!" banner above the confetti.
+export const CONFETTI_BANNER_MS = 2000;
+// Two bursts, one from each top corner, aimed down and inward.
+export const CONFETTI_BURST_INSET_PX = 60;
+export const CONFETTI_BURST_SPREAD_PX = 140;
+export const CONFETTI_BURST_SPEED_MIN = 220;
+export const CONFETTI_BURST_SPEED_MAX = 620;
+// Per-piece look and motion. Pieces are rotated rects, never glyphs.
+export const CONFETTI_PIECE_MIN_PX = 5;
+export const CONFETTI_PIECE_MAX_PX = 11;
+export const CONFETTI_FALL_GRAVITY = 260;
+export const CONFETTI_DRAG = 0.6;
+export const CONFETTI_SWAY_PX = 26;
+export const CONFETTI_SPIN_TURNS_MAX = 2.4;
+// Quality scaling for the burst: Medium keeps half the pieces, Low a quarter.
+export const CONFETTI_QUALITY_FACTOR = Object.freeze({ high: 1, medium: 0.5, low: 0.25 });
+export const CONFETTI_COLORS = Object.freeze(['#ffd34f', '#ff6b6b', '#4dd0e1', '#81c784', '#b388ff', '#ffffff']);
+
+// World page (pre-lobby) two-side layout. The left column holds room entry and
+// the kingdom upgrade tiles; the right column holds the hero preview and the
+// two-row hero selector. Below WORLD_STACK_BREAKPOINT_PX the sides stack.
+export const WORLD_LEFT_COLUMN_PCT = 42;
+export const WORLD_RIGHT_COLUMN_PCT = 58;
+export const WORLD_STACK_BREAKPOINT_PX = 900;
+export const HERO_PREVIEW_EMOJI_PX = 160;
+// Emoji glyphs sit off-centre inside their line box (asymmetric side and bottom
+// bearings), so the preview icon is nudged up and left to line up with the
+// platform shadow and the name block beside it. Measured: the ink sat ~7 px
+// right and ~4 px low of the art box centre.
+export const HERO_PREVIEW_EMOJI_OFFSET_X_PX = -7;
+export const HERO_PREVIEW_EMOJI_OFFSET_Y_PX = -5;
+// One row of four equal tiles, never stacked; each tile keeps at least this
+// width before the page switches to the stacked layout.
+export const BUILDING_TILE_MIN_PX = 100;
+// Building emoji live here so a future art pass swaps them in one place.
+export const BUILDING_ICONS = Object.freeze({
+  library: '📚',
+  workshop: '🔨',
+  garden: '🌱',
+  tower: '🗼',
+});
+
 // Training dummy: a lobby-only target that takes damage, shows numbers and
 // triggers on-hit talents, but never counts toward kills, combo or rewards.
-export const DUMMY_COUNT = 1;
-export const DUMMY_SPAWN_MIN = 150;
-export const DUMMY_SPAWN_MAX = 250;
+export const DUMMY_TOTAL = 4;
+export const DUMMY_CLUSTER_MIN = 180;
+export const DUMMY_CLUSTER_MAX = 320;
+export const DUMMY_SPACING_MIN = 60;
+export const DUMMY_SPACING_MAX = 100;
+// Max pairwise distance between ANY two dummies in the cluster. Must be ≤ the
+// Electromancer chain hop range (220 px) so the chain can reach all 4 dummies
+// regardless of which order nearest-neighbour picks them.
+export const DUMMY_CLUSTER_DIAMETER_MAX = 200;
 export const DUMMY_MIN_HERO_DISTANCE = 80;
 export const DUMMY_EMOJI = '🎯';
 export const DUMMY_SCALE = 1.2;
@@ -218,6 +308,10 @@ export const DUMMY_KNOCKBACK_MULT = 1.5;
 export const DUMMY_FRICTION = 0.88;
 export const DUMMY_RESPAWN_S = 3;
 export const DUMMY_FADE_MS = 400;
+// Kept for backward compatibility until code is updated:
+export const DUMMY_COUNT = 1;
+export const DUMMY_SPAWN_MIN = 150;
+export const DUMMY_SPAWN_MAX = 250;
 
 // --- Ability HUD button cluster (bottom-right restyle) ---------------------
 // Three round buttons: M1 smallest on the bottom row left of Q, E medium
@@ -257,6 +351,22 @@ export const BTN_COLORS = Object.freeze({
 // Amber highlight buttons turn bright gold while READY (generalized from the
 // Sheriff Dynamite's ready colour).
 export const BTN_HIGHLIGHT_READY_COLOR = '#ffd34f';
+
+// Talent badge, shared by the World-page hero preview and the in-game I card so
+// the two places can never disagree. It uses the hero's MEDIUM type colour (the
+// skill shade of BTN_COLORS) with the same thick near-black outline as the
+// ability buttons, and the white talent icon at TALENT_BADGE_ICON_SCALE.
+export const TALENT_BADGE_SIZE = 44;
+export const TALENT_BADGE_ICON_SCALE = 0.55;
+// Shown instead of the icon if a talent icon is missing or fails to load.
+export const TALENT_FALLBACK_EMOJI = Object.freeze({
+  sheriff: '⏱️',
+  guardian: '♾️',
+  pilot: '💉',
+  bombardier: '💥',
+  bubbles: '🫧',
+  electromancer: '⚡',
+});
 
 // Performance profiler. Debug builds only (same gate as the debug menu): the
 // overlay samples once a second and keeps a short trace for kill bursts.

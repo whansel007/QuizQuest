@@ -4,6 +4,7 @@
 import { ref, computed, nextTick, onMounted, onUnmounted } from 'vue';
 import { RARITY } from './rarity.js';
 import { formatHeroType } from '../hero-type.js';
+import HeroIcon from '../HeroIcon.vue';
 
 const props = defineProps({
   result: { type: Object, required: true }, // server summon result plus eggColour
@@ -100,7 +101,7 @@ onUnmounted(() => {
               <div class="prize-box">
                 <div class="face front">
                   <div class="pb-head"><span>QUIZQUEST</span><span>{{ rarity }}</span></div>
-                  <div class="pb-window"><span class="pb-pet">{{ itemEmoji }}</span></div>
+                  <div class="pb-window"><HeroIcon v-if="isHero" :hero="item" :size="64" animated /><span v-else class="pb-pet">{{ itemEmoji }}</span></div>
                   <div class="pb-name">{{ itemName }}</div>
                 </div>
                 <div class="face back"><span>QUIZQUEST</span></div>
@@ -115,7 +116,7 @@ onUnmounted(() => {
       </div>
       <div class="prize-info">
         <template v-if="stage === 'open'">
-          <h2 id="prize-title">{{ itemEmoji }} {{ itemName }}</h2>
+          <h2 id="prize-title"><HeroIcon v-if="isHero" :hero="item" :size="28" />{{ isHero ? '' : `${itemEmoji} ` }}{{ itemName }}</h2>
           <div class="prize-tags">
             <span class="prize-tag rarity-tag">{{ rarityStars }}</span>
             <span v-if="duplicate" class="prize-tag">Duplicate · +{{ result.refund }} 🪙 back</span>

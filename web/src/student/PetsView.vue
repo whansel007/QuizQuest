@@ -10,6 +10,7 @@ import ResourceBadge from './ResourceBadge.vue';
 import GachaMachine from './gacha/GachaMachine.vue';
 import PrizeReveal from './gacha/PrizeReveal.vue';
 import { formatHeroType } from './hero-type.js';
+import HeroIcon from './HeroIcon.vue';
 
 const error = ref('');
 const ledger = ref(null);
@@ -88,7 +89,7 @@ onUnmounted(() => { alive = false; });
       <h2 id="collection-title">Collection</h2>
       <div class="hero-collection-grid">
         <article v-for="hero in catalog.heroes" :key="hero.id" class="hero-collection-card" :class="[{ locked: !ownsHero(hero.id) }, hero.rarity]">
-          <div class="hero-collection-emoji">{{ hero.emoji }}</div>
+          <div class="hero-collection-emoji"><HeroIcon :hero="hero" :size="48" /></div>
           <div class="hero-collection-title"><strong>{{ hero.name }}</strong><span class="rarity" :class="hero.rarity">{{ hero.rarity }}★</span></div>
           <div class="small muted">{{ formatHeroType(hero.type) }} · {{ ownsHero(hero.id) ? 'Owned' : 'Not summoned' }}</div>
           <div class="small">{{ hero.weapon }} · {{ hero.skill }} · {{ hero.ultimate }}</div>

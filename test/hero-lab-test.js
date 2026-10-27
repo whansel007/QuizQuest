@@ -7,6 +7,9 @@ const { RESPAWN_RING_MIN, RESPAWN_RING_MAX, RESPAWN_MIN_SEPARATION,
   SHERIFF_KILL_REFUND_S, SHERIFF_BLAST_REFUND_CAP_S,
   GUARDIAN_ULT_RAMP_PER_HIT, GUARDIAN_ULT_RAMP_CAP, GUARDIAN_SLAM_RADIUS,
   GUARDIAN_SLAM_DAMAGE_MULT, GUARDIAN_ULT_EARLY_END, GUARDIAN_BRACE_ENABLED,
+  GUARDIAN_DASH_KILL_EXTENSION_S, GUARDIAN_RUSH_DISTANCE, GUARDIAN_RUSH_DURATION_S,
+  GUARDIAN_RUSH_IFRAME_AFTER_S, GUARDIAN_FAN_ANGLE_DEG, GUARDIAN_FAN_RADIUS,
+  GUARDIAN_FAN_DAMAGE_MULT, GUARDIAN_FAN_KNOCKBACK, GUARDIAN_FAN_KNOCKBACK_MS, GUARDIAN_FAN_FADE_MS,
   BUILDING_BONUS_PER_LEVEL, BUILDING_LEVEL_CAP, BASE_CAMPFIRE_HP } = require('../config/tuning.js');
 
 let server;
@@ -49,6 +52,30 @@ test('hero tuning uses the requested refunds, Guardian ramp, and percentage buil
   assert.equal(GUARDIAN_SLAM_DAMAGE_MULT, 2);
   assert.equal(GUARDIAN_ULT_EARLY_END, true);
   assert.equal(GUARDIAN_BRACE_ENABLED, false);
+  assert.equal(GUARDIAN_DASH_KILL_EXTENSION_S, 0.15);
+
+  // Guardian Shield Rush rework is wired through to the client config.
+  assert.equal(GAME_CONFIG.arenaTuning.heroTweaks.guardianRushDistance, GUARDIAN_RUSH_DISTANCE);
+  assert.equal(GAME_CONFIG.arenaTuning.heroTweaks.guardianRushDurationMs, GUARDIAN_RUSH_DURATION_S * 1000);
+  assert.equal(GAME_CONFIG.arenaTuning.heroTweaks.guardianRushIframeMs, (GUARDIAN_RUSH_DURATION_S + GUARDIAN_RUSH_IFRAME_AFTER_S) * 1000);
+  assert.equal(GAME_CONFIG.arenaTuning.heroTweaks.guardianFanAngleDeg, GUARDIAN_FAN_ANGLE_DEG);
+  assert.equal(GAME_CONFIG.arenaTuning.heroTweaks.guardianFanRadius, GUARDIAN_FAN_RADIUS);
+  assert.equal(GAME_CONFIG.arenaTuning.heroTweaks.guardianFanFadeMs, GUARDIAN_FAN_FADE_MS);
+  assert.equal(GUARDIAN_RUSH_DISTANCE, 300);
+  assert.equal(GUARDIAN_RUSH_DURATION_S, 0.25);
+  assert.equal(GUARDIAN_RUSH_IFRAME_AFTER_S, 0.3);
+  assert.equal(GUARDIAN_FAN_ANGLE_DEG, 130);
+  assert.equal(GUARDIAN_FAN_RADIUS, 210);
+  assert.equal(GUARDIAN_FAN_DAMAGE_MULT, 1.0);
+  assert.equal(GUARDIAN_FAN_KNOCKBACK, 260);
+  assert.equal(GUARDIAN_FAN_KNOCKBACK_MS, 300);
+  assert.equal(GAME_CONFIG.heroes.guardian.skillDash.distance, GUARDIAN_RUSH_DISTANCE);
+  assert.equal(GAME_CONFIG.heroes.guardian.skillDash.durationMs, GUARDIAN_RUSH_DURATION_S * 1000);
+  assert.equal(GAME_CONFIG.heroes.guardian.skillDash.invulnerableMs, (GUARDIAN_RUSH_DURATION_S + GUARDIAN_RUSH_IFRAME_AFTER_S) * 1000);
+  assert.equal(GAME_CONFIG.heroes.guardian.skillDash.fan.angleDeg, GUARDIAN_FAN_ANGLE_DEG);
+  assert.equal(GAME_CONFIG.heroes.guardian.skillDash.fan.radius, GUARDIAN_FAN_RADIUS);
+  assert.deepEqual(GAME_CONFIG.heroes.guardian.talent.linkedSlot, ['ultimate']);
+  assert.match(GAME_CONFIG.heroes.guardian.talent.description, /Unbreakable Charge/);
   assert.equal(BUILDING_BONUS_PER_LEVEL, 0.1);
   assert.equal(BUILDING_LEVEL_CAP, 3);
   assert.equal(GAME_CONFIG.arenaTuning.buildingBonuses.cap, undefined);
@@ -180,7 +207,7 @@ test('Hero Lab server fires and broadcasts the selected hero projectile in the a
   assert.equal(proj.color, '#f5c84c');
 });
 
-test('Guardian Shield Rush follows the mouse aim with no movement keys held', async (t) => {
+test('Guardian Shield Rush is a 300px aimed dash with i-frames and no path damage', async (t) => {
   const client = await connectClient();
   t.after(() => client.disconnect());
   const welcomePromise = new Promise((resolve) => client.once('welcome', resolve));
@@ -189,13 +216,70 @@ test('Guardian Shield Rush follows the mouse aim with no movement keys held', as
   await nextState(client, (state) => state.players.some((player) => player.id === clientId));
 
   const player = server.heroLab.players.get(clientId);
+  // Payload shape: a non-steerable dash plus a fan, with no per-tick damage.
+  const skill = player.hero.skill(Date.now());
+  assert.equal(skill.type, 'dash');
+  assert.equal(skill.distance, GUARDIAN_RUSH_DISTANCE);
+  assert.equal(skill.durationMs, GUARDIAN_RUSH_DURATION_S * 1000);
+  assert.equal(skill.invulnerableMs, (GUARDIAN_RUSH_DURATION_S + GUARDIAN_RUSH_IFRAME_AFTER_S) * 1000);
+  assert.ok(skill.fan && skill.fan.angleDeg === GUARDIAN_FAN_ANGLE_DEG && skill.fan.radius === GUARDIAN_FAN_RADIUS);
+  assert.equal(skill.damageMultiplier, undefined, 'the old Shield Rush path damage is gone');
+
   const before = { x: player.x, y: player.y };
   client.emit('aim', { x: 1, y: 0 });
   client.emit('skill');
-  const state = await nextState(client, (snapshot) => snapshot.players.find((entry) => entry.id === clientId)?.x > before.x + 1);
+  const state = await nextState(client, (snapshot) => {
+    const entry = snapshot.players.find((e) => e.id === clientId);
+    return entry && entry.x > before.x + GUARDIAN_RUSH_DISTANCE - 5;
+  });
   const after = state.players.find((entry) => entry.id === clientId);
-  assert.ok(after.x > before.x);
-  assert.ok(Math.abs(after.y - before.y) < 1);
+  assert.ok(after.x > before.x + GUARDIAN_RUSH_DISTANCE - 5, 'dash travels the full 300px');
+  assert.ok(Math.abs(after.y - before.y) < 1, 'dash locks to the cast aim, no steering');
+  assert.equal(after.invulnerable, true, 'dash plus 0.3s i-frames are active');
+  assert.equal(player.hero.chargeUntil, 0, 'the skill does not touch the ultimate charge');
+});
+
+test('Guardian Shield Rush fan deals 1.0x damage and pushes enemies away', async (t) => {
+  const client = await connectClient();
+  t.after(() => client.disconnect());
+  const welcomePromise = new Promise((resolve) => client.once('welcome', resolve));
+  client.emit('join', { heroId: 'guardian' });
+  const { you: clientId } = await welcomePromise;
+  await nextState(client, (state) => state.players.some((player) => player.id === clientId));
+
+  const { Zombie } = await import('../public/hero-lab/enemies/zombie.js');
+  const player = server.heroLab.players.get(clientId);
+  server.heroLab.monsters.clear();
+  // 80px beyond where the 300px dash lands, dead-centre of the 130° cone.
+  const mx = player.x + GUARDIAN_RUSH_DISTANCE + 80;
+  const my = player.y;
+  const monster = new Zombie({ id: `guardian-fan-${clientId}`, x: mx, y: my, hp: 10_000, maxHp: 10_000, speed: 0 });
+  server.heroLab.monsters.set(monster.id, monster);
+  const initialX = monster.x, initialHp = monster.hp;
+
+  // Register the area_effect listener BEFORE casting: the dash completes and
+  // the fan fires ~250ms after the skill, so a later listener would miss it.
+  const effectPromise = new Promise((resolve) => client.once('area_effect', resolve));
+  client.emit('aim', { x: 1, y: 0 });
+  client.emit('skill');
+  const effect = await Promise.race([
+    effectPromise,
+    new Promise((_, reject) => setTimeout(() => reject(new Error('area_effect never fired within 3s')), 3000)),
+  ]);
+  assert.equal(effect.sourceHeroId, 'guardian');
+  assert.equal(effect.sourceAbility, 'skill');
+  assert.equal(effect.angleDeg, GUARDIAN_FAN_ANGLE_DEG);
+  assert.equal(effect.radius, GUARDIAN_FAN_RADIUS);
+  assert.ok(Array.isArray(effect.hits) && effect.hits.some((h) => h.id === monster.id), 'the monster is in the fan hit list');
+
+  // Let the radial push resolve, then confirm damage and displacement.
+  await nextState(client, (state) => {
+    const m = state.monsters.find((entry) => entry.id === monster.id);
+    return m && (m.hp < initialHp || m.x > initialX + 1);
+  }, 2000);
+  const pushed = server.heroLab.monsters.get(monster.id);
+  assert.ok(pushed.hp < initialHp, 'the fan deals 1.0x attack damage');
+  assert.ok(pushed.x > initialX + 5, 'the fan pushes the enemy radially away from the landing point');
 });
 
 test('respawn selects a separated point on the campfire ring', async (t) => {
@@ -659,7 +743,11 @@ test('wave buffs appear for a shared vote and a disconnected vote is removed', a
   await nextState(first, (state) => state.monsters.length > 0, 9000);
   // Clear the rest of the wave so the break (and its vote) can start without
   // waiting for every queued spawn.
-  server.heroLab.rooms.peekDefaultRoom().clearWave();
+  const sharedRoom = server.heroLab.rooms.peekDefaultRoom();
+  sharedRoom.clearWave();
+  // The break opens with a REST phase; skip it so the vote appears quickly.
+  await nextState(first, (state) => state.break?.phase === 'rest', 4000);
+  sharedRoom.skipBreakPhase();
   const voteState = await nextState(first, (state) => state.buffVote?.cards?.length === 3);
   const cards = voteState.buffVote.cards;
   assert.equal(new Set(cards.map((card) => card.id)).size, 3);
