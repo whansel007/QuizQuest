@@ -22,6 +22,7 @@ const { validateQuestion, normalise, duplicateContent } = require('./validate');
 const { retrieve } = require('./retrieval');
 const gemini = require('./gemini');
 const { STYLE_RULES, APPLICATION_GUIDE, BLUEPRINT_SCHEMA } = require('./assessment');
+const designGuidance = require('./design-guidance');
 const { dayKey } = require('./time');
 
 const GEN = {
@@ -220,6 +221,9 @@ function buildUserPrompt({ course, topic, outcome, count, format, chunks, quanti
     '',
     'SOURCE CHUNKS:',
     ...chunks.map((c) => `<chunk passage_id="${c.passageId}">\n${safe(c.text)}\n</chunk>`),
+    // The app's own voice, so what Gemini writes sounds like the game. It is
+    // the last thing before the answer so it is not buried under the material.
+    designGuidance.guidanceBlock(),
   ]
     .filter((l) => l !== '')
     .join('\n');
