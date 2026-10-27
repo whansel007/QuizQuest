@@ -470,7 +470,9 @@ test('dashboard: very low accuracy is flagged, commonly missed means under 60%, 
   // downloads are named by what they hold, for whom and when
   const download = page.waitForEvent('download');
   await missed.getByRole('button', { name: 'Download CSV' }).click();
-  assert.match((await download).suggestedFilename(), /^Commonly missed questions - Computing - Tutorial Group A - All topics - last 30 days to \d{1,2} \w{3} \d{4}\.csv$/);
+  // the month is three letters for most of the year but four in September:
+  // the short form of September is "Sept" in the en-SG locale
+  assert.match((await download).suggestedFilename(), /^Commonly missed questions - Computing - Tutorial Group A - All topics - last 30 days to \d{1,2} \w{3,4} \d{4}\.csv$/);
   // no World answers yet: no "(0 in World)" and no empty Practice vs World panel
   assert.equal(await page.getByText('(0 in World)').count(), 0);
   assert.equal(await page.getByRole('heading', { name: 'Practice vs World' }).count(), 0);
@@ -486,7 +488,8 @@ test('dashboard: "This semester" uses the dates set in Settings', async (t) => {
   const tabs = page.locator('#tabs');
   await tabs.getByRole('button', { name: 'Analytics', exact: true }).click();
   await page.getByLabel('Period').selectOption('semester');
-  await page.getByText(/students who practised \(this semester, from \d{1,2} \w{3} \d{4}\)/).waitFor();
+  // the semester start moves with the date, so the month can be "Sept" too
+  await page.getByText(/students who practised \(this semester, from \d{1,2} \w{3,4} \d{4}\)/).waitFor();
   // the comparison says before what
   await page.getByText(/in the \d+ days before the semester/).first().waitFor();
   // without dates the dashboard stays put and points to Settings
