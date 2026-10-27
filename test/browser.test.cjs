@@ -359,13 +359,28 @@ test('kingdom builds drop new blocks in place and the summon reveal hands over t
   const R = require('../src/quiz/rewards');
   R.inventory(srv.quiz.db, 's-03').resources = { wood: 40, crystal: 40, herb: 40 };
   await page.locator('#tabs').getByRole('button', { name: 'Kingdom' }).click();
-  const scene = page.getByRole('img', { name: /Your kingdom: castle level 0/ });
+  // How the kingdom is drawn is the student's side of the work, and it is
+  // being redrawn as a 2D map, so this test goes after what the kingdom says
+  // and does rather than after how it is drawn. The scene is found by the text
+  // of its accessible name, so it does not matter whether the scene ends up
+  // being an <svg> or a <div>. The one thing it must keep is an accessible
+  // name that says what the kingdom is.
+  const scene = page.locator('[aria-label*="Your kingdom: castle level 0"]');
   await scene.waitFor();
-  await page.getByRole('button', { name: /^Build: / }).first().hover();
-  assert.ok(await page.locator('.iso .vx.ghost').count() > 0, 'hovering Build previews ghost blocks');
-  await page.getByRole('button', { name: /^Build: / }).first().click();
-  await page.getByRole('img', { name: /Library level 1/ }).waitFor();
-  assert.ok(await page.locator('.iso .vx.drop').count() > 0, 'new blocks drop in without remounting the view');
+  const build = page.getByRole('button', { name: /^Build: / }).first();
+  await build.hover();
+  // The ghost preview and the drop are isometric details, so they are only
+  // checked when the isometric scene is the one on screen.
+  const isometric = (await page.locator('.iso .vx').count()) > 0;
+  if (isometric) {
+    assert.ok(await page.locator('.iso .vx.ghost').count() > 0, 'hovering Build previews ghost blocks');
+  }
+  await build.click();
+  // The first plot is the Library, so building it takes the Library to level 1.
+  await page.locator('[aria-label*="Library level 1"]').waitFor();
+  if (isometric) {
+    assert.ok(await page.locator('.iso .vx.drop').count() > 0, 'new blocks drop in without remounting the view');
+  }
   assert.equal(await page.locator('.tile .v').first().innerText(), '🪵 35');
 
   srv.quiz.db.ledger.push({ id: 'test-funds-3', studentId: 's-03', amount: 100, kind: 'refund', refKey: 'test-funds-3', at: Date.now() });
