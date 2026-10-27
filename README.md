@@ -118,7 +118,9 @@ Run **one server at a time** per Supabase project. See
 | `pnpm build` | Build the Vue app into `dist/` |
 | `pnpm start` | Production: server on :3000 serving `dist/` (build first) |
 | `pnpm test` | API, database, World and store tests |
+| `pnpm test:unit` | Runs the Vitest unit tests (watch mode; use `pnpm exec vitest run` for one pass) |
 | `pnpm test:browser` | Builds, then runs the Playwright browser tests |
+| `pnpm test:e2e` | Runs the end-to-end tests in `e2e/` on Chromium, Firefox and WebKit |
 | `pnpm check` | Syntax-check the JavaScript files |
 | `pnpm reset-data` | Wipe local demo data (file store) |
 | `pnpm db:reset --confirm` | Wipe and re-seed the Supabase project |
@@ -127,6 +129,11 @@ For browser tests, run `npx playwright install chromium` once, or use Edge with
 `$env:BROWSER_CHANNEL='msedge'` (PowerShell). To check Safari's and Firefox's
 engines too, install them (`npx playwright install webkit firefox`) and set
 `$env:BROWSER='webkit'` or `'firefox'` before `npm run test:browser`.
+
+The end-to-end tests need all three engines (`npx playwright install chromium
+firefox webkit`). Each browser gets its own server and its own copy of the demo
+data, so a run never touches Supabase or your `data/db.json`. All four suites
+also run on every pull request.
 
 ## Professor authoring workflow
 

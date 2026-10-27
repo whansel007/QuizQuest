@@ -8,9 +8,9 @@ on:
 
 jobs:
   test:
-    name: Check + tests
+    name: Check + node tests
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 15
 
     steps:
       - name: Checkout
@@ -37,4 +37,95 @@ jobs:
         env:
           # Tests use the JSON file fallback when these are unset.
           # No Supabase or AI keys are needed.
+          CI: 'true'
+
+  unit:
+    name: Unit tests (vitest)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Enable corepack + pnpm
+        run: |
+          corepack enable
+          pnpm --version
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Run unit tests
+        run: pnpm exec vitest run
+        env:
+          CI: 'true'
+
+  browser:
+    name: Browser tests (Chromium)
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Enable corepack + pnpm
+        run: |
+          corepack enable
+          pnpm --version
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Install Playwright browsers
+        run: pnpm exec playwright install --with-deps chromium
+
+      # Builds the Vue app, then drives it with Playwright: the question
+      # bank, the AI drafting flow, the dashboard and the game views.
+      - name: Run browser tests
+        run: pnpm run test:browser
+        env:
+          CI: 'true'
+
+  e2e:
+    name: End-to-end tests (Chromium, Firefox, WebKit)
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Enable corepack + pnpm
+        run: |
+          corepack enable
+          pnpm --version
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Install Playwright browsers
+        run: pnpm exec playwright install --with-deps chromium firefox webkit
+
+      # Every browser gets its own server and its own copy of the demo
+      # data, so the run never touches Supabase or data/db.json.
+      - name: Run end-to-end tests
+        run: pnpm test:e2e
+        env:
           CI: 'true'
