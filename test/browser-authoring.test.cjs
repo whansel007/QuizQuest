@@ -40,7 +40,13 @@ const ai = async ({ prompt }) => {
           unambiguous: true,
           explanationSupported: true,
           statementTruth: question.type === 'tf' ? false : null,
-          cognitiveStyle: question.type==='tf'?'conceptual':'application',outcomeAligned:true,difficultyAppropriate:true,scenarioGrounded:true,
+          cognitiveStyle: question.type==='tf'?'conceptual':'application',
+          // The verifier schema requires these: the scenario test downgrades an
+          // application item that can be answered without its givens, or that
+          // takes fewer than two reasoning steps.
+          reasoningSteps: question.type==='tf'?['recall the underlying rule']:['read the scenario givens','apply the rule to them','choose the justified answer'],
+          answerableWithoutScenario: question.type==='tf',
+          outcomeAligned:true,difficultyAppropriate:true,scenarioGrounded:true,
           aligned: true,
           duplicate: false,
           fitsConfiguration: true,
