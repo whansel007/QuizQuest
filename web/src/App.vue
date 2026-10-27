@@ -19,6 +19,7 @@ import KingdomView from './student/KingdomView.vue';
 import PetsView from './student/PetsView.vue';
 import DebugMenu from './components/DebugMenu.vue';
 import AccountMenu from './components/AccountMenu.vue';
+import QuizQuestLogo from './components/QuizQuestLogo.vue';
 
 const TABS = {
   teacher: [['analytics', 'Analytics', AnalyticsView], ['classes', 'Classes & Roster', ClassManagementView], ['review', 'Question bank', ReviewView], ['generate', 'AI drafting', GenerateView], ['evaluation', 'Evaluation', EvaluationView], ['settings', 'Settings', SettingsView]],
@@ -43,7 +44,10 @@ const current = computed(() => {
   <LoginView v-if="ready && !S.me" :key="'login' + S.viewKey" />
   <template v-else-if="ready">
   <header id="top">
-    <div class="brand">Quiz<span>Quest</span> <small>prototype</small></div>
+    <div class="brand">
+      <QuizQuestLogo :size="30" />
+      <small>prototype</small>
+    </div>
     <nav id="tabs" :class="{ crowded: tabs.length > 5 }">
       <button v-for="[id, label] in tabs" :key="id" :aria-current="current && current[0] === id ? 'page' : null" @click="setTab(id)">{{ label }}</button>
     </nav>
