@@ -69,38 +69,6 @@ jobs:
   browser:
     name: Browser tests (Chromium)
     runs-on: ubuntu-latest
-    timeout-minutes: 20
-
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: '22'
-
-      - name: Enable corepack + pnpm
-        run: |
-          corepack enable
-          pnpm --version
-
-      - name: Install dependencies
-        run: pnpm install --frozen-lockfile
-
-      - name: Install Playwright browsers
-        run: pnpm exec playwright install --with-deps chromium
-
-      # Builds the Vue app, then drives it with Playwright: the question
-      # bank, the AI drafting flow, the dashboard and the game views.
-      - name: Run browser tests
-        run: pnpm run test:browser
-        env:
-          CI: 'true'
-
-  e2e:
-    name: End-to-end tests (Chromium, Firefox, WebKit)
-    runs-on: ubuntu-latest
     timeout-minutes: 30
 
     steps:
@@ -119,6 +87,56 @@ jobs:
 
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
+
+      # Downloading the browser engines is the slowest step by far, and a
+      # busy runner can take longer than the whole job is allowed. Keeping
+      # them between runs means the step is a no-op after the first time.
+      - name: Cache Playwright browsers
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: ${{ runner.os }}-playwright-${{ hashFiles('pnpm-lock.yaml') }}
+
+      - name: Install Playwright browsers
+        run: pnpm exec playwright install --with-deps chromium
+
+      # Builds the Vue app, then drives it with Playwright: the question
+      # bank, the AI drafting flow, the dashboard and the game views.
+      - name: Run browser tests
+        run: pnpm run test:browser
+        env:
+          CI: 'true'
+
+  e2e:
+    name: End-to-end tests (Chromium, Firefox, WebKit)
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Enable corepack + pnpm
+        run: |
+          corepack enable
+          pnpm --version
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      # Three engines is a big download. Caching them means the install is
+      # a no-op after the first run, so a slow runner cannot push the job
+      # past its limit before a single test has run.
+      - name: Cache Playwright browsers
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: ${{ runner.os }}-playwright-${{ hashFiles('pnpm-lock.yaml') }}
 
       - name: Install Playwright browsers
         run: pnpm exec playwright install --with-deps chromium firefox webkit
