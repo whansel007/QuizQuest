@@ -13,7 +13,7 @@
 import { test, expect } from '@playwright/test';
 import { createRequire } from 'node:module';
 import path from 'node:path';
-import { signIn } from './helpers.js';
+import { signIn, TEACHER } from './helpers.js';
 
 // The seeded demo questions live in the app's own CommonJS modules.
 const require = createRequire(path.resolve('package.json'));
@@ -21,17 +21,36 @@ const { seed } = require('./src/quiz/seed.js');
 const { instantiate } = require('./src/quiz/formats.js');
 
 const CLASS_ID = 'cl-a';
+const COURSE_ID = 'c-comp';
 const STUDENT_A = { email: 'student01@quizquest.demo' };
 const STUDENT_B = { email: 'student02@quizquest.demo' };
 
 // The server never sends the answer key to the browser, so the test knows
-// the answers the way a student does: from the course material. The demo
-// bank is seeded, so the questions are the same on every run.
+// the answers the way a professor does: from the question bank. The seeded
+// bank is the starting point, and the live bank below is what the server
+// will actually serve from - another spec in the same run publishes a
+// draft question, and that question has to be answerable too.
 const bank = new Map();
 for (const q of seed(1750000000000).questions) {
-  if (q.status !== 'published' || q.courseId !== 'c-comp') continue;
+  if (q.status !== 'published' || q.courseId !== COURSE_ID) continue;
   const v = q.versions.find((x) => x.v === q.publishedVersion);
   if (v) bank.set(q.id, v);
+}
+
+// Read the professor's own question bank: the published questions, with the
+// answer key the professor is allowed to see.
+async function readLiveBank(context) {
+  const page = await context.newPage();
+  await signIn(page, TEACHER);
+  const questions = await page.evaluate(async (courseId) => {
+    const res = await fetch(`/api/teacher/courses/${courseId}/questions`, {
+      headers: { Authorization: 'Bearer ' + sessionStorage.getItem('qq-token') },
+    });
+    if (!res.ok) throw new Error('the question bank said ' + res.status);
+    return res.json();
+  }, COURSE_ID);
+  await page.close();
+  return questions;
 }
 
 // A maths template is drawn with fresh numbers every time it is served, so
@@ -211,11 +230,23 @@ test('two students share one raid boss: a correct answer damages it for the clas
   test.setTimeout(180 * 1000); // a raid takes a few questions and a walk or two
   const contextA = await browser.newContext({ baseURL });
   const contextB = await browser.newContext({ baseURL });
+  const contextT = await browser.newContext({ baseURL }); // the professor, for the answer key
   const pageA = await contextA.newPage();
   const pageB = await contextB.newPage();
 
   await signIn(pageA, STUDENT_A);
   await signIn(pageB, STUDENT_B);
+
+  // Take the answer key from the live question bank, so the test can answer
+  // every question the server is willing to serve - including one another
+  // spec published in this same run.
+  for (const q of await readLiveBank(contextT)) {
+    if (q.status !== 'published' || !q.publishedVersion || !q.latest) continue;
+    if (q.latest.v !== q.publishedVersion) continue; // an edit that was never published
+    bank.set(q.id, q.latest);
+  }
+  await contextT.close();
+
   await openWorldSocket(pageA, CLASS_ID);
   await openWorldSocket(pageB, CLASS_ID);
 
