@@ -184,6 +184,28 @@ test('signing in with email and password', async (t) => {
   await page.locator('#tabs').getByRole('button', { name: 'Question bank', exact: true }).click();
   await page.getByRole('heading', { name: 'Question bank', exact: true }).waitFor();
 });
+test('the sign-up form does not steal the focus from the field being typed in', async (t) => {
+  const page = await browser.newPage();
+  t.after(() => page.close());
+  await page.goto(base);
+  // Slow the slide right down, so the focus lands while the card is still
+  // moving in and the app still has its eye on the name field.
+  await page.addStyleTag({ content: '.qq-step-enter-active { transition-duration: 2s !important; }' });
+  await page.getByRole('button', { name: 'Create a student account' }).click();
+  const name = page.locator('#signup-name');
+  const password = page.locator('#signup-password');
+  await name.waitFor({ state: 'attached' });
+  // The user starts typing in the password field before the card settles.
+  await page.evaluate(() => document.querySelector('#signup-password').focus());
+  await page.waitForTimeout(3000);
+  assert.equal(
+    await page.evaluate(() => document.activeElement.id),
+    'signup-password',
+    'the focus stays in the field the user is typing in',
+  );
+  await password.fill('longenough');
+  assert.equal(await name.inputValue(), '', 'the password never lands in the name field');
+});
 test('the Konami debug menu exposes test accounts and fills the sign-in form', async (t) => {
   const page = await browser.newPage();
   t.after(() => page.close());
