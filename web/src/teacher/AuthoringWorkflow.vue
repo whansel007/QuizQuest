@@ -99,7 +99,10 @@ function suggestFromReport() {
   if (!config.learningOutcome.trim() && suggested.value.outcome) config.learningOutcome = suggested.value.outcome;
 }
 const usingSuggestion = computed(() => suggested.value.outcome && config.learningOutcome === suggested.value.outcome);
-const attemptKey=`generation-attempt:${S.me.id}:${props.course.id}`;
+// The pending-generation marker belongs to this topic, like the report draft
+// below. Otherwise a request left pending on one topic blocks the next topic
+// and can be retried with the wrong topic and outcome.
+const attemptKey=`generation-attempt:${S.me.id}:${props.course.id}:${props.topic.id}`;
 const key = `report-workflow:${S.me.id}:${props.course.id}:${props.topic.id}`, path = `/api/teacher/courses/${props.course.id}`;
 let timer, refreshing, disposed = false, restoring = true, loadedId = '';
 function loadEditor() {

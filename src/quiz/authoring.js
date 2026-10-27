@@ -213,12 +213,18 @@ function createAuthoring({ db, persist, ai = gemini.generateJson, drafter }) {
       // without one, every attached file of the course is used (older reports).
       const topicId = reportBased && raw.topicId !== undefined ? raw.topicId : undefined;
       if (topicId !== undefined && !db.topics.some((t) => t.id === topicId && t.courseId === c.id)) error(400, 'Unknown topic.');
-      const material = reportBased && db.passages.filter((p) => p.courseId === c.id && p.origin !== 'report' && p.attached !== false && (raw.materialIds === undefined || p.importHash)
-        && (topicId === undefined || p.topicId === topicId));
+      // The upload workflow supplies its attachment set explicitly, so the
+      // report is made from exactly those passages: the uploaded excerpts and
+      // the notes the professor wrote for the topic. Legacy course-material
+      // callers can still analyse manually entered sources.
       if (reportBased && raw.materialIds !== undefined && !Array.isArray(raw.materialIds)) error(400, 'Choose attached file excerpts.');
+      const listed = reportBased && raw.materialIds !== undefined ? raw.materialIds : null;
+      const material = reportBased && db.passages.filter((p) => p.courseId === c.id && p.origin !== 'report' && p.attached !== false
+        && (listed === null || listed.includes(p.id))
+        && (topicId === undefined || p.topicId === topicId));
       if (reportBased && raw.materialIds && hash([...raw.materialIds].sort()) !== hash(material.map((p) => p.id).sort()))
         error(409, 'Attached files changed. Refresh the upload list before generating a report.');
-      if (reportBased && !material.length) error(400, topicId === undefined ? 'Upload lecture material before generating a knowledge report.' : 'Upload lecture material for this topic before generating a knowledge report.');
+      if (reportBased && !material.length) error(400, topicId === undefined ? 'Add material before generating a knowledge report.' : 'Add material for this topic before generating a knowledge report.');
       if (reportBased && (material.length > 1000 || material.reduce((n,p)=>n+p.text.length,0) > 3000000))
         error(400, 'There is too much material for one report. Remove older material in Source material, then try again.');
       const pp = sources(c, reportBased ? { passageIds: material.map((p) => p.id) } : raw);
