@@ -30,6 +30,9 @@ const once = (s, ev, ms = 3000) => new Promise((resolve, reject) => {
     resolve(x);
   });
 });
+// The handshake is quick, but a busy CI runner can hold the event loop for
+// seconds, so the socket gets a longer window than the game events.
+const connected = (s) => once(s, 'connect', 15000);
 function connect(token) {
   return ioClient(base + '/world', { transports: ['websocket'], auth: { token }, reconnection: false });
 }
@@ -52,7 +55,7 @@ const wrongAnswer = (ch) => {
 test('logged-out sockets cannot rejoin a class world', async () => {
   const token = await login('s-04');
   const s = connect(token);
-  await once(s, 'connect');
+  await connected(s);
   await fetch(base + '/api/logout', { method: 'POST', headers: { authorization: 'Bearer ' + token } });
   const kicked = once(s, 'kicked');
   s.emit('join', { classId: 'cl-a' });
@@ -62,7 +65,7 @@ test('logged-out sockets cannot rejoin a class world', async () => {
 
 test('abandoned challenges are recorded and release reserved nodes', async () => {
   const s = connect(await login('s-05'));
-  await once(s, 'connect');
+  await connected(s);
   s.emit('join', { classId: 'cl-a' });
   const w = await once(s, 'welcome');
   const world = srv.world.worlds.get('cl-a');
@@ -85,7 +88,7 @@ test('abandoned challenges are recorded and release reserved nodes', async () =>
 
 test('failed World grading releases the node and the player can retry', async () => {
   const s = connect(await login('s-06'));
-  await once(s, 'connect');
+  await connected(s);
   s.emit('join', { classId: 'cl-a' });
   const w = await once(s, 'welcome');
   const world = srv.world.worlds.get('cl-a');
@@ -112,7 +115,7 @@ test('failed World grading releases the node and the player can retry', async ()
 test('World answer replay returns the outcome without paying twice', async () => {
   const token = await login('s-04');
   const s = connect(token);
-  await once(s, 'connect');
+  await connected(s);
   s.emit('join', { classId: 'cl-a' });
   const w = await once(s, 'welcome');
   const world = srv.world.worlds.get('cl-a');
@@ -160,7 +163,7 @@ test('handshake requires a student token', async () => {
 
 test('cannot join another class\'s world', async () => {
   const s = connect(await login('s-07')); // class B
-  await once(s, 'connect');
+  await connected(s);
   s.emit('join', { classId: 'cl-a' });
   assert.match(await once(s, 'notice'), /not in that class/);
   s.close();
@@ -168,7 +171,7 @@ test('cannot join another class\'s world', async () => {
 
 test('gathering: question has no answer key; wrong = nothing, right = resources', async () => {
   const s = connect(await login('s-02'));
-  await once(s, 'connect');
+  await connected(s);
   s.emit('join', { classId: 'cl-a' });
   const welcome = await once(s, 'welcome');
   const world = srv.world.worlds.get('cl-a');
@@ -218,7 +221,7 @@ test('gathering: question has no answer key; wrong = nothing, right = resources'
 test('raid: correct answers damage the shared boss; victory pays every contributor once', async () => {
   const a = connect(await login('s-03'));
   const b = connect(await login('s-04'));
-  await Promise.all([once(a, 'connect'), once(b, 'connect')]);
+  await Promise.all([connected(a), connected(b)]);
   a.emit('join', { classId: 'cl-a' });
   b.emit('join', { classId: 'cl-a' });
   const [wa, wb] = await Promise.all([once(a, 'welcome'), once(b, 'welcome')]);
@@ -263,12 +266,12 @@ test('raid: correct answers damage the shared boss; victory pays every contribut
 test('a second tab takes over cleanly, even when alone in the world', async () => {
   const token = await login('s-05');
   const tab1 = connect(token);
-  await once(tab1, 'connect');
+  await connected(tab1);
   tab1.emit('join', { classId: 'cl-a' });
   await once(tab1, 'welcome');
   // make sure s-05 is the only player in a fresh class world
   const tab2 = connect(token);
-  await once(tab2, 'connect');
+  await connected(tab2);
   const kicked = once(tab1, 'kicked');
   // listen before joining: 'welcome' can arrive before 'kicked' is handled
   const welcome = once(tab2, 'welcome');
@@ -285,7 +288,7 @@ test('a second tab takes over cleanly, even when alone in the world', async () =
 test('leaving with an open question keeps the cooldown (no re-rolling)', async () => {
   const token = await login('s-06');
   let s = connect(token);
-  await once(s, 'connect');
+  await connected(s);
   s.emit('join', { classId: 'cl-a' });
   const w = await once(s, 'welcome');
   const world = srv.world.worlds.get('cl-a');
@@ -298,7 +301,7 @@ test('leaving with an open question keeps the cooldown (no re-rolling)', async (
   s.close(); // walk away without answering
   await new Promise((r) => setTimeout(r, 100));
   s = connect(token);
-  await once(s, 'connect');
+  await connected(s);
   s.emit('join', { classId: 'cl-a' });
   const w2 = await once(s, 'welcome');
   const world2 = srv.world.worlds.get('cl-a');
@@ -312,7 +315,7 @@ test('leaving with an open question keeps the cooldown (no re-rolling)', async (
 test('signing out ends World access on the open socket', async () => {
   const token = await login('s-04');
   const s = connect(token);
-  await once(s, 'connect');
+  await connected(s);
   s.emit('join', { classId: 'cl-a' });
   await once(s, 'welcome');
   await fetch(base + '/api/logout', { method: 'POST', headers: { authorization: 'Bearer ' + token } });
