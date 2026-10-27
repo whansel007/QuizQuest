@@ -607,6 +607,8 @@ function createRoom({ io, services = null, id, code = null, isDefault = false, l
       attackBonusPercent: Math.round((player?.hero.buildingBonuses?.attackPercent || 0) * 100),
       attackBonusBuilding: player?.hero.type === 'magic' ? 'Library' : 'Workshop',
       campfireBonusPercent: Math.round((player?.hero.buildingBonuses?.campfireMaxHpPercent || 0) * 100),
+      towerLevel: player?.hero?.towerLevel || 0,
+      towerBonusPercent: Math.round((player?.hero?.towerLevel || 0) * GAME_CONFIG.arenaTuning.tower.bonusPerLevel * 100),
       rewardCoins: Math.round(participated * GAME_CONFIG.arenaTuning.run.coinsPerWave * multiplier),
       nextBossWave: (Math.floor(waveNumber / GAME_CONFIG.arenaTuning.run.bossTeaserWave) + 1) * GAME_CONFIG.arenaTuning.run.bossTeaserWave,
       heroId: player?.heroId || 'sheriff',
@@ -629,11 +631,8 @@ function createRoom({ io, services = null, id, code = null, isDefault = false, l
       cd.readyAt = Math.max(now, now + (cd.readyAt - now) * (1 - reduction));
       cd.durationMs *= 1 - reduction;
     }
-    if (card.id === 'glass-cannon') for (const { hero } of targets) {
-      hero.attack *= 1 + effects.glassCannonAttack;
-      hero.maxHp *= 1 + effects.glassCannonMaxHp;
-      hero.hp = Math.min(hero.hp, hero.maxHp);
-    }
+    // Glass Cannon's stat change is DERIVED: computeHeroStats() reads the active
+    // effect card from the run list, so it must not be mutated here as well.
   }
 
   // Diagnostics helper: empties the current wave so the break can run without
@@ -751,20 +750,24 @@ function createRoom({ io, services = null, id, code = null, isDefault = false, l
     }
   }
 
-  // Applies one stat card to one hero. Split out of finishBuffVote so a late
-  // joiner can be given the exact same card history as everyone else.
-  function applyStatCard(card, player) {
-    const { hero } = player;
-    if (card.id === 'maxHp') { const amount = hero.maxHp * card.value; hero.maxHp += amount; hero.hp += amount; }
-    else if (card.id === 'attack') hero.attack *= 1 + card.value;
-    else if (card.id === 'defense') hero.defense = Math.min(GAME_CONFIG.arenaTuning.cards.stat.defenseCap * 100, hero.defense + card.value);
-    else if (card.id === 'speed') {
-      hero.runBonuses ||= { speedBase: hero.speed, speedAdded: 0 };
-      hero.runBonuses.speedBase ||= hero.speed;
-      hero.runBonuses.speedAdded = Math.min(hero.runBonuses.speedBase * GAME_CONFIG.arenaTuning.cards.stat.speedCap,
-        hero.runBonuses.speedAdded + hero.runBonuses.speedBase * card.value);
-      hero.speed = hero.runBonuses.speedBase + hero.runBonuses.speedAdded;
+  // LOG_DEBUG-only table: per player, the cards taken, Tower multiplier and the
+  // final derived stats, printed once per card pick.
+  function debugStatsTable() {
+    if (!LOG_DEBUG) return;
+    const rows = [];
+    for (const player of players.values()) {
+      const hero = player.hero;
+      rows.push({
+        player: player.name,
+        hero: player.heroId,
+        cards: runBuffs.filter((buff) => GAME_CONFIG.towerScaledCards.includes(buff.id)).map((buff) => buff.id).join('+') || '—',
+        towerLevel: hero.towerLevel ?? 0,
+        towerMult: hero.towerMultiplier ?? 1,
+        maxHp: Math.round(hero.maxHp), attack: Math.round(hero.attack * 10) / 10,
+        defense: Math.round(hero.defense * 10) / 10, speed: Math.round(hero.speed * 10) / 10,
+      });
     }
+    console.table(rows);
   }
 
   function finishBuffVote(now) {
@@ -778,8 +781,6 @@ function createRoom({ io, services = null, id, code = null, isDefault = false, l
     const high = Math.max(0, ...counts.values());
     const tied = buffVote.cards.filter((card) => counts.get(card.id) === high);
     const chosen = tied[Math.floor(Math.random() * tied.length)] || buffVote.cards[0];
-    if (chosen.rare) applyRunEffect(chosen);
-    else for (const player of players.values()) applyStatCard(chosen, player);
     if (chosen.id === 'campfire') {
       const addedMax = campfire.maxHp * chosen.value;
       campfire.maxHp += addedMax;
@@ -788,10 +789,14 @@ function createRoom({ io, services = null, id, code = null, isDefault = false, l
       campfire.hp = Math.min(campfire.maxHp, campfire.hp + addedMax);
     }
     lastBuff = { ...chosen };
+    // Record the card first, then DERIVE every hero's stats from the list. Each
+    // hero scales the four stat cards by its OWN Tower level.
     runBuffs.push({ ...chosen });
+    if (chosen.rare) applyRunEffect(chosen); // cooldown effects only; stat effects are derived
+    recomputeAllHeroStats(now);
     // Per-card-pick log stays behind the config flag (spec 2F); hot paths
     // (per-kill, per-hit, per-tick) contain no logging at all.
-    if (LOG_DEBUG) console.log(`[Hero Lab] Card picked: ${chosen.label} (${chosen.id})`);
+    if (LOG_DEBUG) { console.log(`[Hero Lab] Card picked: ${chosen.label} (${chosen.id})`); debugStatsTable(); }
     buffVote = null; buffVotes.clear();
     enterReadyPhase(now);
     nsp.emit('buff_applied', lastBuff);
@@ -883,6 +888,8 @@ function createRoom({ io, services = null, id, code = null, isDefault = false, l
     const selected = chooseRespawnPoint(player.id);
     player.x = selected.x;
     player.y = selected.y;
+    // Re-derive first so the respawn HP fraction uses the current max HP.
+    recomputeHeroStats(player, now);
     player.hero.hp = Math.max(1, player.hero.maxHp * GAME_CONFIG.arenaTuning.respawn.respawnHpFraction);
     player.hero.makeInvulnerable(GAME_CONFIG.arenaTuning.respawn.invulnerabilityMs, now);
     player.respawnRemainingMs = 0;
@@ -936,6 +943,8 @@ function createRoom({ io, services = null, id, code = null, isDefault = false, l
     const HeroClass = HERO_CLASSES[heroId];
     const hero = new HeroClass();
     hero.buildingBonuses = { attackPercent: 0, attackMultiplier: 1, campfireMaxHpPercent: 0 };
+    // Raw kingdom levels are kept so computeHeroStats can read the Tower level.
+    hero.buildingLevels = { library: 0, workshop: 0, garden: 0, tower: 0 };
     hero.braceUntil = 0;
     hero.chargeDamageBonus = 0;
     hero.ultimateLockoutUntil = 0;
@@ -943,6 +952,7 @@ function createRoom({ io, services = null, id, code = null, isDefault = false, l
       const levels = services.kingdomBuildings(user.id);
       for (const [building, buff] of Object.entries(GAME_CONFIG.buildingBuffs)) {
         const level = Math.min(GAME_CONFIG.arenaTuning.buildingBonuses.levelCap, Math.max(0, Math.floor(Number(levels[building]) || 0)));
+        hero.buildingLevels[building] = level;
         if (!buff.stat || (buff.type && buff.type !== hero.type)) continue;
         const amount = level * GAME_CONFIG.arenaTuning.buildingBonuses.perLevel;
         if (buff.stat === 'campfireMaxHp') hero.buildingBonuses.campfireMaxHpPercent = amount;
@@ -950,8 +960,76 @@ function createRoom({ io, services = null, id, code = null, isDefault = false, l
       }
     }
     hero.buildingBonuses.attackMultiplier = 1 + hero.buildingBonuses.attackPercent;
-    hero.attack *= hero.buildingBonuses.attackMultiplier;
+    // Do NOT pre-multiply attack here: computeHeroStats() owns the final stat
+    // calculation, and base stats stay pristine for every later recompute.
     return hero;
+  }
+
+  // --- Derived hero stats ----------------------------------------------------
+  // The single source of truth for a hero's final stats. It reads the run's
+  // card list (never pre-scaled numbers), the hero's own building levels and the
+  // active effect cards, and returns the final values plus the per-stat bonus
+  // factors (so Pilot's per-tick refreshForm can re-apply them to its mech form).
+  // Order of operations and caps are documented in game-config.js (arenaTuning.tower).
+  function computeHeroStats(hero, cardsTaken = runBuffs, buildingLevels = hero.buildingLevels, activeEffects = null) {
+    const stat = GAME_CONFIG.arenaTuning.cards.stat;
+    const towerCfg = GAME_CONFIG.arenaTuning.tower;
+    const scaled = towerCfg.scaledCards;
+    const towerLevel = clamp(Math.floor(Number(buildingLevels?.tower) || 0), 0, towerCfg.maxLevel);
+    const towerMult = 1 + towerCfg.bonusPerLevel * towerLevel;
+    let sumMaxHp = 0, sumAttack = 0, sumDefense = 0, sumSpeed = 0;
+    for (const card of cardsTaken) {
+      if (!card || !scaled.includes(card.id)) continue;
+      if (card.id === 'maxHp') sumMaxHp += card.value;
+      else if (card.id === 'attack') sumAttack += card.value;
+      else if (card.id === 'defense') sumDefense += card.value;
+      else if (card.id === 'speed') sumSpeed += card.value;
+    }
+    const effects = GAME_CONFIG.arenaTuning.cards.effects;
+    const hasGlassCannon = Boolean(activeEffects && activeEffects.has && activeEffects.has('glass-cannon'));
+    const gcAttack = hasGlassCannon ? 1 + effects.glassCannonAttack : 1;
+    const gcHp = hasGlassCannon ? 1 + effects.glassCannonMaxHp : 1;
+    const libWk = 1 + (hero.buildingBonuses?.attackPercent || 0);
+    const base = hero.baseStats;
+    const maxHpMult = (1 + sumMaxHp * towerMult) * gcHp;
+    const attackMult = libWk * (1 + sumAttack * towerMult) * gcAttack;
+    const speedMult = 1 + Math.min(stat.speedCap, sumSpeed * towerMult);
+    const defenseAdd = sumDefense * towerMult;
+    return {
+      maxHp: base.maxHp * maxHpMult,
+      attack: base.attack * attackMult,
+      defense: Math.min(stat.defenseCap * 100, base.defense + defenseAdd),
+      speed: base.speed * speedMult,
+      towerLevel, towerMult,
+      bonus: { maxHpMult, attackMult, speedMult, defenseAdd },
+    };
+  }
+
+  // Writes computed stats onto a hero, adjusting current HP by the max-HP delta
+  // (raise by the same amount on an increase, clamp on a decrease). Pilot keeps
+  // its own per-tick form math, so it is handed the bonus factors and refreshed.
+  function applyComputedStats(hero, computed, now = Date.now()) {
+    const previousMaxHp = hero.maxHp;
+    hero.maxHp = computed.maxHp;
+    if (hero.maxHp > previousMaxHp) hero.hp += hero.maxHp - previousMaxHp;
+    else if (hero.hp > hero.maxHp) hero.hp = hero.maxHp;
+    hero.attack = computed.attack;
+    hero.defense = computed.defense;
+    hero.speed = computed.speed;
+    hero.statBonus = computed.bonus;
+    hero.towerLevel = computed.towerLevel;
+    hero.towerMultiplier = computed.towerMult;
+    if (hero.id === 'pilot' && typeof hero.refreshForm === 'function') hero.refreshForm(now);
+  }
+
+  function recomputeHeroStats(player, now = Date.now()) {
+    if (!player?.hero) return;
+    const activeEffects = new Set(runBuffs.filter((buff) => buff.rare).map((buff) => buff.id));
+    applyComputedStats(player.hero, computeHeroStats(player.hero, runBuffs, player.hero.buildingLevels, activeEffects), now);
+  }
+
+  function recomputeAllHeroStats(now = Date.now()) {
+    for (const player of players.values()) recomputeHeroStats(player, now);
   }
 
   function createPlayer(id, heroId, user, now, spawn) {
@@ -997,13 +1075,13 @@ function createRoom({ io, services = null, id, code = null, isDefault = false, l
     const player = createPlayer(socketId, heroId, user, now, spawn);
     players.set(socketId, player);
     recomputeCampfire();
+    // Derive this hero's stats from the shared card list at its OWN Tower level,
+    // so a late joiner automatically receives every earlier card (no replay loop).
+    recomputeHeroStats(player, now);
+    // Cooldown effects (Rally) are not stat-derived, so re-apply them for a late
+    // joiner; every other effect is either derived or read live via runBuffs.
+    if (lateJoin) for (const buff of runBuffs) if (buff.rare) applyRunEffect(buff, player);
     if (lateJoin) {
-      // Replay the whole run's card history, in order, exactly as if this hero
-      // had been present for every vote.
-      for (const buff of runBuffs) {
-        if (buff.rare) applyRunEffect(buff, player);
-        else applyStatCard(buff, player);
-      }
       player.hero.hp = player.hero.maxHp;
       player.hero.makeInvulnerable(LATE_JOIN_INVULNERABILITY_S * 1000, now);
       player.wavesParticipated = 0;
@@ -1037,6 +1115,9 @@ function createRoom({ io, services = null, id, code = null, isDefault = false, l
     if (buffVotes.has(oldId)) { const vote = buffVotes.get(oldId); buffVotes.delete(oldId); buffVotes.set(socket.id, vote); }
     if (dawnPending.has(oldId)) { dawnPending.delete(oldId); dawnPending.add(socket.id); }
     if (hostId === oldId) hostId = socket.id;
+    // Re-derive from the shared card list (idempotent; keeps a reconnect in sync
+    // with the player's own Tower level).
+    recomputeHeroStats(player, now);
     log(`[Hero Lab] ${player.name} reconnected to ${id}`);
   }
 
@@ -1182,6 +1263,9 @@ function createRoom({ io, services = null, id, code = null, isDefault = false, l
     player.heroId = heroId;
     player.name = hero.name;
     player.emoji = hero.emoji;
+    // Derive the new hero's stats from the run's card list at its own Tower
+    // level (a lobby swap normally has an empty list, so this is just base stats).
+    recomputeHeroStats(player, now);
     player.hero.hp = player.hero.maxHp;
     for (const cooldown of Object.values(player.hero.cooldowns)) cooldown.readyAt = now;
     player.bubbleRush = null;
@@ -1782,6 +1866,8 @@ function createRoom({ io, services = null, id, code = null, isDefault = false, l
         respawnSpeedMultiplier: respawnSpeedMultiplier || 1, momentumActive: Boolean(momentumActive), dawnWaiting: Boolean(dawnWaiting),
         bubbleRush: bubbleRush ? { remainingMs: Math.max(0, bubbleRush.endsAt - now), durationMs: bubbleRush.durationMs } : null,
         buildingBonuses: { ...hero.buildingBonuses },
+        towerLevel: hero.towerLevel ?? 0,
+        towerMultiplier: hero.towerMultiplier ?? 1,
         overchargeShots: players.get(id)?.overchargeShots || 0,
         hp: Math.max(0, Math.round(hero.hp)), maxHp: hero.maxHp,
         attack: hero.attack, defense: hero.defense, speed: hero.speed,
@@ -2451,6 +2537,40 @@ function createRoom({ io, services = null, id, code = null, isDefault = false, l
     debugSpawnEnemies,
     debugKillAll,
     debugKillDummies,
+    // Debug menu: set a player's Tower level (0..max) and re-derive their stats.
+    debugSetTower: (level, playerId = hostId) => {
+      const player = players.get(playerId);
+      if (!player) return false;
+      player.hero.buildingLevels.tower = clamp(Math.floor(Number(level) || 0), 0, GAME_CONFIG.arenaTuning.tower.maxLevel);
+      recomputeHeroStats(player, Date.now());
+      broadcastState(Date.now());
+      return true;
+    },
+    // Debug menu: force a stat card onto the run as if it had been voted, then
+    // re-derive every hero (so a Lv0 vs Lv3 comparison can be done live).
+    debugAddStatCard: (cardId, playerId = hostId) => {
+      const player = players.get(playerId);
+      if (!player) return false;
+      if (cardId === 'glass-cannon') {
+        // Test-only: Glass Cannon is an effect card, but forcing it makes the
+        // max-HP-clamp rule easy to verify.
+        runBuffs.push({ id: 'glass-cannon', label: 'Glass Cannon', description: '', rare: true });
+      } else if (GAME_CONFIG.towerScaledCards.includes(cardId)) {
+        const stat = GAME_CONFIG.arenaTuning.cards.stat;
+        const value = cardId === 'defense' ? stat.defense * 100 : stat[cardId];
+        runBuffs.push({ id: cardId, label: cardId, value, description: '', rare: false });
+      } else return false;
+      recomputeAllHeroStats(Date.now());
+      broadcastState(Date.now());
+      return true;
+    },
+    // Live readout of every hero's derived stats (used by the debug menu).
+    debugStats: () => [...players.values()].map((player) => ({
+      id: player.id, heroId: player.heroId, name: player.name,
+      towerLevel: player.hero.towerLevel ?? 0, towerMultiplier: player.hero.towerMultiplier ?? 1,
+      maxHp: player.hero.maxHp, hp: player.hero.hp, attack: player.hero.attack,
+      defense: player.hero.defense, speed: player.hero.speed,
+    })),
     tickStats,
     // Test/debug shortcut: open the dawn milestone without clearing a wave.
     openMilestone: () => {

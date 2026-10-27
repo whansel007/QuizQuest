@@ -10,7 +10,8 @@ const { RESPAWN_RING_MIN, RESPAWN_RING_MAX, RESPAWN_MIN_SEPARATION,
   GUARDIAN_DASH_KILL_EXTENSION_S, GUARDIAN_RUSH_DISTANCE, GUARDIAN_RUSH_DURATION_S,
   GUARDIAN_RUSH_IFRAME_AFTER_S, GUARDIAN_FAN_ANGLE_DEG, GUARDIAN_FAN_RADIUS,
   GUARDIAN_FAN_DAMAGE_MULT, GUARDIAN_FAN_KNOCKBACK, GUARDIAN_FAN_KNOCKBACK_MS, GUARDIAN_FAN_FADE_MS,
-  BUILDING_BONUS_PER_LEVEL, BUILDING_LEVEL_CAP, BASE_CAMPFIRE_HP } = require('../config/tuning.js');
+  BUILDING_BONUS_PER_LEVEL, BUILDING_LEVEL_CAP, BASE_CAMPFIRE_HP,
+  TOWER_BONUS_PER_LEVEL, TOWER_MAX_LEVEL } = require('../config/tuning.js');
 
 let server;
 let base;
@@ -82,6 +83,78 @@ test('hero tuning uses the requested refunds, Guardian ramp, and percentage buil
   assert.equal(GAME_CONFIG.heroes.electromancer.overload.damageBonus, undefined);
   assert.equal(GAME_CONFIG.heroes.electromancer.overload.chainRefundPct, ELECTRO_CHAIN_REFUND_PCT);
   assert.equal(BASE_CAMPFIRE_HP, 100);
+
+  // Tower rework: only the four stat cards are scaled, and the cap is reused.
+  assert.equal(TOWER_BONUS_PER_LEVEL, 0.1);
+  assert.equal(TOWER_MAX_LEVEL, BUILDING_LEVEL_CAP);
+  assert.equal(GAME_CONFIG.arenaTuning.tower.bonusPerLevel, 0.1);
+  assert.equal(GAME_CONFIG.arenaTuning.tower.maxLevel, 3);
+  assert.deepEqual([...GAME_CONFIG.towerScaledCards], ['maxHp', 'attack', 'defense', 'speed']);
+  assert.equal(GAME_CONFIG.towerScaledCards.includes('campfire'), false);
+  assert.equal(GAME_CONFIG.towerScaledCards.includes('glass-cannon'), false);
+});
+
+// --- Tower rework: derived stats --------------------------------------------
+const debugStat = (room, id) => room.debugStats().find((entry) => entry.id === id);
+
+test('Tower scales an attack card differently for Lv0 and Lv3 owners', async (t) => {
+  const a = await connectClient(); t.after(() => a.disconnect());
+  const b = await connectClient(); t.after(() => b.disconnect());
+  const ia = await joinClient(a, 'sheriff');
+  const room = server.heroLab.rooms.peekDefaultRoom();
+  const ib = await joinClient(b, 'sheriff');
+  const baseAttack = debugStat(room, ia.you).attack;
+  room.debugSetTower(3, ia.you);
+  room.debugSetTower(0, ib.you);
+  room.debugAddStatCard('attack');
+  const A = debugStat(room, ia.you), B = debugStat(room, ib.you);
+  assert.ok(Math.abs(A.attack - baseAttack * 1.195) < 1e-6, `Lv3 attack ${A.attack}`);
+  assert.ok(Math.abs(B.attack - baseAttack * 1.15) < 1e-6, `Lv0 attack ${B.attack}`);
+  assert.equal(A.towerMultiplier, 1.3);
+  assert.equal(B.towerMultiplier, 1);
+});
+
+test('a late joiner receives earlier stat cards at their own Tower level', async (t) => {
+  const a = await connectClient(); t.after(() => a.disconnect());
+  const ia = await joinClient(a, 'sheriff');
+  const room = server.heroLab.rooms.peekDefaultRoom();
+  const baseAttack = debugStat(room, ia.you).attack;
+  room.debugSetTower(3, ia.you);
+  room.debugAddStatCard('attack'); // picked before B arrives
+  const b = await connectClient(); t.after(() => b.disconnect());
+  const ib = await joinClient(b, 'sheriff'); // late join
+  room.debugSetTower(2, ib.you);
+  const A = debugStat(room, ia.you), B = debugStat(room, ib.you);
+  assert.ok(Math.abs(A.attack - baseAttack * 1.195) < 1e-6);
+  // The Tower scales the CARD sum, not the whole multiplier: 1 + 0.15 * 1.2.
+  assert.ok(Math.abs(B.attack - baseAttack * (1 + 0.15 * 1.2)) < 1e-6, `late joiner attack ${B.attack}`);
+});
+
+test('Tower keeps the defense and speed caps and max HP cards raise current HP', async (t) => {
+  const a = await connectClient(); t.after(() => a.disconnect());
+  const ia = await joinClient(a, 'sheriff');
+  const room = server.heroLab.rooms.peekDefaultRoom();
+  const base = debugStat(room, ia.you);
+  room.debugSetTower(3, ia.you);
+  for (let i = 0; i < 8; i += 1) room.debugAddStatCard('defense');
+  assert.ok(debugStat(room, ia.you).defense <= 50 + 1e-9);
+  for (let i = 0; i < 10; i += 1) room.debugAddStatCard('speed');
+  assert.ok(debugStat(room, ia.you).speed <= base.speed * 1.4 + 1e-6);
+  const before = debugStat(room, ia.you);
+  room.debugAddStatCard('maxHp');
+  const after = debugStat(room, ia.you);
+  assert.ok(Math.abs((after.maxHp - before.maxHp) - (after.hp - before.hp)) < 1e-6);
+});
+
+test('Glass Cannon lowers max HP and clamps current HP', async (t) => {
+  const a = await connectClient(); t.after(() => a.disconnect());
+  const ia = await joinClient(a, 'sheriff');
+  const room = server.heroLab.rooms.peekDefaultRoom();
+  const before = debugStat(room, ia.you);
+  room.debugAddStatCard('glass-cannon');
+  const after = debugStat(room, ia.you);
+  assert.ok(after.maxHp < before.maxHp);
+  assert.ok(after.hp <= after.maxHp + 1e-9);
 });
 
 function connectClient() {

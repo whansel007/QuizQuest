@@ -8,6 +8,7 @@ const props = defineProps({
   heroId: { type: String, required: true },
   type: { type: String, default: 'physical' },
   talent: { type: Object, default: null },
+  size: { type: Number, default: undefined },
   // Icons live under /hero-lab/ on the server, not at the site root.
   base: { type: String, default: '/hero-lab/' },
 });
@@ -16,7 +17,7 @@ const host = ref(null);
 watchEffect(() => {
   if (!host.value) return;
   host.value.replaceChildren(createTalentBadge({
-    heroId: props.heroId, type: props.type, talent: props.talent, base: props.base,
+    heroId: props.heroId, type: props.type, talent: props.talent, base: props.base, size: props.size,
   }));
 });
 </script>

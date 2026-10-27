@@ -102,7 +102,21 @@ combo, rewards or the wave counter.
   shared run. Each player's Garden bonus is applied once per run; bonuses from
   players in the shared run add together. At level 3, Garden adds 30 HP to the
   100 HP base campfire (130 HP solo); four players with Garden level 3 each
-  produce 220 max HP. Tower has no combat effect yet. Buildings cap at level 3.
+  produce 220 max HP. Tower makes the four stat buff cards (max HP, attack,
+  defense, speed) 10% stronger per level on the owner's own hero (level 3 =
+  +30%); it never scales the campfire card or the rare effect cards. Buildings
+  cap at level 3. The World page's Camp Buffs panel reads those levels from
+  `GET /api/student/kingdom` and prints the Tower as `+X% buff strength` plus a
+  `Tower +X%` badge, so the number on screen is the same multiplier the server
+  applies to your cards.
+
+- Stat buffs are DERIVED, not accumulated: the room keeps only the ordered list
+  of cards taken, and each hero's final stats are recomputed from that list, its
+  base stats, its own building levels and the active effect cards. A late joiner
+  therefore receives every earlier card scaled by their own Tower, and two
+  players on the same hero can end with different final stats. Raising max HP
+  raises current HP by the same amount; Glass Cannon lowers max HP and clamps
+  current HP. Defense stays capped at 50% and speed cards at +40% after scaling.
 
 ## HUD and server rules
 

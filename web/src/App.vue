@@ -2,7 +2,7 @@
 // ============================================================
 // QuizQuest - app shell: sign-in, header, tabs
 // ============================================================
-import { computed, onMounted, ref } from 'vue';
+import { computed, onMounted, onUnmounted, ref, watch } from 'vue';
 import { S, setTab, restoreSession } from './api.js';
 import { toastState } from './ui.js';
 import LoginView from './LoginView.vue';
@@ -28,6 +28,8 @@ const TABS = {
 
 const ready = ref(false);
 onMounted(async () => {
+  document.addEventListener('pointermove', onDocumentPointerMove, { passive: true });
+  document.addEventListener('pointerdown', onDocumentPointerDown, { passive: true });
   await restoreSession();
   ready.value = true;
 });
@@ -37,13 +39,70 @@ const current = computed(() => {
   if (!S.me) return null;
   return tabs.value.find(([id]) => id === S.tab) || tabs.value[0];
 });
+const studentActive = computed(() => S.me?.role === 'student');
+const studentNavVisible = ref(true);
+let studentNavTimer;
+let pointerInsideTop = false;
+
+function clearStudentNavTimer() {
+  if (studentNavTimer) clearTimeout(studentNavTimer);
+  studentNavTimer = undefined;
+}
+function showStudentNav() {
+  if (!studentActive.value) return;
+  clearStudentNavTimer();
+  studentNavVisible.value = true;
+  if (!pointerInsideTop) studentNavTimer = setTimeout(() => { studentNavVisible.value = false; }, 1600);
+}
+function onDocumentPointerMove(event) {
+  if (studentActive.value && event.clientY <= 18) showStudentNav();
+}
+function onDocumentPointerDown(event) {
+  if (studentActive.value && event.clientY <= 24) showStudentNav();
+}
+function onTopPointerEnter() {
+  if (!studentActive.value) return;
+  pointerInsideTop = true;
+  clearStudentNavTimer();
+  studentNavVisible.value = true;
+}
+function onTopPointerLeave() {
+  if (!studentActive.value) return;
+  pointerInsideTop = false;
+  showStudentNav();
+}
+function onTopFocusIn() { onTopPointerEnter(); }
+function onTopFocusOut(event) {
+  if (event.currentTarget.contains(event.relatedTarget)) return;
+  pointerInsideTop = false;
+  showStudentNav();
+}
+
+watch(studentActive, (active) => {
+  clearStudentNavTimer();
+  pointerInsideTop = false;
+  studentNavVisible.value = !active;
+}, { immediate: true });
+
+onUnmounted(() => {
+  document.removeEventListener('pointermove', onDocumentPointerMove);
+  document.removeEventListener('pointerdown', onDocumentPointerDown);
+  clearStudentNavTimer();
+});
 </script>
 
 <template>
   <!-- signed out: the sign-in page fills the screen, with its own logo and footer -->
   <LoginView v-if="ready && !S.me" :key="'login' + S.viewKey" />
   <template v-else-if="ready">
-  <header id="top">
+  <header
+    id="top"
+    :class="{ 'student-immersive-nav': studentActive, 'student-nav-hidden': studentActive && !studentNavVisible }"
+    @pointerenter="onTopPointerEnter"
+    @pointerleave="onTopPointerLeave"
+    @focusin="onTopFocusIn"
+    @focusout="onTopFocusOut"
+  >
     <div class="brand">Quiz<span>Quest</span> <small>prototype</small></div>
     <nav id="tabs" :class="{ crowded: tabs.length > 5 }">
       <button v-for="[id, label] in tabs" :key="id" :aria-current="current && current[0] === id ? 'page' : null" @click="setTab(id)">{{ label }}</button>
@@ -56,12 +115,27 @@ const current = computed(() => {
       </template>
     </div>
   </header>
-  <main id="main" :class="{ 'main-world': current?.[0] === 'world' }">
+  <main id="main" :class="{ 'main-student': studentActive, 'main-world': current?.[0] === 'world', 'main-kingdom': current?.[0] === 'kingdom' }">
     <!-- the key remounts the view on tab switch, user switch or rerender(),
          so each view starts fresh and releases sockets/timers on unmount -->
     <component :is="current[2]" :key="current[0] + ':' + S.viewKey + ':' + S.token" />
   </main>
-  <footer>
+  <!-- Handle for the tucked-away student menu: the nav slides up out of the
+       viewport, so this chip is the only sign that tabs exist up there. It stays
+       mounted while the nav is open (hidden, not removed) so pointerleave on the
+       header still fires normally. -->
+  <button
+    v-if="studentActive"
+    class="nav-peek"
+    :class="{ 'is-hidden': studentNavVisible }"
+    type="button"
+    aria-label="Show menu"
+    title="Show menu"
+    @pointerenter="showStudentNav"
+    @focus="showStudentNav"
+    @click="onTopPointerEnter"
+  >▾</button>
+  <footer :class="{ 'footer-student': studentActive }">
     Demo build with synthetic users and demo course content only. Do not enter real student data.
     · <a href="/tag">Circle Tag (the original multiplayer experiment)</a>
   </footer>

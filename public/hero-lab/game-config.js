@@ -8,6 +8,7 @@ import { ELECTRO_STUN_PROJECTILE_SCALE, ELECTRO_STUN_RADIUS_SCALE, PARTICLE_CAP,
   GUARDIAN_SLAM_RADIUS, GUARDIAN_SLAM_DAMAGE_MULT, GUARDIAN_SLAM_KNOCKBACK,
   GUARDIAN_ULT_EARLY_END, GUARDIAN_BRACE_ENABLED, GUARDIAN_BRACE_REDUCTION,
   GUARDIAN_BRACE_DURATION_S, BUILDING_BONUS_PER_LEVEL, BUILDING_LEVEL_CAP,
+  TOWER_BONUS_PER_LEVEL, TOWER_MAX_LEVEL,
   ELECTRO_CHAIN_REFUND_PCT, ELECTRO_STUN_REFUND_MULT, ELECTRO_ULT_MIN_LOCKOUT_S,
   ELECTRO_CHAIN_COUNTER_SCALE, ELECTRO_CHAIN_COUNTER_MS, ELECTRO_CHAIN_COUNTER_POP_MS, ELECTRO_OVERLOAD_FLASH_MS,
   ELECTRO_OVERLOAD_FEEDBACK_MS, SHERIFF_BLAST_REFUND_CAP_S, SHERIFF_READY_RING_MS,
@@ -25,6 +26,11 @@ import { ELECTRO_STUN_PROJECTILE_SCALE, ELECTRO_STUN_RADIUS_SCALE, PARTICLE_CAP,
   PILOT_MECH_COOLDOWN_CUT_S, PILOT_MECH_CYCLE_CAP_PCT,
   BUBBLES_TRAP_KILL_REFUND,
   BASE_CAMPFIRE_HP } from '../../config/tuning.js';
+
+// The only buff cards the Tower scales. Extend this list (one line) to make the
+// Tower scale another stat card later. The campfire card and all rare effect
+// cards are deliberately excluded.
+export const TOWER_SCALED_CARDS = Object.freeze(['maxHp', 'attack', 'defense', 'speed']);
 
 export const HERO_FX_COLORS = Object.freeze({
   sheriff: { primary: '#f5c84c', highlight: '#fff1b8' },
@@ -134,6 +140,16 @@ export const ARENA_TUNING = Object.freeze({
   respawn: { baseMs: 12000, teammateSpeedMultiplier: 2.5, soloMs: 6000, soloCampfireCost: 0.1, respawnHpFraction: 0.5, invulnerabilityMs: 2000, flashIntervalMs: 120 },
   run: { milestoneEvery: 10, coinsPerWave: 5, victoryRewardMultiplier: 1.5, defeatRewardMultiplier: 0.5, sessionRuns: 3, bossTeaserWave: 5, leaveFadeMs: 400 },
   buildingBonuses: { perLevel: BUILDING_BONUS_PER_LEVEL, levelCap: BUILDING_LEVEL_CAP },
+  // Tower: a per-player multiplier on the four stat cards, applied to that
+  // player's OWN hero. towerMultiplier = 1 + bonusPerLevel * level.
+  // Final stats are DERIVED (see computeHeroStats in room.js), in this order:
+  //   attack  = baseAttack * (1 + libraryOrWorkshopBonus) * (1 + sumAttackCards  * towerMult) * glassCannonAttack
+  //   maxHp   = baseHP     * (1 + sumMaxHpCards * towerMult) * glassCannonMaxHp
+  //   defense = min(DEFENSE_CAP, baseDefense + sumDefenseCards * towerMult)   (points, base kept)
+  //   speed   = baseSpeed  * (1 + min(SPEED_CARD_CAP, sumSpeedCards * towerMult))
+  // Same-stat cards add together, then the Tower multiplier scales that sum;
+  // caps apply AFTER the multiplier.
+  tower: { bonusPerLevel: TOWER_BONUS_PER_LEVEL, maxLevel: TOWER_MAX_LEVEL, scaledCards: TOWER_SCALED_CARDS },
   gachaReveal: { buildUpMs: 1500, rarityStars: { common: 3, rare: 4, epic: 5 }, flashColors: { common: '#ffffff', rare: '#4f8df7', epic: '#f5c84c' } },
   progression: { newPlayerHeroes: ['sheriff', 'electromancer'], alternativeMagicStarter: 'bubbles', heroRarityStars: 4,
     buildingEffectExamples: { library: { level: 3, bonusPercent: 0.12 }, workshop: { level: 2, bonusPercent: 0.08 }, garden: { level: 4, bonusPercent: 0.2 } } },
@@ -243,8 +259,10 @@ export const GAME_CONFIG = Object.freeze({
     library: { stat: 'attack', type: 'magic' },
     workshop: { stat: 'attack', type: 'physical' },
     garden: { stat: 'campfireMaxHp' },
-    tower: { stat: null, perLevel: 0 },
+    // Tower has no flat stat of its own; it scales the four stat cards instead.
+    tower: { stat: null, perLevel: TOWER_BONUS_PER_LEVEL },
   },
+  towerScaledCards: TOWER_SCALED_CARDS,
   heroSummon: {
     pullCost: 50,
     duplicateRefundFraction: 1,

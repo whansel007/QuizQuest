@@ -89,6 +89,95 @@ main { max-width: 1040px; margin: 0 auto; padding: 22px 16px 60px; }
 main#main.main-world { max-width: none; padding: 16px 24px 22px; }
 footer { text-align: center; font-size: 12px; color: var(--muted); padding: 0 16px 24px; }
 
+/* Student pages are immersive full-screen scenes; navigation tucks above the
+   viewport until the player moves to the top edge or focuses a nav control. */
+header#top.student-immersive-nav {
+  position: fixed;
+  z-index: 100;
+  inset: 0 0 auto;
+  color: #fff7df;
+  background: rgb(31 59 43 / 97%);
+  border-bottom: 1px solid #81905c;
+  box-shadow: 0 5px 18px rgb(12 29 20 / 30%);
+  transition: transform .28s cubic-bezier(.2,.75,.25,1);
+  will-change: transform;
+}
+header#top.student-immersive-nav .brand span { color: #f2bd58; }
+header#top.student-immersive-nav .brand small,
+header#top.student-immersive-nav #who { color: #e1e7d2; }
+header#top.student-immersive-nav nav#tabs button { color: #d7dfca; }
+header#top.student-immersive-nav nav#tabs button[aria-current="page"] { color: #2b3d2d; background: #f2d37f; }
+header#top.student-immersive-nav.student-nav-hidden { transform: translateY(-105%); pointer-events: none; }
+/* Tiny pull-down handle that hints the student menu is tucked above the
+   viewport. Hovering or clicking it reveals the nav; it hides itself (without
+   unmounting) as soon as the nav is out, so the header keeps the pointer. */
+.nav-peek {
+  position: fixed;
+  z-index: 99;
+  top: 0;
+  left: 50%;
+  display: grid;
+  place-items: center;
+  width: 46px;
+  height: 13px;
+  padding: 0;
+  color: #eaf0da;
+  background: rgb(31 59 43 / 82%);
+  border: 1px solid #81905c;
+  border-top: 0;
+  border-radius: 0 0 7px 7px;
+  box-shadow: 0 2px 7px rgb(12 29 20 / 26%);
+  font: 700 9px/1 ui-monospace, "Cascadia Code", monospace;
+  cursor: pointer;
+  transform: translateX(-50%);
+  transition: opacity .2s ease, background .2s ease;
+}
+.nav-peek:hover { background: #2f5943; }
+.nav-peek.is-hidden { visibility: hidden; opacity: 0; pointer-events: none; }
+main#main.main-student {
+  width: 100%;
+  height: 100vh;
+  height: 100svh;
+  min-height: 100vh;
+  min-height: 100svh;
+  max-width: none;
+  margin: 0;
+  padding: 16px clamp(16px, 3.5vw, 48px) 22px;
+  overflow-y: auto;
+}
+main#main.main-world {
+  width: 100%;
+  height: 100vh;
+  height: 100svh;
+  min-height: 100vh;
+  min-height: 100svh;
+  max-width: none;
+  margin: 0;
+  padding: 0;
+  overflow: hidden;
+}
+main#main.main-kingdom {
+  width: 100%;
+  height: 100vh;
+  height: 100svh;
+  min-height: 100vh;
+  min-height: 100svh;
+  max-width: none;
+  margin: 0;
+  padding: 0;
+  overflow: hidden;
+}
+footer.footer-student { display: none; }
+@media (max-width: 1100px) {
+  main#main.main-student:not(.main-kingdom) { height: auto; min-height: 100vh; min-height: 100svh; overflow-y: auto; }
+}
+@media (max-height: 700px) and (min-width: 1101px) {
+  main#main.main-student:not(.main-kingdom) { height: auto; min-height: 100vh; min-height: 100svh; overflow-y: auto; }
+}
+@media (prefers-reduced-motion: reduce) {
+  header#top.student-immersive-nav { transition: none; }
+}
+
 .panel {
   background: var(--panel);
   border: 1px solid var(--line);

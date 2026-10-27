@@ -20,7 +20,11 @@
 // ============================================================
 
 const crypto = require('crypto');
-const { DEBUG_TUNING, ROOM_MAX_ACTIVE } = require('../../config/tuning.js');
+const {
+  DEBUG_TUNING, ROOM_MAX_ACTIVE, TOWN_AVATAR_COLOR_MAX_LIGHTNESS,
+  TOWN_AVATAR_COLOR_MIN_LIGHTNESS, TOWN_AVATAR_DEFAULT_COLOR,
+  TOWN_AVATAR_MIN_GRASS_DISTANCE, TOWN_GRASS_COLOR,
+} = require('../../config/tuning.js');
 const { createStore } = require('./store');
 const { validateQuestion } = require('./validate');
 const { generate, GEN } = require('./generator');
@@ -200,8 +204,30 @@ function createQuizApi({ dataFile = null, store = null, now = () => Date.now(), 
     if (!sess || sess.expires < now()) return null;
     return db.users.find((u) => u.id === sess.userId) || null;
   }
+  function avatarLightness(hex) {
+    const channels = [1, 3, 5].map((i) => Number.parseInt(hex.slice(i, i + 2), 16) / 255);
+    return ((Math.max(...channels) + Math.min(...channels)) / 2) * 100;
+  }
+  function avatarGrassDistance(hex) {
+    const channels = [1, 3, 5].map((i) => Number.parseInt(hex.slice(i, i + 2), 16));
+    const grass = [1, 3, 5].map((i) => Number.parseInt(TOWN_GRASS_COLOR.slice(i, i + 2), 16));
+    return Math.hypot(...channels.map((value, i) => value - grass[i]));
+  }
+  function validatedAvatarColor(value) {
+    const color = typeof value === 'string' ? value.toUpperCase() : '';
+    if (!/^#[0-9A-F]{6}$/.test(color)) fail(400, 'Choose a valid six-digit avatar color.');
+    const lightness = avatarLightness(color);
+    if (lightness < TOWN_AVATAR_COLOR_MIN_LIGHTNESS || lightness > TOWN_AVATAR_COLOR_MAX_LIGHTNESS)
+      fail(400, 'Choose a brighter color that stays visible in the grass.');
+    if (avatarGrassDistance(color) < TOWN_AVATAR_MIN_GRASS_DISTANCE)
+      fail(400, 'Choose a color that stands apart from the grass.');
+    return color;
+  }
   // What the browser may see of a user: never the password hash
-  const publicUser = (u) => ({ id: u.id, name: u.name, role: u.role, email: u.email });
+  const publicUser = (u) => ({
+    id: u.id, name: u.name, role: u.role, email: u.email,
+    ...(u.role === 'student' ? { avatarColor: u.avatarColor || TOWN_AVATAR_DEFAULT_COLOR } : {}),
+  });
 
   // Shape a question for the teacher UI (full detail incl. answers)
   function teacherView(q) {
@@ -466,6 +492,8 @@ attemptId: attempt.id,
     pickChallenge,
     classOf: (id) => db.classes.find((c) => c.id === id),
     kingdomBuildings: (studentId) => E.kingdom(db, studentId).buildings,
+    // Same gate the debug menu uses: only seeded synthetic demo accounts.
+    isDebugUser: isSeededDemoUser,
     grantResources: (studentId, bundle, reason, refKey) => E.grantResources(db, studentId, bundle, reason, refKey, now()),
     award: (studentId, amount, reason, refKey) => R.award(db, studentId, amount, reason, refKey, now()),
     look: (studentId) => {
@@ -1987,6 +2015,13 @@ return studentProgress(db, user.id, cl);
       .reverse()
       .map(({ refKey, ...t }) => t), // eslint-disable-line no-unused-vars
   }));
+
+  // ---------------- student: avatar customization ----------------
+  route('POST', '/api/student/avatar/color', 'student', ({ user, body }) => {
+    user.avatarColor = validatedAvatarColor(body.color);
+    save({ analytics: false });
+    return { avatarColor: user.avatarColor };
+  });
 
   // ---------------- student: kingdom ----------------
   route('GET', '/api/student/kingdom', 'student', ({ user }) => {

@@ -200,6 +200,50 @@ export const BUBBLES_TRAP_KILL_REFUND = 0.5;
 
 export const BUILDING_BONUS_PER_LEVEL = 0.1;
 export const BUILDING_LEVEL_CAP = 3;
+
+// Walkable kingdom town. The canvas keeps a fixed logical size and scales to
+// fill the immersive student viewport; building coordinates are world pixels.
+export const TOWN_WIDTH = 1280;
+export const TOWN_HEIGHT = 720;
+export const TOWN_TILE_SIZE = 32;
+export const TOWN_WALK_SPEED = 180;
+export const TOWN_DOOR_RADIUS = 44;
+export const TOWN_AVATAR_RADIUS = 17;
+export const TOWN_AVATAR_DEFAULT_COLOR = '#F2BA55';
+export const TOWN_AVATAR_COLOR_MIN_LIGHTNESS = 35;
+export const TOWN_AVATAR_COLOR_MAX_LIGHTNESS = 85;
+export const TOWN_AVATAR_MIN_GRASS_DISTANCE = 60;
+export const TOWN_GRASS_COLOR = '#7FAE58';
+export const TOWN_AVATAR_PRESET_COLORS = Object.freeze([
+  '#F2BA55', '#EF7137', '#3D78A0', '#6DB8CF', '#8062A9', '#D86F6B',
+  '#548CB0', '#B96448', '#C08A54', '#BAA1D0', '#E49B35', '#4F9B83',
+]);
+export const TOWN_PATH_WIDTH = 64;
+export const BUILDING_LAYOUT = {
+  castle: { x: 530, y: 270, w: 220, h: 180, door: { x: 640, y: 471, side: 'south' } },
+  library: { x: 565, y: 45, w: 150, h: 125, door: { x: 640, y: 191, side: 'south' } },
+  workshop: { x: 1030, y: 295, w: 180, h: 140, door: { x: 1008, y: 365, side: 'west' } },
+  garden: { x: 550, y: 550, w: 180, h: 130, door: { x: 640, y: 529, side: 'north' } },
+  tower: { x: 70, y: 295, w: 180, h: 140, door: { x: 271, y: 365, side: 'east' } },
+};
+export const TOWN_PROP_LAYOUT = [
+  { type: 'tree', x: 380, y: 180, w: 64, h: 102 },
+  { type: 'tree', x: 838, y: 180, w: 64, h: 102 },
+  { type: 'tree', x: 365, y: 530, w: 58, h: 92 },
+  { type: 'tree', x: 860, y: 520, w: 58, h: 92 },
+  { type: 'rock', x: 430, y: 455, w: 42, h: 30 },
+  { type: 'rock', x: 810, y: 455, w: 42, h: 30 },
+  { type: 'flowers', x: 300, y: 250, w: 30, h: 28 },
+  { type: 'flowers', x: 970, y: 480, w: 30, h: 28 },
+];
+
+// Tower: scales the four stat buff cards (maxHp / attack / defense / speed) on
+// the OWNER'S OWN hero only. towerMultiplier = 1 + perLevel * level, so Lv0 is
+// 1.0 and Lv3 is 1.3. It never scales the campfire card or the rare effect cards.
+// Reuses the existing building level cap so all kingdom buildings level together.
+export const TOWER_BONUS_PER_LEVEL = 0.1;
+export const TOWER_MAX_LEVEL = BUILDING_LEVEL_CAP;
+
 export const BASE_CAMPFIRE_HP = 100;
 
 // Rooms. Each room owns an independent run; a room stops ticking when its last

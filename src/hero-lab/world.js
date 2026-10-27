@@ -105,6 +105,19 @@ function attachHeroLab(io, services = null) {
       if (!result.ok) socket.emit('swap_rejected', result);
     }));
 
+    // Debug menu (same gate as the profiler): only seeded demo accounts may
+    // change their own Tower level or force-add a stat card. The server never
+    // trusts the client for real play; these are dev/test shortcuts.
+    const isDebugSocket = () => Boolean(services?.isDebugUser?.(socket.data.user));
+    socket.on('debug_set_tower', safe('debug_set_tower', (level) => {
+      if (!isDebugSocket()) return;
+      roomOf()?.debugSetTower?.(level, socket.id);
+    }));
+    socket.on('debug_add_stat_card', safe('debug_add_stat_card', (cardId) => {
+      if (!isDebugSocket()) return;
+      roomOf()?.debugAddStatCard?.(cardId, socket.id);
+    }));
+
     socket.on('disconnect', () => {
       const room = roomOf();
       socket.data.heroLabRoom = null;

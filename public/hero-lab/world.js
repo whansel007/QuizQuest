@@ -225,6 +225,28 @@ void profiler.start().then((debugEnabled) => {
   controls.querySelector('[data-sprite-debug="ultimate"]').addEventListener('click', () => { heroDebugUltimate = !heroDebugUltimate; });
   controls.querySelector('[data-sprite-debug="downed"]').addEventListener('click', () => { heroDebugDowned = !heroDebugDowned; });
   controls.querySelector('[data-sprite-debug="hitboxes"]').addEventListener('change', (event) => { heroDebugHitboxes = event.target.checked; });
+
+  // Tower debug: set this player's Tower level 0..max and force-add a stat card,
+  // with a live readout of the derived stats. Same debug gate as above.
+  const towerTools = document.createElement('div');
+  towerTools.className = 'tower-debug-tools';
+  const maxTowerLevel = GAME_CONFIG.arenaTuning.tower.maxLevel;
+  const levelOptions = Array.from({ length: maxTowerLevel + 1 }, (_, i) => `<option value="${i}">${i}</option>`).join('');
+  towerTools.innerHTML = `<label>Tower Lv <select data-tower-level>${levelOptions}</select></label>`
+    + '<label>Add card <select data-tower-card><option value="">—</option><option value="maxHp">maxHp</option><option value="attack">attack</option><option value="defense">defense</option><option value="speed">speed</option></select></label>'
+    + '<button type="button" data-tower-add>Add</button><span data-tower-readout></span>';
+  controls.append(towerTools);
+  towerTools.querySelector('[data-tower-level]').addEventListener('change', (event) => socket.emit('debug_set_tower', Number(event.target.value)));
+  towerTools.querySelector('[data-tower-add]').addEventListener('click', () => {
+    const cardId = towerTools.querySelector('[data-tower-card]').value;
+    if (cardId) socket.emit('debug_add_stat_card', cardId);
+  });
+  window.setInterval(() => {
+    const local = state.players.find((candidate) => candidate.id === me);
+    const out = towerTools.querySelector('[data-tower-readout]');
+    if (!local) { out.textContent = ''; return; }
+    out.textContent = `Lv${local.towerLevel ?? 0} ×${Number(local.towerMultiplier ?? 1).toFixed(2)} · HP ${Math.round(local.maxHp)} · ATK ${Number(local.attack).toFixed(1)} · DEF ${Number(local.defense).toFixed(1)} · SPD ${Number(local.speed).toFixed(1)}`;
+  }, 500);
 });
 let heroDebugUltimate = false;
 let heroDebugDowned = false;
@@ -777,6 +799,7 @@ function showRunResult(result) {
     ? [`Your ${result.attackBonusBuilding || 'Kingdom'} +${result.attackBonusPercent}% base attack bonus dealt ${result.bonusDamage || 0} extra damage`]
     : [`Kingdom attack bonus: 0% · Extra damage: ${result.bonusDamage || 0}`];
   if (result.campfireBonusPercent > 0) upgradeLines.push(`Garden +${result.campfireBonusPercent}% base campfire HP per player`);
+  if (result.towerBonusPercent > 0) upgradeLines.push(`Tower Lv${result.towerLevel}: buffs +${result.towerBonusPercent}% on your hero`);
   for (const line of [
     `Waves reached: ${result.wavesReached || 0}`,
     `Kills: ${result.kills || 0}`,
@@ -2267,15 +2290,31 @@ function updateHud(timestamp = performance.now()) {
 
   // (The old team-health and downed-list blocks were merged into the unified
   // #player-roster via renderPlayerList in updateRoomHud.)
+  // Tower scaling for the four stat cards (display only; the server owns the
+  // actual values). Everything here uses the LOCAL player's own Tower level.
+  const scaledCards = GAME_CONFIG.towerScaledCards;
+  const towerLevel = Math.max(0, Math.min(GAME_CONFIG.arenaTuning.tower.maxLevel, Number(player.towerLevel) || 0));
+  const towerMult = 1 + GAME_CONFIG.arenaTuning.tower.bonusPerLevel * towerLevel;
+  const towerPercent = Math.round(GAME_CONFIG.arenaTuning.tower.bonusPerLevel * 100) * towerLevel;
+  const scaledCardText = (card) => {
+    if (!scaledCards.includes(card.id)) return card.description;
+    const v = card.value;
+    if (card.id === 'maxHp') return `Max HP +${(v * towerMult * 100).toFixed(1)}%`;
+    if (card.id === 'attack') return `Attack +${(v * towerMult * 100).toFixed(1)}%`;
+    if (card.id === 'defense') return `Defense +${(v * towerMult).toFixed(1)}%`;
+    if (card.id === 'speed') return `Speed +${(v * towerMult * 100).toFixed(1)}%`;
+    return card.description;
+  };
+
   const buffEmoji = { maxHp: '❤️', attack: '⚔️', defense: '🛡️', speed: '🏃', campfire: '🔥', thorns: '🔥', scavenger: '💚', overcharge: '⚡', rally: '📣', 'glass-cannon': '💥', 'second-wind': '🕊️', 'life-steal': '🩸', ricochet: '↗️', volatile: '☄️', 'powder-keg': '🧨' };
-  const buffSignature = (state.activeBuffs || []).map((buff) => buff.id).join('|');
+  const buffSignature = `${(state.activeBuffs || []).map((buff) => buff.id).join('|')}@${towerLevel}`;
   if (buffSignature !== buffIconsSignature) {
     buffIconsSignature = buffSignature;
     buffIcons.replaceChildren(...(state.activeBuffs || []).map((buff) => {
       const icon = document.createElement('span');
       icon.className = 'buff-icon';
       icon.textContent = buffEmoji[buff.id] || '✨';
-      icon.title = `${buff.label}: ${buff.description}`;
+      icon.title = `${buff.label}: ${scaledCardText(buff)}`;
       icon.setAttribute('aria-label', icon.title);
       return icon;
     }));
@@ -2339,6 +2378,7 @@ function updateHud(timestamp = performance.now()) {
   const buildingRows = [];
   if (buildingBonus.attackPercent > 0) buildingRows.push(`${player.type === 'magic' ? '📚 Library' : '🛠️ Workshop'} +${Math.round(buildingBonus.attackPercent * 100)}% ${player.type === 'magic' ? 'magic' : 'physical'} attack`);
   if (buildingBonus.campfireMaxHpPercent > 0) buildingRows.push(`🌷 Garden +${Math.round(buildingBonus.campfireMaxHpPercent * 100)}% campfire max HP`);
+  if (towerLevel > 0) buildingRows.push(`🗼 Tower Lv${towerLevel}: buffs +${towerPercent}%`);
   // One bonus per line: joining them with " · " wrapped into an unreadable blob.
   renderStatList(buildingRows);
   document.querySelector('#building-bonus-stat').title = buildingRows.join(' · ') || 'No kingdom building bonuses apply to this hero';
@@ -2359,16 +2399,26 @@ function updateHud(timestamp = performance.now()) {
     document.querySelector('#buff-vote-status').textContent = vote.endsAt > 0
       ? `${vote.voteCount}/${state.players.length} votes · ${voteRemaining}s left${voted ? ' · Your vote is recorded' : ''}`
       : `${voted ? 'Your vote is recorded' : 'Choose when ready'} · no timer in solo`;
-    const signature = `${vote.wave}:${voted}:${JSON.stringify(vote.votes)}:${vote.cards.map((card) => card.id).join(',')}`;
+    const signature = `${vote.wave}:${voted}:${JSON.stringify(vote.votes)}:${vote.cards.map((card) => card.id).join(',')}:${towerLevel}`;
     if (signature !== lastBuffRender) {
       lastBuffRender = signature;
       buffCards.replaceChildren(...vote.cards.map((card) => {
         const button = document.createElement('button'); button.className = `buff-card${card.rare ? ' rare' : ''}${voted === card.id ? ' selected' : ''}`;
         button.type = 'button'; button.disabled = Boolean(voted);
         const title = document.createElement('strong'); title.textContent = `${card.rare ? '✨ ' : ''}${card.label}`;
-        const description = document.createElement('span'); description.textContent = card.description;
+        // The four scaled cards show the LOCAL player's own resulting value.
+        const description = document.createElement('span'); description.textContent = scaledCardText(card);
+        const nodes = [title, description];
+        if (scaledCards.includes(card.id) && towerLevel > 0) {
+          const towerLine = document.createElement('small');
+          towerLine.className = 'buff-tower-line';
+          towerLine.textContent = `(Tower +${towerPercent}%)`;
+          towerLine.style.color = '#c9962f'; towerLine.style.fontWeight = '600';
+          nodes.push(towerLine);
+        }
         const tally = document.createElement('small'); tally.textContent = `${Object.values(vote.votes || {}).filter((id) => id === card.id).length} votes`;
-        button.append(title, description, tally); button.addEventListener('click', () => socket.emit('buff_vote', card.id)); return button;
+        nodes.push(tally);
+        button.append(...nodes); button.addEventListener('click', () => socket.emit('buff_vote', card.id)); return button;
       }));
     }
   } else lastBuffRender = '';

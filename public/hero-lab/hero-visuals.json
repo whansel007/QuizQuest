@@ -33,6 +33,12 @@
       "scale": 2.1,
       "anchor": { "x": 0.5, "y": 0.5 },
       "ultimate": { "mode": "swap", "frame": "ultimate", "transformMs": 200 }
+    },
+    "player": {
+      "frames": { "open": "player_idle(1).png", "closed": "player_idle(2).png" },
+      "crop": { "open": [479, 387, 642, 707], "closed": [479, 387, 642, 707] },
+      "scale": 1,
+      "anchor": { "x": 0.5, "y": 1 }
     }
   },
   "assetBase": "/hero-lab/assets/cat/"

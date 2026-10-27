@@ -75,9 +75,22 @@ The server reads building levels from the signed-in student's saved kingdom when
 - **Library:** +10% base attack per level for magic heroes.
 - **Workshop:** +10% base attack per level for physical heroes.
 - **Garden:** +10% of base campfire max HP per level per player in the shared run.
-- **Tower:** no combat bonus is configured yet.
+- **Tower:** makes the four stat buff cards (max HP, attack, defense, speed) 10% stronger per level on your own hero, up to level 3 (+30%).
 
 At level 3, the Library or Workshop grants +30% matching attack. With the 100 HP base campfire, Garden level 3 gives 130 max HP in a solo run; four players with Garden level 3 each give the shared campfire 220 max HP. The shared run adds each player's Garden bonus once. The client does not send its own building levels or bonus values.
+
+The Tower multiplies the four stat buff cards on the owner's own hero only: each level adds 10% to the card's effect, so at level 3 an attack card's +15% becomes +19.5%. Every hero uses its own Tower level — nothing is pooled, averaged or taken from the host. It never scales the campfire card or the rare effect cards.
+
+#### How stat buff cards are derived
+
+The room stores only the ordered list of cards taken this run, never pre-scaled numbers. Each hero's final stats are recomputed from that list, its base stats, its own building levels and the active effect cards:
+
+1. `attack = baseAttack × (1 + Library/Workshop bonus) × (1 + Σ attack cards × Tower) × Glass Cannon`
+2. `maxHP = baseHP × (1 + Σ max-HP cards × Tower) × Glass Cannon`
+3. `defense = min(50%, baseDefense + Σ defense cards × Tower)`
+4. `speed = baseSpeed × (1 + min(40%, Σ speed cards × Tower))`
+
+Same-stat cards add together, then the Tower multiplier scales that sum; caps apply after the multiplier. At Tower level 3, one card each becomes: attack +19.5%, max HP +26%, defense +13%, speed +10.4%; two attack cards become +39%. Increasing max HP raises current HP by the same amount; Glass Cannon lowers max HP and clamps current HP.
 
 ## Controls
 
