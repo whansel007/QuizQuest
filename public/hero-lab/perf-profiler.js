@@ -270,10 +270,15 @@ export function createProfiler({ getStats, getRoomCode, getToken }) {
     let enabled = false;
     try {
       const token = getToken();
-      const response = await fetch('/api/student/debug-mode', {
-        headers: token ? { Authorization: `Bearer ${token}` } : {},
-      });
-      enabled = response.ok && (await response.json()).enabled === true;
+      // Without a session there is nothing to ask: /api/student/debug-mode
+      // needs a student token, so the request could only ever 401. Skipping it
+      // keeps the standalone arena from logging a failed request.
+      if (token) {
+        const response = await fetch('/api/student/debug-mode', {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        enabled = response.ok && (await response.json()).enabled === true;
+      }
     } catch { enabled = false; }
     // The visible overlay is the debug-menu-gated tool, but the measurement data
     // is always exposed so the lag investigation can read frame stats without

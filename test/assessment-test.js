@@ -45,6 +45,8 @@ async function fixture({subject=subjects[0],style='both',support=true,draft,deci
     return {json:{applicationSupported:support,limitation:support?'':'The requested inference requires methods absent from the saved report.',checks:data.questions.map((q,index)=>{
       const v={index,correct:true,oneCorrect:true,questionValid:true,unambiguous:true,explanationSupported:true,statementTruth:q.type==='tf'?true:null,
         aligned:true,duplicate:false,fitsConfiguration:true,outcomeAligned:true,difficultyAppropriate:true,scenarioGrounded:true,cognitiveStyle:classifications.get(q.stem),
+        answerableWithoutScenario:classifications.get(q.stem)!=='application',
+        reasoningSteps:classifications.get(q.stem)==='application'?['Identify the supported rule and the scenario givens.','Apply the rule to the givens to reach the answer.']:['Recall the supported relationship.'],
         answerIndex:['mcq','tf'].includes(q.type)?0:-1,answerIndexes:q.type==='multi'?[0,1]:[],numericAnswer:q.type==='numeric' || q.answerMode==='numeric'?10:null,
         unsupportedClaims:[],reason:'Source-supported reasoning from supplied hypothetical givens.',evidence:[{passageId:q.sourceIds[0],quoteId:data.evidenceAnchors.find(a=>a.passageId===q.sourceIds[0]).id}]};
       return decision?decision(v,q):v;
@@ -195,6 +197,41 @@ test('unsupported scenarios, superficial recall, outcome drift and inappropriate
   });
   const recall=await fixture({style:'application',draft:({make})=>[make('short','conceptual')]});
   assert.equal(recall.job.result.created.length,0,'decorative application labels cannot bypass independent task classification');
+});
+test('application needs scenario-dependent, multi-step reasoning from the verifier',async t=>{
+  for(const [name,override] of [['answerable without the scenario',{answerableWithoutScenario:true}],['a single reasoning step',{reasoningSteps:['Multiply rate by duration.']}],['missing reasoning steps',{reasoningSteps:undefined}]])
+    await t.test(name,async()=>{
+      const f=await fixture({style:'application',quantities:{short:1},decision:v=>v.cognitiveStyle==='application'?{...v,...override}:v});
+      assert.equal(f.job.result.created.length,0);
+      assert.ok(f.job.result.rejected.some(r=>r.errors.some(e=>/conceptual recall inside a scenario/.test(e))),'repair feedback names the shallow task');
+      assert.ok(f.job._validation.every(v=>v.verification.styleDowngraded && v.verification.cognitiveStyle==='conceptual'));
+    });
+  await t.test('Both counts a shallow application as conceptual and asks for a real one',async()=>{
+    let first=true;
+    const f=await fixture({decision:v=>{if(v.cognitiveStyle==='application' && first){first=false;return {...v,answerableWithoutScenario:true};}return v;}});
+    assert.equal(f.job.status,'complete',f.job.message);
+    const qs=f.db.questions.filter(q=>q.generationId===f.job.result.generationId);
+    assert.deepEqual(qs.map(q=>q.assessment.cognitiveStyle).sort(),['application','conceptual']);
+    assert.ok(f.job._validation.some(v=>v.failedChecks.includes('styleBalance')));
+  });
+});
+test('drafter plans each question with a blueprint and gets the application method when application is possible',async t=>{
+  for(const style of ['conceptual','application','both'])await t.test(style,async()=>{
+    const draft=({make,slots})=>Object.keys(slots).map((type,i)=>({...make(type,style==='both'?(i?'application':'conceptual'):style,i),
+      blueprint:{intendedStyle:style,targetSkill:'constant-rate model',scenarioGivens:[],reasoningSteps:['Identify the rule.','Apply it.'],whyNotRecall:'',distractorRationale:[]}}));
+    const f=await fixture({style,quantities:{mcq:1,short:1},draft});assert.equal(f.job.status,'complete',f.job.message);
+    const drafting=f.requests.find(r=>r.requestContext.stage==='drafting');
+    for(const variant of drafting.schema.properties.questions.items.anyOf){
+      assert.equal(variant.propertyOrdering[0],'blueprint','blueprint is written before the stem');
+      assert.ok(variant.required.includes('blueprint'));
+    }
+    assert.equal(/How to write an application question/.test(drafting.system),style!=='conceptual');
+    assert.match(f.requests.find(r=>r.requestContext.stage==='analysis').prompt,/Applying these ideas/);
+    const verification=f.requests.find(r=>r.requestContext.stage==='verification');
+    assert.ok(verification.schema.properties.checks.items.required.includes('answerableWithoutScenario'));
+    const saved=f.db.questions.filter(q=>q.generationId===f.job.result.generationId);
+    assert.ok(saved.every(q=>q.versions[0].blueprint===undefined),'planning notes are not stored on questions');
+  });
 });
 
 test('all four types support each assessment style with independent answer checks',async t=>{
