@@ -267,9 +267,27 @@ src/quiz/           API routes, sign-in, grading, adaptive engine, rewards, AI
 src/world/          multiplayer World (Socket.IO)
 src/db/             Supabase store and table mapping
 supabase/           database migration (SQL)
+prompts/            prompt files the server reads at request time
 test/               automated tests
 docs/               API research
 ```
+
+## The AI's voice
+
+The questions Gemini drafts are given the app's design and voice guidance from
+[prompts/design-guidance.md](prompts/design-guidance.md), so what it writes
+sounds like the game rather than like a worksheet. The file is read on every
+prompt, so you can edit the wording and the next draft uses it - no rebuild, no
+restart, no code change. Emptying the file turns the guidance off.
+
+This is the app's own direction. The per-course **Subject guidance** box on the
+Settings page is still sent first, so a professor can add to it. The
+teacher-facing knowledge report deliberately keeps the calm, conventional voice
+instead - the brand book keeps teacher pages data-focused.
+
+> `Prompt.txt` in the repo root is a reference copy of the prompts a professor
+> would type into Gemini by hand. The app does not read it; the prompts it
+> actually sends live in `src/quiz/generator.js` and `src/quiz/authoring.js`.
 
 ## Documentation
 
