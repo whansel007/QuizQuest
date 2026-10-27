@@ -76,6 +76,32 @@ const ai = async ({ prompt }) => ({
     : { markdown: analysisText, insufficient: false },
 });
 
+test('report content changes require confirmation and regeneration preserves existing data', async () => {
+  const f = fixture();
+  let calls = 0;
+  const run = createAuthoring({ db: f.db, persist: async () => {}, ai: async opts => { calls++; return ai(opts); } });
+  const input = { topicId: f.topic.id, materialIds: f.pp.map(p => p.id) };
+  const first = run.start(f.course, 'report', input, 't-a');
+  await settled(first);
+  assert.equal(first.status, 'complete');
+  await run.review(f.course, first.id, analysisText, 0);
+  assert.equal(run.start(f.course, 'report', input, 't-a').id, first.id);
+  f.pp[0].text += '\nAdditional lecture content about network capacity.';
+  const before = structuredClone(f.db), previousCalls = calls;
+  assert.throws(() => run.start(f.course, 'report', input, 't-a'), e => e.status === 409 && /Confirm generating a new report/.test(e.message));
+  // Cancelling means no confirmed retry: the rejected request changes nothing.
+  assert.deepEqual(f.db, before);
+  assert.equal(calls, previousCalls);
+  const next = run.start(f.course, 'report', { ...input, confirmMaterialChange: true }, 't-a');
+  await settled(next);
+  assert.equal(next.status, 'complete');
+  assert.notEqual(next.id, first.id);
+  assert.deepEqual(first, before.courses.find(c => c.id === f.course.id).authoringJobs[0]);
+  assert.deepEqual(f.db.questions, before.questions);
+  assert.deepEqual(f.db.passages, before.passages);
+  assert.equal(run.start(f.course, 'report', input, 't-a').id, next.id);
+});
+
 test('analysis checkpoints survive Postgres row mapping, interrupted jobs resume and cached parts are reused', async () => {
   const f = fixture();
   let calls = 0,

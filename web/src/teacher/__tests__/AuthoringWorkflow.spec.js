@@ -30,7 +30,68 @@ beforeEach(() => {
   draftStore.mockImplementation(async (key, value) => (value === undefined ? structuredClone(drafts[key]) : (drafts[key] = value)));
   api.mockImplementation(async () => structuredClone(server));
 });
-afterEach(() => wrapper?.unmount());
+afterEach(() => { wrapper?.unmount(); vi.restoreAllMocks(); });
+
+describe('report regeneration confirmation', () => {
+  const warning = 'Attached files changed. Confirm generating a new report; existing reports and questions will be kept.';
+  const posts = () => api.mock.calls.filter(([method]) => method === 'POST');
+  async function ready(ids = ['source']) {
+    await open();
+    const uploader = wrapper.findComponent({ name: 'ImportMaterials' });
+    uploader.vm.collapse = vi.fn();
+    uploader.vm.$emit('available', true);
+    uploader.vm.$emit('state', { materialIds: ids, names: {}, ready: true, pending: false, busy: false });
+    await flushPromises();
+  }
+  function backend(message = warning) {
+    api.mockImplementation(async (method, url, body) => {
+      if (method === 'GET') return structuredClone(server);
+      if (!body.confirmMaterialChange) throw Object.assign(new Error(message), { status: 409 });
+      const next = { ...structuredClone(report), id: 'r2', input: { ...report.input, passageIds: body.materialIds } };
+      server.push(next);
+      return structuredClone(next);
+    });
+  }
+  it.each([true, false])('requires explicit confirmation for changed IDs (accept=%s)', async (accept) => {
+    const confirm = vi.spyOn(window, 'confirm').mockReturnValue(accept);
+    backend();
+    await ready();
+    const before = structuredClone(server);
+    await button('Generate report').trigger('click'); await flushPromises();
+    expect(confirm).toHaveBeenCalledOnce();
+    expect(posts()).toHaveLength(accept ? 1 : 0);
+    if (accept) expect(posts()[0][2].confirmMaterialChange).toBe(true);
+    else expect(server).toEqual(before);
+  });
+  it.each([true, false])('handles server-required confirmation with unchanged IDs (accept=%s)', async (accept) => {
+    server[0].input.passageIds = ['source'];
+    const confirm = vi.spyOn(window, 'confirm').mockReturnValue(accept);
+    backend(); await ready();
+    const before = structuredClone(server);
+    await button('Generate report').trigger('click'); await flushPromises();
+    expect(confirm).toHaveBeenCalledWith(warning);
+    expect(posts().map(call => call[2].confirmMaterialChange)).toEqual(accept ? [false, true] : [false]);
+    expect(server[0]).toEqual(before[0]);
+    if (accept) {
+      expect(server).toHaveLength(2);
+      expect(wrapper.get('select[aria-label="Knowledge report"]').element.value).toBe('r2');
+    } else {
+      expect(server).toEqual(before);
+      expect(wrapper.findComponent({ name: 'MarkdownEditor' }).props('modelValue')).toBe(report.reviewedText);
+    }
+    expect(wrapper.find('[role="alert"]').exists()).toBe(false);
+  });
+  it('does not confirm or retry other conflicts', async () => {
+    server[0].input.passageIds = ['source'];
+    const confirm = vi.spyOn(window, 'confirm').mockReturnValue(true);
+    backend('Attached files changed. Refresh the upload list before generating a report.');
+    await ready();
+    await button('Generate report').trigger('click'); await flushPromises();
+    expect(confirm).not.toHaveBeenCalled();
+    expect(posts()).toHaveLength(1);
+    expect(wrapper.get('[role="alert"]').text()).toContain('Refresh the upload list');
+  });
+});
 
 describe('learning outcome', () => {
   it("starts from the topic's outcome, so Generate is ready", async () => {
