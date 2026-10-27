@@ -385,7 +385,7 @@ test('quota failure during batch validation preserves candidates across restart 
   let draftCalls = 0,
     limited = true;
   const provider = async (opts) => {
-    if (opts.prompt.startsWith('Course:')) {
+    if (opts.requestContext?.stage === 'drafting') {
       draftCalls++;
       assert.ok(opts.schema?.properties.questions, 'drafting must preserve the MCQ response schema');
       return {

@@ -17,7 +17,8 @@ pets, kingdom buildings and loot in a co-op multiplayer World.
   speaker notes, TXT, Markdown or CSV), a knowledge report, and questions
   drafted from that material, always saved as drafts for professor review. Text
   is extracted in the browser, so the PDF itself never leaves the professor's
-  machine. An offline drafter works without an AI key.
+  machine. Every drafted question comes from Gemini; without a key, AI drafting
+  is unavailable and questions can still be written by hand.
 - **Adaptive practice:** broad at first, then ~70% general / ~30% weaker topics,
   favouring questions similar to ones the student got wrong. Timers, extra
   time and resume after refresh.
@@ -179,6 +180,19 @@ recover in this browser, and saves persist on the server. Concurrent saves use a
 revision check; another professor's saved version never silently replaces the editor.
 The preview renders headings, emphasis, lists and code; advanced Markdown and LaTeX
 remain literal text. Saved reports may contain up to 50,000 characters.
+
+**`Prompt.txt` is the authoritative wording for Gemini.** `PROMPT 1 — LECTURE ANALYSIS`
+is sent with every knowledge-report request and `PROMPT 2 — QUESTION GENERATION` with
+every drafting request (`src/quiz/prompts.js`). Edit the file to change what the
+professor asks Gemini; the server re-reads it when it changes, and an edited Prompt 1
+produces a fresh report instead of a cached one. QuizQuest appends its own rules after
+each prompt (response schemas, citations, injection defences, plain-text maths) and
+states explicitly where they win. For example, the professor's chosen question types
+and quantities replace Prompt 2's "10 multiple-choice questions", and coding questions
+are only written when the material contains code. Precedence for drafting, highest
+first: QuizQuest rules and schemas; the professor's settings for the batch; the
+course's Subject guidance; then Prompt.txt. A missing or malformed `Prompt.txt` stops
+AI authoring with a clear error before any Gemini request.
 
 Normal-sized material is understood holistically in one request (up to about 70,000
 characters per group); larger inputs use cached groups and bounded synthesis. The

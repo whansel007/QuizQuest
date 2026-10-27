@@ -161,9 +161,10 @@ multiplayer World. See `public/hero-lab/README.md` for how it works.
 
 ## AI features
 
-Without configuration, an **offline template drafter** writes single-answer
-and true/false questions from definition sentences; short answers fall back
-to keyword grading; scans/diagrams are unavailable. To use Gemini, put the
+Without configuration, AI drafting is unavailable (questions are only written
+by hand; nothing is generated locally); short answers fall back to keyword
+grading; scans/diagrams are unavailable. Drafting instructions come from
+`Prompt.txt` (see the README). To use Gemini, put the
 key in `.env` (gitignored), never in code:
 
 ```

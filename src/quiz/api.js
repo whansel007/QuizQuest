@@ -850,14 +850,14 @@ attemptId: attempt.id,
           ? 'Custom drafter'
           : gemini.enabled()
               ? `Gemini (${gemini.model()})`
-              : 'Offline template drafter',
+              : 'Unavailable: Gemini is not configured',
         authoringEnabled: gemini.enabled() || Boolean(authoringAI),
         geminiEnabled: gemini.enabled(),
         formats: {
           authoring: AI_DRAFT_FORMATS,
           all: TYPES,
           labels: TYPE_LABELS,
-          drafter: drafter || gemini.enabled() ? GEN.aiFormats : GEN.templateFormats,
+          drafter: drafter || gemini.enabled() ? GEN.aiFormats : [],
         },
         topics: topicsOf(c.id),
         classes: db.classes
