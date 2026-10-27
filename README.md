@@ -135,6 +135,24 @@ firefox webkit`). Each browser gets its own server and its own copy of the demo
 data, so a run never touches Supabase or your `data/db.json`. All four suites
 also run on every pull request.
 
+### Writing an end-to-end test
+
+Put it in `e2e/` as `<feature>.spec.js` and it runs on all three browsers and
+in CI. `e2e/helpers.js` has the shared parts:
+
+```js
+import { test, expect } from '@playwright/test';
+import { signIn, openTab, STUDENT } from './helpers.js';
+
+test('a student sees their own progress', async ({ page }) => {
+  await signIn(page, STUDENT);
+  await openTab(page, 'My Progress');
+  await expect(page.getByRole('heading', { name: 'My Progress' })).toBeVisible();
+});
+```
+
+Run one spec while you work on it: `pnpm exec playwright test e2e/your.spec.js`.
+
 ## Professor authoring workflow
 
 Set `GEMINI_API_KEY` and `GEMINI_MODEL` in the backend `.env` to enable the guided
