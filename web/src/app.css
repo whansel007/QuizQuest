@@ -1413,7 +1413,16 @@ dialog.insight::backdrop { background: rgba(10, 12, 20, 0.45); }
     --accent: #3343b8; --accent-soft: #eef0fb; --good: #1f7a45; --bad: #b33232; --warn: #8a5a00;
     --good-soft: #eaf5ee; --bad-soft: #fbeeee; --warn-soft: #fdf3df; --shadow: none;
   }
-  .viz, .cell-bar { --viz-grid: #e5e5e5; --viz-axis: #bbbbbb; --series-1: #2a78d6; --series-2: #eb6834; --series-3: #05a873; --series-4: #cd8300; --series-5: #dc709a; --series-6: #008300; --series-7: #4a3aa7; --series-8: #e34948; }
+  /* the teacher shell sets its own (possibly dark) tokens: paper is always light.
+     body + class outranks the later dark-mode .teacher-app rule. */
+  body .teacher-app {
+    --bg: #ffffff; --panel: #ffffff; --ink: #111111; --muted: #555555; --line: #d8d8d8;
+    --accent: #3343b8; --accent-ink: #ffffff; --accent-soft: #eef0fb; --shadow: none;
+    display: block; min-height: 0; background: #fff;
+  }
+  .teacher-app .t-sidebar, .teacher-app .t-scrim, .teacher-app header#top.t-topbar, .teacher-app .t-footer { display: none !important; }
+  .teacher-app main#main.main-teacher { padding: 0; }
+  body .viz, body .cell-bar, body .topic-bars { --viz-grid: #e5e5e5; --viz-axis: #bbbbbb; --series-1: #2a78d6; --series-2: #eb6834; --series-3: #05a873; --series-4: #cd8300; --series-5: #dc709a; --series-6: #008300; --series-7: #4a3aa7; --series-8: #e34948; }
   body { background: #fff; color: #111; font-size: 12px; }
   header#top, footer, .no-print, dialog, details.viz-table, .viz-tip, #toast { display: none !important; }
   /* charts are drawn for the screen's width: scale them to the page's (they carry a viewBox) */
@@ -2910,18 +2919,20 @@ body:has(.teacher-app) { background: var(--bg); }
 .t-section-head h3 { margin: 0; font-family: var(--font-display); font-size: 20px; font-weight: 600; }
 .t-section-head .t-desc { color: var(--muted); font-size: 14px; }
 .t-section-head .grow { flex: 1; }
+/* a description that also fills the row wraps under the heading rather than shrinking to nothing */
+.t-section-head .t-desc.grow { flex: 1 1 auto; }
 .t-section.jumped > .t-section-head { animation: panel-jump 1.5s ease-out; border-radius: 6px; }
 .t-grid { display: grid; grid-template-columns: repeat(12, minmax(0, 1fr)); gap: 16px; align-items: start; }
 .t-grid > * { min-width: 0; margin-bottom: 0; }
 .span-4 { grid-column: span 4; } .span-5 { grid-column: span 5; } .span-7 { grid-column: span 7; } .span-8 { grid-column: span 8; } .span-12 { grid-column: 1 / -1; }
 .t-empty { padding: 28px; text-align: center; color: var(--muted); background: var(--panel); border: 1px dashed var(--line); border-radius: var(--radius); }
 .t-readable { max-width: 900px; }
-@media (max-width: 1200px) {
+@media (max-width: 1199.98px) {
   .t-grid > .span-4, .t-grid > .span-5, .t-grid > .span-7, .t-grid > .span-8 { grid-column: 1 / -1; }
 }
 
-/* narrow screens: a top bar with a menu button opens the sidebar as a drawer */
-@media (max-width: 899px) {
+/* below lg (992px): a top bar with a menu button opens the sidebar as a drawer */
+@media (max-width: 991.98px) {
   .teacher-app, .teacher-app.nav-collapsed { --t-side: 280px; grid-template-columns: minmax(0, 1fr); }
   .teacher-app header#top.t-topbar { position: sticky; top: 0; z-index: 15; display: flex; align-items: center; gap: 10px; padding: 8px 14px; background: var(--t-side-bg); border-bottom: 1px solid var(--t-side-line); flex-wrap: nowrap; }
   .teacher-app .t-topbar-page { margin-left: auto; color: var(--muted); font-weight: 700; font-size: 14px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
@@ -2942,7 +2953,7 @@ body:has(.teacher-app) { background: var(--bg); }
 .dash-toolbar .t-toolbar { margin-bottom: 10px; }
 .dash-toolbar .dash-nav { position: static; margin: 0; padding: 0 0 10px; background: none; }
 .overview-tiles, .t-grid .tiles { margin-bottom: 0; }
-.overview-tiles { grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); margin-bottom: 16px; }
+.overview-tiles { grid-template-columns: repeat(var(--tiles, 4), minmax(0, 1fr)); margin-bottom: 16px; }
 .overview-detail { align-items: stretch; }
 /* Overview: first-attempt accuracy per topic as one sorted bar list.
    Single series, one hue (--series-1), no legend: the heading names it. */
@@ -2965,7 +2976,7 @@ body:has(.teacher-app) { background: var(--bg); }
 .attention li { font-size: 13.5px; line-height: 1.35; }
 .attention h4 { color: var(--ink); }
 #dash-time { margin-top: 16px; }
-@media (max-width: 899px) {
+@media (max-width: 991.98px) {
   /* pickers scroll away; only the section bar sticks under the top bar */
   .dash-toolbar { display: contents; }
   .dash-toolbar .dash-nav { position: sticky; z-index: 6; margin: 0 0 14px; padding: 6px 0; background: var(--bg); }
@@ -2985,7 +2996,10 @@ body:has(.teacher-app) { background: var(--bg); }
 .quality-check.wide > .note { margin: 0 0 10px; }
 /* dashboard tables beside the sidebar: topic names and short status cells stay on one line */
 .teacher-app .dash-table .label { min-width: 150px; }
-.teacher-app .dash-table td.small { white-space: nowrap; }
+/* short status cells stay on one line; text cells (learning outcomes, labels) still wrap */
+.teacher-app .dash-table td.small:not(.label) { white-space: nowrap; }
+.teacher-app .dash-table .subrow .label { min-width: 220px; max-width: 420px; white-space: normal; }
+.teacher-app .dash-table .subrow td[colspan] { white-space: normal; }
 .teacher-app .dash-table th { white-space: normal; overflow-wrap: normal; word-break: keep-all; vertical-align: bottom; }
 /* Compare classes: classes across, measures and topics down */
 .compare-table tbody th { font-size: 14px; font-weight: 700; text-transform: none; letter-spacing: 0; color: var(--ink); }
@@ -2993,3 +3007,84 @@ body:has(.teacher-app) { background: var(--bg); }
 .compare-table .compare-group th { padding-top: 14px; color: var(--muted); font-size: 12px; text-transform: uppercase; letter-spacing: .4px; }
 .teacher-app .dash-table .label { min-width: 130px; }
 #dash-weeks .dash-table td.small { min-width: 96px; white-space: normal; }
+/* By topic: one Questions column; tidy, aligned rows */
+.by-topic-table td { vertical-align: middle; }
+.q-cell { min-width: 120px; }
+.q-cell > * { white-space: nowrap; }
+.acc-cell .meter { width: 84px; min-width: 0; margin-top: 5px; }
+.q-pill { display: inline-block; padding: 2px 8px; color: var(--ink); background: var(--bg); border: 1px solid var(--line); border-radius: 999px; font-size: 12px; font-weight: 700; font-variant-numeric: tabular-nums; }
+.q-pill.none { color: var(--warn); background: var(--warn-soft); border-color: transparent; }
+.q-gap { display: block; margin-top: 3px; color: var(--warn); font-size: 12px; font-weight: 700; }
+.q-draft { margin-left: 6px; padding: 2px 8px; font-size: 12px; }
+.by-topic-table .topic-row .label { white-space: nowrap; }
+/* "None yet" with its Draft button stacked underneath */
+.q-none { display: inline-flex; flex-direction: column; align-items: center; gap: 6px; white-space: nowrap; }
+.q-none .q-draft { margin-left: 0; }
+.by-topic-table .subrow .label { min-width: 170px; max-width: 320px; }
+.by-topic-table :is(th, td) { padding-left: 5px; padding-right: 5px; }
+/* No rules between rows: topics are separated by space, and a topic's
+   outcomes sit together in one soft, rounded block beneath it. */
+.by-topic-table { border-collapse: separate; border-spacing: 0; }
+.by-topic-table :is(th, td) { border-bottom: 0; }
+.by-topic-table thead th { padding-bottom: 10px; }
+.by-topic-table .topic-row td { padding-top: 12px; padding-bottom: 12px; }
+.by-topic-table .topic-row:hover td { background: color-mix(in srgb, var(--accent-soft) 45%, transparent); }
+.by-topic-table .topic-row:hover td:first-child { border-radius: 10px 0 0 10px; }
+.by-topic-table .topic-row:hover td:last-child { border-radius: 0 10px 10px 0; }
+.by-topic-table .subrow { background: none; }
+.by-topic-table .subrow td { padding-top: 9px; padding-bottom: 9px; background: var(--bg); }
+.by-topic-table .subrow td:first-child { background: none; }
+.by-topic-table .subrow .label { padding-left: 14px; color: var(--muted); }
+.by-topic-table .subrow.first td:nth-child(2) { border-top-left-radius: 10px; }
+.by-topic-table .subrow.first td:last-child { border-top-right-radius: 10px; }
+.by-topic-table .subrow.last td:nth-child(2) { border-bottom-left-radius: 10px; }
+.by-topic-table .subrow.last td:last-child { border-bottom-right-radius: 10px; }
+.by-topic-table .subrow.last td { padding-bottom: 12px; }
+.by-topic-table .subrow.last + .topic-row td { padding-top: 16px; }
+/* expand/collapse: a quiet icon, not a boxed button */
+.by-topic-table .topic-row .btn.small { width: 28px; height: 28px; padding: 0; color: var(--muted); background: transparent; border-color: transparent; box-shadow: none; }
+.by-topic-table .topic-row .btn.small:hover, .by-topic-table .topic-row .btn.small[aria-expanded="true"] { color: var(--accent); background: var(--accent-soft); }
+/* the Questions column is centred, so outcome badges sit under their topic's badge */
+.by-topic-table th:nth-child(3), .by-topic-table td.q-cell { text-align: center; }
+.by-topic-table td.low-n { opacity: .55; }
+
+/* ---------- dashboard breakpoints (Bootstrap's: sm 576, md 768, lg 992, xl 1200, xxl 1400) ---------- */
+.keep-together { white-space: nowrap; }
+.keep-together .info-btn { vertical-align: baseline; } /* middle lifts the word beside it */
+.insight-report { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 8px; padding: 6px 0; border-bottom: 1px solid var(--line); }
+.insight-report-reason { flex: 1 1 16em; min-width: 0; }
+.insight-report-when { margin-left: auto; white-space: nowrap; }
+/* lg to xl: the sidebar is back, so the tiles go two by two */
+@media (min-width: 992px) and (max-width: 1199.98px) {
+  .overview-tiles { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .overview-tiles > .tile:last-child:nth-child(odd) { grid-column: 1 / -1; }
+}
+/* below md: two by two */
+@media (max-width: 767.98px) {
+  .overview-tiles { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .overview-tiles > .tile:last-child:nth-child(odd) { grid-column: 1 / -1; }
+}
+/* below sm: phones */
+@media (max-width: 575.98px) {
+  /* pickers one per line; the period and Print share the last one */
+  .dash-toolbar .t-toolbar > h2 { flex-basis: 100%; }
+  .dash-toolbar .t-toolbar > select { flex: 1 1 100%; width: 100% !important; }
+  .dash-toolbar .t-toolbar > select[aria-label="Period"] { flex: 1 1 0; }
+  .dash-status { flex-direction: column; align-items: flex-start; gap: 6px; }
+  .overview-tiles { gap: 10px; }
+  .overview-tiles .tile { padding: 10px 12px; }
+  .overview-tiles .tile .v { font-size: 22px; }
+  /* topic bars: the name gets its own line above the bar */
+  .tb-row { grid-template-columns: minmax(0, 1fr) auto; grid-template-areas: "name value" "track track"; gap: 4px 10px; }
+  .tb-name { grid-area: name; }
+  .tb-value { grid-area: value; }
+  .tb-track { grid-area: track; }
+  /* question dialog: nearly full screen, one tile per line, the date under the report */
+  dialog.insight { width: calc(100vw - 16px); max-height: calc(100dvh - 16px); }
+  .insight-body { padding: 14px; }
+  .insight-tiles { grid-template-columns: minmax(0, 1fr); gap: 8px; }
+  .insight-tiles .tile { display: flex; flex-wrap: wrap; align-items: baseline; gap: 0 10px; padding: 8px 12px; }
+  .insight-tiles .tile .v { font-size: 20px; }
+  .insight-report-when { flex-basis: 100%; margin-left: 0; }
+  .insight-actions > .btn.primary { flex: 1 1 auto; }
+}
