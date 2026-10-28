@@ -1,15 +1,20 @@
 <script setup>
 import { computed, onMounted, onUnmounted, ref, watch } from 'vue';
-import { loadPlayerVisuals, tintedPlayerFrames } from './avatar.js';
+import { loadOwnedHeroVisuals, loadPlayerVisuals, tintedPlayerFrames } from './avatar.js';
 import {
   BUILDING_LAYOUT, TOWN_AVATAR_RADIUS, TOWN_DOOR_RADIUS, TOWN_HEIGHT,
-  TOWN_GRASS_COLOR, TOWN_PATH_WIDTH, TOWN_PROP_LAYOUT, TOWN_TILE_SIZE, TOWN_WALK_SPEED, TOWN_WIDTH,
+  TOWN_GRASS_COLOR, TOWN_HERO_AVATAR_RADIUS, TOWN_HERO_HOP_HEIGHT, TOWN_HERO_HOPS_PER_SECOND,
+  TOWN_HERO_MIN_PLAYER_DISTANCE, TOWN_HERO_REDUCED_MOTION_HOP_HEIGHT, TOWN_HERO_REDUCED_MOTION_PAUSE_MAX_MS,
+  TOWN_HERO_REDUCED_MOTION_PAUSE_MIN_MS, TOWN_HERO_WANDER_PAUSE_MAX_MS, TOWN_HERO_WANDER_PAUSE_MIN_MS,
+  TOWN_HERO_WANDER_RADIUS, TOWN_HERO_WALK_SPEED, TOWN_MAX_HEROES,
+  TOWN_PATH_WIDTH, TOWN_PROP_LAYOUT, TOWN_TILE_SIZE, TOWN_WALK_SPEED, TOWN_WIDTH,
 } from '../../../config/tuning.js';
 
 const props = defineProps({
   buildings: { type: Object, required: true },
   castleLevel: { type: Number, required: true },
   avatarColor: { type: String, required: true },
+  heroes: { type: Array, default: () => [] },
 });
 const emit = defineEmits(['interact']);
 const frame = ref(null);
@@ -37,6 +42,8 @@ const obstacles = [
 ];
 const keys = new Set();
 const player = { x: 720, y: 518, facing: 1, path: [], waypoint: 0, moving: false };
+const wanderers = [];
+let reducedMotion = false;
 let playerFrames = null;
 let playerVisuals = null;
 let playerCrop = [479, 387, 642, 707];
@@ -261,12 +268,17 @@ function circleHitsRect(x, y, r, rect) {
   return ((x - nx) ** 2 + (y - ny) ** 2) < r ** 2;
 }
 
-function canStand(x, y) {
+function canStand(x, y, ignoreHeroId = null) {
   if (x < TOWN_AVATAR_RADIUS || y < TOWN_AVATAR_RADIUS || x > TOWN_WIDTH - TOWN_AVATAR_RADIUS || y > TOWN_HEIGHT - TOWN_AVATAR_RADIUS) return false;
   for (const obstacle of obstacles) {
     if (obstacle.type === 'rect' ? circleHitsRect(x, y, TOWN_AVATAR_RADIUS, obstacle) : Math.hypot(x - obstacle.x, y - obstacle.y) < TOWN_AVATAR_RADIUS + obstacle.r) return false;
   }
-  return true;
+  return wanderers.every((hero) => hero.id === ignoreHeroId || Math.hypot(x - hero.x, y - hero.y) >= TOWN_HERO_MIN_PLAYER_DISTANCE);
+}
+
+function canWanderStand(hero, x, y) {
+  if (!canStand(x, y, hero.id) || Math.hypot(x - player.x, y - player.y) < TOWN_HERO_MIN_PLAYER_DISTANCE) return false;
+  return buildings.every((building) => Math.hypot(x - building.door.x, y - building.door.y) >= TOWN_DOOR_RADIUS + TOWN_HERO_AVATAR_RADIUS);
 }
 
 function nearestWalkableCell(index, cols, rows, blocked) {
@@ -286,7 +298,7 @@ function nearestWalkableCell(index, cols, rows, blocked) {
   return -1;
 }
 
-function findPath(startX, startY, targetX, targetY) {
+function findPath(startX, startY, targetX, targetY, canWalk = canStand) {
   const cols = Math.floor(TOWN_WIDTH / TOWN_TILE_SIZE);
   const rows = Math.floor(TOWN_HEIGHT / TOWN_TILE_SIZE);
   const size = cols * rows;
@@ -294,7 +306,7 @@ function findPath(startX, startY, targetX, targetY) {
   for (let i = 0; i < size; i += 1) {
     const x = (i % cols) * TOWN_TILE_SIZE + TOWN_TILE_SIZE / 2;
     const y = Math.floor(i / cols) * TOWN_TILE_SIZE + TOWN_TILE_SIZE / 2;
-    blocked[i] = canStand(x, y) ? 0 : 1;
+    blocked[i] = canWalk(x, y) ? 0 : 1;
   }
   let start = Math.floor(startY / TOWN_TILE_SIZE) * cols + Math.floor(startX / TOWN_TILE_SIZE);
   let goal = Math.floor(targetY / TOWN_TILE_SIZE) * cols + Math.floor(targetX / TOWN_TILE_SIZE);
@@ -324,7 +336,7 @@ function findPath(startX, startY, targetX, targetY) {
   const route = [];
   for (let at = goal; at !== start; at = prev[at]) route.push({ x: (at % cols) * TOWN_TILE_SIZE + TOWN_TILE_SIZE / 2, y: Math.floor(at / cols) * TOWN_TILE_SIZE + TOWN_TILE_SIZE / 2 });
   route.reverse();
-  const targetIsWalkable = canStand(targetX, targetY);
+  const targetIsWalkable = canWalk(targetX, targetY);
   route.push(targetIsWalkable ? { x: targetX, y: targetY } : { x: (goal % cols) * TOWN_TILE_SIZE + TOWN_TILE_SIZE / 2, y: Math.floor(goal / cols) * TOWN_TILE_SIZE + TOWN_TILE_SIZE / 2 });
   return route;
 }
@@ -388,6 +400,131 @@ function onKeyDown(event) {
 }
 function onKeyUp(event) { keys.delete(event.key.toLowerCase()); }
 function onBlur() { keys.clear(); }
+
+function heroPause() {
+  const min = reducedMotion ? TOWN_HERO_REDUCED_MOTION_PAUSE_MIN_MS : TOWN_HERO_WANDER_PAUSE_MIN_MS;
+  const max = reducedMotion ? TOWN_HERO_REDUCED_MOTION_PAUSE_MAX_MS : TOWN_HERO_WANDER_PAUSE_MAX_MS;
+  return min + Math.random() * (max - min);
+}
+
+function heroWanderPoint() {
+  const castle = BUILDING_LAYOUT.castle;
+  const angle = Math.random() * Math.PI * 2;
+  const radius = 70 + Math.random() * (TOWN_HERO_WANDER_RADIUS - 70);
+  return { x: castle.x + castle.w / 2 + Math.cos(angle) * radius, y: castle.y + castle.h / 2 + Math.sin(angle) * radius };
+}
+
+function chooseHeroDestination(hero, time) {
+  for (let attempt = 0; attempt < 70; attempt += 1) {
+    const target = heroWanderPoint();
+    if (!canWanderStand(hero, target.x, target.y)) continue;
+    const path = findPath(hero.x, hero.y, target.x, target.y, (x, y) => canWanderStand(hero, x, y));
+    if (path.length) {
+      hero.path = path;
+      hero.waypoint = 0;
+      hero.pauseUntil = 0;
+      return true;
+    }
+  }
+  hero.pauseUntil = time + 600;
+  return false;
+}
+
+async function initializeWanderers(time) {
+  wanderers.length = 0;
+  const roster = props.heroes.slice(0, TOWN_MAX_HEROES);
+  if (!roster.length) return;
+  let records = new Map();
+  try { records = (await loadOwnedHeroVisuals(roster.map((hero) => hero.id))).heroes; }
+  catch (error) { console.warn('[Town hero sprites] Could not load the wandering party.', error); }
+  for (const hero of roster) {
+    const record = records.get(hero.id);
+    const actor = {
+      id: hero.id, hero, visual: record?.visual || null, frames: record?.frames || {},
+      x: 0, y: 0, facing: 1, path: [], waypoint: 0, moving: false,
+      animationOffset: Math.random() * 1000, hopOffset: Math.random() * 1000, pauseUntil: time + heroPause(),
+    };
+    let spawn = null;
+    for (let attempt = 0; attempt < 140 && !spawn; attempt += 1) {
+      const candidate = heroWanderPoint();
+      if (canWanderStand(actor, candidate.x, candidate.y)) spawn = candidate;
+    }
+    if (!spawn) {
+      for (let y = 40; y < TOWN_HEIGHT - 40 && !spawn; y += TOWN_TILE_SIZE) {
+        for (let x = 40; x < TOWN_WIDTH - 40 && !spawn; x += TOWN_TILE_SIZE) {
+          if (canWanderStand(actor, x, y)) spawn = { x, y };
+        }
+      }
+    }
+    if (!spawn) continue;
+    actor.x = spawn.x; actor.y = spawn.y;
+    wanderers.push(actor);
+  }
+}
+
+function updateWanderers(time, dt) {
+  for (const hero of wanderers) {
+    if (time < hero.pauseUntil) { hero.moving = false; continue; }
+    if (!hero.path.length || hero.waypoint >= hero.path.length) {
+      hero.moving = false;
+      if (!chooseHeroDestination(hero, time)) continue;
+    }
+    const point = hero.path[hero.waypoint];
+    const dx = point.x - hero.x;
+    const dy = point.y - hero.y;
+    const distance = Math.hypot(dx, dy);
+    if (distance < 3) {
+      hero.waypoint += 1;
+      if (hero.waypoint >= hero.path.length) {
+        hero.path = [];
+        hero.moving = false;
+        hero.pauseUntil = time + heroPause();
+      }
+      continue;
+    }
+    const vx = dx / distance;
+    const vy = dy / distance;
+    const step = TOWN_HERO_WALK_SPEED * dt;
+    const oldX = hero.x;
+    const oldY = hero.y;
+    const nx = hero.x + vx * step;
+    const ny = hero.y + vy * step;
+    if (canWanderStand(hero, nx, hero.y)) hero.x = nx;
+    if (canWanderStand(hero, hero.x, ny)) hero.y = ny;
+    if (hero.x !== oldX || hero.y !== oldY) {
+      hero.moving = true;
+      hero.facing = vx < -0.05 ? -1 : vx > 0.05 ? 1 : hero.facing;
+    } else if (step > 0) {
+      hero.path = [];
+      hero.waypoint = 0;
+      hero.pauseUntil = time + 350;
+      hero.moving = false;
+    }
+  }
+}
+
+function drawWanderingHero(g, actor, time) {
+  const radius = TOWN_HERO_AVATAR_RADIUS;
+  const hop = actor.moving ? Math.abs(Math.sin(((time + actor.hopOffset) / 1000) * Math.PI * TOWN_HERO_HOPS_PER_SECOND)) * (reducedMotion ? TOWN_HERO_REDUCED_MOTION_HOP_HEIGHT : TOWN_HERO_HOP_HEIGHT) : 0;
+  g.fillStyle = 'rgba(35,56,47,.22)';
+  g.beginPath(); g.ellipse(actor.x, actor.y + 2, radius * 1.15, radius * .38, 0, 0, Math.PI * 2); g.fill();
+  const frameName = playerIdleClip[Math.floor(((time + actor.animationOffset) / 1000) * playerIdleFps) % playerIdleClip.length];
+  const sprite = actor.frames[frameName] || actor.frames.open;
+  g.save();
+  g.translate(actor.x, actor.y - hop);
+  if (actor.facing < 0) g.scale(-1, 1);
+  if (sprite && actor.visual) {
+    const crop = actor.visual.crop.open;
+    const h = radius * 3.15;
+    const w = h * crop[2] / crop[3];
+    g.imageSmoothingEnabled = true; g.imageSmoothingQuality = 'high';
+    g.drawImage(sprite, ...crop, -w / 2, -h, w, h);
+  } else {
+    g.font = '40px system-ui, sans-serif'; g.textAlign = 'center'; g.textBaseline = 'bottom';
+    g.fillText(actor.hero.emoji || '🐱', 0, 0);
+  }
+  g.restore();
+}
 
 function drawAvatar(g, time) {
   const r = TOWN_AVATAR_RADIUS;
@@ -489,11 +626,17 @@ function tick(time) {
     if (canStand(player.x, ny)) player.y = ny;
   }
   player.moving = Boolean(dx || dy);
+  updateWanderers(time, dt);
 
-  const drawables = [...objectCanvases.values(), { id: 'mayor', x: player.x - 25, y: player.y - 40, sortY: player.y, player: true }];
+  const drawables = [
+    ...objectCanvases.values(),
+    ...wanderers.map((actor) => ({ id: actor.id, sortY: actor.y, actor })),
+    { id: 'mayor', sortY: player.y, player: true },
+  ];
   drawables.sort((a, b) => a.sortY - b.sortY);
   for (const item of drawables) {
     if (item.player) drawAvatar(ctx, time);
+    else if (item.actor) drawWanderingHero(ctx, item.actor, time);
     else ctx.drawImage(item.canvas, item.x, item.y);
   }
   drawAffordableArrows(ctx, time);
@@ -525,6 +668,8 @@ onMounted(async () => {
     playerFrames = tintedPlayerFrames(playerVisuals, props.avatarColor);
     playerAnimationOffset = Math.random() * playerVisuals.config.TIME_MS_PER_SECOND;
   } catch (error) { console.warn('[Town player sprite] Could not load player visuals.', error); }
+  reducedMotion = Boolean(window.matchMedia?.('(prefers-reduced-motion: reduce)').matches);
+  await initializeWanderers(performance.now());
   resize();
   observer = new ResizeObserver(resize);
   observer.observe(frame.value);

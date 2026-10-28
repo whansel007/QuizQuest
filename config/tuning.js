@@ -201,6 +201,33 @@ export const BUBBLES_TRAP_KILL_REFUND = 0.5;
 export const BUILDING_BONUS_PER_LEVEL = 0.1;
 export const BUILDING_LEVEL_CAP = 3;
 
+// Hero Summon presentation and ambient sky. These affect only the student UI;
+// pull odds, costs and pity remain in game-config.js.
+export const SUMMON_STAR_COUNT = 140;
+export const SUMMON_TWINKLE_COUNT = 12;
+export const SUMMON_TWINKLE_DURATION_MIN_S = 2;
+export const SUMMON_TWINKLE_DURATION_MAX_S = 4;
+export const SUMMON_METEOR_INTERVAL_MIN_S = 7;
+export const SUMMON_METEOR_INTERVAL_MAX_S = 16;
+export const SUMMON_METEOR_DURATION_MS = 700;
+export const SUMMON_METEOR_LENGTH_MIN_PX = 120;
+export const SUMMON_METEOR_LENGTH_MAX_PX = 180;
+export const SUMMON_METEOR_MAX_ALPHA = 0.35;
+export const SUMMON_METEOR_SHOWER_CHANCE = 0.25;
+export const SUMMON_METEOR_SHOWER_COUNT_MIN = 3;
+export const SUMMON_METEOR_SHOWER_COUNT_MAX = 5;
+export const SUMMON_METEOR_SHOWER_SPACING_MS = 120;
+export const SUMMON_SKY_FRAME_CAP_FPS = 30;
+export const SUMMON_HISTORY_PAGE_SIZE = 20;
+export const SUMMON_BANNER_TITLE = 'Hero Summon';
+export const SUMMON_BANNER_SUBTITLE = 'Meet the heroes whose stories are waiting to be written.';
+export const SUMMON_BANNER_ORDER = Object.freeze(['bombardier', 'pilot', 'guardian', 'sheriff', 'electromancer', 'bubbles']);
+export const SUMMON_MULTI_DISCOUNT = 0;
+export const SUMMON_SHOW_DETAILS = true;
+export const SUMMON_SUMMARY_COLUMNS = 5;
+export const SUMMON_SUMMARY_SLANT_DEG = 0;
+export const SUMMON_SUMMARY_SOUND_INTERVAL_MS = 90;
+
 // Walkable kingdom town. The canvas keeps a fixed logical size and scales to
 // fill the immersive student viewport; building coordinates are world pixels.
 export const TOWN_WIDTH = 1280;
@@ -210,13 +237,27 @@ export const TOWN_WALK_SPEED = 180;
 export const TOWN_DOOR_RADIUS = 44;
 export const TOWN_AVATAR_RADIUS = 17;
 export const TOWN_AVATAR_DEFAULT_COLOR = '#F2BA55';
+export const TOWN_AVATAR_ORIGINAL_COLOR = '#BDBDBD';
 export const TOWN_AVATAR_COLOR_MIN_LIGHTNESS = 35;
 export const TOWN_AVATAR_COLOR_MAX_LIGHTNESS = 85;
 export const TOWN_AVATAR_MIN_GRASS_DISTANCE = 60;
 export const TOWN_GRASS_COLOR = '#7FAE58';
+export const TOWN_MAX_HEROES = 8;
+export const TOWN_HERO_WANDER_RADIUS = 300;
+export const TOWN_HERO_WALK_SPEED = 72;
+export const TOWN_HERO_AVATAR_RADIUS = 16;
+export const TOWN_HERO_MIN_PLAYER_DISTANCE = 40;
+export const TOWN_HERO_HOP_HEIGHT = 10;
+export const TOWN_HERO_HOPS_PER_SECOND = 3;
+export const TOWN_HERO_WANDER_PAUSE_MIN_MS = 1_000;
+export const TOWN_HERO_WANDER_PAUSE_MAX_MS = 3_000;
+export const TOWN_HERO_REDUCED_MOTION_HOP_HEIGHT = 3;
+export const TOWN_HERO_REDUCED_MOTION_PAUSE_MIN_MS = 2_500;
+export const TOWN_HERO_REDUCED_MOTION_PAUSE_MAX_MS = 5_000;
 export const TOWN_AVATAR_PRESET_COLORS = Object.freeze([
   '#F2BA55', '#EF7137', '#3D78A0', '#6DB8CF', '#8062A9', '#D86F6B',
   '#548CB0', '#B96448', '#C08A54', '#BAA1D0', '#E49B35', '#4F9B83',
+  TOWN_AVATAR_ORIGINAL_COLOR,
 ]);
 export const TOWN_PATH_WIDTH = 64;
 export const BUILDING_LAYOUT = {

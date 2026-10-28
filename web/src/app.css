@@ -108,6 +108,12 @@ header#top.student-immersive-nav #who { color: #e1e7d2; }
 header#top.student-immersive-nav nav#tabs button { color: #d7dfca; }
 header#top.student-immersive-nav nav#tabs button[aria-current="page"] { color: #2b3d2d; background: #f2d37f; }
 header#top.student-immersive-nav.student-nav-hidden { transform: translateY(-105%); pointer-events: none; }
+header#top.student-immersive-nav.summon-nav { background: rgb(26 45 76 / 97%); border-bottom-color: #8298bb; box-shadow: 0 5px 18px rgb(7 17 34 / 35%); }
+header#top.student-immersive-nav.summon-nav .brand span { color: #f2bd58; }
+header#top.student-immersive-nav.summon-nav .brand small,
+header#top.student-immersive-nav.summon-nav #who { color: #dfe7f4; }
+header#top.student-immersive-nav.summon-nav nav#tabs button { color: #d9e4f4; }
+header#top.student-immersive-nav.summon-nav nav#tabs button[aria-current="page"] { color: #26364f; background: #f2d37f; }
 /* Tiny pull-down handle that hints the student menu is tucked above the
    viewport. Hovering or clicking it reveals the nav; it hides itself (without
    unmounting) as soon as the nav is out, so the header keeps the pointer. */
@@ -133,6 +139,8 @@ header#top.student-immersive-nav.student-nav-hidden { transform: translateY(-105
   transition: opacity .2s ease, background .2s ease;
 }
 .nav-peek:hover { background: #2f5943; }
+header#top.student-immersive-nav.summon-nav ~ .nav-peek { color:#eaf0da; background:rgb(34 57 94 / 90%); border-color:#8298bb; }
+header#top.student-immersive-nav.summon-nav.student-nav-hidden ~ .nav-peek:hover { background:#3b5e91; }
 .nav-peek.is-hidden { visibility: hidden; opacity: 0; pointer-events: none; }
 main#main.main-student {
   width: 100%;
@@ -167,16 +175,197 @@ main#main.main-kingdom {
   padding: 0;
   overflow: hidden;
 }
+main#main.main-summon {
+  position: fixed;
+  z-index: 0;
+  inset: 0;
+  width: 100%;
+  height: 100vh;
+  height: 100svh;
+  max-width: none;
+  margin: 0;
+  padding: 0;
+  overflow: hidden;
+}
 footer.footer-student { display: none; }
 @media (max-width: 1100px) {
-  main#main.main-student:not(.main-kingdom) { height: auto; min-height: 100vh; min-height: 100svh; overflow-y: auto; }
+  main#main.main-student:not(.main-kingdom):not(.main-summon) { height: auto; min-height: 100vh; min-height: 100svh; overflow-y: auto; }
+}
+@media (max-width: 899px) {
+  main#main.main-summon {
+    position: relative;
+    height: auto;
+    min-height: 100vh;
+    min-height: 100svh;
+    overflow: visible;
+  }
 }
 @media (max-height: 700px) and (min-width: 1101px) {
-  main#main.main-student:not(.main-kingdom) { height: auto; min-height: 100vh; min-height: 100svh; overflow-y: auto; }
+  main#main.main-student:not(.main-kingdom):not(.main-summon) { height: auto; min-height: 100vh; min-height: 100svh; overflow-y: auto; }
 }
 @media (prefers-reduced-motion: reduce) {
   header#top.student-immersive-nav { transition: none; }
 }
+
+/* ---------- storybook theme: Practice and My Progress ----------
+   These two student pages are reading-first, not full-screen scenes, but they
+   belong to the same book as the World: parchment surfaces on a warm paper
+   wash, 2px warm-ink outlines, hand-cut corners, hard offset shadows, forest
+   accents and campfire-gold actions. BRANDBOOK.md §2–§6.
+   Everything is scoped to the two page classes so teacher screens keep the
+   calm neutral palette from :root. */
+main#main.main-practice,
+main#main.main-progress {
+  --bg: #f1e7c8;
+  --panel: #fbf2d8;
+  --ink: #23382f;
+  --muted: #5f6d58;
+  --line: #c9ba93;
+  --accent: #254937;
+  --accent-ink: #fff8e4;
+  --accent-soft: #e7dcbd;
+  --good: #3f6b2f;
+  --good-soft: #e2eed6;
+  --bad: #a63a33;
+  --bad-soft: #f7e0d7;
+  --warn: #8a5a12;
+  --warn-soft: #f8e6bd;
+  --radius: 13px;
+  --shadow: 0 5px 0 rgb(35 56 47 / 55%), 0 10px 22px rgb(35 56 47 / 12%);
+
+  color: var(--ink);
+  font-family: "Nunito", "Trebuchet MS", system-ui, sans-serif;
+  background-color: #f1e7c8;
+  background-image:
+    url('/hero-lab/assets/storybook-paper.svg'),
+    radial-gradient(120% 48% at 50% 0%, rgb(50 83 62 / 20%), transparent 68%),
+    linear-gradient(180deg, #f7efd8, #ecdfb9);
+  background-size: 144px 144px, auto, auto;
+}
+/* Story titles keep the serif; section labels stay small and mono. */
+main#main.main-practice :is(h2, h3),
+main#main.main-progress :is(h2, h3) {
+  color: #254937;
+  font-family: Georgia, "Palatino Linotype", serif;
+  letter-spacing: -.01em;
+}
+main#main.main-practice :is(h2, h3) + .small,
+main#main.main-progress :is(h2, h3) + .small { color: var(--muted); }
+
+/* Paper panel: parchment + fiber texture, warm ink outline, hard shadow. */
+main#main.main-practice .panel,
+main#main.main-progress .panel,
+main#main.main-practice .modal-card,
+main#main.main-progress .modal-card {
+  background-color: var(--panel);
+  background-image: url('/hero-lab/assets/storybook-paper.svg');
+  background-size: 144px 144px;
+  border: 2px solid #4b4835;
+  border-radius: 14px 11px 16px 12px;
+  box-shadow: 0 5px 0 rgb(35 56 47 / 55%), 0 10px 24px rgb(11 33 25 / 12%);
+}
+
+/* Secondary action: parchment with a dark outline and a short hard shadow. */
+main#main.main-practice .btn,
+main#main.main-progress .btn {
+  color: var(--ink);
+  background: #fffaf0;
+  border: 2px solid #4b4835;
+  border-radius: 9px;
+  box-shadow: 0 3px 0 #7a6545;
+  font-weight: 800;
+  transition: transform .12s ease, box-shadow .12s ease, background .12s ease;
+}
+main#main.main-practice .btn:hover,
+main#main.main-progress .btn:hover { background: #fffdf7; border-color: #254937; transform: translateY(-1px); box-shadow: 0 4px 0 #7a6545; }
+main#main.main-practice .btn:active,
+main#main.main-progress .btn:active { transform: translateY(2px); box-shadow: 0 1px 0 #7a6545; }
+
+/* Main action: campfire gold, dark ink label, deeper hard shadow. */
+main#main.main-practice .btn.primary,
+main#main.main-progress .btn.primary {
+  color: #3b2b1d;
+  background: #f2ba55;
+  border-color: #61472d;
+  box-shadow: 0 4px 0 #9b612e;
+}
+main#main.main-practice .btn.primary:hover,
+main#main.main-progress .btn.primary:hover { background: #f7c96e; border-color: #61472d; box-shadow: 0 5px 0 #9b612e; }
+main#main.main-practice .btn.primary:active,
+main#main.main-progress .btn.primary:active { box-shadow: 0 1px 0 #9b612e; }
+main#main.main-practice .btn:disabled,
+main#main.main-progress .btn:disabled { background: #e9dfc1; border-color: #b3a37c; box-shadow: 0 2px 0 #c2b28a; color: #7d8672; opacity: 1; }
+
+/* Inputs: light paper fill, ink outline, visible gold focus ring. */
+main#main.main-practice :is(input:not([type]), input[type="text"], input[type="number"], input[type="email"], input[type="password"], select, textarea),
+main#main.main-progress :is(input:not([type]), input[type="text"], input[type="number"], input[type="email"], input[type="password"], select, textarea) {
+  color: var(--ink);
+  background: #fffdf6;
+  border: 2px solid #67634d;
+  border-radius: 8px;
+}
+main#main.main-practice :is(input, select, textarea, button, a):focus-visible,
+main#main.main-progress :is(input, select, textarea, button, a):focus-visible {
+  outline: 3px solid #f2ba55;
+  outline-offset: 2px;
+}
+
+/* Notes read as slips of paper tucked into the page. */
+main#main.main-practice .note,
+main#main.main-progress .note {
+  color: var(--ink);
+  background: #f5ebcf;
+  border: 1px solid #c9ba93;
+  border-left: 4px solid #d9a44a;
+  border-radius: 8px;
+}
+main#main.main-practice .note.bad,
+main#main.main-progress .note.bad { color: #8a2f28; background: #f7e0d7; border-color: #dcaaa2; border-left-color: #a63a33; }
+main#main.main-practice .note.warn,
+main#main.main-progress .note.warn { color: #7a4f0d; background: #f8e6bd; border-color: #ddc083; border-left-color: #b07a1e; }
+main#main.main-practice .note.good,
+main#main.main-progress .note.good { color: #345a26; background: #e2eed6; border-color: #b6cda2; border-left-color: #4c7c3a; }
+
+/* Badges: warm paper pills with ink labels. */
+main#main.main-practice .badge,
+main#main.main-progress .badge {
+  color: #44523c;
+  background: #e7dcbd;
+  border: 1px solid #c1b189;
+  border-radius: 999px;
+  font-weight: 800;
+}
+main#main.main-practice .badge.plain,
+main#main.main-progress .badge.plain { color: #5f6d58; background: #fff8e4; border-color: #c9ba93; }
+
+/* Topic tiles in My Progress: lighter paper so they lift off the panel. */
+main#main.main-progress .tile {
+  background-color: #fff8e4;
+  background-image: url('/hero-lab/assets/storybook-paper.svg');
+  background-size: 144px 144px;
+  border: 2px solid #7c8a67;
+  border-radius: 12px 10px 14px 11px;
+  box-shadow: 0 3px 0 #c2b28a;
+}
+main#main.main-progress .tile .v { color: #254937; font-family: Georgia, "Palatino Linotype", serif; }
+
+/* Meters grow in leaf green inside an ink-outlined track. */
+main#main.main-practice .meter,
+main#main.main-progress .meter { height: 10px; background: #e9dfc1; border: 1px solid #b3a37c; }
+main#main.main-practice .meter > div,
+main#main.main-progress .meter > div { background: linear-gradient(90deg, #7fae58, #4c7c3a); }
+
+/* Tables: hand-drawn dashed rules instead of hard grey lines. */
+main#main.main-progress :is(th, td) { border-bottom: 1px dashed #c9ba93; }
+main#main.main-progress th {
+  color: #6b7a5f;
+  font-family: ui-monospace, "Cascadia Code", monospace;
+  letter-spacing: .06em;
+}
+
+/* Modals dim the page with forest shade rather than neutral black. */
+main#main.main-practice .modal-overlay,
+main#main.main-progress .modal-overlay { background: rgb(20 38 28 / 58%); }
 
 .panel {
   background: var(--panel);

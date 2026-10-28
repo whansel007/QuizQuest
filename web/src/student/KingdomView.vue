@@ -10,18 +10,19 @@ import { loadHome } from './home.js';
 import KingdomTown from './KingdomTown.vue';
 import AvatarPreview from './AvatarPreview.vue';
 import {
-  BUILDING_LEVEL_CAP, TOWN_AVATAR_DEFAULT_COLOR, TOWN_AVATAR_PRESET_COLORS,
+  BUILDING_LEVEL_CAP, TOWN_AVATAR_DEFAULT_COLOR, TOWN_AVATAR_ORIGINAL_COLOR, TOWN_AVATAR_PRESET_COLORS, TOWN_MAX_HEROES,
 } from '../../../config/tuning.js';
 
 const error = ref('');
 const loaded = ref(false);
 const k = ref(null);
+const homeData = ref(null);
 let alive = true;
 
 onMounted(async () => {
   window.addEventListener('keydown', onTownKeydown);
   try {
-    await loadHome();
+    homeData.value = await loadHome();
     if (S.classId) {
       const kd = await api('GET', '/api/student/kingdom');
       if (!alive) return;
@@ -38,6 +39,12 @@ onUnmounted(() => {
 });
 
 const R = computed(() => k.value.catalog.resources);
+const townHeroes = computed(() => {
+  const home = homeData.value;
+  if (!home) return [];
+  const owned = new Set(home.inventory.heroes);
+  return home.catalog.heroes.filter((hero) => owned.has(hero.id)).slice(0, TOWN_MAX_HEROES);
+});
 const upgraders = {};
 const townTarget = ref(null);
 const customizeOpen = ref(false);
@@ -98,7 +105,7 @@ async function upgrade(p) {
       </div>
     </template>
     <template v-else-if="loaded">
-      <KingdomTown :buildings="plots" :castle-level="k.castleLevel" :avatar-color="previewColor" @interact="onTownInteract" />
+      <KingdomTown :buildings="plots" :castle-level="k.castleLevel" :avatar-color="previewColor" :heroes="townHeroes" @interact="onTownInteract" />
       <div class="town-hud town-title-hud" aria-label="Kingdom town">
         <span class="scene-kicker">YOUR KINGDOM</span>
         <strong>Storybook Town</strong>
@@ -124,7 +131,8 @@ async function upgrade(p) {
             class="avatar-swatch"
             type="button"
             :style="{ '--swatch-color': color }"
-            :aria-label="`Choose ${color}`"
+            :aria-label="color === TOWN_AVATAR_ORIGINAL_COLOR ? 'Use original sprite color' : `Choose ${color}`"
+            :title="color === TOWN_AVATAR_ORIGINAL_COLOR ? 'Original sprite color' : color"
             :aria-pressed="previewColor === color"
             :disabled="colorSaving"
             @click="chooseAvatarColor(color)"
@@ -170,7 +178,7 @@ async function upgrade(p) {
 .scene-note p { margin: 0; }
 .scene-error { color: #812e2d; }
 .scene-kicker { display: block; color: #778054; font: 800 .66rem ui-monospace, monospace; letter-spacing: .11em; }
-.town-hud { position: absolute; z-index: 2; color: #fff8e4; background: rgb(35 56 47 / 88%); border: 2px solid #f5e6b8; box-shadow: 0 4px 0 rgb(35 56 47 / 45%); pointer-events: none; }
+.town-hud { position: absolute; z-index: 2; color: #fff8e4; background: rgb(35 56 47 / 88%); box-shadow: 0 4px 0 rgb(35 56 47 / 45%); pointer-events: none; }
 .town-title-hud { top: 22px; left: 22px; padding: 12px 16px; border-radius: 12px 10px 14px 9px; }
 .town-title-hud .scene-kicker { color: #f2ba55; }
 .town-title-hud strong { display: block; margin-top: 3px; font: 700 23px/1.1 Georgia, "Palatino Linotype", serif; }

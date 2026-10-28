@@ -23,7 +23,7 @@ import AccountMenu from './components/AccountMenu.vue';
 
 const TABS = {
   teacher: [['analytics', 'Analytics', AnalyticsView], ['classes', 'Classes & Roster', ClassManagementView], ['review', 'Question bank', ReviewView], ['content', 'Source material', ContentView], ['generate', 'AI drafting', GenerateView], ['evaluation', 'Evaluation', EvaluationView], ['settings', 'Settings', SettingsView]],
-  student: [['practice', 'Practice', PracticeView], ['progress', 'My Progress', ProgressView], ['world', 'World', HeroLabView], ['kingdom', 'Kingdom', KingdomView], ['pets', 'Pets & shop', PetsView]],
+  student: [['practice', 'Practice', PracticeView], ['progress', 'My Progress', ProgressView], ['world', 'World', HeroLabView], ['kingdom', 'Kingdom', KingdomView], ['pets', 'Summon', PetsView]],
 };
 
 const ready = ref(false);
@@ -39,7 +39,11 @@ const current = computed(() => {
   if (!S.me) return null;
   return tabs.value.find(([id]) => id === S.tab) || tabs.value[0];
 });
+watch(current, (tab) => {
+  document.title = tab?.[0] === 'pets' ? 'Summon | QuizQuest' : 'QuizQuest';
+}, { immediate: true });
 const studentActive = computed(() => S.me?.role === 'student');
+const immersiveStudentTab = computed(() => studentActive.value && !['practice', 'progress'].includes(current.value?.[0]));
 const studentNavVisible = ref(true);
 let studentNavTimer;
 let pointerInsideTop = false;
@@ -49,25 +53,25 @@ function clearStudentNavTimer() {
   studentNavTimer = undefined;
 }
 function showStudentNav() {
-  if (!studentActive.value) return;
+  if (!immersiveStudentTab.value) return;
   clearStudentNavTimer();
   studentNavVisible.value = true;
   if (!pointerInsideTop) studentNavTimer = setTimeout(() => { studentNavVisible.value = false; }, 1600);
 }
 function onDocumentPointerMove(event) {
-  if (studentActive.value && event.clientY <= 18) showStudentNav();
+  if (immersiveStudentTab.value && event.clientY <= 18) showStudentNav();
 }
 function onDocumentPointerDown(event) {
-  if (studentActive.value && event.clientY <= 24) showStudentNav();
+  if (immersiveStudentTab.value && event.clientY <= 24) showStudentNav();
 }
 function onTopPointerEnter() {
-  if (!studentActive.value) return;
+  if (!immersiveStudentTab.value) return;
   pointerInsideTop = true;
   clearStudentNavTimer();
   studentNavVisible.value = true;
 }
 function onTopPointerLeave() {
-  if (!studentActive.value) return;
+  if (!immersiveStudentTab.value) return;
   pointerInsideTop = false;
   showStudentNav();
 }
@@ -78,10 +82,11 @@ function onTopFocusOut(event) {
   showStudentNav();
 }
 
-watch(studentActive, (active) => {
+watch(immersiveStudentTab, (active) => {
   clearStudentNavTimer();
   pointerInsideTop = false;
-  studentNavVisible.value = !active;
+  studentNavVisible.value = true;
+  if (active) studentNavTimer = setTimeout(() => { studentNavVisible.value = false; }, 1600);
 }, { immediate: true });
 
 onUnmounted(() => {
@@ -97,7 +102,7 @@ onUnmounted(() => {
   <template v-else-if="ready">
   <header
     id="top"
-    :class="{ 'student-immersive-nav': studentActive, 'student-nav-hidden': studentActive && !studentNavVisible }"
+    :class="{ 'student-immersive-nav': immersiveStudentTab, 'student-nav-hidden': immersiveStudentTab && !studentNavVisible, 'summon-nav': current?.[0] === 'pets' }"
     @pointerenter="onTopPointerEnter"
     @pointerleave="onTopPointerLeave"
     @focusin="onTopFocusIn"
@@ -115,7 +120,7 @@ onUnmounted(() => {
       </template>
     </div>
   </header>
-  <main id="main" :class="{ 'main-student': studentActive, 'main-world': current?.[0] === 'world', 'main-kingdom': current?.[0] === 'kingdom' }">
+  <main id="main" :class="{ 'main-student': studentActive, 'main-world': current?.[0] === 'world', 'main-kingdom': current?.[0] === 'kingdom', 'main-summon': current?.[0] === 'pets', 'main-practice': current?.[0] === 'practice', 'main-progress': current?.[0] === 'progress' }">
     <!-- the key remounts the view on tab switch, user switch or rerender(),
          so each view starts fresh and releases sockets/timers on unmount -->
     <component :is="current[2]" :key="current[0] + ':' + S.viewKey + ':' + S.token" />
@@ -125,7 +130,7 @@ onUnmounted(() => {
        mounted while the nav is open (hidden, not removed) so pointerleave on the
        header still fires normally. -->
   <button
-    v-if="studentActive"
+    v-if="immersiveStudentTab"
     class="nav-peek"
     :class="{ 'is-hidden': studentNavVisible }"
     type="button"

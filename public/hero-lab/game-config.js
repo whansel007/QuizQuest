@@ -25,7 +25,8 @@ import { ELECTRO_STUN_PROJECTILE_SCALE, ELECTRO_STUN_RADIUS_SCALE, PARTICLE_CAP,
   GUARDIAN_FAN_ANGLE_DEG, GUARDIAN_FAN_RADIUS, GUARDIAN_FAN_DAMAGE_MULT, GUARDIAN_FAN_KNOCKBACK, GUARDIAN_FAN_KNOCKBACK_MS, GUARDIAN_FAN_FADE_MS,
   PILOT_MECH_COOLDOWN_CUT_S, PILOT_MECH_CYCLE_CAP_PCT,
   BUBBLES_TRAP_KILL_REFUND,
-  BASE_CAMPFIRE_HP } from '../../config/tuning.js';
+  BASE_CAMPFIRE_HP, SUMMON_BANNER_TITLE, SUMMON_BANNER_SUBTITLE, SUMMON_BANNER_ORDER,
+  SUMMON_MULTI_DISCOUNT, SUMMON_SHOW_DETAILS } from '../../config/tuning.js';
 
 // The only buff cards the Tower scales. Extend this list (one line) to make the
 // Tower scale another stat card later. The campfire card and all rare effect
@@ -272,6 +273,11 @@ export const GAME_CONFIG = Object.freeze({
     epicPityPulls: 50,
     starterHero: 'sheriff',
     rarities: { sheriff: 'rare', guardian: 'rare', bubbles: 'rare', electromancer: 'rare', pilot: 'epic', bombardier: 'epic' },
+    bannerTitle: SUMMON_BANNER_TITLE,
+    bannerSubtitle: SUMMON_BANNER_SUBTITLE,
+    bannerOrder: SUMMON_BANNER_ORDER,
+    multiDiscount: SUMMON_MULTI_DISCOUNT,
+    showDetails: SUMMON_SHOW_DETAILS,
   },
   spawns: [
     { x: 480, y: 540 },

@@ -10,35 +10,269 @@
   "FACING_AIM_DISTANCE_PX": 100,
   "MOVEMENT_EPSILON_PX": 0.2,
   "GUARDIAN_DASH_SQUASH_MS": 220,
-  "IDLE_CLIP": ["open", "open", "open", "open", "open", "open", "open", "open", "open", "open", "closed", "open", "closed"],
+  "IDLE_CLIP": [
+    "open",
+    "open",
+    "open",
+    "open",
+    "open",
+    "open",
+    "open",
+    "open",
+    "open",
+    "open",
+    "closed",
+    "open",
+    "closed"
+  ],
   "IDLE_FPS": 5,
   "HERO_VISUALS": {
     "sheriff": {
-      "frames": { "open": "sherrif_idle(1).png", "closed": "sherrif_idle(2).png", "ultimate": "sherrif_ultimate.png" },
-      "crop": { "open": [479, 300, 653, 794], "closed": [479, 300, 653, 794], "ultimate": [479, 300, 653, 794] },
+      "frames": {
+        "open": "sherrif_idle(1).png",
+        "closed": "sherrif_idle(2).png",
+        "ultimate": "sherrif_ultimate.png"
+      },
+      "crop": {
+        "open": [
+          479,
+          300,
+          653,
+          794
+        ],
+        "closed": [
+          479,
+          300,
+          653,
+          794
+        ],
+        "ultimate": [
+          479,
+          300,
+          653,
+          794
+        ]
+      },
       "scale": 2,
-      "anchor": { "x": 0.5, "y": 0.5 },
-      "ultimate": { "mode": "swap", "frame": "ultimate", "transformMs": 200 }
+      "anchor": {
+        "x": 0.5,
+        "y": 0.5
+      },
+      "ultimate": {
+        "mode": "swap",
+        "frame": "ultimate",
+        "transformMs": 200
+      }
     },
     "guardian": {
-      "frames": { "open": "guardian_idle(1).png", "closed": "guardian_idle(2).png", "ultimate": "guardian_ultimate.png" },
-      "crop": { "open": [479, 335, 719, 791], "closed": [479, 335, 719, 791], "ultimate": [479, 335, 719, 791] },
+      "frames": {
+        "open": "guardian_idle(1).png",
+        "closed": "guardian_idle(2).png",
+        "ultimate": "guardian_ultimate.png"
+      },
+      "crop": {
+        "open": [
+          479,
+          335,
+          719,
+          791
+        ],
+        "closed": [
+          479,
+          335,
+          719,
+          791
+        ],
+        "ultimate": [
+          479,
+          335,
+          719,
+          791
+        ]
+      },
       "scale": 2,
-      "anchor": { "x": 0.5, "y": 0.5 },
-      "ultimate": { "mode": "swap", "frame": "ultimate", "transformMs": 200 }
+      "anchor": {
+        "x": 0.5,
+        "y": 0.5
+      },
+      "ultimate": {
+        "mode": "swap",
+        "frame": "ultimate",
+        "transformMs": 200
+      }
     },
     "pilot": {
-      "frames": { "open": "pilot_idle(1).png", "closed": "pilot_idle(2).png", "ultimate": "pilot_ultimate.png" },
-      "crop": { "open": [377, 340, 744, 755], "closed": [377, 340, 744, 755], "ultimate": [225, 360, 1154, 793] },
+      "frames": {
+        "open": "pilot_idle(1).png",
+        "closed": "pilot_idle(2).png",
+        "ultimate": "pilot_ultimate.png"
+      },
+      "crop": {
+        "open": [
+          377,
+          340,
+          744,
+          755
+        ],
+        "closed": [
+          377,
+          340,
+          744,
+          755
+        ],
+        "ultimate": [
+          225,
+          360,
+          1154,
+          793
+        ]
+      },
       "scale": 2.1,
-      "anchor": { "x": 0.5, "y": 0.5 },
-      "ultimate": { "mode": "swap", "frame": "ultimate", "transformMs": 200 }
+      "anchor": {
+        "x": 0.5,
+        "y": 0.5
+      },
+      "ultimate": {
+        "mode": "swap",
+        "frame": "ultimate",
+        "transformMs": 200
+      }
     },
     "player": {
-      "frames": { "open": "player_idle(1).png", "closed": "player_idle(2).png" },
-      "crop": { "open": [479, 387, 642, 707], "closed": [479, 387, 642, 707] },
+      "frames": {
+        "open": "player_idle(1).png",
+        "closed": "player_idle(2).png"
+      },
+      "crop": {
+        "open": [
+          479,
+          387,
+          642,
+          707
+        ],
+        "closed": [
+          479,
+          387,
+          642,
+          707
+        ]
+      },
       "scale": 1,
-      "anchor": { "x": 0.5, "y": 1 }
+      "anchor": {
+        "x": 0.5,
+        "y": 1
+      }
+    },
+    "bombardier": {
+      "frames": {
+        "open": "bombadier_idle(1).png",
+        "closed": "bombadier_idle(2).png",
+        "ultimate": "bombadier_ultimate.png"
+      },
+      "crop": {
+        "open": [
+          479,
+          291,
+          772,
+          803
+        ],
+        "closed": [
+          479,
+          291,
+          772,
+          803
+        ],
+        "ultimate": [
+          479,
+          291,
+          772,
+          803
+        ]
+      },
+      "scale": 2,
+      "anchor": {
+        "x": 0.5,
+        "y": 0.5
+      },
+      "ultimate": {
+        "mode": "swap",
+        "frame": "ultimate",
+        "transformMs": 200
+      }
+    },
+    "electromancer": {
+      "frames": {
+        "open": "electromancer_idle(1).png",
+        "closed": "electromancer_idle(2).png",
+        "ultimate": "electromancerr_ultiamte.png"
+      },
+      "crop": {
+        "open": [
+          479,
+          206,
+          817,
+          888
+        ],
+        "closed": [
+          479,
+          206,
+          817,
+          888
+        ],
+        "ultimate": [
+          479,
+          206,
+          817,
+          888
+        ]
+      },
+      "scale": 2,
+      "anchor": {
+        "x": 0.5,
+        "y": 0.5
+      },
+      "ultimate": {
+        "mode": "swap",
+        "frame": "ultimate",
+        "transformMs": 200
+      }
+    },
+    "bubbles": {
+      "frames": {
+        "open": "bubbles_idle(1).png",
+        "closed": "bubbles_idle(2).png",
+        "ultimate": "bubbles_ultimate.png"
+      },
+      "crop": {
+        "open": [
+          479,
+          276,
+          789,
+          863
+        ],
+        "closed": [
+          479,
+          276,
+          789,
+          863
+        ],
+        "ultimate": [
+          479,
+          387,
+          642,
+          707
+        ]
+      },
+      "scale": 2.1,
+      "anchor": {
+        "x": 0.5,
+        "y": 0.5
+      },
+      "ultimate": {
+        "mode": "swap",
+        "frame": "ultimate",
+        "transformMs": 200
+      }
     }
   },
   "assetBase": "/hero-lab/assets/cat/"

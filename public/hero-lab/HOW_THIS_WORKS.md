@@ -176,9 +176,9 @@ from wave 3, one rare effect that is not already active.
   can only be acquired once in a run. HUD icons show active effects and a
   separate health bar appears while the Brute King is alive.
 
-## Hero Summon, collection, and debug menu
+## Summon, collection, and debug menu
 
-The student **Hero Summon** tab replaces the old Pets & Shop page. A new
+The student **Summon** tab replaces the old collection page. A new
 student starts with Sheriff. Each summon costs 50 coins by default. A common
 pull gives 5 units of one kingdom resource; rare pulls are Sheriff, Guardian,
 Bubbles, or Electromancer; epic pulls are Pilot or Bombardier. Duplicate heroes
@@ -202,7 +202,7 @@ server. Its endpoint refuses requests when `NODE_ENV=production` or
 
 ### Playtest this phase
 
-1. Sign in as a student and open **Hero Summon**. Confirm Sheriff is owned and
+1. Sign in as a student and open **Summon**. Confirm Sheriff is owned and
    the other five heroes are visible but locked.
 2. Enter the Konami code. Set the balance to 500 and confirm the wallet updates.
 3. Summon repeatedly. Check that common results add the shown resource amount,

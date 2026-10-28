@@ -9,8 +9,10 @@ import HeroIcon from '../HeroIcon.vue';
 const props = defineProps({
   result: { type: Object, required: true }, // server summon result plus eggColour
   resources: { type: Object, required: true },
+  skipToSummary: Boolean,
+  clickToContinue: Boolean,
 });
-const emit = defineEmits(['close']);
+const emit = defineEmits(['close', 'skip']);
 
 const reduced = typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches;
 const stage = ref(reduced ? 'open' : 'egg');
@@ -52,13 +54,19 @@ function crack() {
   stage.value = 'open';
   nextTick(() => collectBtn.value?.focus());
 }
+function onSurfaceClick() {
+  if (props.skipToSummary) { emit('skip'); return; }
+  if (stage.value === 'egg') { crack(); return; }
+  if (props.clickToContinue) emit('close');
+}
 function onKey(e) {
   if (stage.value === 'egg') {
+    if (props.skipToSummary && e.key === 'Escape') { e.preventDefault(); emit('skip'); return; }
     if (e.key !== 'Tab') crack();
     e.preventDefault();
     return;
   }
-  if (e.key === 'Escape') emit('close');
+  if (e.key === 'Escape') { if (props.skipToSummary) emit('skip'); else emit('close'); }
   if (e.key === 'Tab') {
     const els = [...root.value.querySelectorAll('button')];
     const i = els.indexOf(document.activeElement);
@@ -84,7 +92,7 @@ onUnmounted(() => {
 
 <template>
   <Teleport to="body">
-    <div ref="root" class="prize" :class="['is-' + stage, rarity]" role="dialog" aria-modal="true" aria-labelledby="prize-title" tabindex="-1" @click="crack" @keydown="onKey">
+    <div ref="root" class="prize" :class="['is-' + stage, rarity]" role="dialog" aria-modal="true" aria-labelledby="prize-title" tabindex="-1" @click="onSurfaceClick" @keydown="onKey">
       <div class="prize-rays" aria-hidden="true"></div>
       <div class="prize-stage">
         <div class="prize-egg" :class="{ cracked: stage === 'open' }" :style="{ '--c': result.eggColour || '#c4b5fd' }" aria-hidden="true">
@@ -126,13 +134,14 @@ onUnmounted(() => {
           <p v-if="isHero" class="prize-move">{{ formatHeroType(item.type) }} hero · {{ item.weapon }}</p>
           <p v-else class="prize-move">Added to your kingdom resources</p>
           <p class="prize-move pity-line">{{ result.pity.totalPulls }} total pulls · pity {{ result.pity.sinceHero }} / {{ result.pity.sinceEpic }}</p>
-          <div class="prize-actions" @click.stop>
-            <button ref="collectBtn" type="button" class="btn primary" @click="emit('close')">Continue</button>
+      <div class="prize-actions" @click.stop>
+            <button ref="collectBtn" type="button" class="btn primary" @click="emit('close')">{{ skipToSummary ? 'View all results' : 'Continue' }}</button>
           </div>
         </template>
         <template v-else>
           <h2 id="prize-title">A summon is on its way…</h2>
           <p class="prize-move">Click or press any key to open the egg now</p>
+          <button v-if="skipToSummary" type="button" class="btn" @click.stop="emit('skip')">Skip to results</button>
         </template>
       </div>
       <p class="sr-only" aria-live="assertive">{{ announcement }}</p>

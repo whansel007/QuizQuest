@@ -23,7 +23,7 @@ const crypto = require('crypto');
 const {
   DEBUG_TUNING, ROOM_MAX_ACTIVE, TOWN_AVATAR_COLOR_MAX_LIGHTNESS,
   TOWN_AVATAR_COLOR_MIN_LIGHTNESS, TOWN_AVATAR_DEFAULT_COLOR,
-  TOWN_AVATAR_MIN_GRASS_DISTANCE, TOWN_GRASS_COLOR,
+  TOWN_AVATAR_MIN_GRASS_DISTANCE, TOWN_GRASS_COLOR, SUMMON_HISTORY_PAGE_SIZE,
 } = require('../../config/tuning.js');
 const { createStore } = require('./store');
 const { validateQuestion } = require('./validate');
@@ -163,6 +163,7 @@ function createQuizApi({ dataFile = null, store = null, now = () => Date.now(), 
   const tokens = new Map(); // token -> { userId, expires }
   const loginFails = new Map(); // email -> { count, until }
   const grading = new Set(); // "sessionId:index" answers currently being graded
+  const forcedSummons = new Map(); // seeded-demo-only visual fixtures; never persisted
 
   // ---------- lookups that double as access checks ----------
   // 404 (not 403) when the user isn't allowed, so ids of other classes
@@ -1590,6 +1591,13 @@ attemptId: attempt.id,
     save();
     return { resources: { ...current } };
   });
+  route('POST', '/api/student/debug/force-next-summon', 'student', ({ user, body }) => {
+    if (!isSeededDemoUser(user)) fail(403, 'Debug tools are only available for synthetic demo accounts.');
+    const scenarios = ['epic-and-duplicates', 'all-resources', 'three-new-heroes'];
+    if (!scenarios.includes(body?.scenario)) fail(400, 'Choose a valid summon preview.');
+    forcedSummons.set(user.id, body.scenario);
+    return { queued: true, scenario: body.scenario };
+  });
 
   route('GET', '/api/student/home', 'student', ({ user }) => {
     const classes = db.enrolments
@@ -1924,8 +1932,11 @@ return studentProgress(db, user.id, cl);
 
   route('POST', '/api/student/hero-summon', 'student', ({ user, body }) => {
     const rid = requestId(body.requestId);
+    const count = body.count === undefined ? 1 : Number(body.count);
+    if (![1, 10].includes(count)) fail(400, 'Summon count must be 1 or 10.');
     const refKey = `hero-summon:${user.id}:${rid}`;
     const cost = R.HERO_SUMMON.pullCost;
+    const totalCost = Math.floor(cost * count * (1 - (count === 10 ? (R.HERO_SUMMON.multiDiscount || 0) : 0)));
     const inv = R.inventory(db, user.id);
     // Idempotent retry: the same requestId returns the same prize so a
     // double-click (or retryablePost replay) can't double-charge or roll
@@ -1933,6 +1944,17 @@ return studentProgress(db, user.id, cl);
     const prev = db.ledger.find((t) => t.refKey === refKey);
     if (prev) {
       const meta = prev.meta || {};
+      if (meta.results) {
+        if (meta.count !== count) fail(409, 'This summon request was already used for a different pull count.');
+        if (count === 1) {
+          const cached = meta.results[0];
+          const hero = cached.type === 'hero' ? R.HERO_CATALOG.find((item) => item.id === cached.heroId) || { id: cached.heroId, name: cached.heroId, emoji: '✨', type: 'hero', rarity: cached.rarity, weapon: '', skill: '', ultimate: '' } : null;
+          const prize = cached.type === 'hero' ? { kind: 'hero', rarity: cached.rarity, hero } : { kind: 'resource', rarity: cached.rarity, resource: cached.resource, amount: cached.amount };
+          return { prize, pity: inv.heroPity, duplicateHero: Boolean(cached.type === 'hero' && !cached.isNew), refund: cached.refundCoins || 0, batchId: meta.batchId, inventory: inv, wallet: wallet(user.id), repeat: true, results: meta.results };
+        }
+        return { results: meta.results, count, batchId: meta.batchId, pity: inv.heroPity, inventory: inv, wallet: wallet(user.id), repeat: true };
+      }
+      if (count !== 1) fail(409, 'This summon request was already used for a single pull.');
       let prize;
       if (meta.kind === 'hero') {
         const hero = R.HERO_CATALOG.find((h) => h.id === meta.heroId) || { id: meta.heroId, name: meta.heroId, emoji: '✨', type: 'hero', rarity: meta.rarity, weapon: '', skill: '', ultimate: '' };
@@ -1945,47 +1967,107 @@ return studentProgress(db, user.id, cl);
         pity: inv.heroPity,
         duplicateHero: !!meta.dupe,
         refund: meta.dupe ? Math.floor(cost * R.HERO_SUMMON.duplicateRefundFraction) : 0,
+        batchId: meta.batchId || null,
         inventory: inv,
         wallet: wallet(user.id),
         repeat: true,
       };
     }
-    const pay = R.spend(db, user.id, cost, 'Hero Summon pull', refKey, now());
-    if (!pay.ok) fail(400, pay.error);
-    const roll = R.drawHeroSummon(inv.heroPity);
-    inv.heroPity = roll.pity;
-    const meta = { kind: roll.prize.kind, rarity: roll.prize.rarity };
-    let duplicateHero = false;
-    let refund = 0;
-    if (roll.prize.kind === 'hero') {
-      meta.heroId = roll.prize.hero.id;
-      if (inv.heroes.includes(roll.prize.hero.id)) {
-        duplicateHero = true;
-        inv.heroDupes[roll.prize.hero.id] = (inv.heroDupes[roll.prize.hero.id] || 0) + 1;
-        refund = Math.floor(cost * R.HERO_SUMMON.duplicateRefundFraction);
-        meta.dupe = true;
-        if (refund > 0) {
-          db.ledger.push({
-            id: newId('tx'),
-            studentId: user.id,
-            kind: 'refund',
-            amount: refund,
-            reason: `Duplicate ${roll.prize.hero.name} refund`,
-            refKey: refKey + ':refund',
-            at: now(),
-          });
-        }
+    if (count === 10 && forcedSummons.has(user.id)) {
+      const scenario = forcedSummons.get(user.id);
+      forcedSummons.delete(user.id);
+      const batchId = newId('preview');
+      const heroes = R.HERO_CATALOG;
+      const owned = new Set(inv.heroes);
+      const fixtureHero = (hero, rarity, isNew) => ({ type: 'hero', heroId: hero.id, hero, rarity, amount: null, isNew, refundCoins: isNew ? 0 : Math.floor(cost * R.HERO_SUMMON.duplicateRefundFraction) });
+      const fixtureResource = (resource, amount) => ({ type: 'resource', resource, amount, rarity: 'common', isNew: false, refundCoins: 0 });
+      let results;
+      if (scenario === 'all-resources') {
+        const keys = Object.keys(E.RESOURCES);
+        results = Array.from({ length: 10 }, (_, i) => fixtureResource(keys[i % keys.length], R.HERO_SUMMON.commonResourceAmount));
+      } else if (scenario === 'three-new-heroes') {
+        const fresh = heroes.slice(0, 3); // fixture only; previews never alter ownership
+        results = Array.from({ length: 10 }, (_, i) => i < fresh.length ? fixtureHero(fresh[i], i === 0 ? 'epic' : 'rare', true) : fixtureResource(Object.keys(E.RESOURCES)[i % Object.keys(E.RESOURCES).length], R.HERO_SUMMON.commonResourceAmount));
       } else {
-        inv.heroes.push(roll.prize.hero.id);
+        const hero = heroes.find((item) => owned.has(item.id)) || heroes[0];
+        results = Array.from({ length: 10 }, (_, i) => i === 0 ? fixtureHero(hero, 'epic', false) : i === 1 ? fixtureHero(hero, 'rare', false) : fixtureResource(Object.keys(E.RESOURCES)[i % Object.keys(E.RESOURCES).length], R.HERO_SUMMON.commonResourceAmount));
       }
-    } else {
-      meta.resource = roll.prize.resource;
-      meta.amount = roll.prize.amount;
-      inv.resources[roll.prize.resource] = (inv.resources[roll.prize.resource] || 0) + roll.prize.amount;
+      return { results: results.map((item, index) => ({ ...item, rollIndex: index + 1, batchId })), count: 10, batchId, pity: inv.heroPity, inventory: inv, wallet: wallet(user.id), debugPreview: true };
     }
-    db.ledger.find((t) => t.refKey === refKey).meta = meta;
+    const pay = R.spend(db, user.id, totalCost, `Hero Summon ×${count}`, refKey, now());
+    if (!pay.ok) fail(400, pay.error);
+    const batchId = newId('batch');
+    const results = [];
+    let legacyRoll = null;
+    for (let index = 0; index < count; index++) {
+      const roll = R.drawHeroSummon(inv.heroPity);
+      legacyRoll = roll;
+      inv.heroPity = roll.pity;
+      const item = { type: roll.prize.kind, rarity: roll.prize.rarity, batchId, rollIndex: index + 1, pity: roll.pity, amount: null, refundCoins: 0, isNew: false };
+      if (roll.prize.kind === 'hero') {
+        item.heroId = roll.prize.hero.id;
+        item.hero = roll.prize.hero;
+        if (inv.heroes.includes(roll.prize.hero.id)) {
+          inv.heroDupes[roll.prize.hero.id] = (inv.heroDupes[roll.prize.hero.id] || 0) + 1;
+          item.refundCoins = Math.floor(cost * R.HERO_SUMMON.duplicateRefundFraction);
+          if (item.refundCoins > 0) db.ledger.push({ id: newId('tx'), studentId: user.id, kind: 'refund', amount: item.refundCoins, reason: `Duplicate ${roll.prize.hero.name} refund`, refKey: `${refKey}:refund:${index + 1}`, at: now() });
+        } else { inv.heroes.push(roll.prize.hero.id); item.isNew = true; }
+      } else {
+        item.resource = roll.prize.resource;
+        item.amount = roll.prize.amount;
+        inv.resources[roll.prize.resource] = (inv.resources[roll.prize.resource] || 0) + roll.prize.amount;
+      }
+      results.push(item);
+    }
+    const spendMeta = { count, batchId, results: results.map(({ hero, ...item }) => item) };
+    // Preserve the original single-pull shape for older callers and the existing machine.
+    if (count === 1) Object.assign(spendMeta, { kind: results[0].type, rarity: results[0].rarity, heroId: results[0].heroId, resource: results[0].resource, amount: results[0].amount, dupe: results[0].type === 'hero' && !results[0].isNew });
+    db.ledger.find((t) => t.refKey === refKey).meta = spendMeta;
     save({ analytics: false });
-    return { prize: roll.prize, pity: roll.pity, duplicateHero, refund, inventory: inv, wallet: wallet(user.id) };
+    if (count === 1) return { prize: legacyRoll.prize, pity: legacyRoll.pity, duplicateHero: !results[0].isNew && results[0].type === 'hero', refund: results[0].refundCoins, batchId, inventory: inv, wallet: wallet(user.id), results };
+    return { results, count, batchId, pity: legacyRoll.pity, inventory: inv, wallet: wallet(user.id) };
+  });
+
+  route('GET', '/api/student/hero-summon/history', 'student', ({ user, query }) => {
+    const pageValue = Number.parseInt(query.get('page') || '1', 10);
+    const page = Number.isInteger(pageValue) && pageValue > 0 ? pageValue : 1;
+    const pulls = db.ledger
+      .filter((entry) => entry.studentId === user.id && entry.refKey?.startsWith(`hero-summon:${user.id}:`) && !entry.refKey.includes(':refund'))
+      .slice()
+      .reverse();
+    const flattened = pulls.flatMap((entry) => {
+      const meta = entry.meta || {};
+      if (Array.isArray(meta.results)) return meta.results.map((result, index) => ({ entry, meta: result, batchId: meta.batchId || result.batchId || null, id: `${entry.id}:${index}`, rollIndex: result.rollIndex || index + 1 }));
+      return [{ entry, meta, batchId: meta.batchId || null, id: entry.id, rollIndex: 1 }];
+    });
+    const total = flattened.length;
+    const totalPages = Math.max(1, Math.ceil(total / SUMMON_HISTORY_PAGE_SIZE));
+    const safePage = Math.min(page, totalPages);
+    const items = flattened.slice((safePage - 1) * SUMMON_HISTORY_PAGE_SIZE, safePage * SUMMON_HISTORY_PAGE_SIZE).map(({ entry, meta, batchId, id, rollIndex }) => {
+      const kind = meta.kind || meta.type;
+      const hero = kind === 'hero' ? R.HERO_CATALOG.find((item) => item.id === meta.heroId) || null : null;
+      return {
+        id,
+        at: entry.at,
+        rollIndex,
+        batchId,
+        type: kind || 'legacy',
+        heroId: meta.heroId || null,
+        hero,
+        resource: meta.resource || null,
+        amount: meta.amount || null,
+        rarity: meta.rarity || null,
+        isNew: kind === 'hero' && (meta.isNew ?? !meta.dupe),
+        duplicate: kind === 'hero' && !(meta.isNew ?? !meta.dupe),
+        refundCoins: meta.refundCoins ?? (meta.dupe ? Math.floor(R.HERO_SUMMON.pullCost * R.HERO_SUMMON.duplicateRefundFraction) : 0),
+      };
+    });
+    const summary = { totalPulls: total, common: 0, rare: 0, epic: 0 };
+    for (const { meta } of flattened) {
+      const rarity = meta.rarity;
+      if (Object.hasOwn(summary, rarity)) summary[rarity] += 1;
+    }
+    return { items, page: safePage, pageSize: SUMMON_HISTORY_PAGE_SIZE, total, totalPages, summary };
   });
 
   route('POST', '/api/student/equip', 'student', ({ user, body }) => {
