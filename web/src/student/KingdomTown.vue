@@ -1,50 +1,126 @@
 <script setup>
-import { computed, onMounted, onUnmounted, ref, watch } from 'vue';
+// ============================================================
+// STUDENT: the walkable kingdom town canvas
+// Castle plaza in the centre, one building at each compass point, a
+// forest edge with a gap in the north tree line, and beyond it the
+// clearing where the Duel and Campfire Run camps wait. The camera
+// stays on the town until the player walks through the gap, then
+// pans smoothly north (and back).
+// ============================================================
+import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue';
 import { loadOwnedHeroVisuals, loadPlayerVisuals, tintedPlayerFrames } from './avatar.js';
 import {
-  BUILDING_LAYOUT, TOWN_AVATAR_RADIUS, TOWN_DOOR_RADIUS, TOWN_HEIGHT,
-  TOWN_GRASS_COLOR, TOWN_HERO_AVATAR_RADIUS, TOWN_HERO_HOP_HEIGHT, TOWN_HERO_HOPS_PER_SECOND,
-  TOWN_HERO_MIN_PLAYER_DISTANCE, TOWN_HERO_REDUCED_MOTION_HOP_HEIGHT, TOWN_HERO_REDUCED_MOTION_PAUSE_MAX_MS,
-  TOWN_HERO_REDUCED_MOTION_PAUSE_MIN_MS, TOWN_HERO_WANDER_PAUSE_MAX_MS, TOWN_HERO_WANDER_PAUSE_MIN_MS,
-  TOWN_HERO_WANDER_RADIUS, TOWN_HERO_WALK_SPEED, TOWN_MAX_HEROES,
-  TOWN_PATH_WIDTH, TOWN_PROP_LAYOUT, TOWN_TILE_SIZE, TOWN_WALK_SPEED, TOWN_WIDTH,
+  INK, drawBarterCorner, drawBuilding, drawCampfireCamp, drawCastle, drawDuelCamp, drawFlame, drawFlowers,
+  drawHouse, drawRock, drawTrailSign, drawTree, drawWell,
+} from './kingdom/town-art.js';
+import { EMOTES, heroLine } from './kingdom/town-voices.js';
+import { playSound, setAudioOptions, warmUpAudio } from '../../../public/hero-lab/arena-audio.js';
+import {
+  BUILDING_LAYOUT, TOWN_AVATAR_RADIUS, TOWN_DESTINATIONS, TOWN_DOOR_RADIUS, TOWN_GRASS_COLOR, TOWN_GREET_RADIUS,
+  TOWN_HEIGHT, TOWN_HERO_AVATAR_RADIUS, TOWN_HERO_HOP_HEIGHT, TOWN_HERO_HOPS_PER_SECOND,
+  TOWN_HERO_REDUCED_MOTION_HOP_HEIGHT, TOWN_HERO_REDUCED_MOTION_PAUSE_MAX_MS, TOWN_HERO_REDUCED_MOTION_PAUSE_MIN_MS,
+  TOWN_HERO_WANDER_PAUSE_MAX_MS, TOWN_HERO_WANDER_PAUSE_MIN_MS, TOWN_HERO_WALK_SPEED, TOWN_MAX_HEROES,
+  TOWN_NORTH_HEIGHT, TOWN_PATH_WIDTH, TOWN_PLAZA, TOWN_PROP_LAYOUT, TOWN_ROADS, TOWN_TILE_SIZE, TOWN_TRAILS,
+  TOWN_TRAIL_WIDTH, TOWN_WALK_SPEED, TOWN_WALK_ZONES, TOWN_WIDTH,
 } from '../../../config/tuning.js';
 
 const props = defineProps({
-  buildings: { type: Object, required: true },
+  buildings: { type: Array, required: true },
   castleLevel: { type: Number, required: true },
   avatarColor: { type: String, required: true },
   heroes: { type: Array, default: () => [] },
+  // intro spotlight: 'castle' | 'buildings' | 'north' | null
+  highlight: { type: String, default: null },
+  // true while a dialog or the intro owns the keyboard
+  paused: { type: Boolean, default: false },
+  muted: { type: Boolean, default: false },
+  volume: { type: Number, default: 0.55 },
 });
 const emit = defineEmits(['interact']);
 const frame = ref(null);
 const canvas = ref(null);
-const affordability = computed(() => props.buildings);
 
-const INK = '#23382F';
+const WORLD_TOP = -TOWN_NORTH_HEIGHT;
+const WORLD_HEIGHT = TOWN_HEIGHT + TOWN_NORTH_HEIGHT;
+const ZONES = {
+  town: { x: 0, y: 0, w: TOWN_WIDTH, h: TOWN_HEIGHT },
+  north: { x: 0, y: WORLD_TOP, w: TOWN_WIDTH, h: TOWN_NORTH_HEIGHT },
+};
+const ART_RES = 2; // object art is drawn at 2x so it stays crisp when scaled up
 const PALETTE = {
-  grass: TOWN_GRASS_COLOR, grassLight: '#91BB67', path: '#D8C392', pathEdge: '#9A8052',
-  forest: '#32533E', paper: '#FBF2D8', gold: '#F2BA55', ember: '#EF7137',
-  blue: '#6DB8CF', leaf: '#91B95E', lavender: '#8062A9', rose: '#D86F6B',
+  grass: TOWN_GRASS_COLOR, clearing: '#76A853', road: '#D8C392', roadEdge: '#9A8052',
+  plaza: '#E2D1A4', plazaEdge: '#9A8052', trail: '#C9A66B', trailEdge: '#94743F',
+  paper: '#FBF2D8', gold: '#F2BA55', forest: '#2F5E3E',
 };
-const BUILDING_COLORS = {
-  library: { wall: '#86C9DB', roof: '#548CB0', trim: '#F6D16B' },
-  workshop: { wall: '#F2A76C', roof: '#B96448', trim: '#F6D16B' },
-  garden: { wall: '#98C76D', roof: '#638F4B', trim: '#F2BA55' },
-  tower: { wall: '#BAA1D0', roof: '#8062A9', trim: '#F6D16B' },
-  castle: { wall: '#F5D478', roof: '#D86F6B', trim: '#FFF1B8' },
-};
-const buildings = Object.entries(BUILDING_LAYOUT).map(([id, layout]) => ({ id, ...layout }));
-const propsOnMap = TOWN_PROP_LAYOUT.map((p, index) => ({ ...p, id: `prop-${index}` }));
+const NAMES = { castle: 'Castle', duel: 'Duel', campfire: 'Campfire Run' };
+
+// ---- map data --------------------------------------------------------------
+
+const buildings = Object.entries(BUILDING_LAYOUT).map(([id, layout]) => ({ id, kind: 'building', ...layout }));
+const destinations = Object.entries(TOWN_DESTINATIONS).map(([id, layout]) => ({ id, kind: 'destination', ...layout }));
+const targets = [...buildings, ...destinations];
+const mapProps = TOWN_PROP_LAYOUT.map((p, index) => ({ ...p, id: `prop-${index}` }));
+
+let seed = 0x2f61;
+const random = () => { seed = (seed * 1664525 + 1013904223) >>> 0; return seed / 0x100000000; };
+
+// A decorative ring of trees frames the town and the clearing; they sit
+// outside the walk zones, so they need no hitbox.
+function makeEdgeTrees() {
+  const trees = [];
+  const add = (cx, baseY, kind) => {
+    // a few fixed sizes, so the trees share a handful of cached drawings
+    const size = Math.floor(random() * 3);
+    const w = (kind === 'pine' ? 56 : 62) + size * 7;
+    const h = (kind === 'pine' ? 96 : 92) + size * 8;
+    trees.push({ id: `edge-${trees.length}`, type: 'tree', kind, x: cx - w / 2, y: baseY - h, w, h, decorative: true });
+  };
+  for (let x = -20; x <= TOWN_WIDTH + 20; x += 52) {
+    if (x > 690 && x < 800) continue; // the gap in the north tree line
+    add(x + random() * 10, 36 + random() * 4, random() < 0.5 ? 'pine' : 'round');
+    add(x + 20 + random() * 10, TOWN_HEIGHT + 34 + random() * 6, random() < 0.4 ? 'pine' : 'round');
+    add(x + random() * 10, WORLD_TOP + 118 + random() * 6, 'pine');
+  }
+  for (let y = WORLD_TOP + 150; y <= TOWN_HEIGHT + 20; y += 48) {
+    const inClearing = y < 0;
+    add(inClearing ? 120 + random() * 10 : 4 + random() * 8, y, random() < 0.6 ? 'pine' : 'round');
+    add(inClearing ? 1160 - random() * 10 : 1276 - random() * 8, y + 20, random() < 0.6 ? 'pine' : 'round');
+    if (inClearing) {
+      add(40 + random() * 20, y + 10, 'pine');
+      add(1240 - random() * 20, y + 30, 'pine');
+    }
+  }
+  return trees;
+}
+const edgeTrees = makeEdgeTrees();
+
+const footprintRect = (o) => ({ type: 'rect', x: o.x, y: o.y, w: o.w, h: o.h });
 const obstacles = [
-  ...buildings.map((b) => ({ type: 'rect', x: b.x, y: b.y, w: b.w, h: b.h })),
-  ...propsOnMap.filter((p) => p.type !== 'flowers').map((p) => p.type === 'tree'
+  ...targets.map(footprintRect),
+  ...mapProps.filter((p) => p.type !== 'flowers').map((p) => {
     // Trees are solid at the trunk; the canopy can overlap the walking space.
-    ? { type: 'rect', x: p.x + p.w * 0.35, y: p.y + p.h * 0.48, w: p.w * 0.3, h: p.h * 0.5 }
-    : { type: 'circle', x: p.x + p.w / 2, y: p.y + p.h * 0.68, r: Math.max(p.w, p.h) * 0.34 }),
+    if (p.type === 'tree') return { type: 'rect', x: p.x + p.w * 0.38, y: p.y + p.h * 0.72, w: p.w * 0.24, h: p.h * 0.26 };
+    if (p.type === 'rock') return { type: 'circle', x: p.x + p.w / 2, y: p.y + p.h * 0.6, r: Math.max(p.w, p.h) * 0.36 };
+    if (p.type === 'sign') return { type: 'circle', x: p.x + p.w / 2, y: p.y + p.h - 4, r: 7 };
+    return footprintRect(p);
+  }),
 ];
+
+function distanceToSegment(px, py, [ax, ay], [bx, by]) {
+  const dx = bx - ax; const dy = by - ay;
+  const t = Math.max(0, Math.min(1, ((px - ax) * dx + (py - ay) * dy) / (dx * dx + dy * dy || 1)));
+  return Math.hypot(px - (ax + t * dx), py - (ay + t * dy));
+}
+function onRoad(x, y, margin = 0) {
+  if (x > TOWN_PLAZA.x - margin && x < TOWN_PLAZA.x + TOWN_PLAZA.w + margin && y > TOWN_PLAZA.y - margin && y < TOWN_PLAZA.y + TOWN_PLAZA.h + margin) return true;
+  const lanes = [...TOWN_ROADS.map((line) => [line, TOWN_PATH_WIDTH]), ...TOWN_TRAILS.map((line) => [line, TOWN_TRAIL_WIDTH])];
+  return lanes.some(([line, width]) => line.slice(1).some((point, i) => distanceToSegment(x, y, line[i], point) < width / 2 + margin));
+}
+
+// ---- runtime state ---------------------------------------------------------
+
 const keys = new Set();
-const player = { x: 720, y: 518, facing: 1, path: [], waypoint: 0, moving: false };
+const player = { x: 690, y: 446, facing: -1, path: [], waypoint: 0, moving: false };
 const wanderers = [];
 let reducedMotion = false;
 let playerFrames = null;
@@ -58,48 +134,93 @@ let raf = 0;
 let observer;
 let lastFrame = 0;
 let groundLayer;
-let objectCanvases = new Map();
-let bubbleHit = null;
-let inputTarget = null;
+let forestPattern;
+let objectCanvases = [];
+const artCache = new Map();
+let promptHit = null;
+let zone = 'town';
+const camera = { x: 0, y: 0, ready: false };
+const view = { scale: 1, dpr: 1, width: 0, height: 0 };
+let speech = null; // { heroId, text, until, kind }
+let nextAmbientAt = 0;
+let emote = null; // { glyph, start, until }
+let lastHopSoundAt = 0;
+let walkGrid;
+let wanderGrid;
+
+const wheelOpen = ref(false);
+const wheelIndex = ref(0);
+const wheelPos = ref({ x: 0, y: 0 });
+const wheelButtons = ref([]);
 
 watch(() => props.avatarColor, (color) => {
   if (playerVisuals) playerFrames = tintedPlayerFrames(playerVisuals, color);
 });
+watch(() => [props.muted, props.volume], () => setAudioOptions({ volume: props.volume, mute: props.muted }), { immediate: true });
+const levelKey = computed(() => `${props.castleLevel}|${props.buildings.map((p) => `${p.id}:${p.lvl}`).join(',')}`);
+watch(levelKey, () => { if (ctx) makeObjectCanvases(); });
+watch(() => props.paused, (paused) => { if (paused) { keys.clear(); closeWheel(); } });
+
+function levelOf(id) {
+  if (id === 'castle') return props.castleLevel;
+  return props.buildings.find((p) => p.id === id)?.lvl || 0;
+}
+
+// ---- drawing setup ---------------------------------------------------------
 
 function offscreen(width, height) {
   const result = document.createElement('canvas');
-  result.width = width;
-  result.height = height;
+  result.width = Math.ceil(width);
+  result.height = Math.ceil(height);
   return result;
 }
 
-function createGroundLayer() {
-  const layer = offscreen(TOWN_WIDTH, TOWN_HEIGHT);
-  const g = layer.getContext('2d');
-  g.fillStyle = PALETTE.grass;
-  g.fillRect(0, 0, TOWN_WIDTH, TOWN_HEIGHT);
-  g.fillStyle = PALETTE.grassLight;
-  for (let row = 0; row < 10; row += 1) {
-    for (let col = 0; col < 17; col += 1) {
-      const x = 22 + col * 78 + ((row % 2) * 29);
-      const y = 26 + row * 72;
-      g.globalAlpha = ((row + col) % 3 === 0) ? 0.2 : 0.11;
-      g.beginPath();
-      g.ellipse(x, y, 2.5, 1.4, 0.4, 0, Math.PI * 2);
-      g.fill();
+function strokeLine(g, points, width, color) {
+  g.strokeStyle = color;
+  g.lineWidth = width;
+  g.lineCap = 'round';
+  g.lineJoin = 'round';
+  g.beginPath();
+  points.forEach(([x, y], i) => (i ? g.lineTo(x, y) : g.moveTo(x, y)));
+  g.stroke();
+}
+
+function createForestPattern() {
+  const tile = offscreen(180, 180);
+  const g = tile.getContext('2d');
+  g.fillStyle = PALETTE.forest;
+  g.fillRect(0, 0, 180, 180);
+  const greens = ['#284F35', '#356640', '#3E7349'];
+  let s = 7;
+  const r = () => { s = (s * 16807) % 2147483647; return s / 2147483647; };
+  for (let i = 0; i < 26; i += 1) {
+    const x = r() * 180; const y = r() * 180; const rad = 16 + r() * 18;
+    g.fillStyle = greens[i % greens.length];
+    for (const [ox, oy] of [[0, 0], [180, 0], [-180, 0], [0, 180], [0, -180]]) {
+      g.beginPath(); g.arc(x + ox, y + oy, rad, 0, Math.PI * 2); g.fill();
     }
   }
-  // A light scattering of tiny triangular grass tufts gives the lawn texture
-  // without making the walkable paths busy. The fixed seed keeps the map calm
-  // and consistent between renders.
+  return ctx.createPattern(tile, 'repeat');
+}
+
+function createGroundLayer() {
+  const layer = offscreen(TOWN_WIDTH, WORLD_HEIGHT);
+  const g = layer.getContext('2d');
+  g.translate(0, -WORLD_TOP);
+  g.fillStyle = PALETTE.grass;
+  g.fillRect(0, 0, TOWN_WIDTH, TOWN_HEIGHT);
+  g.fillStyle = PALETTE.clearing;
+  g.fillRect(0, WORLD_TOP, TOWN_WIDTH, TOWN_NORTH_HEIGHT);
+  // A light scattering of tiny grass tufts gives the lawn texture without
+  // making the walkable paths busy. The fixed seed keeps the map calm.
   let grassSeed = 0x51a7;
   const grassRandom = () => { grassSeed = (grassSeed * 1664525 + 1013904223) >>> 0; return grassSeed / 0x100000000; };
   const bladeColors = ['#5F984C', '#6EA451', '#A2C66B', '#B4CC70'];
-  for (let tuft = 0; tuft < 310; tuft += 1) {
+  for (let tuft = 0; tuft < 620; tuft += 1) {
     const x = 8 + grassRandom() * (TOWN_WIDTH - 16);
-    const y = 8 + grassRandom() * (TOWN_HEIGHT - 16);
+    const y = WORLD_TOP + 8 + grassRandom() * (WORLD_HEIGHT - 16);
     const bladeCount = 2 + Math.floor(grassRandom() * 3);
-    g.globalAlpha = 0.3 + grassRandom() * 0.28;
+    g.globalAlpha = 0.28 + grassRandom() * 0.26;
     for (let blade = 0; blade < bladeCount; blade += 1) {
       const bx = x + (blade - (bladeCount - 1) / 2) * 3.1;
       const lean = (grassRandom() - 0.5) * 4;
@@ -115,176 +236,132 @@ function createGroundLayer() {
   }
   g.globalAlpha = 1;
 
-  // The cross-shaped stone path has a narrow ink-colored edge and flat fill.
-  const castle = BUILDING_LAYOUT.castle;
-  const library = BUILDING_LAYOUT.library;
-  const workshop = BUILDING_LAYOUT.workshop;
-  const garden = BUILDING_LAYOUT.garden;
-  const tower = BUILDING_LAYOUT.tower;
-  const half = TOWN_PATH_WIDTH / 2;
-  g.fillStyle = PALETTE.pathEdge;
-  g.fillRect(castle.door.x - half - 4, library.door.y - 7, TOWN_PATH_WIDTH + 8, castle.door.y - library.door.y + 14);
-  g.fillRect(castle.door.x - half - 4, castle.door.y - half - 4, TOWN_PATH_WIDTH + 8, garden.door.y - castle.door.y + TOWN_PATH_WIDTH + 8);
-  g.fillRect(workshop.door.x - 4, workshop.door.y - half - 4, castle.x + castle.w - workshop.door.x + 8, TOWN_PATH_WIDTH + 8);
-  g.fillRect(tower.door.x - 4, tower.door.y - half - 4, castle.x + 8 - tower.door.x, TOWN_PATH_WIDTH + 8);
-  g.fillStyle = PALETTE.path;
-  g.fillRect(castle.door.x - half, library.door.y, TOWN_PATH_WIDTH, castle.door.y - library.door.y);
-  g.fillRect(castle.door.x - half, castle.door.y - half, TOWN_PATH_WIDTH, garden.door.y - castle.door.y + TOWN_PATH_WIDTH);
-  g.fillRect(workshop.door.x, workshop.door.y - half, castle.x + castle.w - workshop.door.x, TOWN_PATH_WIDTH);
-  g.fillRect(tower.door.x, tower.door.y - half, castle.x - tower.door.x, TOWN_PATH_WIDTH);
-
-  // Quiet stepping-stone seams are drawn once with the ground and path.
-  g.strokeStyle = 'rgba(111, 91, 59, .19)';
+  // Packed-earth trail north, then stone roads, then the castle plaza on top
+  // so every road meets the plaza cleanly.
+  for (const line of TOWN_TRAILS) strokeLine(g, line, TOWN_TRAIL_WIDTH + 6, PALETTE.trailEdge);
+  for (const line of TOWN_TRAILS) strokeLine(g, line, TOWN_TRAIL_WIDTH, PALETTE.trail);
+  g.setLineDash([3, 14]);
+  for (const line of TOWN_TRAILS) strokeLine(g, line, 3, 'rgba(111,82,45,.35)');
+  g.setLineDash([]);
+  for (const line of TOWN_ROADS) strokeLine(g, line, TOWN_PATH_WIDTH + 8, PALETTE.roadEdge);
+  for (const line of TOWN_ROADS) strokeLine(g, line, TOWN_PATH_WIDTH, PALETTE.road);
+  const p = TOWN_PLAZA;
+  g.fillStyle = PALETTE.plazaEdge;
+  g.beginPath(); g.roundRect(p.x - 4, p.y - 4, p.w + 8, p.h + 8, 22); g.fill();
+  g.fillStyle = PALETTE.plaza;
+  g.beginPath(); g.roundRect(p.x, p.y, p.w, p.h, 18); g.fill();
+  // quiet cobbles on the plaza and roads
+  g.strokeStyle = 'rgba(111,91,59,.18)';
   g.lineWidth = 2;
-  for (let y = library.door.y + 22; y < castle.door.y - 6; y += 34) {
-    g.beginPath(); g.moveTo(castle.door.x - half, y); g.lineTo(castle.door.x + half, y); g.stroke();
+  for (let y = p.y + 16; y < p.y + p.h - 8; y += 22) {
+    for (let x = p.x + 12 + ((y / 22) % 2) * 14; x < p.x + p.w - 16; x += 28) {
+      g.beginPath(); g.roundRect(x, y, 20, 13, 5); g.stroke();
+    }
   }
-  for (let x = tower.door.x + 30; x < castle.x - 5; x += 42) {
-    g.beginPath(); g.moveTo(x, tower.door.y - half); g.lineTo(x, tower.door.y + half); g.stroke();
-  }
-  for (let x = castle.door.x + 26; x < garden.door.x - 8; x += 42) {
-    g.beginPath(); g.moveTo(x, castle.door.y - half); g.lineTo(x, castle.door.y + half); g.stroke();
-  }
-  for (let x = castle.x + castle.w + 6; x < workshop.door.x - 4; x += 42) {
-    g.beginPath(); g.moveTo(x, workshop.door.y - half); g.lineTo(x, workshop.door.y + half); g.stroke();
+  for (const line of TOWN_ROADS) {
+    line.slice(1).forEach((point, i) => {
+      const [ax, ay] = line[i];
+      const length = Math.hypot(point[0] - ax, point[1] - ay);
+      const nx = -(point[1] - ay) / length; const ny = (point[0] - ax) / length;
+      for (let d = 18; d < length - 6; d += 30) {
+        const cx = ax + (point[0] - ax) * d / length; const cy = ay + (point[1] - ay) * d / length;
+        g.beginPath(); g.moveTo(cx - nx * TOWN_PATH_WIDTH / 2, cy - ny * TOWN_PATH_WIDTH / 2); g.lineTo(cx + nx * TOWN_PATH_WIDTH / 2, cy + ny * TOWN_PATH_WIDTH / 2); g.stroke();
+      }
+    });
   }
   return layer;
 }
 
-function drawBuilding(g, building) {
-  const { w, h, id } = building;
-  const c = BUILDING_COLORS[id];
-  const line = 4;
-  g.lineJoin = 'round';
-  g.lineCap = 'round';
-  // Hard shadow, with no blur or filter.
-  g.fillStyle = '#4F6541';
-  g.strokeStyle = INK;
-  g.lineWidth = line;
-  g.beginPath();
-  g.roundRect(10, 16, w - 20, h - 23, 10);
-  g.fill(); g.stroke();
-
-  const isCastle = id === 'castle';
-  const roofH = isCastle ? h * 0.34 : h * 0.36;
-  g.fillStyle = c.wall;
-  g.beginPath();
-  g.roundRect(8, roofH, w - 16, h - roofH - 8, 8);
-  g.fill(); g.stroke();
-  g.fillStyle = c.roof;
-  g.beginPath();
-  g.moveTo(3, roofH + 5);
-  g.lineTo(w / 2, 5);
-  g.lineTo(w - 3, roofH + 5);
-  g.closePath(); g.fill(); g.stroke();
-
-  if (isCastle) {
-    g.fillStyle = c.wall;
-    for (let i = 0; i < 3; i += 1) {
-      const bx = w * 0.19 + i * w * 0.25;
-      g.beginPath(); g.rect(bx, 2, w * 0.17, roofH * 0.45); g.fill(); g.stroke();
-    }
-    g.fillStyle = c.trim;
-    g.fillRect(w / 2 - 4, 15, 8, 13);
-    g.strokeRect(w / 2 - 4, 15, 8, 13);
-  } else {
-    // Front-facing round windows and a clear sign plaque.
-    g.fillStyle = '#FFF4C9';
-    g.strokeStyle = INK;
-    g.lineWidth = 3;
-    for (const wx of [w * 0.26, w * 0.74]) {
-      g.beginPath(); g.roundRect(wx - 9, roofH + 18, 18, 23, 9); g.fill(); g.stroke();
-    }
-    g.fillStyle = c.trim;
-    g.fillRect(w * 0.36, roofH + 3, w * 0.28, 8);
-    g.strokeRect(w * 0.36, roofH + 3, w * 0.28, 8);
-  }
-
-  // The door is placed on the side facing the central castle.
-  g.fillStyle = '#8A5336';
-  g.strokeStyle = INK;
-  g.lineWidth = 3;
-  const doorW = isCastle ? w * 0.19 : w * 0.2;
-  const doorH = h * 0.33;
-  const doorSide = building.door.side;
-  let dx = (w - doorW) / 2;
-  let dy = h - doorH - 8;
-  if (doorSide === 'west') { dx = 8; dy = h * 0.52; }
-  if (doorSide === 'east') { dx = w - doorW - 8; dy = h * 0.52; }
-  if (doorSide === 'north') { dx = (w - doorW) / 2; dy = roofH + 17; }
-  g.beginPath(); g.roundRect(dx, dy, doorW, doorH, [7, 7, 0, 0]); g.fill(); g.stroke();
-  g.fillStyle = c.trim;
-  g.beginPath(); g.arc(dx + doorW * 0.77, dy + doorH * 0.57, 2.5, 0, Math.PI * 2); g.fill();
+function artFor(key, w, h, draw) {
+  if (artCache.has(key)) return artCache.get(key);
+  const layer = offscreen(w * ART_RES, h * ART_RES);
+  const g = layer.getContext('2d');
+  g.scale(ART_RES, ART_RES);
+  draw(g);
+  artCache.set(key, layer);
+  return layer;
 }
 
-function drawProp(g, prop) {
-  g.lineWidth = 4;
-  g.lineJoin = 'round';
-  g.strokeStyle = INK;
-  if (prop.type === 'tree') {
-    // Trunk behind overlapping, outlined leaf clumps.
-    g.fillStyle = '#9E6238';
-    g.beginPath(); g.roundRect(prop.w * 0.39, prop.h * 0.49, prop.w * 0.22, prop.h * 0.47, 5); g.fill(); g.stroke();
-    const greens = ['#467747', '#6E9C4B', '#91B95E'];
-    for (const [i, [cx, cy, r]] of [[0, [prop.w * .5, prop.h * .26, prop.w * .28]], [1, [prop.w * .3, prop.h * .41, prop.w * .25]], [2, [prop.w * .7, prop.h * .42, prop.w * .25]]]) {
-      g.fillStyle = greens[i];
-      g.beginPath(); g.arc(cx, cy, r, 0, Math.PI * 2); g.fill(); g.stroke();
-    }
-    g.fillStyle = '#B9D77B';
-    g.beginPath(); g.arc(prop.w * .42, prop.h * .23, 4, 0, Math.PI * 2); g.fill();
-  } else if (prop.type === 'rock') {
-    g.fillStyle = '#AAB6A0';
-    g.beginPath();
-    g.moveTo(3, prop.h - 2); g.lineTo(prop.w * .12, prop.h * .48); g.lineTo(prop.w * .38, 4);
-    g.lineTo(prop.w * .7, prop.h * .17); g.lineTo(prop.w - 3, prop.h * .55); g.lineTo(prop.w * .9, prop.h - 2);
-    g.closePath(); g.fill(); g.stroke();
-    g.strokeStyle = 'rgba(35,56,47,.45)'; g.lineWidth = 2;
-    g.beginPath(); g.moveTo(prop.w * .38, prop.h * .25); g.lineTo(prop.w * .5, prop.h * .54); g.lineTo(prop.w * .72, prop.h * .32); g.stroke();
-  } else {
-    for (let i = 0; i < 5; i += 1) {
-      const x = 4 + i * (prop.w - 8) / 4;
-      const y = prop.h * (.38 + (i % 2) * .25);
-      g.strokeStyle = '#39724A'; g.lineWidth = 2;
-      g.beginPath(); g.moveTo(x, prop.h); g.lineTo(x, y); g.stroke();
-      g.fillStyle = [PALETTE.rose, PALETTE.gold, PALETTE.lavender][i % 3];
-      g.strokeStyle = INK; g.lineWidth = 1.5;
-      g.beginPath(); g.arc(x, y, 4, 0, Math.PI * 2); g.fill(); g.stroke();
-    }
-  }
+function placeArt(object, art, aw, ah) {
+  // the drawing's ground line (8px above its bottom) sits on the footprint's front edge
+  const x = object.x + object.w / 2 - aw / 2;
+  const y = object.y + object.h + 8 - ah;
+  return { id: object.id, canvas: art, x, y, w: aw, h: ah, sortY: object.y + object.h };
 }
 
 function makeObjectCanvases() {
-  objectCanvases = new Map();
-  for (const object of [...buildings, ...propsOnMap]) {
-    const layer = offscreen(object.w + 12, object.h + 18);
-    const g = layer.getContext('2d');
-    g.translate(6, 5);
-    if (object.id.startsWith('prop-')) drawProp(g, object);
-    else drawBuilding(g, object);
-    objectCanvases.set(object.id, { canvas: layer, object, x: object.x - 6, y: object.y - 5, sortY: object.y + object.h });
+  const list = [];
+  for (const b of buildings) {
+    const level = levelOf(b.id);
+    const { w, h } = b.art;
+    const art = artFor(`${b.id}:${level}`, w, h, (g) => (b.id === 'castle' ? drawCastle(g, level, w, h) : drawBuilding(g, b.id, level, w, h, b.w)));
+    list.push(placeArt(b, art, w, h));
   }
+  for (const d of destinations) {
+    const { w, h } = d.art;
+    const art = artFor(`camp:${d.id}`, w, h, (g) => (d.id === 'duel' ? drawDuelCamp(g, w, h) : drawCampfireCamp(g, w, h)));
+    list.push(placeArt(d, art, w, h));
+  }
+  for (const p of mapProps) {
+    let item;
+    if (p.type === 'house') item = placeArt(p, artFor(`house:${p.variant}`, 84, 92, (g) => drawHouse(g, p.variant, 84, 92)), 84, 92);
+    else if (p.type === 'well') item = placeArt(p, artFor('well', 60, 70, (g) => drawWell(g, 60, 70)), 60, 70);
+    else if (p.type === 'barter') item = placeArt(p, artFor('barter', 96, 80, (g) => drawBarterCorner(g, 96, 80)), 96, 80);
+    else if (p.type === 'sign') item = placeArt(p, artFor('sign', 70, 90, (g) => drawTrailSign(g, 70, 90)), 70, 90);
+    else {
+      const draw = p.type === 'tree' ? (g) => drawTree(g, p.w, p.h) : p.type === 'rock' ? (g) => drawRock(g, p.w, p.h) : (g) => drawFlowers(g, p.w, p.h);
+      const art = artFor(`${p.type}:${p.w}x${p.h}`, p.w, p.h, draw);
+      item = { id: p.id, canvas: art, x: p.x, y: p.y, w: p.w, h: p.h, sortY: p.type === 'flowers' ? p.y : p.y + p.h };
+    }
+    list.push(item);
+  }
+  for (const t of edgeTrees) {
+    const w = Math.round(t.w); const h = Math.round(t.h);
+    const art = artFor(`edge:${t.kind}:${w}x${h}`, w, h, (g) => drawTree(g, w, h, t.kind));
+    list.push({ id: t.id, canvas: art, x: t.x, y: t.y, w, h, sortY: t.y + t.h });
+  }
+  objectCanvases = list;
 }
+
+// ---- collision and paths ---------------------------------------------------
 
 function circleHitsRect(x, y, r, rect) {
   const nx = Math.max(rect.x, Math.min(x, rect.x + rect.w));
   const ny = Math.max(rect.y, Math.min(y, rect.y + rect.h));
   return ((x - nx) ** 2 + (y - ny) ** 2) < r ** 2;
 }
+const inZone = (x, y, z) => x >= z.x && x <= z.x + z.w && y >= z.y && y <= z.y + z.h;
 
-function canStand(x, y, ignoreHeroId = null, radius = TOWN_AVATAR_RADIUS) {
-  if (x < radius || y < radius || x > TOWN_WIDTH - radius || y > TOWN_HEIGHT - radius) return false;
+function canStand(x, y, radius = TOWN_AVATAR_RADIUS) {
+  if (!TOWN_WALK_ZONES.some((z) => inZone(x, y, z))) return false;
+  // keep the hitbox to the sprite's ground footprint: a flat ellipse at the feet
+  const r = radius * 0.8;
   for (const obstacle of obstacles) {
-    if (obstacle.type === 'rect' ? circleHitsRect(x, y, radius, obstacle) : Math.hypot(x - obstacle.x, y - obstacle.y) < radius + obstacle.r) return false;
+    if (obstacle.type === 'rect' ? circleHitsRect(x, y, r, obstacle) : Math.hypot(x - obstacle.x, y - obstacle.y) < r + obstacle.r) return false;
   }
-  return wanderers.every((hero) => hero.id === ignoreHeroId || Math.hypot(x - hero.x, y - hero.y) >= TOWN_HERO_MIN_PLAYER_DISTANCE);
+  return true;
 }
 
-function canWanderStand(hero, x, y) {
-  if (!canStand(x, y, hero.id, TOWN_HERO_AVATAR_RADIUS) || Math.hypot(x - player.x, y - player.y) < TOWN_HERO_MIN_PLAYER_DISTANCE) return false;
-  return buildings.every((building) => Math.hypot(x - building.door.x, y - building.door.y) >= TOWN_DOOR_RADIUS + TOWN_HERO_AVATAR_RADIUS);
+// Heroes keep to the town grass, away from doors; they may cross a road.
+function canWanderStand(x, y) {
+  if (!inZone(x, y, TOWN_WALK_ZONES[0]) || !canStand(x, y, TOWN_HERO_AVATAR_RADIUS)) return false;
+  return targets.every((t) => Math.hypot(x - t.door.x, y - t.door.y) >= 34);
 }
 
-function nearestWalkableCell(index, cols, rows, blocked) {
+function buildGrid(canWalk) {
+  const cols = Math.floor(TOWN_WIDTH / TOWN_TILE_SIZE);
+  const rows = Math.floor(WORLD_HEIGHT / TOWN_TILE_SIZE);
+  const blocked = new Uint8Array(cols * rows);
+  for (let i = 0; i < blocked.length; i += 1) {
+    const x = (i % cols) * TOWN_TILE_SIZE + TOWN_TILE_SIZE / 2;
+    const y = WORLD_TOP + Math.floor(i / cols) * TOWN_TILE_SIZE + TOWN_TILE_SIZE / 2;
+    blocked[i] = canWalk(x, y) ? 0 : 1;
+  }
+  return { cols, rows, blocked, canWalk };
+}
+
+function nearestWalkableCell(index, grid) {
+  const { cols, rows, blocked } = grid;
   if (index >= 0 && index < blocked.length && !blocked[index]) return index;
   const cx = index % cols;
   const cy = Math.floor(index / cols);
@@ -301,20 +378,14 @@ function nearestWalkableCell(index, cols, rows, blocked) {
   return -1;
 }
 
-function findPath(startX, startY, targetX, targetY, canWalk = canStand) {
-  const cols = Math.floor(TOWN_WIDTH / TOWN_TILE_SIZE);
-  const rows = Math.floor(TOWN_HEIGHT / TOWN_TILE_SIZE);
+const cellOf = (x, y, cols) => Math.floor((y - WORLD_TOP) / TOWN_TILE_SIZE) * cols + Math.floor(x / TOWN_TILE_SIZE);
+const cellCentre = (i, cols) => ({ x: (i % cols) * TOWN_TILE_SIZE + TOWN_TILE_SIZE / 2, y: WORLD_TOP + Math.floor(i / cols) * TOWN_TILE_SIZE + TOWN_TILE_SIZE / 2 });
+
+function findPath(startX, startY, targetX, targetY, grid) {
+  const { cols, rows, blocked } = grid;
   const size = cols * rows;
-  const blocked = new Uint8Array(size);
-  for (let i = 0; i < size; i += 1) {
-    const x = (i % cols) * TOWN_TILE_SIZE + TOWN_TILE_SIZE / 2;
-    const y = Math.floor(i / cols) * TOWN_TILE_SIZE + TOWN_TILE_SIZE / 2;
-    blocked[i] = canWalk(x, y) ? 0 : 1;
-  }
-  let start = Math.floor(startY / TOWN_TILE_SIZE) * cols + Math.floor(startX / TOWN_TILE_SIZE);
-  let goal = Math.floor(targetY / TOWN_TILE_SIZE) * cols + Math.floor(targetX / TOWN_TILE_SIZE);
-  start = nearestWalkableCell(start, cols, rows, blocked);
-  goal = nearestWalkableCell(goal, cols, rows, blocked);
+  const start = nearestWalkableCell(cellOf(startX, startY, cols), grid);
+  const goal = nearestWalkableCell(cellOf(targetX, targetY, cols), grid);
   if (start < 0 || goal < 0) return [];
   const prev = new Int32Array(size).fill(-1);
   const queue = new Int32Array(size);
@@ -337,72 +408,153 @@ function findPath(startX, startY, targetX, targetY, canWalk = canStand) {
   }
   if (prev[goal] === -1) return [];
   const route = [];
-  for (let at = goal; at !== start; at = prev[at]) route.push({ x: (at % cols) * TOWN_TILE_SIZE + TOWN_TILE_SIZE / 2, y: Math.floor(at / cols) * TOWN_TILE_SIZE + TOWN_TILE_SIZE / 2 });
+  for (let at = goal; at !== start; at = prev[at]) route.push(cellCentre(at, cols));
   route.reverse();
-  const targetIsWalkable = canWalk(targetX, targetY);
-  route.push(targetIsWalkable ? { x: targetX, y: targetY } : { x: (goal % cols) * TOWN_TILE_SIZE + TOWN_TILE_SIZE / 2, y: Math.floor(goal / cols) * TOWN_TILE_SIZE + TOWN_TILE_SIZE / 2 });
+  route.push(grid.canWalk(targetX, targetY) ? { x: targetX, y: targetY } : cellCentre(goal, cols));
   return route;
 }
 
-function buildingAt(x, y) {
-  return buildings.find((b) => x >= b.x - 8 && x <= b.x + b.w + 8 && y >= b.y - 8 && y <= b.y + b.h + 8);
+// ---- interaction -----------------------------------------------------------
+
+function targetAt(x, y) {
+  return targets.find((t) => x >= t.x - 10 && x <= t.x + t.w + 10 && y >= t.y - (t.art.h - t.h) && y <= t.y + t.h + 10);
 }
 
-function setDestination(x, y, building = null) {
-  const goal = building ? building.door : { x: Math.max(TOWN_AVATAR_RADIUS, Math.min(TOWN_WIDTH - TOWN_AVATAR_RADIUS, x)), y: Math.max(TOWN_AVATAR_RADIUS, Math.min(TOWN_HEIGHT - TOWN_AVATAR_RADIUS, y)) };
-  player.path = findPath(player.x, player.y, goal.x, goal.y);
+function setDestination(x, y, target = null) {
+  const goal = target ? target.door : { x, y };
+  player.path = findPath(player.x, player.y, goal.x, goal.y, walkGrid);
   player.waypoint = 0;
 }
 
-function closestDoor() {
+function closestTarget() {
   let close = null;
   let distance = TOWN_DOOR_RADIUS;
-  for (const b of buildings) {
-    const d = Math.hypot(player.x - b.door.x, player.y - b.door.y);
-    if (d <= distance) { distance = d; close = b; }
+  for (const t of targets) {
+    const d = Math.hypot(player.x - t.door.x, player.y - t.door.y);
+    if (d <= distance) { distance = d; close = t; }
   }
   return close;
 }
 
-function interact() {
-  const door = closestDoor();
-  if (door) emit('interact', door.id);
+function closestHero() {
+  let close = null;
+  let distance = TOWN_GREET_RADIUS;
+  for (const hero of wanderers) {
+    const d = Math.hypot(player.x - hero.x, player.y - hero.y);
+    if (d <= distance) { distance = d; close = hero; }
+  }
+  return close;
 }
 
-function eventPoint(event) {
+function greet(hero, time = performance.now()) {
+  hero.path = [];
+  hero.moving = false;
+  hero.pauseUntil = time + 3800;
+  hero.facing = player.x < hero.x ? -1 : 1;
+  const text = heroLine(hero.id, 'greet', speech?.heroId === hero.id ? speech.text : '');
+  speech = { heroId: hero.id, name: hero.hero.name, text, until: time + 3800, kind: 'greet' };
+  nextAmbientAt = Math.max(nextAmbientAt, time + 6000);
+  playSound('townGreet');
+}
+
+function interact() {
+  const target = closestTarget();
+  if (target) { playSound('townOpen'); emit('interact', target.id); return true; }
+  const hero = closestHero();
+  if (hero) { greet(hero); return true; }
+  return false;
+}
+
+function worldPoint(event) {
   const rect = canvas.value.getBoundingClientRect();
-  const scale = Math.max(rect.width / TOWN_WIDTH, rect.height / TOWN_HEIGHT);
-  const offsetX = (rect.width - TOWN_WIDTH * scale) / 2;
-  const offsetY = (rect.height - TOWN_HEIGHT * scale) / 2;
-  return { x: (event.clientX - rect.left - offsetX) / scale, y: (event.clientY - rect.top - offsetY) / scale };
+  const s = view.scale / view.dpr;
+  return { x: (event.clientX - rect.left) / s + camera.x, y: (event.clientY - rect.top) / s + camera.y };
 }
 
 function onPointerDown(event) {
+  warmUpAudio();
   canvas.value?.focus({ preventScroll: true });
-  const point = eventPoint(event);
-  if (bubbleHit && point.x >= bubbleHit.x && point.x <= bubbleHit.x + bubbleHit.w && point.y >= bubbleHit.y && point.y <= bubbleHit.y + bubbleHit.h) {
+  if (props.paused) return;
+  closeWheel();
+  const point = worldPoint(event);
+  if (promptHit && point.x >= promptHit.x && point.x <= promptHit.x + promptHit.w && point.y >= promptHit.y && point.y <= promptHit.y + promptHit.h) {
     interact();
     return;
   }
-  const building = buildingAt(point.x, point.y);
-  setDestination(point.x, point.y, building || null);
+  const target = targetAt(point.x, point.y);
+  setDestination(point.x, point.y, target || null);
 }
 
+const MOVE_KEYS = ['w', 'a', 's', 'd', 'arrowup', 'arrowdown', 'arrowleft', 'arrowright'];
+
 function onKeyDown(event) {
-  if (event.target instanceof HTMLElement && ['INPUT', 'TEXTAREA', 'SELECT', 'BUTTON'].includes(event.target.tagName)) return;
+  const el = event.target;
+  if (el instanceof HTMLElement && (['INPUT', 'TEXTAREA', 'SELECT'].includes(el.tagName) || el.isContentEditable)) return;
+  if (props.paused) return;
   const key = event.key.toLowerCase();
-  if (['w', 'a', 's', 'd', 'arrowup', 'arrowdown', 'arrowleft', 'arrowright'].includes(key)) {
+  if (wheelOpen.value) { onWheelKey(event, key); return; }
+  // let a focused button keep Enter/Space for itself
+  if (el instanceof HTMLElement && el.tagName === 'BUTTON' && (key === 'enter' || key === ' ')) return;
+  warmUpAudio();
+  if (MOVE_KEYS.includes(key)) {
     event.preventDefault();
     keys.add(key);
     player.path = [];
-  }
-  if (key === 'e' || key === 'enter') {
-    const nearby = closestDoor();
-    if (nearby) { event.preventDefault(); emit('interact', nearby.id); }
+  } else if (key === 'e' || key === 'enter') {
+    if (interact()) event.preventDefault();
+  } else if (key === 'z' && !event.repeat) {
+    event.preventDefault();
+    openWheel();
   }
 }
 function onKeyUp(event) { keys.delete(event.key.toLowerCase()); }
 function onBlur() { keys.clear(); }
+
+// ---- emote wheel -----------------------------------------------------------
+
+function screenOf(x, y) {
+  const s = view.scale / view.dpr;
+  return { x: (x - camera.x) * s, y: (y - camera.y) * s };
+}
+
+async function openWheel() {
+  if (props.paused) return;
+  keys.clear();
+  player.path = [];
+  const at = screenOf(player.x, player.y - TOWN_AVATAR_RADIUS * 1.6);
+  const rect = frame.value.getBoundingClientRect();
+  wheelPos.value = { x: Math.max(96, Math.min(rect.width - 96, at.x)), y: Math.max(106, Math.min(rect.height - 96, at.y)) };
+  wheelIndex.value = 0;
+  wheelOpen.value = true;
+  await nextTick();
+  wheelButtons.value[0]?.focus({ preventScroll: true });
+}
+function closeWheel() {
+  if (!wheelOpen.value) return;
+  wheelOpen.value = false;
+  canvas.value?.focus({ preventScroll: true });
+}
+function chooseEmote(index) {
+  const choice = EMOTES[index];
+  if (!choice) return;
+  const now = performance.now();
+  emote = { glyph: choice.glyph, label: choice.label, start: now, until: now + 2400 };
+  playSound('townEmote');
+  closeWheel();
+}
+function onWheelKey(event, key) {
+  const count = EMOTES.length;
+  if (key === 'escape' || key === 'z') { event.preventDefault(); event.stopPropagation(); closeWheel(); return; }
+  if (/^[1-9]$/.test(key) && Number(key) <= count) { event.preventDefault(); chooseEmote(Number(key) - 1); return; }
+  const step = ['arrowright', 'arrowdown', 'd', 's'].includes(key) ? 1 : ['arrowleft', 'arrowup', 'a', 'w'].includes(key) ? -1 : 0;
+  if (step) {
+    event.preventDefault();
+    wheelIndex.value = (wheelIndex.value + step + count) % count;
+    wheelButtons.value[wheelIndex.value]?.focus({ preventScroll: true });
+  }
+}
+
+// ---- wandering heroes ------------------------------------------------------
 
 function heroPause() {
   const min = reducedMotion ? TOWN_HERO_REDUCED_MOTION_PAUSE_MIN_MS : TOWN_HERO_WANDER_PAUSE_MIN_MS;
@@ -410,18 +562,22 @@ function heroPause() {
   return min + Math.random() * (max - min);
 }
 
-function heroWanderPoint() {
-  const castle = BUILDING_LAYOUT.castle;
-  const angle = Math.random() * Math.PI * 2;
-  const radius = 70 + Math.random() * (TOWN_HERO_WANDER_RADIUS - 70);
-  return { x: castle.x + castle.w / 2 + Math.cos(angle) * radius, y: castle.y + castle.h / 2 + Math.sin(angle) * radius };
+// Resting spots are on the grass, never on a road or the plaza, so heroes
+// never park in a lane or a doorway.
+function heroRestPoint() {
+  for (let attempt = 0; attempt < 60; attempt += 1) {
+    const x = 60 + Math.random() * (TOWN_WIDTH - 120);
+    const y = 60 + Math.random() * (TOWN_HEIGHT - 110);
+    if (!onRoad(x, y, 14) && canWanderStand(x, y)) return { x, y };
+  }
+  return null;
 }
 
 function chooseHeroDestination(hero, time) {
-  for (let attempt = 0; attempt < 70; attempt += 1) {
-    const target = heroWanderPoint();
-    if (!canWanderStand(hero, target.x, target.y)) continue;
-    const path = findPath(hero.x, hero.y, target.x, target.y, (x, y) => canWanderStand(hero, x, y));
+  for (let attempt = 0; attempt < 8; attempt += 1) {
+    const target = heroRestPoint();
+    if (!target || Math.hypot(target.x - hero.x, target.y - hero.y) > 420) continue;
+    const path = findPath(hero.x, hero.y, target.x, target.y, wanderGrid);
     if (path.length) {
       hero.path = path;
       hero.waypoint = 0;
@@ -429,7 +585,7 @@ function chooseHeroDestination(hero, time) {
       return true;
     }
   }
-  hero.pauseUntil = time + 600;
+  hero.pauseUntil = time + 800;
   return false;
 }
 
@@ -442,68 +598,134 @@ async function initializeWanderers(time) {
   catch (error) { console.warn('[Town hero sprites] Could not load the wandering party.', error); }
   for (const hero of roster) {
     const record = records.get(hero.id);
-    const actor = {
-      id: hero.id, hero, visual: record?.visual || null, frames: record?.frames || {},
-      x: 0, y: 0, facing: 1, path: [], waypoint: 0, moving: false,
-      animationOffset: Math.random() * 1000, hopOffset: Math.random() * 1000, pauseUntil: time + heroPause(),
-    };
-    let spawn = null;
-    for (let attempt = 0; attempt < 140 && !spawn; attempt += 1) {
-      const candidate = heroWanderPoint();
-      if (canWanderStand(actor, candidate.x, candidate.y)) spawn = candidate;
-    }
-    if (!spawn) {
-      for (let y = 40; y < TOWN_HEIGHT - 40 && !spawn; y += TOWN_TILE_SIZE) {
-        for (let x = 40; x < TOWN_WIDTH - 40 && !spawn; x += TOWN_TILE_SIZE) {
-          if (canWanderStand(actor, x, y)) spawn = { x, y };
-        }
-      }
-    }
+    const spawn = heroRestPoint();
     if (!spawn) continue;
-    actor.x = spawn.x; actor.y = spawn.y;
-    wanderers.push(actor);
+    wanderers.push({
+      id: hero.id, hero, visual: record?.visual || null, frames: record?.frames || {},
+      x: spawn.x, y: spawn.y, facing: Math.random() < 0.5 ? -1 : 1, path: [], waypoint: 0, moving: false,
+      animationOffset: Math.random() * 1000, hopOffset: Math.random() * 1000, pauseUntil: time + heroPause(),
+    });
   }
+}
+
+// Heroes never hard-block one another or the player: crowded heroes ease
+// apart instead, so nobody gets trapped or shoved along forever.
+function separate(hero, other, minDistance, share) {
+  const dx = hero.x - other.x; const dy = hero.y - other.y;
+  const d = Math.hypot(dx, dy) || 0.01;
+  if (d >= minDistance) return;
+  const push = (minDistance - d) * share;
+  const nx = hero.x + (dx / d) * push; const ny = hero.y + (dy / d) * push;
+  if (canStand(nx, ny, TOWN_HERO_AVATAR_RADIUS) && inZone(nx, ny, TOWN_WALK_ZONES[0])) { hero.x = nx; hero.y = ny; }
 }
 
 function updateWanderers(time, dt) {
   for (const hero of wanderers) {
-    if (time < hero.pauseUntil) { hero.moving = false; continue; }
-    if (!hero.path.length || hero.waypoint >= hero.path.length) {
-      hero.moving = false;
-      if (!chooseHeroDestination(hero, time)) continue;
-    }
-    const point = hero.path[hero.waypoint];
-    const dx = point.x - hero.x;
-    const dy = point.y - hero.y;
-    const distance = Math.hypot(dx, dy);
-    if (distance < 3) {
-      hero.waypoint += 1;
-      if (hero.waypoint >= hero.path.length) {
-        hero.path = [];
+    if (time < hero.pauseUntil) { hero.moving = false; }
+    else {
+      if (!hero.path.length || hero.waypoint >= hero.path.length) {
         hero.moving = false;
-        hero.pauseUntil = time + heroPause();
+        chooseHeroDestination(hero, time);
       }
-      continue;
-    }
-    const vx = dx / distance;
-    const vy = dy / distance;
-    const step = TOWN_HERO_WALK_SPEED * dt;
-    const oldX = hero.x;
-    const oldY = hero.y;
-    const nx = hero.x + vx * step;
-    const ny = hero.y + vy * step;
-    if (canWanderStand(hero, nx, hero.y)) hero.x = nx;
-    if (canWanderStand(hero, hero.x, ny)) hero.y = ny;
-    if (hero.x !== oldX || hero.y !== oldY) {
-      hero.moving = true;
-      hero.facing = vx < -0.05 ? -1 : vx > 0.05 ? 1 : hero.facing;
-    } else if (step > 0) {
-      hero.path = [];
-      hero.waypoint = 0;
-      hero.pauseUntil = time + 350;
-      hero.moving = false;
+      const point = hero.path[hero.waypoint];
+      if (point) {
+        const dx = point.x - hero.x;
+        const dy = point.y - hero.y;
+        const distance = Math.hypot(dx, dy);
+        if (distance < 3) {
+          hero.waypoint += 1;
+          if (hero.waypoint >= hero.path.length) {
+            hero.path = [];
+            hero.moving = false;
+            hero.pauseUntil = time + heroPause();
+          }
+        } else {
+          const step = Math.min(distance, TOWN_HERO_WALK_SPEED * dt);
+          hero.x += (dx / distance) * step;
+          hero.y += (dy / distance) * step;
+          hero.moving = step > 0;
+          hero.facing = dx < -0.5 ? -1 : dx > 0.5 ? 1 : hero.facing;
+        }
+      }
     }
   }
+  for (let i = 0; i < wanderers.length; i += 1) {
+    for (let j = i + 1; j < wanderers.length; j += 1) {
+      separate(wanderers[i], wanderers[j], 28, 0.08);
+      separate(wanderers[j], wanderers[i], 28, 0.08);
+    }
+    separate(wanderers[i], player, 26, 0.12);
+  }
+}
+
+// ---- per-frame drawing -----------------------------------------------------
+
+function wrapText(g, text, maxWidth) {
+  const words = text.split(' ');
+  const lines = [];
+  let line = '';
+  for (const word of words) {
+    const test = line ? `${line} ${word}` : word;
+    if (g.measureText(test).width > maxWidth && line) { lines.push(line); line = word; } else line = test;
+  }
+  if (line) lines.push(line);
+  return lines;
+}
+
+function visibleWorld() {
+  return { x: camera.x, y: camera.y, w: view.width / view.scale, h: view.height / view.scale, s: view.scale / view.dpr };
+}
+
+// Bubbles stay inside the visible area and below the top HUD strip.
+function clampBubble(x, y, w, h) {
+  const v = visibleWorld();
+  const topInset = (view.width / view.dpr < 600 ? 130 : 150) / v.s;
+  return {
+    x: Math.max(v.x + 8, Math.min(v.x + v.w - w - 8, x)),
+    y: Math.max(v.y + topInset, Math.min(v.y + v.h - h - 60 / v.s, y)),
+  };
+}
+
+function drawSpeech(g, time) {
+  if (!speech || time > speech.until) { speech = null; return; }
+  const hero = wanderers.find((h) => h.id === speech.heroId);
+  if (!hero) { speech = null; return; }
+  g.font = '700 12px Nunito, Trebuchet MS, sans-serif';
+  const lines = wrapText(g, speech.text, 170);
+  const width = Math.max(...lines.map((l) => g.measureText(l).width)) + 22;
+  const nameH = speech.kind === 'greet' ? 15 : 0;
+  const height = lines.length * 15 + 14 + nameH;
+  const tipY = hero.y - TOWN_HERO_AVATAR_RADIUS * 3.2;
+  const box = clampBubble(hero.x - width / 2, tipY - height - 8, width, height);
+  g.fillStyle = PALETTE.paper; g.strokeStyle = INK; g.lineWidth = 2.5;
+  g.beginPath(); g.roundRect(box.x, box.y, width, height, 9); g.fill(); g.stroke();
+  const tipX = Math.max(box.x + 12, Math.min(box.x + width - 12, hero.x));
+  if (box.y + height <= tipY) {
+    g.beginPath(); g.moveTo(tipX - 6, box.y + height - 1); g.lineTo(tipX, box.y + height + 7); g.lineTo(tipX + 6, box.y + height - 1); g.closePath(); g.fill();
+    g.beginPath(); g.moveTo(tipX - 6, box.y + height); g.lineTo(tipX, box.y + height + 7); g.lineTo(tipX + 6, box.y + height); g.stroke();
+  }
+  g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillStyle = INK;
+  if (nameH) {
+    g.font = '800 10px ui-monospace, Cascadia Code, monospace';
+    g.fillStyle = '#6A4E8F';
+    g.fillText(speech.name.toUpperCase(), box.x + width / 2, box.y + 12);
+    g.fillStyle = INK;
+  }
+  g.font = '700 12px Nunito, Trebuchet MS, sans-serif';
+  lines.forEach((line, i) => g.fillText(line, box.x + width / 2, box.y + 14 + nameH + i * 15));
+}
+
+function updateAmbientSpeech(time) {
+  if (!wanderers.length) return;
+  if (!nextAmbientAt) nextAmbientAt = time + 4000 + Math.random() * 4000;
+  if (speech || time < nextAmbientAt) return;
+  const v = visibleWorld();
+  const onScreen = wanderers.filter((h) => inZone(h.x, h.y, v));
+  if (onScreen.length) {
+    const hero = onScreen[Math.floor(Math.random() * onScreen.length)];
+    speech = { heroId: hero.id, name: hero.hero.name, text: heroLine(hero.id, 'ambient'), until: time + 3200, kind: 'ambient' };
+  }
+  nextAmbientAt = time + 8000 + Math.random() * 6000;
 }
 
 function drawWanderingHero(g, actor, time) {
@@ -531,9 +753,14 @@ function drawWanderingHero(g, actor, time) {
 
 function drawAvatar(g, time) {
   const r = TOWN_AVATAR_RADIUS;
-  const hop = player.moving ? Math.abs(Math.sin(time * .018)) * 4 : 0;
-  const frame = playerIdleClip[Math.floor(((time + playerAnimationOffset) / 1000) * playerIdleFps) % playerIdleClip.length];
-  const sprite = playerFrames?.[player.moving ? 'open' : frame];
+  const hopPhase = Math.abs(Math.sin(time * .018));
+  const hop = player.moving ? hopPhase * (reducedMotion ? 1.5 : 4) : 0;
+  if (player.moving && hopPhase < 0.12 && time - lastHopSoundAt > 340) {
+    lastHopSoundAt = time;
+    playSound('townHop', { pitchVariance: 0.05 });
+  }
+  const frameName = playerIdleClip[Math.floor(((time + playerAnimationOffset) / 1000) * playerIdleFps) % playerIdleClip.length];
+  const sprite = playerFrames?.[player.moving ? 'open' : frameName];
   const spriteHeight = r * 3.15;
   const spriteWidth = spriteHeight * playerCrop[2] / playerCrop[3];
   // Keep the contact shadow anchored to the world position while the sprite hops.
@@ -560,93 +787,196 @@ function drawAvatar(g, time) {
   g.fillStyle = INK;
   g.beginPath(); g.ellipse(-r * .34, -r * .2, 2.3, 3.2, 0, 0, Math.PI * 2); g.fill();
   g.beginPath(); g.ellipse(r * .34, -r * .2, 2.3, 3.2, 0, 0, Math.PI * 2); g.fill();
-  g.strokeStyle = INK; g.lineWidth = 1.7;
-  g.beginPath(); g.moveTo(0, 1); g.lineTo(0, 4); g.moveTo(0, 4); g.quadraticCurveTo(-3, 7, -6, 4); g.moveTo(0, 4); g.quadraticCurveTo(3, 7, 6, 4); g.stroke();
   g.restore();
 }
 
-function drawBubble(g, time) {
-  bubbleHit = null;
-  const b = closestDoor();
-  if (!b) return;
-  let title;
-  let prompt;
-  if (b.id === 'castle') {
-    title = `Castle Lv ${props.castleLevel}/3`;
-    prompt = 'Press E or click to learn';
-  } else {
-    const plot = affordability.value.find((p) => p.id === b.id);
-    title = `${plot?.def.name || b.id} Lv ${plot?.lvl || 0}/3`;
-    prompt = 'Press E or click to upgrade';
+function drawEmote(g, time) {
+  if (!emote || time > emote.until) { emote = null; return; }
+  const age = time - emote.start;
+  const pop = reducedMotion ? 1 : Math.min(1, age / 160) * (1 + 0.15 * Math.max(0, 1 - age / 320));
+  const fade = Math.min(1, (emote.until - time) / 300);
+  const x = player.x; const y = player.y - TOWN_AVATAR_RADIUS * 3.2 - 26;
+  g.save();
+  g.globalAlpha = fade;
+  g.translate(x, y); g.scale(pop, pop);
+  g.fillStyle = PALETTE.paper; g.strokeStyle = INK; g.lineWidth = 2.5;
+  g.beginPath(); g.arc(0, 0, 21, 0, Math.PI * 2); g.fill(); g.stroke();
+  g.beginPath(); g.moveTo(-6, 18); g.lineTo(0, 28); g.lineTo(6, 18); g.closePath(); g.fill(); g.stroke();
+  g.fillStyle = PALETTE.paper; g.fillRect(-7, 14, 14, 6);
+  g.font = '24px "Segoe UI Emoji", "Apple Color Emoji", "Noto Color Emoji", system-ui, sans-serif';
+  g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillStyle = INK;
+  g.fillText(emote.glyph, 0, 1);
+  g.restore();
+}
+
+function targetPrompt(t) {
+  if (t.kind === 'destination') {
+    return t.id === 'duel'
+      ? { title: 'Duel', line: 'Press E or click to start a quiz battle' }
+      : { title: 'Campfire Run', line: 'Press E or click to defend the campfire' };
   }
-  const width = Math.max(198, Math.min(274, title.length * 9.2));
-  const x = Math.max(8, Math.min(TOWN_WIDTH - width - 8, b.x + b.w / 2 - width / 2));
-  const y = Math.max(8, b.y - 56 - Math.sin(time / 230) * 2);
-  g.fillStyle = PALETTE.paper; g.strokeStyle = INK; g.lineWidth = 3;
-  g.beginPath(); g.roundRect(x, y, width, 48, 8); g.fill(); g.stroke();
-  g.fillStyle = INK; g.textAlign = 'center'; g.textBaseline = 'middle';
-  g.font = '700 16px Georgia, "Palatino Linotype", serif';
-  g.fillText(title, x + width / 2, y + 16);
-  g.font = '600 12px Trebuchet MS, sans-serif';
-  g.fillText(prompt, x + width / 2, y + 35);
-  g.beginPath(); g.moveTo(b.door.x - 7, y + 48); g.lineTo(b.door.x, y + 56); g.lineTo(b.door.x + 7, y + 48); g.closePath(); g.fill(); g.stroke();
-  bubbleHit = { id: b.id, x, y, w: width, h: 54 };
+  const plot = props.buildings.find((p) => p.id === t.id);
+  const name = plot?.def.name || NAMES[t.id] || t.id;
+  return { title: `${name} · Lv ${levelOf(t.id)}/3`, line: 'Press E or click to open' };
+}
+
+function drawPrompt(g, time) {
+  promptHit = null;
+  const target = closestTarget();
+  const bob = reducedMotion ? 0 : Math.sin(time / 230) * 2;
+  if (target) {
+    const { title, line } = targetPrompt(target);
+    g.font = '700 15px Georgia, "Palatino Linotype", serif';
+    const width = Math.max(200, g.measureText(title).width + 30);
+    const anchorY = target.y + target.h + 8 - target.art.h;
+    const box = clampBubble(target.door.x - width / 2, anchorY - 54 - bob, width, 48);
+    g.fillStyle = PALETTE.paper; g.strokeStyle = INK; g.lineWidth = 3;
+    g.beginPath(); g.roundRect(box.x, box.y, width, 48, 8); g.fill(); g.stroke();
+    g.fillStyle = INK; g.textAlign = 'center'; g.textBaseline = 'middle';
+    g.fillText(title, box.x + width / 2, box.y + 16);
+    g.font = '700 11.5px Nunito, Trebuchet MS, sans-serif';
+    g.fillText(line, box.x + width / 2, box.y + 34);
+    promptHit = { x: box.x, y: box.y, w: width, h: 48 };
+    return;
+  }
+  const hero = closestHero();
+  if (hero && !(speech?.kind === 'greet' && speech.heroId === hero.id)) {
+    const label = `E · Greet ${hero.hero.name}`;
+    g.font = '800 12px Nunito, Trebuchet MS, sans-serif';
+    const width = g.measureText(label).width + 22;
+    const box = clampBubble(hero.x - width / 2, hero.y - TOWN_HERO_AVATAR_RADIUS * 3.2 - 34 - bob, width, 26);
+    g.fillStyle = '#254937'; g.strokeStyle = INK; g.lineWidth = 2.5;
+    g.beginPath(); g.roundRect(box.x, box.y, width, 26, 13); g.fill(); g.stroke();
+    g.fillStyle = '#FFF8E4'; g.textAlign = 'center'; g.textBaseline = 'middle';
+    g.fillText(label, box.x + width / 2, box.y + 13.5);
+    promptHit = { x: box.x, y: box.y, w: width, h: 26 };
+  }
 }
 
 function drawAffordableArrows(g, time) {
-  for (const plot of affordability.value) {
+  for (const plot of props.buildings) {
     if (!plot.cost || !plot.affordable) continue;
     const b = BUILDING_LAYOUT[plot.id];
+    if (!b) continue;
     const x = b.x + b.w / 2;
-    const y = b.y - 18 - Math.sin(time / 150) * 5;
+    const y = b.y + b.h - b.art.h - 6 - (reducedMotion ? 0 : Math.sin(time / 150) * 5);
     g.fillStyle = PALETTE.gold; g.strokeStyle = INK; g.lineWidth = 3; g.lineJoin = 'round';
     g.beginPath(); g.moveTo(x, y - 13); g.lineTo(x - 9, y - 3); g.lineTo(x - 4, y - 3); g.lineTo(x - 4, y + 7); g.lineTo(x + 4, y + 7); g.lineTo(x + 4, y - 3); g.lineTo(x + 9, y - 3); g.closePath(); g.fill(); g.stroke();
   }
 }
 
+// Intro spotlight: a dashed gold ring under the things being explained.
+function drawHighlight(g, time) {
+  if (!props.highlight) return;
+  const pulse = reducedMotion ? 0 : Math.sin(time / 260) * 4;
+  const rings = [];
+  if (props.highlight === 'castle') rings.push([640, 360, 150, 105]);
+  if (props.highlight === 'buildings') for (const id of ['garden', 'tower', 'library', 'workshop']) {
+    const b = BUILDING_LAYOUT[id];
+    rings.push([b.x + b.w / 2, b.y + b.h / 2, b.w / 2 + 26, b.h / 2 + 26]);
+  }
+  if (props.highlight === 'north') rings.push([760, 56, 70, 44]);
+  g.save();
+  g.setLineDash([10, 8]);
+  g.lineDashOffset = reducedMotion ? 0 : -time / 40;
+  for (const [x, y, rx, ry] of rings) {
+    g.strokeStyle = 'rgba(35,56,47,.55)'; g.lineWidth = 8;
+    g.beginPath(); g.ellipse(x, y, rx + pulse, ry + pulse, 0, 0, Math.PI * 2); g.stroke();
+    g.strokeStyle = PALETTE.gold; g.lineWidth = 4;
+    g.beginPath(); g.ellipse(x, y, rx + pulse, ry + pulse, 0, 0, Math.PI * 2); g.stroke();
+  }
+  g.restore();
+}
+
+// ---- camera ----------------------------------------------------------------
+
+function cameraTarget() {
+  const v = visibleWorld();
+  const z = ZONES[zone];
+  const x = v.w >= z.w ? z.x + z.w / 2 - v.w / 2 : Math.max(z.x, Math.min(z.x + z.w - v.w, player.x - v.w / 2));
+  const y = v.h >= z.h ? z.y + z.h / 2 - v.h / 2 : Math.max(z.y, Math.min(z.y + z.h - v.h, player.y - v.h / 2));
+  return { x, y };
+}
+
+function updateCamera(dt) {
+  if (player.y < -14) zone = 'north';
+  else if (player.y > 14) zone = 'town';
+  const target = cameraTarget();
+  if (!camera.ready) { Object.assign(camera, target, { ready: true }); return; }
+  const k = 1 - Math.exp(-dt * (reducedMotion ? 14 : 4.2));
+  camera.x += (target.x - camera.x) * k;
+  camera.y += (target.y - camera.y) * k;
+  if (Math.abs(target.x - camera.x) < 0.05) camera.x = target.x;
+  if (Math.abs(target.y - camera.y) < 0.05) camera.y = target.y;
+}
+
+// ---- main loop -------------------------------------------------------------
+
 function tick(time) {
   if (!ctx || !canvas.value) return;
   const dt = lastFrame ? Math.min((time - lastFrame) / 1000, 0.05) : 0;
   lastFrame = time;
-  if (groundLayer) ctx.drawImage(groundLayer, 0, 0);
 
-  let dx = Number(keys.has('d') || keys.has('arrowright')) - Number(keys.has('a') || keys.has('arrowleft'));
-  let dy = Number(keys.has('s') || keys.has('arrowdown')) - Number(keys.has('w') || keys.has('arrowup'));
+  let dx = 0; let dy = 0;
+  if (!props.paused && !wheelOpen.value) {
+    dx = Number(keys.has('d') || keys.has('arrowright')) - Number(keys.has('a') || keys.has('arrowleft'));
+    dy = Number(keys.has('s') || keys.has('arrowdown')) - Number(keys.has('w') || keys.has('arrowup'));
+  }
   const magnitude = Math.hypot(dx, dy) || 1;
-  if (dx || dy) { dx /= magnitude; dy /= magnitude; player.moving = true; player.facing = dx < 0 ? -1 : dx > 0 ? 1 : player.facing; }
-  else if (player.path.length && player.waypoint < player.path.length) {
+  if (dx || dy) { dx /= magnitude; dy /= magnitude; }
+  else if (!props.paused && player.path.length && player.waypoint < player.path.length) {
     const point = player.path[player.waypoint];
     dx = point.x - player.x; dy = point.y - player.y;
     const distance = Math.hypot(dx, dy);
-    if (distance < 3) { player.waypoint += 1; if (player.waypoint >= player.path.length) player.path = []; }
-    else { dx /= distance; dy /= distance; player.moving = true; player.facing = dx < 0 ? -1 : dx > 0 ? 1 : player.facing; }
+    if (distance < 3) { player.waypoint += 1; if (player.waypoint >= player.path.length) player.path = []; dx = 0; dy = 0; }
+    else { dx /= distance; dy /= distance; }
   }
-  if ((keys.size || player.moving) && dt > 0 && (dx || dy)) {
+  let moved = false;
+  if (dt > 0 && (dx || dy)) {
     const step = TOWN_WALK_SPEED * dt;
     const nx = player.x + dx * step;
     const ny = player.y + dy * step;
-    if (canStand(nx, player.y)) player.x = nx;
-    if (canStand(player.x, ny)) player.y = ny;
+    if (canStand(nx, player.y)) { player.x = nx; moved = true; }
+    if (canStand(player.x, ny)) { player.y = ny; moved = true; }
+    player.facing = dx < -0.05 ? -1 : dx > 0.05 ? 1 : player.facing;
   }
-  player.moving = Boolean(dx || dy);
+  player.moving = moved;
   updateWanderers(time, dt);
+  updateAmbientSpeech(time);
+  updateCamera(dt);
+
+  const s = view.scale;
+  ctx.setTransform(s, 0, 0, s, -camera.x * s, -camera.y * s);
+  const v = visibleWorld();
+  ctx.fillStyle = forestPattern || PALETTE.forest;
+  ctx.fillRect(v.x - 4, v.y - 4, v.w + 8, v.h + 8);
+  if (groundLayer) ctx.drawImage(groundLayer, 0, WORLD_TOP);
+  drawHighlight(ctx, time);
 
   const drawables = [
-    ...objectCanvases.values(),
+    ...objectCanvases,
     ...wanderers.map((actor) => ({ id: actor.id, sortY: actor.y, actor })),
-    { id: 'mayor', sortY: player.y, player: true },
+    { id: 'player', sortY: player.y, player: true },
   ];
   drawables.sort((a, b) => a.sortY - b.sortY);
+  const margin = 120;
   for (const item of drawables) {
     if (item.player) drawAvatar(ctx, time);
     else if (item.actor) drawWanderingHero(ctx, item.actor, time);
-    else ctx.drawImage(item.canvas, item.x, item.y);
+    else if (item.x + item.w > v.x - margin && item.x < v.x + v.w + margin && item.y + item.h > v.y - margin && item.y < v.y + v.h + margin) {
+      ctx.drawImage(item.canvas, item.x, item.y, item.w, item.h);
+      if (item.id === 'campfire') drawFlame(ctx, TOWN_DESTINATIONS.campfire.flame.x, TOWN_DESTINATIONS.campfire.flame.y, time, reducedMotion);
+    }
   }
   drawAffordableArrows(ctx, time);
-  drawBubble(ctx, time);
+  drawSpeech(ctx, time);
+  drawEmote(ctx, time);
+  drawPrompt(ctx, time);
   raf = requestAnimationFrame(tick);
 }
 
+// Show the whole town on desktop; on narrow portrait screens zoom in a little
+// and let the camera follow the player across the town instead.
 function resize() {
   if (!frame.value || !canvas.value) return;
   const dpr = Math.max(1, window.devicePixelRatio || 1);
@@ -654,15 +984,18 @@ function resize() {
   canvas.value.width = Math.round(rect.width * dpr);
   canvas.value.height = Math.round(rect.height * dpr);
   ctx = canvas.value.getContext('2d', { alpha: false });
-  const scale = Math.max(canvas.value.width / TOWN_WIDTH, canvas.value.height / TOWN_HEIGHT);
-  const offsetX = (canvas.value.width - TOWN_WIDTH * scale) / 2;
-  const offsetY = (canvas.value.height - TOWN_HEIGHT * scale) / 2;
-  ctx.setTransform(scale, 0, 0, scale, offsetX, offsetY);
+  const fit = Math.min(rect.width / TOWN_WIDTH, rect.height / TOWN_HEIGHT);
+  const readable = Math.min(rect.height / TOWN_HEIGHT, rect.width / 520);
+  Object.assign(view, { dpr, scale: Math.max(fit, readable) * dpr, width: canvas.value.width, height: canvas.value.height });
+  forestPattern = createForestPattern();
+  camera.ready = false;
 }
 
 onMounted(async () => {
+  reducedMotion = Boolean(window.matchMedia?.('(prefers-reduced-motion: reduce)').matches);
+  walkGrid = buildGrid((x, y) => canStand(x, y));
+  wanderGrid = buildGrid(canWanderStand);
   groundLayer = createGroundLayer();
-  makeObjectCanvases();
   try {
     playerVisuals = await loadPlayerVisuals();
     playerIdleClip = playerVisuals.config.IDLE_CLIP;
@@ -671,9 +1004,9 @@ onMounted(async () => {
     playerFrames = tintedPlayerFrames(playerVisuals, props.avatarColor);
     playerAnimationOffset = Math.random() * playerVisuals.config.TIME_MS_PER_SECOND;
   } catch (error) { console.warn('[Town player sprite] Could not load player visuals.', error); }
-  reducedMotion = Boolean(window.matchMedia?.('(prefers-reduced-motion: reduce)').matches);
   await initializeWanderers(performance.now());
   resize();
+  makeObjectCanvases();
   observer = new ResizeObserver(resize);
   observer.observe(frame.value);
   window.addEventListener('keydown', onKeyDown);
@@ -689,6 +1022,8 @@ onUnmounted(() => {
   window.removeEventListener('blur', onBlur);
   keys.clear();
 });
+
+defineExpose({ openEmotes: openWheel, focus: () => canvas.value?.focus({ preventScroll: true }) });
 </script>
 
 <template>
@@ -698,16 +1033,42 @@ onUnmounted(() => {
         ref="canvas"
         class="town-canvas"
         tabindex="0"
-        aria-label="Walk around the kingdom town. Use WASD or arrow keys, or click the ground to move. Stand near a door and press E to open it."
+        aria-label="Walk around your kingdom town. Use WASD or arrow keys, or click the ground to move. Press E near a door or a hero, Z for emotes. Walk north through the gap in the trees to reach the battle camps."
         @pointerdown="onPointerDown"
       />
+      <div v-if="wheelOpen" class="emote-wheel" :style="{ left: `${wheelPos.x}px`, top: `${wheelPos.y}px` }" role="menu" aria-label="Choose an emote">
+        <button
+          v-for="(e, i) in EMOTES"
+          :key="e.id"
+          :ref="(el) => { wheelButtons[i] = el; }"
+          class="emote-choice"
+          :class="{ active: wheelIndex === i }"
+          type="button"
+          role="menuitem"
+          :aria-label="`${e.label} (${i + 1})`"
+          :title="e.label"
+          :style="{ '--angle': `${(i / EMOTES.length) * 360 - 90}deg` }"
+          @focus="wheelIndex = i"
+          @click="chooseEmote(i)"
+        ><span aria-hidden="true">{{ e.glyph }}</span><kbd aria-hidden="true">{{ i + 1 }}</kbd></button>
+        <button class="emote-cancel" type="button" aria-label="Close emotes" title="Close (Esc)" @click="closeWheel">×</button>
+      </div>
     </div>
   </div>
 </template>
 
 <style scoped>
-.town-shell { position: absolute; inset: 0; width: 100%; height: 100%; overflow: hidden; background: #7fae58; }
-.town-frame { width: 100%; height: 100%; overflow: hidden; background: #7fae58; }
+.town-shell { position: absolute; inset: 0; width: 100%; height: 100%; overflow: hidden; background: #2f5e3e; }
+.town-frame { position: relative; width: 100%; height: 100%; overflow: hidden; background: #2f5e3e; }
 .town-canvas { display: block; width: 100%; height: 100%; outline: none; cursor: crosshair; touch-action: none; }
 .town-canvas:focus-visible { outline: 4px solid #f2ba55; outline-offset: -6px; }
+.emote-wheel { position: absolute; z-index: 3; width: 0; height: 0; }
+.emote-wheel::before { content: ""; position: absolute; left: -78px; top: -78px; width: 156px; height: 156px; border-radius: 50%; background: rgb(35 56 47 / 72%); border: 3px solid #23382f; box-shadow: 0 5px 0 rgb(35 56 47 / 40%); }
+.emote-choice { position: absolute; left: -22px; top: -22px; display: grid; place-items: center; width: 44px; height: 44px; padding: 0; color: #23382f; background: #fbf2d8; border: 2px solid #23382f; border-radius: 50%; box-shadow: 0 3px 0 #7a6545; font-size: 22px; cursor: pointer; transform: rotate(var(--angle)) translate(56px) rotate(calc(-1 * var(--angle))); }
+.emote-choice kbd { position: absolute; right: -4px; bottom: -4px; min-width: 16px; padding: 0 3px; color: #23382f; background: #f2ba55; border: 1.5px solid #23382f; border-radius: 4px; font: 800 9px/14px ui-monospace, monospace; }
+.emote-choice.active, .emote-choice:focus-visible, .emote-choice:hover { background: #f2ba55; outline: 3px solid #fff8e4; outline-offset: 1px; }
+.emote-cancel { position: absolute; left: -16px; top: -16px; width: 32px; height: 32px; padding: 0; color: #fff8e4; background: #254937; border: 2px solid #fff8e4; border-radius: 50%; font-size: 20px; line-height: 1; cursor: pointer; }
+.emote-cancel:focus-visible, .emote-cancel:hover { outline: 3px solid #f2ba55; outline-offset: 2px; }
+@media (prefers-reduced-motion: no-preference) { .emote-wheel { animation: wheel-pop .14s ease-out; } }
+@keyframes wheel-pop { from { transform: scale(.7); opacity: 0; } to { transform: scale(1); opacity: 1; } }
 </style>

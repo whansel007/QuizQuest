@@ -135,6 +135,11 @@ export const ARENA_TUNING = Object.freeze({
       waveEnd: { frequency: 880, durationMs: 480, gain: 0.12, type: 'sine' }, cardPick: { frequency: 740, durationMs: 170, gain: 0.1, type: 'triangle' },
       bossSpawn: { frequency: 65, durationMs: 600, gain: 0.22, type: 'sawtooth' }, uiClick: { frequency: 600, durationMs: 45, gain: 0.06, type: 'square' },
       heartbeat: { frequency: 55, durationMs: 100, gain: 0.1, type: 'sine' },
+      // Kingdom town: quiet, soft cues (the hop is rate-limited so walking never chatters).
+      townHop: { frequency: 260, slideTo: 420, durationMs: 90, gain: 0.03, type: 'sine', minIntervalMs: 340 },
+      townGreet: { frequency: 620, slideTo: 760, durationMs: 140, gain: 0.045, type: 'sine' },
+      townEmote: { frequency: 700, slideTo: 980, durationMs: 120, gain: 0.04, type: 'triangle' },
+      townOpen: { frequency: 520, durationMs: 80, gain: 0.035, type: 'sine' },
     },
   },
   waveMoments: { bannerMs: 1500, bannerMaxMs: 2000, bannerScaleStart: 1, bannerScalePeak: 1.3, bannerScaleEnd: 1, clearedBannerMs: 1000, clearedHealFraction: 0.1, bossZoom: 1.05, bossZoomMs: 300, abilityReadyPulseMs: 300 },

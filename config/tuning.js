@@ -9,8 +9,11 @@ export const DEBUG_TUNING = Object.freeze({
 export const ELECTRO_STUN_PROJECTILE_SCALE = 1.6;
 export const ELECTRO_STUN_RADIUS_SCALE = 1.5;
 
-export const RESPAWN_RING_MIN = 60;
-export const RESPAWN_RING_MAX = 110;
+// Respawns land on a ring well clear of the campfire (radius 28 plus the hero
+// sprite's height), so a reviving hero never covers the fire, while still
+// inside the 150 px heal ring.
+export const RESPAWN_RING_MIN = 105;
+export const RESPAWN_RING_MAX = 145;
 export const RESPAWN_MIN_SEPARATION = 40;
 export const RESPAWN_CANDIDATE_ATTEMPTS = 10;
 
@@ -269,23 +272,81 @@ export const TOWN_AVATAR_PRESET_COLORS = Object.freeze([
   '#548CB0', '#B96448', '#C08A54', '#BAA1D0', '#E49B35', '#4F9B83',
   TOWN_AVATAR_ORIGINAL_COLOR,
 ]);
-export const TOWN_PATH_WIDTH = 64;
+// Town map. The castle sits on a stone plaza in the centre with one building
+// at each compass point: Garden north, Tower south, Library west, Workshop
+// east. x/y/w/h is the solid footprint (art rises above it); `art` is the
+// drawing's canvas size; `door` is where the player stands to interact, on
+// the road in front of the entrance. North of the town (negative y) is the
+// forest clearing with the Duel and Campfire Run camps.
+export const TOWN_PATH_WIDTH = 52;
+export const TOWN_TRAIL_WIDTH = 46;
+export const TOWN_NORTH_HEIGHT = 720;
+export const TOWN_GREET_RADIUS = 62;
+export const TOWN_PLAZA = { x: 500, y: 215, w: 280, h: 240 };
 export const BUILDING_LAYOUT = {
-  castle: { x: 530, y: 270, w: 220, h: 180, door: { x: 640, y: 471, side: 'south' } },
-  library: { x: 565, y: 45, w: 150, h: 125, door: { x: 640, y: 191, side: 'south' } },
-  workshop: { x: 1030, y: 295, w: 180, h: 140, door: { x: 1008, y: 365, side: 'west' } },
-  garden: { x: 550, y: 550, w: 180, h: 130, door: { x: 640, y: 529, side: 'north' } },
-  tower: { x: 70, y: 295, w: 180, h: 140, door: { x: 271, y: 365, side: 'east' } },
+  castle: { x: 545, y: 290, w: 190, h: 120, art: { w: 230, h: 250 }, door: { x: 640, y: 434 } },
+  garden: { x: 500, y: 70, w: 170, h: 95, art: { w: 190, h: 170 }, door: { x: 585, y: 190 } },
+  library: { x: 95, y: 250, w: 190, h: 95, art: { w: 230, h: 200 }, door: { x: 190, y: 370 } },
+  workshop: { x: 990, y: 250, w: 200, h: 95, art: { w: 260, h: 190 }, door: { x: 1090, y: 370 } },
+  tower: { x: 585, y: 545, w: 110, h: 80, art: { w: 150, h: 180 }, door: { x: 640, y: 652 } },
+};
+// Stone roads, as centre-line polylines that start under each entrance and
+// end inside the plaza. The tower's road loops round its base to the front.
+export const TOWN_ROADS = [
+  [[585, 160], [585, 232]],
+  [[190, 340], [190, 392], [512, 392]],
+  [[1090, 340], [1090, 392], [768, 392]],
+  [[545, 445], [545, 662], [735, 662], [735, 445]],
+  [[640, 620], [640, 662]],
+];
+// Packed-earth trail from the plaza north out of town to the camp fork.
+export const TOWN_TRAILS = [
+  [[745, 228], [745, -230]],
+  [[745, -230], [610, -276], [430, -292]],
+  [[745, -230], [880, -276], [1010, -292]],
+];
+// Walkable zones: the town, the gap in the northern tree line, the clearing.
+export const TOWN_WALK_ZONES = [
+  { x: 28, y: 40, w: 1224, h: 662 },
+  { x: 720, y: -70, w: 50, h: 120 },
+  { x: 150, y: -600, w: 980, h: 560 },
+];
+export const TOWN_DESTINATIONS = {
+  duel: { x: 330, y: -362, w: 200, h: 34, art: { w: 220, h: 150 }, door: { x: 430, y: -300 } },
+  campfire: { x: 900, y: -362, w: 220, h: 34, art: { w: 240, h: 150 }, door: { x: 1010, y: -300 }, flame: { x: 1067, y: -354 } },
 };
 export const TOWN_PROP_LAYOUT = [
-  { type: 'tree', x: 380, y: 180, w: 64, h: 102 },
-  { type: 'tree', x: 838, y: 180, w: 64, h: 102 },
-  { type: 'tree', x: 365, y: 530, w: 58, h: 92 },
-  { type: 'tree', x: 860, y: 520, w: 58, h: 92 },
-  { type: 'rock', x: 430, y: 455, w: 42, h: 30 },
-  { type: 'rock', x: 810, y: 455, w: 42, h: 30 },
-  { type: 'flowers', x: 300, y: 250, w: 30, h: 28 },
-  { type: 'flowers', x: 970, y: 480, w: 30, h: 28 },
+  { type: 'house', variant: 0, x: 100, y: 80, w: 64, h: 40 },
+  { type: 'house', variant: 1, x: 200, y: 62, w: 64, h: 40 },
+  { type: 'house', variant: 2, x: 300, y: 86, w: 64, h: 40 },
+  { type: 'house', variant: 3, x: 900, y: 86, w: 64, h: 40 },
+  { type: 'house', variant: 4, x: 1000, y: 62, w: 64, h: 40 },
+  { type: 'house', variant: 0, x: 1100, y: 80, w: 64, h: 40 },
+  { type: 'house', variant: 2, x: 90, y: 560, w: 64, h: 40 },
+  { type: 'house', variant: 1, x: 190, y: 540, w: 64, h: 40 },
+  { type: 'house', variant: 4, x: 290, y: 565, w: 64, h: 40 },
+  { type: 'house', variant: 3, x: 880, y: 545, w: 64, h: 40 },
+  { type: 'house', variant: 0, x: 980, y: 565, w: 64, h: 40 },
+  { type: 'house', variant: 2, x: 1080, y: 545, w: 64, h: 40 },
+  { type: 'well', x: 382, y: 600, w: 50, h: 22 },
+  { type: 'barter', x: 772, y: 600, w: 70, h: 22 },
+  { type: 'sign', x: 790, y: 58, w: 64, h: 14 },
+  { type: 'tree', x: 432, y: 140, w: 64, h: 102 },
+  { type: 'tree', x: 800, y: 130, w: 64, h: 102 },
+  { type: 'tree', x: 444, y: 468, w: 60, h: 95 },
+  { type: 'tree', x: 796, y: 452, w: 60, h: 95 },
+  { type: 'rock', x: 36, y: 652, w: 42, h: 30 },
+  { type: 'rock', x: 1200, y: 652, w: 42, h: 30 },
+  { type: 'rock', x: 168, y: -580, w: 42, h: 30 },
+  { type: 'rock', x: 1072, y: -580, w: 42, h: 30 },
+  { type: 'flowers', x: 466, y: 236, w: 30, h: 28 },
+  { type: 'flowers', x: 790, y: 236, w: 30, h: 28 },
+  { type: 'flowers', x: 150, y: 470, w: 30, h: 28 },
+  { type: 'flowers', x: 1110, y: 470, w: 30, h: 28 },
+  { type: 'flowers', x: 300, y: 200, w: 30, h: 28 },
+  { type: 'flowers', x: 960, y: 200, w: 30, h: 28 },
+  { type: 'flowers', x: 560, y: -150, w: 30, h: 28 },
+  { type: 'flowers', x: 900, y: -160, w: 30, h: 28 },
 ];
 
 // Tower: scales the four stat buff cards (maxHp / attack / defense / speed) on
