@@ -19,7 +19,9 @@ const frac = (r) => `${pct(r.accuracy)} (${r.correct}/${r.n})`;
 </script>
 
 <template>
-  <div>
+  <!-- three checks as cards side by side; a check with issues spans the row for its table -->
+  <div class="quality-checks">
+    <section class="quality-check" :class="{ wide: tags.issues.length }">
     <h4>Tags</h4>
     <p class="small muted">Every question in the bank (except rejected ones) should have a topic, a learning outcome from that topic, and a difficulty. Analytics and adaptive practice rely on these tags.</p>
     <div :class="tags.issues.length ? 'note warn' : 'note good'">
@@ -39,7 +41,9 @@ const frac = (r) => `${pct(r.accuracy)} (${r.correct}/${r.n})`;
       </table>
     </div>
     <Pager :paged="tagPages" label="Tag issue pages" noun="questions" />
+    </section>
 
+    <section class="quality-check" :class="{ wide: quality.difficulty.length }">
     <h4>Difficulty check</h4>
     <p class="small muted">Compares each question's difficulty tag with how students actually did (at least {{ quality.difficultyCheck.minN }} confirmed first attempts; retries come after the explanation, so they don't count): "easy" questions under {{ pct(quality.difficultyCheck.easyBelow) }} correct, or "hard" ones over {{ pct(quality.difficultyCheck.hardAbove) }} correct. Re-tagging keeps adaptive practice and reports honest.</p>
     <div v-if="!quality.difficulty.length" class="note good">✓ No mismatches in this period.</div>
@@ -58,7 +62,9 @@ const frac = (r) => `${pct(r.accuracy)} (${r.correct}/${r.n})`;
       </table>
     </div>
     <Pager :paged="difficultyPages" label="Difficulty check pages" noun="questions" />
+    </section>
 
+    <section class="quality-check" :class="{ wide: quality.unusedOptions.length }">
     <h4>Rarely chosen wrong options</h4>
     <p class="small muted">Wrong options picked by under {{ pct(quality.unused.maxShare) }} of answers (questions with at least {{ quality.unused.minAnswers }} answers to the current version). An option nobody picks doesn't test anything: a more plausible distractor makes the question more useful. True/false questions are left out.</p>
     <div v-if="!quality.unusedOptions.length" class="note good">✓ Every wrong option is being chosen sometimes.</div>
@@ -75,5 +81,6 @@ const frac = (r) => `${pct(r.accuracy)} (${r.correct}/${r.n})`;
       </table>
     </div>
     <Pager :paged="unusedPages" label="Rarely chosen option pages" noun="questions" />
+    </section>
   </div>
 </template>

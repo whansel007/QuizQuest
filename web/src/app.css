@@ -1209,14 +1209,14 @@ button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible
    separation against the light (#fff) and dark (#1d2029) panels. A topic
    keeps its slot (its order in the course) whatever is filtered. */
 .viz { position: relative; }
-.viz, .cell-bar {
+.viz, .cell-bar, .topic-bars {
   --viz-grid: #e8e6df;
   --viz-axis: #c3c2b7;
   --series-1: #2a78d6; --series-2: #eb6834; --series-3: #05a873; --series-4: #cd8300;
   --series-5: #dc709a; --series-6: #008300; --series-7: #4a3aa7; --series-8: #e34948;
 }
 @media (prefers-color-scheme: dark) {
-  .viz, .cell-bar {
+  .viz, .cell-bar, .topic-bars {
     --viz-grid: #2c2f3a;
     --viz-axis: #3d4150;
     --series-1: #3987e5; --series-2: #d95926; --series-3: #199e70; --series-4: #c98500;
@@ -2942,7 +2942,27 @@ body:has(.teacher-app) { background: var(--bg); }
 .dash-toolbar .t-toolbar { margin-bottom: 10px; }
 .dash-toolbar .dash-nav { position: static; margin: 0; padding: 0 0 10px; background: none; }
 .overview-tiles, .t-grid .tiles { margin-bottom: 0; }
-.t-grid .tiles { grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); }
+.overview-tiles { grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); margin-bottom: 16px; }
+.overview-detail { align-items: stretch; }
+/* Overview: first-attempt accuracy per topic as one sorted bar list.
+   Single series, one hue (--series-1), no legend: the heading names it. */
+.topic-bars-head { display: grid; gap: 2px; margin-bottom: 8px; }
+.topic-bars-head h4 { margin: 0; }
+.tb-list { display: grid; gap: 2px; margin: 0; padding: 0; list-style: none; }
+.tb-row { display: grid; grid-template-columns: minmax(110px, 30%) minmax(0, 1fr) 92px; align-items: center; gap: 12px; width: 100%; padding: 7px 8px; color: var(--ink); background: none; border: 0; border-radius: 8px; font: inherit; text-align: left; cursor: pointer; }
+.tb-row:hover, .tb-row:focus-visible { background: var(--accent-soft); }
+.tb-name { overflow: hidden; font-weight: 700; font-size: 14px; text-overflow: ellipsis; white-space: nowrap; }
+.tb-track { position: relative; display: block; height: 14px; background: linear-gradient(90deg, transparent calc(50% - .5px), var(--viz-grid) calc(50% - .5px), var(--viz-grid) calc(50% + .5px), transparent calc(50% + .5px)); border-left: 1px solid var(--viz-axis); }
+.tb-fill { display: block; height: 100%; background: var(--series-1); border-radius: 0 4px 4px 0; }
+.tb-row.low-n .tb-fill { opacity: .45; }
+.tb-value { font-size: 13px; font-variant-numeric: tabular-nums; white-space: nowrap; text-align: right; }
+.tb-value b { font-size: 15px; }
+.tb-note { margin: 8px 0 0; }
+.tb-unanswered { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin-top: 10px; padding-top: 10px; border-top: 1px dashed var(--line); }
+.tb-chip { padding: 3px 10px; color: var(--ink); background: var(--bg); border: 1px solid var(--line); border-radius: 999px; font: inherit; font-size: 13px; cursor: pointer; }
+.tb-chip:hover, .tb-chip:focus-visible { color: var(--accent); border-color: var(--accent); }
+.attention ul { gap: 4px; }
+.attention li { font-size: 13.5px; line-height: 1.35; }
 .attention h4 { color: var(--ink); }
 #dash-time { margin-top: 16px; }
 @media (max-width: 899px) {
@@ -2952,3 +2972,14 @@ body:has(.teacher-app) { background: var(--bg); }
 }
 /* the activity heatmap sits in a narrower column beside the trends */
 #dash-activity .heat-col { font-size: 10px; white-space: nowrap; letter-spacing: -0.02em; }
+/* Trends: per-topic small multiples run across the full width below */
+.trend-multiples { margin-top: 16px; }
+.trend-multiples .multiples { grid-template-columns: repeat(auto-fill, minmax(min(260px, 100%), 1fr)); }
+.trend-multiples .viz-table summary { margin-top: 4px; }
+/* Question quality: one card per check */
+.quality-checks { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(280px, 100%), 1fr)); gap: 14px; }
+.quality-check { display: flex; flex-direction: column; min-width: 0; padding: 14px 16px; background: var(--bg); border: 1px solid var(--line); border-radius: 10px; }
+.quality-check.wide { grid-column: 1 / -1; }
+.quality-check h4 { margin: 0 0 6px; }
+.quality-check > .note { margin: auto 0 0; }
+.quality-check.wide > .note { margin: 0 0 10px; }

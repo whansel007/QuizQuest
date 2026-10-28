@@ -304,6 +304,21 @@ function goTo(id) {
   el.classList.add('jumped');
   setTimeout(() => el.classList.remove('jumped'), 1600);
 }
+// ---- Overview: first-attempt accuracy per topic, weakest first. Topics on
+// fewer than minN confirmed first attempts are drawn lighter and say so.
+const topicBars = computed(() => {
+  if (!a.value) return [];
+  const minN = a.value.minN || 1;
+  const rows = a.value.byTopic.map((t) => ({
+    id: t.topicId, name: t.name, n: t.first.n || 0, correct: t.first.correct || 0,
+    accuracy: t.first.n ? t.first.accuracy : null, lowN: t.first.n > 0 && t.first.n < minN,
+  }));
+  return rows.filter((r) => r.accuracy !== null).sort((x, y) => x.accuracy - y.accuracy || y.n - x.n);
+});
+// topics nobody has answered yet: one line of chips instead of empty bars
+const unansweredTopics = computed(() => (a.value?.byTopic || []).filter((t) => !t.first.n).map((t) => ({ id: t.topicId, name: t.name })));
+const barLabel = (r) => `${r.name}: ${pct(r.accuracy)} correct on first attempts (${r.correct} of ${r.n})${r.lowN ? ', few answers so far' : ''}. Show only this topic.`;
+
 // in page order (the section bar marks the last one scrolled past)
 const sections = computed(() => [
   ['dash-overview', 'Overview'],
@@ -590,22 +605,43 @@ function missedCsv() {
         <!-- OVERVIEW: headline numbers beside what needs attention -->
         <section id="dash-overview" class="t-section">
           <div class="t-section-head"><h3 tabindex="-1">Overview</h3><span class="t-desc">How the class is doing</span></div>
-          <div class="t-grid">
-            <div class="span-8">
-              <div class="tiles">
-                <!-- the key changes when a background refresh changes the value, so the glow replays -->
-                <div v-for="t in tiles" :key="`${t.key}:${pulse[t.key] || 0}`" class="tile" :class="{ pulse: pulse[t.key] }">
-                  <div class="v">{{ t.value }}</div><div class="l">{{ t.label }}</div>
-                  <div v-if="t.delta" :class="'delta ' + t.delta.cls">
-                    {{ t.delta.text }}
-                    <button type="button" class="info-btn no-print" :aria-expanded="hintOpen === t.key ? 'true' : 'false'" :aria-label="`How the ${t.label} comparison works`" @click="hintOpen = hintOpen === t.key ? null : t.key">ⓘ</button>
-                  </div>
-                  <p v-if="hintOpen === t.key" class="delta-hint small muted">{{ t.delta.hint }}</p>
-                  <Sparkline v-if="t.spark" :key="drawKey" :points="t.spark.points" :label="t.spark.label" />
-                </div>
+          <div class="tiles overview-tiles">
+            <!-- the key changes when a background refresh changes the value, so the glow replays -->
+            <div v-for="t in tiles" :key="`${t.key}:${pulse[t.key] || 0}`" class="tile" :class="{ pulse: pulse[t.key] }">
+              <div class="v">{{ t.value }}</div><div class="l">{{ t.label }}</div>
+              <div v-if="t.delta" :class="'delta ' + t.delta.cls">
+                {{ t.delta.text }}
+                <button type="button" class="info-btn no-print" :aria-expanded="hintOpen === t.key ? 'true' : 'false'" :aria-label="`How the ${t.label} comparison works`" @click="hintOpen = hintOpen === t.key ? null : t.key">ⓘ</button>
               </div>
+              <p v-if="hintOpen === t.key" class="delta-hint small muted">{{ t.delta.hint }}</p>
+              <Sparkline v-if="t.spark" :key="drawKey" :points="t.spark.points" :label="t.spark.label" />
             </div>
-            <div class="span-4 panel attention">
+          </div>
+          <div class="t-grid overview-detail">
+            <div class="span-7 panel topic-bars">
+              <div class="topic-bars-head">
+                <h4>First-attempt accuracy by topic</h4>
+                <span class="small muted">{{ period }} · weakest first · click a topic to focus on it</span>
+              </div>
+              <p v-if="!topicBars.length" class="small muted" style="margin: 0">No first attempts in {{ period }} yet.</p>
+              <ol v-else class="tb-list">
+                <li v-for="r in topicBars" :key="r.id">
+                  <button type="button" class="tb-row" :class="{ 'low-n': r.lowN }" :aria-label="barLabel(r)" :title="barLabel(r)" @click="focusTopic(r.id)">
+                    <span class="tb-name">{{ r.name }}</span>
+                    <span class="tb-track" aria-hidden="true">
+                      <span class="tb-fill" :style="{ width: Math.max(2, r.accuracy * 100) + '%' }"></span>
+                    </span>
+                    <span class="tb-value"><b>{{ pct(r.accuracy) }}</b> <span class="muted">{{ r.correct }}/{{ r.n }}</span></span>
+                  </button>
+                </li>
+              </ol>
+              <div v-if="unansweredTopics.length" class="tb-unanswered">
+                <span class="small muted">No first attempts yet:</span>
+                <button v-for="t in unansweredTopics" :key="t.id" type="button" class="tb-chip" :aria-label="`${t.name}: no first attempts yet. Show only this topic.`" @click="focusTopic(t.id)">{{ t.name }}</button>
+              </div>
+              <p v-if="topicBars.some((r) => r.lowN)" class="small muted tb-note">Lighter bars rest on fewer than {{ a.minN }} first attempts, so read them with care.</p>
+            </div>
+            <div class="span-5 panel attention">
               <h4>Needs attention</h4>
               <ul v-if="attention.length">
                 <li v-for="(item, i) in attention" :key="i">
@@ -662,37 +698,6 @@ function missedCsv() {
                   <ColumnChart :key="drawKey" :rows="activityRows" unit="answers" :partial-note="partialNote" :label="`Answers submitted per ${per}`" />
                 </div>
               </div>
-              <template v-if="!combined">
-                <div class="chart-title" style="margin-top: 14px">Accuracy by topic <span class="muted">(one chart per topic, same scale)</span></div>
-                <div class="multiples">
-                  <div v-for="s in series" :key="s.id">
-                    <LineChart :key="drawKey" :series="[{ ...s, slot: 1 }]" :rows="accuracyRows" :low-n="a.trend.lowN" :height="150" :label="`${s.name}: accuracy per ${per}`" />
-                  </div>
-                </div>
-              </template>
-              <details class="viz-table">
-                <summary>Show the chart data as a table</summary>
-                <div class="table-wrap">
-                  <table class="dash-table">
-                    <thead>
-                      <tr>
-                        <th>{{ per === 'week' ? 'Week' : 'Day' }}</th>
-                        <th>Answers</th>
-                        <th>Students</th>
-                        <th v-for="s in series" :key="s.id">{{ s.name }}</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      <tr v-for="(p, i) in a.trend.points" :key="p.start">
-                        <td>{{ accuracyRows[i].label }}<span v-if="p.partial" class="muted"> ({{ per === 'day' ? 'so far' : 'part-week' }})</span></td>
-                        <td class="num">{{ p.answers }}</td>
-                        <td class="num">{{ p.students }}</td>
-                        <td v-for="s in series" :key="s.id" class="num">{{ frac(p.topics[s.id]) }}</td>
-                      </tr>
-                    </tbody>
-                  </table>
-                </div>
-              </details>
             </div>
             <div id="dash-activity" class="span-4 panel">
               <h4>When students practise</h4>
@@ -702,6 +707,40 @@ function missedCsv() {
                 <ContextsPanel :contexts="a.contexts" />
               </template>
             </div>
+          </div>
+          <!-- per-topic accuracy gets the full width, so the small multiples sit three or four across -->
+          <div class="panel trend-multiples">
+            <template v-if="!combined">
+              <h4>Accuracy by topic <span class="small muted">(one chart per topic, same scale)</span></h4>
+              <div class="multiples">
+                <div v-for="s in series" :key="s.id">
+                  <LineChart :key="drawKey" :series="[{ ...s, slot: 1 }]" :rows="accuracyRows" :low-n="a.trend.lowN" :height="150" :label="`${s.name}: accuracy per ${per}`" />
+                </div>
+              </div>
+            </template>
+            <details class="viz-table">
+              <summary>Show the chart data as a table</summary>
+              <div class="table-wrap">
+                <table class="dash-table">
+                  <thead>
+                    <tr>
+                      <th>{{ per === 'week' ? 'Week' : 'Day' }}</th>
+                      <th>Answers</th>
+                      <th>Students</th>
+                      <th v-for="s in series" :key="s.id">{{ s.name }}</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr v-for="(p, i) in a.trend.points" :key="p.start">
+                      <td>{{ accuracyRows[i].label }}<span v-if="p.partial" class="muted"> ({{ per === 'day' ? 'so far' : 'part-week' }})</span></td>
+                      <td class="num">{{ p.answers }}</td>
+                      <td class="num">{{ p.students }}</td>
+                      <td v-for="s in series" :key="s.id" class="num">{{ frac(p.topics[s.id]) }}</td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+            </details>
           </div>
         </section>
 
