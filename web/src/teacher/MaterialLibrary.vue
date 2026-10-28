@@ -234,17 +234,18 @@ const partLabel = (f, p) => p.title.split(f.legacy ? ' — ' : ' · ').slice(1).
       <div class="panel">
         <h3>Add notes or transcribe images</h3>
         <p class="small muted">Material is stored separately from questions and treated as reference content only: instructions inside it are never followed. Long documents are split into chunks so drafting only uses the relevant parts.</p>
+        <p class="small muted">This panel reads the file in your browser and saves what it finds as a note. To upload a lecture file to the server, use <b>Upload Materials</b> instead: an uploaded file is kept with the topic and is what the knowledge report is built from.</p>
         <Field label="Title" v-slot="{ id }"><input :id="id" v-model="title" type="text" placeholder="e.g. Week 3 notes: protocols" /></Field>
         <div class="row top"><TopicOutcomeFields v-model:topic-id="tags.topicId" v-model:outcome-id="tags.outcomeId" v-model:topic-name="tags.topicName" v-model:topic-week="tags.topicWeek" v-model:outcome-text="tags.outcomeText" :course="course" allow-new /></div>
         <div class="row top" style="margin-bottom: 12px">
           <div class="panel grow" style="margin: 0; min-width: 240px">
-            <b>📄 Text-based PDF</b>
-            <p class="small muted">Text is extracted in your browser. Scanned pages and pages with figures are detected, and AI can transcribe or describe them.</p>
+            <b>📄 PDF, read in your browser</b>
+            <p class="small muted">The text is pulled out here and saved as a note, not as a file. Scanned pages and pages with figures are detected, and AI can transcribe or describe them.</p>
             <input type="file" accept="application/pdf" @change="onPdf" />
           </div>
           <div class="panel grow" style="margin: 0; min-width: 240px">
             <b>🖼️ Scan or diagram image</b>
-            <p class="small muted">{{ course.geminiEnabled ? 'Gemini suggests text; you review it before saving.' : 'Needs GEMINI_API_KEY on the server (no offline OCR).' }}</p>
+            <p class="small muted">{{ course.geminiEnabled ? 'Gemini suggests text; you review it before saving.' : 'Needs GEMINI_API_KEY on the server (no offline OCR).' }} The image is read in your browser and saved as a note.</p>
             <input ref="imgInput" type="file" accept="image/png,image/jpeg,image/webp" />
             <div class="row" style="margin-top: 6px">
               <select v-model="imgMode" style="width: auto" aria-label="Image mode">

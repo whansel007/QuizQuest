@@ -410,6 +410,10 @@ test('PDF upload extracts text locally and saves reviewed source material', asyn
   const page = await pageFor(t, 'Prof. Demo A');
   await page.locator('#tabs').getByRole('button', { name: 'AI drafting' }).click();
   await page.getByText('Material library · Notes, images & older files',{exact:true}).click();
+  // This panel reads the file in the browser and saves a note. The upload
+  // panel above is the one that uploads to the server, so the two must not
+  // be mistaken for each other.
+  await page.locator('b', { hasText: 'read in your browser' }).waitFor();
   // Small valid PDF fixture assembled in memory (no external tool or service).
   const text = 'Network latency is the time required for a packet to reach its destination.';
   const stream = `BT /F1 12 Tf 40 750 Td (${text}) Tj ET`;
@@ -865,6 +869,9 @@ test('weekly topics: narrow the dashboard, follow a next step, and add a topic f
   await page.getByRole('heading',{name:'Manage topics & learning outcomes',exact:true}).waitFor(); // always open
   await page.getByLabel('Weekly topic').selectOption('tp-sec');
   await page.getByRole('heading', { name: 'Upload Materials' }).waitFor();
+  // The upload panel says what uploading a file actually does, so it cannot
+  // be mistaken for the browser-side file inputs in the material library.
+  await page.locator('p', { hasText: 'Uploaded files are kept with this topic' }).waitFor();
   await page.getByRole('heading',{name:'Manage topics & learning outcomes',exact:true}).waitFor(); // always open
   await page.getByRole('button',{name:'Edit Cyber hygiene',exact:true}).waitFor();
   assert.deepEqual(await page.locator('.topic-table tbody tr:not(.subrow) td:first-child').allInnerTexts(), ['3']);
