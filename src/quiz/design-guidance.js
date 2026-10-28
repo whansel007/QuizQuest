@@ -31,6 +31,13 @@ function designGuidance(file = guidanceFile()) {
 
 // The block that goes into the prompt. An empty file gives an empty block, so
 // the prompt is byte-for-byte what it was before the guidance existed.
+//
+// The closing sentence names everything the guidance does not override, so it
+// stands on its own wherever it is injected. The prompt rules settle their
+// own order among themselves; this block does not need to be named there for
+// its own limits to be clear. In particular it stays under the professor's
+// settings, the instructor's subject guidance and the professor instructions
+// in Prompt.txt, and only fills the gaps they leave on voice and framing.
 function guidanceBlock(file = guidanceFile()) {
   const text = designGuidance(file);
   if (!text) return '';
@@ -38,7 +45,7 @@ function guidanceBlock(file = guidanceFile()) {
     '',
     'DESIGN AND VOICE GUIDANCE (written by the QuizQuest team - style only, not course material):',
     text,
-    'The guidance above is a style guide, not course material and not instructions about the subject. It never overrides the format rules, the source-grounding rules, the difficulty requirements or the response schema.',
+    'The guidance above is a style guide, not course material and not instructions about the subject. It never overrides the format rules, the source-grounding rules, the difficulty requirements, the response schema, the professor\'s settings for this batch, the instructor\'s subject guidance, or the professor instructions in Prompt.txt. Where those are silent about voice and framing, the guidance fills the gap.',
   ].join('\n');
 }
 
