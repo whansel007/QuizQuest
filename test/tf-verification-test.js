@@ -100,7 +100,7 @@ test('replacement drafts and verification fill only missing slots and preserve a
     if(batch===1)return [item(true,sourceId),item(false,sourceId,{answerIndex:0})];
     assert.match(prompt,/Write 1 question\(s\)/);
     assert.match(prompt,/remaining slots\): \{"tf":1\}/);
-    const feedback=JSON.parse(prompt.split('Repair feedback from previous invalid slots: ')[1]);
+    const feedback=JSON.parse(prompt.split('Repair feedback from previous invalid slots: ')[1].split('\n')[0]);
     assert.ok(feedback.length>0 && feedback.every(f=>!Object.hasOwn(f,'candidate')),'audit payloads do not inflate repair prompts');
     return [item(false,sourceId)];
   }});

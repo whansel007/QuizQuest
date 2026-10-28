@@ -7,7 +7,7 @@ import { S, setTab, restoreSession } from './api.js';
 import { toastState } from './ui.js';
 import LoginView from './LoginView.vue';
 import ReviewView from './teacher/ReviewView.vue';
-import ContentView from './teacher/ContentView.vue';
+import MaterialLibrary from './teacher/MaterialLibrary.vue';
 import GenerateView from './teacher/GenerateView.vue';
 import AnalyticsView from './teacher/AnalyticsView.vue';
 import EvaluationView from './teacher/EvaluationView.vue';
@@ -20,9 +20,10 @@ import KingdomView from './student/KingdomView.vue';
 import PetsView from './student/PetsView.vue';
 import DebugMenu from './components/DebugMenu.vue';
 import AccountMenu from './components/AccountMenu.vue';
+import QuizQuestLogo from './components/QuizQuestLogo.vue';
 
 const TABS = {
-  teacher: [['analytics', 'Analytics', AnalyticsView], ['classes', 'Classes & Roster', ClassManagementView], ['review', 'Question bank', ReviewView], ['content', 'Source material', ContentView], ['generate', 'AI drafting', GenerateView], ['evaluation', 'Evaluation', EvaluationView], ['settings', 'Settings', SettingsView]],
+  teacher: [['analytics', 'Analytics', AnalyticsView], ['classes', 'Classes & Roster', ClassManagementView], ['review', 'Question bank', ReviewView], ['content', 'Source material', MaterialLibrary], ['generate', 'AI drafting', GenerateView], ['evaluation', 'Evaluation', EvaluationView], ['settings', 'Settings', SettingsView]],
   student: [['practice', 'Practice', PracticeView], ['progress', 'My Progress', ProgressView], ['world', 'World', HeroLabView], ['kingdom', 'Kingdom', KingdomView], ['pets', 'Summon', PetsView]],
 };
 
@@ -108,7 +109,9 @@ onUnmounted(() => {
     @focusin="onTopFocusIn"
     @focusout="onTopFocusOut"
   >
-    <div class="brand">Quiz<span>Quest</span> <small>prototype</small></div>
+    <div class="brand">
+      <QuizQuestLogo :size="30" />
+    </div>
     <nav id="tabs" :class="{ crowded: tabs.length > 5 }">
       <button v-for="[id, label] in tabs" :key="id" :aria-current="current && current[0] === id ? 'page' : null" @click="setTab(id)">{{ label }}</button>
     </nav>

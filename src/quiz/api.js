@@ -243,6 +243,9 @@ function createQuizApi({ dataFile = null, store = null, now = () => Date.now(), 
       generationId: q.generationId,
       publishedVersion: q.publishedVersion,
       createdAt: q.createdAt,
+      // What the drafter judged this draft to assess: the professor needs it
+      // to see what a rewrite would change.
+      cognitiveStyle: q.assessment?.cognitiveStyle || null,
       latest,
       typeLabel: TYPE_LABELS[latest.type || 'mcq'],
       sample: latest.type === 'param' ? instantiate(latest) : null,
@@ -759,8 +762,9 @@ attemptId: attempt.id,
     const usageLimit = Number.isInteger(body?.usageLimit) && body.usageLimit > 0 ? body.usageLimit : null;
     db.classJoinCodes = db.classJoinCodes || [];
     const rec = {
-      id: newId('code'),
+      id: crypto.randomUUID(),
       classId: cls.id,
+      code: rawCode,
       codeHash,
       expiresAt,
       usageLimit,
@@ -774,7 +778,6 @@ attemptId: attempt.id,
     return [201, { id: rec.id, code: rawCode, expiresAt, usageLimit, usageCount: 0, revoked: false }];
   });
 
-  // Never returns the code itself, only its state.
   route('GET', '/api/classes/:classId/join-codes', 'teacher', ({ user, params }) => {
     const cls = teacherClass(user, params.classId);
     db.classJoinCodes = db.classJoinCodes || [];
@@ -782,6 +785,7 @@ attemptId: attempt.id,
       .filter((c) => c.classId === cls.id)
       .map((c) => ({
         id: c.id,
+        code: c.code || null,
         expiresAt: c.expiresAt,
         usageLimit: c.usageLimit,
         usageCount: c.usageCount,
@@ -802,11 +806,33 @@ attemptId: attempt.id,
 
   // Redemption is checked and applied in one pass: an unknown, revoked,
   // expired or exhausted code never creates an enrolment.
+  // Supports QQ-XXXXX, prefix-less XXXXX, and fallback by code ID.
   route('POST', '/api/classes/join', 'student', ({ user, body }) => {
     const raw = (body?.code || '').trim();
     if (!raw) fail(400, 'Please enter a join code.');
     db.classJoinCodes = db.classJoinCodes || [];
-    const codeRecord = db.classJoinCodes.find((c) => c.codeHash === hashJoinCode(raw) && !c.revoked);
+
+    const norm = raw.toUpperCase();
+    const withPrefix = norm.startsWith('QQ-') ? norm : `QQ-${norm}`;
+    const rawHashed = hashJoinCode(norm);
+    const prefixedHashed = hashJoinCode(withPrefix);
+
+    const codeRecord = db.classJoinCodes.find((c) => {
+      if (c.revoked) return false;
+      if (c.codeHash === rawHashed || c.codeHash === prefixedHashed) return true;
+      if (c.code && (c.code.toUpperCase() === norm || c.code.toUpperCase() === withPrefix)) return true;
+      if (c.id) {
+        const idUpper = c.id.toUpperCase();
+        if (
+          idUpper === norm ||
+          idUpper === `CODE-${norm.replace(/^CODE-?/i, '')}` ||
+          idUpper.replace(/^CODE-?/i, '') === norm.replace(/^CODE-?/i, '')
+        )
+          return true;
+      }
+      return false;
+    });
+
     if (!codeRecord) fail(404, 'Invalid or revoked join code.');
     if (codeRecord.expiresAt && codeRecord.expiresAt < now()) fail(400, 'This join code has expired.');
     if (codeRecord.usageLimit && codeRecord.usageCount >= codeRecord.usageLimit)
@@ -853,14 +879,14 @@ attemptId: attempt.id,
           ? 'Custom drafter'
           : gemini.enabled()
               ? `Gemini (${gemini.model()})`
-              : 'Offline template drafter',
+              : 'Unavailable: Gemini is not configured',
         authoringEnabled: gemini.enabled() || Boolean(authoringAI),
         geminiEnabled: gemini.enabled(),
         formats: {
           authoring: AI_DRAFT_FORMATS,
           all: TYPES,
           labels: TYPE_LABELS,
-          drafter: drafter || gemini.enabled() ? GEN.aiFormats : GEN.templateFormats,
+          drafter: drafter || gemini.enabled() ? GEN.aiFormats : [],
         },
         topics: topicsOf(c.id),
         classes: db.classes
@@ -1034,6 +1060,22 @@ attemptId: attempt.id,
       const j = authoring.regenerate(c, q, user.id);
       await persist();
       return [202, { id: j.id }];
+    }),
+  );
+  // Rewrite several drafts in one go, in the style the professor asks for.
+  route(
+    'POST',
+    '/api/teacher/questions/regenerate',
+    'teacher',
+    statusReply(async ({ user, body }) => {
+      const ids = Array.isArray(body?.ids) ? body.ids.filter((id) => typeof id === 'string') : [];
+      if (!ids.length) fail(400, 'Select at least one question to regenerate.');
+      if (ids.length > 10) fail(400, 'Regenerate up to 10 questions at a time.');
+      const qs = ids.map((id) => teacherQuestion(user, id)),
+        c = teacherCourse(user, qs[0].courseId);
+      const j = authoring.regenerateMany(c, qs, user.id, body?.assessmentStyle);
+      await persist();
+      return [202, { id: j.id, count: qs.length }];
     }),
   );
 
@@ -1603,11 +1645,12 @@ attemptId: attempt.id,
     const classes = db.enrolments
       .filter((e) => e.studentId === user.id)
       .map((e) => {
-        const cl = db.classes.find((c) => c.id === e.classId);
+        const cl = db.classes.find((c) => c.id === e.classId && !c.archivedAt);
+        if (!cl) return null;
         return {
           id: cl.id,
           name: cl.name,
-          course: db.courses.find((c) => c.id === cl.courseId).title,
+          course: db.courses.find((c) => c.id === cl.courseId)?.title || 'Course',
           tradingEnabled: cl.settings.tradingEnabled,
           participation: cl.settings.participation?.enabled
             ? {
@@ -1616,7 +1659,8 @@ attemptId: attempt.id,
               }
             : null,
         };
-      });
+      })
+      .filter(Boolean);
     return {
       classes,
       resumable: classes

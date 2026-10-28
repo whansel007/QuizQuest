@@ -120,10 +120,10 @@ Axios attaches the bearer token. Responses for a token that is no longer active 
 
 | Component | Responsibility |
 | --- | --- |
-| [GenerateView.vue](../web/src/teacher/GenerateView.vue) | Loads the course; selects the saved-report workflow when authoring is enabled, otherwise the offline/direct drafting UI |
+| [GenerateView.vue](../web/src/teacher/GenerateView.vue) | Loads the course; selects the saved-report workflow when authoring is enabled, otherwise the direct drafting UI (which reports that Gemini is unavailable) |
 | [AuthoringWorkflow.vue](../web/src/teacher/AuthoringWorkflow.vue) | Report selection, explicit save, assessment settings, generation attempts, progress/recovery, navigation to review |
 | [ImportMaterials.vue](../web/src/teacher/ImportMaterials.vue) | Multi-file selection/extraction, selected/uploaded status, partial retries, remove/replace, server attachment synchronization |
-| [ContentView.vue](../web/src/teacher/ContentView.vue) | Source material browsing, pasted text, PDF extraction and explicit scan/diagram transcription |
+| [MaterialLibrary.vue](../web/src/teacher/MaterialLibrary.vue) | Material library (folded into the AI drafting tab): pasted text, PDF extraction and explicit scan/diagram transcription |
 | [ReviewView.vue](../web/src/teacher/ReviewView.vue) | Question Bank filters, fetching questions/passages, opening new editors and focusing a requested question |
 | [QuestionCard.vue](../web/src/teacher/QuestionCard.vue) | Question metadata and lifecycle actions; embeds the editor |
 | [QuestionDetails.vue](../web/src/teacher/QuestionDetails.vue) | Shared professor answer/options, model answer, rubric and explanation presentation |
@@ -207,11 +207,11 @@ Decompressed XML is bounded (10 MB per part, 50 MB total) to reduce ZIP expansio
 
 The client limits files to 100 MB each, accepts up to 20 at one selection, and bounds PDFs/decks to 1,000 pages/slides. It hashes filename plus the pre-AI `fingerprint` (AI output is not deterministic) to identify a document, splits large excerpts into pieces of at most 70,000 characters, and stores the selected excerpts in IndexedDB.
 
-Selection is separate from upload. The UI distinguishes **Selected**, **Partially uploaded**, and **Uploaded** files. After the professor confirms authorization/no student personal data, `save()` sequentially posts excerpts to `/api/teacher/courses/:cid/import`. Uploads belong to the weekly topic chosen in Source material or AI drafting: the client sends that `topicId` (outcome optional). Uploads made before weekly topics have a null topic; Source material lists them under **Files not in a topic** and moves them with `PUT .../imports {passageIds, topicId}`, which re-keys the import hash and refuses a move onto a copy already in that topic. The backend hashes topic, outcome, title and text for import idempotency; an existing import is reattached rather than duplicated, and takes the new upload's `documentId`/`fileName`, so a re-uploaded file version is listed once. Source material lists uploads once per file (collapsed), hides replaced/removed versions and the earlier `"deck — Slide N"` imports behind a toggle, and keeps topic sections for hand-added passages.
+Selection is separate from upload. The UI distinguishes **Selected**, **Partially uploaded**, and **Uploaded** files. After the professor confirms authorization/no student personal data, `save()` sequentially posts excerpts to `/api/teacher/courses/:cid/import`. Uploads belong to the weekly topic chosen in AI drafting: the client sends that `topicId` (outcome optional). Uploads made before weekly topics have a null topic; the material library lists them under **Files not in a topic** and moves them with `PUT .../imports {passageIds, topicId}`, which re-keys the import hash and refuses a move onto a copy already in that topic. The backend hashes topic, outcome, title and text for import idempotency; an existing import is reattached rather than duplicated, and takes the new upload's `documentId`/`fileName`, so a re-uploaded file version is listed once. The material library lists uploads once per file (collapsed), hides replaced/removed versions and the earlier `"deck — Slide N"` imports behind a toggle, and keeps topic sections for hand-added passages.
 
 `sync()` reconciles browser recovery data against attached server passages. Remove calls `PUT .../imports` with passage IDs and `attached:false`; it detaches excerpts instead of deleting report versions or questions. Replace extracts the replacement before detaching the prior file. Saved Markdown reports remain snapshots of their original input; changed attachments do not silently reanalyze them.
 
-Without the optional AI step, uploading, removing and replacing files make **zero Gemini calls**. No original PDF/PPTX/DOCX binary is sent to Supabase Storage by this workflow. Separately, Source material offers explicit scan/diagram transcription: `vision.transcribe()` accepts PNG/JPEG/WebP images up to 4 MiB, sends image content to Gemini, and returns suggested text for professor review before saving.
+Without the optional AI step, uploading, removing and replacing files make **zero Gemini calls**. No original PDF/PPTX/DOCX binary is sent to Supabase Storage by this workflow. Separately, the material library offers explicit scan/diagram transcription: `vision.transcribe()` accepts PNG/JPEG/WebP images up to 4 MiB, sends image content to Gemini, and returns suggested text for professor review before saving.
 
 ## 9. Knowledge report generation, editing, and versioning
 
@@ -260,6 +260,8 @@ The report editor is a `MarkdownEditor`. Typing updates browser recovery storage
 Generation requires the current saved report revision and blocks unsaved edits. Questions are grounded in that entire saved Markdown passage, including professor additions, rather than automatically re-reading uploaded files. Generating questions does not rerun report analysis.
 
 ## 10. AI question drafting and independent verification
+
+Both Gemini authoring requests start from [Prompt.txt](../Prompt.txt), loaded by [prompts.js](../src/quiz/prompts.js): PROMPT 1 for knowledge reports and their synthesis (`analysisPrompt()`, `synthesisPrompt()` in authoring.js), PROMPT 2 for drafting (`buildUserPrompt()` in generator.js). Each is followed by QuizQuest rules that resolve conflicts explicitly, then the source data last.
 
 ### Intentional batches versus request retries
 
@@ -316,6 +318,10 @@ For styled assessments, verification additionally checks independently classifie
 - **Conceptual:** understanding, explanation, comparison and reasoning.
 - **Application:** substantive inference, calculation, diagnosis, interpretation or evidence-based decisions; a scenario wrapped around recall does not qualify.
 - **Both:** complementary conceptual and application tasks when supported, with no fixed ratio. For at least two questions and feasible application, a fully filled single-style batch holds back one candidate and requests the missing style. One-question batches disclose that they cannot cover both styles.
+
+Application is enforced in code, not only by the model's label. The verifier lists its own `reasoningSteps` and applies a **scenario test** (`answerableWithoutScenario`). A candidate labelled application whose answer does not depend on the scenario's givens, or that takes fewer than two steps, is downgraded to conceptual (`styleDowngraded` in the audit). Downgraded candidates are rejected under Application, count as conceptual under Both, and return specific repair feedback to the drafter.
+
+On the drafting side, styled requests require a `blueprint` per question (`BLUEPRINT_SCHEMA`: intended style, target skill, scenario givens, reasoning steps, why it is not recall, distractor rationale), ordered before the stem via `propertyOrdering` so the model plans the task first. Validation drops the blueprint, so it is never saved on the question. When application is possible, the drafter also receives `APPLICATION_GUIDE`, a step-by-step method with a weak/strong example pair. Knowledge reports include an `## Applying these ideas` section of procedures, decision rules and problem types for the drafter to build on.
 
 Novel hypothetical givens are allowed; assessed methods, facts and inferences must be report-supported. Application does not silently fall back to Conceptual. Unsupported material produces an actionable warning and stops repair; Both can retain valid conceptual survivors and disclose the shortfall.
 
@@ -557,8 +563,8 @@ There is no implemented production identity provider, broad public-endpoint rate
 | Area | Implemented boundary / limitation |
 | --- | --- |
 | Saved-report authoring | Current main Gemini UI, four types, independent verification, styles, explicit attempts and durable recovery |
-| Direct `/generate` | Older route still callable; keyword/tag retrieval, successful-input cache unless forced, optional template/Gemini drafter; it does **not** install the queue's independent batch verifier or styled report contract |
-| Offline drafting | UI fallback when authoring is unavailable; template generator supports MCQ and TF only. Manual writing remains available for the four new formats |
+| Direct `/generate` | Older route still callable; keyword/tag retrieval, successful-input cache unless forced, Gemini only (503 `GEMINI_UNAVAILABLE` without a key); it does **not** install the queue's independent batch verifier or styled report contract |
+| Offline drafting | Removed: without Gemini, generation returns an actionable error and no questions are produced locally. Manual writing remains available |
 | Old analysis/recommendations flow | Queue/API support remains, but main report-based UI generates directly from the saved report rather than showing recommendation selection |
 | Historical formats | Numeric and parameterized math retained; new manual/report-based UI restricts new questions to four types. Legacy direct APIs/domain format lists still know all six |
 | Source grounding | Current report-based path sees the complete saved report; direct/legacy paths use retrieved chunks. Grounding does not prove professor-added report content is factually correct |

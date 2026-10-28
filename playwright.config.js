@@ -20,7 +20,8 @@ export default defineConfig({
   testDir: './e2e',
   fullyParallel: false,
   workers: 1, // tests in one browser share that browser's server and data
-  reporter: 'html',
+  // The HTML report is for local runs; CI reads the plain list instead.
+  reporter: process.env.CI ? 'list' : 'html',
   use: {
     trace: 'on-first-retry',
   },

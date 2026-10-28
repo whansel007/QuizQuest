@@ -1,10 +1,9 @@
 <script setup>
-import { ref, computed, onMounted, watch } from 'vue';
+import { ref, computed, onMounted, watch, useId } from 'vue';
 import { S, api } from '../api.js';
 import { extractFile, originOf } from './import-materials.js';
 import { toBase64 } from './pdf.js';
 import { draftStore } from './authoring-draft.js';
-import { topicLabel } from './courses.js';
 // topic: the weekly topic files are uploaded to and listed from (null = older
 // course-wide uploads that are not in a topic).
 const props = defineProps({ course: Object, topic: { type: Object, default: null }, disabled: Boolean, inWorkflow: Boolean });
@@ -13,9 +12,22 @@ const pages = ref([]), busy = ref(false), loading = ref(true), fileInput = ref(n
 const topicId = props.topic?.id ?? null;
 const key = `import:${S.me.id}:${props.course.id}` + (topicId ? `:${topicId}` : '');
 const replaceInput = ref(null), replaceTarget = ref(''), useAi = ref(false), controller = ref(null);
+const failures = ref([]), active = ref(null), retryTarget = ref('');
+const verified = ref(false);
+const locked = computed(() => loading.value || !verified.value || busy.value || props.disabled);
+const originals = new Map();
+const expanded = ref(true), regionId = useId();
+const preferenceKey = key + ':expanded';
+try { expanded.value = sessionStorage.getItem(preferenceKey) !== 'false'; } catch { /* Optional UI preference. */ }
+function setExpanded(value) {
+  expanded.value = value;
+  try { sessionStorage.setItem(preferenceKey, String(value)); } catch { /* Upload recovery is independent. */ }
+}
+defineExpose({ collapse: () => setExpanded(false) });
 // File name of every uploaded excerpt, including replaced ones, so reports can name their sources.
 const names = ref({});
 const ACCEPT = '.pdf,.pptx,.pptm,.ppsx,.ppsm,.potx,.ppt,.docx,.doc,.txt,.md,.csv';
+const uploadBody = p => ({ title: p.title, text: p.text, origin: p.origin, documentId: p.documentId, fileName: p.fileName, topicId: p.topicId ?? topicId, outcomeId: p.outcomeId ?? null, confirmNoPersonalData: true });
 const fileKey = (p) => p.documentId || p.fileName || p.title.split(' · ')[0];
 const files = computed(() => [...new Set(pages.value.map(fileKey))]);
 const unsaved = computed(() => pages.value.filter((p) => !p.saved));
@@ -23,20 +35,46 @@ const fileStatus = computed(() => files.value.map((id) => {
   const parts = pages.value.filter((p) => fileKey(p) === id);
   const name = parts[0].fileName || parts[0].title.split(' · ')[0];
   const saved = parts.filter((p) => p.saved).length;
-  return { id, name, note: parts[0].fileNote || '', status: saved === parts.length ? 'Uploaded' : saved ? `Partially uploaded (${saved}/${parts.length} excerpts)` : 'Read — not uploaded yet' };
+  const failure = parts.find(p => p.uploadError)?.uploadError;
+  const replacement = parts.find(p => p.replaces)?.replaces;
+  return { id, name, note: parts[0].fileNote || '', saved, total: parts.length, failure, replacement,
+    complete: saved === parts.length && !replacement,
+    status: failure ? 'Upload failed' : active.value?.id === id ? 'Uploading' : saved === parts.length && !replacement ? 'Uploaded' : saved ? `Partially uploaded (${saved}/${parts.length} excerpts)` : 'Ready to upload' };
 }));
-const pendingFiles = computed(() => fileStatus.value.filter((f) => f.status !== 'Uploaded').length);
+const savedFiles = computed(() => fileStatus.value.filter(f => f.complete));
+const pending = computed(() => fileStatus.value.filter(f => !f.complete));
+const warningCount = computed(() => savedFiles.value.filter(f => f.note).length);
+const warningSummary = computed(() => {
+  const notes = savedFiles.value.map(f => f.note).join(' ');
+  const concerns = [];
+  if (/personal data/i.test(notes)) concerns.push('Possible personal data was skipped');
+  if (/not read|no readable text|cannot read|more were not/i.test(notes)) concerns.push('Unread content');
+  if (/could not be described|stopped early/i.test(notes)) concerns.push('AI image processing incomplete');
+  return concerns.join(' · ') || 'Review AI descriptions before assessing';
+});
+const pendingFiles = computed(() => pending.value.length + failures.value.length);
+// The notes the professor wrote for this topic are course material too, so a
+// report is made from them as well as from the uploaded excerpts. The old
+// slide imports are kept for question history only and are not used here.
+const legacyImport = (p) => !p.importHash && (p.origin === 'pptx' || p.origin === 'pdf') && / — (Slide|Page) \d+$/.test(p.title);
+const notes = ref([]);
 function emitState() {
-  const materialIds = [...new Set(pages.value.filter(p=>p.saved).map(p=>p.id))];
+  const materialIds = [...new Set([...pages.value.filter(p=>p.saved).map(p=>p.id), ...notes.value.map(p=>p.id)])];
   emit('available', materialIds.length > 0);
-  emit('state', { materialIds, names: names.value, pending: unsaved.value.length > 0, busy: busy.value, ready: !loading.value });
+  emit('state', { materialIds, names: names.value, pending: pendingFiles.value > 0, busy: busy.value, ready: !loading.value && verified.value });
 }
-watch([busy, loading, unsaved], emitState);
+watch([busy, loading, pendingFiles], emitState);
+async function reconnect() {
+  loading.value = true; error.value = '';
+  try { await sync(); } catch (e) { error.value = 'Could not verify uploaded files. ' + e.message; }
+  finally { loading.value = false; }
+}
 async function sync() {
   const all = (await api('GET', `/api/teacher/courses/${props.course.id}/passages`)).filter(p=>p.origin !== 'report');
   names.value = Object.fromEntries(all.map((p) => [p.id, p.fileName || p.title.split(' · ')[0]]));
   const material = all.filter(p=>p.attached !== false && (p.topicId ?? null) === topicId);
   const stored = material.filter(p=>p.importHash);
+  notes.value = material.filter(p=>!p.importHash && !legacyImport(p));
   const matches = (p,s) => s.title===p.title && s.text===p.text && s.documentId===p.documentId;
   // Server attachment state is authoritative for previously uploaded drafts.
   pages.value = pages.value.filter(p=>!p.saved || stored.some(s=>matches(p,s)));
@@ -45,15 +83,20 @@ async function sync() {
     if (saved) Object.assign(p,saved,{saved:true});
   }
   for (const p of stored) if (!pages.value.some(s=>matches(p,s))) pages.value.push({...p,fileName:p.fileName || p.title.split(' · ')[0],saved:true});
+  verified.value = true;
   await stash();
   emitState();
 }
 async function stash() {
-  try { await draftStore(key, JSON.parse(JSON.stringify(pages.value))); }
+  try { await draftStore(key, JSON.parse(JSON.stringify({ pages: pages.value, failures: failures.value }))); }
   catch { error.value = 'Browser recovery storage is unavailable. Keep this tab open until the upload is saved.'; }
 }
 onMounted(async () => {
-  try { pages.value = (await draftStore(key)) || []; }
+  try {
+    const recovered = await draftStore(key);
+    pages.value = Array.isArray(recovered) ? recovered : recovered?.pages || [];
+    failures.value = recovered?.failures || [];
+  }
   catch { error.value = 'Browser recovery storage is unavailable. Keep this tab open until the upload is saved.'; }
   try {
     await sync();
@@ -61,17 +104,26 @@ onMounted(async () => {
   finally { loading.value = false; }
 });
 async function detach(id) {
-  const ids=pages.value.filter(p=>fileKey(p)===id && p.saved).map(p=>p.id);
+  const parts = pages.value.filter(p => fileKey(p) === id);
+  const backup = parts.find(p => p.replacementSources)?.replacementSources || [];
+  // Shared excerpts may have joined the replacement server-side. Restore their
+  // original grouping before removing a partly saved replacement.
+  for (const p of backup) await api('POST', `/api/teacher/courses/${props.course.id}/import`, uploadBody(p));
+  const ids=parts.filter(p=>p.saved && !backup.some(old => old.id === p.id)).map(p=>p.id);
   if(ids.length) await api('PUT', `/api/teacher/courses/${props.course.id}/imports`, {passageIds:ids,attached:false});
   pages.value=pages.value.filter(p=>fileKey(p)!==id);
+  for (const p of backup) if (!pages.value.some(old => old.id === p.id)) pages.value.push(p);
   await stash();
-  if(ids.length) await sync();
+  if(ids.length || backup.length) await sync();
   else emitState();
 }
 async function removeFile(id) {
-  if (busy.value || props.disabled || loading.value) return;
+  if (locked.value) return;
   busy.value=true; error.value='';
-  try { await detach(id); message.value='File removed from attached material. Existing reports and questions are kept.'; emit('saved'); }
+  try {
+    failures.value = failures.value.filter(f => f.id !== id); originals.delete(id);
+    await detach(id); message.value='File removed from attached material. Existing reports and questions are kept.'; emit('saved');
+  }
   catch(e) { error.value=e.message; }
   finally { busy.value=false; }
 }
@@ -86,8 +138,16 @@ function cancel() {
   message.value = 'Cancelling…';
 }
 function replaceFile(id) { replaceTarget.value=id; replaceInput.value.click(); }
-async function choose(event, replacing = '') {
-  if (busy.value || props.disabled || loading.value) return;
+async function retryFile(file) {
+  const original = originals.get(file.id);
+  if (original) return choose({ target: { files: [original], value: '' } }, file.replacing || '', file.id);
+  retryTarget.value = file.id;
+  replaceTarget.value = file.replacing || '';
+  message.value = `Reselect ${file.name} to retry. Your browser no longer has the original file.`;
+  replaceInput.value.click();
+}
+async function choose(event, replacing = '', retrying = '') {
+  if (locked.value) return;
   busy.value = true; error.value = '';
   const ctrl = (controller.value = new AbortController());
   let added = 0, cancelled = '';
@@ -95,6 +155,13 @@ async function choose(event, replacing = '') {
     if (event.target.files.length > 20) throw new Error('Choose up to 20 files at once.');
     for (const file of event.target.files) {
       if (ctrl.signal.aborted) break;
+      const failureId = retrying || `selection:${file.name}:${file.size}:${file.lastModified}`;
+      if (!retrying && failures.value.some(f => f.id === failureId)) continue;
+      originals.set(failureId, file);
+      active.value = { id: failureId, name: file.name, status: 'Reading' };
+      failures.value = failures.value.filter(f => f.id !== failureId);
+      failures.value.push({ id: failureId, name: file.name, replacing, error: 'Reading was interrupted. Retry or reselect this file.' });
+      await stash();
       try {
         message.value = `Reading ${file.name}`;
         const ai = useAi.value;
@@ -107,11 +174,15 @@ async function choose(event, replacing = '') {
           accept: async (fingerprint) => {
             const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(JSON.stringify([file.name, fingerprint, ai])));
             documentId = [...new Uint8Array(digest)].map((n) => n.toString(16).padStart(2, '0')).join('');
-            return replacing === documentId || !pages.value.some((p) => p.documentId === documentId);
+            const otherDigest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(JSON.stringify([file.name, fingerprint, !ai])));
+            const otherId = [...new Uint8Array(otherDigest)].map(n => n.toString(16).padStart(2, '0')).join('');
+            return replacing === documentId || replacing === otherId || !pages.value.some(p => [documentId, otherId].includes(p.documentId));
           },
         });
         if (!result) {
-          if(replacing) await detach(replacing);
+          failures.value = failures.value.filter(f => f.id !== failureId);
+          originals.delete(failureId);
+          await stash();
           continue;
         }
         const { pages: extracted, note } = result;
@@ -121,68 +192,156 @@ async function choose(event, replacing = '') {
           const value = p.text.trim() || `[Unreadable visual or scanned page: ${p.label}. No factual content could be extracted.]`;
           const pieces = value.match(/[\s\S]{1,70000}/g);
           pieces.forEach((text, i) => additions.push({
-            documentId, fileName: file.name, fileNote: note,
+            documentId, fileName: file.name, fileNote: note, replaces: replacing || undefined,
             title: `${file.name} · ${p.label}${pieces.length > 1 ? ' · Part ' + (i + 1) : ''}`.slice(0,120),
             text, origin: originOf(file.name), saved: false,
           }));
         }
-        if(replacing) await detach(replacing);
+        // Keep the old attachment until every replacement excerpt is saved.
+        // Re-reading the same fingerprint must not duplicate local rows.
+        if (replacing === documentId) {
+          const old = pages.value.filter(p => fileKey(p) === documentId);
+          if (old.length === additions.length && additions.every(p => old.some(o => o.title === p.title && o.text === p.text))) {
+            old.forEach(p => { p.fileNote = note; });
+            failures.value = failures.value.filter(f => f.id !== failureId); originals.delete(failureId); await stash(); continue;
+          }
+          const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(JSON.stringify([documentId, additions.map(p => p.text)])));
+          const versionId = [...new Uint8Array(digest)].map(n => n.toString(16).padStart(2, '0')).join('');
+          if (pages.value.some(p => p.documentId === versionId)) {
+            failures.value = failures.value.filter(f => f.id !== failureId); originals.delete(failureId); await stash(); continue;
+          }
+          additions.forEach(p => { p.documentId = versionId; });
+        }
+        if (replacing) additions[0].replacementSources = JSON.parse(JSON.stringify(pages.value.filter(p => fileKey(p) === replacing && p.saved)));
         pages.value.push(...additions);
+        failures.value = failures.value.filter(f => f.id !== failureId);
+        originals.delete(failureId);
         await stash();
         added++;
       } catch (e) {
+        const reason = e.name === 'AbortError' ? 'Reading cancelled. Retry when ready.' : e.message;
+        failures.value = failures.value.filter(f => f.id !== failureId);
+        failures.value.push({ id: failureId, name: file.name, replacing, error: reason });
+        await stash();
         if (e.name === 'AbortError') { cancelled = file.name; break; }
-        error.value += `${file.name}: ${e.message} `;
       }
     }
     message.value = cancelled
       ? `Cancelled. ${cancelled} ${replacing ? 'did not replace the listed file, which is kept' : 'was not added'}.${pendingFiles.value ? ' Files marked “not uploaded yet” still need Upload files.' : ''}`
-      : added ? 'Files read. Not uploaded yet: tick the confirmation below and click Upload files.' : error.value ? 'No new files were added.' : 'These files are already listed. Nothing new to upload.';
+      : added ? 'Files read. Not uploaded yet: tick the confirmation below and click Upload files.' : failures.value.length ? 'Some files need attention. Retry or remove them below.' : error.value ? 'No new files were added.' : 'These files are already listed. Nothing new to upload.';
   } catch (e) { error.value = e.message; }
-  finally { busy.value = false; controller.value = null; event.target.value = ''; }
+  finally { busy.value = false; controller.value = null; active.value = null; retryTarget.value = ''; event.target.value = ''; }
 }
-async function save() {
-  if (busy.value || props.disabled || loading.value || !confirmed.value || !unsaved.value.length) return;
+async function save(onlyId = '') {
+  if (locked.value || !confirmed.value || !pending.value.length) return;
   busy.value = true; error.value = '';
   const ctrl = (controller.value = new AbortController());
-  const queue = unsaved.value;
+  const queue = unsaved.value.filter(p => !onlyId || fileKey(p) === onlyId);
+  const hadSaved = savedFiles.value.length > 0;
+  let currentPage;
   let done = 0;
   try {
     for (const p of queue) {
       if (ctrl.signal.aborted) break;
+      currentPage = p;
+      active.value = { id: fileKey(p), name: p.fileName, status: 'Uploading' };
+      delete p.uploadError;
       message.value = `Uploading excerpt ${done + 1} of ${queue.length}…`;
-      const saved = await api('POST', `/api/teacher/courses/${props.course.id}/import`, { ...p, topicId, confirmNoPersonalData: confirmed.value });
+      const saved = await api('POST', `/api/teacher/courses/${props.course.id}/import`, uploadBody(p));
       Object.assign(p,saved,{saved:true}); await stash();
       done++;
     }
+    for (const file of pending.value.filter(f => f.saved === f.total && (!onlyId || f.id === onlyId))) {
+      const newIds = pages.value.filter(p => fileKey(p) === file.id).map(p => p.id);
+      const backup = pages.value.find(p => fileKey(p) === file.id && p.replacementSources)?.replacementSources || [];
+      const oldIds = [...new Set([...backup, ...pages.value.filter(p => fileKey(p) === file.replacement && p.saved)].filter(p => !newIds.includes(p.id)).map(p => p.id))];
+      if (oldIds.length) await api('PUT', `/api/teacher/courses/${props.course.id}/imports`, { passageIds: oldIds, attached: false });
+      pages.value = pages.value.filter(p => fileKey(p) !== file.replacement || newIds.includes(p.id));
+      pages.value.filter(p => fileKey(p) === file.id).forEach(p => { delete p.replaces; delete p.replacementSources; delete p.uploadError; });
+    }
+    await stash();
     message.value = done < queue.length
       ? `Upload stopped: ${done} of ${queue.length} excerpts saved. Click Upload files to finish, or Remove the file.`
-      : 'Upload complete. You do not need to upload these files again.';
+      : pendingFiles.value ? `${pendingFiles.value} file(s) still need attention. Saved files are kept above.` : 'Upload complete. You do not need to upload these files again.';
     await sync();
     if (done) emit('saved');
-  } catch (e) { error.value = e.message + ' Click Upload files to retry; material already saved will be kept.'; }
-  finally { busy.value = false; controller.value = null; }
+  } catch (e) {
+    const affected = currentPage || pages.value.find(p => p.replaces && (!onlyId || fileKey(p) === onlyId));
+    if (affected) affected.uploadError = e.message + ' Retry to finish; saved excerpts and the original file are kept.';
+    else error.value = e.message;
+    await stash();
+  }
+  finally {
+    if (!hadSaved && savedFiles.value.length) setExpanded(true);
+    busy.value = false; controller.value = null; active.value = null;
+  }
 }
 </script>
 <template>
-  <div class="panel">
-    <h3>Upload lecture material<template v-if="topic"> for {{ topicLabel(topic) }}</template></h3>
-    <p>Choose PDF, PowerPoint, Word or text files, up to 100 MB each. {{ topic ? 'Every file uploaded to this topic is used for its knowledge report.' : 'All uploaded material is included automatically.' }}</p>
-    <p class="small muted">Text, tables, charts and speaker notes are read in your browser. Check diagrams, equations and any gaps when editing the report.</p>
-    <label v-if="course.geminiEnabled" class="small"><input v-model="useAi" type="checkbox" :disabled="loading || busy || disabled" /> Describe images with AI: sends large slide/document pictures and scanned PDF pages to Google Gemini (up to 40 per file). Use only for authorised course material without student personal data.</label>
-    <input ref="fileInput" aria-label="Lecture files" type="file" multiple :accept="ACCEPT" :disabled="loading || busy || disabled" style="display:none" @change="choose" />
-    <input ref="replaceInput" aria-label="Replacement lecture file" type="file" :accept="ACCEPT" :disabled="loading || busy || disabled" style="display:none" @change="choose($event,replaceTarget)" />
-    <button class="btn" :disabled="loading || busy || disabled" @click="fileInput.click()">Choose files</button>
+  <section v-if="verified && savedFiles.length" class="panel saved-materials" aria-label="Successfully uploaded files">
+    <h3 class="saved-heading"><button type="button" class="saved-toggle" :aria-expanded="expanded" :aria-controls="regionId" @click="setExpanded(!expanded)">
+      <span class="grow">Successfully Uploaded Files <span class="badge published">{{ savedFiles.length }}</span><span v-if="warningCount" class="warning-summary small">{{ warningCount }} file(s) have extraction notes · {{ warningSummary }}</span></span>
+      <span class="small">{{ expanded ? 'Hide files' : 'Show files' }}</span><span aria-hidden="true">{{ expanded ? '⌃' : '⌄' }}</span>
+    </button></h3>
+    <div :id="regionId" class="saved-region" :class="{ expanded }" :inert="!expanded" :aria-hidden="!expanded">
+      <div class="saved-inner">
+        <article v-for="file in savedFiles" :key="file.id" class="material-row" :aria-label="file.name">
+          <div class="grow"><strong class="file-name">{{ file.name }}</strong><div class="small muted"><span class="badge published">Uploaded</span> · {{ file.total }} excerpt(s) saved</div>
+            <details v-if="file.note" class="small file-warning"><summary>Extraction notes — file saved</summary><p>{{ file.note }}</p><p>Check unread diagrams and AI descriptions in the report. Replace this file to read it again.</p></details>
+            <details class="small"><summary>View extracted text</summary><p v-for="p in pages.filter(p => fileKey(p) === file.id)" :key="p.id" class="extracted-text">{{ p.text }}</p></details>
+          </div>
+          <div class="material-actions"><button class="btn small" :disabled="locked || pending.some(f => f.replacement === file.id)" :aria-label="'Replace ' + file.name" @click="replaceFile(file.id)">Replace</button><button class="btn small" :disabled="locked || pending.some(f => f.replacement === file.id)" :aria-label="'Remove ' + file.name" @click="removeFile(file.id)">Remove</button></div>
+        </article>
+      </div>
+    </div>
+  </section>
+  <section class="panel upload-materials" aria-label="Upload materials">
+    <h3>Upload Materials</h3>
+    <p class="small muted">PDF, PowerPoint, Word, TXT, Markdown or CSV · Up to 100 MB each, 20 files at once. Uploaded files are kept with this topic and are what the knowledge report is built from; a note typed in by hand or a scanned image goes in the material library instead.</p>
+    <p v-if="notes.length" class="small muted">{{ notes.length }} note(s) in this topic are part of the report: {{ notes.map((n) => n.title).join(' · ') }}</p>
+    <p v-if="!pendingFiles && !busy" class="small muted">{{ savedFiles.length ? 'Add another lecture file to this topic.' : 'Choose lecture files to get started.' }}</p>
+    <input ref="fileInput" aria-label="Lecture files" type="file" multiple :accept="ACCEPT" :disabled="locked" style="display:none" @change="choose" />
+    <input ref="replaceInput" aria-label="Replacement lecture file" type="file" :accept="ACCEPT" :disabled="locked" style="display:none" @change="choose($event,replaceTarget,retryTarget)" />
+    <button class="btn" :disabled="locked" @click="fileInput.click()">Choose files</button>
+    <details v-if="course.geminiEnabled" class="small upload-options"><summary>Image processing options</summary><label><input v-model="useAi" type="checkbox" :disabled="locked" /> Describe images with AI</label><p class="muted">Sends large pictures and scanned pages to Google Gemini (up to 40 per file). Check descriptions and unread diagrams in your report.</p></details>
     <p v-if="loading" role="status">Checking uploaded files…</p>
-    <p v-if="message" role="status">{{ message }} <button v-if="busy && controller" class="btn small" @click="cancel">Cancel</button></p>
+    <p v-if="message" class="small upload-message" role="status">{{ message }} <button v-if="busy && controller" class="btn small" @click="cancel">Cancel</button></p>
     <p v-if="error" class="note bad" role="alert">{{ error }}</p>
-    <template v-if="files.length">
-      <ul class="file-list" aria-label="Lecture file upload status"><li v-for="file in fileStatus" :key="file.id"><span>{{ file.name }}</span> — <strong>{{ file.status }}</strong> <span v-if="file.note" class="small muted">{{ file.note }}</span><span class="file-actions"><button class="btn small" :disabled="loading || busy || disabled" :aria-label="'Replace ' + file.name" @click="replaceFile(file.id)">Replace</button><button class="btn small" :disabled="loading || busy || disabled" :aria-label="'Remove ' + file.name" @click="removeFile(file.id)">Remove</button></span></li></ul>
-      <p v-if="!unsaved.length">All uploaded material is saved.</p>
-      <p v-else-if="!busy" class="note warn" role="status">{{ pendingFiles === 1 ? '1 file is' : pendingFiles + ' files are' }} not uploaded yet. Tick the box below and click <strong>Upload files</strong>; reports only use uploaded files.</p>
-      <label v-if="unsaved.length"><input v-model="confirmed" type="checkbox" :disabled="busy || disabled" /> This is authorised course material without student personal data.</label>
-      <button v-if="unsaved.length" class="btn primary" :disabled="loading || busy || disabled || !confirmed" @click="save">Upload files</button>
-      <p v-else class="small muted">Nothing more to upload. Next step: {{ inWorkflow ? 'click Generate report below' : 'Generate report on the AI drafting page' }}.</p>
-    </template>
-  </div>
+    <button v-if="!verified && !loading" class="btn" @click="reconnect">Retry connection</button>
+    <div v-if="active?.status === 'Reading'" class="material-row" role="status"><strong class="file-name">{{ active.name }}</strong><span>Reading…</span></div>
+    <article v-for="file in pending" :key="file.id" class="material-row" :aria-label="file.name">
+      <div class="grow"><strong class="file-name">{{ file.name }}</strong><div class="small" :class="file.failure ? 'file-warning' : 'muted'">{{ file.status }} · {{ file.saved }}/{{ file.total }} excerpts saved</div><p v-if="file.replacement" class="small muted">Replacement: the original stays attached until this file is fully saved.</p><p v-if="file.failure" class="small file-warning" role="alert">{{ file.failure }}</p><details v-if="file.note" class="small"><summary>Extraction notes</summary>{{ file.note }}</details></div>
+      <div class="material-actions"><button v-if="file.failure || file.saved" class="btn small" :disabled="locked || !confirmed" :aria-label="'Retry ' + file.name" @click="save(file.id)">Retry</button><button class="btn small" :disabled="locked" :aria-label="'Remove ' + file.name" @click="removeFile(file.id)">Remove</button></div>
+    </article>
+    <article v-for="file in failures.filter(f => f.id !== active?.id)" :key="file.id" class="material-row" :aria-label="file.name">
+      <div class="grow"><strong class="file-name">{{ file.name }}</strong><div class="small file-warning">Could not read file</div><p class="small" role="alert">{{ file.error }}</p></div>
+      <div class="material-actions"><button class="btn small" :disabled="locked" :aria-label="'Retry ' + file.name" @click="retryFile(file)">Retry</button><button class="btn small" :disabled="locked" :aria-label="'Remove ' + file.name" @click="removeFile(file.id)">Remove</button></div>
+    </article>
+    <label v-if="pending.length" class="small"><input v-model="confirmed" type="checkbox" :disabled="busy || disabled" /> This is authorised course material without student personal data.</label>
+    <button v-if="pending.length" class="btn primary" :disabled="locked || !confirmed" @click="save()">Upload files</button>
+  </section>
 </template>
+
+<style scoped>
+.saved-materials { padding: 0; overflow: hidden; }
+.saved-heading { margin: 0; }
+.saved-toggle { width: 100%; display: flex; align-items: center; gap: 12px; text-align: left; padding: 16px 18px; border: 0; background: transparent; color: var(--ink); font: inherit; cursor: pointer; }
+.saved-toggle:hover { background: var(--accent-soft); }
+.saved-toggle:focus-visible { outline: 2px solid var(--accent); outline-offset: -3px; }
+.warning-summary { display: block; color: var(--warn); font-weight: 400; margin-top: 5px; }
+.saved-region { display: grid; grid-template-rows: 0fr; visibility: hidden; transition: grid-template-rows .2s ease, visibility .2s; }
+.saved-region.expanded { grid-template-rows: 1fr; visibility: visible; }
+.saved-inner { min-height: 0; overflow: hidden; }
+.saved-inner .material-row { margin: 0 18px; }
+.material-row { display: flex; align-items: flex-start; gap: 14px; padding: 12px 0; border-top: 1px solid var(--line); }
+.file-name { display: block; overflow-wrap: anywhere; }
+.material-actions { display: flex; flex-wrap: wrap; gap: 6px; flex-shrink: 0; }
+.file-warning { color: var(--warn); }
+.material-row p { margin: 5px 0; }
+.material-row details { margin-top: 6px; }
+summary { cursor: pointer; }
+.upload-options, .upload-message { margin: 12px 0; }
+.extracted-text { white-space: pre-wrap; overflow-wrap: anywhere; max-height: 240px; overflow: auto; }
+@media (max-width: 540px) { .material-row { flex-direction: column; gap: 8px; } .saved-toggle { flex-wrap: wrap; gap: 8px; } .saved-toggle > .grow { flex-basis: 100%; } }
+@media (prefers-reduced-motion: reduce) { .saved-region { transition: none; } }
+</style>

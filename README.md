@@ -13,11 +13,12 @@ pets, kingdom buildings and loot in a co-op multiplayer World.
 
 - **Question bank:** single answer, select-all, true/false, numeric, short answer
   and maths templates (fresh numbers per student), with versioning and review.
-- **Source material:** paste text or import multiple PDFs, PPTX decks (with
-  speaker notes), TXT, Markdown or CSV files. Text is extracted in the
-  browser, so the PDF itself never leaves the professor's machine.
-- **AI drafting:** questions drafted from retrieved course material, always saved
-  as drafts for professor review. An offline drafter works without an AI key.
+- **AI drafting:** weekly topics, lecture-file upload (PDF, PPTX decks with
+  speaker notes, TXT, Markdown or CSV), a knowledge report, and questions
+  drafted from that material, always saved as drafts for professor review. Text
+  is extracted in the browser, so the PDF itself never leaves the professor's
+  machine. Every drafted question comes from Gemini; without a key, AI drafting
+  is unavailable and questions can still be written by hand.
 - **Adaptive practice:** broad at first, then ~70% general / ~30% weaker topics,
   favouring questions similar to ones the student got wrong. Timers, extra
   time and resume after refresh.
@@ -118,7 +119,9 @@ Run **one server at a time** per Supabase project. See
 | `pnpm build` | Build the Vue app into `dist/` |
 | `pnpm start` | Production: server on :3000 serving `dist/` (build first) |
 | `pnpm test` | API, database, World and store tests |
+| `pnpm test:unit` | Runs the Vitest unit tests (watch mode; use `pnpm exec vitest run` for one pass) |
 | `pnpm test:browser` | Builds, then runs the Playwright browser tests |
+| `pnpm test:e2e` | Runs the end-to-end tests in `e2e/` on Chromium, Firefox and WebKit |
 | `pnpm check` | Syntax-check the JavaScript files |
 | `pnpm reset-data` | Wipe local demo data (file store) |
 | `pnpm db:reset --confirm` | Wipe and re-seed the Supabase project |
@@ -127,6 +130,29 @@ For browser tests, run `npx playwright install chromium` once, or use Edge with
 `$env:BROWSER_CHANNEL='msedge'` (PowerShell). To check Safari's and Firefox's
 engines too, install them (`npx playwright install webkit firefox`) and set
 `$env:BROWSER='webkit'` or `'firefox'` before `npm run test:browser`.
+
+The end-to-end tests need all three engines (`npx playwright install chromium
+firefox webkit`). Each browser gets its own server and its own copy of the demo
+data, so a run never touches Supabase or your `data/db.json`. All four suites
+also run on every pull request.
+
+### Writing an end-to-end test
+
+Put it in `e2e/` as `<feature>.spec.js` and it runs on all three browsers and
+in CI. `e2e/helpers.js` has the shared parts:
+
+```js
+import { test, expect } from '@playwright/test';
+import { signIn, openTab, STUDENT } from './helpers.js';
+
+test('a student sees their own progress', async ({ page }) => {
+  await signIn(page, STUDENT);
+  await openTab(page, 'My Progress');
+  await expect(page.getByRole('heading', { name: 'My Progress' })).toBeVisible();
+});
+```
+
+Run one spec while you work on it: `pnpm exec playwright test e2e/your.spec.js`.
 
 ## Professor authoring workflow
 
@@ -154,6 +180,19 @@ recover in this browser, and saves persist on the server. Concurrent saves use a
 revision check; another professor's saved version never silently replaces the editor.
 The preview renders headings, emphasis, lists and code; advanced Markdown and LaTeX
 remain literal text. Saved reports may contain up to 50,000 characters.
+
+**`Prompt.txt` is the authoritative wording for Gemini.** `PROMPT 1 — LECTURE ANALYSIS`
+is sent with every knowledge-report request and `PROMPT 2 — QUESTION GENERATION` with
+every drafting request (`src/quiz/prompts.js`). Edit the file to change what the
+professor asks Gemini; the server re-reads it when it changes, and an edited Prompt 1
+produces a fresh report instead of a cached one. QuizQuest appends its own rules after
+each prompt (response schemas, citations, injection defences, plain-text maths) and
+states explicitly where they win. For example, the professor's chosen question types
+and quantities replace Prompt 2's "10 multiple-choice questions", and coding questions
+are only written when the material contains code. Precedence for drafting, highest
+first: QuizQuest rules and schemas; the professor's settings for the batch; the
+course's Subject guidance; then Prompt.txt. A missing or malformed `Prompt.txt` stops
+AI authoring with a clear error before any Gemini request.
 
 Normal-sized material is understood holistically in one request (up to about 70,000
 characters per group); larger inputs use cached groups and bounded synthesis. The
@@ -242,9 +281,35 @@ src/quiz/           API routes, sign-in, grading, adaptive engine, rewards, AI
 src/world/          multiplayer World (Socket.IO)
 src/db/             Supabase store and table mapping
 supabase/           database migration (SQL)
+prompts/            prompt files the server reads at request time
 test/               automated tests
 docs/               API research
 ```
+
+## The AI's voice
+
+The questions Gemini drafts are given the app's design and voice guidance from
+[prompts/design-guidance.md](prompts/design-guidance.md), so what it writes
+sounds like the game rather than like a worksheet. The file is read on every
+prompt, so you can edit the wording and the next draft uses it - no rebuild, no
+restart, no code change. Emptying the file turns the guidance off.
+
+This is the app's own direction. The per-course **Subject guidance** box on the
+Settings page is still sent first, so a professor can add to it. The
+teacher-facing knowledge report deliberately keeps the calm, conventional voice
+instead - the brand book keeps teacher pages data-focused.
+
+Three sets of instructions reach Gemini when a question is drafted, and they
+settle their own order:
+
+1. the **QuizQuest rules** in the prompt itself - format, grounding, difficulty,
+   response schema;
+2. the **professor's settings** for the batch and the course's **Subject
+   guidance**;
+3. the professor instructions in **`Prompt.txt`** (PROMPT 2).
+
+The design and voice guidance is style only. It never overrides any of those -
+it fills the gaps they leave on voice and framing.
 
 ## Documentation
 

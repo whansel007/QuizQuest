@@ -7,29 +7,29 @@
 //    ->  validate structure in code (validate.js / formats.js)
 //    ->  store survivors as DRAFTS for human review
 //
-// Drafters:
-//   - Gemini, if GEMINI_API_KEY is set (all formats).
-//   - An offline "template drafter" otherwise (single answer and
-//     true/false only), which turns definition sentences ("X is ...")
-//     into questions so the workflow can be demoed without a key.
+// Drafter: Gemini only (GEMINI_API_KEY), instructed by Prompt.txt's
+// PROMPT 2 plus the rules below. Without Gemini, generation returns an
+// actionable error; questions are never made up locally instead.
+// (Tests inject their own drafter.)
 //
 // The drafter only ever sees course material chunks: no student
 // identities, grades, or tool permissions.
 // ============================================================
 
 const crypto = require('crypto');
-const { validateQuestion, normalise, duplicateContent } = require('./validate');
+const { validateQuestion, duplicateContent } = require('./validate');
 const { retrieve } = require('./retrieval');
 const gemini = require('./gemini');
-const { STYLE_RULES } = require('./assessment');
+const { STYLE_RULES, APPLICATION_GUIDE, BLUEPRINT_SCHEMA } = require('./assessment');
+const designGuidance = require('./design-guidance');
+const { loadPrompts, professorPrompt } = require('./prompts');
 const { dayKey } = require('./time');
 
 const GEN = {
   maxBatch: 10,
   dailyCallsPerCourse: 30,
   retries: 2, // re-ask the model this many times on malformed output
-  promptVersion: 'v2',
-  templateFormats: ['mcq', 'tf'],
+  promptVersion: 'v4',
   aiFormats: ['mcq', 'tf', 'multi', 'numeric', 'short', 'param'],
 };
 
@@ -37,72 +37,6 @@ const inFlight = new Set(); // course ids with a drafting job running
 
 function inputHash(parts) {
   return crypto.createHash('sha256').update(JSON.stringify(parts)).digest('hex').slice(0, 16);
-}
-
-// --- Offline template drafter --------------------------------------
-const DEF_RE = /^(?:(?:A|An|The)\s+)?([A-Za-z0-9][A-Za-z0-9\- ]{0,40}?)\s+(is|are|means)\s+(.{15,300})$/;
-
-// chunk: { passageId, text }
-function definitions(chunk) {
-  const out = [];
-  for (const sentence of chunk.text.split(/(?<=[.!?])\s+/)) {
-    const m = sentence
-      .trim()
-      .replace(/[.!?]$/, '')
-      .match(DEF_RE);
-    if (!m) continue;
-    const term = m[1].trim();
-    if (term.split(' ').length > 5 || /^(it|this|that|there|each|for)\b/i.test(term)) continue;
-    const display = /^[a-z]/.test(term) ? term[0].toUpperCase() + term.slice(1) : term;
-    if (normalise(m[3]).includes(normalise(term))) continue; // definition gives it away
-    out.push({ term: display, verb: m[2], definition: m[3], passageId: chunk.passageId });
-  }
-  return out;
-}
-
-function templateDraft({ chunks, allCoursePassages, outcome, count, format, rand = Math.random }) {
-  // Ask only about chunks tagged with this outcome (when there are any);
-  // the whole course is used for distractors.
-  const exact = chunks.filter((c) => outcome && c.outcomeId === outcome.id);
-  const targets = (exact.length ? exact : chunks).flatMap(definitions);
-  const pool = allCoursePassages.map((p) => ({ passageId: p.id, text: p.text })).flatMap(definitions);
-  const uniqTerms = (list) => [...new Map(list.map((d) => [normalise(d.term), d.term])).values()];
-  const items = [];
-  for (const d of targets.sort(() => rand() - 0.5)) {
-    if (items.length >= count) break;
-    if (format === 'tf') {
-      const others = pool.filter((x) => normalise(x.term) !== normalise(d.term));
-      const lie = others.length && rand() < 0.5 ? others[Math.floor(rand() * others.length)] : null;
-      items.push({
-        type: 'tf',
-        stem: `True or false: ${d.term} ${d.verb} ${lie ? lie.definition : d.definition}.`,
-        answerIndex: lie ? 1 : 0,
-        explanation: lie
-          ? `False. ${d.term} ${d.verb} ${d.definition}. The description given matches ${lie.term}.`
-          : `True. ${d.term} ${d.verb} ${d.definition}.`,
-        difficulty: 'easy',
-        sourceIds: [...new Set([d.passageId, lie && lie.passageId].filter(Boolean))],
-      });
-      continue;
-    }
-    const near = uniqTerms(targets.filter((x) => x.passageId === d.passageId));
-    const far = uniqTerms(pool);
-    const distractors = [...near, ...far].filter((t, i, a) => normalise(t) !== normalise(d.term) && a.indexOf(t) === i).slice(0, 3);
-    if (distractors.length < 3) continue;
-    const options = [...distractors];
-    const answerIndex = Math.floor(rand() * 4);
-    options.splice(answerIndex, 0, d.term);
-    items.push({
-      type: 'mcq',
-      stem: `Which term best matches this description: "${d.definition}"?`,
-      options,
-      answerIndex,
-      explanation: `${d.term} ${d.verb} ${d.definition}.`,
-      difficulty: 'easy',
-      sourceIds: [d.passageId],
-    });
-  }
-  return { items, raw: JSON.stringify(items) };
 }
 
 // --- Gemini drafter ---------------------------------------------------
@@ -206,22 +140,55 @@ function questionSchema(quantities, format) {
   return {type:'OBJECT',properties:{questions:{type:'ARRAY',items:variants.length===1?variants[0]:{anyOf:variants}}},required:['questions']};
 }
 
-function buildUserPrompt({ course, topic, outcome, count, format, chunks, quantities }) {
+// PROMPT 2 is written for a chat ("10 multiple-choice questions", "the
+// Markdown document you prepared"). These rules map it onto one QuizQuest
+// batch and say which side wins where the two differ.
+function generationRules(sourceKind) {
+  return [
+    'QUIZQUEST RULES. Follow the professor instructions above together with these rules. Where they conflict, these rules win:',
+    '- Source: "the lecture materials and the Markdown document you prepared" are the SOURCE CHUNKS below' +
+      (sourceKind === 'report'
+        ? ". They hold the professor's saved knowledge report, written from the lecture materials and possibly extended by the professor; it is the only source."
+        : ', which are excerpts of the lecture materials.') +
+      ' Use only source-supported subject knowledge and methods.',
+    '- Number and types: write exactly the number and types of questions requested below, not a fixed 10 multiple-choice questions. The professor chose them for this batch.',
+    '- "4 options, one correct answer, and an explanation" applies to single-answer (mcq) questions. Other requested types follow their own format rules below, and every question has an explanation.',
+    '- Difficulty: mix moderate questions (difficulty "medium") and challenging ones (difficulty "hard"). Use "easy" only when the assessment configuration or subject guidance asks for easier questions.',
+    '- Style: test understanding and application of concepts, coding and calculations rather than recall of definitions. Write coding or calculation questions only where the source supports them. When the assessment configuration asks for conceptual questions, write conceptual questions that test understanding instead of application tasks.',
+    '- Coverage: cover different important topics and reasoning tasks from the source. Changing only numbers or paraphrasing the same decision is a duplicate.',
+    '- Cite only passages actually needed to support the answer and explanation.',
+    "- Precedence, highest first: these rules and the response schema; the professor's settings for this batch (topic, learning outcome, question types and quantities, assessment configuration); the instructor's subject guidance for this course; then the professor instructions above.",
+    '- Write maths and units in plain text (e.g. 1 px = 1/96 inch, x^2 + 1); never use LaTeX or $ delimiters, which are not rendered. Use × for multiplication, not *.',
+  ];
+}
+
+function buildUserPrompt(ctx, prompts = loadPrompts()) {
+  const { course, topic, outcome, count, format, chunks, quantities } = ctx;
   // Strip anything that could close our delimiter early
   const safe = (s) => String(s).replace(/<\/?chunk[^>]*>/gi, '');
   return [
+    professorPrompt(prompts.generation),
+    '',
+    ...generationRules(ctx.sourceKind),
+    '',
     `Course: ${course.title}`,
     `Topic: ${topic.name}`,
     `Learning outcome: ${outcome.text}`,
-    course.promptConfig ? `Subject guidance from the instructor: ${course.promptConfig}` : '',
-    'Write maths and units in plain text (e.g. 1 px = 1/96 inch, x^2 + 1); never use LaTeX or $ delimiters, which are not rendered. Use × for multiplication, not *.',
+    course.promptConfig ? `Subject guidance from the instructor: ${course.promptConfig}` : null,
     `Write ${count} question(s). Format rules: ${quantities ? Object.keys(quantities).map((type) => FORMAT_RULES[type]).join('\n') : FORMAT_RULES[format]}`,
-    quantities ? `Required quantities by type (return exactly these remaining slots): ${JSON.stringify(quantities)}` : '',
+    quantities ? `Required quantities by type (return exactly these remaining slots): ${JSON.stringify(quantities)}` : null,
+    'Professor assessment configuration: ' + (ctx.guidance || ''),
+    'Do not repeat these existing stems: ' + JSON.stringify((ctx.existingStems || []).slice(-80)),
+    'Repair feedback from previous invalid slots: ' + JSON.stringify(ctx.validationFeedback || []),
+    'Return {"questions":[...]}, matching the response schema.',
     '',
     'SOURCE CHUNKS:',
     ...chunks.map((c) => `<chunk passage_id="${c.passageId}">\n${safe(c.text)}\n</chunk>`),
+    // The app's own voice, so what Gemini writes sounds like the game. It is
+    // the last thing before the answer so it is not buried under the material.
+    designGuidance.guidanceBlock() || null,
   ]
-    .filter((l) => l !== '')
+    .filter((l) => l !== null)
     .join('\n');
 }
 
@@ -231,21 +198,19 @@ async function geminiDraft(ctx, client = gemini.generateJson) {
     schema.properties.applicationSupported={type:'BOOLEAN'};
     schema.properties.limitation={type:'STRING'};
     schema.required.push('applicationSupported','limitation');
+    // A blueprint written before the stem makes the model commit to the
+    // reasoning task first. Gemini orders properties alphabetically unless told.
+    const items=schema.properties.questions.items;
+    for(const variant of items.anyOf || [items]) {
+      variant.properties={blueprint:BLUEPRINT_SCHEMA,...variant.properties};
+      variant.required=['blueprint',...variant.required];
+      variant.propertyOrdering=Object.keys(variant.properties);
+    }
   }
+  const guide=ctx.assessment && ctx.assessment.style!=='conceptual' ? '\n'+APPLICATION_GUIDE : '';
   const { json, raw, model } = await client({
-    system: SYSTEM_PROMPT + (ctx.assessment ? ' '+STYLE_RULES : ''),
-    parts: [
-      {
-        text:
-          buildUserPrompt(ctx) +
-          '\nReturn {"questions":[...]}, matching the response schema. Cover different important concepts and reasoning tasks. Changing only numbers or paraphrasing the same decision is a duplicate. Follow the professor\'s requested difficulty and question styles. Cite only passages actually needed to support the answer and explanation.\nProfessor assessment configuration: ' +
-          (ctx.guidance || '') +
-          '\nDo not repeat these existing stems: ' +
-          JSON.stringify((ctx.existingStems || []).slice(-80)) +
-          '\nRepair feedback from previous invalid slots: ' +
-          JSON.stringify(ctx.validationFeedback || []),
-      },
-    ],
+    system: SYSTEM_PROMPT + (ctx.assessment ? ' '+STYLE_RULES+guide : ''),
+    parts: [{ text: buildUserPrompt(ctx) }],
     schema,
   });
   if (!Array.isArray(json.questions)) throw new Error('missing questions array');
@@ -285,23 +250,28 @@ async function generate({
   if (!Number.isInteger(count) || count < 1 || count > GEN.maxBatch)
     return { status: 400, body: { error: `Batch size must be an integer from 1 to ${GEN.maxBatch}.` } };
   focus = String(focus || '').slice(0, 200);
-  const provider = drafter ? providerName || 'custom' : gemini.enabled() ? 'gemini' : 'template';
-  const formats = provider === 'template' ? GEN.templateFormats : GEN.aiFormats;
-  if ((!quantities && !formats.includes(format)) || (quantities && (
-    provider === 'template' || Object.keys(quantities).some((type) => !formats.includes(type)) ||
-    Object.values(quantities).some((n) => !Number.isInteger(n) || n < 1) ||
-    Object.values(quantities).reduce((a, b) => a + b, 0) !== count
-  ))) {
+  // Gemini writes every generated question. Without it, say so rather than
+  // drafting locally. (The authoring queue and tests pass their own drafter.)
+  if (!drafter && !gemini.enabled())
     return {
-      status: 400,
+      status: 503,
       body: {
-        error:
-          provider === 'template'
-            ? 'The offline drafter only writes single-answer and true/false questions. Set GEMINI_API_KEY for other formats, or write them by hand.'
-            : 'Unknown format.',
+        error: 'AI drafting needs Gemini, which is not configured on this server. Ask your administrator to set GEMINI_API_KEY, or write questions by hand in the Question bank.',
+        code: 'GEMINI_UNAVAILABLE',
       },
     };
+  let prompts = null;
+  if (!drafter) {
+    try { prompts = loadPrompts(); }
+    catch (e) { return { status: 500, body: { error: e.message, code: e.code } }; }
   }
+  const provider = drafter ? providerName || 'custom' : 'gemini';
+  if ((!quantities && !GEN.aiFormats.includes(format)) || (quantities && (
+    Object.keys(quantities).some((type) => !GEN.aiFormats.includes(type)) ||
+    Object.values(quantities).some((n) => !Number.isInteger(n) || n < 1) ||
+    Object.values(quantities).reduce((a, b) => a + b, 0) !== count
+  )))
+    return { status: 400, body: { error: 'Unknown format.' } };
 
   const coursePassages = db.passages.filter((p) => p.courseId === course.id && (!passageIds || passageIds.includes(p.id)));
   const chunks = sourceChunks || retrieve(
@@ -322,6 +292,7 @@ async function generate({
 
   const hash = inputHash([
     GEN.promptVersion,
+    prompts ? prompts.generation.digest : '',
     provider,
     provider === 'gemini' ? gemini.model() : '',
     course.id,
@@ -368,8 +339,8 @@ async function generate({
     };
   }
 
-  const ctx = { course, topic, outcome, count, format, chunks, allCoursePassages: coursePassages, guidance, assessment };
-  const run = drafter || (provider === 'gemini' ? geminiDraft : templateDraft);
+  const ctx = { course, topic, outcome, count, format, chunks, sourceKind: sourceChunks ? 'report' : 'lecture', allCoursePassages: coursePassages, guidance, assessment };
+  const run = drafter || geminiDraft;
   const log = db.generationLog.find((g) => g.id === resumeLogId && g.courseId === course.id) || {
     id: 'gen-' + crypto.randomUUID().slice(0, 8),
     courseId: course.id,
@@ -450,7 +421,7 @@ async function generate({
         if (q.type === 'mcq' && q.options?.length !== 4) errors.push('Generated MCQs require exactly four options.');
         if (q.type === 'multi' && q.answerIndexes.length < 2) errors.push('Generated Multi-select questions require multiple correct answers.');
         if (
-          q.type === 'mcq' && provider !== 'template' &&
+          q.type === 'mcq' &&
           db.questions.some(
             (existing) =>
               existing.courseId === course.id && existing.status !== 'rejected' && duplicateContent(q, existing.versions.at(-1)),
@@ -529,4 +500,4 @@ async function generate({
   };
 }
 
-module.exports = { GEN, generate, templateDraft, definitions, buildUserPrompt, geminiDraft, questionSchema };
+module.exports = { GEN, generate, buildUserPrompt, geminiDraft, questionSchema };

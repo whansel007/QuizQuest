@@ -101,7 +101,7 @@ test('switching professors refreshes course data and visits every teacher view',
   await page.getByRole('menuitem', { name: 'Log out' }).click();
   await unlockTestAccounts(page); // the demo accounts are hidden again after signing out
   await page.getByRole('button', { name: 'Prof. Demo B' }).click();
-  for (const name of ['Question bank', 'Source material', 'AI drafting', 'Analytics', 'Evaluation', 'Settings']) {
+  for (const name of ['Question bank', 'AI drafting', 'Analytics', 'Evaluation', 'Settings']) {
     await page.locator('#tabs').getByRole('button', { name, exact: true }).click();
     await page.locator('main h2').waitFor();
     assert.equal(await page.locator('main').getByText('Not found.', { exact: true }).count(), 0);
@@ -184,6 +184,28 @@ test('signing in with email and password', async (t) => {
   await page.locator('#tabs').getByRole('button', { name: 'Question bank', exact: true }).click();
   await page.getByRole('heading', { name: 'Question bank', exact: true }).waitFor();
 });
+test('the sign-up form does not steal the focus from the field being typed in', async (t) => {
+  const page = await browser.newPage();
+  t.after(() => page.close());
+  await page.goto(base);
+  // Slow the slide right down, so the focus lands while the card is still
+  // moving in and the app still has its eye on the name field.
+  await page.addStyleTag({ content: '.qq-step-enter-active { transition-duration: 2s !important; }' });
+  await page.getByRole('button', { name: 'Create a student account' }).click();
+  const name = page.locator('#signup-name');
+  const password = page.locator('#signup-password');
+  await name.waitFor({ state: 'attached' });
+  // The user starts typing in the password field before the card settles.
+  await page.evaluate(() => document.querySelector('#signup-password').focus());
+  await page.waitForTimeout(3000);
+  assert.equal(
+    await page.evaluate(() => document.activeElement.id),
+    'signup-password',
+    'the focus stays in the field the user is typing in',
+  );
+  await password.fill('longenough');
+  assert.equal(await name.inputValue(), '', 'the password never lands in the name field');
+});
 test('the Konami debug menu exposes test accounts and fills the sign-in form', async (t) => {
   const page = await browser.newPage();
   t.after(() => page.close());
@@ -219,7 +241,10 @@ test('hero lab picks a hero and hands off to the arena', async (t) => {
   await page.goto(`${base}/hero-lab`);
   await page.getByRole('heading', { name: 'Choose your hero' }).waitFor();
   assert.deepEqual(errors, [], 'the picker loads its hero list without errors');
-  const cards = page.locator('#hero-list button');
+  // The picker offers each hero as a link into the arena, so the cards are
+  // anchors, not buttons.
+  const cards = page.locator('#hero-list a');
+  await cards.first().waitFor();
   assert.equal(await cards.count(), 6);
   for (const hero of ['Guardian', 'Sheriff', 'Pilot', 'Bombardier', 'Bubbles', 'Electromancer']) {
     assert.ok(await cards.filter({ hasText: hero }).count(), `${hero} is offered`);
@@ -267,7 +292,7 @@ test('student and teacher screens fit 320px and 390px viewports', async (t) => {
   await unlockTestAccounts(page);
   await page.getByRole('button', { name: 'Prof. Demo A' }).click();
   await page.setViewportSize({ width: 320, height: 800 });
-  for (const name of ['Question bank', 'Source material', 'AI drafting', 'Analytics', 'Evaluation', 'Settings']) {
+  for (const name of ['Question bank', 'AI drafting', 'Analytics', 'Evaluation', 'Settings']) {
     await page.locator('#tabs').getByRole('button', { name, exact: true }).click();
     await page.locator('main h2').waitFor();
     const overflow = await page.evaluate(() => document.documentElement.scrollWidth - innerWidth);
@@ -334,13 +359,28 @@ test('kingdom builds drop new blocks in place and the summon reveal hands over t
   const R = require('../src/quiz/rewards');
   R.inventory(srv.quiz.db, 's-03').resources = { wood: 40, crystal: 40, herb: 40 };
   await page.locator('#tabs').getByRole('button', { name: 'Kingdom' }).click();
-  const scene = page.getByRole('img', { name: /Your kingdom: castle level 0/ });
+  // How the kingdom is drawn is the student's side of the work, and it is
+  // being redrawn as a 2D map, so this test goes after what the kingdom says
+  // and does rather than after how it is drawn. The scene is found by the text
+  // of its accessible name, so it does not matter whether the scene ends up
+  // being an <svg> or a <div>. The one thing it must keep is an accessible
+  // name that says what the kingdom is.
+  const scene = page.locator('[aria-label*="Your kingdom: castle level 0"]');
   await scene.waitFor();
-  await page.getByRole('button', { name: /^Build: / }).first().hover();
-  assert.ok(await page.locator('.iso .vx.ghost').count() > 0, 'hovering Build previews ghost blocks');
-  await page.getByRole('button', { name: /^Build: / }).first().click();
-  await page.getByRole('img', { name: /Library level 1/ }).waitFor();
-  assert.ok(await page.locator('.iso .vx.drop').count() > 0, 'new blocks drop in without remounting the view');
+  const build = page.getByRole('button', { name: /^Build: / }).first();
+  await build.hover();
+  // The ghost preview and the drop are isometric details, so they are only
+  // checked when the isometric scene is the one on screen.
+  const isometric = (await page.locator('.iso .vx').count()) > 0;
+  if (isometric) {
+    assert.ok(await page.locator('.iso .vx.ghost').count() > 0, 'hovering Build previews ghost blocks');
+  }
+  await build.click();
+  // The first plot is the Library, so building it takes the Library to level 1.
+  await page.locator('[aria-label*="Library level 1"]').waitFor();
+  if (isometric) {
+    assert.ok(await page.locator('.iso .vx.drop').count() > 0, 'new blocks drop in without remounting the view');
+  }
   assert.equal(await page.locator('.tile .v').first().innerText(), '🪵 35');
 
   srv.quiz.db.ledger.push({ id: 'test-funds-3', studentId: 's-03', amount: 100, kind: 'refund', refKey: 'test-funds-3', at: Date.now() });
@@ -370,7 +410,12 @@ test('kingdom builds drop new blocks in place and the summon reveal hands over t
 
 test('PDF upload extracts text locally and saves reviewed source material', async (t) => {
   const page = await pageFor(t, 'Prof. Demo A');
-  await page.locator('#tabs').getByRole('button', { name: 'Source material' }).click();
+  await page.locator('#tabs').getByRole('button', { name: 'AI drafting' }).click();
+  await page.getByText('Material library · Notes, images & older files',{exact:true}).click();
+  // This panel reads the file in the browser and saves a note. The upload
+  // panel above is the one that uploads to the server, so the two must not
+  // be mistaken for each other.
+  await page.locator('b', { hasText: 'read in your browser' }).waitFor();
   // Small valid PDF fixture assembled in memory (no external tool or service).
   const text = 'Network latency is the time required for a packet to reach its destination.';
   const stream = `BT /F1 12 Tf 40 750 Td (${text}) Tj ET`;
@@ -397,8 +442,9 @@ test('PDF upload extracts text locally and saves reviewed source material', asyn
 
 test('"Add material" creates a new topic with a typed learning outcome', async (t) => {
   const page = await pageFor(t, 'Prof. Demo A');
-  await page.locator('#tabs').getByRole('button', { name: 'Source material' }).click();
-  const panel = page.locator('.panel', { has: page.getByRole('heading', { name: 'Add material', exact: true }) });
+  await page.locator('#tabs').getByRole('button', { name: 'AI drafting' }).click();
+  await page.getByText('Material library · Notes, images & older files',{exact:true}).click();
+  const panel = page.locator('.panel', { has: page.getByRole('heading', { name: 'Add notes or transcribe images', exact: true }) });
   await panel.getByLabel('Title').fill('Cloud notes');
   await panel.getByLabel('Topic', { exact: true }).selectOption({ label: '+ New topic…' });
   await panel.getByLabel('Week').fill('9');
@@ -421,7 +467,45 @@ test('"Add material" creates a new topic with a typed learning outcome', async (
   assert.deepEqual(topic.outcomes.map((o) => o.text), ['Explain what cloud computing offers']);
   assert.ok(srv.quiz.db.passages.some((p) => p.title === 'Cloud notes' && p.topicId === topic.id && p.outcomeId === topic.outcomes[0].id));
   // the new outcome is now offered in the list
-  await page.locator('.panel', { has: page.getByRole('heading', { name: 'Add material', exact: true }) }).getByLabel('Learning outcome', { exact: true }).locator('option', { hasText: 'Explain what cloud computing offers' }).waitFor({ state: 'attached' });
+  await page.getByText('Material library · Notes, images & older files',{exact:true}).click();
+  await page.locator('.panel', { has: page.getByRole('heading', { name: 'Add notes or transcribe images', exact: true }) }).getByLabel('Learning outcome', { exact: true }).locator('option', { hasText: 'Explain what cloud computing offers' }).waitFor({ state: 'attached' });
+});
+
+test('the material library lists the files of a topic, not only its notes', async (t) => {
+  const page = await pageFor(t, 'Prof. Demo A');
+  // A lecture file uploaded for Week 2, the way the upload panel does it.
+  const login = await (
+    await fetch(base + '/api/login', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ userId: 't-a' }) })
+  ).json();
+  const auth = { 'content-type': 'application/json', authorization: 'Bearer ' + login.token };
+  const upload = await fetch(base + '/api/teacher/courses/c-comp/import', {
+    method: 'POST',
+    headers: auth,
+    body: JSON.stringify({
+      topicId: 'tp-net', outcomeId: 'lo-net-1', confirmNoPersonalData: true, origin: 'pdf',
+      documentId: 'e'.repeat(64), fileName: 'week2.pdf', title: 'week2.pdf · Page 1',
+      text: 'Routers forward packets towards another network.',
+    }),
+  });
+  assert.equal(upload.status, 201);
+  t.after(() => {
+    const { passages } = srv.quiz.db;
+    for (let i = passages.length - 1; i >= 0; i--) if (passages[i].fileName === 'week2.pdf') passages.splice(i, 1);
+    srv.quiz.services.save();
+  });
+  await page.locator('#tabs').getByRole('button', { name: 'AI drafting' }).click();
+  await page.getByLabel('Weekly topic').selectOption('tp-net');
+  await page.getByText('Material library · Notes, images & older files', { exact: true }).click();
+  // The topic counts the file it uses and lists it.
+  const heading = page.getByRole('heading', { name: /Week 2 · Networking basics/ });
+  await heading.waitFor();
+  assert.match(await heading.innerText(), /1 file\(s\)/, 'the topic counts the file it uses');
+  const topic = page.locator('.panel', { has: heading });
+  await topic.getByText('week2.pdf', { exact: false }).first().waitFor();
+  assert.equal(await page.getByText('No material in this topic yet.').count(), 0, 'the topic is not empty');
+  // The file is in a topic, so it is not waiting to be moved into one.
+  const unsorted = page.locator('.panel', { has: page.getByRole('heading', { name: /Files not in a topic/ }) });
+  if (await unsorted.count()) assert.equal(await unsorted.getByText('week2.pdf', { exact: false }).count(), 0);
 });
 
 test('dashboard: very low accuracy is flagged, commonly missed means under 60%, and empty comparisons stay quiet', async (t) => {
@@ -466,7 +550,9 @@ test('dashboard: very low accuracy is flagged, commonly missed means under 60%, 
   // downloads are named by what they hold, for whom and when
   const download = page.waitForEvent('download');
   await missed.getByRole('button', { name: 'Download CSV' }).click();
-  assert.match((await download).suggestedFilename(), /^Commonly missed questions - Computing - Tutorial Group A - All topics - last 30 days to \d{1,2} \w{3} \d{4}\.csv$/);
+  // the month is three letters for most of the year but four in September:
+  // the short form of September is "Sept" in the en-SG locale
+  assert.match((await download).suggestedFilename(), /^Commonly missed questions - Computing - Tutorial Group A - All topics - last 30 days to \d{1,2} \w{3,4} \d{4}\.csv$/);
   // no World answers yet: no "(0 in World)" and no empty Practice vs World panel
   assert.equal(await page.getByText('(0 in World)').count(), 0);
   assert.equal(await page.getByRole('heading', { name: 'Practice vs World' }).count(), 0);
@@ -482,7 +568,8 @@ test('dashboard: "This semester" uses the dates set in Settings', async (t) => {
   const tabs = page.locator('#tabs');
   await tabs.getByRole('button', { name: 'Analytics', exact: true }).click();
   await page.getByLabel('Period').selectOption('semester');
-  await page.getByText(/students who practised \(this semester, from \d{1,2} \w{3} \d{4}\)/).waitFor();
+  // the semester start moves with the date, so the month can be "Sept" too
+  await page.getByText(/students who practised \(this semester, from \d{1,2} \w{3,4} \d{4}\)/).waitFor();
   // the comparison says before what
   await page.getByText(/in the \d+ days before the semester/).first().waitFor();
   // without dates the dashboard stays put and points to Settings
@@ -525,17 +612,21 @@ test('dashboard: period filter, question detail, and a jump to the Question bank
   await timePager.getByText(`Showing ${(lastPage - 1) * 10 + 1}–${total} of ${total} questions`).waitFor();
   assert.equal(await page.locator('#dash-time tbody tr').count(), total - (lastPage - 1) * 10);
   assert.equal(await timePager.getByRole('button', { name: 'Next page' }).isDisabled(), true);
-  // group chips: "All" counts every question; a group filters the table to its questions
-  const chips = page.getByRole('group', { name: 'Question groups' }).getByRole('button');
-  assert.equal(await chips.first().innerText(), `All (${total})`);
-  const group = chips.nth(1);
-  const inGroup = Number((await group.innerText()).match(/\((\d+)\)$/)[1]);
-  const groupName = (await group.innerText()).replace(/^⚠ /, '').replace(/ \(\d+\)$/, '');
+  // group cards: one per group, counts add up to every question; a card
+  // filters the table to its questions and says what to do
+  const cards = page.getByRole('group', { name: 'Question groups' }).getByRole('button');
+  const counts = (await cards.locator('.zc-n').allInnerTexts()).map(Number);
+  assert.equal(counts.reduce((x, y) => x + y, 0), total);
+  assert.ok((await cards.allInnerTexts()).every((c) => c.includes('What to do:')));
+  const group = cards.first();
+  const inGroup = counts[0];
+  const groupName = (await group.locator('.zc-label').innerText()).replace(/^⚠ /, '');
   await group.click();
   assert.equal(await group.getAttribute('aria-pressed'), 'true');
   await page.waitForFunction((n) => document.querySelectorAll('#dash-time tbody tr').length === n, Math.min(inGroup, 10));
   assert.ok((await page.locator('#dash-time tbody td:nth-child(2)').allInnerTexts()).every((g) => g.replace(/^⚠ /, '') === groupName));
-  await chips.first().click();
+  await page.locator('#dash-time').getByRole('button', { name: `Show all ${total} questions` }).click();
+  assert.equal(await group.getAttribute('aria-pressed'), 'false');
   // learning outcomes open under a topic
   await page.getByRole('button', { name: 'Show learning outcomes for Data representation' }).click();
   await page.getByText('Convert between binary, decimal and hexadecimal', { exact: true }).waitFor();
@@ -624,19 +715,7 @@ test('dashboard: printing shows every row and open topic, and charts are one tab
   await outcome.waitFor({ state: 'detached' });
   assert.equal(await page.locator('#dash-time tbody tr').count(), 10);
 
-  // keyboard: Tab lands on the chart once, arrows move, Enter opens the question
-  const scatter = page.getByRole('img', { name: /Average time against accuracy/ });
-  await scatter.focus();
-  const tip = page.locator('#dash-time .viz-tip');
-  await tip.waitFor();
-  const first = await tip.locator('.t').innerText();
-  await page.keyboard.press('ArrowRight');
-  assert.notEqual(await tip.locator('.t').innerText(), first, 'moved to the next dot');
-  const shown = await tip.locator('.t').innerText();
-  await page.keyboard.press('Enter');
-  await page.getByRole('dialog').getByText(shown, { exact: false }).first().waitFor();
-  await page.keyboard.press('Escape');
-  // the heatmap is one stop too
+  // keyboard: the heatmap is one tab stop, arrows move inside
   const heat = page.getByRole('img', { name: /Answers by day and time/ });
   await heat.focus();
   await page.getByText(/^Mon 00:00–03:00: \d+ answers$/).waitFor();
@@ -788,23 +867,32 @@ test('weekly topics: narrow the dashboard, follow a next step, and add a topic f
   await page.waitForFunction(() => document.querySelectorAll('#dash-topics tbody tr:not(.subrow)').length === 3);
   assert.equal(await weeks.locator('tbody tr').count(), 3);
   // Source material's topic table follows its topic filter too
-  await page.locator('#tabs').getByRole('button', { name: 'Source material', exact: true }).click();
+  await page.locator('#tabs').getByRole('button', { name: 'AI drafting', exact: true }).click();
+  await page.getByRole('heading',{name:'Manage topics & learning outcomes',exact:true}).waitFor(); // always open
   await page.getByLabel('Weekly topic').selectOption('tp-sec');
-  await page.getByRole('heading', { name: 'Upload lecture material for Week 3 · Cyber hygiene' }).waitFor();
+  await page.getByRole('heading', { name: 'Upload Materials' }).waitFor();
+  // The upload panel says what uploading a file actually does, so it cannot
+  // be mistaken for the browser-side file inputs in the material library.
+  await page.locator('p', { hasText: 'Uploaded files are kept with this topic' }).waitFor();
+  await page.getByRole('heading',{name:'Manage topics & learning outcomes',exact:true}).waitFor(); // always open
+  await page.getByRole('button',{name:'Edit Cyber hygiene',exact:true}).waitFor();
   assert.deepEqual(await page.locator('.topic-table tbody tr:not(.subrow) td:first-child').allInnerTexts(), ['3']);
-  await page.getByLabel('Weekly topic').selectOption('');
+  await page.getByRole('button',{name:'Show all topics',exact:true}).click();
   await page.waitForFunction(() => document.querySelectorAll('.topic-table tbody tr:not(.subrow)').length === 3);
   // Source material: add Week 4; uploads then go into it
-  await page.locator('#tabs').getByRole('button', { name: 'Source material', exact: true }).click();
+  await page.locator('#tabs').getByRole('button', { name: 'AI drafting', exact: true }).click();
+  await page.getByRole('heading',{name:'Manage topics & learning outcomes',exact:true}).waitFor(); // always open
   await page.getByRole('button', { name: '+ Add topic' }).click();
   assert.equal(await page.getByLabel('Week', { exact: true }).inputValue(), '4', 'suggests the week after the latest');
   await page.getByLabel('Topic name').fill('Operating systems');
   await page.getByLabel('First learning outcome (optional)').fill('Explain what an operating system manages');
   await page.getByRole('button', { name: 'Add topic', exact: true }).click();
-  await page.getByRole('heading', { name: 'Upload lecture material for Week 4 · Operating systems' }).waitFor();
+  await page.getByText('Added Week 4 · Operating systems', {exact:true}).waitFor();
+  await page.getByRole('heading', { name: 'Upload Materials' }).waitFor();
   assert.equal(await page.getByLabel('Weekly topic').inputValue(), srv.quiz.db.topics.find((x) => x.name === 'Operating systems').id);
   assert.equal(srv.quiz.db.topics.find((x) => x.name === 'Operating systems').week, 4);
   // the new topic was never used, so it can be deleted again (keeps later tests unchanged)
+  await page.getByRole('heading',{name:'Manage topics & learning outcomes',exact:true}).waitFor(); // always open
   await page.getByRole('button', { name: 'Edit Operating systems' }).click();
   page.once('dialog', (d) => d.accept());
   await page.getByRole('button', { name: 'Delete topic' }).click();

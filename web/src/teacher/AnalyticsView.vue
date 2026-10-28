@@ -26,7 +26,6 @@ import TopicPicker from './TopicPicker.vue';
 import TopicsOverview from './dashboard/TopicsOverview.vue';
 import LineChart from './charts/LineChart.vue';
 import ColumnChart from './charts/ColumnChart.vue';
-import ScatterChart from './charts/ScatterChart.vue';
 import Sparkline from './charts/Sparkline.vue';
 import { zoneOf, zoneCounts, ZONES, ZONE_ORDER } from './charts/time-zones.mjs';
 import QuestionInsight from './QuestionInsight.vue';
@@ -372,7 +371,7 @@ const attention = computed(() => {
   if (uncovered) out.push({ icon: '○', text: `${plural(uncovered, 'learning outcome')} with no published questions`, go: () => goTo('dash-topics') });
   const idle = a.value.participation.enrolled - a.value.participation.active7d;
   if (idle > 0) out.push({ icon: '○', text: `${idle} of ${a.value.participation.enrolled} students haven't practised${scope.value} in the last 7 days` });
-  if (!a.value.topicId && a.value.overview.unsortedFiles) out.push({ icon: '⇢', text: `${plural(a.value.overview.unsortedFiles, 'uploaded file')} not in a weekly topic yet`, go: () => goTopic({ topicId: '', tab: 'content' }) });
+  if (!a.value.topicId && a.value.overview.unsortedFiles) out.push({ icon: '⇢', text: `${plural(a.value.overview.unsortedFiles, 'uploaded file')} not in a weekly topic yet`, go: () => goTopic({ topicId: '', tab: 'generate' }) });
   return out;
 });
 
@@ -473,8 +472,8 @@ const missed = computed(() => (a.value?.commonlyMissed || []).filter((q) => q.fi
 const missedPages = usePaged(() => missed.value, 5);
 
 // ---- time vs accuracy: each question lands in a plainly named group
-// (time-zones.mjs); the chips pick a group, highlight its dots and filter
-// the table. The table lists the groups worth a look first.
+// (time-zones.mjs). One card per group says what it means and what to do;
+// a card filters the table. The table lists the groups worth a look first.
 const zoneInput = (q) => ({ n: q.n, meanMs: q.meanMs, accuracy: q.accuracy.accuracy, flagged: q.confusing });
 const zoneOpts = computed(() => ({ slowMs: a.value.time.slowMs, maxAccuracy: a.value.time.maxAccuracy, lowN: a.value.time.minN }));
 const timeRows = computed(() =>
@@ -487,8 +486,9 @@ const timeShown = computed(() => (activeZone.value ? timeRows.value.filter((q) =
 const timePages = usePaged(() => timeShown.value, 10);
 watch(activeZone, () => timePages.go(1));
 const pickZone = (id) => (timeZone.value = activeZone.value === id ? '' : id);
-// n = marked answers (what the accuracy rests on), not every timed answer
-const scatter = computed(() => timeRows.value.map((q) => ({ id: q.questionId, label: q.stem, x: q.meanMs, y: q.accuracy.accuracy, n: q.accuracy.n, flagged: q.confusing, zone: q.zone })));
+// the table's time bars share one scale across every page, with the "slow" line on it
+const timeMaxMs = computed(() => Math.max(1, a.value?.time.slowMs || 0, ...timeRows.value.map((q) => q.meanMs)));
+const barPct = (part, whole) => `${Math.min(100, Math.max(0, (part / whole) * 100))}%`;
 
 // ---- CSV exports (no student names in any of these)
 // A name that says what is inside, e.g. "Commonly missed questions -
@@ -745,19 +745,23 @@ function missedCsv() {
             <h3 class="grow" tabindex="-1">Time and accuracy per question</h3>
             <button v-if="a.time.questions.length" class="btn small no-print" @click="timeCsv">Download CSV</button>
           </div>
-          <p class="small">Each dot is a question: <b>further right</b>, students took longer; <b>lower</b>, more of them got it wrong. Start with the shaded corner. Click a dot or a question for its details.</p>
+          <p class="small">Questions are grouped by how long students took and how often they got them right, and each group says what to do. Start with the first cards; pick one to list just its questions and see why they landed there, and click a question for its answer breakdown.</p>
           <details class="small muted how-measured">
             <summary>How this is measured</summary>
             <p>Average time from the question appearing to the answer arriving ({{ period }}), measured by the server. Each student counts once and timed-out answers are left out; times include reading and are not a measure of ability. <b>Slow</b> means slower than three quarters of questions ({{ a.time.slowMs === null ? `needs at least four questions with ${a.time.minN}+ answers` : secs(a.time.slowMs) + ' or more' }}); <b>often wrong</b> means under {{ pct(a.time.maxAccuracy) }} correct, counting every marked answer (first attempts and retries). Questions need at least {{ a.time.minN }} answers before they are placed in a group.</p>
           </details>
           <template v-if="a.time.questions.length">
-            <div class="chips zone-chips" role="group" aria-label="Question groups">
-              <button :aria-pressed="activeZone === '' ? 'true' : 'false'" @click="timeZone = ''">All ({{ a.time.questions.length }})</button>
-              <button v-for="z in zones" :key="z.id" :class="{ warn: z.id === 'reread' }" :aria-pressed="activeZone === z.id ? 'true' : 'false'" :title="z.hint" @click="pickZone(z.id)">{{ z.id === 'reread' ? '⚠ ' : '' }}{{ z.label }} ({{ z.count }})</button>
+            <div class="zone-cards" role="group" aria-label="Question groups">
+              <button v-for="z in zones" :key="z.id" :class="['zone-card', { act: z.act, warn: z.id === 'reread' }]" :aria-pressed="activeZone === z.id ? 'true' : 'false'" :title="z.hint" @click="pickZone(z.id)">
+                <span class="zc-head"><span class="zc-n">{{ z.count }}</span><span class="zc-label">{{ z.id === 'reread' ? '⚠ ' : '' }}{{ z.label }}</span></span>
+                <span class="zc-action"><b>What to do:</b> {{ z.action }}</span>
+              </button>
             </div>
-            <p v-if="activeZone" class="small muted zone-hint">{{ ZONES[activeZone].label }}: {{ ZONES[activeZone].hint }}.</p>
-            <ScatterChart :key="drawKey" :points="scatter" :slow-ms="a.time.slowMs" :max-accuracy="a.time.maxAccuracy" :low-n="a.time.minN" :highlight="activeZone" label="Average time against accuracy, one dot per question" @open="openQuestion" />
-            <div class="table-wrap" style="margin-top: 12px">
+            <p class="small muted zone-hint">
+              <template v-if="activeZone">Showing "{{ ZONES[activeZone].label }}" only: {{ ZONES[activeZone].hint }}. · <button class="linklike" @click="timeZone = ''">Show all {{ a.time.questions.length }} questions</button></template>
+              <template v-else>Showing all {{ a.time.questions.length }} questions, the groups to act on first. Bars mark the slow line (time) and the {{ pct(a.time.maxAccuracy) }} line (correct).</template>
+            </p>
+            <div class="table-wrap">
               <table class="dash-table">
                 <thead><tr><th>Question</th><th>Group</th><th>Topic</th><th>Students</th><th>Answers</th><th>Average time</th><th>Median</th><th>Correct (all answers)</th></tr></thead>
                 <tbody>
@@ -770,9 +774,15 @@ function missedCsv() {
                     <td class="label">{{ q.topic }}</td>
                     <td class="num">{{ q.students }}</td>
                     <td class="num">{{ q.n }}</td>
-                    <td class="num"><b>{{ secs(q.meanMs) }}</b></td>
+                    <td class="num">
+                      <b>{{ secs(q.meanMs) }}</b>
+                      <span class="cell-bar" aria-hidden="true"><span :style="{ width: barPct(q.meanMs, timeMaxMs) }"></span><i v-if="a.time.slowMs !== null" :style="{ left: barPct(a.time.slowMs, timeMaxMs) }"></i></span>
+                    </td>
                     <td class="num">{{ secs(q.medianMs) }}</td>
-                    <td class="num">{{ frac(q.accuracy) }}</td>
+                    <td class="num">
+                      {{ frac(q.accuracy) }}
+                      <span v-if="q.accuracy.n" class="cell-bar" aria-hidden="true"><span :style="{ width: barPct(q.accuracy.accuracy, 1) }"></span><i :style="{ left: barPct(a.time.maxAccuracy, 1) }"></i></span>
+                    </td>
                   </tr>
                 </tbody>
               </table>

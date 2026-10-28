@@ -10,6 +10,9 @@ import Field from '../components/Field.vue';
 import AsyncButton from '../components/AsyncButton.vue';
 import CoursePicker from './CoursePicker.vue';
 import AuthoringWorkflow from './AuthoringWorkflow.vue';
+import ImportMaterials from './ImportMaterials.vue';
+import MaterialLibrary from './MaterialLibrary.vue';
+import TopicManager from './TopicManager.vue';
 import TopicPicker from './TopicPicker.vue';
 import TopicForm from './TopicForm.vue';
 import { loadCourses, currentCourse, initialTags, syncTopic } from './courses.js';
@@ -26,7 +29,6 @@ const format = ref(null);
 const focus = ref('');
 const workflowTarget = ref(null);
 const topic = ref(null); // the weekly topic being worked on
-const addingTopic = ref(false);
 onMounted(async () => {
   try {
     courses.value = await loadCourses();
@@ -91,15 +93,17 @@ const outcomeText = (id) => course.value.topics.flatMap((t) => t.outcomes).find(
       <Heading title="AI drafting">
         <CoursePicker :courses="courses" />
         <TopicPicker v-if="course.topics.length" :topics="course.topics" @change="rerender" />
-        <button v-if="!addingTopic" class="btn" @click="addingTopic = true">+ New topic</button>
       </Heading>
-      <div v-if="addingTopic || !topic" class="panel">
-        <h3>{{ topic ? 'New weekly topic' : 'Add your first weekly topic' }}</h3>
+      <div v-if="!topic" class="panel">
+        <h3>Add your first weekly topic</h3>
         <p class="small muted">Lecture files, knowledge reports and questions are grouped by topic, and shared by all your classes for this course.</p>
-        <TopicForm :course="course" @created="rerender" @cancel="addingTopic = false" />
+        <TopicForm :course="course" @created="rerender" />
       </div>
+      <TopicManager v-if="topic" :course="course" @select="id => { S.topicId = id; rerender(); }" />
       <AuthoringWorkflow v-if="course.authoringEnabled && topic" :key="topic.id" :course="course" :topic="topic" :target="workflowTarget" />
-      <div v-else-if="!course.authoringEnabled" class="panel">
+      <ImportMaterials v-if="!course.authoringEnabled && topic" :key="topic.id" :course="course" :topic="topic" />
+      <details class="panel"><summary>Material library · Notes, images &amp; older files</summary><MaterialLibrary @changed="rerender" /></details>
+      <div v-if="!course.authoringEnabled" class="panel">
         <div class="note small">
           <b>Drafter: </b>{{ course.drafter }}. {{ course.geminiEnabled ? '' : 'Set GEMINI_API_KEY in the server environment to use Gemini and unlock every format. ' }}The drafter only sees the retrieved chunks - never student names, grades or tools. Structure checks (and maths sampling) run in code; correctness is your call during review.
         </div>

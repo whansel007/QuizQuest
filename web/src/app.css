@@ -15,6 +15,10 @@
   --warn-soft: #fdf1d8;
   --radius: 10px;
   --shadow: 0 1px 2px rgba(20, 24, 40, 0.06), 0 4px 14px rgba(20, 24, 40, 0.05);
+  /* one type system for the whole app: Fredoka for display, Nunito for text.
+     A brand book only has to retune these two tokens and everything follows. */
+  --font-display: "Fredoka", "Nunito", system-ui, sans-serif;
+  --font-body: "Nunito", system-ui, -apple-system, "Segoe UI", sans-serif;
 }
 @media (prefers-color-scheme: dark) {
   :root {
@@ -41,10 +45,12 @@ body {
   margin: 0;
   background: var(--bg);
   color: var(--ink);
-  font: 15px/1.5 system-ui, -apple-system, "Segoe UI", sans-serif;
+  font: 15px/1.5 var(--font-body);
 }
 a { color: var(--accent); }
 h1, h2, h3 { margin: 0 0 8px; line-height: 1.25; }
+/* page titles carry the display face, like the sign-in screen does */
+h1, h2 { font-family: var(--font-display); font-weight: 600; }
 h2 { font-size: 20px; }
 h3 { font-size: 16px; }
 p { margin: 0 0 10px; }
@@ -61,9 +67,13 @@ header#top {
   z-index: 5;
   flex-wrap: wrap;
 }
-.brand { font-weight: 800; font-size: 19px; letter-spacing: -0.3px; }
-.brand span { color: var(--accent); }
-.brand small { font-weight: 500; font-size: 11px; color: var(--muted); margin-left: 4px; text-transform: uppercase; letter-spacing: 0.6px; }
+/* the shield logo travels with the app now, not just the sign-in page */
+.brand { display: flex; align-items: center; gap: 8px; }
+.brand small { font-weight: 500; font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.6px; }
+header#top .qq-logo-word { color: var(--ink); }
+header#top .qq-logo-word span { color: var(--accent); }
+header#top .qq-logo-mark { filter: drop-shadow(0 3px 6px rgba(10, 30, 90, 0.25)); }
+header#top .qq-logo-spark { animation: none; }
 nav#tabs { display: flex; gap: 4px; flex: 1; flex-wrap: wrap; }
 nav#tabs button {
   background: none;
@@ -88,6 +98,10 @@ nav#tabs button[aria-current="page"] { background: var(--accent-soft); color: va
 main { max-width: 1040px; margin: 0 auto; padding: 22px 16px 60px; }
 main#main.main-world { max-width: none; padding: 16px 24px 22px; }
 footer { text-align: center; font-size: 12px; color: var(--muted); padding: 0 16px 24px; }
+/* the footer link is part of a line of prose, so it keeps its text size; the
+   tap area around it grows to 44px instead (WCAG 2.5.8) */
+footer a { position: relative; }
+footer a::after { content: ""; position: absolute; inset: -15px -6px; }
 
 /* Student pages are immersive full-screen scenes; navigation tucks above the
    viewport until the player moves to the top edge or focuses a nav control. */
@@ -383,8 +397,6 @@ main#main.main-progress .modal-overlay { background: rgb(20 38 28 / 58%); }
 .btn + .panel { margin-top: 12px; }
 :is(input, select, textarea, datalist, p) + label { margin-top: 12px; }
 .panel > label:has(> input[type="checkbox"]) { margin-bottom: 10px; }
-.file-list li { margin: 6px 0; }
-.file-actions { display: inline-flex; gap: 6px; margin-left: 8px; vertical-align: middle; }
 .grow { flex: 1; min-width: 0; }
 .grid { display: grid; gap: 12px; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); }
 .muted { color: var(--muted); }
@@ -484,7 +496,7 @@ th { font-size: 12px; text-transform: uppercase; letter-spacing: 0.4px; color: v
   --qq-teal: #2bb5a0;
   --qq-bad: #cf3f5a;
   --qq-bad-soft: #fde7ec;
-  --qq-display: "Fredoka", "Nunito", system-ui, sans-serif;
+  --qq-display: var(--font-display);
   position: relative;
   min-height: 100vh;
   min-height: 100dvh;
@@ -495,7 +507,7 @@ th { font-size: 12px; text-transform: uppercase; letter-spacing: 0.4px; color: v
   gap: 20px;
   padding: 32px 16px 20px;
   overflow: hidden;
-  font-family: "Nunito", system-ui, sans-serif;
+  font-family: var(--font-body);
   color: var(--qq-ink);
   background:
     radial-gradient(circle at 15% 20%, rgba(125, 211, 252, 0.35), transparent 40%),
@@ -518,6 +530,14 @@ th { font-size: 12px; text-transform: uppercase; letter-spacing: 0.4px; color: v
       linear-gradient(135deg, #0a1530 0%, #0f2a63 45%, #0b4a66 100%);
   }
 }
+
+/* WCAG 2.4.7 Focus Visible: every control on the sign-in page keeps a ring.
+   Violet on the pale card, pale blue on the deep hero panel. */
+.qq-login :is(button, a, select, textarea):focus-visible {
+  outline: 3px solid var(--qq-violet);
+  outline-offset: 2px;
+}
+.qq-login .qq-back:focus-visible { outline: 3px solid #9fe8ff; outline-offset: 2px; }
 
 /* floating quiz glyphs in the background */
 .qq-bg { position: absolute; inset: 0; pointer-events: none; }
@@ -551,7 +571,7 @@ th { font-size: 12px; text-transform: uppercase; letter-spacing: 0.4px; color: v
   0%, 100% { transform: scale(1) rotate(0deg); opacity: 1; }
   50% { transform: scale(0.6) rotate(45deg); opacity: 0.7; }
 }
-.qq-logo-word { font-family: var(--qq-display, "Fredoka", sans-serif); font-weight: 600; letter-spacing: -0.5px; line-height: 1; color: #fff; }
+.qq-logo-word { font-family: var(--font-display); font-weight: 600; letter-spacing: -0.5px; line-height: 1; color: #fff; }
 .qq-logo-word span { color: #9fe8ff; }
 
 /* layout: one framed panel, illustration on the left, form on the right */
@@ -706,6 +726,7 @@ th { font-size: 12px; text-transform: uppercase; letter-spacing: 0.4px; color: v
 .qq-card-foot { margin-top: auto; padding-top: 22px; text-align: center; }
 .qq-register { margin: 0; font-size: 14px; color: var(--qq-muted); }
 .qq-inline-link {
+  position: relative;
   padding: 0;
   border: 0;
   background: none;
@@ -714,7 +735,10 @@ th { font-size: 12px; text-transform: uppercase; letter-spacing: 0.4px; color: v
   color: var(--qq-violet);
   cursor: pointer;
 }
-.qq-inline-link:hover, .qq-inline-link:focus-visible { text-decoration: underline; outline: none; }
+/* it sits inside a sentence, so the text keeps its size and the tap area
+   grows to 44px around it instead (WCAG 2.5.8) */
+.qq-inline-link::after { content: ""; position: absolute; inset: -12px -6px; }
+.qq-inline-link:hover, .qq-inline-link:focus-visible { text-decoration: underline; }
 .qq-card-foot .qq-link { margin-top: 8px; }
 
 /* the card */
@@ -788,7 +812,7 @@ th { font-size: 12px; text-transform: uppercase; letter-spacing: 0.4px; color: v
   color: var(--qq-violet);
   cursor: pointer;
 }
-.qq-eye:hover, .qq-eye:focus-visible { background: rgba(59, 111, 224, 0.12); outline: none; }
+.qq-eye:hover, .qq-eye:focus-visible { background: rgba(59, 111, 224, 0.12); }
 
 .qq-error {
   margin: 10px 0 0;
@@ -843,7 +867,6 @@ th { font-size: 12px; text-transform: uppercase; letter-spacing: 0.4px; color: v
 .qq-btn:hover:not(:disabled) { transform: translateY(-2px); background-position: 100% 0; box-shadow: 0 14px 30px rgba(31, 178, 214, 0.45), 0 -3px 0 rgba(0, 0, 0, 0.12) inset; }
 .qq-btn:hover:not(:disabled)::before { left: 120%; }
 .qq-btn:active:not(:disabled) { transform: translateY(1px); box-shadow: 0 4px 12px rgba(59, 111, 224, 0.35); }
-.qq-btn:focus-visible { outline: 3px solid #9fe8ff; outline-offset: 3px; }
 .qq-btn:disabled { opacity: 0.75; cursor: progress; }
 .qq-btn-small { width: auto; font-size: 15px; padding: 9px 18px; margin-top: 12px; }
 .qq-arrow { display: inline-block; transition: transform 0.2s; }
@@ -868,7 +891,7 @@ th { font-size: 12px; text-transform: uppercase; letter-spacing: 0.4px; color: v
   font-weight: 700;
   cursor: pointer;
 }
-.qq-chip:hover, .qq-chip:focus-visible { border-color: var(--qq-violet); outline: none; }
+.qq-chip:hover, .qq-chip:focus-visible { border-color: var(--qq-violet); }
 .qq-chip-email { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
 .qq-chip-change { flex: none; font-size: 12px; color: var(--qq-violet); padding: 2px 8px; border-radius: 99px; background: rgba(59, 111, 224, 0.12); }
 .qq-avatar {
@@ -886,7 +909,12 @@ th { font-size: 12px; text-transform: uppercase; letter-spacing: 0.4px; color: v
 }
 
 .qq-link {
-  display: block;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  min-height: 44px;
+  min-width: 44px;
   margin: 18px auto 0;
   padding: 6px 12px;
   border: 0;
@@ -898,10 +926,12 @@ th { font-size: 12px; text-transform: uppercase; letter-spacing: 0.4px; color: v
   font-weight: 700;
   cursor: pointer;
 }
-.qq-link:hover, .qq-link:focus-visible { color: var(--qq-violet); background: rgba(59, 111, 224, 0.1); outline: none; }
+.qq-link:hover, .qq-link:focus-visible { color: var(--qq-violet); background: rgba(59, 111, 224, 0.1); }
 
 .qq-foot { position: relative; margin: 0; text-align: center; font-size: 12px; color: rgba(255, 255, 255, 0.85); }
-.qq-foot a { color: #fff; }
+.qq-foot a { color: #fff; position: relative; }
+/* same enlarged tap area as the app footer link (WCAG 2.5.8) */
+.qq-foot a::after { content: ""; position: absolute; inset: -15px -6px; }
 
 /* step slide: forward slides left, "Change" slides back right */
 .qq-step-enter-active, .qq-step-leave-active, .qq-step-back-enter-active, .qq-step-back-leave-active {
@@ -923,7 +953,7 @@ th { font-size: 12px; text-transform: uppercase; letter-spacing: 0.4px; color: v
   color: #fff;
   cursor: pointer;
 }
-.qq-back:hover, .qq-back:focus-visible { background: rgba(255, 255, 255, 0.28); outline: none; }
+.qq-back:hover, .qq-back:focus-visible { background: rgba(255, 255, 255, 0.28); }
 .qq-pass { font-size: 14px; font-weight: 700; padding: 2px 8px; border-radius: 8px; background: rgba(59, 111, 224, 0.14); color: var(--qq-violet); }
 .qq-group { font-family: var(--qq-display); font-weight: 600; font-size: 18px; margin: 18px 0 10px; color: var(--qq-ink); }
 .qq-acc-grid { display: grid; gap: 10px; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); }
@@ -1178,15 +1208,15 @@ button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible
 /* Categorical series colours: fixed slot order, validated for colour-blind
    separation against the light (#fff) and dark (#1d2029) panels. A topic
    keeps its slot (its order in the course) whatever is filtered. */
-.viz {
-  position: relative;
+.viz { position: relative; }
+.viz, .cell-bar {
   --viz-grid: #e8e6df;
   --viz-axis: #c3c2b7;
   --series-1: #2a78d6; --series-2: #eb6834; --series-3: #05a873; --series-4: #cd8300;
   --series-5: #dc709a; --series-6: #008300; --series-7: #4a3aa7; --series-8: #e34948;
 }
 @media (prefers-color-scheme: dark) {
-  .viz {
+  .viz, .cell-bar {
     --viz-grid: #2c2f3a;
     --viz-axis: #3d4150;
     --series-1: #3987e5; --series-2: #d95926; --series-3: #199e70; --series-4: #c98500;
@@ -1252,20 +1282,24 @@ button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible
 .tile .delta-hint { margin: 4px 0 0; }
 .chart-title { font-size: 13px; font-weight: 600; margin-bottom: 4px; }
 .multiples { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(240px, 100%), 1fr)); gap: 12px; }
-.viz .refline { stroke: var(--muted); stroke-width: 1; opacity: 0.6; }
-.viz .lifted { stroke-width: 3; }
-.viz-legend .k.dot { width: 9px; height: 9px; border-radius: 50%; }
-/* time vs accuracy: named corners, the shaded "worth rereading" corner, direct labels */
-.viz .zone-shade { fill: var(--warn-soft); }
-.viz .corner { font-size: 11px; fill: var(--muted); font-weight: 600; }
-.viz .corner.warn { fill: var(--warn); }
-.viz .axis-title { font-weight: 600; }
+/* time vs accuracy: one card per group (the groups to act on first), and
+   thin bars in the table cells with the "slow" / "often wrong" line marked */
+.zone-cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(170px, 100%), 1fr)); gap: 10px; margin: 4px 0 10px; }
+.zone-card { display: flex; flex-direction: column; gap: 4px; text-align: left; font: inherit; font-size: 13px; color: var(--ink); background: var(--bg); border: 1px solid var(--line); border-radius: var(--radius); padding: 10px 12px; cursor: pointer; }
+.zone-card.act { background: var(--panel); }
+.zone-card.warn { background: var(--warn-soft); border-color: var(--warn); }
+.zone-card:hover { border-color: var(--accent); }
+.zone-card[aria-pressed="true"] { border-color: var(--accent); box-shadow: inset 0 0 0 1px var(--accent); }
+.zone-card .zc-head { display: flex; align-items: baseline; gap: 8px; }
+.zone-card .zc-n { font-size: 22px; font-weight: 800; font-variant-numeric: tabular-nums; }
+.zone-card .zc-label { font-weight: 700; }
+.zone-card.warn .zc-label { color: var(--warn); }
+.zone-card .zc-action b { font-weight: 600; }
+.cell-bar { position: relative; display: block; height: 4px; min-width: 64px; margin-top: 4px; border-radius: 2px; background: var(--line); }
+.cell-bar > span { display: block; height: 100%; border-radius: 2px; background: var(--series-1); }
+.cell-bar > i { position: absolute; top: -2px; bottom: -2px; width: 2px; margin-left: -1px; background: var(--ink); }
 .viz .direct-label { font-size: 11px; fill: var(--ink); font-weight: 600; paint-order: stroke; stroke: var(--panel); stroke-width: 3px; stroke-linejoin: round; }
 .viz .leader { stroke: var(--muted); stroke-width: 1; }
-.viz .faded { opacity: 0.18; }
-.zone-chips { margin: 4px 0 8px; }
-.zone-chips button.warn { border-color: var(--warn); color: var(--warn); }
-.zone-chips button.warn[aria-pressed="true"] { background: var(--warn); border-color: var(--warn); color: var(--panel); }
 .zone-hint { margin: -2px 0 8px; }
 .how-measured { margin: -4px 0 10px; }
 .how-measured summary { cursor: pointer; }
@@ -1379,7 +1413,7 @@ dialog.insight::backdrop { background: rgba(10, 12, 20, 0.45); }
     --accent: #3343b8; --accent-soft: #eef0fb; --good: #1f7a45; --bad: #b33232; --warn: #8a5a00;
     --good-soft: #eaf5ee; --bad-soft: #fbeeee; --warn-soft: #fdf3df; --shadow: none;
   }
-  .viz { --viz-grid: #e5e5e5; --viz-axis: #bbbbbb; --series-1: #2a78d6; --series-2: #eb6834; --series-3: #05a873; --series-4: #cd8300; --series-5: #dc709a; --series-6: #008300; --series-7: #4a3aa7; --series-8: #e34948; }
+  .viz, .cell-bar { --viz-grid: #e5e5e5; --viz-axis: #bbbbbb; --series-1: #2a78d6; --series-2: #eb6834; --series-3: #05a873; --series-4: #cd8300; --series-5: #dc709a; --series-6: #008300; --series-7: #4a3aa7; --series-8: #e34948; }
   body { background: #fff; color: #111; font-size: 12px; }
   header#top, footer, .no-print, dialog, details.viz-table, .viz-tip, #toast { display: none !important; }
   /* charts are drawn for the screen's width: scale them to the page's (they carry a viewBox) */

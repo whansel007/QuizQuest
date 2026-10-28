@@ -35,7 +35,7 @@ const plural = (n, one) => `${n} ${one}${n === 1 ? '' : 's'}`;
 <template>
   <div>
     <p class="small muted">Material and questions are shared by all your classes for this course; accuracy and practice are this class's ({{ period }}). {{ current ? 'Showing the chosen topic only.' : 'Click a topic to narrow the whole dashboard to it.' }}</p>
-    <p v-if="!overview.topics.length" class="muted small">This course has no topics yet. Add weekly topics in Source material.</p>
+    <p v-if="!overview.topics.length" class="muted small">This course has no topics yet. Add weekly topics in AI drafting.</p>
     <div v-else class="table-wrap">
       <table class="dash-table">
         <thead>
@@ -67,7 +67,7 @@ const plural = (n, one) => `${n} ${one}${n === 1 ? '' : 's'}`;
     </div>
     <p v-if="overview.unsortedFiles && !current" class="note warn small no-print">
       {{ plural(overview.unsortedFiles, 'uploaded file') }} {{ overview.unsortedFiles === 1 ? 'is' : 'are' }} not in a topic yet.
-      <button class="linklike" @click="emit('go', { topicId: '', tab: 'content' })">Sort them in Source material</button>
+      <button class="linklike" @click="emit('go', { topicId: '', tab: 'generate' })">Sort them in the AI drafting material library</button>
     </p>
   </div>
 </template>

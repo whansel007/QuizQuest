@@ -452,7 +452,7 @@ export async function extractFile(file, progress = () => {}, { describe, accept 
   else if (/\.docx$/i.test(file.name)) [pages, kind] = [extractDocx(bytes), 'section'];
   else if (/\.pdf$/i.test(file.name)) [pdf, kind] = [await readPdf(bytes, progress, signal), 'page'];
   else if (/\.(txt|md|csv)$/i.test(file.name)) [pages, kind] = [[{ label: 'Text', text: new TextDecoder().decode(bytes), images: [], warning: '' }], 'part'];
-  else throw new Error('Choose PDF, PowerPoint, Word, TXT, Markdown or CSV. Images can be transcribed from Source material.');
+  else throw new Error('Choose PDF, PowerPoint, Word, TXT, Markdown or CSV. Transcribe images in the AI drafting material library.');
   try {
     pages ||= pdf.pages;
     const fingerprint = JSON.stringify(pages.map((p) => [p.label, p.text]));

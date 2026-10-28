@@ -1,4 +1,4 @@
-// Groups on the dashboard's time x accuracy chart
+// Groups on the dashboard's time and accuracy panel
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const zones = import('../web/src/teacher/charts/time-zones.mjs');
@@ -24,7 +24,8 @@ test('group counts come in reading order, worth-a-look first', async () => {
   const { zoneCounts } = await zones;
   const counts = zoneCounts([q(8000, 0.9), q(25000, 0.3, { flagged: true }), q(8000, 0.9), q(8000, 0.2), q(1, 1, { n: 1 })], opts);
   assert.deepEqual(counts.map((z) => [z.id, z.count]), [['reread', 1], ['quickWrong', 1], ['fine', 2], ['few', 1]]);
-  assert.ok(counts.every((z) => z.label && z.hint));
+  assert.ok(counts.every((z) => z.label && z.hint && z.action), 'each group says what to do');
+  assert.deepEqual(counts.filter((z) => z.act).map((z) => z.id), ['reread', 'quickWrong'], 'only the wrong groups ask for action');
 });
 
 test('chart labels are cut at a word and never run long', async () => {
