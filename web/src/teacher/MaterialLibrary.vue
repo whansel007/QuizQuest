@@ -137,10 +137,9 @@ function showPreview() {
   const clean = text.value.replace(/\r/g, '').replace(/[ \t]+/g, ' ').replace(/\n{3,}/g, '\n\n').trim();
   text.value = clean;
   const sentences = clean.split(/(?<=[.!?])\s+/).filter(Boolean);
-  const defs = sentences.filter((s) => /^(?:(?:A|An|The)\s+)?[A-Za-z0-9][A-Za-z0-9\- ]{0,40}?\s+(is|are|means)\s+/.test(s));
   preview.value = {
     clean,
-    summary: `${clean.split(/\s+/).filter(Boolean).length} words, ${sentences.length} sentences, about ${Math.max(1, Math.ceil(clean.length / 700))} retrieval chunk(s). ${defs.length} definition-style sentence(s) found (the offline drafter uses these).`,
+    summary: `${clean.split(/\s+/).filter(Boolean).length} words, ${sentences.length} sentences, about ${Math.max(1, Math.ceil(clean.length / 700))} retrieval chunk(s).`,
     paras: clean.split('\n\n').slice(0, 40),
   };
 }

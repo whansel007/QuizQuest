@@ -317,20 +317,23 @@ test('retrieval: long material is chunked and the relevant chunk ranks first', (
   assert.ok(withFocus.some((c) => c.passageId === 'p2'));
 });
 
-test('generation: drafts only, structure-checked, cached; formats limited offline', async () => {
+test('generation: without Gemini the API refuses instead of drafting questions locally', async (t) => {
+  const old = process.env.GEMINI_API_KEY;
+  delete process.env.GEMINI_API_KEY;
+  t.after(() => { if (old !== undefined) process.env.GEMINI_API_KEY = old; });
   const prof = await login('t-a');
-  const body = { topicId: 'tp-sec', outcomeId: 'lo-sec-2', count: 3, format: 'mcq' };
-  const r1 = await call(prof, 'POST', '/api/teacher/courses/c-comp/generate', body);
-  assert.equal(r1.status, 200, JSON.stringify(r1.body));
-  assert.ok(r1.body.created.length > 0);
-  assert.ok(r1.body.retrieved.length > 0);
-  for (const id of r1.body.created) assert.equal(db().questions.find((q) => q.id === id).status, 'draft');
-  assert.equal((await call(prof, 'POST', '/api/teacher/courses/c-comp/generate', body)).body.cached, true);
-  const tf = await call(prof, 'POST', '/api/teacher/courses/c-comp/generate', { ...body, format: 'tf', count: 2 });
-  assert.equal(tf.status, 200);
-  for (const id of tf.body.created) assert.equal(db().questions.find((q) => q.id === id).versions[0].type, 'tf');
-  const short = await call(prof, 'POST', '/api/teacher/courses/c-comp/generate', { ...body, format: 'short' });
-  assert.equal(short.status, 400, 'offline drafter refuses formats it cannot write');
+  const questions = db().questions.length, logs = db().generationLog.length;
+  for (const format of ['mcq', 'tf', 'short']) {
+    const r = await call(prof, 'POST', '/api/teacher/courses/c-comp/generate', { topicId: 'tp-sec', outcomeId: 'lo-sec-2', count: 3, format });
+    assert.equal(r.status, 503, JSON.stringify(r.body));
+    assert.equal(r.body.code, 'GEMINI_UNAVAILABLE');
+    assert.match(r.body.error, /GEMINI_API_KEY/);
+  }
+  assert.equal(db().questions.length, questions, 'no locally generated questions');
+  assert.equal(db().generationLog.length, logs, 'nothing was attempted');
+  const course = (await call(prof, 'GET', '/api/teacher/courses')).body.find((c) => c.id === 'c-comp');
+  assert.deepEqual(course.formats.drafter, []);
+  assert.match(course.drafter, /not configured/);
 });
 
 test('adaptive mix: ~30% weaker-topic questions once there is history', () => {

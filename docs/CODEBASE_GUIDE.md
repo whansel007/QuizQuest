@@ -120,7 +120,7 @@ Axios attaches the bearer token. Responses for a token that is no longer active 
 
 | Component | Responsibility |
 | --- | --- |
-| [GenerateView.vue](../web/src/teacher/GenerateView.vue) | Loads the course; selects the saved-report workflow when authoring is enabled, otherwise the offline/direct drafting UI |
+| [GenerateView.vue](../web/src/teacher/GenerateView.vue) | Loads the course; selects the saved-report workflow when authoring is enabled, otherwise the direct drafting UI (which reports that Gemini is unavailable) |
 | [AuthoringWorkflow.vue](../web/src/teacher/AuthoringWorkflow.vue) | Report selection, explicit save, assessment settings, generation attempts, progress/recovery, navigation to review |
 | [ImportMaterials.vue](../web/src/teacher/ImportMaterials.vue) | Multi-file selection/extraction, selected/uploaded status, partial retries, remove/replace, server attachment synchronization |
 | [MaterialLibrary.vue](../web/src/teacher/MaterialLibrary.vue) | Material library (folded into the AI drafting tab): pasted text, PDF extraction and explicit scan/diagram transcription |
@@ -260,6 +260,8 @@ The report editor is a `MarkdownEditor`. Typing updates browser recovery storage
 Generation requires the current saved report revision and blocks unsaved edits. Questions are grounded in that entire saved Markdown passage, including professor additions, rather than automatically re-reading uploaded files. Generating questions does not rerun report analysis.
 
 ## 10. AI question drafting and independent verification
+
+Both Gemini authoring requests start from [Prompt.txt](../Prompt.txt), loaded by [prompts.js](../src/quiz/prompts.js): PROMPT 1 for knowledge reports and their synthesis (`analysisPrompt()`, `synthesisPrompt()` in authoring.js), PROMPT 2 for drafting (`buildUserPrompt()` in generator.js). Each is followed by QuizQuest rules that resolve conflicts explicitly, then the source data last.
 
 ### Intentional batches versus request retries
 
@@ -561,8 +563,8 @@ There is no implemented production identity provider, broad public-endpoint rate
 | Area | Implemented boundary / limitation |
 | --- | --- |
 | Saved-report authoring | Current main Gemini UI, four types, independent verification, styles, explicit attempts and durable recovery |
-| Direct `/generate` | Older route still callable; keyword/tag retrieval, successful-input cache unless forced, optional template/Gemini drafter; it does **not** install the queue's independent batch verifier or styled report contract |
-| Offline drafting | UI fallback when authoring is unavailable; template generator supports MCQ and TF only. Manual writing remains available for the four new formats |
+| Direct `/generate` | Older route still callable; keyword/tag retrieval, successful-input cache unless forced, Gemini only (503 `GEMINI_UNAVAILABLE` without a key); it does **not** install the queue's independent batch verifier or styled report contract |
+| Offline drafting | Removed: without Gemini, generation returns an actionable error and no questions are produced locally. Manual writing remains available |
 | Old analysis/recommendations flow | Queue/API support remains, but main report-based UI generates directly from the saved report rather than showing recommendation selection |
 | Historical formats | Numeric and parameterized math retained; new manual/report-based UI restricts new questions to four types. Legacy direct APIs/domain format lists still know all six |
 | Source grounding | Current report-based path sees the complete saved report; direct/legacy paths use retrieved chunks. Grounding does not prove professor-added report content is factually correct |

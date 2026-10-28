@@ -182,7 +182,15 @@ function startReport() {
   if (changed && !window.confirm('Attached files have changed. Generate a new report from the currently attached files? Existing reports, saved versions and questions will be kept.' + (dirty.value ? ' Unsaved edits in this editor will be replaced.' : ''))) return;
   if (!changed && dirty.value && !window.confirm('Keep editing the current report? Choose Cancel to keep editing, or OK to open the report for all uploaded material. Unsaved edits in this editor may be replaced.')) return;
   return action(async () => {
-    const j = await api('POST',path+'/authoring',{kind:'report',topicId:props.topic.id,materialIds,confirmMaterialChange:changed});
+    const payload = {kind:'report',topicId:props.topic.id,materialIds,confirmMaterialChange:changed};
+    let j;
+    try { j = await api('POST',path+'/authoring',payload); }
+    catch (e) {
+      // The server also checks content/model/prompt changes, which the local ID comparison cannot see.
+      if (changed || e.status !== 409 || e.message !== 'Attached files changed. Confirm generating a new report; existing reports and questions will be kept.') throw e;
+      if (!window.confirm(e.message + (dirty.value ? ' Unsaved edits in this editor will be replaced.' : ''))) return;
+      j = await api('POST',path+'/authoring',{...payload,confirmMaterialChange:true});
+    }
     materialUploader.value?.collapse();
     reportId.value=j.id; loadedId=''; review.value=''; baseRevision.value=0;
   });
