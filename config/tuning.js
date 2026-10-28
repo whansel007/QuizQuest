@@ -312,8 +312,8 @@ export const TOWN_WALK_ZONES = [
   { x: 150, y: -600, w: 980, h: 560 },
 ];
 export const TOWN_DESTINATIONS = {
-  duel: { x: 330, y: -362, w: 200, h: 34, art: { w: 220, h: 150 }, door: { x: 430, y: -300 } },
-  campfire: { x: 900, y: -362, w: 220, h: 34, art: { w: 240, h: 150 }, door: { x: 1010, y: -300 }, flame: { x: 1067, y: -354 } },
+  duel: { x: 300, y: -362, w: 240, h: 34, art: { w: 270, h: 150 }, door: { x: 430, y: -300 } },
+  campfire: { x: 880, y: -362, w: 250, h: 34, art: { w: 270, h: 150 }, door: { x: 1010, y: -300 }, flame: { x: 1070, y: -354 } },
 };
 export const TOWN_PROP_LAYOUT = [
   { type: 'house', variant: 0, x: 100, y: 80, w: 64, h: 40 },
@@ -330,9 +330,9 @@ export const TOWN_PROP_LAYOUT = [
   { type: 'house', variant: 2, x: 1080, y: 545, w: 64, h: 40 },
   { type: 'well', x: 382, y: 600, w: 50, h: 22 },
   { type: 'barter', x: 772, y: 600, w: 70, h: 22 },
-  { type: 'sign', x: 790, y: 58, w: 64, h: 14 },
+  { type: 'sign', x: 776, y: 96, w: 64, h: 14 },
   { type: 'tree', x: 432, y: 140, w: 64, h: 102 },
-  { type: 'tree', x: 800, y: 130, w: 64, h: 102 },
+  { type: 'tree', x: 830, y: 150, w: 64, h: 102 },
   { type: 'tree', x: 444, y: 468, w: 60, h: 95 },
   { type: 'tree', x: 796, y: 452, w: 60, h: 95 },
   { type: 'rock', x: 36, y: 652, w: 42, h: 30 },

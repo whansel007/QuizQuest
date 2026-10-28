@@ -763,42 +763,53 @@ function signBoard(g, cx, gy, title, subtitle, width = 132) {
   g.fillText(subtitle, cx, gy - 52, width - 12);
 }
 
+// Both camps are laid out from the left edge of their canvas: the sign first,
+// then the pack or the fire, so nothing can be drawn past the canvas edge.
+const CAMP_SIGN_W = 160;
+const CAMP_SIGN_X = 8 + CAMP_SIGN_W / 2;
+
 export function drawDuelCamp(g, W, H) {
-  const cx = W / 2; const gy = H - 10;
-  ellipse(g, cx, gy - 18, W * 0.46, 26, '#C9A66B', 0);
-  signBoard(g, cx - 50, gy - 30, 'Duel', 'A one-on-one quiz battle', 150);
-  // the travel pack resting on a stump
-  ellipse(g, cx + 52, gy - 6, 26, 8, '#9E6238');
-  rect(g, cx + 26, gy - 22, 52, 18, '#B57A48', 4);
-  rect(g, cx + 32, gy - 84, 40, 62, '#B96448', 12);
-  rect(g, cx + 30, gy - 92, 44, 26, '#9E4E36', 10);
-  rect(g, cx + 34, gy - 108, 36, 14, BLUE, 7);
-  stroke(g, [[cx + 40, gy - 66], [cx + 40, gy - 26]], '#6B3A26', 3);
-  stroke(g, [[cx + 64, gy - 66], [cx + 64, gy - 26]], '#6B3A26', 3);
-  rect(g, cx + 46, gy - 50, 12, 14, '#E3B862', 3, 2);
-  circle(g, cx + 52, gy - 70, 3, GOLD, 1.5);
+  const gy = H - 10;
+  ellipse(g, W / 2, gy - 18, W * 0.46, 26, '#C9A66B', 0);
+  signBoard(g, CAMP_SIGN_X, gy - 30, 'Duel', 'A one-on-one quiz battle', CAMP_SIGN_W);
+  // the travel pack resting on a stump, to the right of the sign
+  const px = CAMP_SIGN_W + 45;
+  ellipse(g, px, gy - 6, 26, 8, '#9E6238');
+  rect(g, px - 26, gy - 22, 52, 18, '#B57A48', 4);
+  rect(g, px - 20, gy - 84, 40, 62, '#B96448', 12);
+  rect(g, px - 22, gy - 92, 44, 26, '#9E4E36', 10);
+  rect(g, px - 18, gy - 108, 36, 14, BLUE, 7);
+  stroke(g, [[px - 12, gy - 66], [px - 12, gy - 26]], '#6B3A26', 3);
+  stroke(g, [[px + 12, gy - 66], [px + 12, gy - 26]], '#6B3A26', 3);
+  rect(g, px - 6, gy - 50, 12, 14, '#E3B862', 3, 2);
+  circle(g, px, gy - 70, 3, GOLD, 1.5);
   // a rolled quiz scroll leaning on the pack
-  g.save(); g.translate(cx + 84, gy - 34); g.rotate(0.35);
+  g.save(); g.translate(px + 32, gy - 34); g.rotate(0.35);
   rect(g, -5, -20, 10, 40, '#F7E7B5', 4, 2);
   g.restore();
 }
 
+// The fire's centre in this canvas; TOWN_DESTINATIONS.campfire.flame must
+// point at the same spot in the world (art x + CAMPFIRE_FIRE_X).
+export const CAMPFIRE_FIRE_X = CAMP_SIGN_W + 40;
+
 export function drawCampfireCamp(g, W, H) {
-  const cx = W / 2; const gy = H - 10;
-  ellipse(g, cx, gy - 18, W * 0.46, 26, '#C9A66B', 0);
-  signBoard(g, cx - 52, gy - 30, 'Campfire Run', 'Defend the campfire', 150);
-  // log seats
-  rect(g, cx + 8, gy - 6, 30, 10, WOOD, 5, 2.5);
-  rect(g, cx + 76, gy - 6, 30, 10, WOOD, 5, 2.5);
+  const gy = H - 10;
+  const fx = CAMPFIRE_FIRE_X;
+  ellipse(g, W / 2, gy - 18, W * 0.46, 26, '#C9A66B', 0);
+  signBoard(g, CAMP_SIGN_X, gy - 30, 'Campfire Run', 'Defend the campfire', CAMP_SIGN_W);
+  // log seats either side of the fire
+  rect(g, fx - 49, gy - 6, 30, 10, WOOD, 5, 2.5);
+  rect(g, fx + 19, gy - 6, 30, 10, WOOD, 5, 2.5);
   // stone ring and crossed logs; the flames are drawn live each frame
   for (let i = 0; i < 8; i += 1) {
     const a = (i / 8) * Math.PI * 2;
-    ellipse(g, cx + 57 + Math.cos(a) * 22, gy - 26 + Math.sin(a) * 8, 6, 4.5, '#AAB6A0', 2);
+    ellipse(g, fx + Math.cos(a) * 22, gy - 26 + Math.sin(a) * 8, 6, 4.5, '#AAB6A0', 2);
   }
-  stroke(g, [[cx + 42, gy - 22], [cx + 72, gy - 32]], INK, 8);
-  stroke(g, [[cx + 42, gy - 22], [cx + 72, gy - 32]], WOOD, 5);
-  stroke(g, [[cx + 72, gy - 22], [cx + 42, gy - 32]], INK, 8);
-  stroke(g, [[cx + 72, gy - 22], [cx + 42, gy - 32]], DARK_WOOD, 5);
+  stroke(g, [[fx - 15, gy - 22], [fx + 15, gy - 32]], INK, 8);
+  stroke(g, [[fx - 15, gy - 22], [fx + 15, gy - 32]], WOOD, 5);
+  stroke(g, [[fx + 15, gy - 22], [fx - 15, gy - 32]], INK, 8);
+  stroke(g, [[fx + 15, gy - 22], [fx - 15, gy - 32]], DARK_WOOD, 5);
 }
 
 // Animated flame for the campfire camp (world-space, drawn every frame).

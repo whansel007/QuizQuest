@@ -282,10 +282,32 @@ function artFor(key, w, h, draw) {
   return layer;
 }
 
+// How far down the canvas the drawing actually starts (its first opaque row),
+// so prompts and upgrade arrows sit just above the building, not above the
+// empty top of a tall canvas. Measured once per drawing.
+const artTops = new WeakMap();
+function drawnTop(art) {
+  if (artTops.has(art)) return artTops.get(art);
+  let top = 0;
+  try {
+    const { data, width, height } = art.getContext('2d').getImageData(0, 0, art.width, art.height);
+    top = height;
+    for (let y = 0; y < height && top === height; y += 1) {
+      for (let x = 3; x < width * 4; x += 16) if (data[y * width * 4 + x] > 24) { top = y; break; }
+    }
+  } catch { top = 0; }
+  const result = top / ART_RES;
+  artTops.set(art, result);
+  return result;
+}
+// world y of each building's drawn top, refreshed whenever its art changes
+const buildingTops = {};
+
 function placeArt(object, art, aw, ah) {
   // the drawing's ground line (8px above its bottom) sits on the footprint's front edge
   const x = object.x + object.w / 2 - aw / 2;
   const y = object.y + object.h + 8 - ah;
+  buildingTops[object.id] = y + drawnTop(art);
   return { id: object.id, canvas: art, x, y, w: aw, h: ah, sortY: object.y + object.h };
 }
 
@@ -826,9 +848,12 @@ function drawPrompt(g, time) {
   const bob = reducedMotion ? 0 : Math.sin(time / 230) * 2;
   if (target) {
     const { title, line } = targetPrompt(target);
+    // wide enough for both lines, whichever is longer
+    g.font = '700 11.5px Nunito, Trebuchet MS, sans-serif';
+    const lineWidth = g.measureText(line).width;
     g.font = '700 15px Georgia, "Palatino Linotype", serif';
-    const width = Math.max(200, g.measureText(title).width + 30);
-    const anchorY = target.y + target.h + 8 - target.art.h;
+    const width = Math.max(200, g.measureText(title).width + 30, lineWidth + 30);
+    const anchorY = buildingTops[target.id] ?? target.y + target.h + 8 - target.art.h;
     const box = clampBubble(target.door.x - width / 2, anchorY - 54 - bob, width, 48);
     g.fillStyle = PALETTE.paper; g.strokeStyle = INK; g.lineWidth = 3;
     g.beginPath(); g.roundRect(box.x, box.y, width, 48, 8); g.fill(); g.stroke();
@@ -859,7 +884,7 @@ function drawAffordableArrows(g, time) {
     const b = BUILDING_LAYOUT[plot.id];
     if (!b) continue;
     const x = b.x + b.w / 2;
-    const y = b.y + b.h - b.art.h - 6 - (reducedMotion ? 0 : Math.sin(time / 150) * 5);
+    const y = (buildingTops[plot.id] ?? b.y) - 14 - (reducedMotion ? 0 : Math.sin(time / 150) * 5);
     g.fillStyle = PALETTE.gold; g.strokeStyle = INK; g.lineWidth = 3; g.lineJoin = 'round';
     g.beginPath(); g.moveTo(x, y - 13); g.lineTo(x - 9, y - 3); g.lineTo(x - 4, y - 3); g.lineTo(x - 4, y + 7); g.lineTo(x + 4, y + 7); g.lineTo(x + 4, y - 3); g.lineTo(x + 9, y - 3); g.closePath(); g.fill(); g.stroke();
   }
@@ -875,7 +900,7 @@ function drawHighlight(g, time) {
     const b = BUILDING_LAYOUT[id];
     rings.push([b.x + b.w / 2, b.y + b.h / 2, b.w / 2 + 26, b.h / 2 + 26]);
   }
-  if (props.highlight === 'north') rings.push([760, 56, 70, 44]);
+  if (props.highlight === 'north') rings.push([772, 72, 72, 52]);
   g.save();
   g.setLineDash([10, 8]);
   g.lineDashOffset = reducedMotion ? 0 : -time / 40;
