@@ -297,7 +297,7 @@ async function save(onlyId = '') {
   </section>
   <section class="panel upload-materials" aria-label="Upload materials">
     <h3>Upload Materials</h3>
-    <p class="small muted">PDF, PowerPoint, Word, TXT, Markdown or CSV · Up to 100 MB each, 20 files at once.</p>
+    <p class="small muted">PDF, PowerPoint, Word, TXT, Markdown or CSV · Up to 100 MB each, 20 files at once. Uploaded files are kept with this topic and are what the knowledge report is built from; a note typed in by hand or a scanned image goes in the material library instead.</p>
     <p v-if="notes.length" class="small muted">{{ notes.length }} note(s) in this topic are part of the report: {{ notes.map((n) => n.title).join(' · ') }}</p>
     <p v-if="!pendingFiles && !busy" class="small muted">{{ savedFiles.length ? 'Add another lecture file to this topic.' : 'Choose lecture files to get started.' }}</p>
     <input ref="fileInput" aria-label="Lecture files" type="file" multiple :accept="ACCEPT" :disabled="locked" style="display:none" @change="choose" />

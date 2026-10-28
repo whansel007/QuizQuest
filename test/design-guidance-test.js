@@ -77,6 +77,19 @@ test('the guidance comes after the material, so it is not buried under it', () =
   );
 });
 
+test('the guidance says what it does not override, so it cannot outrank the professor', () => {
+  // The prompt rules settle their own order. This block is appended after
+  // them, so on its own it says which side wins: it fills the gaps and
+  // overrides none of them.
+  const block = designGuidance.guidanceBlock();
+  assert.match(block, /never overrides/i, 'the block should state its own limits');
+  assert.match(block, /professor instructions/i, 'the professor instructions in Prompt.txt should be named');
+  assert.match(block, /subject guidance/i, 'the instructor subject guidance should be named');
+  assert.match(block, /fills the gap/i, 'the block should say what it does instead');
+  // And the promise is kept in the prompt that actually goes to Gemini.
+  assert.ok(buildUserPrompt(CTX).includes(block));
+});
+
 test('Gemini is actually sent the guidance with the question prompt', async () => {
   let sent = '';
   await geminiDraft(CTX, async (opts) => {
