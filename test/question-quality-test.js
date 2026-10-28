@@ -119,8 +119,11 @@ test('design guidance keeps the adventure frame light and still comes last', () 
 });
 
 // --- the authoring queue's verifier ---------------------------------------
+// The verifier never sees the drafted label, so by default the mock returns
+// a hard, three-step solve that lowers nothing.
+const THREE_STEPS = ['Note both objects are built separately.', 'Recall that toBe compares identity with Object.is.', 'Conclude the identity check fails although the contents match.'];
 async function settled(job) { const until = Date.now() + 5000; while (['queued', 'running'].includes(job.status)) { if (Date.now() > until) throw new Error('Mock job timed out'); await new Promise((r) => setTimeout(r, 2)); } }
-async function queued({ style = 'conceptual', count = 1, draft, decision }) {
+async function queued({ style = 'conceptual', count = 1, quantities = { mcq: count }, draft, decision }) {
   const db = seed(), course = db.courses.find((c) => c.id === 'c-comp');
   const prompts = [];
   let round = 0;
@@ -134,14 +137,14 @@ async function queued({ style = 'conceptual', count = 1, draft, decision }) {
     return { json: { applicationSupported: true, limitation: '', checks: data.questions.map((q, index) => decision({
       index, correct: true, oneCorrect: true, questionValid: true, unambiguous: true, explanationSupported: true, statementTruth: null,
       aligned: true, duplicate: false, fitsConfiguration: true, outcomeAligned: true, difficultyAppropriate: true, scenarioGrounded: true,
-      cognitiveStyle: 'conceptual', answerableWithoutScenario: true, reasoningSteps: ['Recall the rule.'], answerIndex: 0, answerIndexes: [],
-      numericAnswer: null, unsupportedClaims: [], reason: 'Independently solved.', estimatedDifficulty: q.difficulty, weakDistractorIndexes: [],
+      cognitiveStyle: 'conceptual', answerableWithoutScenario: true, reasoningSteps: THREE_STEPS, answerIndex: 0, answerIndexes: [],
+      numericAnswer: null, unsupportedClaims: [], reason: 'Independently solved.', estimatedDifficulty: 'hard', weakDistractorIndexes: [],
       evidence: [{ passageId: q.sourceIds[0], quoteId: data.evidenceAnchors[0].id }],
     }, q)) } };
   } });
   const analysis = queue.start(course, 'report', {}, 't-a'); await settled(analysis);
   await queue.review(course, analysis.id, REPORT, 0);
-  const job = queue.start(course, 'generation', { analysisId: analysis.id, reportRevision: 1, topicText: 'Week 10 Testing Fundamentals', learningOutcome: 'Choose and justify Jest matchers and test structure.', assessmentStyle: style, quantities: { mcq: count } }, 't-a');
+  const job = queue.start(course, 'generation', { analysisId: analysis.id, reportRevision: 1, topicText: 'Week 10 Testing Fundamentals', learningOutcome: 'Choose and justify Jest matchers and test structure.', assessmentStyle: style, quantities }, 't-a');
   await settled(job);
   const created = (job.result.created || []).map((id) => db.questions.find((q) => q.id === id));
   return { job, db, created, prompts, rejected: job.result.rejected || [] };
@@ -199,4 +202,116 @@ test('under Both, a would-be application question that is really recall is sent 
   assert.equal(kept.job.status, 'complete', kept.job.message);
   const downgraded = kept.created.find((q) => q.assessment.intendedStyle === 'application' && q.assessment.cognitiveStyle === 'conceptual');
   assert.match(downgraded.versions[0].warnings.join(' '), /Drafted as application, but it can be answered without using the scenario details/);
+});
+
+// --- difficulty calibration and application vs recall ----------------------
+// The live Week 10 batch labelled a one-line assertion Hard/Application and a
+// single click assertion Medium/Application. These replay those drafts
+// against verdicts that follow the new rules: copying givens into one
+// assertion is one step, and the verifier no longer sees the drafted label.
+const { calibrateDifficulty, stepCeiling, STYLE_RULES, APPLICATION_GUIDE, DIFFICULTY_RULES } = require('../src/quiz/assessment');
+const { buildVerificationPrompt } = require('../src/quiz/authoring');
+const ONE_STEP = ["Write expect(calculateBonus(15)).toBe('High')."];
+
+test('difficulty is the lowest of the label, the estimate and the step ceiling, and is never raised', () => {
+  assert.deepEqual([[], ['a'], ['a', 'b'], ['a', 'b', 'c', 'd'], ['a', ' '], undefined].map(stepCeiling), [null, 'easy', 'medium', 'hard', 'easy', null]);
+  assert.equal(calibrateDifficulty('hard', { estimatedDifficulty: 'hard', reasoningSteps: ONE_STEP }), 'easy', 'one inference caps an anchored hard estimate');
+  assert.equal(calibrateDifficulty('hard', { estimatedDifficulty: 'medium', reasoningSteps: THREE_STEPS }), 'medium');
+  assert.equal(calibrateDifficulty('hard', { estimatedDifficulty: 'easy', reasoningSteps: ['a', 'b'] }), 'easy');
+  assert.equal(calibrateDifficulty('hard', { estimatedDifficulty: 'hard', reasoningSteps: THREE_STEPS }), null, 'a genuinely hard question keeps its label');
+  assert.equal(calibrateDifficulty('easy', { estimatedDifficulty: 'hard', reasoningSteps: THREE_STEPS }), null, 'never raised');
+  assert.equal(calibrateDifficulty('hard', {}), null, 'no verdict leaves the label alone');
+  assert.equal(calibrateDifficulty('hard', { estimatedDifficulty: 'extreme', reasoningSteps: 'three' }), null, 'malformed verdicts are ignored');
+});
+
+test('regression: "Write a Vitest assertion that calculateBonus(15) returns High" is saved as Easy/Conceptual, not Hard/Application', async () => {
+  const vitest = {
+    type: 'short', answerMode: 'text', difficulty: 'hard', blueprint: blueprint('writing assertions', 'decide', 'application'),
+    stem: "The guild's treasurer has calculateBonus(score). Write a Vitest assertion that calculateBonus(15) returns 'High'.",
+    modelAnswer: "expect(calculateBonus(15)).toBe('High');", keyPoints: ['Calls calculateBonus(15) inside expect', "Uses toBe('High')"],
+    explanation: 'An assertion compares the received value with the expected one.',
+  };
+  // A verdict that still says hard and application, but whose own steps show
+  // a single transcription.
+  const f = await queued({ style: 'both', quantities: { short: 1 }, draft: () => [vitest], decision: (v) => ({
+    ...v, cognitiveStyle: 'application', answerableWithoutScenario: false, reasoningSteps: ONE_STEP, estimatedDifficulty: 'hard' }) });
+  assert.equal(f.job.status, 'complete', f.job.message);
+  assert.equal(f.job.calls, 2, 'no extra Gemini call');
+  const [q] = f.created, warnings = q.versions[0].warnings.join(' ');
+  assert.equal(q.versions[0].difficulty, 'easy');
+  assert.equal(q.assessment.cognitiveStyle, 'conceptual');
+  assert.match(warnings, /Drafted as hard, but the independent check judged its reasoning demand easy \(1 reasoning step\)/);
+  assert.match(warnings, /Drafted as application, but it can be answered without using the scenario details/);
+  assert.equal(q.assessment.intendedStyle, 'application', 'the drafter plan is kept for review');
+  assert.doesNotMatch(f.prompts[0], /"difficulty":"hard"/, 'the verifier never sees the drafted label');
+});
+
+test('regression: a single Playwright click assertion drafted as Medium/Application is saved as Easy/Conceptual', async () => {
+  const click = {
+    ...mcq("The guild's scout writes a Playwright test that clicks the 'Join quest' button and checks the 'Welcome, adventurer' banner appears. Which line makes that check?",
+      'Playwright visibility assertions', 'decide', { difficulty: 'medium', blueprint: blueprint('Playwright visibility assertions', 'decide', 'application') }),
+    options: ["await expect(page.getByText('Welcome, adventurer')).toBeVisible();", "await expect(page.getByText('Welcome, adventurer')).toBeHidden();",
+      "await page.getByText('Welcome, adventurer').click();", "expect(page.getByText('Welcome, adventurer')).toBeVisible();"],
+  };
+  const f = await queued({ style: 'both', draft: () => [click], decision: (v) => ({
+    ...v, cognitiveStyle: 'application', answerableWithoutScenario: false, reasoningSteps: ['Pick the visibility matcher for the stated banner.'], estimatedDifficulty: 'medium' }) });
+  assert.equal(f.job.status, 'complete', f.job.message);
+  assert.equal(f.created[0].versions[0].difficulty, 'easy');
+  assert.equal(f.created[0].assessment.cognitiveStyle, 'conceptual');
+});
+
+test('the same demand gets the same label in MCQ, True/False, Multi-select and Short Answer', async () => {
+  const drafts = [
+    mcq('Which matcher compares two separately built objects by their contents?', 'content equality', 'classify', { difficulty: 'hard' }),
+    { type: 'tf', stem: 'toBe compares two values with Object.is.', answerIndex: 0, explanation: 'The report says toBe compares with Object.is.', difficulty: 'hard', blueprint: blueprint('toBe identity', 'explain') },
+    { type: 'multi', stem: 'Select every matcher the report says compares object contents rather than identity.', options: ['toEqual', 'toStrictEqual', 'toBe', 'toBeNull'], answerIndexes: [0, 1],
+      explanation: 'toEqual and toStrictEqual compare contents.', difficulty: 'hard', blueprint: blueprint('content matchers', 'classify') },
+    { type: 'short', answerMode: 'text', stem: 'State which matcher compares object contents.', modelAnswer: 'toEqual', keyPoints: ['Names toEqual'],
+      explanation: 'The report says toEqual compares contents.', difficulty: 'hard', blueprint: blueprint('naming the content matcher', 'explain') },
+  ];
+  const key = (q) => drafts.find((d) => d.stem === q.stem);
+  const verdict = (steps) => (v, q) => ({ ...v, reasoningSteps: steps, estimatedDifficulty: 'hard', statementTruth: q.type === 'tf' ? true : null,
+    answerIndex: ['mcq', 'tf'].includes(q.type) ? 0 : -1, answerIndexes: q.type === 'multi' ? key(q).answerIndexes : [] });
+  const quantities = { mcq: 1, tf: 1, multi: 1, short: 1 };
+  const easy = await queued({ count: 4, quantities, draft: () => drafts, decision: verdict(['Recall the matcher from the report.']) });
+  assert.equal(easy.job.status, 'complete', easy.job.message);
+  assert.deepEqual(easy.created.map((q) => [q.versions[0].type, q.versions[0].difficulty]).sort(), [['mcq', 'easy'], ['multi', 'easy'], ['short', 'easy'], ['tf', 'easy']]);
+  const hardOnes = await queued({ count: 4, quantities, draft: () => drafts, decision: verdict(THREE_STEPS) });
+  assert.equal(hardOnes.job.status, 'complete', hardOnes.job.message);
+  assert.deepEqual(hardOnes.created.map((q) => q.versions[0].difficulty), ['hard', 'hard', 'hard', 'hard'], 'a three-step hard verdict keeps Hard in every format');
+  assert.ok(hardOnes.created.every((q) => !q.versions[0].warnings.some((w) => /Drafted as/.test(w))));
+});
+
+test('a genuinely hard diagnosis keeps Hard/Application, and two steps cap a hard label at Medium', async () => {
+  const diagnose = mcq("The guild's test expects calculateBonus(15) to return 'High', but it receives 'Medium'. The rule gives 'High' above 10 and the code checks score > 20. Which fix is justified?",
+    'boundary bugs in conditions', 'diagnose', { difficulty: 'hard', blueprint: blueprint('boundary bugs in conditions', 'diagnose', 'application') });
+  const steps = ['Read the expected and received values from the failure.', 'Compare the stated rule threshold of 10 with the coded threshold of 20.',
+    'Trace score 15 through the coded condition to Medium.', 'Conclude the condition, not the test, must change to score > 10.'];
+  const application = (reasoningSteps) => (v) => ({ ...v, cognitiveStyle: 'application', answerableWithoutScenario: false, reasoningSteps, estimatedDifficulty: 'hard' });
+  const f = await queued({ style: 'application', draft: () => [diagnose], decision: application(steps) });
+  assert.equal(f.job.status, 'complete', f.job.message);
+  assert.deepEqual([f.created[0].versions[0].difficulty, f.created[0].assessment.cognitiveStyle], ['hard', 'application']);
+  assert.deepEqual(f.created[0].versions[0].warnings, []);
+  const two = await queued({ style: 'application', draft: () => [diagnose], decision: application(steps.slice(1, 3)) });
+  assert.deepEqual([two.created[0].versions[0].difficulty, two.created[0].assessment.cognitiveStyle], ['medium', 'application']);
+});
+
+test('prompts tell the drafter and verifier that transcribing givens is recall, and ask for plausible distractors', async () => {
+  for (const rules of [STYLE_RULES, DIFFICULTY_RULES]) assert.doesNotMatch(rules, /\n/, 'shared rules stay on one line');
+  assert.match(STYLE_RULES, /writing one assertion, call, selector or command whose inputs and expected result the question already states is syntax recall/);
+  assert.match(DIFFICULTY_RULES, /writing a single straightforward assertion, call or command from stated inputs and expected results/);
+  assert.match(DIFFICULTY_RULES, /copying a given and writing out syntax are not inferences/);
+  assert.match(APPLICATION_GUIDE, /draft it as conceptual and easy/);
+  assert.match(COVERAGE_GUIDE, /For mcq and multi, write in blueprint.distractorRationale/);
+  const db = seed(), course = db.courses.find((c) => c.id === 'c-comp'), topic = db.topics.find((t) => t.courseId === course.id);
+  const drafting = buildUserPrompt({ course, topic, outcome: topic.outcomes[0], count: 2, format: 'mixed', chunks: [{ passageId: 'p', text: REPORT }], quantities: { mcq: 1, short: 1 } });
+  assert.match(drafting, /never raise a label to meet the mix/);
+  assert.match(drafting, /The adventure frame never supplies an option/);
+  assert.match(drafting, /single assertion or call whose inputs and expected result the stem already states is easy syntax recall/);
+  const verifying = buildVerificationPrompt({ questions: [{ ...hard, sourceIds: ['p'] }], chunks: [], existingStems: [], guidance: '{}' });
+  assert.doesNotMatch(verifying, /"difficulty"/);
+  assert.match(verifying, /a one-step task stays easy whether it is mcq, tf, multi or short/);
+  assert.match(verifying, /a joke or story-only choice, a different kind of answer from the other options/);
+  const f = await queued({ draft: () => [hard], decision: (v) => v });
+  assert.match(f.prompts[0], /reading the question, restating or copying a given and writing out syntax are not steps/);
 });
