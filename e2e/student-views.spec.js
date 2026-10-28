@@ -8,29 +8,48 @@ import { signIn, openTab, STUDENT } from './helpers.js';
 test('the World tab picks a hero and opens a lobby with a room code', async ({ page }) => {
   await signIn(page, STUDENT);
   await openTab(page, 'World');
-  await expect(page.getByRole('heading', { name: 'World' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'The Clearing', exact: true })).toBeVisible();
+  await expect(page.getByRole('region', { name: 'Choose your hero', exact: true })).toBeVisible();
 
   // Only the heroes the student owns can be picked.
-  const hero = page.locator('.hero-lab-card:not([disabled])').first();
+  const hero = page.locator('.hero-chip[aria-disabled="false"]').first();
   await expect(hero).toBeVisible();
   await hero.click();
-  await expect(page.getByText('Playing as')).toBeVisible();
+  await expect(hero).toHaveAttribute('aria-pressed', 'true');
 
-  await page.getByRole('button', { name: 'CREATE LOBBY' }).click();
+  await page.getByRole('button', { name: 'HOST LOBBY', exact: true }).click();
   const frame = page.frameLocator('iframe[title="Campfire Defense"]');
   await expect(frame.locator('#room-code-value')).toHaveText(/^[A-Z]{4}$/, { timeout: 15000 });
 });
 
-test('the Kingdom tab shows the kingdom and the class market', async ({ page }) => {
+test('the Kingdom tab shows the town and its buildings', async ({ page }) => {
   await signIn(page, STUDENT);
   await openTab(page, 'Kingdom');
-  await expect(page.getByRole('heading', { name: 'Kingdom' })).toBeVisible();
-  await expect(page.getByText('Class market').first()).toBeVisible();
+  await expect(page.getByRole('heading', { name: /Your Kingdom.*Storybook Town/ })).toBeVisible();
+
+  // Dismiss the first-visit tour before opening the town's building list.
+  const skipTour = page.getByRole('button', { name: 'Skip', exact: true });
+  if (await skipTour.count()) await skipTour.click();
+  await page.getByRole('button', { name: 'Buildings', exact: true }).click();
+  const buildings = page.getByRole('region', { name: 'Your buildings', exact: true });
+  await expect(buildings.getByRole('button')).toHaveCount(5);
+  for (const name of ['Castle', 'Garden', 'Tower', 'Library', 'Workshop']) {
+    await expect(buildings.getByRole('button', { name: new RegExp(name) })).toBeVisible();
+  }
 });
 
-test('the Pets & shop tab shows the summon panel and the drop rates', async ({ page }) => {
+test('the Summon tab shows its banner and drop rates', async ({ page }) => {
   await signIn(page, STUDENT);
-  await openTab(page, 'Pets & shop');
-  await expect(page.getByRole('heading', { name: 'Hero Summon', exact: true })).toBeVisible();
-  await expect(page.getByText('Drop rates')).toBeVisible();
+  await openTab(page, 'Summon');
+  await expect(page.getByRole('heading', { name: 'Summon', exact: true })).toBeVisible();
+  await expect(page.locator('.summon-banner')).toBeVisible();
+
+  await page.getByRole('button', { name: 'Details', exact: true }).click();
+  const details = page.getByRole('dialog', { name: 'Summon Details', exact: true });
+  await expect(details).toBeVisible();
+  await expect(details.locator('.detail-rate')).toHaveCount(3);
+  await expect(details.getByText('Kingdom resources', { exact: true })).toBeVisible();
+  const percentages = details.locator('.detail-rate strong');
+  await expect(percentages).toHaveCount(3);
+  for (const percentage of await percentages.all()) await expect(percentage).toHaveText(/^\d+%$/);
 });

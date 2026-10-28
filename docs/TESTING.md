@@ -32,12 +32,28 @@ The older server tests in `test/` still run with `pnpm test` (Node's built-in te
 - `e2e/login.spec.js`: student and professor login, wrong password, invalid email, signing out.
 - `e2e/signup.spec.js`: creating a student account, an email that is taken, a short password.
 - `e2e/question-bank.spec.js`: a professor sees drafts needing review and publishes one.
+- `e2e/progress-reporting.spec.js`: practice changes the topic's correct/count figures; a student report reaches the professor and the student sees the resolution response.
+- `e2e/team-room.spec.js`: two students create and join the same Campfire Defense room and see its membership.
 
 ## How the end-to-end tests run
 
 `pnpm test:e2e` builds the app and starts one server per browser (ports 4173–4175). Each server gets its own fresh copy of the demo data in a temporary file, so the tests never touch Supabase or your `data/db.json`, and every browser starts from the same data. See the report with `pnpm exec playwright show-report`.
 
 The first time on a new computer, download the browsers with `pnpm exec playwright install`.
+
+To run just these user journeys while developing:
+
+```bash
+pnpm test:e2e e2e/progress-reporting.spec.js e2e/team-room.spec.js --project=chromium
+```
+
+Omit `--project=chromium` to check all three configured browsers. You do not need to start `pnpm dev` first: the test configuration builds and starts its own servers. Keep ports 4173–4175 free.
+
+Tests follow setup, actions and assertions, as in Week 10c. The comments explain why accounts use separate browser contexts and what each assertion proves. Playwright waits for locators and assertions automatically; fixed sleeps would make these journeys unreliable.
+
+After a failure, run `pnpm exec playwright show-report` to inspect the failed step. To watch a specific test locally, add `--headed`; to step through it, add `--debug`. A failing assertion should be investigated rather than removed just to make the run pass.
+
+These checks cover selected journeys, not every possible game action. They exercise the local Node backend and temporary data store; they do not certify a live Supabase connection, external AI services, or a complete multiplayer battle.
 
 You can also record a new test with the **Playwright Test for VS Code** extension ("Record new"), as in the Week 10c lab. Start a server first with `pnpm build` and then `pnpm start`, record against http://localhost:3000, and replace the last recorded click with an `expect(...)` assertion.
 
