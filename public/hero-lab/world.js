@@ -54,15 +54,169 @@ backgroundCanvas.width = canvas.width;
 backgroundCanvas.height = canvas.height;
 const backgroundContext = backgroundCanvas.getContext('2d');
 backgroundContext.scale(renderScale, renderScale);
-for (let y = 0; y < ARENA_HEIGHT; y += 80) {
-  for (let x = 0; x < ARENA_WIDTH; x += 80) {
-    backgroundContext.fillStyle = (Math.floor(x / 80) + Math.floor(y / 80)) % 2 ? '#79b456' : '#70a94f';
-    backgroundContext.fillRect(x, y, 80, 80);
+paintForestClearing(backgroundContext);
+
+// The arena floor: a calm woodland clearing. Everything here is low contrast
+// on purpose, so enemies, projectiles, rings and the campfire stay the
+// clearest things on screen, and nothing reads as a wall or a hitbox. A fixed
+// seed keeps the floor identical between visits.
+function paintForestClearing(g) {
+  const W = ARENA_WIDTH; const H = ARENA_HEIGHT;
+  const cx = W / 2; const cy = H / 2;
+  let seed = 0x5eed;
+  const rand = () => { seed = (seed * 1664525 + 1013904223) >>> 0; return seed / 0x100000000; };
+  const base = g.createRadialGradient(cx, cy, 80, cx, cy, Math.hypot(cx, cy));
+  base.addColorStop(0, '#8CBB66');
+  base.addColorStop(0.55, '#7DAF5A');
+  base.addColorStop(1, '#5F9448');
+  g.fillStyle = base;
+  g.fillRect(0, 0, W, H);
+  // soft mottling, like light through leaves
+  for (let i = 0; i < 46; i += 1) {
+    g.globalAlpha = 0.06 + rand() * 0.05;
+    g.fillStyle = rand() < 0.5 ? '#9CC873' : '#6A9E4E';
+    g.beginPath();
+    g.ellipse(rand() * W, rand() * H, 90 + rand() * 170, 50 + rand() * 90, rand() * Math.PI, 0, Math.PI * 2);
+    g.fill();
   }
+  // worn earth around the campfire, where the party gathers
+  g.globalAlpha = 1;
+  const worn = g.createRadialGradient(cx, cy, 30, cx, cy, 230);
+  worn.addColorStop(0, 'rgba(178,160,104,.42)');
+  worn.addColorStop(0.6, 'rgba(160,160,96,.16)');
+  worn.addColorStop(1, 'rgba(160,160,96,0)');
+  g.fillStyle = worn;
+  g.beginPath(); g.ellipse(cx, cy, 250, 220, 0, 0, Math.PI * 2); g.fill();
+  // faint footpaths wandering in from the forest toward the fire
+  const paths = [
+    [[cx - 40, -20], [cx - 120, cy * 0.45], [cx - 30, cy - 175]],
+    [[cx + 60, H + 20], [cx + 170, cy * 1.55], [cx + 40, cy + 175]],
+    [[-20, cy + 60], [cx * 0.42, cy + 140], [cx - 180, cy + 30]],
+    [[W + 20, cy - 80], [cx * 1.6, cy - 150], [cx + 180, cy - 30]],
+  ];
+  g.lineCap = 'round';
+  for (const [width, alpha] of [[78, 0.1], [50, 0.16]]) {
+    g.strokeStyle = `rgba(176,150,96,${alpha})`;
+    g.lineWidth = width;
+    for (const [a, b, c] of paths) {
+      g.beginPath(); g.moveTo(a[0], a[1]); g.quadraticCurveTo(b[0], b[1], c[0], c[1]); g.stroke();
+    }
+  }
+  // grass tufts and a few tiny flowers, kept out of the campfire ring
+  const blades = ['#5F984C', '#6EA451', '#A2C66B'];
+  for (let tuft = 0; tuft < 420; tuft += 1) {
+    const x = rand() * W; const y = rand() * H;
+    if (Math.hypot(x - cx, y - cy) < 190) continue;
+    g.globalAlpha = 0.22 + rand() * 0.2;
+    const count = 2 + Math.floor(rand() * 3);
+    for (let b = 0; b < count; b += 1) {
+      const bx = x + (b - (count - 1) / 2) * 3.4;
+      const h = 4 + rand() * 5;
+      g.fillStyle = blades[Math.floor(rand() * blades.length)];
+      g.beginPath(); g.moveTo(bx - 1.8, y + 1.5); g.lineTo(bx + (rand() - 0.5) * 4, y - h); g.lineTo(bx + 1.8, y + 1.5); g.closePath(); g.fill();
+    }
+  }
+  const petals = ['#FFF4C9', '#F2BA55', '#D86F6B', '#BBA6E6'];
+  for (let i = 0; i < 70; i += 1) {
+    const x = rand() * W; const y = rand() * H;
+    if (Math.hypot(x - cx, y - cy) < 260) continue;
+    g.globalAlpha = 0.5;
+    g.fillStyle = petals[i % petals.length];
+    g.beginPath(); g.arc(x, y, 2.2, 0, Math.PI * 2); g.fill();
+  }
+  // the forest edge frames the clearing (the arena bounds are the real limit)
+  g.globalAlpha = 1;
+  const edge = (x0, y0, x1, y1) => {
+    const grad = g.createLinearGradient(x0, y0, x1, y1);
+    grad.addColorStop(0, 'rgba(37,73,55,.62)');
+    grad.addColorStop(1, 'rgba(37,73,55,0)');
+    return grad;
+  };
+  g.fillStyle = edge(0, 0, 0, 110); g.fillRect(0, 0, W, 110);
+  g.fillStyle = edge(0, H, 0, H - 110); g.fillRect(0, H - 110, W, 110);
+  g.fillStyle = edge(0, 0, 110, 0); g.fillRect(0, 0, 110, H);
+  g.fillStyle = edge(W, 0, W - 110, 0); g.fillRect(W - 110, 0, 110, H);
+  const bushes = ['#2F5E3E', '#3B7048', '#467747'];
+  const bush = (x, y) => {
+    const r = 24 + rand() * 18;
+    g.fillStyle = bushes[Math.floor(rand() * bushes.length)];
+    g.strokeStyle = 'rgba(35,56,47,.55)'; g.lineWidth = 3;
+    g.beginPath(); g.arc(x, y, r, 0, Math.PI * 2); g.fill(); g.stroke();
+  };
+  for (let x = -10; x <= W + 10; x += 34) { bush(x + rand() * 10, -8 + rand() * 10); bush(x + rand() * 10, H + 8 - rand() * 10); }
+  for (let y = -10; y <= H + 10; y += 34) { bush(-8 + rand() * 10, y + rand() * 10); bush(W + 8 - rand() * 10, y + rand() * 10); }
+  g.globalAlpha = 1;
 }
-backgroundContext.strokeStyle = '#456f35';
-backgroundContext.lineWidth = 1;
-backgroundContext.strokeRect(0.5, 0.5, ARENA_WIDTH - 1, ARENA_HEIGHT - 1);
+
+// Storybook campfire: a stone ring, crossed logs and a layered flame (or a
+// charred heap with smoke once it has gone out). Replaces the old emoji.
+function drawCampfire(g, cf, time) {
+  const lit = cf.hp > 0;
+  const r = cf.radius;
+  g.save();
+  g.lineJoin = 'round';
+  g.lineCap = 'round';
+  g.fillStyle = 'rgba(35,56,47,.28)';
+  g.beginPath(); g.ellipse(cf.x, cf.y + r * 0.35, r * 1.35, r * 0.6, 0, 0, Math.PI * 2); g.fill();
+  g.fillStyle = lit ? '#4A3424' : '#3A3A36';
+  g.beginPath(); g.ellipse(cf.x, cf.y + 4, r * 0.92, r * 0.5, 0, 0, Math.PI * 2); g.fill();
+  const log = (x1, y1, x2, y2, color) => {
+    g.strokeStyle = '#23382F'; g.lineWidth = 11; g.beginPath(); g.moveTo(x1, y1); g.lineTo(x2, y2); g.stroke();
+    g.strokeStyle = color; g.lineWidth = 7; g.beginPath(); g.moveTo(x1, y1); g.lineTo(x2, y2); g.stroke();
+  };
+  log(cf.x - r * 0.75, cf.y + 10, cf.x + r * 0.6, cf.y - 4, lit ? '#9E6238' : '#4C4640');
+  log(cf.x + r * 0.75, cf.y + 10, cf.x - r * 0.6, cf.y - 4, lit ? '#7A4A2E' : '#3F3A35');
+  for (let i = 0; i < 10; i += 1) {
+    const a = (i / 10) * Math.PI * 2;
+    const sx = cf.x + Math.cos(a) * r; const sy = cf.y + 4 + Math.sin(a) * r * 0.55;
+    g.fillStyle = i % 2 ? '#AAB6A0' : '#98A58F';
+    g.strokeStyle = '#23382F'; g.lineWidth = 2;
+    g.beginPath(); g.ellipse(sx, sy, 7.5, 5.5, a, 0, Math.PI * 2); g.fill(); g.stroke();
+  }
+  if (lit) {
+    const t = time / 150;
+    const layers = [['#EF7137', 17, 46], ['#F2BA55', 11, 33], ['#FFF1B8', 5.5, 18]];
+    for (const [color, w, h] of layers) {
+      const sway = Math.sin(t + w) * 3;
+      const lift = Math.sin(t * 1.6 + h) * 3;
+      const baseY = cf.y + 2;
+      g.fillStyle = color;
+      g.beginPath();
+      g.moveTo(cf.x - w, baseY);
+      g.quadraticCurveTo(cf.x - w * 1.1, baseY - h * 0.55, cf.x + sway, baseY - h - lift);
+      g.quadraticCurveTo(cf.x + w * 1.1, baseY - h * 0.55, cf.x + w, baseY);
+      g.closePath();
+      g.fill();
+      if (color === '#EF7137') { g.strokeStyle = '#23382F'; g.lineWidth = 2.5; g.stroke(); }
+    }
+  } else {
+    for (let i = 0; i < 3; i += 1) {
+      const phase = ((time / 1800) + i / 3) % 1;
+      g.globalAlpha = 0.45 * (1 - phase);
+      g.fillStyle = '#C9CFC4';
+      g.beginPath(); g.arc(cf.x + Math.sin(phase * 6 + i) * 6, cf.y - 8 - phase * 46, 8 + phase * 10, 0, Math.PI * 2); g.fill();
+    }
+  }
+  g.restore();
+}
+
+// Lobby training dummy: a straw target on a post instead of an emoji disk.
+function drawTrainingDummy(g, x, y, scale, flash) {
+  g.save();
+  g.lineJoin = 'round';
+  g.fillStyle = 'rgba(35,56,47,.22)';
+  g.beginPath(); g.ellipse(x, y + 20 * scale, 16 * scale, 5 * scale, 0, 0, Math.PI * 2); g.fill();
+  g.strokeStyle = '#23382F'; g.lineWidth = 7 * scale;
+  g.beginPath(); g.moveTo(x, y + 20 * scale); g.lineTo(x, y - 4 * scale); g.stroke();
+  g.strokeStyle = '#7A4A2E'; g.lineWidth = 4 * scale;
+  g.beginPath(); g.moveTo(x, y + 20 * scale); g.lineTo(x, y - 4 * scale); g.stroke();
+  const rings = [[19, flash ? '#FFFFFF' : '#E8CB7A'], [12.5, flash ? '#FFFFFF' : '#FFF8E4'], [6, flash ? '#FFFFFF' : '#D86F6B']];
+  for (const [radius, fill] of rings) {
+    g.fillStyle = fill; g.strokeStyle = '#23382F'; g.lineWidth = 2.5;
+    g.beginPath(); g.arc(x, y - 10 * scale, radius * scale, 0, Math.PI * 2); g.fill(); g.stroke();
+  }
+  g.restore();
+}
 const connectionStatus = document.querySelector('#connection-status');
 const enemyCount = document.querySelector('#enemy-count');
 const waveNumber = document.querySelector('#wave-number');
@@ -85,6 +239,8 @@ const waitingDetail = document.querySelector('#waiting-detail');
 const abilityHud = document.querySelector('#ability-hud');
 const toastStack = document.querySelector('#toast-stack');
 const playerRoster = document.querySelector('#player-roster');
+const partyCount = document.querySelector('#party-count');
+const enemyCountLabel = document.querySelector('.enemy-count-label');
 const lobbyBar = document.querySelector('#lobby-bar');
 const lobbyHero = document.querySelector('#lobby-hero');
 const startRunButton = document.querySelector('#start-run');
@@ -783,6 +939,39 @@ function returnToKingdom() {
   } else location.replace('/hero-lab');
 }
 
+// Drawn emblems for the result card: a gold star over a glowing fire for a
+// finished run, cold logs with a wisp of smoke for a campfire that went out.
+const RESULT_EMBLEMS = {
+  victory: '<svg viewBox="0 0 64 64"><path d="M14 52 50 40M14 40l36 12" stroke="#23382F" stroke-width="7" stroke-linecap="round"/><path d="M14 52 50 40M14 40l36 12" stroke="#9E6238" stroke-width="4" stroke-linecap="round"/><path d="M32 44c-9 0-13-6-11-13 2-5 6-7 6-13 5 3 7 7 6 11 2-2 3-4 3-7 5 4 7 9 6 13-1 6-5 9-10 9Z" fill="#EF7137" stroke="#23382F" stroke-width="2.5" stroke-linejoin="round"/><path d="M32 41c-4 0-6-3-5-6 1-2 3-3 3-6 3 2 5 5 4 8 2 0 2-2 2-3 2 2 2 4 1 6-1 1-3 1-5 1Z" fill="#F2BA55"/><path d="m32 4 3.2 6.5 7.2 1-5.2 5 1.2 7.1L32 20.3l-6.4 3.3 1.2-7.1-5.2-5 7.2-1Z" fill="#F2BA55" stroke="#23382F" stroke-width="2" stroke-linejoin="round"/></svg>',
+  defeat: '<svg viewBox="0 0 64 64"><path d="M14 52 50 40M14 40l36 12" stroke="#23382F" stroke-width="7" stroke-linecap="round"/><path d="M14 52 50 40M14 40l36 12" stroke="#5B5550" stroke-width="4" stroke-linecap="round"/><path d="M30 36c-4-4 4-7 0-12s5-8 1-13M38 34c-3-3 3-5 0-9" fill="none" stroke="#C9CFC4" stroke-width="3" stroke-linecap="round"/></svg>',
+};
+
+// The party panel shows everyone who was in the room for this run: their own
+// name first, the hero they played underneath. Only real roster data is used.
+function renderResultParty() {
+  const host = document.querySelector('#run-result-party');
+  if (!host) return;
+  const roster = state.room?.players?.length ? state.room.players : (state.players || []);
+  const members = roster.length ? roster : [{ id: me, name: 'You', heroId: activeHeroId }];
+  const ordered = [...members].sort((a, b) => (a.id === me ? -1 : b.id === me ? 1 : 0));
+  host.dataset.size = String(Math.min(ordered.length, 4));
+  host.replaceChildren(...ordered.map((member) => {
+    const figure = document.createElement('figure');
+    figure.className = `party-member${member.id === me ? ' me' : ''}`;
+    const stage = document.createElement('span'); stage.className = 'party-stage';
+    const hero = HEROES.find((candidate) => candidate.id === member.heroId);
+    const sprite = createHeroImage(member.heroId, member.emoji || hero?.emoji, 140);
+    if (sprite) stage.append(sprite); else stage.textContent = member.emoji || hero?.emoji || '';
+    const caption = document.createElement('figcaption');
+    const name = document.createElement('strong'); name.textContent = truncateName(member.name);
+    name.title = member.name || '';
+    const heroLine = document.createElement('span'); heroLine.textContent = `${hero?.name || 'Hero'}${member.id === me ? ' · you' : ''}`;
+    caption.append(name, heroLine);
+    figure.append(stage, caption);
+    return figure;
+  }));
+}
+
 function showRunResult(result) {
   latestRunResult = result;
   milestoneDawn.hidden = true;
@@ -795,6 +984,11 @@ function showRunResult(result) {
     personalBest = Math.max(personalBest, Number(localStorage.getItem(bestKey)) || 0);
     localStorage.setItem(bestKey, String(personalBest));
   } catch { /* storage may be unavailable */ }
+  // Victory and defeat share one layout; heading, emblem and accent tell them apart.
+  runResultPanel.classList.toggle('victory', Boolean(result.victory));
+  runResultPanel.classList.toggle('defeat', !result.victory);
+  document.querySelector('#run-result-emblem').innerHTML = result.victory ? RESULT_EMBLEMS.victory : RESULT_EMBLEMS.defeat;
+  renderResultParty();
   document.querySelector('#run-result-title').textContent = result.victory ? 'Victory!' : 'Campfire extinguished';
   document.querySelector('#run-result-message').textContent = `${result.wavesCleared || 0} waves cleared · ${result.rewardCoins || 0} placeholder coins${result.victory ? ' claimed' : ' earned'}.`;
   runResultStats.replaceChildren();
@@ -804,13 +998,13 @@ function showRunResult(result) {
   if (result.campfireBonusPercent > 0) upgradeLines.push(`Garden +${result.campfireBonusPercent}% base campfire HP per player`);
   if (result.towerBonusPercent > 0) upgradeLines.push(`Tower Lv${result.towerLevel}: buffs +${result.towerBonusPercent}% on your hero`);
   const statTiles = [
-    ['Waves', result.wavesReached || 0],
-    ['Enemies defeated', result.kills || 0],
-    ['Damage dealt', result.damageDealt || 0],
-    ['Personal best', `${personalBest} waves`],
+    ['Waves reached', result.wavesReached || 0, 'waves'],
+    ['Enemies defeated', result.kills || 0, 'kills'],
+    ['Damage dealt', result.damageDealt || 0, 'damage'],
+    ['Personal best', `${personalBest} waves`, 'best'],
   ];
-  for (const [label, value] of statTiles) {
-    const tile = document.createElement('div'); tile.className = 'run-result-stat';
+  for (const [label, value, kind] of statTiles) {
+    const tile = document.createElement('div'); tile.className = 'run-result-stat'; tile.dataset.kind = kind;
     const number = document.createElement('strong'); number.textContent = value;
     const caption = document.createElement('span'); caption.textContent = label;
     tile.append(number, caption); runResultStats.append(tile);
@@ -1959,6 +2153,7 @@ function renderPlayerList(room) {
   });
 
   playerRoster.hidden = all.length === 0;
+  setHudText(partyCount, `${all.length}/${room.maxPlayers || 4}`);
   if (!all.length) return;
 
   // Detect duplicate names so we can suffix " (2)".
@@ -1973,18 +2168,18 @@ function renderPlayerList(room) {
   if (signature === playerListSignature) return;
   playerListSignature = signature;
 
+  // Each row: hero portrait, the player's own name (primary), their hero
+  // (secondary), and that player's health exactly once.
   playerRoster.replaceChildren(...all.map((entry) => {
     const row = document.createElement('div');
     row.className = `roster-row${entry.id === me ? ' me' : ''}${entry.downed ? ' downed' : ''}`;
 
-    if (entry.host) {
-      const crown = document.createElement('span');
-      crown.className = 'roster-crown';
-      crown.textContent = '👑';
-      crown.title = 'Host';
-      crown.setAttribute('aria-label', 'Host');
-      row.append(crown);
-    }
+    const portrait = document.createElement('span');
+    portrait.className = 'roster-portrait';
+    const heroImage = createHeroImage(entry.heroId, entry.emoji, 30);
+    if (heroImage) portrait.append(heroImage);
+    else portrait.textContent = entry.emoji || '';
+    row.append(portrait);
 
     // Display name (NOT hero/class), truncated + duplicate suffix.
     let displayName = truncateName(entry.name);
@@ -1992,45 +2187,60 @@ function renderPlayerList(room) {
       nameSeen[entry.name] = (nameSeen[entry.name] || 0) + 1;
       if (nameSeen[entry.name] > 1) displayName = truncateName(`${entry.name} (${nameSeen[entry.name]})`);
     }
+    const who = document.createElement('span');
+    who.className = 'roster-who';
     const name = document.createElement('span');
     name.className = 'roster-name';
-    const heroImage = createHeroImage(entry.heroId, entry.emoji, 18);
-    if (heroImage) name.append(heroImage, document.createTextNode(` ${displayName}`));
-    else name.textContent = `${entry.emoji || ''} ${displayName}`.trim();
-    row.append(name);
+    name.textContent = displayName;
+    name.title = entry.name || 'Hero';
+    const hero = document.createElement('span');
+    hero.className = 'roster-hero';
+    hero.textContent = HEROES.find((candidate) => candidate.id === entry.heroId)?.name || 'Hero';
+    if (entry.id === me) hero.textContent += ' · you';
+    who.append(name, hero);
+    row.append(who);
 
-    if (entry.waiting) {
+    const status = document.createElement('span');
+    status.className = 'roster-status';
+    if (entry.host) {
+      const host = document.createElement('span');
+      host.className = 'roster-tag host';
+      host.textContent = 'host';
+      status.append(host);
+    }
+    if (entry.waiting || entry.disconnected) {
       const tag = document.createElement('span');
       tag.className = 'roster-tag';
-      tag.textContent = 'joining';
-      row.append(tag);
-    } else if (entry.disconnected) {
-      const tag = document.createElement('span');
-      tag.className = 'roster-tag';
-      tag.textContent = 'away';
-      row.append(tag);
+      tag.textContent = entry.waiting ? 'joining' : 'away';
+      status.append(tag);
     } else if (entry.downed) {
-      const seconds = Math.ceil((entry.respawnRemainingMs || 0) / 1000);
       const timer = document.createElement('span');
       timer.className = 'roster-hp-value';
-      timer.textContent = `${seconds}s`;
-      row.append(timer);
+      timer.textContent = `Back in ${Math.ceil((entry.respawnRemainingMs || 0) / 1000)}s`;
+      status.append(timer);
     } else {
-      // HP bar + value.
-      const hp = entry.hp || 0;
-      const maxHp = entry.maxHp || 1;
-      const pct = Math.max(0, Math.min(100, hp / Math.max(1, maxHp) * 100));
+      const value = document.createElement('span');
+      value.className = 'roster-hp-value';
+      value.textContent = `${entry.hp || 0}/${entry.maxHp || 0}`;
+      status.append(value);
+    }
+    row.append(status);
+
+    if (!entry.waiting && !entry.disconnected) {
+      const hp = entry.downed ? 0 : (entry.hp || 0);
+      const pct = Math.max(0, Math.min(100, hp / Math.max(1, entry.maxHp || 1) * 100));
       const track = document.createElement('span');
       track.className = 'roster-hp-track';
+      track.setAttribute('role', 'meter');
+      track.setAttribute('aria-label', `${displayName} health`);
+      track.setAttribute('aria-valuemin', '0');
+      track.setAttribute('aria-valuemax', String(entry.maxHp || 0));
+      track.setAttribute('aria-valuenow', String(hp));
       const fill = document.createElement('span');
-      fill.className = 'roster-hp-fill';
+      fill.className = `roster-hp-fill${pct <= 25 ? ' low' : pct <= 55 ? ' mid' : ''}`;
       fill.style.width = `${pct}%`;
       track.append(fill);
       row.append(track);
-      const value = document.createElement('span');
-      value.className = 'roster-hp-value';
-      value.textContent = `${hp}/${maxHp}`;
-      row.append(value);
     }
     return row;
   }));
@@ -2223,20 +2433,55 @@ function updateTalentBadge(player) {
   }));
 }
 
+// One illustrated icon per team buff, shared by the vote cards and the small
+// active-buff badges (game-icons.net, credited in Settings).
+const BUFF_ICON_ASSETS = {
+  maxHp: 'zeromancer/heart-plus.svg', attack: 'lorc/crossed-swords.svg', defense: 'sbed/shield.svg',
+  speed: 'darkzaitzev/running-ninja.svg', campfire: 'lorc/campfire.svg', thorns: 'lorc/thorny-vine.svg',
+  scavenger: 'zeromancer/heart-plus.svg', overcharge: 'willdabeast/chain-lightning.svg', rally: 'caro-asercion/french-horn.svg',
+  'glass-cannon': 'lorc/cannon.svg', 'second-wind': 'lorc/whirlwind.svg', 'life-steal': 'lorc/marrow-drain.svg',
+  ricochet: 'lorc/return-arrow.svg', volatile: 'lorc/bright-explosion.svg', 'powder-keg': 'darkzaitzev/smoke-bomb.svg',
+};
+const buffIconUrl = (id) => `/hero-lab/game-icons.net.svg/icons/ffffff/000000/1x1/${BUFF_ICON_ASSETS[id] || 'lorc/campfire.svg'}`;
+
+// The enemy count only moves once the server's number has held for a moment,
+// so a one-snapshot wobble can never make it flicker between nearby values.
+// A new wave shows its full count at once.
+const ENEMY_COUNT_SETTLE_MS = 180;
+let shownEnemyCount = null;
+let shownEnemyWave = null;
+let pendingEnemyCount = null;
+let pendingEnemySince = 0;
+function steadyEnemyCount(value, wave, now) {
+  if (shownEnemyCount === null || wave !== shownEnemyWave) {
+    shownEnemyCount = value; shownEnemyWave = wave; pendingEnemyCount = null;
+    return value;
+  }
+  if (value === shownEnemyCount) { pendingEnemyCount = null; return value; }
+  if (value !== pendingEnemyCount) { pendingEnemyCount = value; pendingEnemySince = now; }
+  if (now - pendingEnemySince >= ENEMY_COUNT_SETTLE_MS) { shownEnemyCount = value; pendingEnemyCount = null; }
+  return shownEnemyCount;
+}
+
 function updateHud(timestamp = performance.now()) {
   const player = state.players?.find((candidate) => candidate.id === me);
   updateRoomHud();
   const phase = state.room?.phase;
   if (state.room && phase === 'lobby') {
-    setHudText(enemyCount, '—');
+    // The same status panel doubles as the lobby card: party size on the left.
+    const total = (state.room.players?.length || 0) + (state.room.waiting?.length || 0);
+    setHudText(enemyCountLabel, 'IN THE PARTY');
+    setHudText(enemyCount, `${total}/${state.room.maxPlayers || 4}`);
     setHudText(waveNumber, 'Lobby');
-    setHudText(waveDetails, state.room.hostId === me ? '' : 'Waiting for the host to start…');
+    setHudText(waveDetails, state.room.hostId === me ? 'Start the run when ready' : 'Waiting for the host…');
   } else if (state.room && phase === 'countdown') {
+    setHudText(enemyCountLabel, 'ENEMIES LEFT');
     setHudText(enemyCount, '0');
     setHudText(waveNumber, 'Get ready');
     setHudText(waveDetails, 'The first wave is coming');
   } else if (state.wave && waveNumber && waveDetails) {
-    setHudText(enemyCount, String(Math.max(0, state.wave.enemiesRemaining ?? 0)));
+    setHudText(enemyCountLabel, 'ENEMIES LEFT');
+    setHudText(enemyCount, String(steadyEnemyCount(Math.max(0, state.wave.enemiesRemaining ?? 0), state.wave.number, timestamp)));
     setHudText(waveNumber, `Wave ${state.wave.number || 1}`);
     const breakPhase = state.break?.phase || null;
     if (state.buffVote) {
@@ -2262,7 +2507,7 @@ function updateHud(timestamp = performance.now()) {
   if (fire) {
     const ratio = Math.max(0, Math.min(1, fire.hp / Math.max(1, fire.maxHp)));
     setHudStyle(campfireFill, 'width', `${ratio * 100}%`);
-    setHudStyle(campfireFill, 'backgroundColor', ratio > 0.5 ? '#55ce69' : ratio > 0.25 ? '#ffc34d' : '#f04b54');
+    setHudStyle(campfireFill, 'backgroundColor', ratio > 0.5 ? '#8DB872' : ratio > 0.25 ? '#F2BA55' : '#E0807B');
     setHudText(campfireValue, `${fire.hp} / ${fire.maxHp}`);
     setHeartbeat(ratio < ARENA_TUNING.lowHp.threshold);
   }
@@ -2332,16 +2577,18 @@ function updateHud(timestamp = performance.now()) {
     return card.description;
   };
 
-  const buffEmoji = { maxHp: '❤️', attack: '⚔️', defense: '🛡️', speed: '🏃', campfire: '🔥', thorns: '🔥', scavenger: '💚', overcharge: '⚡', rally: '📣', 'glass-cannon': '💥', 'second-wind': '🕊️', 'life-steal': '🩸', ricochet: '↗️', volatile: '☄️', 'powder-keg': '🧨' };
   const buffSignature = `${(state.activeBuffs || []).map((buff) => buff.id).join('|')}@${towerLevel}`;
   if (buffSignature !== buffIconsSignature) {
     buffIconsSignature = buffSignature;
     buffIcons.replaceChildren(...(state.activeBuffs || []).map((buff) => {
       const icon = document.createElement('span');
       icon.className = 'buff-icon';
-      icon.textContent = buffEmoji[buff.id] || '✨';
       icon.title = `${buff.label}: ${scaledCardText(buff)}`;
+      icon.setAttribute('role', 'img');
       icon.setAttribute('aria-label', icon.title);
+      const glyph = document.createElement('img');
+      glyph.src = buffIconUrl(buff.id); glyph.alt = ''; glyph.setAttribute('aria-hidden', 'true');
+      icon.append(glyph);
       return icon;
     }));
   }
@@ -2428,17 +2675,10 @@ function updateHud(timestamp = performance.now()) {
     const signature = `${vote.wave}:${voted}:${JSON.stringify(vote.votes)}:${vote.cards.map((card) => card.id).join(',')}:${towerLevel}`;
     if (signature !== lastBuffRender) {
       lastBuffRender = signature;
-      const buffIconAssets = {
-        maxHp: 'zeromancer/heart-plus.svg', attack: 'lorc/crossed-swords.svg', defense: 'sbed/shield.svg',
-        speed: 'darkzaitzev/running-ninja.svg', campfire: 'lorc/campfire.svg', thorns: 'lorc/thorny-vine.svg',
-        scavenger: 'zeromancer/heart-plus.svg', overcharge: 'willdabeast/chain-lightning.svg', rally: 'caro-asercion/french-horn.svg',
-        'glass-cannon': 'lorc/cannon.svg', 'second-wind': 'lorc/whirlwind.svg', 'life-steal': 'lorc/marrow-drain.svg',
-        ricochet: 'lorc/return-arrow.svg', volatile: 'lorc/bright-explosion.svg', 'powder-keg': 'darkzaitzev/smoke-bomb.svg',
-      };
       buffCards.replaceChildren(...vote.cards.map((card) => {
         const button = document.createElement('button'); button.className = `buff-card${card.rare ? ' rare' : ''}${voted === card.id ? ' selected' : ''}`;
         button.type = 'button'; button.disabled = Boolean(voted);
-        const icon = document.createElement('img'); icon.className = 'buff-card-icon'; icon.src = `/hero-lab/game-icons.net.svg/icons/ffffff/000000/1x1/${buffIconAssets[card.id] || 'lorc/campfire.svg'}`; icon.alt = ''; icon.setAttribute('aria-hidden', 'true');
+        const icon = document.createElement('img'); icon.className = 'buff-card-icon'; icon.src = buffIconUrl(card.id); icon.alt = ''; icon.setAttribute('aria-hidden', 'true');
         const title = document.createElement('strong'); title.textContent = `${card.rare ? '✨ ' : ''}${card.label}`;
         // The four scaled cards show the LOCAL player's own resulting value.
         const description = document.createElement('span'); description.textContent = scaledCardText(card);
@@ -2698,27 +2938,7 @@ function drawScene(timestamp) {
       }
     }
 
-    // Base ring of stones
-    context.beginPath();
-    context.arc(cf.x, cf.y, cf.radius, 0, Math.PI * 2);
-    context.fillStyle = cf.hp > 0 ? '#3e2723' : '#2b2b2b';
-    context.fill();
-    context.strokeStyle = cf.hp > 0 ? '#ff7043' : '#555';
-    context.lineWidth = 2;
-    context.stroke();
-
-    // Campfire flame or smoke
-    context.textAlign = 'center';
-    context.textBaseline = 'middle';
-    if (cf.hp > 0) {
-      const flameSize = 36 + Math.sin(currentTime * 0.009) * 3;
-      context.font = `${flameSize}px sans-serif`;
-      context.fillText('🔥', cf.x, cf.y - 2);
-    } else {
-      context.font = '32px sans-serif';
-      context.fillText('💨', cf.x, cf.y - 2);
-    }
-
+    drawCampfire(context, cf, currentTime);
   }
 
   // 2. Draw Zombie Monsters
@@ -2744,15 +2964,27 @@ function drawScene(timestamp) {
       const pulse = monster.type === 'exploder' ? 1 + Math.sin(currentTime * 0.012) * 0.09 : 1;
       const scale = (monster.scale || 1) * pulse;
       const visualRadius = 20 * scale;
+      if (monster.type === 'dummy') {
+        drawTrainingDummy(context, mx, my, scale, hitFlash);
+        context.restore();
+        if (!fading) {
+          const barW = 28 * scale;
+          context.fillStyle = 'rgba(35, 56, 47, 0.75)';
+          context.fillRect(mx - barW / 2 - 1, my - 34 * scale - 1, barW + 2, 6);
+          context.fillStyle = '#7FAE58';
+          context.fillRect(mx - barW / 2, my - 34 * scale, barW * Math.max(0, monster.hp / monster.maxHp), 4);
+        }
+        continue;
+      }
       const tint = monster.type === 'brute-king' ? '#7e222c' : monster.type === 'brute' ? '#514638'
-        : monster.type === 'exploder' ? '#b86b28' : monster.type === 'dummy' ? '#b39058' : '#426b36';
+        : monster.type === 'exploder' ? '#b86b28' : '#4B3D58';
       context.beginPath();
       context.arc(mx, my, visualRadius, 0, Math.PI * 2);
       context.fillStyle = hitFlash ? '#fff' : tint;
       context.fill();
-      context.strokeStyle = monster.isBoss ? '#ff5f69' : monster.type === 'exploder' ? '#ffb34f'
-        : monster.type === 'dummy' ? '#8a6a35' : '#294a24';
-      context.lineWidth = monster.isBoss ? 4 : 2;
+      // Dusk-purple bodies with an ink rim stand apart from the green floor.
+      context.strokeStyle = monster.isBoss ? '#ff5f69' : monster.type === 'exploder' ? '#ffb34f' : '#1D2A22';
+      context.lineWidth = monster.isBoss ? 4 : 3;
       context.stroke();
       context.font = `${32 * scale}px sans-serif`;
       context.textAlign = 'center';

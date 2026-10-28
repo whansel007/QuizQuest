@@ -9,11 +9,16 @@
 <body>
   <canvas id="world" width="1920" height="1080" aria-label="Hero Lab World game arena"></canvas>
   <div id="overload-flash" aria-hidden="true"></div>
-  <aside id="hero-hud" aria-live="polite">
-    <strong id="hero-name">Joining the world…</strong>
-    <div class="health-row">
-      <div class="health-track" role="meter" aria-label="Hero health" aria-valuemin="0" aria-valuemax="100" aria-valuenow="100"><span id="health-fill"></span></div>
-      <span id="health-value">-- / --</span>
+  <aside id="hero-hud" aria-label="Party">
+    <div class="party-head"><span class="hud-kicker">PARTY</span><span id="party-count"></span></div>
+    <!-- The local hero's health also lives in its party row; this copy is for
+         screen readers only, so it is never shown twice on screen. -->
+    <div class="sr-only" aria-live="polite">
+      <strong id="hero-name">Joining the world…</strong>
+      <div class="health-row">
+        <div class="health-track" role="meter" aria-label="Your hero's health" aria-valuemin="0" aria-valuemax="100" aria-valuenow="100"><span id="health-fill"></span></div>
+        <span id="health-value">-- / --</span>
+      </div>
     </div>
     <div id="player-roster" aria-label="Players in this room" hidden></div>
   </aside>
@@ -33,7 +38,7 @@
   <aside id="boss-hud" aria-label="Boss health" hidden><strong id="boss-name">Brute King</strong><div class="boss-track"><span id="boss-health-fill"></span></div><span id="boss-health-value"></span></aside>
   <div id="room-code-corner" hidden aria-label="Room code">
     <button id="room-code" type="button" title="Copy room code" aria-label="Copy room code">
-      <span class="room-code-label">ROOM</span><b id="room-code-value">----</b><span class="room-copy-icon" aria-hidden="true">📋</span>
+      <span class="room-code-label">ROOM</span><b id="room-code-value">----</b><svg class="room-copy-icon" viewBox="0 0 16 16" aria-hidden="true"><rect x="5" y="5" width="8.5" height="9" rx="1.5" /><path d="M3 10.5V3.5A1.5 1.5 0 0 1 4.5 2H10" /></svg>
     </button>
     <span id="room-code-copied" role="status" hidden>Copied!</span>
   </div>
@@ -62,7 +67,7 @@
   <aside id="bottom-left-hud">
     <div id="bottom-left-tools">
       <aside id="settings-hud">
-        <button id="settings-button" type="button" aria-expanded="false" aria-controls="settings-panel" aria-label="Arena settings" title="Settings">⚙</button>
+        <button id="settings-button" type="button" aria-expanded="false" aria-controls="settings-panel" aria-label="Arena settings" title="Settings"><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M8.6 2h2.8l.4 2.2 1.6.9 2.1-.8 1.4 2.4-1.7 1.5v1.6l1.7 1.5-1.4 2.4-2.1-.8-1.6.9-.4 2.2H8.6l-.4-2.2-1.6-.9-2.1.8-1.4-2.4 1.7-1.5V8.2L3.1 6.7l1.4-2.4 2.1.8 1.6-.9Z" /><circle cx="10" cy="10" r="2.6" /></svg></button>
         <section id="settings-panel" hidden aria-label="Arena settings">
           <strong>Settings</strong>
           <label><input id="shake-setting" type="checkbox" checked> Screen shake</label>
@@ -146,8 +151,9 @@
     </div>
   </section>
   <section id="run-result" hidden aria-label="Run results">
+    <div class="run-result-layout">
     <div class="run-result-card">
-      <span class="run-result-emblem" aria-hidden="true">🔥</span>
+      <span id="run-result-emblem" class="run-result-emblem" aria-hidden="true"></span>
       <span class="run-result-kicker">FIELD REPORT · CAMPFIRE CHRONICLES</span>
       <h1 id="run-result-title">Run complete</h1>
       <p id="run-result-message"></p>
@@ -165,6 +171,11 @@
         <button id="run-again" type="button"><span aria-hidden="true">↻</span> RUN AGAIN</button>
         <button id="return-kingdom" type="button"><span aria-hidden="true">⌂</span> RETURN TO KINGDOM</button>
       </div>
+    </div>
+    <aside class="run-result-party" aria-labelledby="run-result-party-title">
+      <span class="run-result-kicker" id="run-result-party-title">THE PARTY</span>
+      <div id="run-result-party"></div>
+    </aside>
     </div>
   </section>
   <section id="session-summary" hidden aria-label="Session summary">
