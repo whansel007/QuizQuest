@@ -10,15 +10,17 @@ this file is informal and human-edited.
 ## [Unreleased]
 
 ### Added
-- **CI workflow** — `.github/workflows/test.yml` runs `pnpm run check && pnpm test`
-  on every push and PR to `main`. No deployment configured.
+- **CI workflow** — `.github/workflows/test.yml` runs all four suites on every push
+  and PR to `main`: `pnpm run check && pnpm test` (node), `pnpm exec vitest run`
+  (unit), `pnpm run test:browser` (browser) and `pnpm test:e2e` (Playwright, three
+  browsers). No deployment configured.
 - **EditorConfig** — `.editorconfig` for consistent whitespace and line endings across editors.
 - **Prettier config** — `.prettierrc` (no formatter installed by default; install with
   `pnpm add -D prettier` when ready).
 - **API route index** — [knowledge/API.md](knowledge/API.md) documents every
   `/api/...` route extracted from `src/quiz/api.js`.
 - **`GEMINI_TIMEOUT_MS` env override** — Gemini AI drafting timeout is now
-  configurable. Default 45000 ms. See [.env.example](.env.example).
+  configurable. Default 60000 ms, capped at 120000 ms. See [.env.example](.env.example).
 - **`studentXX@quizquest.edu` login alias** — students can log in via
   `student01@quizquest.edu` / `Password123!` (matches test guide), not just
   `s-01@quizquest.edu`.

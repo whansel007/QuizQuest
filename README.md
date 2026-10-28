@@ -299,9 +299,17 @@ Settings page is still sent first, so a professor can add to it. The
 teacher-facing knowledge report deliberately keeps the calm, conventional voice
 instead - the brand book keeps teacher pages data-focused.
 
-> `Prompt.txt` in the repo root is a reference copy of the prompts a professor
-> would type into Gemini by hand. The app does not read it; the prompts it
-> actually sends live in `src/quiz/generator.js` and `src/quiz/authoring.js`.
+Three sets of instructions reach Gemini when a question is drafted, and they
+settle their own order:
+
+1. the **QuizQuest rules** in the prompt itself - format, grounding, difficulty,
+   response schema;
+2. the **professor's settings** for the batch and the course's **Subject
+   guidance**;
+3. the professor instructions in **`Prompt.txt`** (PROMPT 2).
+
+The design and voice guidance is style only. It never overrides any of those -
+it fills the gaps they leave on voice and framing.
 
 ## Documentation
 
