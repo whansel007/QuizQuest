@@ -163,8 +163,10 @@ function spy() {
     const line = topOffset() + 24;
     let current = sections.value[0][0];
     for (const [id] of sections.value) {
+      // measure from the section's own heading, so a section counts as soon as it starts
       const el = document.getElementById(id);
-      if (el && el.getBoundingClientRect().top <= line) current = id;
+      const box = el && (el.closest('.t-section') || el);
+      if (box && box.getBoundingClientRect().top <= line) current = id;
     }
     // scrolled to the bottom: a short last section can't reach the top
     if (window.innerHeight + window.scrollY >= document.documentElement.scrollHeight - 2) current = sections.value.at(-1)[0];
@@ -304,6 +306,39 @@ function goTo(id) {
   el.classList.add('jumped');
   setTimeout(() => el.classList.remove('jumped'), 1600);
 }
+// ---- Trends: the answers chart grows to match the "When students practise"
+// panel beside it, so the two end level instead of leaving a gap. Stacked
+// (narrow screens) or when the charts already run taller, it keeps 220px.
+const trendPanel = ref(null);
+const whenPanel = ref(null);
+const trendChartH = ref(220);
+let trendRo = null;
+let trendFrame = 0;
+function fitTrendChart() {
+  cancelAnimationFrame(trendFrame);
+  trendFrame = requestAnimationFrame(() => {
+    const left = trendPanel.value;
+    const right = whenPanel.value;
+    if (!left || !right) return;
+    const l = left.getBoundingClientRect();
+    const r = right.getBoundingClientRect();
+    if (Math.abs(l.top - r.top) > 2) { trendChartH.value = 220; return; } // stacked
+    const chart = left.querySelector('.trend-answers svg');
+    const overhead = l.height - (chart?.getBoundingClientRect().height || trendChartH.value);
+    const next = Math.round(Math.max(220, Math.min(440, r.height - overhead)));
+    if (Math.abs(next - trendChartH.value) > 2) trendChartH.value = next;
+  });
+}
+watch([trendPanel, whenPanel], ([left, right]) => {
+  trendRo?.disconnect();
+  if (!left || !right || typeof ResizeObserver === 'undefined') return;
+  trendRo = new ResizeObserver(fitTrendChart);
+  trendRo.observe(right);
+  trendRo.observe(left);
+  fitTrendChart();
+});
+onUnmounted(() => { trendRo?.disconnect(); cancelAnimationFrame(trendFrame); });
+
 // ---- Overview: first-attempt accuracy per topic, weakest first. Topics on
 // fewer than minN confirmed first attempts are drawn lighter and say so.
 const topicBars = computed(() => {
@@ -686,20 +721,20 @@ function missedCsv() {
         <section id="dash-trends" class="t-section">
           <div class="t-section-head"><h3 tabindex="-1">Trends</h3><span class="t-desc">Accuracy and activity over time</span></div>
           <div class="t-grid">
-            <div class="span-8 panel">
+            <div ref="trendPanel" class="span-8 panel">
               <p class="small muted">Per {{ per }}, {{ a.trend.capped ? `the last ${a.trend.maxWeeks} weeks (tiles and tables below cover all time)` : period }}. Accuracy counts every confirmed answer (first attempts and retries); hollow points rest on fewer than {{ a.trend.lowN }} answers, so read them with care.</p>
               <div class="charts">
                 <div v-if="combined">
                   <div class="chart-title">Accuracy by topic</div>
                   <LineChart :key="drawKey" :series="series" :rows="accuracyRows" :low-n="a.trend.lowN" :label="`Accuracy by topic per ${per}`" />
                 </div>
-                <div>
+                <div class="trend-answers">
                   <div class="chart-title">Answers submitted</div>
-                  <ColumnChart :key="drawKey" :rows="activityRows" unit="answers" :partial-note="partialNote" :label="`Answers submitted per ${per}`" />
+                  <ColumnChart :key="drawKey" :rows="activityRows" unit="answers" :partial-note="partialNote" :height="combined ? 220 : trendChartH" :label="`Answers submitted per ${per}`" />
                 </div>
               </div>
             </div>
-            <div id="dash-activity" class="span-4 panel">
+            <div id="dash-activity" ref="whenPanel" class="span-4 panel">
               <h4>When students practise</h4>
               <WhenPanel :when="a.when" :timezone="a.timezone" />
               <template v-if="a.contexts.world.n">
@@ -880,10 +915,13 @@ function missedCsv() {
           </div>
         </section>
 
-        <div v-if="sameCourseClasses >= 2" id="dash-compare" class="panel">
-          <h3 tabindex="-1">Compare your classes</h3>
-          <ComparePanel :course-id="courseId" :stamp="stamp" @loaded="compareRows = $event" />
-        </div>
+        <!-- COMPARE CLASSES -->
+        <section v-if="sameCourseClasses >= 2" id="dash-compare" class="t-section">
+          <div class="t-section-head"><h3 tabindex="-1">Compare your classes</h3><span class="t-desc">Your tutorial groups for this course, side by side</span></div>
+          <div class="panel">
+            <ComparePanel :course-id="courseId" :stamp="stamp" @loaded="compareRows = $event" />
+          </div>
+        </section>
 
       </div>
       <p class="small muted">These are practice indicators to support teaching judgement. They are not grades, and the platform does not label individual students.</p>

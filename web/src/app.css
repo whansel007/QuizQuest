@@ -2983,3 +2983,13 @@ body:has(.teacher-app) { background: var(--bg); }
 .quality-check h4 { margin: 0 0 6px; }
 .quality-check > .note { margin: auto 0 0; }
 .quality-check.wide > .note { margin: 0 0 10px; }
+/* dashboard tables beside the sidebar: topic names and short status cells stay on one line */
+.teacher-app .dash-table .label { min-width: 150px; }
+.teacher-app .dash-table td.small { white-space: nowrap; }
+.teacher-app .dash-table th { white-space: normal; overflow-wrap: normal; word-break: keep-all; vertical-align: bottom; }
+/* Compare classes: classes across, measures and topics down */
+.compare-table tbody th { font-size: 14px; font-weight: 700; text-transform: none; letter-spacing: 0; color: var(--ink); }
+.compare-table thead th.current, .compare-table td.current { background: var(--accent-soft); }
+.compare-table .compare-group th { padding-top: 14px; color: var(--muted); font-size: 12px; text-transform: uppercase; letter-spacing: .4px; }
+.teacher-app .dash-table .label { min-width: 130px; }
+#dash-weeks .dash-table td.small { min-width: 96px; white-space: normal; }
