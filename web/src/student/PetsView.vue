@@ -443,6 +443,13 @@ onUnmounted(() => {
 .hero-stars { margin:8px 0 12px; color:#C38B25; font-size:22px; letter-spacing:3px; }
 .hero-talent { display:grid; gap:3px; color:#304638; font-size:16px; }.talent-label { color:#687553; font:700 10px ui-monospace,'Cascadia Code',monospace; letter-spacing:.1em; }
 .roster-strip { display:grid; grid-template-columns:repeat(auto-fit,minmax(130px,1fr)); gap:8px; }
+/* short windows: the featured cards shrink to their row instead of spilling into the roster strip */
+@media (max-height: 760px) and (min-width: 761px) {
+  .featured-hero { min-height:0; padding:10px 18px; }
+  .featured-art { flex-basis:clamp(110px,24vh,200px); }
+  .featured-art :deep(canvas) { width:clamp(110px,24vh,200px)!important; height:auto!important; }
+  .featured-row { overflow:hidden; }
+}
 .roster-hero { min-width:0; display:flex; align-items:center; gap:8px; padding:8px 10px; min-height:92px; background:#E8F0DE; border:2px solid #5D8DB0; border-radius:9px 7px 10px 8px; box-shadow:0 3px 0 #7A6545; }
 .roster-hero :deep(canvas) { flex:0 0 auto; display:block; }.roster-info { display:grid; min-width:0; }.roster-info strong { color:#254937; font:700 14px/1.2 Georgia,'Palatino Linotype',serif; }.roster-info span { color:#53654f; font-size:11px; }.roster-stars { color:#5D8DB0; font-size:12px; white-space:nowrap; }
 .summon-bottom-bar { display:flex; align-items:center; justify-content:space-between; gap:12px; }

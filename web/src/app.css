@@ -1899,12 +1899,13 @@ main#main.main-practice .practice-hero-art {
   z-index: 1;
   display: grid;
   place-items: center;
-  width: min(100%, 470px);
+  /* capped by height too, so short windows never crop the companion or its caption */
+  width: min(100%, 470px, 52vh);
   aspect-ratio: 1;
   filter: drop-shadow(0 20px 22px rgb(5 15 32 / 38%));
 }
 main#main.main-practice .practice-hero-art .hero-icon {
-  width: clamp(250px, 31vw, 390px) !important;
+  width: clamp(180px, min(31vw, 44vh), 390px) !important;
   height: auto !important;
   max-width: 100%;
 }
