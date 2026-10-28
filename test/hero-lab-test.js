@@ -836,6 +836,47 @@ test('Hero Lab server maintains campfire in the middle and spawns zombie monster
   assert.equal(serverZombie.maxHp, expectedHp);
 });
 
+test('enemy count stays stable through spawn telegraphs and never flickers mid-wave', async (t) => {
+  const client = await connectClient();
+  t.after(() => client.disconnect());
+  await joinClient(client, 'sheriff');
+
+  // Stream every authoritative state frame for a few seconds so we capture the
+  // wave-1 spawn phase, where several telegraphs convert into live monsters.
+  const frames = [];
+  const onState = (state) => frames.push(state);
+  client.on('state', onState);
+  await new Promise((resolve) => setTimeout(resolve, 6000));
+  client.off('state', onState);
+
+  // Only judge running waves; the lobby and countdown report wave 0.
+  const waveFrames = frames.filter((s) => s.wave.number > 0 && !s.gameEnded);
+  assert.ok(waveFrames.length > 0, 'the run produced at least one wave frame');
+
+  let prev = null;
+  let lastWave = null;
+  for (const state of waveFrames) {
+    const realAlive = state.monsters.filter((m) => !m.isDummy).length;
+    const tel = state.spawnTelegraphs.length;
+    const remaining = state.wave.enemiesRemaining;
+
+    // The HUD number must always cover every live, queued, and telegraphing
+    // enemy. Omitting telegraphs (the old bug) let it dip below this floor at
+    // every spawn, then jump back — the "17 ↔ 18" flicker.
+    assert.ok(remaining >= realAlive + tel,
+      `enemy count ${remaining} dipped below alive+telegraph ${realAlive + tel} at wave ${state.wave.number}`);
+
+    // Within a single wave the count is non-increasing: it only falls when a
+    // monster dies, never climbs back as a telegraph becomes a live monster.
+    if (lastWave === state.wave.number && prev !== null) {
+      assert.ok(remaining <= prev,
+        `enemy count rose mid-wave from ${prev} to ${remaining} at wave ${state.wave.number} (flicker bug)`);
+    }
+    prev = remaining;
+    lastWave = state.wave.number;
+  }
+});
+
 test('campfire loss ends the run and returns everyone to the lobby', async (t) => {
   const first = await connectClient();
   const second = await connectClient();
