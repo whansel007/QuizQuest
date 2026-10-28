@@ -5,7 +5,7 @@ import { when } from '../ui.js';
 import { store, loadHome, updateBalances } from './home.js';
 import GachaMachine from './gacha/GachaMachine.vue';
 import PrizeReveal from './gacha/PrizeReveal.vue';
-import { formatHeroType } from './hero-type.js';
+import { HERO_TYPE_ICON, heroTypeLabel } from './hero-type.js';
 import HeroIcon from './HeroIcon.vue';
 import SummonSky from './SummonSky.vue';
 import { GAME_CONFIG } from '../../../public/hero-lab/game-config.js';
@@ -278,7 +278,7 @@ onUnmounted(() => {
               <div class="featured-art"><HeroIcon :hero="hero" :size="200" animated /></div>
               <div class="featured-info">
                 <h3>{{ hero.name }}</h3>
-                <div class="hero-type"><span aria-hidden="true">{{ hero.type === 'physical' ? '✦' : '🌀' }}</span>{{ formatHeroType(hero.type) }}</div>
+                <div class="hero-type"><span aria-hidden="true">{{ HERO_TYPE_ICON[String(hero.type).toLowerCase()] }}</span>{{ heroTypeLabel(hero.type) }}</div>
                 <div class="hero-stars" :aria-label="rarityStars(hero) + ' stars'">{{ '★'.repeat(rarityStars(hero)) }}</div>
                 <div class="hero-talent"><span class="talent-label">SPECIAL TALENT</span><strong>{{ hero.talent?.name || 'Hero talent' }}</strong></div>
               </div>
@@ -288,7 +288,7 @@ onUnmounted(() => {
           <div v-if="otherHeroes.length" class="roster-strip" aria-label="Other summon heroes">
             <article v-for="hero in otherHeroes" :key="hero.id" class="roster-hero">
               <HeroIcon :hero="hero" :size="54" />
-              <div class="roster-info"><strong>{{ hero.name }}</strong><span>{{ hero.type === 'physical' ? '✦' : '🌀' }} {{ formatHeroType(hero.type) }}</span></div>
+              <div class="roster-info"><strong>{{ hero.name }}</strong><span><span aria-hidden="true">{{ HERO_TYPE_ICON[String(hero.type).toLowerCase()] }}</span> {{ heroTypeLabel(hero.type) }}</span></div>
               <span class="roster-stars" :aria-label="rarityStars(hero) + ' stars'">{{ '★'.repeat(rarityStars(hero)) }}</span>
             </article>
           </div>

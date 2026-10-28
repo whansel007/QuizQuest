@@ -51,7 +51,7 @@ Cooldowns below are the base server values, before run buffs and hero talents. W
 
 - **Blast Bomb:** Bomb travels at 410 px/s, then explodes at its 0.85 s lifetime or range end, dealing 1.2× attack damage in a 100 px radius.
 - **Proximity Trap (E):** Places a trap at Bombardier's position. It triggers within 125 px, then deals 2.2× attack damage in a 130 px blast.
-- **Targeted Bombing (Q):** Opens a 5 s targeting window. Left-click confirms a 280 px pattern and schedules five bombs at 1 s intervals. Each blast uses a 135 px radius and 1.7× attack damage. The 40 s cooldown starts on confirmation; canceling or timing out does not consume it.
+- **Targeted Bombing (Q):** Opens a 5 s targeting window. Left-click confirms a 280 px pattern and schedules five bombs at 1 s intervals. Each blast uses a 135 px radius and 1.7× attack damage. The 40 s cooldown starts on confirmation; canceling or timing out does not consume it. The impact marker fills clockwise from 12 o'clock like the ability cooldown ring, so the time left before the blast is readable at a glance.
 
 ### Bubbles
 
@@ -98,11 +98,13 @@ Same-stat cards add together, then the Tower multiplier scales that sum; caps ap
 | --- | --- |
 | Move | `W`, `A`, `S`, `D` or arrow keys |
 | Aim | Mouse pointer |
-| Weapon | Left mouse button |
+| Weapon | Left mouse button — hold to keep firing at the weapon cooldown |
 | Skill | `E` |
 | Ultimate | `Q` |
 | Bombardier target | Activate ultimate with `Q`, aim, then left-click to confirm; `Esc` cancels |
 | Hero information | `I` or the Information button |
+
+Holding the weapon button works for every hero: the server repeats the shot the moment the weapon cooldown allows, so the rate is exactly the cooldown (105 ms for Bubbles, 1.05 s for the Pilot mech punch) and does not depend on click speed. A held button never ends a Shield Rush dash or pops a Bubble Rush — those stay click-only — and it stays quiet while the Bombardier is choosing a strike point.
 
 ## Game loop
 

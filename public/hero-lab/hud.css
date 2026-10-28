@@ -169,7 +169,10 @@ html, body { width: 100%; height: 100%; margin: 0; overflow: hidden; background:
 .buff-card.selected { background: #245334; border-color: #91efa6; }
 .buff-card:disabled { opacity: .65; cursor: default; }
 #targeting-hint { position: fixed; z-index: 2; top: 5.5rem; left: 50%; padding: .45rem .7rem; transform: translateX(-50%); color: white; background: #172033e8; border-radius: .5rem; }
-#connection-status { max-width: 250px; padding: .25rem .45rem; color: #fff; background: rgb(17 24 39 / 70%); border-radius: .3rem; font-size: .75rem; }
+/* Connection state is a row inside the I panel, not a chip in the bottom-left
+   corner. Long reconnect errors wrap on the right instead of stretching the
+   card. */
+#stats-card #connection-status { max-width: 168px; text-align: right; overflow-wrap: anywhere; }
 #stats-panel[hidden] { display: none; }
 #ability-hud[hidden] { display: none; }
 /* Sits above the ability cluster (1rem margin + cluster height + 1rem gap) so
@@ -382,7 +385,7 @@ html, body { font-family: Nunito, 'Trebuchet MS', system-ui, sans-serif; }
 #stats-card .talent-key { color: var(--hud-ink); background: #F3E4BD; border-color: #8C805E; }
 #info-close { color: var(--hud-pine); }
 #info-close:hover, #info-close:focus-visible { color: var(--hud-ink); background: #F2BA5555; }
-#connection-status { color: var(--hud-pine); background: var(--hud-paper); border: 1px solid var(--hud-ink); border-radius: 6px; }
+#stats-card #connection-status { color: var(--hud-pine); }
 #waiting-banner { color: var(--hud-ink); }
 #waiting-banner strong { color: var(--hud-pine); font: 700 1.2rem Georgia, 'Palatino Linotype', serif; }
 #waiting-banner span { color: #53634A; }
@@ -592,7 +595,8 @@ html, body { font-family: Nunito, 'Trebuchet MS', system-ui, sans-serif; }
 }
 #hero-name, #wave-number, #campfire-hud, #campfire-hud strong,
 #room-code-copied, #lobby-bar, #waiting-banner strong,
-#settings-panel strong, .info-card > strong, .hud-debug-hero > strong {
+#settings-panel strong, .info-card > strong, .hud-debug-hero > strong,
+#enemy-count {
   color: #F0EAD2;
 }
 .health-row, #wave-details, .enemy-count-label, .campfire-heading span,
@@ -622,7 +626,7 @@ html, body { font-family: Nunito, 'Trebuchet MS', system-ui, sans-serif; }
 #howto-lead { color: #F0D994; }
 #stats-card .talent-info { border-color: #71836C; }
 #stats-card .talent-key { color: #F0EAD2; background: #405B46; border-color: #819276; }
-#connection-status { color: #E8E8D4; background: #304A3A; border-color: #819276; }
+#stats-card #connection-status { color: #B9C9A8; }
 .buff-icon { color: #F0EAD2; background: #435D49; border-color: #819276; box-shadow: 0 2px 0 #1D3329; }
 #kill-streak { color: #F0D994; background: #304A3A; }
 #targeting-hint { color: #F0EAD2; }
@@ -696,4 +700,121 @@ html, body { font-family: Nunito, 'Trebuchet MS', system-ui, sans-serif; }
 }
 @media (max-width: 480px) {
   .session-summary-card { min-height: 250px; padding: 24px 18px; }
+}
+
+/* Run-end report: a compact campfire chronicle with scannable stat tiles and
+   its own kingdom-bonus and next-hero sections. */
+#run-result {
+  place-items: center;
+  align-content: center;
+  padding: 12px;
+  background: rgb(17 34 27 / 82%);
+}
+#run-result::before { content: none; }
+.run-result-card {
+  position: relative;
+  display: grid;
+  justify-items: center;
+  align-content: start;
+  gap: .7rem;
+  width: min(620px, 100%);
+  max-height: calc(100svh - 24px);
+  overflow: auto;
+  padding: clamp(20px, 4vw, 32px);
+  color: #E8E8D4;
+  background: linear-gradient(150deg, #304A3A 0%, #263F34 100%);
+  border: 2px solid #73866A;
+  border-radius: 18px 14px 19px 15px;
+  box-shadow: 0 6px 0 #1D3329, 0 18px 46px rgb(5 20 13 / 58%), inset 0 1px rgb(255 255 255 / 8%);
+  text-align: center;
+}
+.run-result-emblem {
+  display: grid;
+  width: 48px;
+  height: 48px;
+  place-items: center;
+  background: #435D49;
+  border: 1px solid #819276;
+  border-radius: 50%;
+  box-shadow: 0 3px 0 #1D3329;
+  font-size: 1.65rem;
+}
+.run-result-kicker {
+  color: #D6BD70;
+  font: 800 .62rem/1.2 ui-monospace, 'Cascadia Code', monospace;
+  letter-spacing: .15em;
+}
+.run-result-card #run-result-title {
+  margin: 0;
+  color: #F0EAD2;
+  font: 700 clamp(1.65rem, 4.5vw, 2.45rem)/1.05 Georgia, 'Palatino Linotype', serif;
+  text-wrap: balance;
+}
+.run-result-card #run-result-message { color: #CFD8C3; font-size: .9rem; }
+#run-result-stats.run-result-stat-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: .55rem;
+  width: 100%;
+  margin-top: .1rem;
+  text-align: center;
+}
+.run-result-stat {
+  display: grid;
+  min-width: 0;
+  align-content: center;
+  gap: .25rem;
+  min-height: 76px;
+  padding: .55rem .35rem;
+  background: #435D49;
+  border: 1px solid #71866A;
+  border-radius: 10px 8px 11px 9px;
+  box-shadow: 0 3px 0 #1D3329;
+}
+.run-result-stat strong {
+  color: #F0EAD2;
+  font: 700 clamp(1rem, 2.7vw, 1.45rem)/1 Georgia, 'Palatino Linotype', serif;
+  font-variant-numeric: tabular-nums;
+}
+.run-result-stat span { color: #CFD8C3; font-size: .66rem; line-height: 1.15; }
+.run-result-bonuses {
+  width: 100%;
+  padding: .65rem .85rem;
+  background: rgb(29 51 42 / 68%);
+  border: 1px solid #536B50;
+  border-radius: 10px 8px 11px 9px;
+  text-align: left;
+}
+.run-result-bonuses h2 {
+  margin: 0 0 .35rem;
+  color: #F0EAD2;
+  font: 700 .86rem Georgia, 'Palatino Linotype', serif;
+}
+#run-result-upgrades { display: grid; gap: .24rem; margin: 0; padding: 0; list-style: none; }
+#run-result-upgrades li { display: grid; grid-template-columns: .9rem minmax(0, 1fr); gap: .35rem; color: #D5DEC9; font-size: .76rem; line-height: 1.25; }
+#run-result-upgrades li > span:first-child { color: #D6BD70; }
+#run-result-teaser { display: flex; align-items: center; justify-content: center; gap: .4rem; color: #E2D39B; font-size: .78rem; }
+.run-result-picker { display: grid; justify-items: center; gap: .35rem; width: min(290px, 100%); }
+.run-result-picker label { display: flex; align-items: center; gap: .4rem; color: #CFD8C3; font-size: .78rem; font-weight: 700; }
+#run-again-hero-icon { display: inline-flex; align-items: center; }
+#run-again-hero { width: 100%; min-width: 0; padding: .55rem .7rem; color: #F0EAD2; background: #435D49; border: 1px solid #819276; border-radius: 8px; }
+.run-result-card .run-result-actions { display: flex; gap: .55rem; width: 100%; margin-top: .15rem; }
+.run-result-card .run-result-actions button {
+  min-height: 42px;
+  padding: .6rem .9rem;
+  color: #F0EAD2;
+  background: #435D49;
+  border: 1px solid #819276;
+  border-radius: 9px 7px 10px 8px;
+  box-shadow: 0 3px 0 #1D3329;
+  font: 800 .78rem Nunito, 'Trebuchet MS', sans-serif;
+}
+.run-result-card .run-result-actions #run-again { color: #3B2B1D; background: #D6B15B; border-color: #E2C87C; }
+.run-result-card .run-result-actions button:hover { filter: brightness(1.08); transform: translateY(-1px); }
+@media (max-width: 520px) {
+  .run-result-card { gap: .55rem; padding: 18px 14px; }
+  #run-result-stats.run-result-stat-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: .45rem; }
+  .run-result-stat { min-height: 64px; }
+  .run-result-card .run-result-actions { flex-direction: column; }
+  .run-result-card .run-result-actions button { width: 100%; }
 }

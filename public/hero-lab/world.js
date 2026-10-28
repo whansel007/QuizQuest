@@ -11,6 +11,8 @@ import { SHAKE_PLAYER_HIT_TRAUMA, SHAKE_ULTIMATE_TRAUMA, SHAKE_BOSS_SLAM_TRAUMA,
   AREA_RING_WIDTH, AREA_TELEGRAPH_WIDTH, AREA_DASH_ON, AREA_DASH_OFF, AREA_UNDERSTROKE_EXTRA_PX,
   AREA_UNDERSTROKE_ALPHA, AREA_RING_STROKE_ALPHA, AREA_TELEGRAPH_STROKE_ALPHA, AREA_RING_FILL_ALPHA,
   AREA_TELEGRAPH_FILL_START_ALPHA, AREA_TELEGRAPH_FILL_END_ALPHA, AREA_ENEMY_FILL_END_ALPHA,
+  AREA_TELEGRAPH_SWEEP_BASE_ALPHA, AREA_TELEGRAPH_SWEEP_FILL_ALPHA,
+  AREA_TELEGRAPH_SWEEP_HAND_ALPHA, AREA_TELEGRAPH_SWEEP_HAND_WIDTH,
   AREA_ENEMY_MARKER_MIN_RADIUS, AREA_COLORS,
   MAX_BURSTS_PER_FRAME, KILL_BURST_THRESHOLD, KILL_BURST_WINDOW_MS, KILL_MASS_SHAKE_TRAUMA, KILL_MASS_PUFF_PARTICLES,
   FRAME_TIME_TARGET_MS, ADAPTIVE_RESTORE_MS, ADAPTIVE_SAMPLE_FRAMES, QUALITY_PARTICLE_FACTOR, FRAME_CAP_FPS,
@@ -432,7 +434,6 @@ let lastHitShakeAt = 0;
 let cameraZoom = { until: 0, scale: 1 };
 let combo = { count: 0, lastKillAt: 0 };
 let bannerTimer = null;
-let primaryFireTimer = null;
 let lastHudUpdateAt = 0;
 let lastAimSentAt = 0;
 let aimSendTimer = null;
@@ -442,6 +443,7 @@ const BRIEFING_SESSION_KEY = 'hero-lab-briefing-shown';
 const abilityReadyAt = new Map();
 const runAgainHero = document.querySelector('#run-again-hero');
 const runResultStats = document.querySelector('#run-result-stats');
+const runResultUpgrades = document.querySelector('#run-result-upgrades');
 let latestRunResult = null;
 
 function saveSettings() {
@@ -801,16 +803,25 @@ function showRunResult(result) {
     : [`Kingdom attack bonus: 0% · Extra damage: ${result.bonusDamage || 0}`];
   if (result.campfireBonusPercent > 0) upgradeLines.push(`Garden +${result.campfireBonusPercent}% base campfire HP per player`);
   if (result.towerBonusPercent > 0) upgradeLines.push(`Tower Lv${result.towerLevel}: buffs +${result.towerBonusPercent}% on your hero`);
-  for (const line of [
-    `Waves reached: ${result.wavesReached || 0}`,
-    `Kills: ${result.kills || 0}`,
-    `Damage dealt: ${result.damageDealt || 0}`,
-    `Personal best with this hero: ${personalBest} waves`,
-    ...upgradeLines,
-  ]) {
-    const item = document.createElement('span'); item.textContent = line; runResultStats.append(item);
+  const statTiles = [
+    ['Waves', result.wavesReached || 0],
+    ['Enemies defeated', result.kills || 0],
+    ['Damage dealt', result.damageDealt || 0],
+    ['Personal best', `${personalBest} waves`],
+  ];
+  for (const [label, value] of statTiles) {
+    const tile = document.createElement('div'); tile.className = 'run-result-stat';
+    const number = document.createElement('strong'); number.textContent = value;
+    const caption = document.createElement('span'); caption.textContent = label;
+    tile.append(number, caption); runResultStats.append(tile);
   }
-  document.querySelector('#run-result-teaser').textContent = `Brute King awaits at wave ${result.nextBossWave || ARENA_TUNING.run.bossTeaserWave}.`;
+  runResultUpgrades.replaceChildren(...upgradeLines.map((line) => {
+    const item = document.createElement('li');
+    const marker = document.createElement('span'); marker.setAttribute('aria-hidden', 'true'); marker.textContent = '✦';
+    const text = document.createElement('span'); text.textContent = line;
+    item.append(marker, text); return item;
+  }));
+  document.querySelector('#run-result-teaser-text').textContent = `The Brute King awaits at wave ${result.nextBossWave || ARENA_TUNING.run.bossTeaserWave}.`;
   runAgainHero.replaceChildren(...HEROES.map((hero) => {
     const option = document.createElement('option'); option.value = hero.id; option.textContent = heroOptionText(hero);
     option.selected = hero.id === (result.heroId || activeHeroId); return option;
@@ -1228,7 +1239,15 @@ socket.on('ability_used', (event) => {
   }
 });
 socket.on('weapon_fired', (event) => {
-  if (event.playerId !== me) playSound('shoot', { pitchVariance: ARENA_TUNING.sound.shotPitchVariance, volume: 0.6 });
+  if (event.playerId !== me) { playSound('shoot', { pitchVariance: ARENA_TUNING.sound.shotPitchVariance, volume: 0.6 }); return; }
+  // Own shots are repeated by the server while primary fire is held, so their
+  // muzzle flash and sound have to come from the event. A 'click' shot already
+  // played both locally, before the round trip.
+  if (event.source !== 'hold') return;
+  const shooter = state.players.find((candidate) => candidate.id === me);
+  if (!shooter) return;
+  showMuzzleFlash(shooter);
+  playSound('shoot', { pitchVariance: ARENA_TUNING.sound.shotPitchVariance });
 });
 socket.on('buff_applied', () => playSound('cardPick'));
 socket.on('dash_hit', (event) => {
@@ -1810,13 +1829,11 @@ function fireWeapon(mode) {
   socket.emit('fire', mode);
 }
 
-function stopPrimaryFire() {
-  if (primaryFireTimer !== null) clearInterval(primaryFireTimer);
-  primaryFireTimer = null;
-}
-
+// The server repeats the shot for as long as this flag is true, so every hero
+// fires continuously while the button is held. The first shot is still sent
+// immediately as a normal 'fire' event so it does not wait for a tick.
 function setPrimaryHeld(held) {
-  if (activeHeroId === 'sheriff' && socket.connected) socket.emit('primary_hold', Boolean(held));
+  if (socket.connected) socket.emit('primary_hold', Boolean(held));
 }
 
 function onPointerMove(event) {
@@ -2213,7 +2230,7 @@ function updateHud(timestamp = performance.now()) {
   if (state.room && phase === 'lobby') {
     setHudText(enemyCount, '—');
     setHudText(waveNumber, 'Lobby');
-    setHudText(waveDetails, state.room.hostId === me ? 'Press START RUN when everyone is in' : 'Waiting for the host to start…');
+    setHudText(waveDetails, state.room.hostId === me ? '' : 'Waiting for the host to start…');
   } else if (state.room && phase === 'countdown') {
     setHudText(enemyCount, '0');
     setHudText(waveNumber, 'Get ready');
@@ -2467,12 +2484,11 @@ function onPointerDown(event) {
     // strike location (same emit as the right-click confirm) instead of
     // firing the weapon.
     if (player?.targeting) { fireWeapon('secondary'); return; }
-    setPrimaryHeld(true);
+    // Send the first shot before the hold flag: if the server tick lands
+    // between the two events it fires from the hold, and the explicit shot
+    // that follows would be refused by the cooldown - one shot, one sound.
     fireWeapon('primary');
-    if (activeHeroId === 'bubbles') {
-      stopPrimaryFire();
-      primaryFireTimer = setInterval(() => fireWeapon('primary'), GAME_CONFIG.heroes.bubbles.weaponCooldownMs);
-    }
+    setPrimaryHeld(true);
   }
 }
 
@@ -2827,13 +2843,42 @@ function drawScene(timestamp) {
     const fillColor = electroStun ? HERO_FX_COLORS.electromancer.primary : danger ? AREA_COLORS.enemyFill : AREA_COLORS.playerFill;
     context.save();
     if (effect.phase === 'telegraph') {
-      // Inner fill rises 20% -> 45% (danger zones slightly stronger) while the
-      // OUTLINE stays at full brightness for the whole telegraph.
-      const endAlpha = danger ? AREA_ENEMY_FILL_END_ALPHA : AREA_TELEGRAPH_FILL_END_ALPHA;
-      const fillAlpha = AREA_TELEGRAPH_FILL_START_ALPHA + (endAlpha - AREA_TELEGRAPH_FILL_START_ALPHA) * progress;
-      context.globalAlpha = fillAlpha;
-      context.fillStyle = fillColor;
-      context.beginPath(); context.arc(effect.x, effect.y, effect.radius, 0, Math.PI * 2); context.fill();
+      // The Bombardier's ultimate marker fills like a clock hand sweeping
+      // clockwise from 12 o'clock (the same read as the ability cooldown
+      // ring) instead of ramping opacity, so the time left before impact is
+      // visible at a glance. Every other telegraph keeps the alpha ramp.
+      const sweepMarker = effect.sourceHeroId === 'bombardier' && effect.sourceAbility === 'ultimate';
+      if (sweepMarker) {
+        // Faint base disc: the danger area reads immediately, and the wedge
+        // fills the inner circle on top of it.
+        context.globalAlpha = AREA_TELEGRAPH_SWEEP_BASE_ALPHA;
+        context.fillStyle = fillColor;
+        context.beginPath(); context.arc(effect.x, effect.y, effect.radius, 0, Math.PI * 2); context.fill();
+        const sweepStart = -Math.PI / 2;
+        const sweepEnd = sweepStart + Math.PI * 2 * progress;
+        context.globalAlpha = AREA_TELEGRAPH_SWEEP_FILL_ALPHA;
+        context.beginPath();
+        context.moveTo(effect.x, effect.y);
+        context.arc(effect.x, effect.y, effect.radius, sweepStart, sweepEnd);
+        context.closePath(); context.fill();
+        // Solid leading edge, otherwise the wedge boundary is hard to read
+        // against the base disc on the bright green floor.
+        context.globalAlpha = AREA_TELEGRAPH_SWEEP_HAND_ALPHA;
+        context.strokeStyle = stroke;
+        context.lineWidth = AREA_TELEGRAPH_SWEEP_HAND_WIDTH;
+        context.beginPath();
+        context.moveTo(effect.x, effect.y);
+        context.lineTo(effect.x + Math.cos(sweepEnd) * effect.radius, effect.y + Math.sin(sweepEnd) * effect.radius);
+        context.stroke();
+      } else {
+        // Inner fill rises 20% -> 45% (danger zones slightly stronger) while
+        // the OUTLINE stays at full brightness for the whole telegraph.
+        const endAlpha = danger ? AREA_ENEMY_FILL_END_ALPHA : AREA_TELEGRAPH_FILL_END_ALPHA;
+        const fillAlpha = AREA_TELEGRAPH_FILL_START_ALPHA + (endAlpha - AREA_TELEGRAPH_FILL_START_ALPHA) * progress;
+        context.globalAlpha = fillAlpha;
+        context.fillStyle = fillColor;
+        context.beginPath(); context.arc(effect.x, effect.y, effect.radius, 0, Math.PI * 2); context.fill();
+      }
       // Dark under-stroke keeps the bright outline readable on the green floor.
       context.globalAlpha = AREA_UNDERSTROKE_ALPHA;
       context.strokeStyle = AREA_COLORS.understroke;
@@ -3310,7 +3355,7 @@ window.addEventListener('keydown', warmAudioOnFirstInput);
 canvas.addEventListener('contextmenu', (event) => event.preventDefault());
 addEventListener('keydown', onKeyDown);
 addEventListener('keyup', onKeyUp);
-addEventListener('blur', () => { releaseKeys(); stopPrimaryFire(); setPrimaryHeld(false); });
-addEventListener('pointerup', () => { stopPrimaryFire(); setPrimaryHeld(false); });
-addEventListener('pointercancel', () => { stopPrimaryFire(); setPrimaryHeld(false); });
+addEventListener('blur', () => { releaseKeys(); setPrimaryHeld(false); });
+addEventListener('pointerup', () => setPrimaryHeld(false));
+addEventListener('pointercancel', () => setPrimaryHeld(false));
 requestAnimationFrame(draw);

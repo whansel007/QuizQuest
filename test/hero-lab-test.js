@@ -393,6 +393,60 @@ test('primary fire during Shield Rush ends the dash early and fires the fan ther
   assert.equal(player.hero.cooldowns.weapon.readyAt, weaponReadyAt, 'the weapon cooldown is untouched');
 });
 
+test('holding primary fire repeats the shot at the weapon cooldown', async (t) => {
+  const client = await connectClient();
+  t.after(() => client.disconnect());
+  const welcomePromise = new Promise((resolve) => client.once('welcome', resolve));
+  client.emit('join', { heroId: 'sheriff' });
+  const { you: clientId } = await welcomePromise;
+  await nextState(client, (state) => state.players.some((player) => player.id === clientId));
+
+  const shots = [];
+  client.on('weapon_fired', (event) => {
+    if (event.playerId === clientId) shots.push({ ...event, at: Date.now() });
+  });
+  client.emit('primary_hold', true);
+  await new Promise((resolve) => setTimeout(resolve, 900));
+  client.emit('primary_hold', false);
+  const whileHeld = shots.length;
+  await new Promise((resolve) => setTimeout(resolve, 400));
+
+  assert.ok(whileHeld >= 2, `holding primary fire keeps shooting (got ${whileHeld} shots)`);
+  assert.ok(shots.every((shot) => shot.source === 'hold'), 'held shots are tagged so the client can play their sound');
+  assert.equal(shots.length, whileHeld, 'releasing the button stops the stream');
+  for (let index = 1; index < shots.length; index++) {
+    const gap = shots[index].at - shots[index - 1].at;
+    assert.ok(gap >= 240, `shots respect the 270ms revolver cooldown (gap ${gap}ms)`);
+  }
+});
+
+test('a held primary button does not cancel Shield Rush', async (t) => {
+  const client = await connectClient();
+  t.after(() => client.disconnect());
+  const welcomePromise = new Promise((resolve) => client.once('welcome', resolve));
+  client.emit('join', { heroId: 'guardian' });
+  const { you: clientId } = await welcomePromise;
+  await nextState(client, (state) => state.players.some((player) => player.id === clientId));
+
+  const player = server.heroLab.players.get(clientId);
+  let shots = 0;
+  client.on('weapon_fired', (event) => { if (event.playerId === clientId) shots += 1; });
+  // Hold first, so the ability starts while the button is already down - the
+  // case that used to cancel the dash on the next tick.
+  client.emit('primary_hold', true);
+  await new Promise((resolve) => setTimeout(resolve, 120));
+  assert.ok(shots > 0, 'the hold is live before the dash starts');
+  shots = 0;
+
+  client.emit('skill');
+  await nextState(client, (state) => state.players.find((candidate) => candidate.id === clientId)?.rushDashing);
+  await new Promise((resolve) => setTimeout(resolve, 120));
+
+  assert.ok(player.dashState, 'the dash is still running while the button is held');
+  assert.equal(shots, 0, 'holding fires nothing during the dash');
+  client.emit('primary_hold', false);
+});
+
 test('respawn selects a separated point on the campfire ring', async (t) => {
   const first = await connectClient();
   const second = await connectClient();
@@ -819,6 +873,10 @@ test('Bombardier chooses the targeted bombing point with secondary fire', async 
   await nextState(client, (state) => state.players.some((p) => p.id === you));
   client.emit('ultimate');
   await nextState(client, (state) => state.players.find((p) => p.id === you)?.targeting);
+  // The client draws this marker as a clockwise sweep instead of an opacity
+  // ramp, and only for the Bombardier's own ultimate, so the telegraph has to
+  // name the source hero.
+  const telegraph = new Promise((resolve) => client.once('area_telegraph', resolve));
   client.emit('fire', 'secondary', { x: 900, y: 400 });
   const targeted = await nextState(client, (state) => state.effects?.length === 1);
   assert.equal(targeted.players.find((p) => p.id === you).targeting, false);
@@ -826,6 +884,10 @@ test('Bombardier chooses the targeted bombing point with secondary fire', async 
   assert.equal(targeted.effects[0].x, 900);
   assert.equal(targeted.effects[0].y, 400);
   assert.equal(targeted.effects[0].radius, 280);
+  const marker = await telegraph;
+  assert.equal(marker.sourceAbility, 'ultimate');
+  assert.equal(marker.sourceHeroId, 'bombardier', 'the sweep is keyed on the source hero');
+  assert.equal(marker.radius, 280);
 });
 
 test('heroes standing by the campfire slowly recover health', async (t) => {

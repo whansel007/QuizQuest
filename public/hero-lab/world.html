@@ -22,7 +22,7 @@
       <strong id="enemy-count" aria-label="Enemies remaining">--</strong>
       <span class="enemy-count-label">ENEMIES LEFT</span>
       <strong id="wave-number">Lobby</strong>
-      <span id="wave-details">Press START RUN when everyone is in</span>
+      <span id="wave-details"></span>
       <div id="break-pill" hidden></div>
     </aside>
     <aside id="campfire-hud" aria-label="Campfire health">
@@ -113,6 +113,7 @@
         <span id="building-bonus-stat" title="Kingdom upgrades applied to this hero">🏰 Upgrades</span>
         <ul id="building-bonus-list" class="stat-list"><li>None</li></ul>
         <span id="momentum-stat" title="Moving: +20% damage" aria-label="Moving: plus 20 percent damage">🏃 Momentum <b id="momentum-status">Inactive</b></span>
+        <span title="Live link to the arena server">🔌 Connection <b id="connection-status" role="status">Connecting…</b></span>
         <span class="talent-info">
           <span id="stat-talent-badge" class="talent-badge-host"></span>
           <span class="talent-info-text"><em id="stat-talent-name">Talent</em><b id="stat-talent-description">--</b></span>
@@ -121,7 +122,6 @@
       </section>
     </section>
     <strong id="kill-streak" hidden aria-live="polite"></strong>
-    <span id="connection-status" role="status">Connecting…</span>
   </aside>
   <section id="buff-vote" hidden aria-label="Choose a team wave buff">
     <div id="buff-vote-panel">
@@ -146,15 +146,25 @@
     </div>
   </section>
   <section id="run-result" hidden aria-label="Run results">
-    <h1 id="run-result-title">Run complete</h1>
-    <p id="run-result-message"></p>
-    <div id="run-result-stats"></div>
-    <p id="run-result-teaser"></p>
-    <label for="run-again-hero"><span id="run-again-hero-icon" aria-hidden="true"></span> Hero for the next run</label>
-    <select id="run-again-hero"></select>
-    <div class="run-result-actions">
-      <button id="run-again" type="button">RUN AGAIN</button>
-      <button id="return-kingdom" type="button">RETURN TO KINGDOM</button>
+    <div class="run-result-card">
+      <span class="run-result-emblem" aria-hidden="true">🔥</span>
+      <span class="run-result-kicker">FIELD REPORT · CAMPFIRE CHRONICLES</span>
+      <h1 id="run-result-title">Run complete</h1>
+      <p id="run-result-message"></p>
+      <div id="run-result-stats" class="run-result-stat-grid"></div>
+      <section class="run-result-bonuses" aria-label="Kingdom contributions">
+        <h2>Kingdom contributions</h2>
+        <ul id="run-result-upgrades"></ul>
+      </section>
+      <p id="run-result-teaser"><span aria-hidden="true">👑</span><span id="run-result-teaser-text"></span></p>
+      <div class="run-result-picker">
+        <label for="run-again-hero"><span id="run-again-hero-icon" aria-hidden="true"></span><span>Choose your next hero</span></label>
+        <select id="run-again-hero"></select>
+      </div>
+      <div class="run-result-actions">
+        <button id="run-again" type="button"><span aria-hidden="true">↻</span> RUN AGAIN</button>
+        <button id="return-kingdom" type="button"><span aria-hidden="true">⌂</span> RETURN TO KINGDOM</button>
+      </div>
     </div>
   </section>
   <section id="session-summary" hidden aria-label="Session summary">

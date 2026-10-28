@@ -64,17 +64,17 @@ onUnmounted(() => { alive = false; });
   <p v-else-if="loaded && !S.classId">Join a class to start tracking your practice.</p>
   <template v-else-if="progress">
     <p class="small muted">Updated {{ when(updatedAt) }}. Refresh to check for new marks and professor responses.</p>
-    <div class="panel">
+    <div class="panel progress-overview">
       <h3>Your practice indicator</h3>
       <p class="small muted">Your latest confirmed answer to each of the most recent {{ progress.window }} different questions per topic counts. Practice and World answers are included. Retries replace earlier answers. This is a practice guide, not a grade or a measure of mastery.</p>
-      <p v-if="!progress.indicator.n">No confirmed answers yet. Start a practice session to build your history.</p>
-      <p v-else><b>{{ progress.indicator.correct }} / {{ progress.indicator.n }}</b> counted questions correct ({{ pct(progress.indicator.accuracy) }} across the topic windows below).</p>
+      <p v-if="!progress.indicator.n" class="progress-score">No confirmed answers yet. Start a practice session to build your history.</p>
+      <p v-else class="progress-score"><b>{{ progress.indicator.correct }} / {{ progress.indicator.n }}</b> counted questions correct ({{ pct(progress.indicator.accuracy) }} across the topic windows below).</p>
       <p v-if="progress.awaitingMarking" class="note small">{{ progress.awaitingMarking }} written answer(s) awaiting marking are excluded from accuracy. Confirmed earlier answers to those questions may still count.</p>
-      <p v-if="focus.length" class="note small">Worth practising next: <b>{{ focus.map((t) => t.name).join(', ') }}</b>. These topics have at least {{ progress.minPerTopic }} counted questions and accuracy below {{ pct(progress.weakBelow) }}.</p>
+      <p v-if="focus.length" class="note small progress-focus-note">Worth practising next: <b>{{ focus.map((t) => t.name).join(', ') }}</b>. These topics have at least {{ progress.minPerTopic }} counted questions and accuracy below {{ pct(progress.weakBelow) }}.</p>
       <p v-else class="small muted">Keep exploring all topics. Topics need at least {{ progress.minPerTopic }} different confirmed questions before we suggest extra practice.</p>
       <button class="btn primary" @click="setTab('practice')">Go to practice</button>
     </div>
-    <div class="grid">
+    <div class="grid progress-topics" aria-label="Progress by topic">
       <article v-for="topic in progress.topics" :key="topic.topicId" class="tile">
         <h3>{{ topic.name }}</h3>
         <p class="badge plain">{{ statusLabel(topic) }}</p>
@@ -88,7 +88,7 @@ onUnmounted(() => { alive = false; });
         <p v-if="topic.awaitingMarking" class="small muted">{{ topic.awaitingMarking }} answer(s) awaiting marking.</p>
       </article>
     </div>
-    <section class="panel" style="margin-top: 16px">
+    <section class="panel progress-sessions" style="margin-top: 16px">
       <h3>Recent sessions</h3>
       <p v-if="!progress.sessions.length" class="muted">No completed practice sessions yet.</p>
       <div v-else class="progress-table">
@@ -101,7 +101,7 @@ onUnmounted(() => { alive = false; });
         </table>
       </div>
     </section>
-    <section class="panel">
+    <section class="panel progress-reports">
       <h3>My question reports</h3>
       <p class="small muted">Report a problem after answering a question in Practice or the World. Professors see your reason without your identity. Resolving a report does not automatically change your marks.</p>
       <label for="report-status">Report status</label>

@@ -11,7 +11,9 @@ route remains available for quick sandbox playtests.
 2. Pick a hero. Open another browser tab and pick a hero there to share the
    same field.
 3. Move with WASD or the arrow keys, aim with the mouse, click the left mouse
-   button to fire, press E for the skill, and Q for the ultimate. Bombardier
+   button to fire, press E for the skill, and Q for the ultimate. Hold the left
+   button to keep firing: the server repeats the shot as soon as the weapon
+   cooldown allows, for every hero. Bombardier
    uses Q to aim and right-click to confirm a target. Escape cancels targeting.
 4. Press I (or click **Information**) to see current stats and the hero's
    passive talent. Teammate health appears under your own health bar.
@@ -40,7 +42,9 @@ route remains available for quick sandbox playtests.
   the skill to a longer knockback dash.
 - **Bombardier:** primary bombs explode at the end of their range. E places one
   large-radius proximity trap. Q enters targeting mode; right-click confirms
-  the center of a five-bomb pattern. Each bomb gets a marker before it explodes.
+  the center of a five-bomb pattern. Each bomb gets a marker before it explodes,
+  and that marker fills clockwise from 12 o'clock (the same read as the ability
+  cooldown ring) so you can see how long is left before it lands.
   If targeting times out or is canceled, Q is not consumed.
 - **Bubbles:** rapid blue bubble spray chips enemies at short range. E launches a
   Bubble Trap that carries the first enemy it hits and explodes after traveling.

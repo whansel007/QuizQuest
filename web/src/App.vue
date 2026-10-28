@@ -102,7 +102,7 @@ onUnmounted(() => {
   <template v-else-if="ready">
   <header
     id="top"
-    :class="{ 'student-immersive-nav': immersiveStudentTab, 'student-nav-hidden': immersiveStudentTab && !studentNavVisible, 'summon-nav': current?.[0] === 'pets' }"
+    :class="{ 'student-immersive-nav': immersiveStudentTab, 'student-nav-hidden': immersiveStudentTab && !studentNavVisible, 'summon-nav': current?.[0] === 'pets', 'practice-nav': current?.[0] === 'practice', 'progress-nav': current?.[0] === 'progress' }"
     @pointerenter="onTopPointerEnter"
     @pointerleave="onTopPointerLeave"
     @focusin="onTopFocusIn"

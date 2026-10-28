@@ -89,6 +89,16 @@ export const AREA_TELEGRAPH_FILL_START_ALPHA = 0.2;
 export const AREA_TELEGRAPH_FILL_END_ALPHA = 0.45;
 // Danger zones get a slightly stronger fill so enemy telegraphs stand out.
 export const AREA_ENEMY_FILL_END_ALPHA = 0.55;
+// The Bombardier's ultimate marker fills like a clock hand sweeping clockwise
+// from 12 o'clock - the same read as the ability cooldown ring - instead of a
+// fill that only ramps opacity, so the time left before impact is visible.
+// The whole disc keeps BASE_ALPHA so the danger area reads immediately; the
+// wedge grows over the telegraph at FILL_ALPHA and its leading edge gets a
+// solid HAND line.
+export const AREA_TELEGRAPH_SWEEP_BASE_ALPHA = 0.14;
+export const AREA_TELEGRAPH_SWEEP_FILL_ALPHA = 0.5;
+export const AREA_TELEGRAPH_SWEEP_HAND_ALPHA = 0.9;
+export const AREA_TELEGRAPH_SWEEP_HAND_WIDTH = 3;
 // Enemy telegraphs wider than this radius get a centre marker so the danger
 // zone centre is unambiguous.
 export const AREA_ENEMY_MARKER_MIN_RADIUS = 100;

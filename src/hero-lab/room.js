@@ -1334,6 +1334,13 @@ function createRoom({ io, services = null, id, code = null, isDefault = false, l
 
   function fire(socket, mode, target) {
     const player = players.get(socket.id);
+    if (player) firePlayer(player, mode, target, 'click');
+  }
+
+  // The one shot path, shared by an explicit fire event ('click') and the
+  // held-primary repeat the tick drives ('hold'). The weapon cooldown check
+  // below is what paces the hold, so no extra timer is needed anywhere.
+  function firePlayer(player, mode, target, source) {
     if (!player || player.downed || player.dawnWaiting || gameEnded) return;
 
     syncHeroAimAndPosition(player);
@@ -1349,12 +1356,20 @@ function createRoom({ io, services = null, id, code = null, isDefault = false, l
       timedEffects.push({ type: 'bomb-marker', ownerId: player.id, x, y, radius: spec.circleRadius,
         damage: player.hero.attack * spec.damageMultiplier, color: GAME_CONFIG.heroFxColors[player.heroId].primary,
         sourceAbility: 'ultimate', telegraphMs, at: now, explodeAt: now + telegraphMs, telegraphSent: true });
-      nsp.emit('area_telegraph', { x, y, radius: spec.circleRadius, kind: 'player', telegraphMs, sourceAbility: 'ultimate' });
+      nsp.emit('area_telegraph', { x, y, radius: spec.circleRadius, kind: 'player', telegraphMs, sourceAbility: 'ultimate', sourceHeroId: player.heroId });
       nsp.emit('ability_used', { playerId: player.id, heroId: player.heroId, ability: 'ultimate' });
       broadcastState(now);
       return;
     }
     if (mode !== 'primary') return;
+    // Holding the button is a repeat, not a decision: it must never end a
+    // Shield Rush dash or pop a Bubble Rush, and it stays quiet during the
+    // Bombardier's aim window. Otherwise a player who was already holding M1
+    // when the ability started would cancel it on the very next tick.
+    if (source === 'hold') {
+      if (player.dashState?.guardianDash || player.bubbleRush) return;
+      if (player.hero.targetingUntil > now) return;
+    }
     // Guardian: primary fire during Shield Rush ends the dash on the spot and
     // detonates the fan there, so the shockwave can land short of the full
     // distance. It replaces the shield bash for that click and does not touch
@@ -1366,6 +1381,7 @@ function createRoom({ io, services = null, id, code = null, isDefault = false, l
     }
     if (player.bubbleRush) endBubbleRush(player, now);
     if (!player.hero.canUseAbility('weapon', now)) return;
+    const weaponReadyAt = player.hero.cooldowns.weapon.readyAt;
     const result = player.hero.fire(mode, now);
     if (!result) return;
     if (mode === 'primary' && hasRunEffect('overcharge')) {
@@ -1376,7 +1392,16 @@ function createRoom({ io, services = null, id, code = null, isDefault = false, l
       }
     }
     player.hero.useAbility('weapon', now);
-    nsp.emit('weapon_fired', { playerId: player.id, heroId: player.heroId });
+    // A held shot lands on the first tick at or after readyAt, so the rate
+    // would otherwise round up to a whole tick (Bubbles would fire every 133 ms
+    // instead of 105 ms). Anchor the next shot to the moment the weapon was
+    // actually ready. The overshoot is capped at one tick so a player who was
+    // idle before pressing the button does not get a burst of catch-up shots.
+    if (source === 'hold') {
+      const overshoot = Math.min(Math.max(0, now - weaponReadyAt), 1000 / ARENA_CONFIG.tickHz);
+      player.hero.cooldowns.weapon.readyAt -= overshoot;
+    }
+    nsp.emit('weapon_fired', { playerId: player.id, heroId: player.heroId, source });
     for (const projectile of Array.isArray(result) ? result : [result]) addProjectile(player, projectile);
   }
 
@@ -2004,6 +2029,10 @@ function createRoom({ io, services = null, id, code = null, isDefault = false, l
     for (const player of players.values()) {
       if (player.downed || player.dawnWaiting) continue;
       syncHeroAimAndPosition(player);
+      // Held primary fire: re-fire as soon as the weapon cooldown allows, so
+      // every hero keeps shooting while the button stays down. firePlayer bails
+      // out on the cooldown check, so this costs one comparison per tick.
+      if (player.primaryHeld) firePlayer(player, 'primary', null, 'hold');
       if(player.heroId==='guardian' && player.hero.dashingUntil>now) player.hero.makeInvulnerable(player.hero.dashingUntil-now,now);
       if (player.dashState) {
         const dash=player.dashState;

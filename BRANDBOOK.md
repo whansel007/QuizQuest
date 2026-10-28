@@ -47,6 +47,10 @@ Paper texture is a quiet material detail. Use a fine, low-contrast fiber or spec
 
 Use dark ink on pale paper and on bright accents. Keep small text at accessible contrast. Use color together with labels, shapes, or icons; never make color the only indicator.
 
+**Keep page palettes cohesive.** When a page adopts a palette variation, apply it as one coordinated system across the page background, navigation, cards, fields, buttons, feedback states, and dialogs. Avoid leaving old palette surfaces behind beside newly recolored components. Preserve contrast and reserve other colors for clearly meaningful status cues.
+
+Keep the forest-and-parchment identity consistent across student pages. The World and Kingdom may use full forest scenes; reading and setup views such as Practice and My Progress should keep the paper surfaces and forest-green page chrome. Do not introduce a new page palette without carrying it through every surface and state on that page.
+
 Hero stats may use distinct, pale tints: green for HP, peach for attack, blue for defense, and lavender for speed. Keep the numbers and labels dark.
 
 ---
@@ -77,7 +81,7 @@ Keep the story title serif and prominent. Body copy should be friendly, short, a
 
 ## 5. Student experience and screen layout
 
-Student pages are immersive game spaces. Their main content fills the available viewport, without the standard site footer or a persistent navigation bar taking up screen space.
+Game tabs are immersive spaces. World, Kingdom, and Summon fill the available viewport without the standard site footer or a persistent navigation bar taking up screen space. Practice and My Progress keep the navigation visible because they are reading and setup views; their content remains readable and scrollable.
 
 The student navigation is fixed just above the top edge while hidden. Moving the pointer to the top edge brings it down; it stays visible while hovered or keyboard-focused and tucks away after the pointer leaves. Keyboard users can reveal it by focusing a navigation control. Keep this behavior limited to the student experience; teacher navigation remains normally visible.
 
@@ -93,7 +97,7 @@ The student navigation is fixed just above the top edge while hidden. Moving the
 
 ### Other student pages
 
-Use the same paper, forest, linework, type, and navigation behavior. Preserve each page’s task hierarchy and readable scrolling where its content needs more than one viewport.
+Use the same paper, forest, linework, and type. Apply navigation behavior according to the page modes above. Preserve each page’s task hierarchy and readable scrolling where its content needs more than one viewport.
 
 ---
 
@@ -151,3 +155,16 @@ Teacher and admin pages keep their ordinary, visible navigation and task-focused
 - Keep the forest background and storybook-paper texture as lightweight local assets.
 - Reuse the current campfire illustration and forest scene where possible; align characters and ground shadows to a shared visual floor.
 - Update this book when the student World screen or shared visual tokens change. Apply the student experience to other student pages deliberately, while keeping teacher workflows calm and conventional.
+
+---
+
+## 11. UI lessons learned (28 Oct 2026)
+
+- **Treat a palette as a page system.** Recolor the page background, navigation, cards, headings, controls, answer states, overlays, and disabled states together. Inspect every state for stale colors before calling a theme change complete.
+- **Keep the palette rooted in the brand.** Green belongs to forest settings and forest-green page chrome; parchment, ink, and campfire gold carry reading and setup content. Avoid unrelated color experiments that make one page feel detached from the rest of QuizQuest.
+- **Protect contrast in nested content.** Check headings, repeated question text, helper copy, badges, focus rings, and selected/correct/incorrect answers on their actual surface colors. Dark ink belongs on paper; pale text belongs on dark forest surfaces.
+- **Use the established illustration assets.** Prefer the local `forest-clearing.svg` for forest scenes over abstract gradient bands or repeated vertical stripes. Layer lighting over the illustration without obscuring characters or making text hard to read.
+- **Match the reference hierarchy and proportions.** Preserve the intended placement and relative size of the hero, controls, details, and selectors. Let the hero or scene own the space the reference gives it; remove or condense secondary copy when it causes crowding.
+- **Make motion communicate the action.** In a battle, animate the acting character toward the other character, show impact and damage, and keep the feedback visible at desktop and mobile sizes. Reduced-motion settings may shorten active feedback but must not silently remove an essential action cue.
+- **Check the whole view after edits.** Review the page at its intended viewport and at a narrow viewport, including loading, selected, correct, incorrect, disabled, and dialog states where relevant. Avoid piling late overrides on top of earlier palette experiments; keep scoped page styles understandable and remove stale rules when practical.
+- **Keep controls purposeful.** Size buttons to their labels, align action groups, give inputs the available width, and use icons only when they are legible and meaningfully distinguish the control or content.
