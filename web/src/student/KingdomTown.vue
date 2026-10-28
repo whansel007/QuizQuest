@@ -282,9 +282,10 @@ function artFor(key, w, h, draw) {
   return layer;
 }
 
-// How far down the canvas the drawing actually starts (its first opaque row),
+// How far down the canvas the drawing actually starts (its first solid row),
 // so prompts and upgrade arrows sit just above the building, not above the
-// empty top of a tall canvas. Measured once per drawing.
+// empty top of a tall canvas. The faint plan under level-0 scaffolding is
+// ignored, so there they sit on the scaffolding. Measured once per drawing.
 const artTops = new WeakMap();
 function drawnTop(art) {
   if (artTops.has(art)) return artTops.get(art);
@@ -293,7 +294,7 @@ function drawnTop(art) {
     const { data, width, height } = art.getContext('2d').getImageData(0, 0, art.width, art.height);
     top = height;
     for (let y = 0; y < height && top === height; y += 1) {
-      for (let x = 3; x < width * 4; x += 16) if (data[y * width * 4 + x] > 24) { top = y; break; }
+      for (let x = 3; x < width * 4; x += 16) if (data[y * width * 4 + x] > 160) { top = y; break; }
     }
   } catch { top = 0; }
   const result = top / ART_RES;
@@ -884,7 +885,8 @@ function drawAffordableArrows(g, time) {
     const b = BUILDING_LAYOUT[plot.id];
     if (!b) continue;
     const x = b.x + b.w / 2;
-    const y = (buildingTops[plot.id] ?? b.y) - 14 - (reducedMotion ? 0 : Math.sin(time / 150) * 5);
+    // the arrow's tip is 13px above y and its base 7px below: base rests just over the roof
+    const y = (buildingTops[plot.id] ?? b.y) - 10 - (reducedMotion ? 0 : Math.abs(Math.sin(time / 180)) * 4);
     g.fillStyle = PALETTE.gold; g.strokeStyle = INK; g.lineWidth = 3; g.lineJoin = 'round';
     g.beginPath(); g.moveTo(x, y - 13); g.lineTo(x - 9, y - 3); g.lineTo(x - 4, y - 3); g.lineTo(x - 4, y + 7); g.lineTo(x + 4, y + 7); g.lineTo(x + 4, y - 3); g.lineTo(x + 9, y - 3); g.closePath(); g.fill(); g.stroke();
   }
