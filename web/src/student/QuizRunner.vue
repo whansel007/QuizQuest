@@ -212,8 +212,6 @@ onUnmounted(() => {
           <h2>{{ summary.npc.hp <= 0 ? 'The Fog of Confusion is defeated! 🎉' : 'Session complete' }}</h2>
           <p>{{ summary.correct }} of {{ summary.total }} correct · +{{ summary.coins }} 🪙 this session · balance {{ summary.wallet.balance }} 🪙</p>
           <p v-if="summary.resources && Object.keys(summary.resources).length">Kingdom supplies: +{{ fmtBundle(summary.resources, home.catalog.resources) }}</p>
-          <p v-if="summary.participation?.point" class="small">+1 participation point for this class.</p>
-          <p v-else-if="summary.participation?.capped" class="small muted">Participation points: weekly maximum already reached.</p>
           <p v-if="summary.provisional" class="small muted">{{ summary.provisional }} written answer(s) have a provisional mark that your professor may review.</p>
           <table>
             <tbody>

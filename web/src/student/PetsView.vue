@@ -3,7 +3,6 @@ import { computed, nextTick, onMounted, onUnmounted, ref } from 'vue';
 import { api, retryablePost } from '../api.js';
 import { when } from '../ui.js';
 import { store, loadHome, updateBalances } from './home.js';
-import GachaMachine from './gacha/GachaMachine.vue';
 import PrizeReveal from './gacha/PrizeReveal.vue';
 import { HERO_TYPE_ICON, heroTypeLabel } from './hero-type.js';
 import HeroIcon from './HeroIcon.vue';
@@ -15,7 +14,8 @@ import { SUMMON_SUMMARY_COLUMNS, SUMMON_SUMMARY_SLANT_DEG, SUMMON_SUMMARY_SOUND_
 const error = ref('');
 const loading = ref(true);
 const prize = ref(null);
-const machineOpen = ref(false);
+// waiting on the server: the sky dims and a few stars glint until results arrive
+const gazing = ref(false);
 const machineBusy = ref(false);
 const multiBusy = ref(false);
 const batchResults = ref([]);
@@ -25,11 +25,8 @@ const activeSummaryEggIndex = ref(null);
 const batchPity = ref(null);
 const summaryCoins = ref(0);
 const debugPreview = ref(false);
-const machineOpenFn = ref(null);
-const machineOverlayRoot = ref(null);
 const pullTenButton = ref(null);
 const summaryRoot = ref(null);
-const machine = ref(null);
 const pullError = ref('');
 const activeModal = ref('');
 const modalRoot = ref(null);
@@ -106,15 +103,14 @@ async function beginPull() {
   if (machineBusy.value || multiBusy.value || coinBalance.value < pullCost.value || !pullCost.value) return;
   machineBusy.value = true;
   pullError.value = '';
-  machineOpen.value = true;
-  machineOpenFn.value = pull;
-  await nextTick();
+  gazing.value = true;
   try {
-    await machine.value?.turn();
+    // the server picks the result; the starfall below is only the show
+    showPrize(await pull());
   } catch (err) {
     pullError.value = err.message || 'The summon could not be completed. Please try again.';
   } finally {
-    machineOpen.value = false;
+    gazing.value = false;
     machineBusy.value = false;
   }
 }
@@ -124,7 +120,7 @@ function resultAsLegacy(row, pity) {
 }
 async function beginTenPull() {
   if (machineBusy.value || multiBusy.value || coinBalance.value < tenPullCost.value || !tenPullCost.value) return;
-  machineBusy.value = true; multiBusy.value = true; activeSummaryEggIndex.value = null; revealedCards.value = []; pullError.value = '';
+  machineBusy.value = true; multiBusy.value = true; activeSummaryEggIndex.value = null; revealedCards.value = []; pullError.value = ''; gazing.value = true;
   try {
     const response = await summonTen();
     batchPity.value = response.pity;
@@ -132,19 +128,15 @@ async function beginTenPull() {
     summaryCoins.value = batchResults.value.reduce((sum, row) => sum + (row.refundCoins || 0), 0);
     debugPreview.value = Boolean(response.debugPreview);
     if (alive && home.value) { home.value.inventory = response.inventory; updateBalances({ wallet: response.wallet }); }
-    const machinePrize = batchResults.value[0];
-    machineOpen.value = true;
-    machineOpenFn.value = () => Promise.resolve(resultAsLegacy(machinePrize, response.pity));
-    await nextTick();
-    machineOverlayRoot.value?.focus();
-    await machine.value?.turn();
+    gazing.value = false;
     if (!alive || summaryOpen.value || prize.value) return;
+    // ten stars, one at a time, in the same night sky
     startBatchReveal(0);
   } catch (err) { pullError.value = err.message || 'The ten-pull could not be completed. Please try again.'; }
-  finally { machineOpen.value = false; machineBusy.value = false; if (!summaryOpen.value && !prize.value) multiBusy.value = false; }
+  finally { gazing.value = false; machineBusy.value = false; if (!summaryOpen.value && !prize.value) multiBusy.value = false; }
 }
 function openSummary() {
-  machineOpen.value = false; prize.value = null; activeSummaryEggIndex.value = null;
+  prize.value = null; activeSummaryEggIndex.value = null;
   summaryOpen.value = true;
   revealedCards.value = batchResults.value.map((_, index) => index);
   nextTick(() => summaryRoot.value?.focus());
@@ -155,9 +147,7 @@ function startBatchReveal(index) {
   const row = batchResults.value[index]; const time = performance.now();
   if (row?.type === 'hero' && resultRarityStars(row) >= 4 && time - lastRareSoundAt >= SUMMON_SUMMARY_SOUND_INTERVAL_MS) { lastRareSoundAt = time; try { playSound('cardPick'); } catch { /* optional audio */ } }
   activeSummaryEggIndex.value = index;
-  const rarity = row.type === 'hero' ? row.rarity : 'common';
-  const eggColour = rarity === 'epic' ? '#F2BA55' : rarity === 'rare' ? '#89B9DF' : '#E9E4CF';
-  prize.value = { ...resultAsLegacy(row, batchPity.value), eggColour };
+  prize.value = { ...resultAsLegacy(row, batchPity.value), batchIndex: index, batchSize: batchResults.value.length };
 }
 async function closeSummary() {
   summaryOpen.value = false; multiBusy.value = false; debugPreview.value = false;
@@ -175,7 +165,6 @@ function summaryKeydown(event) {
     else if (!event.shiftKey && document.activeElement === controls[controls.length - 1]) { event.preventDefault(); controls[0].focus(); }
   }
 }
-function skipMachine() { if (multiBusy.value && machineOpen.value) { machineOpen.value = false; startBatchReveal(0); } }
 async function loadHistoryPage(page = 1) {
   historyLoading.value = true;
   historyError.value = '';
@@ -243,6 +232,16 @@ function resultName(row) {
   return 'Summon record';
 }
 function timeLabel(at) { return when(at); }
+
+// the Kingdom's telescope leaves a note so the lens can open here
+const lensOpening = ref(false);
+try {
+  if (sessionStorage.getItem('qq-summon-from-telescope') === '1') {
+    sessionStorage.removeItem('qq-summon-from-telescope');
+    lensOpening.value = true;
+    setTimeout(() => { lensOpening.value = false; }, 900);
+  }
+} catch { /* storage blocked: no lens, the page opens as usual */ }
 
 onMounted(async () => {
   try { await loadHome(); }
@@ -315,12 +314,12 @@ onUnmounted(() => {
         <span>{{ pullError }}</span><button type="button" aria-label="Dismiss message" @click="pullError = ''">×</button>
       </div>
 
-      <div v-if="machineOpen" ref="machineOverlayRoot" class="machine-overlay" role="presentation" tabindex="0" @keydown.esc.prevent="skipMachine" @click.self="skipMachine">
-        <section class="machine-overlay-card" aria-label="Summon animation" @click="skipMachine">
-          <GachaMachine ref="machine" :cost="pullCost" :disabled="machineBusy" :button-visible="false" :open="machineOpenFn || pull" @prize="showPrize" />
-          <button v-if="multiBusy" type="button" class="story-button machine-skip" @click.stop="skipMachine">Skip machine</button>
-        </section>
+      <div v-if="gazing" class="star-gaze" role="status">
+        <span class="star-gaze-glints" aria-hidden="true"><i v-for="n in 7" :key="n" :style="{ '--n': n }"></i></span>
+        <p>Watching the sky…</p>
       </div>
+      <!-- arriving through the Kingdom telescope: the lens opens onto the sky -->
+      <div v-if="lensOpening" class="lens-open" aria-hidden="true"><div class="lens"></div></div>
 
       <div v-if="activeModal" class="story-modal-shade" @click.self="closeModal">
         <section ref="modalRoot" class="story-modal" role="dialog" aria-modal="true" :aria-labelledby="'modal-' + activeModal + '-title'" tabindex="-1" @keydown="onModalKeydown">
@@ -420,7 +419,7 @@ onUnmounted(() => {
 
 <style scoped>
 .summon-page { position:fixed; z-index:1; inset:0; display:grid; grid-template-rows:64px minmax(0,1fr) 76px; padding:0 clamp(14px,2vw,30px); overflow:hidden; color:#FBF2D8; font-family:Nunito,Trebuchet MS,system-ui,sans-serif; }
-.summon-topbar,.summon-content,.summon-bottom-bar,.summon-error,.summon-toast,.machine-overlay,.story-modal-shade { position:relative; z-index:1; }
+.summon-topbar,.summon-content,.summon-bottom-bar,.summon-error,.summon-toast,.story-modal-shade { position:relative; z-index:1; }
 .summon-topbar { display:flex; align-items:center; justify-content:space-between; border-bottom:1px solid rgb(251 242 216 / 22%); }
 .summon-page-title { display:flex; align-items:center; gap:10px; }
 .summon-page-title>span { color:#F2BA55; font-size:25px; }
@@ -452,8 +451,17 @@ onUnmounted(() => {
 .story-button small { font-size:12px; font-weight:800; }.story-button:hover:not(:disabled) { transform:translateY(-1px); box-shadow:0 5px 0 #7A6545; }.story-button:active:not(:disabled) { transform:translateY(2px); box-shadow:0 1px 0 #7A6545; }.story-button:focus-visible,.modal-close:focus-visible { outline:3px solid #F2BA55; outline-offset:3px; }
 .ghost-button { min-height:45px; min-width:104px; background:rgb(251 242 216 / 96%); }.pull-one { background:#6DB8CF; }.pull-ten { background:#F2BA55; }.story-button:disabled { cursor:not-allowed; opacity:.58; filter:saturate(.55); box-shadow:0 2px 0 #7A6545; }
 .summon-error,.summon-loading { align-self:center; justify-self:center; color:#FBF2D8; font-weight:800; }.summon-toast { position:fixed; z-index:11; bottom:95px; left:50%; display:flex; gap:18px; align-items:center; transform:translateX(-50%); padding:10px 16px; color:#23382F; background:#FBF2D8; border:2px solid #23382F; border-radius:10px; box-shadow:0 4px 0 #7A6545; }.summon-toast button { border:0; background:none; color:inherit; font-size:22px; cursor:pointer; }
-.machine-overlay,.story-modal-shade { position:fixed; z-index:15; inset:0; display:grid; place-items:center; padding:20px; background:rgb(15 35 28 / 78%); }.machine-overlay-card { position:relative; width:min(420px,100%); padding:28px 18px 16px; background:#FBF2D8 url('/hero-lab/assets/storybook-paper.svg') repeat; background-size:144px 144px; border:3px solid #23382F; border-radius:14px; box-shadow:0 7px 0 #7A6545; }.machine-overlay-card :deep(.gm-wrap) { margin:0 auto; }
-.machine-skip { display:block; margin:16px auto 0; min-height:42px; }
+.story-modal-shade { position:fixed; z-index:15; inset:0; display:grid; place-items:center; padding:20px; background:rgb(15 35 28 / 78%); }
+/* waiting on the server: the sky dims and a few stars glint */
+.star-gaze { position:fixed; z-index:14; inset:0; display:grid; place-items:center; align-content:center; gap:12px; background:rgb(10 12 30 / 55%); color:#FFF1B8; font:700 18px Georgia,'Palatino Linotype',serif; }
+.star-gaze p { margin:0; }
+.star-gaze-glints { position:relative; width:180px; height:70px; }
+.star-gaze-glints i { position:absolute; left:calc(var(--n) * 13%); top:calc(10px + (var(--n) * 37px) % 50px); width:6px; height:6px; background:#FFE9A0; border-radius:50%; box-shadow:0 0 10px #FFE9A0; animation:gaze-glint 1.2s ease-in-out infinite; animation-delay:calc(var(--n) * -170ms); }
+@keyframes gaze-glint { 50% { opacity:.2; transform:scale(.5); } }
+/* arriving from the Kingdom telescope: the lens opens onto the sky */
+.lens-open { position:fixed; z-index:40; inset:0; overflow:hidden; pointer-events:none; }
+.lens-open .lens { position:absolute; left:50%; top:50%; width:160vmax; height:160vmax; border:10px solid #C8963E; border-radius:50%; box-shadow:0 0 0 4px #23382F, 0 0 0 200vmax #17123A; transform:translate(-50%,-50%) scale(0); animation:lens-open .85s cubic-bezier(.6,0,.4,1) forwards; }
+@keyframes lens-open { to { transform:translate(-50%,-50%) scale(1); opacity:.0; } }
 .summon-summary-shade { position:fixed; z-index:30; inset:0; display:grid; place-items:center; padding:20px; overflow:auto; background:rgb(11 27 27 / 88%); color:#FBF2D8; }
 .summon-summary-panel { width:min(1190px,100%); max-height:calc(100svh - 40px); overflow:auto; padding:20px 24px; background:radial-gradient(ellipse at 50% 0%,rgb(87 142 189 / 17%),transparent 54%),linear-gradient(155deg,#182D32,#203B36 60%,#152B33); border:0; border-radius:14px; box-shadow:0 0 0 5px rgb(12 24 27 / 70%),0 16px 48px #071614; animation:summary-panel-in .42s cubic-bezier(.2,.8,.25,1) both; }
 .summary-header { display:flex; align-items:center; justify-content:space-between; gap:15px; }.summary-header h2 { margin:0; color:#FBF2D8; font:700 clamp(26px,3vw,36px)/1 Georgia,'Palatino Linotype',serif; }.summary-instruction { margin:7px 0 12px; color:#D7DDC9; font-size:13px; }
