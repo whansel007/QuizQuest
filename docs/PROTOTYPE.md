@@ -169,10 +169,10 @@ key in `.env` (gitignored), never in code:
 
 ```
 GEMINI_API_KEY=...
-GEMINI_MODEL=gemini-2.5-flash   # optional; check the current model name
+GEMINI_MODEL=gemini-3.5-flash-lite   # optional; only the two Flash-Lite IDs are accepted
 ```
 
-then `npm run dev` (`.env` is loaded automatically). Models only receive course material or an
+then `pnpm run dev` (`.env` is loaded automatically). Models only receive course material or an
 anonymous answer, wrapped as data with instructions to ignore embedded
 instructions; all output goes through code checks and human review.
 The Gemini paths are written against the documented REST API but have
