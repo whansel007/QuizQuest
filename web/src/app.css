@@ -103,6 +103,284 @@ footer { text-align: center; font-size: 12px; color: var(--muted); padding: 0 16
 footer a { position: relative; }
 footer a::after { content: ""; position: absolute; inset: -15px -6px; }
 
+/* Student pages are immersive full-screen scenes; navigation tucks above the
+   viewport until the player moves to the top edge or focuses a nav control. */
+header#top.student-immersive-nav {
+  position: fixed;
+  z-index: 100;
+  inset: 0 0 auto;
+  color: #fff7df;
+  background: rgb(31 59 43 / 97%);
+  border-bottom: 1px solid #81905c;
+  box-shadow: 0 5px 18px rgb(12 29 20 / 30%);
+  transition: transform .28s cubic-bezier(.2,.75,.25,1);
+  will-change: transform;
+}
+header#top.student-immersive-nav .brand span { color: #f2bd58; }
+header#top.student-immersive-nav .brand small,
+header#top.student-immersive-nav #who { color: #e1e7d2; }
+header#top.student-immersive-nav nav#tabs button { color: #d7dfca; }
+header#top.student-immersive-nav nav#tabs button[aria-current="page"] { color: #2b3d2d; background: #f2d37f; }
+header#top.student-immersive-nav.student-nav-hidden { transform: translateY(-105%); pointer-events: none; }
+header#top.student-immersive-nav.summon-nav { background: rgb(26 45 76 / 97%); border-bottom-color: #8298bb; box-shadow: 0 5px 18px rgb(7 17 34 / 35%); }
+header#top.student-immersive-nav.summon-nav .brand span { color: #f2bd58; }
+header#top.student-immersive-nav.summon-nav .brand small,
+header#top.student-immersive-nav.summon-nav #who { color: #dfe7f4; }
+header#top.student-immersive-nav.summon-nav nav#tabs button { color: #d9e4f4; }
+header#top.student-immersive-nav.summon-nav nav#tabs button[aria-current="page"] { color: #26364f; background: #f2d37f; }
+/* Tiny pull-down handle that hints the student menu is tucked above the
+   viewport. Hovering or clicking it reveals the nav; it hides itself (without
+   unmounting) as soon as the nav is out, so the header keeps the pointer. */
+.nav-peek {
+  position: fixed;
+  z-index: 99;
+  top: 0;
+  left: 50%;
+  display: grid;
+  place-items: center;
+  width: 46px;
+  height: 13px;
+  padding: 0;
+  color: #eaf0da;
+  background: rgb(31 59 43 / 82%);
+  border: 1px solid #81905c;
+  border-top: 0;
+  border-radius: 0 0 7px 7px;
+  box-shadow: 0 2px 7px rgb(12 29 20 / 26%);
+  font: 700 9px/1 ui-monospace, "Cascadia Code", monospace;
+  cursor: pointer;
+  transform: translateX(-50%);
+  transition: opacity .2s ease, background .2s ease;
+}
+.nav-peek:hover { background: #2f5943; }
+header#top.student-immersive-nav.summon-nav ~ .nav-peek { color:#eaf0da; background:rgb(34 57 94 / 90%); border-color:#8298bb; }
+header#top.student-immersive-nav.summon-nav.student-nav-hidden ~ .nav-peek:hover { background:#3b5e91; }
+.nav-peek.is-hidden { visibility: hidden; opacity: 0; pointer-events: none; }
+main#main.main-student {
+  width: 100%;
+  height: 100vh;
+  height: 100svh;
+  min-height: 100vh;
+  min-height: 100svh;
+  max-width: none;
+  margin: 0;
+  padding: 16px clamp(16px, 3.5vw, 48px) 22px;
+  overflow-y: auto;
+}
+main#main.main-world {
+  width: 100%;
+  height: 100vh;
+  height: 100svh;
+  min-height: 100vh;
+  min-height: 100svh;
+  max-width: none;
+  margin: 0;
+  padding: 0;
+  overflow: hidden;
+}
+main#main.main-kingdom {
+  width: 100%;
+  height: 100vh;
+  height: 100svh;
+  min-height: 100vh;
+  min-height: 100svh;
+  max-width: none;
+  margin: 0;
+  padding: 0;
+  overflow: hidden;
+}
+main#main.main-summon {
+  position: fixed;
+  z-index: 0;
+  inset: 0;
+  width: 100%;
+  height: 100vh;
+  height: 100svh;
+  max-width: none;
+  margin: 0;
+  padding: 0;
+  overflow: hidden;
+}
+footer.footer-student { display: none; }
+@media (max-width: 1100px) {
+  main#main.main-student:not(.main-kingdom):not(.main-summon) { height: auto; min-height: 100vh; min-height: 100svh; overflow-y: auto; }
+}
+@media (max-width: 899px) {
+  main#main.main-summon {
+    position: relative;
+    height: auto;
+    min-height: 100vh;
+    min-height: 100svh;
+    overflow: visible;
+  }
+}
+@media (max-height: 700px) and (min-width: 1101px) {
+  main#main.main-student:not(.main-kingdom):not(.main-summon) { height: auto; min-height: 100vh; min-height: 100svh; overflow-y: auto; }
+}
+@media (prefers-reduced-motion: reduce) {
+  header#top.student-immersive-nav { transition: none; }
+}
+
+/* ---------- storybook theme: Practice and My Progress ----------
+   These two student pages are reading-first, not full-screen scenes, but they
+   belong to the same book as the World: parchment surfaces on a warm paper
+   wash, 2px warm-ink outlines, hand-cut corners, hard offset shadows, forest
+   accents and campfire-gold actions. BRANDBOOK.md §2–§6.
+   Everything is scoped to the two page classes so teacher screens keep the
+   calm neutral palette from :root. */
+main#main.main-practice,
+main#main.main-progress {
+  --bg: #f1e7c8;
+  --panel: #fbf2d8;
+  --ink: #23382f;
+  --muted: #5f6d58;
+  --line: #c9ba93;
+  --accent: #254937;
+  --accent-ink: #fff8e4;
+  --accent-soft: #e7dcbd;
+  --good: #3f6b2f;
+  --good-soft: #e2eed6;
+  --bad: #a63a33;
+  --bad-soft: #f7e0d7;
+  --warn: #8a5a12;
+  --warn-soft: #f8e6bd;
+  --radius: 13px;
+  --shadow: 0 5px 0 rgb(35 56 47 / 55%), 0 10px 22px rgb(35 56 47 / 12%);
+
+  color: var(--ink);
+  font-family: "Nunito", "Trebuchet MS", system-ui, sans-serif;
+  background-color: #f1e7c8;
+  background-image:
+    url('/hero-lab/assets/storybook-paper.svg'),
+    radial-gradient(120% 48% at 50% 0%, rgb(50 83 62 / 20%), transparent 68%),
+    linear-gradient(180deg, #f7efd8, #ecdfb9);
+  background-size: 144px 144px, auto, auto;
+}
+/* Story titles keep the serif; section labels stay small and mono. */
+main#main.main-practice :is(h2, h3),
+main#main.main-progress :is(h2, h3) {
+  color: #254937;
+  font-family: Georgia, "Palatino Linotype", serif;
+  letter-spacing: -.01em;
+}
+main#main.main-practice :is(h2, h3) + .small,
+main#main.main-progress :is(h2, h3) + .small { color: var(--muted); }
+
+/* Paper panel: parchment + fiber texture, warm ink outline, hard shadow. */
+main#main.main-practice .panel,
+main#main.main-progress .panel,
+main#main.main-practice .modal-card,
+main#main.main-progress .modal-card {
+  background-color: var(--panel);
+  background-image: url('/hero-lab/assets/storybook-paper.svg');
+  background-size: 144px 144px;
+  border: 2px solid #4b4835;
+  border-radius: 14px 11px 16px 12px;
+  box-shadow: 0 5px 0 rgb(35 56 47 / 55%), 0 10px 24px rgb(11 33 25 / 12%);
+}
+
+/* Secondary action: parchment with a dark outline and a short hard shadow. */
+main#main.main-practice .btn,
+main#main.main-progress .btn {
+  color: var(--ink);
+  background: #fffaf0;
+  border: 2px solid #4b4835;
+  border-radius: 9px;
+  box-shadow: 0 3px 0 #7a6545;
+  font-weight: 800;
+  transition: transform .12s ease, box-shadow .12s ease, background .12s ease;
+}
+main#main.main-practice .btn:hover,
+main#main.main-progress .btn:hover { background: #fffdf7; border-color: #254937; transform: translateY(-1px); box-shadow: 0 4px 0 #7a6545; }
+main#main.main-practice .btn:active,
+main#main.main-progress .btn:active { transform: translateY(2px); box-shadow: 0 1px 0 #7a6545; }
+
+/* Main action: campfire gold, dark ink label, deeper hard shadow. */
+main#main.main-practice .btn.primary,
+main#main.main-progress .btn.primary {
+  color: #3b2b1d;
+  background: #f2ba55;
+  border-color: #61472d;
+  box-shadow: 0 4px 0 #9b612e;
+}
+main#main.main-practice .btn.primary:hover,
+main#main.main-progress .btn.primary:hover { background: #f7c96e; border-color: #61472d; box-shadow: 0 5px 0 #9b612e; }
+main#main.main-practice .btn.primary:active,
+main#main.main-progress .btn.primary:active { box-shadow: 0 1px 0 #9b612e; }
+main#main.main-practice .btn:disabled,
+main#main.main-progress .btn:disabled { background: #e9dfc1; border-color: #b3a37c; box-shadow: 0 2px 0 #c2b28a; color: #7d8672; opacity: 1; }
+
+/* Inputs: light paper fill, ink outline, visible gold focus ring. */
+main#main.main-practice :is(input:not([type]), input[type="text"], input[type="number"], input[type="email"], input[type="password"], select, textarea),
+main#main.main-progress :is(input:not([type]), input[type="text"], input[type="number"], input[type="email"], input[type="password"], select, textarea) {
+  color: var(--ink);
+  background: #fffdf6;
+  border: 2px solid #67634d;
+  border-radius: 8px;
+}
+main#main.main-practice :is(input, select, textarea, button, a):focus-visible,
+main#main.main-progress :is(input, select, textarea, button, a):focus-visible {
+  outline: 3px solid #f2ba55;
+  outline-offset: 2px;
+}
+
+/* Notes read as slips of paper tucked into the page. */
+main#main.main-practice .note,
+main#main.main-progress .note {
+  color: var(--ink);
+  background: #f5ebcf;
+  border: 1px solid #c9ba93;
+  border-left: 4px solid #d9a44a;
+  border-radius: 8px;
+}
+main#main.main-practice .note.bad,
+main#main.main-progress .note.bad { color: #8a2f28; background: #f7e0d7; border-color: #dcaaa2; border-left-color: #a63a33; }
+main#main.main-practice .note.warn,
+main#main.main-progress .note.warn { color: #7a4f0d; background: #f8e6bd; border-color: #ddc083; border-left-color: #b07a1e; }
+main#main.main-practice .note.good,
+main#main.main-progress .note.good { color: #345a26; background: #e2eed6; border-color: #b6cda2; border-left-color: #4c7c3a; }
+
+/* Badges: warm paper pills with ink labels. */
+main#main.main-practice .badge,
+main#main.main-progress .badge {
+  color: #44523c;
+  background: #e7dcbd;
+  border: 1px solid #c1b189;
+  border-radius: 999px;
+  font-weight: 800;
+}
+main#main.main-practice .badge.plain,
+main#main.main-progress .badge.plain { color: #5f6d58; background: #fff8e4; border-color: #c9ba93; }
+
+/* Topic tiles in My Progress: lighter paper so they lift off the panel. */
+main#main.main-progress .tile {
+  background-color: #fff8e4;
+  background-image: url('/hero-lab/assets/storybook-paper.svg');
+  background-size: 144px 144px;
+  border: 2px solid #7c8a67;
+  border-radius: 12px 10px 14px 11px;
+  box-shadow: 0 3px 0 #c2b28a;
+}
+main#main.main-progress .tile .v { color: #254937; font-family: Georgia, "Palatino Linotype", serif; }
+
+/* Meters grow in leaf green inside an ink-outlined track. */
+main#main.main-practice .meter,
+main#main.main-progress .meter { height: 10px; background: #e9dfc1; border: 1px solid #b3a37c; }
+main#main.main-practice .meter > div,
+main#main.main-progress .meter > div { background: linear-gradient(90deg, #7fae58, #4c7c3a); }
+
+/* Tables: hand-drawn dashed rules instead of hard grey lines. */
+main#main.main-progress :is(th, td) { border-bottom: 1px dashed #c9ba93; }
+main#main.main-progress th {
+  color: #6b7a5f;
+  font-family: ui-monospace, "Cascadia Code", monospace;
+  letter-spacing: .06em;
+}
+
+/* Modals dim the page with forest shade rather than neutral black. */
+main#main.main-practice .modal-overlay,
+main#main.main-progress .modal-overlay { background: rgb(20 38 28 / 58%); }
+
 .panel {
   background: var(--panel);
   border: 1px solid var(--line);
@@ -1294,7 +1572,7 @@ dialog.insight::backdrop { background: rgba(10, 12, 20, 0.45); }
 .pb-head { display: flex; justify-content: space-between; width: 100%; font-size: 10px; text-transform: uppercase; }
 .pb-window {
   width: 100%; flex: 1; margin: 8px 0; border-radius: 10px; display: grid; place-items: center;
-  background: radial-gradient(circle at 50% 45%, var(--glow), rgba(10, 6, 24, 0.85) 70%);
+  background: radial-gradient(circle at 50% 45%, color-mix(in srgb, var(--r2) 46%, #213d6e), #10203d 72%);
   box-shadow: inset 0 0 0 2px rgba(255, 255, 255, 0.5), inset 0 8px 16px rgba(0, 0, 0, 0.4);
 }
 .pb-pet { font-size: 76px; line-height: 1; letter-spacing: 0; animation: pb-float 2.4s ease-in-out infinite; filter: drop-shadow(0 6px 6px rgba(0, 0, 0, 0.45)); }
@@ -1308,14 +1586,14 @@ dialog.insight::backdrop { background: rgba(10, 12, 20, 0.45); }
 }
 @keyframes holo { from { background-position: 100% 0; } to { background-position: -50% 0; } }
 .prize-info { position: relative; text-align: center; min-height: 150px; max-width: 100%; }
-.prize-info h2 { font-size: 26px; margin-bottom: 6px; color: #fff; }
+.prize-info h2 { font-size: 26px; margin-bottom: 6px; color: #edf6ff; }
 .prize.is-open .prize-info { animation: info-in 0.5s 0.6s ease-out both; }
 @keyframes info-in { from { opacity: 0; transform: translateY(12px); } }
 .prize-tags { display: flex; flex-wrap: wrap; gap: 6px; justify-content: center; }
 .prize-tag { padding: 2px 10px; border-radius: 99px; font-size: 12px; font-weight: 800; letter-spacing: 0.5px; background: rgba(255, 255, 255, 0.12); color: #f4f1ff; }
 .prize-tag.rarity-tag { text-transform: uppercase; color: #1a1030; background: var(--tag); }
-.prize-tag.new { background: #5ad08a; color: #0b2414; }
-.prize-move { margin: 8px 0 12px; color: #cfc6ea; font-size: 14px; }
+.prize-tag.new { background: #75c9f5; color: #102746; }
+.prize-move { margin: 8px 0 12px; color: #c8dcff; font-size: 14px; }
 .prize-actions { display: flex; gap: 8px; justify-content: center; flex-wrap: wrap; }
 .prize-actions .btn { background: rgba(255, 255, 255, 0.1); color: #fff; border-color: rgba(255, 255, 255, 0.4); }
 .prize-actions .btn.primary { background: #fff; color: #2a1b47; border-color: #fff; }
@@ -1326,4 +1604,1316 @@ dialog.insight::backdrop { background: rgba(10, 12, 20, 0.45); }
   /* the global rule shortens animations, but their delays would still stagger things in */
   .iso .vx.drop, .prize-spin, .prize-box, .prize.is-open .prize-info { animation: none; }
   .confetti, .prize-flash, .prize-egg { display: none; }
+}
+
+/* Practice borrows Summon's starry twilight and applies one blue surface
+   system consistently across cards, controls, and feedback. */
+main#main.main-practice .panel {
+  color: #FBF2D8;
+  background: radial-gradient(ellipse at 50% 0%, rgb(109 184 207 / 10%), transparent 65%), linear-gradient(145deg, #304D76, #263D62);
+  border: 2px solid #8298BB;
+  border-radius: 13px 10px 14px 11px;
+  box-shadow: 0 5px 0 #14263D, 0 14px 28px rgb(6 16 31 / 32%);
+}
+main#main.main-practice .panel :is(h3, b) { color: #FBF2D8; }
+main#main.main-practice .panel :is(p, .small, .muted) { color: #D9E4F4; }
+main#main.main-practice .panel .field label { color: #D9E4F4; }
+main#main.main-practice .note {
+  color: #EAF1FA;
+  background: linear-gradient(145deg, #304D76, #263D62);
+  border-color: #8298BB;
+  border-left-color: #F2BA55;
+}
+main#main.main-practice .note.bad { color: #F6EAF3; background: linear-gradient(145deg, #3B416C, #303B64); border-color: #8298BB; border-left-color: #D86F9A; }
+main#main.main-practice .note.warn { color: #F8F0DD; background: linear-gradient(145deg, #3D4B70, #304363); border-color: #8298BB; border-left-color: #F2BA55; }
+main#main.main-practice .note.good { color: #EAF6FA; background: linear-gradient(145deg, #304D76, #263D62); border-color: #8298BB; border-left-color: #6DB8CF; }
+main#main.main-practice .btn:not(.primary) {
+  color: #FBF2D8;
+  background: #304D76;
+  border-color: #8298BB;
+  box-shadow: 0 4px 0 #14263D;
+}
+main#main.main-practice .btn:not(.primary):hover { background: #3B5E91; border-color: #A7BCE0; box-shadow: 0 5px 0 #14263D; }
+main#main.main-practice .btn:not(.primary):active { box-shadow: 0 1px 0 #14263D; }
+main#main.main-practice .btn.primary { color: #172D4A; background: #6DB8CF; border-color: #A9DDEE; box-shadow: 0 4px 0 #14263D; }
+main#main.main-practice .btn.primary:hover { background: #8BCDE0; }
+main#main.main-practice .btn:disabled { color: #B8C8DD; background: #344B6A; border-color: #647D9E; box-shadow: 0 2px 0 #14263D; opacity: 1; }
+main#main.main-practice .arena {
+  color: #F4F1FF;
+  background: linear-gradient(145deg, #344E73, #263A5B);
+  border: 2px solid #17263F;
+  box-shadow: 0 5px 0 #14263D, 0 12px 28px rgb(6 16 31 / 26%);
+}
+main#main.main-practice .fighter .name { color: #D9E4F4; }
+.practice-avatar {
+  display: grid;
+  flex: 0 0 76px;
+  width: 76px;
+  height: 76px;
+  place-items: center;
+  background: #304D76;
+  border: 2px solid #8298BB;
+  border-radius: 12px 10px 13px 11px;
+  box-shadow: 0 3px 0 #14263D;
+}
+.practice-avatar .hero-icon { max-width: 60px; max-height: 60px; }
+main#main.main-practice .fighter .sprite .hero-icon { vertical-align: bottom; }
+
+/* Full Practice-page treatment follows Summon's night sky, centered paper
+   cards, and gold/blue highlights. */
+header#top.practice-nav {
+  color: #FBF2D8;
+  background: rgb(26 45 76 / 97%);
+  border-bottom: 1px solid #8298BB;
+  box-shadow: 0 5px 18px rgb(7 17 34 / 35%);
+}
+header#top.practice-nav .brand { color: #FBF2D8; }
+header#top.practice-nav .brand span { color: #F2BD58; }
+header#top.practice-nav .brand small, header#top.practice-nav #who { color: #DFE7F4; }
+header#top.practice-nav nav#tabs button { color: #D9E4F4; }
+header#top.practice-nav nav#tabs button:hover { color: #FBF2D8; background: #263D62; }
+header#top.practice-nav nav#tabs button[aria-current="page"] { color: #26364F; background: #F2D37F; }
+header#top.practice-nav #who button,
+header#top.practice-nav #who .btn {
+  color: #FBF2D8;
+  background: #263D62;
+  border-color: #8298BB;
+}
+main#main.main-practice {
+  --bg: #1B3154;
+  --panel: #263D62;
+  --ink: #FBF2D8;
+  --muted: #D9E4F4;
+  --line: #8298BB;
+  --accent: #F2BA55;
+  --accent-ink: #172D4A;
+  --accent-soft: #3B5E91;
+  --good: #6DB8CF;
+  --good-soft: #304D76;
+  --bad: #D86F9A;
+  --bad-soft: #3B416C;
+  --warn: #F2BA55;
+  --warn-soft: #3D4B70;
+  --shadow: 0 5px 0 #14263D, 0 14px 32px rgb(6 16 31 / 30%);
+  color: #FBF2D8;
+  background-color: #1B3154;
+  background-image:
+    radial-gradient(circle at 50% 42%, rgb(101 136 194 / 25%), transparent 54%),
+    radial-gradient(circle 2px at 8% 18%, rgb(251 242 216 / 74%) 0 1px, transparent 2px),
+    radial-gradient(circle 1.5px at 19% 62%, rgb(217 228 244 / 66%) 0 1px, transparent 1.5px),
+    radial-gradient(circle 2px at 34% 28%, rgb(251 242 216 / 65%) 0 1px, transparent 2px),
+    radial-gradient(circle 1.5px at 48% 78%, rgb(217 228 244 / 56%) 0 1px, transparent 1.5px),
+    radial-gradient(circle 2px at 68% 17%, rgb(251 242 216 / 67%) 0 1px, transparent 2px),
+    radial-gradient(circle 1.5px at 83% 49%, rgb(217 228 244 / 62%) 0 1px, transparent 1.5px),
+    radial-gradient(circle 2px at 94% 80%, rgb(251 242 216 / 55%) 0 1px, transparent 2px),
+    linear-gradient(180deg, #1B3154 0%, #2C4D7C 58%, #263E66 100%);
+  background-size: auto;
+  background-repeat: no-repeat;
+  background-attachment: fixed;
+}
+main#main.main-practice > .row h2 { color: #FBF2D8; }
+main#main.main-practice :is(h2, h3) { color: #FBF2D8; }
+main#main.main-practice .panel {
+  background-color: #263D62;
+  border-color: #8298BB;
+}
+main#main.main-practice .modal-card {
+  color: #FBF2D8;
+  background: linear-gradient(145deg, #304D76, #263D62);
+  border: 2px solid #8298BB;
+  box-shadow: 0 5px 0 #14263D, 0 14px 32px rgb(6 16 31 / 34%);
+}
+main#main.main-practice .modal-overlay { background: rgb(8 18 37 / 78%); }
+main#main.main-practice :is(input:not([type]), input[type="text"], input[type="number"], input[type="email"], input[type="password"], select, textarea) {
+  color: #FBF2D8;
+  background: #1B3154;
+  border-color: #8298BB;
+  color-scheme: dark;
+}
+main#main.main-practice select option { color: #FBF2D8; background: #1B3154; }
+main#main.main-practice :is(input, select, textarea):focus-visible { outline-color: #6DB8CF; box-shadow: 0 0 0 3px rgb(109 184 207 / 24%); }
+main#main.main-practice .options button {
+  color: #FBF2D8;
+  background: #304D76;
+  border-color: #8298BB;
+}
+main#main.main-practice .options button b { color: #AFC7F4; }
+main#main.main-practice .options button:hover:not(:disabled) { background: #3B5E91; border-color: #A7BCE0; }
+main#main.main-practice .options button.picked,
+main#main.main-practice .options button[aria-pressed="true"] { color: #FBF2D8; background: #3C558C; border-color: #AFC7F4; }
+main#main.main-practice .options button.right { color: #EAF6FA; background: #294B70; border-color: #6DB8CF; }
+main#main.main-practice .options button.wrong { color: #F6EAF3; background: #493D66; border-color: #D86F9A; }
+main#main.main-practice .options .mark { color: inherit; }
+main#main.main-practice .meter { background: #1B3154; border-color: #8298BB; }
+main#main.main-practice .meter > div { background: linear-gradient(90deg, #6DB8CF, #9AB4F2); }
+main#main.main-practice .badge.plain { color: #EAF1FA; background: #304D76; border-color: #8298BB; }
+main#main.main-practice > .panel,
+main#main.main-practice > .note { width: min(1540px, 100%); margin-right: auto; margin-left: auto; }
+main#main.main-practice { scrollbar-color: #8298BB #1B3154; }
+
+/* Practice home follows the menu-screen proportions in its reference:
+   compact class/resources rail and quiz setup beside a large hero stage. */
+main#main.main-practice .practice-layout {
+  width: min(1660px, 100%);
+  min-height: calc(100svh - 100px);
+  margin: 0 auto;
+  display: grid;
+  grid-template-columns: minmax(350px, .94fr) minmax(420px, 1.06fr);
+  align-items: stretch;
+  gap: clamp(18px, 2vw, 30px);
+}
+main#main.main-practice .practice-controls {
+  min-width: 0;
+  display: grid;
+  grid-template-rows: auto minmax(250px, 1fr) auto;
+  gap: 14px;
+}
+main#main.main-practice .practice-lobby {
+  overflow: hidden;
+  color: #FBF2D8;
+  background: linear-gradient(145deg, #263D62, #203858);
+  border: 1px solid #8298BB;
+  border-radius: 11px 9px 12px 10px;
+  box-shadow: 0 4px 0 #14263D, 0 9px 20px rgb(6 16 31 / 22%);
+}
+main#main.main-practice .practice-lobby-row {
+  min-height: 58px;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  align-items: center;
+  border-bottom: 1px solid rgb(217 228 244 / 25%);
+}
+main#main.main-practice .practice-kicker {
+  display: block;
+  color: #AFC7F4;
+  font: 700 10px/1.4 ui-monospace, "Cascadia Code", monospace;
+  letter-spacing: .12em;
+  text-transform: uppercase;
+}
+main#main.main-practice .practice-class-picker {
+  min-width: 0;
+  align-self: stretch;
+  display: flex;
+  align-items: center;
+  padding: 8px 12px;
+}
+main#main.main-practice .practice-class-picker > div {
+  display: grid !important;
+  grid-template-columns: minmax(0, 1fr) auto;
+  width: 100%;
+  gap: 8px !important;
+}
+main#main.main-practice .practice-class-picker .badge,
+main#main.main-practice .practice-class-picker select {
+  width: 100% !important;
+  min-width: 0;
+  min-height: 40px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 7px 9px;
+  overflow: hidden;
+  color: #FBF2D8;
+  background: #1B3154;
+  border: 1px solid #8298BB;
+  border-radius: 7px;
+  text-align: center;
+  text-overflow: ellipsis;
+}
+main#main.main-practice .practice-class-picker .btn { min-height: 40px; white-space: nowrap; }
+main#main.main-practice .practice-resource-row {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 10px 12px;
+}
+main#main.main-practice .practice-resource-row .badge {
+  min-height: 34px;
+  display: inline-flex;
+  align-items: center;
+  color: #FBF2D8;
+  background: #304D76;
+  border: 1px solid #8298BB;
+  border-radius: 7px;
+}
+main#main.main-practice .practice-resource-row .badge.plain { color: #D9E4F4; }
+main#main.main-practice .practice-settings {
+  min-height: 0;
+  padding: clamp(18px, 2.2vw, 30px);
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 22px;
+}
+main#main.main-practice .practice-participation {
+  margin: 0;
+  padding: 11px 13px;
+}
+main#main.main-practice .practice-settings-stack {
+  min-height: 0;
+  display: grid;
+  grid-template-rows: minmax(250px, 1fr) auto;
+  gap: 12px;
+}
+main#main.main-practice .practice-resume-card {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 14px;
+  padding: 13px 18px;
+}
+main#main.main-practice .practice-resume-card p {
+  margin: 4px 0 0;
+  color: #D9E4F4;
+}
+main#main.main-practice .practice-resume-card .btn { flex: 0 0 auto; }
+main#main.main-practice .practice-settings-stack > .practice-settings { height: 100%; }
+main#main.main-practice .practice-settings-heading {
+  display: flex;
+  align-items: flex-start;
+  gap: 14px;
+}
+main#main.main-practice .practice-settings-heading h2,
+main#main.main-practice .practice-no-class h2 {
+  margin: 2px 0 7px;
+  color: #FBF2D8;
+  font: 700 clamp(24px, 2.1vw, 32px)/1.12 Georgia, "Palatino Linotype", serif;
+}
+main#main.main-practice .practice-settings-heading p,
+main#main.main-practice .practice-no-class p { max-width: 48ch; margin: 0; }
+main#main.main-practice .practice-section-icon {
+  flex: 0 0 46px;
+  width: 46px;
+  height: 46px;
+  display: grid;
+  place-items: center;
+  color: #F2BA55;
+  background: #1B3154;
+  border: 1px solid #8298BB;
+  border-radius: 12px 9px 13px 10px;
+  font-size: 24px;
+}
+main#main.main-practice .practice-fields {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  align-items: end;
+  gap: 12px;
+}
+main#main.main-practice .practice-fields .field { min-width: 0; margin: 0; }
+main#main.main-practice .practice-fields select { width: 100%; }
+main#main.main-practice .practice-actions {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, .72fr);
+  gap: 12px;
+}
+main#main.main-practice .practice-actions .btn { min-height: 54px; }
+main#main.main-practice .practice-no-class { flex-direction: row; align-items: flex-start; }
+main#main.main-practice .practice-hero {
+  position: relative;
+  min-width: 0;
+  min-height: 560px;
+  overflow: hidden;
+  isolation: isolate;
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr) auto;
+  justify-items: center;
+  align-items: center;
+  gap: 8px;
+  padding: clamp(22px, 3vw, 42px);
+  background:
+    radial-gradient(ellipse at 50% 38%, rgb(109 184 207 / 23%), transparent 48%),
+    linear-gradient(155deg, #203858, #1B3154 58%, #172B4B);
+  border-color: #8298BB;
+}
+main#main.main-practice .practice-hero::before {
+  content: "";
+  position: absolute;
+  z-index: -1;
+  width: min(76%, 62vh);
+  aspect-ratio: 1;
+  border: 1px solid rgb(169 221 238 / 38%);
+  border-radius: 50%;
+  background: radial-gradient(circle at 38% 32%, rgb(114 157 213 / 27%), rgb(53 83 130 / 17%) 58%, rgb(27 49 84 / 6%) 72%);
+  box-shadow: 0 0 80px rgb(109 184 207 / 17%), inset 0 0 42px rgb(169 221 238 / 11%);
+}
+main#main.main-practice .practice-hero-kicker {
+  z-index: 1;
+  color: #AFC7F4;
+  font: 700 11px/1.4 ui-monospace, "Cascadia Code", monospace;
+  letter-spacing: .15em;
+  text-align: center;
+}
+main#main.main-practice .practice-hero-art {
+  z-index: 1;
+  display: grid;
+  place-items: center;
+  width: min(100%, 470px);
+  aspect-ratio: 1;
+  filter: drop-shadow(0 20px 22px rgb(5 15 32 / 38%));
+}
+main#main.main-practice .practice-hero-art .hero-icon {
+  width: clamp(250px, 31vw, 390px) !important;
+  height: auto !important;
+  max-width: 100%;
+}
+main#main.main-practice .practice-hero-caption {
+  z-index: 1;
+  min-width: min(270px, 100%);
+  display: grid;
+  justify-items: center;
+  gap: 4px;
+  padding: 12px 24px;
+  color: #FBF2D8;
+  background: rgb(27 49 84 / 84%);
+  border: 1px solid #8298BB;
+  border-radius: 999px;
+  text-align: center;
+}
+main#main.main-practice .practice-hero-caption strong { font: 700 21px/1.1 Georgia, "Palatino Linotype", serif; }
+main#main.main-practice .practice-hero-caption span { color: #D9E4F4; font-size: 13px; }
+main#main.main-practice .practice-page-message { width: min(1540px, 100%); margin: 0 auto; }
+
+@media (max-width: 900px) {
+  main#main.main-practice .practice-layout { min-height: 0; grid-template-columns: minmax(0, 1fr); }
+  main#main.main-practice .practice-controls { grid-template-rows: auto minmax(310px, auto) auto; }
+  main#main.main-practice .practice-hero { min-height: 400px; }
+  main#main.main-practice .practice-hero-art .hero-icon { width: clamp(220px, 48vw, 320px) !important; }
+}
+@media (max-width: 560px) {
+  main#main.main-practice .practice-class-picker { padding: 7px 9px; }
+  main#main.main-practice .practice-fields { grid-template-columns: minmax(0, 1fr); }
+  main#main.main-practice .practice-actions { grid-template-columns: minmax(0, 1fr); }
+  main#main.main-practice .practice-hero { min-height: 340px; padding: 18px; }
+  main#main.main-practice .practice-hero-art .hero-icon { width: clamp(200px, 66vw, 280px) !important; }
+}
+
+/* Live practice battle: question and answers to the left, Pokémon-style
+   upper-right enemy / lower-left hero staging to the right. */
+main#main.main-practice .practice-quiz-layout {
+  width: min(1660px, 100%);
+  min-height: calc(100svh - 100px);
+  margin: 0 auto;
+  display: grid;
+  grid-template-columns: minmax(360px, .94fr) minmax(420px, 1.06fr);
+  align-items: stretch;
+  gap: clamp(18px, 2vw, 30px);
+}
+main#main.main-practice .quiz-content-column {
+  min-width: 0;
+  display: grid;
+  grid-template-rows: auto minmax(245px, 1fr) auto;
+  align-content: stretch;
+  gap: 13px;
+}
+main#main.main-practice .quiz-content-column > .quiz-prompt-card,
+main#main.main-practice .quiz-content-column > .quiz-answers-card,
+main#main.main-practice .quiz-content-column > .quiz-details-card {
+  min-width: 0;
+  margin: 0;
+  padding: clamp(15px, 1.8vw, 24px);
+}
+main#main.main-practice .quiz-prompt-card { display: flex; flex-direction: column; justify-content: center; gap: 8px; }
+main#main.main-practice .quiz-head { margin: 0; justify-content: flex-start; gap: 10px; }
+main#main.main-practice .quiz-question-number { color: #FBF2D8; font-weight: 800; }
+main#main.main-practice .quiz-question-number span { color: #AFC7F4; font-weight: 600; }
+main#main.main-practice .quiz-topic { color: #D9E4F4; background: #1B3154; border-color: #8298BB; }
+main#main.main-practice .timer { margin-left: auto; color: #D9E4F4; font-variant-numeric: tabular-nums; }
+main#main.main-practice .timer.low { color: #F2BA55; }
+main#main.main-practice .quiz-prompt-card .stem { margin: 4px 0 0; color: #FBF2D8; font: 700 clamp(19px, 1.65vw, 25px)/1.35 Georgia, "Palatino Linotype", serif; }
+main#main.main-practice .quiz-section-kicker { margin-bottom: 10px; color: #AFC7F4; font: 700 10px/1.4 ui-monospace, "Cascadia Code", monospace; letter-spacing: .14em; }
+main#main.main-practice .quiz-answers-card { overflow-y: auto; }
+main#main.main-practice .quiz-answers-card .stem { color: #FBF2D8; }
+main#main.main-practice .quiz-answers-card .options { gap: 10px; }
+main#main.main-practice .quiz-answers-card .options button { min-height: 48px; padding: 12px 15px; border-radius: 9px; }
+main#main.main-practice .quiz-answers-card .options button .mark { display: block; margin: 4px 0 0 24px; }
+main#main.main-practice .quiz-details-card { display: flex; flex-direction: column; justify-content: center; gap: 7px; }
+main#main.main-practice .quiz-details-card .quiz-section-kicker { margin: 0; }
+main#main.main-practice .quiz-details-card > p { margin: 0; }
+main#main.main-practice .quiz-details-card .note { margin: 4px 0 0 !important; }
+main#main.main-practice .quiz-action-row { display: flex; align-items: center; flex-wrap: wrap; gap: 9px; margin-top: 8px; }
+main#main.main-practice .quiz-action-row .btn.primary { min-width: 150px; }
+main#main.main-practice .quiz-summary-card,
+main#main.main-practice .quiz-content-column > .quiz-details-card:only-child {
+  grid-row: 1 / -1;
+  align-self: center;
+  max-height: min(82svh, 850px);
+  overflow: auto;
+}
+main#main.main-practice .quiz-summary-card h2 { color: #FBF2D8; font: 700 clamp(24px, 2.2vw, 34px)/1.15 Georgia, "Palatino Linotype", serif; }
+main#main.main-practice .quiz-summary-card table { width: 100%; border-collapse: collapse; color: #EAF1FA; }
+main#main.main-practice .quiz-summary-card td { padding: 5px 7px; border-bottom: 1px solid rgb(217 228 244 / 18%); }
+main#main.main-practice .quiz-feedback-card { padding: 12px; color: #FBF2D8; background: #203858; border-color: #8298BB; }
+main#main.main-practice .quiz-battle-stage {
+  position: relative;
+  min-width: 0;
+  min-height: 600px;
+  overflow: hidden;
+  isolation: isolate;
+  border: 3px solid #17263F;
+  border-radius: 20px 16px 21px 17px;
+  background:
+    radial-gradient(ellipse at 52% 48%, rgb(115 154 210 / 30%), transparent 45%),
+    radial-gradient(circle at 50% 50%, rgb(79 109 159 / 14%), transparent 64%),
+    linear-gradient(160deg, #E5EDF7 0%, #CFD9EC 48%, #B7C8E2 100%);
+  box-shadow: 0 7px 0 #101F36, 0 16px 36px rgb(5 13 29 / 34%);
+}
+main#main.main-practice .quiz-battle-stage::before,
+main#main.main-practice .quiz-battle-stage::after {
+  content: "";
+  position: absolute;
+  z-index: -1;
+  pointer-events: none;
+  border-radius: 50%;
+}
+main#main.main-practice .quiz-battle-stage::before {
+  width: 74%;
+  aspect-ratio: 1;
+  left: 13%;
+  top: 13%;
+  background: radial-gradient(circle, rgb(251 242 216 / 38%), rgb(109 184 207 / 14%) 52%, transparent 72%);
+}
+main#main.main-practice .quiz-battle-stage::after {
+  width: 56%;
+  aspect-ratio: 1;
+  left: 22%;
+  top: 22%;
+  border: 1px solid rgb(251 242 216 / 28%);
+}
+main#main.main-practice .battle-enemy-status,
+main#main.main-practice .battle-player-status {
+  position: absolute;
+  z-index: 4;
+  width: min(48%, 330px);
+  padding: 13px 16px;
+  color: #FBF2D8;
+  background: linear-gradient(145deg, rgb(27 49 84 / 97%), rgb(37 61 98 / 97%));
+  border: 2px solid #8298BB;
+  border-radius: 12px 9px 13px 10px;
+  box-shadow: 0 5px 0 #14263D, 0 10px 22px rgb(8 21 42 / 28%);
+}
+main#main.main-practice .battle-enemy-status { top: 5%; left: 5%; }
+main#main.main-practice .battle-player-status { right: 5%; bottom: 5%; }
+main#main.main-practice .battle-status-top { display: flex; align-items: center; justify-content: space-between; gap: 7px; color: #AFC7F4; font: 700 10px/1.3 ui-monospace, "Cascadia Code", monospace; letter-spacing: .08em; }
+main#main.main-practice .battle-status-top strong { color: #FBF2D8; font: 800 13px/1.2 Nunito, "Trebuchet MS", sans-serif; letter-spacing: 0; white-space: nowrap; }
+main#main.main-practice .battle-status-top small { color: #C9D8ED; font-size: 10px; font-weight: 600; }
+main#main.main-practice .battle-name { overflow: hidden; margin: 6px 0 8px; color: #FBF2D8; font: 700 19px/1.1 Georgia, "Palatino Linotype", serif; text-overflow: ellipsis; white-space: nowrap; }
+main#main.main-practice .battle-health { height: 12px; overflow: hidden; padding: 2px; background: #17263F; border: 1px solid #AFC7F4; border-radius: 999px; }
+main#main.main-practice .battle-health > span { display: block; height: 100%; border-radius: inherit; background: linear-gradient(90deg, #F2BA55, #F4D77F); transition: width .65s cubic-bezier(.2,.7,.3,1); }
+main#main.main-practice .battle-health.player-health > span { background: linear-gradient(90deg, #6DB8CF, #91D5E4); }
+main#main.main-practice .battle-player,
+main#main.main-practice .battle-enemy { position: absolute; z-index: 2; display: grid; place-items: center; }
+main#main.main-practice .battle-enemy { top: 15%; right: 8%; width: 42%; height: 36%; }
+main#main.main-practice .battle-player { bottom: 16%; left: 7%; width: 44%; height: 40%; }
+main#main.main-practice .battle-enemy-sprite { display: inline-block; color: #26364F; font-size: clamp(92px, 9.2vw, 142px); line-height: 1; filter: drop-shadow(0 13px 10px rgb(26 41 69 / 30%)); transform-origin: center bottom; }
+main#main.main-practice .battle-player-sprite { position: relative; display: inline-block; line-height: 1; filter: drop-shadow(0 14px 12px rgb(26 41 69 / 28%)); transform-origin: center bottom; }
+main#main.main-practice .battle-player-sprite .hero-icon { width: clamp(135px, 14vw, 205px) !important; height: auto !important; }
+main#main.main-practice .battle-player-sprite .hat { position: absolute; top: -10%; right: 0; font-size: 30px; }
+main#main.main-practice .battle-enemy-sprite.defeated { filter: grayscale(1); opacity: .38; transform: rotate(72deg) translateY(18px); transition: all .55s ease; }
+main#main.main-practice .battle-damage { position: absolute; z-index: 5; color: #FFF8E4; font: 900 34px/1 Nunito, "Trebuchet MS", sans-serif; text-shadow: 0 2px 0 #1B3154, 0 0 14px #1B3154; animation: battle-damage-float .9s ease-out both; pointer-events: none; }
+main#main.main-practice .enemy-damage { top: 20%; left: 44%; }
+main#main.main-practice .player-damage { top: 24%; right: 4%; color: #FFD8E6; }
+main#main.main-practice .battle-turn-label { position: absolute; z-index: 4; left: 50%; bottom: 3%; transform: translateX(-50%); color: #1B3154; font: 800 12px/1.2 ui-monospace, "Cascadia Code", monospace; letter-spacing: .08em; text-align: center; text-transform: uppercase; }
+main#main.main-practice .hero-attack { animation: practice-hero-dash .62s cubic-bezier(.2,.8,.25,1) both; }
+main#main.main-practice .enemy-attack { animation: practice-enemy-dash .62s cubic-bezier(.2,.8,.25,1) both; }
+main#main.main-practice .battle-impact { animation: practice-impact .42s ease-out both; }
+@keyframes practice-hero-dash {
+  0% { transform: translate(0, 0) scale(1); }
+  38% { transform: translate(250px, -145px) scale(1.16); }
+  57% { transform: translate(250px, -145px) scale(1.16); }
+  100% { transform: translate(0, 0) scale(1); }
+}
+@keyframes practice-enemy-dash {
+  0% { transform: translate(0, 0) scale(1); }
+  38% { transform: translate(-225px, 145px) scale(1.14); }
+  57% { transform: translate(-225px, 145px) scale(1.14); }
+  100% { transform: translate(0, 0) scale(1); }
+}
+@keyframes practice-impact {
+  15%, 55%, 90% { transform: translateX(-9px) rotate(-3deg); }
+  35%, 75% { transform: translateX(9px) rotate(3deg); }
+  100% { transform: translateX(0) rotate(0); }
+}
+@keyframes battle-damage-float { from { opacity: 1; transform: translateY(0) scale(.8); } to { opacity: 0; transform: translateY(-50px) scale(1.2); } }
+@media (max-width: 900px) {
+  main#main.main-practice .practice-quiz-layout { min-height: 0; grid-template-columns: minmax(0, 1fr); }
+  main#main.main-practice .quiz-content-column { grid-template-rows: auto auto auto; }
+  main#main.main-practice .quiz-battle-stage { min-height: 560px; }
+}
+@media (max-width: 560px) {
+  main#main.main-practice .quiz-battle-stage { min-height: 430px; }
+  main#main.main-practice .battle-enemy-status,
+  main#main.main-practice .battle-player-status { width: 57%; padding: 10px 12px; }
+  main#main.main-practice .battle-enemy { top: 21%; right: 3%; width: 44%; height: 30%; }
+  main#main.main-practice .battle-player { bottom: 17%; left: 1%; width: 43%; height: 34%; }
+  main#main.main-practice .battle-player-sprite .hero-icon { width: clamp(105px, 34vw, 150px) !important; }
+  main#main.main-practice .battle-enemy-sprite { font-size: clamp(75px, 24vw, 105px); }
+  main#main.main-practice .battle-name { font-size: 16px; }
+  main#main.main-practice .quiz-action-row { align-items: stretch; }
+  main#main.main-practice .quiz-action-row .btn { flex: 1 1 auto; }
+}
+@media (max-width: 900px) {
+  @keyframes practice-hero-dash {
+    0% { transform: translate(0, 0) scale(1); }
+    38%, 57% { transform: translate(190px, -115px) scale(1.14); }
+    100% { transform: translate(0, 0) scale(1); }
+  }
+  @keyframes practice-enemy-dash {
+    0% { transform: translate(0, 0) scale(1); }
+    38%, 57% { transform: translate(-175px, 120px) scale(1.12); }
+    100% { transform: translate(0, 0) scale(1); }
+  }
+}
+@media (max-width: 560px) {
+  @keyframes practice-hero-dash {
+    0% { transform: translate(0, 0) scale(1); }
+    38%, 57% { transform: translate(125px, -80px) scale(1.12); }
+    100% { transform: translate(0, 0) scale(1); }
+  }
+  @keyframes practice-enemy-dash {
+    0% { transform: translate(0, 0) scale(1); }
+    38%, 57% { transform: translate(-120px, 85px) scale(1.1); }
+    100% { transform: translate(0, 0) scale(1); }
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  main#main.main-practice .hero-attack,
+  main#main.main-practice .enemy-attack,
+  main#main.main-practice .battle-impact,
+  main#main.main-practice .battle-damage { animation: none; }
+}
+
+/* Soft marigold variation: the night-sky frame stays, while every Practice
+   card and control shifts to one warm yellow surface family. */
+main#main.main-practice {
+  --panel: #F6E8B8;
+  --ink: #2A3448;
+  --muted: #655A42;
+  --line: #A98A45;
+  --accent: #F2BA55;
+  --accent-ink: #2A3448;
+  --accent-soft: #F2D37F;
+  --good: #5D8EAD;
+  --good-soft: #DDEAF0;
+  --bad: #B66778;
+  --bad-soft: #F4E0E5;
+  --warn: #A87828;
+  --warn-soft: #F8EECF;
+  --shadow: 0 5px 0 #705622, 0 14px 32px rgb(8 16 29 / 26%);
+  background-image:
+    radial-gradient(circle at 50% 42%, rgb(116 144 190 / 22%), transparent 54%),
+    radial-gradient(circle 2px at 8% 18%, rgb(242 211 127 / 85%) 0 1px, transparent 2px),
+    radial-gradient(circle 1.5px at 19% 62%, rgb(255 248 228 / 72%) 0 1px, transparent 1.5px),
+    radial-gradient(circle 2px at 34% 28%, rgb(242 211 127 / 77%) 0 1px, transparent 2px),
+    radial-gradient(circle 1.5px at 48% 78%, rgb(255 248 228 / 62%) 0 1px, transparent 1.5px),
+    radial-gradient(circle 2px at 68% 17%, rgb(242 211 127 / 77%) 0 1px, transparent 2px),
+    radial-gradient(circle 1.5px at 83% 49%, rgb(255 248 228 / 68%) 0 1px, transparent 1.5px),
+    radial-gradient(circle 2px at 94% 80%, rgb(242 211 127 / 68%) 0 1px, transparent 2px),
+    linear-gradient(180deg, #1B3154 0%, #2C4D7C 58%, #263E66 100%);
+}
+main#main.main-practice .panel {
+  color: #2A3448;
+  background: #F6E8B8 url('/hero-lab/assets/storybook-paper.svg') repeat;
+  background-size: 180px 180px;
+  border-color: #A98A45;
+  box-shadow: 0 5px 0 #705622, 0 12px 25px rgb(8 16 29 / 20%);
+}
+main#main.main-practice .panel :is(h2, h3, b) { color: #2A3448; }
+main#main.main-practice .panel :is(p, .small, .muted) { color: #655A42; }
+main#main.main-practice .panel .field label { color: #51482F; }
+main#main.main-practice .note {
+  color: #3B3B3A;
+  background: #F8EECF;
+  border-color: #D5BC76;
+  border-left-color: #D69B31;
+}
+main#main.main-practice .note.bad { color: #663C49; background: #F4E0E5; border-color: #D9AFBA; border-left-color: #B66778; }
+main#main.main-practice .note.warn { color: #604A27; background: #F8EECF; border-color: #D8C48B; border-left-color: #D69B31; }
+main#main.main-practice .note.good { color: #294C61; background: #DDEAF0; border-color: #AFC7D2; border-left-color: #5D8EAD; }
+main#main.main-practice .btn:not(.primary) {
+  color: #2A3448;
+  background: #E8D28B;
+  border-color: #A98A45;
+  box-shadow: 0 4px 0 #705622;
+}
+main#main.main-practice .btn:not(.primary):hover { background: #F1DFA4; border-color: #8F7337; box-shadow: 0 5px 0 #705622; }
+main#main.main-practice .btn:not(.primary):active { box-shadow: 0 1px 0 #705622; }
+main#main.main-practice .btn.primary { color: #2A3448; background: #F2BA55; border-color: #8F6C27; box-shadow: 0 4px 0 #8F6C27; }
+main#main.main-practice .btn.primary:hover { background: #F7CB70; }
+main#main.main-practice .btn:disabled { color: #7A714F; background: #D9CDAB; border-color: #A99B72; box-shadow: 0 2px 0 #705622; opacity: 1; }
+main#main.main-practice :is(input:not([type]), input[type="text"], input[type="number"], input[type="email"], input[type="password"], select, textarea) {
+  color: #2A3448;
+  background: #FFF8E4;
+  border-color: #B49A5B;
+  color-scheme: light;
+}
+main#main.main-practice select option { color: #2A3448; background: #FFF8E4; }
+main#main.main-practice :is(input, select, textarea):focus-visible { outline-color: #D69B31; box-shadow: 0 0 0 3px rgb(242 186 85 / 30%); }
+main#main.main-practice .options button { color: #2A3448; background: #F8EDC9; border-color: #C2AA68; }
+main#main.main-practice .options button b { color: #7A5B20; }
+main#main.main-practice .options button:hover:not(:disabled) { background: #FFF5D8; border-color: #A77D2D; }
+main#main.main-practice .options button.picked,
+main#main.main-practice .options button[aria-pressed="true"] { color: #2A3448; background: #F2D982; border-color: #A77D2D; }
+main#main.main-practice .options button.right { color: #294C61; background: #DDEAF0; border-color: #5D8EAD; }
+main#main.main-practice .options button.wrong { color: #663C49; background: #F4E0E5; border-color: #B66778; }
+main#main.main-practice .meter { background: #E7DCAf; border-color: #A98A45; }
+main#main.main-practice .meter > div { background: linear-gradient(90deg, #D69B31, #F2BA55); }
+main#main.main-practice .badge.plain { color: #50462D; background: #F3E6B9; border-color: #B69A56; }
+
+/* Warm panels and stage in the menu and battle layouts. */
+main#main.main-practice .practice-lobby {
+  color: #2A3448;
+  background: linear-gradient(145deg, #F6E8B8, #EBD68F);
+  border-color: #A98A45;
+  box-shadow: 0 4px 0 #705622, 0 9px 20px rgb(6 16 31 / 22%);
+}
+main#main.main-practice .practice-lobby-row { border-bottom-color: rgb(112 86 34 / 28%); }
+main#main.main-practice .practice-kicker { color: #775D2C; }
+main#main.main-practice .practice-class-picker { border-left-color: rgb(112 86 34 / 28%); }
+main#main.main-practice .practice-class-picker .badge,
+main#main.main-practice .practice-class-picker select {
+  color: #2A3448;
+  background: #FFF8E4;
+  border-color: #B69A56;
+}
+main#main.main-practice .practice-resource-row .badge { color: #2A3448; background: #E8D28B; border-color: #B69A56; }
+main#main.main-practice .practice-resource-row .badge.plain { color: #51482F; }
+main#main.main-practice .practice-settings-heading h2,
+main#main.main-practice .practice-no-class h2 { color: #2A3448; }
+main#main.main-practice .practice-settings-heading p,
+main#main.main-practice .practice-no-class p { color: #655A42; }
+main#main.main-practice .practice-section-icon { color: #2A3448; background: #F2BA55; border-color: #A98A45; }
+main#main.main-practice .practice-participation { color: #51482F; }
+main#main.main-practice .practice-resume-card p { color: #655A42; }
+main#main.main-practice .practice-hero {
+  color: #2A3448;
+  background: radial-gradient(ellipse at 50% 38%, rgb(255 248 228 / 74%), transparent 48%), linear-gradient(155deg, #F3DEA0, #E6CA73 58%, #D9B858);
+  border-color: #A98A45;
+}
+main#main.main-practice .practice-hero::before {
+  border-color: rgb(143 108 39 / 40%);
+  background: radial-gradient(circle at 38% 32%, rgb(255 248 228 / 75%), rgb(242 211 127 / 38%) 58%, rgb(214 155 49 / 10%) 72%);
+  box-shadow: 0 0 80px rgb(143 108 39 / 14%), inset 0 0 42px rgb(255 248 228 / 30%);
+}
+main#main.main-practice .practice-hero-kicker { color: #775D2C; }
+main#main.main-practice .practice-hero-caption { color: #FBF2D8; background: rgb(38 54 79 / 90%); border-color: #A98A45; }
+main#main.main-practice .practice-hero-caption span { color: #F2DFA8; }
+
+/* Quiz prompt, answers, buttons, and form controls use matching butter-paper. */
+main#main.main-practice .quiz-content-column > .quiz-prompt-card,
+main#main.main-practice .quiz-content-column > .quiz-answers-card,
+main#main.main-practice .quiz-content-column > .quiz-details-card,
+main#main.main-practice .quiz-summary-card {
+  color: #2A3448;
+  background: #F6E8B8 url('/hero-lab/assets/storybook-paper.svg') repeat;
+  background-size: 180px 180px;
+  border-color: #A98A45;
+  box-shadow: 0 5px 0 #705622, 0 12px 25px rgb(8 16 29 / 20%);
+}
+main#main.main-practice .quiz-question-number,
+main#main.main-practice .quiz-prompt-card .stem,
+main#main.main-practice .quiz-summary-card h2 { color: #2A3448; }
+main#main.main-practice .quiz-question-number span,
+main#main.main-practice .quiz-answers-card .small,
+main#main.main-practice .quiz-details-card .small,
+main#main.main-practice .quiz-summary-card .muted { color: #655A42; }
+main#main.main-practice .quiz-topic { color: #51482F; background: #E8D28B; border-color: #B69A56; }
+main#main.main-practice .timer { color: #51482F; }
+main#main.main-practice .timer.low { color: #9B432F; }
+main#main.main-practice .quiz-section-kicker { color: #775D2C; }
+main#main.main-practice .quiz-feedback-card { color: #2A3448; background: #F1DFA4; border-color: #B69A56; }
+main#main.main-practice .quiz-summary-card td { color: #2A3448; border-bottom-color: rgb(112 86 34 / 22%); }
+main#main.main-practice .quiz-battle-stage {
+  border-color: #17263F;
+  background:
+    radial-gradient(ellipse at 52% 48%, rgb(255 248 228 / 87%), transparent 45%),
+    radial-gradient(circle at 50% 50%, rgb(242 211 127 / 36%), transparent 64%),
+    linear-gradient(160deg, #F8EECF 0%, #EEDC9E 48%, #E4CC7D 100%);
+}
+main#main.main-practice .quiz-battle-stage::before { background: radial-gradient(circle, rgb(255 248 228 / 72%), rgb(242 211 127 / 34%) 52%, transparent 72%); }
+main#main.main-practice .quiz-battle-stage::after { border-color: rgb(143 108 39 / 24%); }
+main#main.main-practice .battle-enemy-status,
+main#main.main-practice .battle-player-status { border-color: #CDA84C; box-shadow: 0 5px 0 #705622, 0 10px 22px rgb(8 21 42 / 22%); }
+main#main.main-practice .battle-health { border-color: #D4B965; }
+main#main.main-practice .battle-health > span { background: linear-gradient(90deg, #D99A2B, #F2BA55); }
+main#main.main-practice .battle-health.player-health > span { background: linear-gradient(90deg, #F2BA55, #FFE68D); }
+main#main.main-practice .battle-turn-label { color: #493A1D; }
+main#main.main-practice .battle-damage { text-shadow: 0 2px 0 #493A1D, 0 0 14px #FFF8E4; }
+main#main.main-practice .enemy-damage { color: #A33D25; }
+main#main.main-practice .player-damage { color: #9B3F58; }
+main#main.main-practice .modal-card { color: #2A3448; background: #F6E8B8 url('/hero-lab/assets/storybook-paper.svg') repeat; background-size: 180px 180px; border-color: #A98A45; box-shadow: 0 5px 0 #705622, 0 14px 32px rgb(6 16 31 / 28%); }
+main#main.main-practice .modal-overlay { background: rgb(52 42 23 / 70%); }
+main#main.main-practice { scrollbar-color: #B69A56 #D8C17E; }
+
+/* Apply Practice's marigold palette to the page frame as well as its cards. */
+body:has(header#top.practice-nav) { background: #D8C17E; color: #2A3448; }
+header#top.practice-nav {
+  color: #342A17;
+  background: linear-gradient(180deg, #F0D47E, #D7B655);
+  border-bottom-color: #A78335;
+  box-shadow: 0 4px 14px rgb(73 55 19 / 20%);
+}
+header#top.practice-nav .brand,
+header#top.practice-nav .brand small,
+header#top.practice-nav #who { color: #342A17; }
+header#top.practice-nav .brand span { color: #805A17; }
+header#top.practice-nav nav#tabs button { color: #4A3B1C; }
+header#top.practice-nav nav#tabs button:hover { color: #302715; background: rgb(255 248 228 / 40%); }
+header#top.practice-nav nav#tabs button[aria-current="page"] { color: #302715; background: #FBF2D8; box-shadow: inset 0 -2px #A78335; }
+header#top.practice-nav #who button,
+header#top.practice-nav #who .btn { color: #342A17; background: #E8D18A; border-color: #A78335; }
+main#main.main-practice {
+  --bg: #D8C17E;
+  --ink: #2A3448;
+  --muted: #655A42;
+  --good: #806A29;
+  --good-soft: #F1E1A4;
+  color: #2A3448;
+  background-color: #D8C17E;
+  background-image:
+    radial-gradient(ellipse at 50% 0%, rgb(255 248 228 / 48%), transparent 62%),
+    radial-gradient(ellipse at 5% 82%, rgb(241 219 158 / 36%), transparent 54%),
+    radial-gradient(ellipse at 96% 74%, rgb(192 153 69 / 17%), transparent 58%),
+    radial-gradient(circle 2px at 8% 18%, rgb(255 248 228 / 72%) 0 1px, transparent 2px),
+    radial-gradient(circle 1.5px at 24% 76%, rgb(126 94 34 / 25%) 0 1px, transparent 1.5px),
+    radial-gradient(circle 2px at 68% 17%, rgb(255 248 228 / 64%) 0 1px, transparent 2px),
+    radial-gradient(circle 1.5px at 91% 55%, rgb(126 94 34 / 22%) 0 1px, transparent 1.5px),
+    linear-gradient(180deg, #E5D394 0%, #D8C17E 56%, #CDB56E 100%);
+}
+main#main.main-practice .practice-lobby {
+  background: linear-gradient(145deg, #F6E8B8, #EBD68F);
+  border-color: #A98A45;
+}
+main#main.main-practice .practice-hero {
+  background: radial-gradient(ellipse at 50% 38%, rgb(255 248 228 / 74%), transparent 48%), linear-gradient(155deg, #F3DEA0, #E6CA73 58%, #D9B858);
+}
+main#main.main-practice .practice-hero-caption { background: rgb(93 73 34 / 92%); border-color: #A98A45; }
+main#main.main-practice .practice-hero-caption strong { color: #FFF8E4; }
+main#main.main-practice .practice-hero-caption span { color: #F5E7BE; }
+main#main.main-practice .quiz-battle-stage {
+  border-color: #856728;
+  background:
+    radial-gradient(ellipse at 52% 48%, rgb(255 248 228 / 88%), transparent 45%),
+    radial-gradient(circle at 50% 50%, rgb(242 211 127 / 39%), transparent 64%),
+    linear-gradient(160deg, #F8EECF 0%, #EEDC9E 48%, #E4CC7D 100%);
+  box-shadow: 0 7px 0 #705622, 0 16px 36px rgb(73 55 19 / 25%);
+}
+main#main.main-practice .battle-enemy-status,
+main#main.main-practice .battle-player-status {
+  color: #FFF8E4;
+  background: linear-gradient(145deg, #67532C, #554522);
+  border-color: #D5B75F;
+  box-shadow: 0 5px 0 #705622, 0 10px 22px rgb(73 55 19 / 24%);
+}
+main#main.main-practice .battle-status-top,
+main#main.main-practice .battle-status-top small { color: #F2DFA8; }
+main#main.main-practice .battle-status-top strong,
+main#main.main-practice .battle-name { color: #FFF8E4; }
+main#main.main-practice .battle-health { background: #392F1E; border-color: #D5B75F; }
+main#main.main-practice .battle-health > span { background: linear-gradient(90deg, #D99A2B, #F2BA55); }
+main#main.main-practice .battle-health.player-health > span { background: linear-gradient(90deg, #E8BB4E, #FFE68D); }
+main#main.main-practice .battle-turn-label { color: #493A1D; }
+main#main.main-practice .options button.right { color: #4D421F; background: #F1E1A4; border-color: #A78734; }
+main#main.main-practice .note.good { color: #4D421F; background: #F1E1A4; border-color: #D0B75D; border-left-color: #A78734; }
+main#main.main-practice { scrollbar-color: #A78335 #D8C17E; }
+
+/* Campfire orange page variation: tangerine actions, peach paper surfaces,
+   and a muted plum night frame applied as one page-level palette. */
+body:has(header#top.practice-nav) { background: #392D3D; color: #FFF0E3; }
+header#top.practice-nav {
+  color: #FFF0E3;
+  background: linear-gradient(180deg, #3A2B40, #30263A);
+  border-bottom-color: #6D5268;
+  box-shadow: 0 4px 14px rgb(20 13 27 / 28%);
+}
+header#top.practice-nav .brand,
+header#top.practice-nav .brand small,
+header#top.practice-nav #who { color: #FFF0E3; }
+header#top.practice-nav .brand span { color: #FF955A; }
+header#top.practice-nav nav#tabs button { color: #E6D6E5; }
+header#top.practice-nav nav#tabs button:hover { color: #FFF0E3; background: #51405A; }
+header#top.practice-nav nav#tabs button[aria-current="page"] { color: #35263A; background: #FF9A5E; box-shadow: inset 0 -2px #E56A36; }
+header#top.practice-nav #who button,
+header#top.practice-nav #who .btn { color: #FFF0E3; background: #51405A; border-color: #8B6B82; }
+main#main.main-practice {
+  --bg: #F4D8BF;
+  --panel: #F8DFCA;
+  --ink: #352B3B;
+  --muted: #715A60;
+  --line: #C8916E;
+  --accent: #F47A3F;
+  --accent-ink: #352B3B;
+  --accent-soft: #F7C39D;
+  --good: #5B8290;
+  --good-soft: #DDEBF0;
+  --bad: #B85B68;
+  --bad-soft: #F4DDE0;
+  --warn: #A2672E;
+  --warn-soft: #F7E6C8;
+  --shadow: 0 5px 0 #714834, 0 14px 32px rgb(30 18 30 / 23%);
+  color: #FFF0E3;
+  background-color: #392D3D;
+  background-image:
+    radial-gradient(ellipse at 50% 0%, rgb(235 127 75 / 23%), transparent 57%),
+    radial-gradient(ellipse at 4% 75%, rgb(103 69 103 / 28%), transparent 55%),
+    radial-gradient(ellipse at 96% 82%, rgb(207 112 65 / 18%), transparent 55%),
+    radial-gradient(circle 2px at 8% 18%, rgb(255 198 139 / 78%) 0 1px, transparent 2px),
+    radial-gradient(circle 1.5px at 24% 76%, rgb(255 240 227 / 54%) 0 1px, transparent 1.5px),
+    radial-gradient(circle 2px at 68% 17%, rgb(255 198 139 / 68%) 0 1px, transparent 2px),
+    radial-gradient(circle 1.5px at 91% 55%, rgb(255 240 227 / 46%) 0 1px, transparent 1.5px),
+    linear-gradient(180deg, #443247 0%, #392D3D 56%, #30283A 100%);
+}
+main#main.main-practice .panel {
+  color: #352B3B;
+  background: #F8DFCA url('/hero-lab/assets/storybook-paper.svg') repeat;
+  background-size: 180px 180px;
+  border-color: #C8916E;
+  box-shadow: 0 5px 0 #714834, 0 12px 25px rgb(30 18 30 / 18%);
+}
+main#main.main-practice .panel :is(h2, h3, b) { color: #352B3B; }
+main#main.main-practice .panel :is(p, .small, .muted) { color: #715A60; }
+main#main.main-practice .panel .field label { color: #57434B; }
+main#main.main-practice .note { color: #463641; background: #F7E6D6; border-color: #D7AC8B; border-left-color: #F47A3F; }
+main#main.main-practice .note.bad { color: #713D49; background: #F4DDE0; border-color: #D7A6AD; border-left-color: #B85B68; }
+main#main.main-practice .note.warn { color: #684A2C; background: #F7E6C8; border-color: #D7BC8C; border-left-color: #E89442; }
+main#main.main-practice .note.good { color: #315465; background: #DDEBF0; border-color: #AFC7D0; border-left-color: #5B8290; }
+main#main.main-practice .btn:not(.primary) { color: #352B3B; background: #F2C19A; border-color: #C8916E; box-shadow: 0 4px 0 #A56C4C; }
+main#main.main-practice .btn:not(.primary):hover { background: #F8D1B2; border-color: #AD7656; box-shadow: 0 5px 0 #A56C4C; }
+main#main.main-practice .btn:not(.primary):active { box-shadow: 0 1px 0 #A56C4C; }
+main#main.main-practice .btn.primary { color: #352B3B; background: #F47A3F; border-color: #A84D2C; box-shadow: 0 4px 0 #A84D2C; }
+main#main.main-practice .btn.primary:hover { background: #FF955A; }
+main#main.main-practice .btn:disabled { color: #81736D; background: #E2D2C5; border-color: #BBA79A; box-shadow: 0 2px 0 #8D7467; opacity: 1; }
+main#main.main-practice :is(input:not([type]), input[type="text"], input[type="number"], input[type="email"], input[type="password"], select, textarea) { color: #352B3B; background: #FFF2E5; border-color: #C8916E; color-scheme: light; }
+main#main.main-practice select option { color: #352B3B; background: #FFF2E5; }
+main#main.main-practice :is(input, select, textarea):focus-visible { outline-color: #F47A3F; box-shadow: 0 0 0 3px rgb(244 122 63 / 24%); }
+main#main.main-practice .options button { color: #352B3B; background: #F5D8C1; border-color: #C8916E; }
+main#main.main-practice .options button b { color: #A84D2C; }
+main#main.main-practice .options button:hover:not(:disabled) { background: #FBE7D6; border-color: #AD7656; }
+main#main.main-practice .options button.picked,
+main#main.main-practice .options button[aria-pressed="true"] { color: #352B3B; background: #F7C39D; border-color: #E56A36; }
+main#main.main-practice .options button.right { color: #315465; background: #DDEBF0; border-color: #5B8290; }
+main#main.main-practice .options button.wrong { color: #713D49; background: #F4DDE0; border-color: #B85B68; }
+main#main.main-practice .meter { background: #EED6C2; border-color: #C8916E; }
+main#main.main-practice .meter > div { background: linear-gradient(90deg, #E56A36, #FF955A); }
+main#main.main-practice .badge.plain { color: #57434B; background: #F3D9C3; border-color: #C8916E; }
+main#main.main-practice .practice-lobby { color: #352B3B; background: linear-gradient(145deg, #F8DFCA, #F1C7A3); border-color: #C8916E; box-shadow: 0 4px 0 #714834, 0 9px 20px rgb(30 18 30 / 18%); }
+main#main.main-practice .practice-lobby-row { border-bottom-color: rgb(113 72 52 / 28%); }
+main#main.main-practice .practice-kicker { color: #87513C; }
+main#main.main-practice .practice-class-picker .badge,
+main#main.main-practice .practice-class-picker select { color: #352B3B; background: #FFF2E5; border-color: #C8916E; }
+main#main.main-practice .practice-resource-row .badge { color: #352B3B; background: #F2C19A; border-color: #C8916E; }
+main#main.main-practice .practice-resource-row .badge.plain { color: #57434B; }
+main#main.main-practice .practice-settings-heading h2,
+main#main.main-practice .practice-no-class h2 { color: #352B3B; }
+main#main.main-practice .practice-settings-heading p,
+main#main.main-practice .practice-no-class p { color: #715A60; }
+main#main.main-practice .practice-section-icon { color: #352B3B; background: #F47A3F; border-color: #C8916E; }
+main#main.main-practice .practice-resume-card p { color: #715A60; }
+main#main.main-practice .practice-hero { color: #352B3B; background: radial-gradient(ellipse at 50% 38%, rgb(255 242 229 / 75%), transparent 48%), linear-gradient(155deg, #F6C79F, #EEA36D 58%, #DF8753); border-color: #C8916E; }
+main#main.main-practice .practice-hero::before { border-color: rgb(168 77 44 / 34%); background: radial-gradient(circle at 38% 32%, rgb(255 242 229 / 76%), rgb(244 122 63 / 24%) 58%, rgb(168 77 44 / 7%) 72%); box-shadow: 0 0 80px rgb(168 77 44 / 14%), inset 0 0 42px rgb(255 242 229 / 31%); }
+main#main.main-practice .practice-hero-kicker { color: #87513C; }
+main#main.main-practice .practice-hero-caption { color: #FFF2E5; background: rgb(64 48 65 / 92%); border-color: #C8916E; }
+main#main.main-practice .practice-hero-caption strong { color: #FFF2E5; }
+main#main.main-practice .practice-hero-caption span { color: #F7D9C1; }
+main#main.main-practice .quiz-content-column > .quiz-prompt-card,
+main#main.main-practice .quiz-content-column > .quiz-answers-card,
+main#main.main-practice .quiz-content-column > .quiz-details-card,
+main#main.main-practice .quiz-summary-card { color: #352B3B; background: #F8DFCA url('/hero-lab/assets/storybook-paper.svg') repeat; background-size: 180px 180px; border-color: #C8916E; box-shadow: 0 5px 0 #714834, 0 12px 25px rgb(30 18 30 / 18%); }
+main#main.main-practice .quiz-question-number,
+main#main.main-practice .quiz-prompt-card .stem,
+main#main.main-practice .quiz-summary-card h2 { color: #352B3B; }
+main#main.main-practice .quiz-question-number span,
+main#main.main-practice .quiz-answers-card .small,
+main#main.main-practice .quiz-details-card .small,
+main#main.main-practice .quiz-summary-card .muted { color: #715A60; }
+main#main.main-practice .quiz-topic { color: #57434B; background: #F2C19A; border-color: #C8916E; }
+main#main.main-practice .timer { color: #57434B; }
+main#main.main-practice .timer.low { color: #A84D2C; }
+main#main.main-practice .quiz-section-kicker { color: #87513C; }
+main#main.main-practice .quiz-feedback-card { color: #352B3B; background: #F2C19A; border-color: #C8916E; }
+main#main.main-practice .quiz-summary-card td { color: #352B3B; border-bottom-color: rgb(113 72 52 / 22%); }
+main#main.main-practice .quiz-battle-stage { border-color: #704834; background: radial-gradient(ellipse at 52% 48%, rgb(255 242 229 / 87%), transparent 45%), radial-gradient(circle at 50% 50%, rgb(244 122 63 / 22%), transparent 64%), linear-gradient(160deg, #FBEAD9 0%, #F2D2B7 48%, #E8B993 100%); box-shadow: 0 7px 0 #714834, 0 16px 36px rgb(30 18 30 / 23%); }
+main#main.main-practice .quiz-battle-stage::before { background: radial-gradient(circle, rgb(255 242 229 / 76%), rgb(244 122 63 / 19%) 52%, transparent 72%); }
+main#main.main-practice .quiz-battle-stage::after { border-color: rgb(168 77 44 / 24%); }
+main#main.main-practice .battle-enemy-status,
+main#main.main-practice .battle-player-status { color: #FFF2E5; background: linear-gradient(145deg, #514054, #403041); border-color: #E89460; box-shadow: 0 5px 0 #714834, 0 10px 22px rgb(30 18 30 / 22%); }
+main#main.main-practice .battle-status-top,
+main#main.main-practice .battle-status-top small { color: #F7C9A6; }
+main#main.main-practice .battle-status-top strong,
+main#main.main-practice .battle-name { color: #FFF2E5; }
+main#main.main-practice .battle-health { background: #30283A; border-color: #E89460; }
+main#main.main-practice .battle-health > span { background: linear-gradient(90deg, #E56A36, #FF955A); }
+main#main.main-practice .battle-health.player-health > span { background: linear-gradient(90deg, #F47A3F, #FFC07D); }
+main#main.main-practice .battle-turn-label { color: #553927; }
+main#main.main-practice .battle-damage { text-shadow: 0 2px 0 #49364A, 0 0 14px #FFF2E5; }
+main#main.main-practice .enemy-damage { color: #A63F24; }
+main#main.main-practice .player-damage { color: #9A3756; }
+main#main.main-practice .modal-card { color: #352B3B; background: #F8DFCA url('/hero-lab/assets/storybook-paper.svg') repeat; background-size: 180px 180px; border-color: #C8916E; box-shadow: 0 5px 0 #714834, 0 14px 32px rgb(30 18 30 / 23%); }
+main#main.main-practice .modal-overlay { background: rgb(50 38 57 / 72%); }
+main#main.main-practice { scrollbar-color: #C8916E #392D3D; }
+
+/* Forest green reset: keep the Practice palette unified and the battle scene wooded. */
+body:has(header#top.practice-nav) { background: #142A23; color: #F1F0D9; }
+header#top.practice-nav {
+  color: #F1F0D9;
+  background: linear-gradient(180deg, #1A352B, #10231D);
+  border-bottom-color: #45644C;
+  box-shadow: 0 4px 14px rgb(4 15 10 / 38%);
+}
+header#top.practice-nav .brand,
+header#top.practice-nav .brand small,
+header#top.practice-nav #who { color: #F1F0D9; }
+header#top.practice-nav .brand span { color: #E8BD62; }
+header#top.practice-nav nav#tabs button { color: #D5E0CA; }
+header#top.practice-nav nav#tabs button:hover { color: #FFF8DF; background: #29483A; }
+header#top.practice-nav nav#tabs button[aria-current="page"] { color: #1B3026; background: #D5B96C; box-shadow: inset 0 -2px #9C7938; }
+header#top.practice-nav #who button,
+header#top.practice-nav #who .btn { color: #F1F0D9; background: #29483A; border-color: #68815E; }
+main#main.main-practice {
+  --bg: #DDE4C9;
+  --panel: #E8ECD6;
+  --ink: #20382C;
+  --muted: #536A53;
+  --line: #82936A;
+  --accent: #D5B96C;
+  --accent-ink: #26392C;
+  --accent-soft: #F0E2AC;
+  --good: #547B56;
+  --good-soft: #D7E5D0;
+  --bad: #A6534A;
+  --bad-soft: #F0D9CF;
+  --warn: #956B32;
+  --warn-soft: #F2E4BE;
+  --shadow: 0 5px 0 #314B38, 0 14px 32px rgb(5 18 12 / 28%);
+  color: #F1F0D9;
+  background-color: #142A23;
+  background-image:
+    radial-gradient(ellipse at 50% 0%, rgb(113 143 77 / 27%), transparent 58%),
+    radial-gradient(ellipse at 8% 58%, rgb(39 83 61 / 44%), transparent 52%),
+    radial-gradient(ellipse at 94% 78%, rgb(34 69 53 / 42%), transparent 54%),
+    repeating-linear-gradient(90deg, transparent 0 11%, rgb(4 18 14 / 13%) 11% 13%, transparent 13% 23%),
+    linear-gradient(180deg, #1B382D, #142A23 64%, #10221D);
+}
+main#main.main-practice .panel,
+main#main.main-practice .quiz-content-column > .quiz-prompt-card,
+main#main.main-practice .quiz-content-column > .quiz-answers-card,
+main#main.main-practice .quiz-content-column > .quiz-details-card,
+main#main.main-practice .quiz-summary-card,
+main#main.main-practice .modal-card {
+  color: #20382C;
+  background: #E8ECD6 url('/hero-lab/assets/storybook-paper.svg') repeat;
+  background-size: 180px 180px;
+  border-color: #82936A;
+  box-shadow: 0 5px 0 #314B38, 0 12px 25px rgb(5 18 12 / 24%);
+}
+main#main.main-practice .panel :is(h2, h3, b),
+main#main.main-practice .quiz-question-number,
+main#main.main-practice .quiz-prompt-card .stem,
+main#main.main-practice .quiz-summary-card h2 { color: #20382C; }
+main#main.main-practice .panel :is(p, .small, .muted),
+main#main.main-practice .quiz-question-number span,
+main#main.main-practice .quiz-summary-card .muted { color: #536A53; }
+main#main.main-practice .quiz-summary-card table { color: #20382C; }
+main#main.main-practice .quiz-summary-card td { color: #20382C; border-bottom-color: rgb(83 106 83 / 24%); }
+main#main.main-practice .timer { color: #536A53; }
+main#main.main-practice .timer.low { color: #9B5544; }
+main#main.main-practice .btn:not(.primary) { color: #20382C; background: #D7E1CB; border-color: #82936A; box-shadow: 0 4px 0 #536A4E; }
+main#main.main-practice .btn:not(.primary):hover { background: #E7EBD9; }
+main#main.main-practice .btn.primary { color: #23372A; background: #D5B96C; border-color: #8F7135; box-shadow: 0 4px 0 #785D2B; }
+main#main.main-practice .btn.primary:hover { background: #E4C97D; }
+main#main.main-practice .btn:disabled { color: #77816C; background: #D2D8C2; border-color: #A1AA8C; box-shadow: 0 2px 0 #879176; opacity: 1; }
+main#main.main-practice :is(input:not([type]), input[type="text"], input[type="number"], input[type="email"], input[type="password"], select, textarea) { color: #20382C; background: #F3F1DE; border-color: #82936A; color-scheme: light; }
+main#main.main-practice select option { color: #20382C; background: #F3F1DE; }
+main#main.main-practice :is(input, select, textarea):focus-visible { outline-color: #D5B96C; box-shadow: 0 0 0 3px rgb(213 185 108 / 32%); }
+main#main.main-practice .options button { color: #20382C; background: #DCE5D1; border-color: #82936A; }
+main#main.main-practice .options button b { color: #506E4D; }
+main#main.main-practice .options button:hover:not(:disabled) { background: #EAF0DE; }
+main#main.main-practice .options button.picked,
+main#main.main-practice .options button[aria-pressed="true"] { color: #20382C; background: #F0E2AC; border-color: #B5944A; }
+main#main.main-practice .options button.right { color: #294A35; background: #D7E5D0; border-color: #91AD83; }
+main#main.main-practice .note.good { color: #294A35; background: #D7E5D0; border-color: #91AD83; border-left-color: #547B56; }
+main#main.main-practice .options button.wrong,
+main#main.main-practice .note.bad { color: #713C36; background: #F0D9CF; border-color: #C78B7C; }
+main#main.main-practice .note { color: #314734; background: #E3E9D6; border-color: #A6B591; border-left-color: #748C5B; }
+main#main.main-practice .note.warn { color: #654D2C; background: #F2E4BE; border-color: #D1BB82; border-left-color: #B28A42; }
+main#main.main-practice .meter { background: #D4DEC8; border-color: #82936A; }
+main#main.main-practice .meter > div { background: linear-gradient(90deg, #6D915B, #B0C477); }
+main#main.main-practice .badge.plain,
+main#main.main-practice .practice-class-picker .badge,
+main#main.main-practice .practice-class-picker select { color: #314734; background: #E4E9D6; border-color: #82936A; }
+main#main.main-practice .practice-lobby { color: #20382C; background: linear-gradient(145deg, #E8ECD6, #D6E0C8); border-color: #82936A; box-shadow: 0 4px 0 #314B38, 0 9px 20px rgb(5 18 12 / 22%); }
+main#main.main-practice .practice-lobby-row { border-bottom-color: rgb(49 75 56 / 28%); }
+main#main.main-practice .practice-kicker,
+main#main.main-practice .quiz-section-kicker { color: #62794E; }
+main#main.main-practice .practice-resource-row .badge { color: #314734; background: #D7E1CB; border-color: #82936A; }
+main#main.main-practice .practice-settings-heading h2,
+main#main.main-practice .practice-no-class h2 { color: #20382C; }
+main#main.main-practice .practice-settings-heading p,
+main#main.main-practice .practice-no-class p,
+main#main.main-practice .practice-resume-card p { color: #536A53; }
+main#main.main-practice .practice-section-icon { color: #20382C; background: #D5B96C; border-color: #9B7D3A; }
+main#main.main-practice .practice-hero { color: #20382C; background: radial-gradient(ellipse at 50% 38%, rgb(243 241 222 / 74%), transparent 48%), linear-gradient(155deg, #C6D3A7, #8DA875 58%, #577857); border-color: #82936A; }
+main#main.main-practice .practice-hero::before { border-color: rgb(49 75 56 / 34%); background: radial-gradient(circle at 38% 32%, rgb(243 241 222 / 76%), rgb(117 147 82 / 25%) 58%, rgb(30 56 41 / 9%) 72%); box-shadow: 0 0 80px rgb(49 75 56 / 18%), inset 0 0 42px rgb(243 241 222 / 28%); }
+main#main.main-practice .practice-hero-kicker { color: #536A42; }
+main#main.main-practice .practice-hero-caption { color: #F1F0D9; background: rgb(31 57 42 / 94%); border-color: #82936A; }
+main#main.main-practice .practice-hero-caption strong { color: #F1F0D9; }
+main#main.main-practice .practice-hero-caption span { color: #D9E0C6; }
+/* The home companion and live arena share a deep, storybook forest scene. */
+main#main.main-practice .practice-hero {
+  background:
+    radial-gradient(ellipse at 50% 62%, rgb(194 181 111 / 34%), transparent 35%),
+    radial-gradient(ellipse at 4% 46%, rgb(51 91 59 / 78%) 0 8%, transparent 23%),
+    radial-gradient(ellipse at 96% 42%, rgb(34 74 51 / 82%) 0 10%, transparent 25%),
+    repeating-linear-gradient(90deg, transparent 0 9%, rgb(5 22 17 / 64%) 9% 13%, transparent 13% 26%, rgb(11 30 21 / 36%) 26% 29%, transparent 29% 42%),
+    linear-gradient(180deg, #18382B 0%, #254B34 56%, #182F23 100%);
+  border-color: #536F4B;
+  box-shadow: 0 5px 0 #10251B, 0 18px 40px rgb(5 18 12 / 36%);
+}
+main#main.main-practice .practice-hero::before {
+  border-color: rgb(209 204 146 / 30%);
+  background: radial-gradient(circle at 38% 32%, rgb(221 216 162 / 46%), rgb(107 141 79 / 24%) 58%, rgb(11 30 21 / 10%) 72%);
+  box-shadow: 0 0 85px rgb(194 181 111 / 19%), inset 0 0 44px rgb(221 216 162 / 20%);
+}
+main#main.main-practice .practice-hero-kicker { color: #D6D8AE; }
+main#main.main-practice .practice-hero-caption { background: rgb(17 39 28 / 94%); border-color: #71875B; }
+
+/* Restore strong ink contrast for the repeated prompt inside the answer card. */
+main#main.main-practice .quiz-answers-card .stem { color: #20382C; }
+main#main.main-practice .quiz-answers-card .small,
+main#main.main-practice .quiz-details-card .small { color: #536A53; }
+
+/* Pokémon-style encounter entrance: reveal the forest arena, then bring each
+   combatant in from opposite corners. The class is mounted once per session. */
+main#main.main-practice .encounter-intro .quiz-battle-stage {
+  animation: encounter-window-open .8s cubic-bezier(.18,.78,.2,1) both;
+}
+main#main.main-practice .encounter-intro .quiz-battle-stage::before {
+  animation: encounter-glow 1.15s ease-out both;
+}
+main#main.main-practice .encounter-intro:not(.turn-hero):not(.turn-enemy) .battle-enemy-sprite {
+  animation: encounter-enemy-arrive .9s .18s cubic-bezier(.18,.78,.2,1) both;
+}
+main#main.main-practice .encounter-intro:not(.turn-hero):not(.turn-enemy) .battle-player-sprite {
+  animation: encounter-hero-arrive .9s .32s cubic-bezier(.18,.78,.2,1) both;
+}
+@keyframes encounter-window-open {
+  0% { opacity: 0; transform: scale(.94) translateY(18px); filter: brightness(1.7); }
+  55% { opacity: 1; transform: scale(1.012) translateY(0); filter: brightness(1.25); }
+  100% { opacity: 1; transform: scale(1) translateY(0); filter: brightness(1); }
+}
+@keyframes encounter-glow {
+  0% { opacity: .05; transform: scale(.65); }
+  42% { opacity: 1; transform: scale(1.12); }
+  100% { opacity: .55; transform: scale(1); }
+}
+@keyframes encounter-enemy-arrive {
+  0% { opacity: 0; transform: translate(100px, -75px) scale(.35) rotate(12deg); }
+  68% { opacity: 1; transform: translate(-8px, 5px) scale(1.08) rotate(-3deg); }
+  100% { opacity: 1; transform: translate(0, 0) scale(1) rotate(0); }
+}
+@keyframes encounter-hero-arrive {
+  0% { opacity: 0; transform: translate(-120px, 90px) scale(.45); }
+  68% { opacity: 1; transform: translate(8px, -5px) scale(1.12); }
+  100% { opacity: 1; transform: translate(0, 0) scale(1); }
+}
+@media (prefers-reduced-motion: reduce) {
+  main#main.main-practice .encounter-intro .quiz-battle-stage,
+  main#main.main-practice .encounter-intro .quiz-battle-stage::before,
+  main#main.main-practice .encounter-intro .battle-enemy-sprite,
+  main#main.main-practice .encounter-intro .battle-player-sprite {
+    animation-duration: .25s;
+  }
+}
+main#main.main-practice .quiz-battle-stage {
+  border-color: #081711;
+  background:
+    radial-gradient(ellipse at 50% 48%, rgb(171 183 109 / 25%), transparent 41%),
+    radial-gradient(ellipse at 13% 18%, rgb(62 105 68 / 46%), transparent 34%),
+    radial-gradient(ellipse at 87% 35%, rgb(37 81 58 / 48%), transparent 39%),
+    radial-gradient(ellipse at 50% 100%, rgb(53 84 52 / 68%), transparent 55%),
+    repeating-linear-gradient(90deg, transparent 0 17%, rgb(3 17 13 / 22%) 17% 19%, transparent 19% 34%),
+    linear-gradient(180deg, #14281F 0%, #1D3A2B 52%, #243D2A 100%);
+  box-shadow: 0 7px 0 #081711, 0 16px 36px rgb(5 13 9 / 42%);
+}
+main#main.main-practice .quiz-battle-stage::before { background: radial-gradient(circle, rgb(206 199 126 / 30%), rgb(71 118 73 / 23%) 52%, transparent 72%); }
+main#main.main-practice .quiz-battle-stage::after { border-color: rgb(206 214 163 / 20%); }
+main#main.main-practice .battle-enemy-status,
+main#main.main-practice .battle-player-status { color: #F1F0D9; background: linear-gradient(145deg, rgb(23 49 37 / 97%), rgb(35 67 47 / 97%)); border-color: #71875B; box-shadow: 0 5px 0 #10231A, 0 10px 22px rgb(4 15 10 / 35%); }
+main#main.main-practice .battle-status-top,
+main#main.main-practice .battle-status-top small { color: #C6D5AE; }
+main#main.main-practice .battle-status-top strong,
+main#main.main-practice .battle-name { color: #F1F0D9; }
+main#main.main-practice .battle-health { background: #10231A; border-color: #8D9D6C; }
+main#main.main-practice .battle-health > span { background: linear-gradient(90deg, #9B5544, #CE8260); }
+main#main.main-practice .battle-health.player-health > span { background: linear-gradient(90deg, #719455, #B1C878); }
+main#main.main-practice .battle-turn-label { color: #E9E8CC; text-shadow: 0 2px 8px #0B1B13; }
+main#main.main-practice .battle-damage { text-shadow: 0 2px 0 #10231A, 0 0 14px #10231A; }
+main#main.main-practice .enemy-damage { color: #FFD57A; }
+main#main.main-practice .player-damage { color: #FFC1A8; }
+main#main.main-practice .modal-overlay { background: rgb(8 24 17 / 76%); }
+main#main.main-practice { scrollbar-color: #71875B #142A23; }
+
+/* Make the correct-answer strike travel visibly toward the enemy. */
+main#main.main-practice .hero-attack { animation: practice-hero-dash .85s cubic-bezier(.18,.78,.2,1) both !important; will-change: transform; }
+@keyframes practice-hero-dash {
+  0% { transform: translate(0, 0) scale(1); }
+  35%, 55% { transform: translate(340px, -210px) scale(1.18); }
+  100% { transform: translate(0, 0) scale(1); }
+}
+@media (max-width: 900px) {
+  @keyframes practice-hero-dash {
+    0% { transform: translate(0, 0) scale(1); }
+    35%, 55% { transform: translate(210px, -150px) scale(1.15); }
+    100% { transform: translate(0, 0) scale(1); }
+  }
+}
+@media (max-width: 560px) {
+  @keyframes practice-hero-dash {
+    0% { transform: translate(0, 0) scale(1); }
+    35%, 55% { transform: translate(145px, -105px) scale(1.12); }
+    100% { transform: translate(0, 0) scale(1); }
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  main#main.main-practice .hero-attack { animation: practice-hero-dash .55s cubic-bezier(.18,.78,.2,1) both !important; }
+}
+
+/* Keep both sides of the battle readable, including when reduced motion is on. */
+main#main.main-practice .enemy-attack { animation: practice-enemy-dash .85s cubic-bezier(.18,.78,.2,1) both !important; will-change: transform; }
+@keyframes practice-enemy-dash {
+  0% { transform: translate(0, 0) scale(1); }
+  35%, 55% { transform: translate(-340px, 210px) scale(1.16); }
+  100% { transform: translate(0, 0) scale(1); }
+}
+@media (max-width: 900px) {
+  @keyframes practice-enemy-dash {
+    0% { transform: translate(0, 0) scale(1); }
+    35%, 55% { transform: translate(-210px, 150px) scale(1.14); }
+    100% { transform: translate(0, 0) scale(1); }
+  }
+}
+@media (max-width: 560px) {
+  @keyframes practice-enemy-dash {
+    0% { transform: translate(0, 0) scale(1); }
+    35%, 55% { transform: translate(-145px, 105px) scale(1.12); }
+    100% { transform: translate(0, 0) scale(1); }
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  main#main.main-practice .enemy-attack { animation: practice-enemy-dash .55s cubic-bezier(.18,.78,.2,1) both !important; }
+}
+
+/* Use the illustrated clearing asset instead of abstract CSS stripes. */
+main#main.main-practice .practice-hero {
+  background-image:
+    linear-gradient(180deg, rgb(8 26 18 / 30%), rgb(8 26 18 / 12%) 48%, rgb(8 26 18 / 34%)),
+    url('/hero-lab/assets/forest-clearing.svg');
+  background-size: cover, cover;
+  background-position: center;
+  background-repeat: no-repeat;
+}
+
+/* My Progress is a calm field journal, with the forest palette carried into
+   its navigation, topic cards, indicators, and report controls. */
+body:has(header#top.progress-nav) { background: #f1e7c8; color: #23382f; }
+header#top.progress-nav {
+  color: #fff7df;
+  background: linear-gradient(180deg, #254937, #193a2c);
+  border-bottom: 1px solid #71875b;
+  box-shadow: 0 4px 14px rgb(12 29 20 / 24%);
+}
+header#top.progress-nav .brand,
+header#top.progress-nav .brand small,
+header#top.progress-nav #who { color: #f1f0d9; }
+header#top.progress-nav .brand span { color: #f2ba55; }
+header#top.progress-nav nav#tabs button { color: #d9e3d0; }
+header#top.progress-nav nav#tabs button:hover { color: #fff8e4; background: #315a42; }
+header#top.progress-nav nav#tabs button[aria-current="page"] { color: #26392c; background: #f2ba55; box-shadow: inset 0 -2px #9b612e; }
+header#top.progress-nav #who button,
+header#top.progress-nav #who .btn { color: #f1f0d9; background: #31543e; border-color: #71875b; }
+main#main.main-progress {
+  --bg: #f1e7c8;
+  --panel: #fbf2d8;
+  --ink: #23382f;
+  --muted: #5f6d58;
+  --line: #c9ba93;
+  background-color: #f1e7c8;
+  background-image:
+    url('/hero-lab/assets/storybook-paper.svg'),
+    radial-gradient(ellipse at 50% 0%, rgb(50 83 62 / 22%), transparent 65%),
+    linear-gradient(180deg, #f7efd8, #ecdfb9);
+  background-size: 144px 144px, auto, auto;
+}
+main#main.main-progress .progress-overview {
+  position: relative;
+  overflow: hidden;
+  border-left: 5px solid #71875b;
+  background-image:
+    radial-gradient(ellipse at 100% 0%, rgb(127 174 88 / 13%), transparent 52%),
+    url('/hero-lab/assets/storybook-paper.svg');
+  background-size: auto, 144px 144px;
+}
+main#main.main-progress .progress-overview h3 { font-size: clamp(19px, 1.4vw, 23px); }
+main#main.main-progress .progress-overview .progress-score {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 5px 10px;
+  color: #536a53;
+  margin: 10px 0 12px;
+}
+main#main.main-progress .progress-overview .progress-score b {
+  color: #254937;
+  font: 700 clamp(30px, 3vw, 42px)/1 Georgia, "Palatino Linotype", serif;
+  font-variant-numeric: tabular-nums;
+}
+main#main.main-progress .progress-focus-note { margin: 10px 0 12px; }
+main#main.main-progress .progress-topics {
+  max-width: 1420px;
+  grid-template-columns: repeat(auto-fit, minmax(min(250px, 100%), 1fr));
+  align-items: stretch;
+  gap: 14px;
+  margin: 16px 0;
+}
+main#main.main-progress .progress-topics .tile {
+  min-width: 0;
+  padding: 16px 18px;
+  border-top: 4px solid #71875b;
+  background-image:
+    radial-gradient(ellipse at 100% 0%, rgb(127 174 88 / 11%), transparent 55%),
+    url('/hero-lab/assets/storybook-paper.svg');
+  background-size: auto, 144px 144px;
+  box-shadow: 0 4px 0 #a59a72, 0 8px 16px rgb(35 56 47 / 8%);
+}
+main#main.main-progress .progress-topics .tile h3 { min-height: 1.3em; }
+main#main.main-progress .progress-topics .tile .v { margin-top: 8px; font-size: clamp(30px, 2.5vw, 38px); }
+main#main.main-progress .progress-topics .meter { margin: 6px 0 8px; }
+main#main.main-progress .progress-sessions,
+main#main.main-progress .progress-reports { margin-top: 16px; }
+main#main.main-progress .progress-reports select { width: 100%; }
+main#main.main-progress .progress-table table { width: 100%; border-collapse: collapse; }
+main#main.main-progress .progress-table th,
+main#main.main-progress .progress-table td { padding: 9px 8px; text-align: left; }
+@media (max-width: 600px) {
+  main#main.main-progress .progress-topics { grid-template-columns: minmax(0, 1fr); }
+}
+
+/* Center the compact resource shelf and use a study-book mark for its setup card. */
+main#main.main-practice .practice-resource-row { justify-content: center; }
+main#main.main-practice .practice-section-icon svg {
+  width: 27px;
+  height: 27px;
+  stroke: currentColor;
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+main#main.main-practice .quiz-battle-stage {
+  background-image:
+    linear-gradient(180deg, rgb(7 22 16 / 38%), rgb(9 30 20 / 14%) 48%, rgb(7 21 15 / 28%)),
+    url('/hero-lab/assets/forest-clearing.svg');
+  background-size: cover, cover;
+  background-position: center;
+  background-repeat: no-repeat;
 }

@@ -41,6 +41,10 @@ export class Hero {
     this.attack = attack;
     this.defense = defense;
     this.speed = speed;
+    // Immutable base stats. computeHeroStats() derives the live stats from
+    // these plus the run's card list, building levels and active effects, so a
+    // hero can be recomputed from scratch instead of having numbers added on.
+    this.baseStats = { maxHp: hp, attack, defense, speed };
     this.position = position;
     this.aim = aim;
     this.cooldowns = {
@@ -83,6 +87,7 @@ export class Hero {
     const applied = Math.max(GAME_CONFIG.combat.minimumDamage, amount * (1 - reduction) * (1 - braceReduction));
     this.hp = Math.max(0, this.hp - applied);
     this.#lastDamageAt = now;
+    this.hitFlashUntil = now + GAME_CONFIG.arenaTuning.hitFlashMs;
     return previousHp - this.hp;
   }
 

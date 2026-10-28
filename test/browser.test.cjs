@@ -117,8 +117,8 @@ test('a delayed start cannot replace Pets after navigation', async (t) => {
   await page.route('**/api/student/sessions', async (route) => { started(); await held; await route.continue(); });
   await page.getByRole('button', { name: 'Start practice' }).click();
   await seen;
-  await page.locator('#tabs').getByRole('button', { name: 'Pets & shop' }).click();
-  // the tab is still "Pets & shop" but the view it opens is Hero Summon
+  await page.locator('#tabs').getByRole('button', { name: 'Summon' }).click();
+  // the tab is still "Summon" but the view it opens is Hero Summon
   await page.getByRole('heading', { name: 'Hero Summon', exact: true }).waitFor();
   release();
   await page.waitForResponse((r) => r.url().endsWith('/api/student/sessions'));
@@ -278,8 +278,8 @@ test('student and teacher screens fit 320px and 390px viewports', async (t) => {
   const page = await pageFor(t, 'Student 02', { width: 320, height: 800 });
   for (const width of [320, 390]) {
     await page.setViewportSize({ width, height: 800 });
-    // the tab is still "Pets & shop" but the view it opens is Hero Summon
-    for (const [name, heading] of [['Practice', 'Practice'], ['My Progress', 'My Progress'], ['World', 'World'], ['Kingdom', 'Kingdom'], ['Pets & shop', 'Hero Summon']]) {
+    // the tab is still "Summon" but the view it opens is Hero Summon
+    for (const [name, heading] of [['Practice', 'Practice'], ['My Progress', 'My Progress'], ['World', 'World'], ['Kingdom', 'Kingdom'], ['Summon', 'Hero Summon']]) {
       await page.locator('#tabs').getByRole('button', { name, exact: true }).click();
       await page.getByRole('heading', { name: heading, exact: true }).waitFor();
       const overflow = await page.evaluate(() => document.documentElement.scrollWidth - innerWidth);
@@ -333,9 +333,9 @@ test('an answer accepted before a lost response can be retried exactly once', as
 test('a summon with a lost response reuses its purchase key', async (t) => {
   const page = await pageFor(t, 'Student 02');
   srv.quiz.db.ledger.push({ id: 'test-funds', studentId: 's-02', amount: 200, kind: 'refund', refKey: 'test-funds', at: Date.now() });
-  await page.locator('#tabs').getByRole('button', { name: 'Pets & shop' }).click();
-  // the summon button is labelled with its coin cost, not a fixed "Open an egg"
-  const open = page.getByRole('button', { name: /Summon ·/ });
+  await page.locator('#tabs').getByRole('button', { name: 'Summon' }).click();
+  // the new x1 control carries its cost beneath the label
+  const open = page.getByRole('button', { name: /Summon ×1/ });
   await open.waitFor();
   let body;
   await page.route('**/hero-summon', async (route) => {
@@ -344,7 +344,7 @@ test('a summon with a lost response reuses its purchase key', async (t) => {
     await route.abort();
   }, { times: 1 });
   await open.click();
-  await page.locator('#toast.bad').waitFor();
+  await page.locator('.summon-toast[role="alert"]').waitFor();
   const spent = srv.quiz.db.ledger.filter((r) => r.refKey?.startsWith('hero-summon:s-02:') && r.kind === 'spend').length;
   const response = page.waitForResponse((r) => r.url().endsWith('/hero-summon'));
   await open.click();
@@ -384,7 +384,7 @@ test('kingdom builds drop new blocks in place and the summon reveal hands over t
   assert.equal(await page.locator('.tile .v').first().innerText(), '🪵 35');
 
   srv.quiz.db.ledger.push({ id: 'test-funds-3', studentId: 's-03', amount: 100, kind: 'refund', refKey: 'test-funds-3', at: Date.now() });
-  // The Pets & shop tab now summons heroes, not eggs: pin the pull to one hero.
+  // The Summon tab now summons heroes, not eggs: pin the pull to one hero.
   // 'bubbles' is not a starter (sheriff + electromancer are), so it is a real new hero.
   const draw = R.drawHeroSummon;
   R.drawHeroSummon = (pity) => ({
@@ -392,8 +392,8 @@ test('kingdom builds drop new blocks in place and the summon reveal hands over t
     pity: { totalPulls: pity.totalPulls + 1, sinceHero: 0, sinceEpic: 0 },
   });
   t.after(() => { R.drawHeroSummon = draw; });
-  await page.locator('#tabs').getByRole('button', { name: 'Pets & shop' }).click();
-  await page.getByRole('button', { name: /Summon ·/ }).click();
+  await page.locator('#tabs').getByRole('button', { name: 'Summon' }).click();
+  await page.getByRole('button', { name: /Summon ×1/ }).click();
   const dialog = page.getByRole('dialog');
   await dialog.waitFor();
   await dialog.click(); // skip the wobble
@@ -401,9 +401,11 @@ test('kingdom builds drop new blocks in place and the summon reveal hands over t
   await dialog.getByText('New hero!', { exact: true }).waitFor();
   await dialog.getByRole('button', { name: 'Continue', exact: true }).click();
   await dialog.waitFor({ state: 'detached' });
-  // the pulled hero lands in the collection and the pull shows in coin history
-  await page.locator('.hero-collection-card', { hasText: 'Bubbles' }).getByText('Owned').waitFor();
-  await page.getByRole('cell', { name: 'Hero Summon pull' }).waitFor();
+  // the pulled hero appears in the lazy-loaded summon journal
+  await page.getByRole('button', { name: 'History', exact: true }).click();
+  await page.getByRole('heading', { name: 'Summon History' }).waitFor();
+  await page.getByText('Bubbles', { exact: true }).waitFor();
+  await page.getByText('NEW', { exact: true }).waitFor();
 });
 
 test('PDF upload extracts text locally and saves reviewed source material', async (t) => {
@@ -827,10 +829,10 @@ test('with reduced motion, nothing keeps looping (the shortened animations would
   const running = () => page.evaluate(() => document.getAnimations().filter((a) => a.playState === 'running').map((a) => a.animationName || a.constructor.name));
   const settle = () => page.waitForTimeout(300);
   // the summon machine idles with a wiggling callout; the kingdom previews pulse
-  await page.locator('#tabs').getByRole('button', { name: 'Pets & shop' }).click();
-  await page.getByRole('button', { name: /Summon ·/ }).waitFor();
+  await page.locator('#tabs').getByRole('button', { name: 'Summon' }).click();
+  await page.getByRole('button', { name: /Summon ×1/ }).waitFor();
   await settle();
-  assert.deepEqual(await running(), [], 'Pets & shop');
+  assert.deepEqual(await running(), [], 'Summon');
   const R = require('../src/quiz/rewards');
   R.inventory(srv.quiz.db, 's-04').resources = { wood: 40, crystal: 40, herb: 40 };
   await page.locator('#tabs').getByRole('button', { name: 'Kingdom' }).click();

@@ -12,6 +12,7 @@ import { PASTELS, eggColour } from './rarity.js';
 const props = defineProps({
   cost: { type: Number, required: true },
   disabled: Boolean,
+  buttonVisible: { type: Boolean, default: true },
   open: { type: Function, required: true }, // () => Promise<server result>
 });
 const emit = defineEmits(['prize']);
@@ -44,6 +45,8 @@ async function turn() {
   phase.value = 'idle';
   emit('prize', { ...r, eggColour: dropColour.value });
 }
+
+defineExpose({ turn });
 </script>
 
 <template>
@@ -63,6 +66,6 @@ async function turn() {
       </div>
       <div class="gm-feet"></div>
     </div>
-    <AsyncButton class="btn primary gm-btn" :disabled="disabled || phase !== 'idle'" :run="turn">{{ phase === 'idle' ? `Summon · ${cost} 🪙` : 'Cranking…' }}</AsyncButton>
+    <AsyncButton v-if="buttonVisible" class="btn primary gm-btn" :disabled="disabled || phase !== 'idle'" :run="turn">{{ phase === 'idle' ? `Summon · ${cost} 🪙` : 'Cranking…' }}</AsyncButton>
   </div>
 </template>

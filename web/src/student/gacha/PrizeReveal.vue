@@ -1,15 +1,18 @@
 <script setup>
 // Summon reveal: the egg wobbles, cracks open in a burst of confetti,
 // and the hero or resource appears in a slowly turning 3D collector's box.
-import { ref, computed, nextTick, onMounted, onUnmounted } from 'vue';
+import { ref, computed, nextTick, onMounted, onUnmounted, watch } from 'vue';
 import { RARITY } from './rarity.js';
 import { formatHeroType } from '../hero-type.js';
+import HeroIcon from '../HeroIcon.vue';
 
 const props = defineProps({
   result: { type: Object, required: true }, // server summon result plus eggColour
   resources: { type: Object, required: true },
+  skipToSummary: Boolean,
+  clickToContinue: Boolean,
 });
-const emit = defineEmits(['close']);
+const emit = defineEmits(['close', 'skip']);
 
 const reduced = typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches;
 const stage = ref(reduced ? 'open' : 'egg');
@@ -21,7 +24,7 @@ const rarity = computed(() => isHero.value ? props.result.prize.rarity : 'common
 const rarityStars = computed(() => rarity.value === 'epic' ? '5★ Epic' : rarity.value === 'rare' ? '4★ Rare' : '3★ Common');
 const duplicate = computed(() => isHero.value && props.result.duplicateHero);
 const colors = {
-  common: ['#ffffff', '#c9d3e0', '#86efac', '#7dd3fc'],
+  common: ['#ffffff', '#c9d3e0', '#8cc4ff', '#7dd3fc'],
   rare: ['#8cc4ff', '#4f8df7', '#ffffff', '#c4b5fd'],
   epic: ['#f5c84c', '#fff1b8', '#c77dff', '#ff8fab', '#ffffff'],
 };
@@ -43,6 +46,7 @@ const pieces = computed(() => {
 
 const root = ref(null);
 const collectBtn = ref(null);
+const revealKey = ref(0);
 let timer = null;
 let returnFocus = null;
 function crack() {
@@ -51,13 +55,19 @@ function crack() {
   stage.value = 'open';
   nextTick(() => collectBtn.value?.focus());
 }
+function onSurfaceClick() {
+  if (props.skipToSummary) { emit('skip'); return; }
+  if (stage.value === 'egg') { crack(); return; }
+  if (props.clickToContinue) emit('close');
+}
 function onKey(e) {
   if (stage.value === 'egg') {
+    if (props.skipToSummary && e.key === 'Escape') { e.preventDefault(); emit('skip'); return; }
     if (e.key !== 'Tab') crack();
     e.preventDefault();
     return;
   }
-  if (e.key === 'Escape') emit('close');
+  if (e.key === 'Escape') { if (props.skipToSummary) emit('skip'); else emit('close'); }
   if (e.key === 'Tab') {
     const els = [...root.value.querySelectorAll('button')];
     const i = els.indexOf(document.activeElement);
@@ -66,6 +76,16 @@ function onKey(e) {
     e.preventDefault();
   }
 }
+watch(() => props.result, () => {
+  clearTimeout(timer);
+  revealKey.value += 1;
+  stage.value = reduced ? 'open' : 'egg';
+  if (stage.value === 'egg') {
+    timer = setTimeout(crack, 1700);
+    nextTick(() => root.value?.focus());
+  }
+  else nextTick(() => collectBtn.value?.focus());
+}, { flush: 'sync' });
 onMounted(() => {
   returnFocus = document.activeElement;
   document.body.style.overflow = 'hidden';
@@ -83,9 +103,9 @@ onUnmounted(() => {
 
 <template>
   <Teleport to="body">
-    <div ref="root" class="prize" :class="['is-' + stage, rarity]" role="dialog" aria-modal="true" aria-labelledby="prize-title" tabindex="-1" @click="crack" @keydown="onKey">
+    <div ref="root" class="prize" :class="['is-' + stage, rarity]" role="dialog" aria-modal="true" aria-labelledby="prize-title" tabindex="-1" @click="onSurfaceClick" @keydown="onKey">
       <div class="prize-rays" aria-hidden="true"></div>
-      <div class="prize-stage">
+      <div :key="revealKey" class="prize-stage">
         <div class="prize-egg" :class="{ cracked: stage === 'open' }" :style="{ '--c': result.eggColour || '#c4b5fd' }" aria-hidden="true">
           <span class="egg shell top"></span>
           <span class="egg shell bottom"></span>
@@ -100,7 +120,7 @@ onUnmounted(() => {
               <div class="prize-box">
                 <div class="face front">
                   <div class="pb-head"><span>QUIZQUEST</span><span>{{ rarity }}</span></div>
-                  <div class="pb-window"><span class="pb-pet">{{ itemEmoji }}</span></div>
+                  <div class="pb-window"><HeroIcon v-if="isHero" :hero="item" :size="64" animated /><span v-else class="pb-pet">{{ itemEmoji }}</span></div>
                   <div class="pb-name">{{ itemName }}</div>
                 </div>
                 <div class="face back"><span>QUIZQUEST</span></div>
@@ -113,9 +133,9 @@ onUnmounted(() => {
           </div>
         </template>
       </div>
-      <div class="prize-info">
+      <div :key="revealKey" class="prize-info">
         <template v-if="stage === 'open'">
-          <h2 id="prize-title">{{ itemEmoji }} {{ itemName }}</h2>
+          <h2 id="prize-title"><HeroIcon v-if="isHero" :hero="item" :size="28" />{{ isHero ? '' : `${itemEmoji} ` }}{{ itemName }}</h2>
           <div class="prize-tags">
             <span class="prize-tag rarity-tag">{{ rarityStars }}</span>
             <span v-if="duplicate" class="prize-tag">Duplicate · +{{ result.refund }} 🪙 back</span>
@@ -125,13 +145,14 @@ onUnmounted(() => {
           <p v-if="isHero" class="prize-move">{{ formatHeroType(item.type) }} hero · {{ item.weapon }}</p>
           <p v-else class="prize-move">Added to your kingdom resources</p>
           <p class="prize-move pity-line">{{ result.pity.totalPulls }} total pulls · pity {{ result.pity.sinceHero }} / {{ result.pity.sinceEpic }}</p>
-          <div class="prize-actions" @click.stop>
-            <button ref="collectBtn" type="button" class="btn primary" @click="emit('close')">Continue</button>
+      <div class="prize-actions" @click.stop>
+            <button ref="collectBtn" type="button" class="btn primary" @click="emit('close')">{{ skipToSummary ? 'View all results' : 'Continue' }}</button>
           </div>
         </template>
         <template v-else>
           <h2 id="prize-title">A summon is on its way…</h2>
           <p class="prize-move">Click or press any key to open the egg now</p>
+          <button v-if="skipToSummary" type="button" class="btn" @click.stop="emit('skip')">Skip to results</button>
         </template>
       </div>
       <p class="sr-only" aria-live="assertive">{{ announcement }}</p>

@@ -14,19 +14,17 @@ html, body { width: 100%; height: 100%; margin: 0; overflow: hidden; background:
 .health-row { display: flex; align-items: center; gap: .6rem; font-size: .8rem; font-variant-numeric: tabular-nums; }
 .health-track { height: 12px; flex: 1; overflow: hidden; background: #363b46; border: 1px solid #ffffff66; border-radius: 99px; }
 #health-fill { display: block; width: 100%; height: 100%; background: #64d985; transition: width .15s linear, background .15s; }
-#team-health { display: grid; gap: .2rem; padding-top: .2rem; border-top: 1px solid #ffffff26; }
+/* (The old #team-health and #downed-list were merged into #player-roster above.) */
 #buff-icons { display: flex; flex-wrap: wrap; gap: .2rem; min-height: 0; }
 .buff-icon { display: grid; width: 1.4rem; height: 1.4rem; place-items: center; border: 1px solid #ffffff66; border-radius: .35rem; background: #ffffff20; font-size: .9rem; }
-#downed-list { display: grid; gap: .15rem; color: #c6f8ff; font-size: .68rem; }
-#briefing-button { justify-self: start; width: 1.5rem; height: 1.5rem; padding: 0; color: white; font: 700 .8rem system-ui; background: #344054; border: 1px solid #ffffff77; border-radius: 50%; cursor: pointer; }
-.teammate-health { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: .35rem .5rem; color: #d1d5db; font-size: .68rem; }
-.teammate-health-label { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.teammate-health-value { font-variant-numeric: tabular-nums; }
-.teammate-health-track { grid-column: 1 / -1; height: 4px; overflow: hidden; background: #363b46; border-radius: 99px; }
-.teammate-health-fill { display: block; height: 100%; background: #82cfff; }
+/* (The old teammate-health and downed-list styles were replaced by .roster-*) */
 #wave-hud { left: 50%; display: grid; min-width: 180px; padding: .55rem 1rem; text-align: center; transform: translateX(-50%); }
 #wave-number { font-size: 1.1rem; }
 #wave-details { color: #e5e7eb; font-size: .85rem; }
+/* Rest countdown pill. Sits OUTSIDE the wave box (same pattern as #kill-streak
+   on #hero-hud) so it never grows #wave-hud down into the campfire or boss bar. */
+#break-pill { position: absolute; top: .5rem; left: calc(100% + .45rem); padding: .12rem .55rem; white-space: nowrap; color: #ffe17c; font-size: .75rem; font-weight: 800; letter-spacing: .03em; background: #ffc43d22; border: 1px solid #ffe17c88; border-radius: 999px; font-variant-numeric: tabular-nums; }
+#break-pill[hidden] { display: none; }
 #campfire-hud { position: fixed; z-index: 1; top: 6rem; left: 50%; display: grid; width: min(250px, 52vw); grid-template-columns: 1fr auto; gap: .2rem .6rem; padding: .4rem .65rem; transform: translateX(-50%); color: #fff; background: rgb(17 24 39 / 84%); border: 1px solid rgb(255 255 255 / 25%); border-radius: .6rem; font-size: .75rem; }
 #boss-hud { position: fixed; z-index: 1; top: 8.65rem; left: 50%; display: grid; width: min(380px, 70vw); grid-template-columns: 1fr auto; gap: .2rem .6rem; padding: .45rem .7rem; transform: translateX(-50%); color: #fff; background: rgb(53 17 25 / 90%); border: 1px solid #ff6c72; border-radius: .6rem; text-align: center; font-size: .78rem; }
 #boss-hud[hidden] { display: none; }
@@ -40,6 +38,8 @@ html, body { width: 100%; height: 100%; margin: 0; overflow: hidden; background:
 #moment-banner[hidden] { display: none; }
 #moment-banner.show { animation: moment-banner var(--banner-duration, 1.5s) ease-out both; }
 #moment-banner.boss { color: #ff6868; }
+/* Boss-defeated celebration banner: gold, per the item 11 spec. */
+#moment-banner.gold { color: #ffd34f; }
 #moment-banner { --banner-scale-start: 1; --banner-scale-peak: 1.3; --banner-scale-end: 1; }
 @keyframes moment-banner { 0% { opacity: 0; transform: scale(var(--banner-scale-start)); } 18% { opacity: 1; transform: scale(var(--banner-scale-peak)); } 76% { opacity: 1; transform: scale(var(--banner-scale-end)); } 100% { opacity: 0; transform: scale(var(--banner-scale-end)); } }
 #low-hp-vignette { position: fixed; z-index: 4; inset: 0; pointer-events: none; box-shadow: inset 0 0 9vw 2vw rgb(230 25 40 / 42%); animation: low-hp-pulse var(--low-hp-pulse-duration, 1s) ease-in-out infinite; }
@@ -137,16 +137,30 @@ html, body { width: 100%; height: 100%; margin: 0; overflow: hidden; background:
     -1px 1px var(--btn-outline-color, #101018), 1px 1px var(--btn-outline-color, #101018),
     0 2px 4px rgb(0 0 0 / 55%);
 }
-.cooldown-refund-label { color: #ffe17c; font-size: .68rem; font-weight: 800; text-shadow: 0 1px 3px #000; }
-.cooldown-refund-label.show { animation: refund-label-fade var(--sheriff-refund-label-duration, 500ms) ease-out both; }
-@keyframes refund-label-fade { 15% { opacity: 1; transform: translateY(0); } 100% { opacity: 0; transform: translateY(-8px); } }
 .info-circle { --btn-size: 62px; --fill-color: #606978; --fill: 100%; font-size: 1.15rem; }
-#stats-panel { display: grid; min-width: 176px; gap: .2rem; padding: .65rem .8rem; color: #fff; background: rgb(17 24 39 / 91%); border: 1px solid rgb(255 255 255 / 25%); border-radius: .65rem; box-shadow: 0 4px 16px #0005; font-size: .82rem; }
-#stats-panel span { display: flex; justify-content: space-between; gap: 1rem; color: #d1d5db; }
-#stats-panel b { color: white; font-variant-numeric: tabular-nums; }
-#stats-panel .talent-info { display: grid; gap: .15rem; padding-top: .35rem; border-top: 1px solid #ffffff2a; }
-#stats-panel .talent-info em { color: #fff; font-style: normal; font-weight: 700; }
-#stats-panel .talent-info b { color: #d1d5db; font-size: .76rem; font-weight: 400; }
+/* Info panel = two stacked cards: "How to play" on top, hero stats below.
+   (The old "?" button was removed; I / the Information button opens both.) */
+#stats-panel { display: grid; width: 232px; gap: .4rem; }
+.info-card { display: grid; gap: .2rem; padding: .6rem .75rem; color: #fff; background: rgb(17 24 39 / 93%); border: 1px solid rgb(255 255 255 / 25%); border-radius: .65rem; box-shadow: 0 4px 16px #0005; font-size: .78rem; }
+.info-card > strong { font-size: .8rem; }
+.info-card-head { display: flex; align-items: center; justify-content: space-between; gap: .5rem; }
+#info-close { padding: 0 .25rem; color: #cbd5e1; font: 700 .8rem/1 system-ui; background: transparent; border: 0; border-radius: .25rem; cursor: pointer; }
+#info-close:hover, #info-close:focus-visible { color: #fff; background: #ffffff26; }
+#howto-lead { margin: 0; color: #fff1b8; font-weight: 700; }
+#howto-card .briefing-tip { display: flex; align-items: flex-start; gap: .45rem; color: #d1d5db; font-size: .75rem; }
+#howto-card .briefing-tip > span:first-child { width: 1.1rem; flex: 0 0 auto; text-align: center; }
+#stats-card span { display: flex; justify-content: space-between; gap: 1rem; color: #d1d5db; }
+#stats-card b { color: white; font-variant-numeric: tabular-nums; }
+#stats-card .talent-info { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; gap: .4rem; align-items: center; padding-top: .35rem; border-top: 1px solid #ffffff2a; }
+#stats-card .talent-info-text { display: grid; gap: .1rem; min-width: 0; }
+#stats-card .talent-info em { color: #fff; font-style: normal; font-weight: 700; }
+#stats-card .talent-info b { color: #d1d5db; font-size: .7rem; font-weight: 400; line-height: 1.25; }
+/* Key chip beside the talent badge (same idea as the World page chip, inverted
+   for the dark HUD panel). */
+#stats-card .talent-key { display: grid; place-items: center; min-width: 20px; padding: 1px 5px; color: #fff; font-size: .66rem; font-weight: 800; letter-spacing: .04em; white-space: nowrap; background: #ffffff1f; border: 1px solid #ffffff44; border-radius: 5px; }
+#stats-card .talent-badge-host { display: inline-flex; }
+/* Kingdom upgrades: one bonus per bullet instead of one wrapped sentence. */
+#stats-card .stat-list { display: grid; gap: .1rem; margin: 0; padding-left: .95rem; color: #d1d5db; font-size: .7rem; line-height: 1.25; list-style: disc; }
 #buff-vote { position: fixed; z-index: 2; inset: 0; display: grid; align-content: center; justify-items: center; gap: .7rem; padding: 1rem; color: white; text-align: center; background: rgb(17 24 39 / 82%); }
 #buff-vote[hidden], #targeting-hint[hidden] { display: none; }
 #buff-cards { display: flex; justify-content: center; flex-wrap: wrap; gap: .8rem; width: min(760px, 100%); }
@@ -155,7 +169,10 @@ html, body { width: 100%; height: 100%; margin: 0; overflow: hidden; background:
 .buff-card.selected { background: #245334; border-color: #91efa6; }
 .buff-card:disabled { opacity: .65; cursor: default; }
 #targeting-hint { position: fixed; z-index: 2; top: 5.5rem; left: 50%; padding: .45rem .7rem; transform: translateX(-50%); color: white; background: #172033e8; border-radius: .5rem; }
-#connection-status { max-width: 250px; padding: .25rem .45rem; color: #fff; background: rgb(17 24 39 / 70%); border-radius: .3rem; font-size: .75rem; }
+/* Connection state is a row inside the I panel, not a chip in the bottom-left
+   corner. Long reconnect errors wrap on the right instead of stretching the
+   card. */
+#stats-card #connection-status { max-width: 168px; text-align: right; overflow-wrap: anywhere; }
 #stats-panel[hidden] { display: none; }
 #ability-hud[hidden] { display: none; }
 /* Sits above the ability cluster (1rem margin + cluster height + 1rem gap) so
@@ -208,43 +225,56 @@ html, body { width: 100%; height: 100%; margin: 0; overflow: hidden; background:
 #icon-credits ul { display: grid; gap: .2rem; margin: .35rem 0 0; padding-left: 1.1rem; }
 #icon-credits li { color: #d1d5db; }
 
-#room-row { display: flex; align-items: center; gap: .5rem; padding-top: .4rem; border-top: 1px solid #ffffff26; }
-#room-row[hidden] { display: none; }
-#room-code { display: flex; align-items: baseline; gap: .45rem; padding: .2rem .5rem; color: #fff; font: inherit; background: rgb(255 255 255 / 10%); border: 1px solid #ffffff33; border-radius: .45rem; cursor: pointer; }
+/* Room code top-right, click to copy. Replaces the old player-list corner. */
+#room-code-corner { position: fixed; z-index: 2; top: 1rem; right: 1rem; display: grid; gap: .15rem; padding: .35rem .6rem; color: #fff; background: rgb(17 24 39 / 84%); border: 1px solid rgb(255 255 255 / 25%); border-radius: .65rem; font-size: .78rem; }
+#room-code-corner[hidden] { display: none; }
+#room-code { display: flex; align-items: baseline; gap: .35rem; padding: .15rem .35rem; color: #fff; font: inherit; background: rgb(255 255 255 / 10%); border: 1px solid #ffffff33; border-radius: .4rem; cursor: pointer; }
 #room-code:hover, #room-code:focus-visible { background: rgb(255 255 255 / 18%); border-color: #ffffff66; }
-#room-code .room-code-label { color: #cbd5e1; font-size: .62rem; letter-spacing: .18em; }
-#room-code b { font-size: 1.35rem; line-height: 1; letter-spacing: .22em; }
-#room-code[hidden], #room-code-copied[hidden] { display: none; }
-#room-code-copied { color: #9ef0b4; font-size: .72rem; font-weight: 700; }
+#room-code .room-code-label { color: #cbd5e1; font-size: .6rem; letter-spacing: .18em; }
+#room-code b { font-size: 1.25rem; line-height: 1; letter-spacing: .22em; }
+.room-copy-icon { font-size: .7rem; opacity: .7; }
+#room-code-copied { color: #9ef0b4; font-size: .68rem; font-weight: 700; text-align: center; }
 /* Sits below the campfire bar (top 6rem + ~3rem tall) so it never covers it. */
 #waiting-banner { position: fixed; z-index: 3; top: 10.6rem; left: 50%; display: grid; gap: .3rem; padding: .8rem 1.4rem; transform: translateX(-50%); color: #fff; text-align: center; background: rgb(17 24 39 / 88%); border: 1px solid #ffffff44; border-radius: .9rem; }
 #waiting-banner[hidden] { display: none; }
 #waiting-banner strong { font-size: 1.15rem; }
 #waiting-banner span { color: #cbd5e1; font-size: .8rem; }
-.toast { padding: .45rem .7rem; color: #fff; background: rgb(17 24 39 / 92%); border: 1px solid #ffffff33; border-radius: .5rem; font-size: .8rem; animation: toast-in .18s ease-out; transition: opacity .35s ease; }
+.toast { display: flex; align-items: center; gap: .45rem; padding: .45rem .7rem; color: #fff; background: rgb(17 24 39 / 92%); border: 1px solid #ffffff33; border-radius: .5rem; font-size: .8rem; animation: toast-in .18s ease-out; transition: opacity .35s ease; }
 .toast.fade { opacity: 0; }
 @keyframes toast-in { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
 
-/* Room roster, top-right. Settings moved to the bottom-left tools row so this
-   corner belongs to the players. */
-#player-list { position: fixed; z-index: 2; top: 1rem; right: 1rem; display: grid; gap: .25rem; min-width: 150px; max-width: 210px; padding: .45rem .55rem; color: #fff; background: rgb(17 24 39 / 84%); border: 1px solid rgb(255 255 255 / 25%); border-radius: .65rem; font-size: .78rem; }
-#player-list[hidden] { display: none; }
-#player-list-rows { display: grid; gap: .22rem; }
-.player-row { display: flex; align-items: center; gap: .35rem; }
-.player-row.me .player-name { color: #9ef0b4; font-weight: 700; }
-.player-row.waiting { opacity: .7; }
-.player-emoji { font-size: .95rem; line-height: 1; }
-.player-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.player-crown { font-size: .8rem; }
-.player-tag { margin-left: auto; padding: 0 .3rem; color: #0f172a; background: #fbbf24; border-radius: 99px; font-size: .58rem; font-weight: 800; text-transform: uppercase; letter-spacing: .05em; }
+/* Unified player roster inside #hero-hud (top-left). Every player in the
+   room: local first, then others. Each row has display name + HP bar.
+   Downed rows are greyed with a respawn timer; WAITING rows show a
+   "joining" tag instead of an HP bar. */
+#player-roster { display: grid; gap: .2rem; padding-top: .2rem; border-top: 1px solid #ffffff26; }
+#player-roster[hidden] { display: none; }
+.roster-row { display: grid; grid-template-columns: auto 1fr auto; align-items: center; gap: .25rem .4rem; color: #d1d5db; font-size: .72rem; }
+.roster-row.me .roster-name { color: #9ef0b4; font-weight: 700; }
+.roster-row.downed { opacity: .55; }
+.roster-crown { font-size: .72rem; }
+.roster-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 120px; }
+.hero-ui-sprite { display: inline-block; width: auto; height: 1.35em; object-fit: contain; vertical-align: middle; image-rendering: auto; }
+#hero-name { display: inline-flex; align-items: center; gap: .3rem; }
+.roster-hp-track { height: 6px; overflow: hidden; background: #363b46; border-radius: 99px; }
+.roster-hp-fill { display: block; height: 100%; background: #82cfff; transition: width .15s linear, background-color .15s; }
+.roster-row.me .roster-hp-fill { background: #64d985; }
+.roster-row.downed .roster-hp-fill { background: #6b7280; }
+.roster-hp-value { font-variant-numeric: tabular-nums; font-size: .65rem; color: #cbd5e1; }
+.roster-tag { padding: 0 .3rem; color: #0f172a; background: #fbbf24; border-radius: 99px; font-size: .55rem; font-weight: 800; text-transform: uppercase; letter-spacing: .05em; grid-column: 2; }
 
 /* Lobby controls: hero swap plus the host-only START RUN. */
 #lobby-bar { position: fixed; z-index: 4; bottom: 1.1rem; left: 50%; display: flex; align-items: center; gap: .55rem; padding: .45rem .7rem; transform: translateX(-50%); color: #fff; background: rgb(17 24 39 / 90%); border: 1px solid rgb(255 255 255 / 30%); border-radius: .8rem; box-shadow: 0 6px 20px #0005; }
 #lobby-bar[hidden] { display: none; }
 #lobby-hero-label { color: #cbd5e1; font-size: .68rem; text-transform: uppercase; letter-spacing: .12em; }
+#lobby-hero-icon { display: inline-flex; align-items: center; min-width: 28px; min-height: 28px; }
+#run-again-hero-icon { display: inline-flex; align-items: center; vertical-align: middle; }
 #lobby-hero { padding: .3rem .4rem; color: #fff; background: #1f2937; border: 1px solid #ffffff44; border-radius: .45rem; font: inherit; font-size: .8rem; }
 #start-run { padding: .45rem .9rem; color: #0f172a; background: #7ddc8a; border: 0; border-radius: .55rem; font: 800 .8rem system-ui; letter-spacing: .04em; cursor: pointer; }
 #start-run:hover { background: #96e8a1; }
+.sprite-debug-tools { display: grid; gap: .35rem; margin-top: .65rem; padding-top: .65rem; border-top: 1px solid #ffffff33; color: #fff; font-size: .75rem; }
+.sprite-debug-tools label { display: flex; gap: .4rem; align-items: center; }
+.sprite-debug-tools button { min-height: 32px; color: #101018; background: #ffd93d; border: 3px solid #101018; border-radius: 8px; box-shadow: 0 3px 0 #c98f00; cursor: pointer; }
 #start-run[hidden], #lobby-hint[hidden] { display: none; }
 #lobby-hint { color: #cbd5e1; font-size: .8rem; }
 
@@ -257,5 +287,534 @@ html, body { width: 100%; height: 100%; margin: 0; overflow: hidden; background:
 
 @media (max-width: 700px) {
   #lobby-bar { bottom: 6.2rem; }
-  #player-list { top: 5.4rem; right: .55rem; min-width: 120px; }
+  #room-code-corner { top: .55rem; right: .55rem; }
+  #room-code b { font-size: 1rem; }
+}
+
+/* Storybook game HUD: parchment, ink outlines, and firm paper shadows. */
+:root {
+  --hud-ink: #23382F;
+  --hud-pine: #254937;
+  --hud-paper: #FBF2D8;
+  --hud-paper-light: #FFF8E4;
+  --hud-earth: #7A6545;
+  --hud-gold: #F2BA55;
+  --hud-blue: #6DB8CF;
+  --hud-paper-texture: url('/hero-lab/assets/storybook-paper.svg');
+}
+html, body { font-family: Nunito, 'Trebuchet MS', system-ui, sans-serif; }
+#hero-hud, #wave-hud, #campfire-hud, #boss-hud, #room-code-corner, #waiting-banner,
+#lobby-bar, #settings-panel, .info-card, .toast, #targeting-hint, #hud-debug-clusters {
+  color: var(--hud-ink);
+  background: var(--hud-paper) var(--hud-paper-texture) repeat;
+  background-size: 144px 144px;
+  border: 2px solid var(--hud-ink);
+  border-radius: 12px 10px 13px 11px;
+  box-shadow: 0 4px 0 var(--hud-earth), 0 8px 18px rgb(14 31 23 / 25%);
+}
+#hero-hud { min-width: min(270px, calc(100vw - 2rem)); padding: .72rem .88rem; gap: .42rem; }
+#hero-name { color: var(--hud-pine); font: 700 1.12rem/1.1 Georgia, 'Palatino Linotype', serif; }
+.health-row { color: var(--hud-ink); }
+.health-track, .campfire-track, .boss-track { background: #D8D3B9; border: 1px solid #867A5C; border-radius: 7px; }
+#health-fill { background: #7FAE58; }
+.campfire-track span { background: #7FAE58; }
+#player-roster { border-top: 1px dashed #9A8052; }
+.roster-row, .roster-row.me .roster-name { color: var(--hud-pine); }
+.roster-hp-value { color: #53654A; }
+.roster-row.me .roster-hp-fill { background: #7FAE58; }
+.roster-hp-fill { background: var(--hud-blue); }
+.roster-tag { color: var(--hud-ink); background: var(--hud-gold); }
+#wave-hud { min-width: 190px; padding: .55rem 1rem; }
+#wave-number { color: var(--hud-pine); font: 700 1.15rem/1.1 Georgia, 'Palatino Linotype', serif; }
+#wave-details { color: #52634A; }
+#break-pill { color: #563D1B; background: #F8D98B; border-color: #B58324; }
+#campfire-hud { color: var(--hud-ink); background: var(--hud-paper) var(--hud-paper-texture) repeat; background-size: 144px 144px; border: 2px solid var(--hud-ink); border-radius: 10px; box-shadow: 0 3px 0 var(--hud-earth); }
+#boss-hud { color: var(--hud-ink); background: #F7E4D5 var(--hud-paper-texture) repeat; background-size: 144px 144px; border: 2px solid #8A493B; border-radius: 10px; box-shadow: 0 3px 0 #7A4538; }
+.boss-track { background: #E2C6B4; }
+#boss-health-fill { background: linear-gradient(90deg, #D86F6B, #A8423B); }
+#room-code-corner { padding: .3rem .52rem; }
+#room-code { color: var(--hud-ink); background: var(--hud-paper-light); border: 1px solid #867A5C; border-radius: 6px; font-family: 'Cascadia Code', Consolas, monospace; }
+#room-code:hover, #room-code:focus-visible { background: #F8D98B; border-color: var(--hud-ink); }
+#room-code .room-code-label { color: #65764F; }
+#room-code-copied { color: var(--hud-pine); }
+#lobby-bar { color: var(--hud-ink); }
+#lobby-hero-label { color: #65764F; font-weight: 800; }
+#lobby-hero, #run-again-hero { color: var(--hud-ink); background: var(--hud-paper-light); border: 2px solid #867A5C; border-radius: 7px; }
+#start-run { color: var(--hud-ink); background: var(--hud-gold); border: 2px solid var(--hud-ink); border-radius: 7px 6px 8px 7px; box-shadow: 0 3px 0 var(--hud-earth); font: 800 .84rem Nunito, 'Trebuchet MS', sans-serif; }
+#start-run:hover:not(:disabled) { filter: brightness(1.06); transform: translateY(-1px); }
+#lobby-hint { color: #53634A; }
+#bottom-left-hud { color: var(--hud-ink); }
+#settings-button { color: var(--hud-ink); background: var(--hud-paper); border: 2px solid var(--hud-ink); box-shadow: 0 2px 0 var(--hud-earth); }
+#settings-panel { min-width: 220px; }
+#settings-panel strong, .info-card > strong { color: var(--hud-pine); font: 700 1rem Georgia, 'Palatino Linotype', serif; }
+#settings-panel input[type="range"] { accent-color: #548C66; }
+#settings-panel a, #icon-credits a { color: #315B78; }
+#icon-credits summary, #icon-credits p, #icon-credits li { color: #53634A; }
+#info-button { color: var(--hud-ink); }
+.info-circle { --fill-color: var(--hud-blue); color: var(--hud-ink); }
+.ability-circle { border-color: var(--hud-ink); box-shadow: 0 3px 0 var(--hud-earth), 0 6px 12px rgb(18 33 28 / 25%); }
+.ability-key { min-width: 28px; min-height: 20px; padding: 2px 6px; color: var(--hud-ink); background: var(--hud-paper); border: 1px solid var(--hud-ink); border-radius: 5px; text-shadow: none; box-shadow: 0 2px 0 var(--hud-earth); }
+#buff-icons { align-items: center; gap: .3rem; max-width: min(320px, 62vw); }
+.buff-icon { width: 2rem; height: 2rem; color: var(--hud-ink); background: var(--hud-paper) var(--hud-paper-texture) repeat; background-size: 96px 96px; border: 2px solid var(--hud-ink); border-radius: 7px; box-shadow: 0 2px 0 var(--hud-earth); font-size: 1.05rem; }
+#buff-vote { background: rgb(37 73 62 / 78%); color: var(--hud-ink); }
+#buff-vote-panel { display: grid; justify-items: center; gap: .65rem; width: min(1100px, calc(100vw - 36px)); max-height: calc(100svh - 36px); overflow: auto; padding: clamp(18px, 3vw, 32px); background: var(--hud-paper) var(--hud-paper-texture) repeat; background-size: 144px 144px; border: 3px solid var(--hud-ink); border-radius: 15px 12px 16px 13px; box-shadow: 0 7px 0 var(--hud-earth), 0 18px 48px rgb(5 20 13 / 45%); }
+#buff-vote-title { color: var(--hud-pine); font: 700 clamp(1.5rem, 3vw, 2.25rem)/1.05 Georgia, 'Palatino Linotype', serif; }
+#buff-vote-status { color: #53634A; font-size: .92rem; }
+#buff-cards { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); align-items: stretch; gap: 12px; width: 100%; }
+.buff-card { display: grid; grid-template-rows: auto auto 1fr auto auto; justify-items: center; align-content: start; align-items: start; min-width: 0; min-height: 245px; gap: .55rem; padding: 16px 14px; color: var(--hud-ink); background: var(--hud-paper-light) var(--hud-paper-texture) repeat; background-size: 128px 128px; border: 3px solid var(--hud-ink); border-radius: 12px 10px 13px 11px; box-shadow: 0 4px 0 var(--hud-earth); text-align: center; font: 500 .94rem/1.35 Nunito, 'Trebuchet MS', sans-serif; transition: transform .14s ease, box-shadow .14s ease, filter .14s ease; }
+.buff-card-icon { display: block; width: 48px; height: 48px; padding: 7px; object-fit: contain; background: #F1E5C2; border: 2px solid #8C805E; border-radius: 10px 8px 11px 9px; filter: brightness(0) saturate(100%) opacity(.78); }
+.buff-card > strong { color: var(--hud-pine); font: 700 1.12rem/1.1 Georgia, 'Palatino Linotype', serif; }
+.buff-card > span { align-self: start; color: #3D5140; }
+.buff-card small { color: #65764F; font-weight: 800; }
+.buff-card .buff-tower-line { color: #866123 !important; }
+.buff-card.rare { background: #FFF2D6 var(--hud-paper-texture) repeat; background-size: 128px 128px; border-color: #9C6823; box-shadow: 0 4px 0 #7A6545, inset 0 0 0 2px #F2BA55; }
+.buff-card.rare .buff-card-icon { background: #F8E1B7; border-color: #B58324; filter: brightness(0) saturate(100%) opacity(.84); }
+.buff-card.selected { background-color: #E4EFDA; border-color: #548C66; box-shadow: 0 4px 0 #557244, inset 0 0 0 2px #91B96A; }
+.buff-card:hover:not(:disabled), .buff-card:focus-visible { transform: translateY(-3px); box-shadow: 0 7px 0 var(--hud-earth); outline: 3px solid var(--hud-gold); outline-offset: 2px; }
+.buff-card:disabled { color: #637258; opacity: .78; }
+#join-briefing { color: var(--hud-ink); background: var(--hud-paper) var(--hud-paper-texture) repeat; background-size: 144px 144px; border: 3px solid var(--hud-ink); border-radius: 15px 12px 16px 13px; box-shadow: 0 7px 0 var(--hud-earth), 0 12px 36px #07161488; }
+#join-briefing > strong { color: var(--hud-pine); font: 700 1.5rem Georgia, 'Palatino Linotype', serif; }
+#join-briefing .briefing-tip, #howto-card .briefing-tip { color: #3D5140; }
+#join-briefing small { color: #65764F; }
+#stats-panel { width: min(300px, calc(100vw - 1.1rem)); }
+.info-card { gap: .35rem; padding: .72rem .82rem; font-size: .82rem; }
+#stats-card span, #stats-card .talent-info b { color: #53634A; }
+#stats-card b { color: var(--hud-ink); }
+#stats-card .talent-info { border-top: 1px dashed #9A8052; }
+#stats-card .talent-info em { color: var(--hud-pine); }
+#stats-card .talent-key { color: var(--hud-ink); background: #F3E4BD; border-color: #8C805E; }
+#info-close { color: var(--hud-pine); }
+#info-close:hover, #info-close:focus-visible { color: var(--hud-ink); background: #F2BA5555; }
+#stats-card #connection-status { color: var(--hud-pine); }
+#waiting-banner { color: var(--hud-ink); }
+#waiting-banner strong { color: var(--hud-pine); font: 700 1.2rem Georgia, 'Palatino Linotype', serif; }
+#waiting-banner span { color: #53634A; }
+.toast { color: var(--hud-ink); background: var(--hud-paper) var(--hud-paper-texture) repeat; background-size: 128px 128px; border: 2px solid var(--hud-ink); }
+#targeting-hint { color: var(--hud-ink); }
+#countdown { color: var(--hud-paper); text-shadow: 0 3px 0 var(--hud-earth), 0 6px 24px #071614; }
+#milestone-dawn, #run-result, #session-summary { color: var(--hud-ink); background: rgb(37 73 62 / 82%); }
+#milestone-dawn > strong { color: #9A6821; font: 700 clamp(3rem, 10vw, 6rem) Georgia, 'Palatino Linotype', serif; text-shadow: 0 2px 0 #FBF2D8; }
+#run-result h1, #session-summary > strong { color: var(--hud-pine); font-family: Georgia, 'Palatino Linotype', serif; }
+#run-result, #session-summary, #milestone-dawn { align-content: center; }
+#run-result::before, #session-summary::before, #milestone-dawn::before { content: ''; position: absolute; z-index: -1; width: min(560px, calc(100vw - 32px)); height: min(640px, calc(100svh - 32px)); background: var(--hud-paper) var(--hud-paper-texture) repeat; background-size: 144px 144px; border: 3px solid var(--hud-ink); border-radius: 15px 12px 16px 13px; box-shadow: 0 7px 0 var(--hud-earth), 0 18px 48px rgb(5 20 13 / 45%); }
+.dawn-actions button, .run-result-actions button { color: var(--hud-ink); background: var(--hud-paper-light); border: 2px solid var(--hud-ink); border-radius: 8px 7px 9px 8px; box-shadow: 0 4px 0 var(--hud-earth); font: 800 1rem Nunito, 'Trebuchet MS', sans-serif; }
+.dawn-actions button:first-child, #run-again { color: var(--hud-ink); background: var(--hud-gold); }
+#run-again-hero { min-width: 210px; color: var(--hud-ink); background: var(--hud-paper-light); border: 2px solid #867A5C; }
+#ability-hud, .hud-debug-cluster { color: var(--hud-ink); }
+#hud-debug-clusters { color: var(--hud-ink); }
+.hud-debug-hero > strong { color: var(--hud-pine); }
+#settings-button:focus-visible, #start-run:focus-visible, .dawn-actions button:focus-visible, .run-result-actions button:focus-visible { outline: 3px solid var(--hud-gold); outline-offset: 3px; }
+@media (max-width: 850px) {
+  #buff-cards { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+@media (max-width: 600px) {
+  #buff-vote-panel { width: calc(100vw - 16px); max-height: calc(100svh - 16px); padding: 16px 12px; }
+  #buff-cards { grid-template-columns: 1fr; gap: 9px; }
+  .buff-card { grid-template-columns: 48px minmax(0, 1fr); grid-template-rows: auto auto auto auto; justify-items: start; align-items: center; min-height: 0; padding: 11px; text-align: left; }
+  .buff-card-icon { grid-column: 1; grid-row: 1 / span 3; }
+  .buff-card > strong, .buff-card > span, .buff-card > small { grid-column: 2; }
+  .buff-card > strong { align-self: end; }
+  .buff-card > span { align-self: start; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .buff-card { transition: none; }
+  .buff-card:hover:not(:disabled), .buff-card:focus-visible { transform: none; }
+}
+
+/* Quiet forest palette and a single, split combat status card. */
+:root {
+  --hud-ink: #25392D;
+  --hud-pine: #31543D;
+  --hud-paper: #D5E0C8;
+  --hud-paper-light: #E1E9D6;
+  --hud-earth: #536548;
+  --hud-gold: #C6A85D;
+  --hud-paper-texture: none;
+}
+#combat-hud {
+  position: fixed;
+  z-index: 1;
+  top: 1rem;
+  left: 50%;
+  display: grid;
+  width: min(560px, calc(100vw - 460px));
+  min-width: 400px;
+  grid-template-columns: minmax(118px, 1fr) minmax(0, 3fr);
+  align-items: stretch;
+  transform: translateX(-50%);
+  overflow: hidden;
+  color: var(--hud-ink);
+  background: linear-gradient(135deg, #D9E3CF, #C9D8BE);
+  border: 2px solid #354C37;
+  border-radius: 12px 10px 13px 11px;
+  box-shadow: 0 4px 0 #536548, 0 8px 18px rgb(14 31 23 / 22%);
+}
+#wave-hud {
+  position: relative;
+  top: auto;
+  left: auto;
+  display: grid;
+  min-width: 0;
+  justify-items: start;
+  align-content: center;
+  gap: .08rem;
+  padding: .55rem .75rem;
+  transform: none;
+  text-align: left;
+  background: transparent;
+  border: 0;
+  border-right: 1px dashed #718465;
+  border-radius: 0;
+  box-shadow: none;
+}
+#enemy-count {
+  color: #31543D;
+  font: 800 clamp(1.8rem, 3vw, 2.65rem)/.9 Nunito, 'Trebuchet MS', sans-serif;
+  font-variant-numeric: tabular-nums;
+}
+.enemy-count-label {
+  color: #617255;
+  font-size: .54rem;
+  font-weight: 900;
+  letter-spacing: .12em;
+}
+#wave-number {
+  margin-top: .2rem;
+  color: var(--hud-pine);
+  font: 700 .85rem/1.1 Georgia, 'Palatino Linotype', serif;
+}
+#wave-details { color: #53634A; font-size: .65rem; line-height: 1.15; }
+#break-pill {
+  position: static;
+  top: auto;
+  left: auto;
+  margin-top: .15rem;
+  padding: .05rem .42rem;
+  color: #354C37;
+  background: #B8CDAA;
+  border: 1px solid #758A68;
+  font-size: .61rem;
+}
+#campfire-hud {
+  position: relative;
+  top: auto;
+  left: auto;
+  display: grid;
+  width: auto;
+  grid-template-columns: minmax(0, 1fr);
+  align-content: center;
+  gap: .4rem;
+  padding: .65rem .9rem;
+  transform: none;
+  color: var(--hud-ink);
+  background: transparent;
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
+  font-size: .8rem;
+}
+.campfire-heading { display: flex; align-items: center; justify-content: space-between; gap: .75rem; }
+.campfire-heading strong { color: var(--hud-pine); font: 700 1rem Georgia, 'Palatino Linotype', serif; }
+.campfire-heading span { font-variant-numeric: tabular-nums; }
+.campfire-track { grid-column: auto; height: 13px; background: #AEBCA0; border-color: #708164; }
+.campfire-track span { background: #719B58; }
+#targeting-hint { top: 6rem; }
+@media (max-width: 850px) {
+  #combat-hud { width: min(500px, calc(100vw - 350px)); min-width: 360px; }
+}
+@media (max-width: 600px) {
+  #combat-hud {
+    top: 5.9rem;
+    left: .55rem;
+    width: calc(100vw - 1.1rem);
+    min-width: 0;
+    grid-template-columns: minmax(88px, 1fr) minmax(0, 3fr);
+    transform: none;
+  }
+  #wave-hud { padding: .45rem .6rem; }
+  #campfire-hud { padding: .55rem .65rem; }
+  #boss-hud { top: 10.5rem; }
+  #targeting-hint { top: 10.5rem; }
+}
+
+/* Buff vote cards use the deeper forest tones from the arena. The icon SVGs
+   ship with a black canvas and white glyph; screen blending removes the dark
+   canvas while keeping the white symbol legible on each forest card. */
+#buff-vote-panel {
+  color: #E8E8D4;
+  background: linear-gradient(145deg, #304A3A, #263F34);
+  border-color: #1D3329;
+  box-shadow: 0 7px 0 #1D3329, 0 18px 48px rgb(5 20 13 / 55%);
+}
+#buff-vote-title { color: #F0EAD2; }
+#buff-vote-status { color: #CFD8C3; }
+.buff-card {
+  color: #E8E8D4;
+  background: #435D49;
+  border-color: #243A2E;
+  box-shadow: 0 4px 0 #1D3329;
+}
+.buff-card-icon {
+  background: #B8C7AA;
+  border-color: #87977A;
+  filter: none;
+  mix-blend-mode: screen;
+}
+.buff-card > strong { color: #F1EBD5; }
+.buff-card > span { color: #D5DEC9; }
+.buff-card small { color: #C3D0B3; }
+.buff-card .buff-tower-line { color: #E5C875 !important; }
+.buff-card.rare {
+  color: #F3EBD6;
+  background: #5A4C32;
+  border-color: #A58A4A;
+  box-shadow: 0 4px 0 #392F21, inset 0 0 0 2px #B99A4C;
+}
+.buff-card.rare .buff-card-icon { background: #C8B681; border-color: #9C8248; filter: none; mix-blend-mode: screen; }
+.buff-card.selected {
+  background: #506B4C;
+  border-color: #91AA72;
+  box-shadow: 0 4px 0 #2A422F, inset 0 0 0 2px #748F5F;
+}
+.buff-card:disabled { color: #BFCBB3; opacity: .88; }
+.buff-card:hover:not(:disabled), .buff-card:focus-visible {
+  box-shadow: 0 7px 0 #1D3329;
+  outline-color: #B6C58E;
+}
+
+/* Extend the buff-card forest palette across the in-game panels. The ability
+   circles, their cooldown fills, and their key labels intentionally keep their
+   hero-specific colors. */
+#hero-hud, #combat-hud, #room-code-corner, #lobby-bar, #settings-panel,
+.info-card, #join-briefing, #waiting-banner, .toast, #targeting-hint,
+#hud-debug-clusters {
+  color: #E8E8D4;
+  background: #304A3A;
+  border-color: #1D3329;
+  box-shadow: 0 5px 0 #1D3329, 0 10px 24px rgb(5 20 13 / 42%);
+}
+#hero-name, #wave-number, #campfire-hud, #campfire-hud strong,
+#room-code-copied, #lobby-bar, #waiting-banner strong,
+#settings-panel strong, .info-card > strong, .hud-debug-hero > strong,
+#enemy-count {
+  color: #F0EAD2;
+}
+.health-row, #wave-details, .enemy-count-label, .campfire-heading span,
+#waiting-banner span, #lobby-hint, #join-briefing small,
+#howto-card .briefing-tip, #stats-card span, #stats-card .talent-info b,
+#stats-card .stat-list, .roster-row, .roster-hp-value,
+#icon-credits summary, #icon-credits p, #icon-credits li {
+  color: #CFD8C3;
+}
+#player-roster { border-color: #71836C; }
+.roster-row.me .roster-name, #stats-card b, #stats-card .talent-info em { color: #F0EAD2; }
+.health-track, .campfire-track, .roster-hp-track { background: #20392D; border-color: #71836C; }
+.roster-hp-fill { background: #9DB68A; }
+.roster-row.me .roster-hp-fill, #health-fill, .campfire-track span { background: #83A96D; }
+#break-pill { color: #F0D994; background: #536344; border-color: #89976E; }
+#boss-hud { color: #F0EAD2; background: #3C4435; border-color: #8D6652; box-shadow: 0 5px 0 #27352B, 0 10px 24px rgb(5 20 13 / 42%); }
+#boss-hud strong, #boss-health-value { color: #F0EAD2; }
+#room-code { color: #F0EAD2; background: #405B46; border-color: #819276; }
+#room-code .room-code-label { color: #C7D4BA; }
+#room-code:hover, #room-code:focus-visible { background: #526D50; border-color: #B8C79D; }
+#lobby-hero, #run-again-hero { color: #F0EAD2; background: #435D49; border-color: #819276; }
+#settings-button { color: #F0EAD2; background: #435D49; border-color: #819276; box-shadow: 0 2px 0 #1D3329; }
+#settings-panel input[type="range"] { accent-color: #9DB68A; }
+#settings-panel a, #icon-credits a { color: #C4D6A8; }
+#info-close { color: #D5DEC9; }
+#info-close:hover, #info-close:focus-visible { color: #F0EAD2; background: #FFFFFF1A; }
+#howto-lead { color: #F0D994; }
+#stats-card .talent-info { border-color: #71836C; }
+#stats-card .talent-key { color: #F0EAD2; background: #405B46; border-color: #819276; }
+#stats-card #connection-status { color: #B9C9A8; }
+.buff-icon { color: #F0EAD2; background: #435D49; border-color: #819276; box-shadow: 0 2px 0 #1D3329; }
+#kill-streak { color: #F0D994; background: #304A3A; }
+#targeting-hint { color: #F0EAD2; }
+#milestone-dawn, #run-result, #session-summary { color: #E8E8D4; background: rgb(24 45 34 / 91%); }
+#milestone-dawn > strong { color: #F0D994; }
+#run-result h1, #session-summary > strong { color: #F0EAD2; }
+#run-result::before, #session-summary::before, #milestone-dawn::before {
+  background: #304A3A;
+  border-color: #1D3329;
+  box-shadow: 0 7px 0 #1D3329, 0 18px 48px rgb(5 20 13 / 55%);
+}
+.dawn-actions button, .run-result-actions button {
+  color: #F0EAD2;
+  background: #435D49;
+  border-color: #819276;
+  box-shadow: 0 4px 0 #1D3329;
+}
+.dawn-actions button:first-child, #run-again { color: #F0EAD2; background: #596B43; }
+.info-circle { --fill-color: #536B50; }
+
+/* Center end-screen cards with real content wrappers so the decorative panel
+   cannot drift away from its text at different viewport sizes. */
+#run-result::before, #milestone-dawn::before {
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+}
+#session-summary::before { content: none; }
+#session-summary {
+  place-items: center;
+  align-content: center;
+  padding: 16px;
+  color: #E8E8D4;
+  background: rgb(24 45 34 / 91%);
+}
+.session-summary-card {
+  display: grid;
+  justify-items: center;
+  align-content: center;
+  gap: .8rem;
+  width: min(560px, 100%);
+  min-height: 290px;
+  padding: clamp(24px, 5vw, 42px);
+  color: #E8E8D4;
+  background: linear-gradient(145deg, #304A3A, #263F34);
+  border: 3px solid #1D3329;
+  border-radius: 15px 12px 16px 13px;
+  box-shadow: 0 7px 0 #1D3329, 0 18px 48px rgb(5 20 13 / 55%);
+  text-align: center;
+}
+.session-summary-icon { font-size: 2.5rem; line-height: 1; filter: drop-shadow(0 3px 0 #1D3329); }
+.session-summary-card > strong {
+  max-width: 100%;
+  color: #F0EAD2;
+  font: 700 clamp(1.35rem, 4vw, 2.15rem)/1.12 Georgia, 'Palatino Linotype', serif;
+  text-wrap: balance;
+}
+#session-summary-text, #run-result-message, #run-result-teaser, #run-result-stats, #run-result label {
+  color: #D5DEC9;
+}
+.session-summary-card .run-result-actions { margin-top: .25rem; }
+.session-summary-card .run-result-actions button {
+  min-width: 88px;
+  color: #F0EAD2;
+  background: #435D49;
+  border-color: #819276;
+}
+.session-summary-card .run-result-actions button:hover,
+.session-summary-card .run-result-actions button:focus-visible {
+  background: #526D50;
+}
+@media (max-width: 480px) {
+  .session-summary-card { min-height: 250px; padding: 24px 18px; }
+}
+
+/* Run-end report: a compact campfire chronicle with scannable stat tiles and
+   its own kingdom-bonus and next-hero sections. */
+#run-result {
+  place-items: center;
+  align-content: center;
+  padding: 12px;
+  background: rgb(17 34 27 / 82%);
+}
+#run-result::before { content: none; }
+.run-result-card {
+  position: relative;
+  display: grid;
+  justify-items: center;
+  align-content: start;
+  gap: .7rem;
+  width: min(620px, 100%);
+  max-height: calc(100svh - 24px);
+  overflow: auto;
+  padding: clamp(20px, 4vw, 32px);
+  color: #E8E8D4;
+  background: linear-gradient(150deg, #304A3A 0%, #263F34 100%);
+  border: 2px solid #73866A;
+  border-radius: 18px 14px 19px 15px;
+  box-shadow: 0 6px 0 #1D3329, 0 18px 46px rgb(5 20 13 / 58%), inset 0 1px rgb(255 255 255 / 8%);
+  text-align: center;
+}
+.run-result-emblem {
+  display: grid;
+  width: 48px;
+  height: 48px;
+  place-items: center;
+  background: #435D49;
+  border: 1px solid #819276;
+  border-radius: 50%;
+  box-shadow: 0 3px 0 #1D3329;
+  font-size: 1.65rem;
+}
+.run-result-kicker {
+  color: #D6BD70;
+  font: 800 .62rem/1.2 ui-monospace, 'Cascadia Code', monospace;
+  letter-spacing: .15em;
+}
+.run-result-card #run-result-title {
+  margin: 0;
+  color: #F0EAD2;
+  font: 700 clamp(1.65rem, 4.5vw, 2.45rem)/1.05 Georgia, 'Palatino Linotype', serif;
+  text-wrap: balance;
+}
+.run-result-card #run-result-message { color: #CFD8C3; font-size: .9rem; }
+#run-result-stats.run-result-stat-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: .55rem;
+  width: 100%;
+  margin-top: .1rem;
+  text-align: center;
+}
+.run-result-stat {
+  display: grid;
+  min-width: 0;
+  align-content: center;
+  gap: .25rem;
+  min-height: 76px;
+  padding: .55rem .35rem;
+  background: #435D49;
+  border: 1px solid #71866A;
+  border-radius: 10px 8px 11px 9px;
+  box-shadow: 0 3px 0 #1D3329;
+}
+.run-result-stat strong {
+  color: #F0EAD2;
+  font: 700 clamp(1rem, 2.7vw, 1.45rem)/1 Georgia, 'Palatino Linotype', serif;
+  font-variant-numeric: tabular-nums;
+}
+.run-result-stat span { color: #CFD8C3; font-size: .66rem; line-height: 1.15; }
+.run-result-bonuses {
+  width: 100%;
+  padding: .65rem .85rem;
+  background: rgb(29 51 42 / 68%);
+  border: 1px solid #536B50;
+  border-radius: 10px 8px 11px 9px;
+  text-align: left;
+}
+.run-result-bonuses h2 {
+  margin: 0 0 .35rem;
+  color: #F0EAD2;
+  font: 700 .86rem Georgia, 'Palatino Linotype', serif;
+}
+#run-result-upgrades { display: grid; gap: .24rem; margin: 0; padding: 0; list-style: none; }
+#run-result-upgrades li { display: grid; grid-template-columns: .9rem minmax(0, 1fr); gap: .35rem; color: #D5DEC9; font-size: .76rem; line-height: 1.25; }
+#run-result-upgrades li > span:first-child { color: #D6BD70; }
+#run-result-teaser { display: flex; align-items: center; justify-content: center; gap: .4rem; color: #E2D39B; font-size: .78rem; }
+.run-result-picker { display: grid; justify-items: center; gap: .35rem; width: min(290px, 100%); }
+.run-result-picker label { display: flex; align-items: center; gap: .4rem; color: #CFD8C3; font-size: .78rem; font-weight: 700; }
+#run-again-hero-icon { display: inline-flex; align-items: center; }
+#run-again-hero { width: 100%; min-width: 0; padding: .55rem .7rem; color: #F0EAD2; background: #435D49; border: 1px solid #819276; border-radius: 8px; }
+.run-result-card .run-result-actions { display: flex; gap: .55rem; width: 100%; margin-top: .15rem; }
+.run-result-card .run-result-actions button {
+  min-height: 42px;
+  padding: .6rem .9rem;
+  color: #F0EAD2;
+  background: #435D49;
+  border: 1px solid #819276;
+  border-radius: 9px 7px 10px 8px;
+  box-shadow: 0 3px 0 #1D3329;
+  font: 800 .78rem Nunito, 'Trebuchet MS', sans-serif;
+}
+.run-result-card .run-result-actions #run-again { color: #3B2B1D; background: #D6B15B; border-color: #E2C87C; }
+.run-result-card .run-result-actions button:hover { filter: brightness(1.08); transform: translateY(-1px); }
+@media (max-width: 520px) {
+  .run-result-card { gap: .55rem; padding: 18px 14px; }
+  #run-result-stats.run-result-stat-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: .45rem; }
+  .run-result-stat { min-height: 64px; }
+  .run-result-card .run-result-actions { flex-direction: column; }
+  .run-result-card .run-result-actions button { width: 100%; }
 }

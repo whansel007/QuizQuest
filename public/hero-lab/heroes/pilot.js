@@ -9,12 +9,16 @@ export class Pilot extends Hero {
   }
   refreshForm(now) {
     const mech = this.mechUntil > now, c = this.spec.mech;
-    const bonus = (stat) => (this.buildingBonuses?.[stat] || 0) + (this.runBonuses?.[stat] || 0);
+    // Derived stat factors come from computeHeroStats() on the server. Mech form
+    // keeps its own base stats but scales by the same buff factors, so card and
+    // Tower bonuses apply consistently in both forms.
+    const b = this.statBonus || { maxHpMult: 1, attackMult: 1, speedMult: 1, defenseAdd: 0 };
+    const defenseCap = GAME_CONFIG.arenaTuning.cards.stat.defenseCap * 100;
     this.visual = mech ? '🤖' : this.emoji; this.weaponName = mech ? c.weaponName : 'Scattershot'; this.skillName = mech ? c.skillName : 'Dash';
-    this.attack = (mech ? c.attack : this.spec.attack) + bonus('attack');
-    this.defense = (mech ? c.defense : this.spec.defense) + bonus('defense');
-    this.speed = (mech ? c.speed : this.spec.speed) + bonus('speed');
-    this.maxHp = (mech ? c.hp : this.spec.hp) + bonus('maxHp'); this.hp = Math.min(this.hp, this.maxHp);
+    this.attack = (mech ? c.attack : this.spec.attack) * b.attackMult;
+    this.defense = Math.min(defenseCap, (mech ? c.defense : this.spec.defense) + b.defenseAdd);
+    this.speed = (mech ? c.speed : this.spec.speed) * b.speedMult;
+    this.maxHp = (mech ? c.hp : this.spec.hp) * b.maxHpMult; this.hp = Math.min(this.hp, this.maxHp);
     this.cooldowns.weapon.durationMs = mech ? c.weaponCooldownMs : this.spec.weaponCooldownMs;
     this.cooldowns.skill.durationMs = mech ? c.skillCooldownMs : this.spec.skillCooldownMs;
     if (mech) this.makeInvulnerable(this.mechUntil - now, now);

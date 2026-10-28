@@ -195,6 +195,14 @@ test('a full room rejects the fifth player', async (t) => {
   assert.match(result.message, /Room is full \(4\/4\)/);
 });
 
+// The break is now REST -> VOTE -> READY. Tests do not wait out the 8 s rest:
+// they wait for the rest phase to open, then skip it.
+async function openVote(host, room) {
+  await waitFor(host, 'state', (state) => state.break?.phase === 'rest', 5000);
+  room.skipBreakPhase();
+  return waitFor(host, 'state', (state) => state.buffVote?.cards?.length === 3, 8000);
+}
+
 test('a late joiner spectates, then spawns at the break with the run buffs applied', async (t) => {
   const host = await connectClient();
   t.after(() => host.disconnect());
@@ -202,9 +210,9 @@ test('a late joiner spectates, then spawns at the break with the run buffs appli
   const liveRoom = server.heroLab.rooms.findByCode(hostWelcome.room.code);
   liveRoom.startRunNow();
 
-  // Clear wave 1 so the team vote opens, then pick a card.
+  // Clear wave 1 so the rest runs, skip it, then pick a card in the vote.
   liveRoom.clearWave();
-  const vote = await waitFor(host, 'state', (state) => state.buffVote?.cards?.length === 3, 8000);
+  const vote = await openVote(host, liveRoom);
   const card = vote.buffVote.cards[0];
   host.emit('buff_vote', card.id);
   const afterVote = await waitFor(host, 'state', (state) => !state.buffVote && state.activeBuffs.length === 1, 8000);
@@ -296,14 +304,14 @@ test('the lobby spawns heroes on the ring with a dummy and no enemies', async (t
   assert.equal(state.room.phase, 'lobby');
   assert.equal(state.wave.number, 0, 'no wave has started');
   assert.equal(state.wave.enemiesRemaining, 0, 'the dummy is not an enemy');
-  assert.equal(state.monsters.filter((monster) => monster.isDummy).length, 1);
+  assert.equal(state.monsters.filter((monster) => monster.isDummy).length, 4);
   assert.equal(state.monsters.filter((monster) => !monster.isDummy).length, 0);
   assert.equal(state.campfire.hp, state.campfire.maxHp);
 
   const player = state.players[0];
   const dummy = state.monsters.find((monster) => monster.isDummy);
   const fromCampfire = Math.hypot(dummy.x - state.campfire.x, dummy.y - state.campfire.y);
-  assert.ok(fromCampfire >= 140 && fromCampfire <= 260, `dummy sits 150-250 px from the campfire (was ${fromCampfire})`);
+  assert.ok(fromCampfire >= 180 && fromCampfire <= 320, `dummy sits 180-320 px from the campfire (was ${fromCampfire})`);
   assert.ok(Math.hypot(dummy.x - player.x, dummy.y - player.y) >= 80, 'the dummy keeps clear of heroes');
   assert.equal(dummy.emoji, '🎯');
   assert.equal(dummy.hp, 300);
@@ -383,10 +391,10 @@ test('a broken dummy comes back after three seconds', async (t) => {
   player.hero.aim = { x: 1, y: 0 };
   host.emit('fire', 'primary');
   await broken;
-  assert.equal(room.dummyCount(), 0);
+  assert.equal(room.dummyCount(), 3);
 
-  const respawned = await waitFor(host, 'state', (snapshot) => snapshot.monsters.some((monster) => monster.isDummy && monster.hp === 300), 6000);
-  assert.equal(respawned.monsters.filter((monster) => monster.isDummy).length, 1);
+  const respawned = await waitFor(host, 'state', (snapshot) => snapshot.monsters.filter((monster) => monster.isDummy && monster.hp === 300).length === 4, 6000);
+  assert.equal(respawned.monsters.filter((monster) => monster.isDummy).length, 4);
 });
 
 test('heroes can swap in the lobby but not once the run starts', async (t) => {
@@ -423,7 +431,7 @@ test('a waiting player cannot vote and cannot stall the vote', async (t) => {
   const room = server.heroLab.rooms.findByCode(welcome.room.code);
   room.startRunNow();
   room.clearWave();
-  const vote = await waitFor(host, 'state', (state) => state.buffVote?.cards?.length === 3, 8000);
+  const vote = await openVote(host, room);
 
   const guest = await connectClient();
   t.after(() => guest.disconnect());

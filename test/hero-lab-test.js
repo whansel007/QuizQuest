@@ -7,7 +7,11 @@ const { RESPAWN_RING_MIN, RESPAWN_RING_MAX, RESPAWN_MIN_SEPARATION,
   SHERIFF_KILL_REFUND_S, SHERIFF_BLAST_REFUND_CAP_S,
   GUARDIAN_ULT_RAMP_PER_HIT, GUARDIAN_ULT_RAMP_CAP, GUARDIAN_SLAM_RADIUS,
   GUARDIAN_SLAM_DAMAGE_MULT, GUARDIAN_ULT_EARLY_END, GUARDIAN_BRACE_ENABLED,
-  BUILDING_BONUS_PER_LEVEL, BUILDING_LEVEL_CAP, BASE_CAMPFIRE_HP } = require('../config/tuning.js');
+  GUARDIAN_DASH_KILL_EXTENSION_S, GUARDIAN_RUSH_DISTANCE, GUARDIAN_RUSH_DURATION_S,
+  GUARDIAN_RUSH_IFRAME_AFTER_S, GUARDIAN_FAN_ANGLE_DEG, GUARDIAN_FAN_RADIUS,
+  GUARDIAN_FAN_DAMAGE_MULT, GUARDIAN_FAN_KNOCKBACK, GUARDIAN_FAN_KNOCKBACK_MS, GUARDIAN_FAN_FADE_MS,
+  BUILDING_BONUS_PER_LEVEL, BUILDING_LEVEL_CAP, BASE_CAMPFIRE_HP,
+  TOWER_BONUS_PER_LEVEL, TOWER_MAX_LEVEL } = require('../config/tuning.js');
 
 let server;
 let base;
@@ -49,12 +53,108 @@ test('hero tuning uses the requested refunds, Guardian ramp, and percentage buil
   assert.equal(GUARDIAN_SLAM_DAMAGE_MULT, 2);
   assert.equal(GUARDIAN_ULT_EARLY_END, true);
   assert.equal(GUARDIAN_BRACE_ENABLED, false);
+  assert.equal(GUARDIAN_DASH_KILL_EXTENSION_S, 0.15);
+
+  // Guardian Shield Rush rework is wired through to the client config.
+  assert.equal(GAME_CONFIG.arenaTuning.heroTweaks.guardianRushDistance, GUARDIAN_RUSH_DISTANCE);
+  assert.equal(GAME_CONFIG.arenaTuning.heroTweaks.guardianRushDurationMs, GUARDIAN_RUSH_DURATION_S * 1000);
+  assert.equal(GAME_CONFIG.arenaTuning.heroTweaks.guardianRushIframeMs, (GUARDIAN_RUSH_DURATION_S + GUARDIAN_RUSH_IFRAME_AFTER_S) * 1000);
+  assert.equal(GAME_CONFIG.arenaTuning.heroTweaks.guardianFanAngleDeg, GUARDIAN_FAN_ANGLE_DEG);
+  assert.equal(GAME_CONFIG.arenaTuning.heroTweaks.guardianFanRadius, GUARDIAN_FAN_RADIUS);
+  assert.equal(GAME_CONFIG.arenaTuning.heroTweaks.guardianFanFadeMs, GUARDIAN_FAN_FADE_MS);
+  assert.equal(GUARDIAN_RUSH_DISTANCE, 300);
+  assert.equal(GUARDIAN_RUSH_DURATION_S, 0.25);
+  assert.equal(GUARDIAN_RUSH_IFRAME_AFTER_S, 0.3);
+  assert.equal(GUARDIAN_FAN_ANGLE_DEG, 130);
+  assert.equal(GUARDIAN_FAN_RADIUS, 210);
+  assert.equal(GUARDIAN_FAN_DAMAGE_MULT, 1.0);
+  assert.equal(GUARDIAN_FAN_KNOCKBACK, 260);
+  assert.equal(GUARDIAN_FAN_KNOCKBACK_MS, 300);
+  assert.equal(GAME_CONFIG.heroes.guardian.skillDash.distance, GUARDIAN_RUSH_DISTANCE);
+  assert.equal(GAME_CONFIG.heroes.guardian.skillDash.durationMs, GUARDIAN_RUSH_DURATION_S * 1000);
+  assert.equal(GAME_CONFIG.heroes.guardian.skillDash.invulnerableMs, (GUARDIAN_RUSH_DURATION_S + GUARDIAN_RUSH_IFRAME_AFTER_S) * 1000);
+  assert.equal(GAME_CONFIG.heroes.guardian.skillDash.fan.angleDeg, GUARDIAN_FAN_ANGLE_DEG);
+  assert.equal(GAME_CONFIG.heroes.guardian.skillDash.fan.radius, GUARDIAN_FAN_RADIUS);
+  assert.deepEqual(GAME_CONFIG.heroes.guardian.talent.linkedSlot, ['ultimate']);
+  assert.match(GAME_CONFIG.heroes.guardian.talent.description, /Unbreakable Charge/);
   assert.equal(BUILDING_BONUS_PER_LEVEL, 0.1);
   assert.equal(BUILDING_LEVEL_CAP, 3);
   assert.equal(GAME_CONFIG.arenaTuning.buildingBonuses.cap, undefined);
   assert.equal(GAME_CONFIG.heroes.electromancer.overload.damageBonus, undefined);
   assert.equal(GAME_CONFIG.heroes.electromancer.overload.chainRefundPct, ELECTRO_CHAIN_REFUND_PCT);
   assert.equal(BASE_CAMPFIRE_HP, 100);
+
+  // Tower rework: only the four stat cards are scaled, and the cap is reused.
+  assert.equal(TOWER_BONUS_PER_LEVEL, 0.1);
+  assert.equal(TOWER_MAX_LEVEL, BUILDING_LEVEL_CAP);
+  assert.equal(GAME_CONFIG.arenaTuning.tower.bonusPerLevel, 0.1);
+  assert.equal(GAME_CONFIG.arenaTuning.tower.maxLevel, 3);
+  assert.deepEqual([...GAME_CONFIG.towerScaledCards], ['maxHp', 'attack', 'defense', 'speed']);
+  assert.equal(GAME_CONFIG.towerScaledCards.includes('campfire'), false);
+  assert.equal(GAME_CONFIG.towerScaledCards.includes('glass-cannon'), false);
+});
+
+// --- Tower rework: derived stats --------------------------------------------
+const debugStat = (room, id) => room.debugStats().find((entry) => entry.id === id);
+
+test('Tower scales an attack card differently for Lv0 and Lv3 owners', async (t) => {
+  const a = await connectClient(); t.after(() => a.disconnect());
+  const b = await connectClient(); t.after(() => b.disconnect());
+  const ia = await joinClient(a, 'sheriff');
+  const room = server.heroLab.rooms.peekDefaultRoom();
+  const ib = await joinClient(b, 'sheriff');
+  const baseAttack = debugStat(room, ia.you).attack;
+  room.debugSetTower(3, ia.you);
+  room.debugSetTower(0, ib.you);
+  room.debugAddStatCard('attack');
+  const A = debugStat(room, ia.you), B = debugStat(room, ib.you);
+  assert.ok(Math.abs(A.attack - baseAttack * 1.195) < 1e-6, `Lv3 attack ${A.attack}`);
+  assert.ok(Math.abs(B.attack - baseAttack * 1.15) < 1e-6, `Lv0 attack ${B.attack}`);
+  assert.equal(A.towerMultiplier, 1.3);
+  assert.equal(B.towerMultiplier, 1);
+});
+
+test('a late joiner receives earlier stat cards at their own Tower level', async (t) => {
+  const a = await connectClient(); t.after(() => a.disconnect());
+  const ia = await joinClient(a, 'sheriff');
+  const room = server.heroLab.rooms.peekDefaultRoom();
+  const baseAttack = debugStat(room, ia.you).attack;
+  room.debugSetTower(3, ia.you);
+  room.debugAddStatCard('attack'); // picked before B arrives
+  const b = await connectClient(); t.after(() => b.disconnect());
+  const ib = await joinClient(b, 'sheriff'); // late join
+  room.debugSetTower(2, ib.you);
+  const A = debugStat(room, ia.you), B = debugStat(room, ib.you);
+  assert.ok(Math.abs(A.attack - baseAttack * 1.195) < 1e-6);
+  // The Tower scales the CARD sum, not the whole multiplier: 1 + 0.15 * 1.2.
+  assert.ok(Math.abs(B.attack - baseAttack * (1 + 0.15 * 1.2)) < 1e-6, `late joiner attack ${B.attack}`);
+});
+
+test('Tower keeps the defense and speed caps and max HP cards raise current HP', async (t) => {
+  const a = await connectClient(); t.after(() => a.disconnect());
+  const ia = await joinClient(a, 'sheriff');
+  const room = server.heroLab.rooms.peekDefaultRoom();
+  const base = debugStat(room, ia.you);
+  room.debugSetTower(3, ia.you);
+  for (let i = 0; i < 8; i += 1) room.debugAddStatCard('defense');
+  assert.ok(debugStat(room, ia.you).defense <= 50 + 1e-9);
+  for (let i = 0; i < 10; i += 1) room.debugAddStatCard('speed');
+  assert.ok(debugStat(room, ia.you).speed <= base.speed * 1.4 + 1e-6);
+  const before = debugStat(room, ia.you);
+  room.debugAddStatCard('maxHp');
+  const after = debugStat(room, ia.you);
+  assert.ok(Math.abs((after.maxHp - before.maxHp) - (after.hp - before.hp)) < 1e-6);
+});
+
+test('Glass Cannon lowers max HP and clamps current HP', async (t) => {
+  const a = await connectClient(); t.after(() => a.disconnect());
+  const ia = await joinClient(a, 'sheriff');
+  const room = server.heroLab.rooms.peekDefaultRoom();
+  const before = debugStat(room, ia.you);
+  room.debugAddStatCard('glass-cannon');
+  const after = debugStat(room, ia.you);
+  assert.ok(after.maxHp < before.maxHp);
+  assert.ok(after.hp <= after.maxHp + 1e-9);
 });
 
 function connectClient() {
@@ -180,7 +280,7 @@ test('Hero Lab server fires and broadcasts the selected hero projectile in the a
   assert.equal(proj.color, '#f5c84c');
 });
 
-test('Guardian Shield Rush follows the mouse aim with no movement keys held', async (t) => {
+test('Guardian Shield Rush is a 300px aimed dash with i-frames and no path damage', async (t) => {
   const client = await connectClient();
   t.after(() => client.disconnect());
   const welcomePromise = new Promise((resolve) => client.once('welcome', resolve));
@@ -189,13 +289,162 @@ test('Guardian Shield Rush follows the mouse aim with no movement keys held', as
   await nextState(client, (state) => state.players.some((player) => player.id === clientId));
 
   const player = server.heroLab.players.get(clientId);
+  // Payload shape: a non-steerable dash plus a fan, with no per-tick damage.
+  const skill = player.hero.skill(Date.now());
+  assert.equal(skill.type, 'dash');
+  assert.equal(skill.distance, GUARDIAN_RUSH_DISTANCE);
+  assert.equal(skill.durationMs, GUARDIAN_RUSH_DURATION_S * 1000);
+  assert.equal(skill.invulnerableMs, (GUARDIAN_RUSH_DURATION_S + GUARDIAN_RUSH_IFRAME_AFTER_S) * 1000);
+  assert.ok(skill.fan && skill.fan.angleDeg === GUARDIAN_FAN_ANGLE_DEG && skill.fan.radius === GUARDIAN_FAN_RADIUS);
+  assert.equal(skill.damageMultiplier, undefined, 'the old Shield Rush path damage is gone');
+
   const before = { x: player.x, y: player.y };
   client.emit('aim', { x: 1, y: 0 });
   client.emit('skill');
-  const state = await nextState(client, (snapshot) => snapshot.players.find((entry) => entry.id === clientId)?.x > before.x + 1);
+  const state = await nextState(client, (snapshot) => {
+    const entry = snapshot.players.find((e) => e.id === clientId);
+    return entry && entry.x > before.x + GUARDIAN_RUSH_DISTANCE - 5;
+  });
   const after = state.players.find((entry) => entry.id === clientId);
-  assert.ok(after.x > before.x);
-  assert.ok(Math.abs(after.y - before.y) < 1);
+  assert.ok(after.x > before.x + GUARDIAN_RUSH_DISTANCE - 5, 'dash travels the full 300px');
+  assert.ok(Math.abs(after.y - before.y) < 1, 'dash locks to the cast aim, no steering');
+  assert.equal(after.invulnerable, true, 'dash plus 0.3s i-frames are active');
+  assert.equal(after.rushIFrames, true, 'the i-frames are flagged as the rush so the client keeps the sprite solid');
+  assert.equal(player.hero.chargeUntil, 0, 'the skill does not touch the ultimate charge');
+});
+
+test('Guardian Shield Rush fan deals 1.0x damage and pushes enemies away', async (t) => {
+  const client = await connectClient();
+  t.after(() => client.disconnect());
+  const welcomePromise = new Promise((resolve) => client.once('welcome', resolve));
+  client.emit('join', { heroId: 'guardian' });
+  const { you: clientId } = await welcomePromise;
+  await nextState(client, (state) => state.players.some((player) => player.id === clientId));
+
+  const { Zombie } = await import('../public/hero-lab/enemies/zombie.js');
+  const player = server.heroLab.players.get(clientId);
+  server.heroLab.monsters.clear();
+  // 80px beyond where the 300px dash lands, dead-centre of the 130° cone.
+  const mx = player.x + GUARDIAN_RUSH_DISTANCE + 80;
+  const my = player.y;
+  const monster = new Zombie({ id: `guardian-fan-${clientId}`, x: mx, y: my, hp: 10_000, maxHp: 10_000, speed: 0 });
+  server.heroLab.monsters.set(monster.id, monster);
+  const initialX = monster.x, initialHp = monster.hp;
+
+  // Register the area_effect listener BEFORE casting: the dash completes and
+  // the fan fires ~250ms after the skill, so a later listener would miss it.
+  const effectPromise = new Promise((resolve) => client.once('area_effect', resolve));
+  client.emit('aim', { x: 1, y: 0 });
+  client.emit('skill');
+  const effect = await Promise.race([
+    effectPromise,
+    new Promise((_, reject) => setTimeout(() => reject(new Error('area_effect never fired within 3s')), 3000)),
+  ]);
+  assert.equal(effect.sourceHeroId, 'guardian');
+  assert.equal(effect.sourceAbility, 'skill');
+  assert.equal(effect.angleDeg, GUARDIAN_FAN_ANGLE_DEG);
+  assert.equal(effect.radius, GUARDIAN_FAN_RADIUS);
+  assert.ok(Array.isArray(effect.hits) && effect.hits.some((h) => h.id === monster.id), 'the monster is in the fan hit list');
+
+  // Let the radial push resolve, then confirm damage and displacement.
+  await nextState(client, (state) => {
+    const m = state.monsters.find((entry) => entry.id === monster.id);
+    return m && (m.hp < initialHp || m.x > initialX + 1);
+  }, 2000);
+  const pushed = server.heroLab.monsters.get(monster.id);
+  assert.ok(pushed.hp < initialHp, 'the fan deals 1.0x attack damage');
+  assert.ok(pushed.x > initialX + 5, 'the fan pushes the enemy radially away from the landing point');
+});
+
+test('primary fire during Shield Rush ends the dash early and fires the fan there', async (t) => {
+  const client = await connectClient();
+  t.after(() => client.disconnect());
+  const welcomePromise = new Promise((resolve) => client.once('welcome', resolve));
+  client.emit('join', { heroId: 'guardian' });
+  const { you: clientId } = await welcomePromise;
+  await nextState(client, (state) => state.players.some((player) => player.id === clientId));
+
+  const player = server.heroLab.players.get(clientId);
+  server.heroLab.monsters.clear();
+  const before = { x: player.x, y: player.y };
+  const weaponReadyAt = player.hero.cooldowns.weapon.readyAt;
+  const shots = [];
+  client.on('weapon_fired', (event) => shots.push(event));
+  // Register before casting: the fan fires as soon as the cancel lands.
+  const effectPromise = new Promise((resolve) => client.once('area_effect', resolve));
+
+  client.emit('aim', { x: 1, y: 0 });
+  client.emit('skill');
+  await new Promise((resolve) => setTimeout(resolve, 60));
+  client.emit('fire', 'primary');
+
+  const effect = await Promise.race([
+    effectPromise,
+    new Promise((_, reject) => setTimeout(() => reject(new Error('area_effect never fired within 3s')), 3000)),
+  ]);
+  const travelled = effect.x - before.x;
+  assert.equal(effect.sourceAbility, 'skill', 'the early end still fires the Shield Rush fan');
+  assert.ok(travelled >= 0, 'the cancel never moves the Guardian backwards');
+  assert.ok(travelled < GUARDIAN_RUSH_DISTANCE - 50,
+    `the fan fires short of the full ${GUARDIAN_RUSH_DISTANCE}px (travelled ${Math.round(travelled)}px)`);
+  assert.ok(Math.abs(effect.y - before.y) < 2, 'the cancel keeps the locked dash line');
+  assert.equal(player.dashState, null, 'the dash is over immediately, not left to expire');
+  assert.equal(shots.length, 0, 'that click fires no Shield Bash');
+  assert.equal(player.hero.cooldowns.weapon.readyAt, weaponReadyAt, 'the weapon cooldown is untouched');
+});
+
+test('holding primary fire repeats the shot at the weapon cooldown', async (t) => {
+  const client = await connectClient();
+  t.after(() => client.disconnect());
+  const welcomePromise = new Promise((resolve) => client.once('welcome', resolve));
+  client.emit('join', { heroId: 'sheriff' });
+  const { you: clientId } = await welcomePromise;
+  await nextState(client, (state) => state.players.some((player) => player.id === clientId));
+
+  const shots = [];
+  client.on('weapon_fired', (event) => {
+    if (event.playerId === clientId) shots.push({ ...event, at: Date.now() });
+  });
+  client.emit('primary_hold', true);
+  await new Promise((resolve) => setTimeout(resolve, 900));
+  client.emit('primary_hold', false);
+  const whileHeld = shots.length;
+  await new Promise((resolve) => setTimeout(resolve, 400));
+
+  assert.ok(whileHeld >= 2, `holding primary fire keeps shooting (got ${whileHeld} shots)`);
+  assert.ok(shots.every((shot) => shot.source === 'hold'), 'held shots are tagged so the client can play their sound');
+  assert.equal(shots.length, whileHeld, 'releasing the button stops the stream');
+  for (let index = 1; index < shots.length; index++) {
+    const gap = shots[index].at - shots[index - 1].at;
+    assert.ok(gap >= 240, `shots respect the 270ms revolver cooldown (gap ${gap}ms)`);
+  }
+});
+
+test('a held primary button does not cancel Shield Rush', async (t) => {
+  const client = await connectClient();
+  t.after(() => client.disconnect());
+  const welcomePromise = new Promise((resolve) => client.once('welcome', resolve));
+  client.emit('join', { heroId: 'guardian' });
+  const { you: clientId } = await welcomePromise;
+  await nextState(client, (state) => state.players.some((player) => player.id === clientId));
+
+  const player = server.heroLab.players.get(clientId);
+  let shots = 0;
+  client.on('weapon_fired', (event) => { if (event.playerId === clientId) shots += 1; });
+  // Hold first, so the ability starts while the button is already down - the
+  // case that used to cancel the dash on the next tick.
+  client.emit('primary_hold', true);
+  await new Promise((resolve) => setTimeout(resolve, 120));
+  assert.ok(shots > 0, 'the hold is live before the dash starts');
+  shots = 0;
+
+  client.emit('skill');
+  await nextState(client, (state) => state.players.find((candidate) => candidate.id === clientId)?.rushDashing);
+  await new Promise((resolve) => setTimeout(resolve, 120));
+
+  assert.ok(player.dashState, 'the dash is still running while the button is held');
+  assert.equal(shots, 0, 'holding fires nothing during the dash');
+  client.emit('primary_hold', false);
 });
 
 test('respawn selects a separated point on the campfire ring', async (t) => {
@@ -378,6 +627,9 @@ test('Guardian charge ramps into a mouse-triggered slam with the configured radi
   client.emit('ultimate');
   const state = await ramped;
   assert.equal(state.players.find((entry) => entry.id === you).guardianCharging, true);
+  // The charge keeps the normal invulnerability blink, so it must not be
+  // mistaken for the Shield Rush i-frames.
+  assert.equal(state.players.find((entry) => entry.id === you).rushIFrames, false);
   assert.ok(state.players.find((entry) => entry.id === you).guardianDamageRamp <= GUARDIAN_ULT_RAMP_CAP);
 
   const slam = new Promise((resolve, reject) => {
@@ -584,6 +836,47 @@ test('Hero Lab server maintains campfire in the middle and spawns zombie monster
   assert.equal(serverZombie.maxHp, expectedHp);
 });
 
+test('enemy count stays stable through spawn telegraphs and never flickers mid-wave', async (t) => {
+  const client = await connectClient();
+  t.after(() => client.disconnect());
+  await joinClient(client, 'sheriff');
+
+  // Stream every authoritative state frame for a few seconds so we capture the
+  // wave-1 spawn phase, where several telegraphs convert into live monsters.
+  const frames = [];
+  const onState = (state) => frames.push(state);
+  client.on('state', onState);
+  await new Promise((resolve) => setTimeout(resolve, 6000));
+  client.off('state', onState);
+
+  // Only judge running waves; the lobby and countdown report wave 0.
+  const waveFrames = frames.filter((s) => s.wave.number > 0 && !s.gameEnded);
+  assert.ok(waveFrames.length > 0, 'the run produced at least one wave frame');
+
+  let prev = null;
+  let lastWave = null;
+  for (const state of waveFrames) {
+    const realAlive = state.monsters.filter((m) => !m.isDummy).length;
+    const tel = state.spawnTelegraphs.length;
+    const remaining = state.wave.enemiesRemaining;
+
+    // The HUD number must always cover every live, queued, and telegraphing
+    // enemy. Omitting telegraphs (the old bug) let it dip below this floor at
+    // every spawn, then jump back — the "17 ↔ 18" flicker.
+    assert.ok(remaining >= realAlive + tel,
+      `enemy count ${remaining} dipped below alive+telegraph ${realAlive + tel} at wave ${state.wave.number}`);
+
+    // Within a single wave the count is non-increasing: it only falls when a
+    // monster dies, never climbs back as a telegraph becomes a live monster.
+    if (lastWave === state.wave.number && prev !== null) {
+      assert.ok(remaining <= prev,
+        `enemy count rose mid-wave from ${prev} to ${remaining} at wave ${state.wave.number} (flicker bug)`);
+    }
+    prev = remaining;
+    lastWave = state.wave.number;
+  }
+});
+
 test('campfire loss ends the run and returns everyone to the lobby', async (t) => {
   const first = await connectClient();
   const second = await connectClient();
@@ -621,6 +914,10 @@ test('Bombardier chooses the targeted bombing point with secondary fire', async 
   await nextState(client, (state) => state.players.some((p) => p.id === you));
   client.emit('ultimate');
   await nextState(client, (state) => state.players.find((p) => p.id === you)?.targeting);
+  // The client draws this marker as a clockwise sweep instead of an opacity
+  // ramp, and only for the Bombardier's own ultimate, so the telegraph has to
+  // name the source hero.
+  const telegraph = new Promise((resolve) => client.once('area_telegraph', resolve));
   client.emit('fire', 'secondary', { x: 900, y: 400 });
   const targeted = await nextState(client, (state) => state.effects?.length === 1);
   assert.equal(targeted.players.find((p) => p.id === you).targeting, false);
@@ -628,6 +925,10 @@ test('Bombardier chooses the targeted bombing point with secondary fire', async 
   assert.equal(targeted.effects[0].x, 900);
   assert.equal(targeted.effects[0].y, 400);
   assert.equal(targeted.effects[0].radius, 280);
+  const marker = await telegraph;
+  assert.equal(marker.sourceAbility, 'ultimate');
+  assert.equal(marker.sourceHeroId, 'bombardier', 'the sweep is keyed on the source hero');
+  assert.equal(marker.radius, 280);
 });
 
 test('heroes standing by the campfire slowly recover health', async (t) => {
@@ -659,7 +960,11 @@ test('wave buffs appear for a shared vote and a disconnected vote is removed', a
   await nextState(first, (state) => state.monsters.length > 0, 9000);
   // Clear the rest of the wave so the break (and its vote) can start without
   // waiting for every queued spawn.
-  server.heroLab.rooms.peekDefaultRoom().clearWave();
+  const sharedRoom = server.heroLab.rooms.peekDefaultRoom();
+  sharedRoom.clearWave();
+  // The break opens with a REST phase; skip it so the vote appears quickly.
+  await nextState(first, (state) => state.break?.phase === 'rest', 4000);
+  sharedRoom.skipBreakPhase();
   const voteState = await nextState(first, (state) => state.buffVote?.cards?.length === 3);
   const cards = voteState.buffVote.cards;
   assert.equal(new Set(cards.map((card) => card.id)).size, 3);

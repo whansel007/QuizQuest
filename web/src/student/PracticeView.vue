@@ -6,13 +6,13 @@
 import { ref, computed, onMounted, onUnmounted } from 'vue';
 import { S, api, setTab } from '../api.js';
 import { action } from '../ui.js';
-import Heading from '../components/Heading.vue';
 import Field from '../components/Field.vue';
 import { store, loadHome } from './home.js';
 import ClassPicker from './ClassPicker.vue';
 import WalletBadge from './WalletBadge.vue';
 import ResourceBadge from './ResourceBadge.vue';
 import QuizRunner from './QuizRunner.vue';
+import HeroIcon from './HeroIcon.vue';
 
 const error = ref('');
 const loaded = ref(false);
@@ -25,7 +25,7 @@ let alive = true;
 const home = computed(() => store.home);
 const cls = computed(() => home.value.classes.find((c) => c.id === S.classId));
 const resumable = computed(() => home.value.resumable?.find((s) => s.classId === S.classId));
-const pet = computed(() => home.value.catalog.pets.find((p) => p.id === home.value.inventory.equippedPet));
+const practiceHero = { id: 'player', emoji: '🐱' };
 
 onMounted(async () => {
   try {
@@ -52,23 +52,32 @@ const onStart = action(async () => {
 </script>
 
 <template>
-  <div v-if="error" class="note bad">{{ error }}</div>
+  <div v-if="error" class="note bad practice-page-message">{{ error }}</div>
   <QuizRunner v-else-if="quiz" :sid="quiz.sid" :initial="quiz.initial" />
-  <template v-else-if="loaded">
-    <Heading title="Practice"><ClassPicker /><WalletBadge /><ResourceBadge /></Heading>
-    <p v-if="!S.classId" class="note">You are not enrolled in any class yet. Enter the join code your professor gave you using <b>+ Join Class</b> above.</p>
-    <template v-else>
-      <div v-if="resumable" class="note small">
-        Unfinished session: {{ resumable.answered }} of {{ resumable.total }} answered. Timed questions keep their original deadline.
-        <button class="btn small" @click="onResume">Resume practice</button>
-      </div>
-      <div class="panel">
-        <div class="row top">
-          <div style="font-size: 48px">{{ pet.emoji }}</div>
-          <div class="grow">
-            <h3>Start a session</h3>
-            <p class="small muted">Your {{ pet.name }} attacks the Fog of Confusion each time you answer correctly. The timer is optional and is just for practice. Tip: number keys pick an answer.</p>
-            <div class="row">
+  <div v-else-if="loaded" class="practice-layout">
+    <section class="practice-controls" aria-label="Practice setup">
+      <header class="practice-lobby">
+        <div class="practice-lobby-row">
+          <div class="practice-class-picker"><ClassPicker /></div>
+        </div>
+        <div class="practice-resource-row" aria-label="Your resources">
+          <WalletBadge />
+          <ResourceBadge />
+        </div>
+      </header>
+
+      <template v-if="S.classId">
+        <div class="practice-settings-stack">
+          <section class="panel practice-settings">
+            <div class="practice-settings-heading">
+              <span class="practice-section-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none"><path d="M12 6.5c-2.2-1.7-5.5-2-9-1.2v13c3.5-.8 6.8-.5 9 1.2m0-13c2.2-1.7 5.5-2 9-1.2v13c-3.5-.8-6.8-.5-9 1.2m0-13v13" /></svg></span>
+              <div>
+                <span class="practice-kicker">READY WHEN YOU ARE</span>
+                <h2>Quiz details and settings</h2>
+                <p class="small muted">Choose your pace. Your cat-ball hero joins every practice round.</p>
+              </div>
+            </div>
+            <div class="practice-fields">
               <Field v-slot="{ id }" label="Length">
                 <select :id="id" v-model="length">
                   <option v-for="n in home.options.lengths" :key="n" :value="n">{{ n }} questions</option>
@@ -85,16 +94,43 @@ const onStart = action(async () => {
                 </select>
               </Field>
             </div>
-            <button class="btn primary" @click="onStart">Start practice</button>
-          </div>
+            <p v-if="cls?.participation" class="note small practice-participation">
+              Practice participation: {{ cls.participation.points }} point(s) so far. Sessions of 5+ questions earn one point (max {{ cls.participation.weeklyCap }} a week).
+            </p>
+          </section>
+          <section v-if="resumable" class="panel practice-resume-card">
+            <div>
+              <span class="practice-kicker">PICK UP WHERE YOU LEFT OFF</span>
+              <p>Unfinished session: {{ resumable.answered }} of {{ resumable.total }} answered. Timed questions keep their original deadline.</p>
+            </div>
+            <button class="btn small" @click="onResume">Resume practice</button>
+          </section>
         </div>
+        <footer class="practice-actions">
+          <button class="btn primary" @click="onStart">Start practice</button>
+          <button class="btn" @click="setTab('progress')">View my progress</button>
+        </footer>
+      </template>
+      <template v-else>
+        <section class="panel practice-settings practice-no-class">
+          <span class="practice-section-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none"><path d="M12 6.5c-2.2-1.7-5.5-2-9-1.2v13c3.5-.8 6.8-.5 9 1.2m0-13c2.2-1.7 5.5-2 9-1.2v13c-3.5-.8-6.8-.5-9 1.2m0-13v13" /></svg></span>
+          <div>
+            <span class="practice-kicker">YOUR NEXT ADVENTURE</span>
+            <h2>Join a class to begin</h2>
+            <p class="small muted">Enter the join code your professor gave you. Your practice questions and progress will appear here.</p>
+          </div>
+        </section>
+      </template>
+    </section>
+
+    <aside class="panel practice-hero" aria-label="Your cat-ball hero">
+      <span class="practice-hero-kicker">YOUR LEARNING COMPANION</span>
+      <div class="practice-hero-orbit" aria-hidden="true"></div>
+      <div class="practice-hero-art"><HeroIcon :hero="practiceHero" :size="340" :animated="true" label="Your cat-ball hero" /></div>
+      <div class="practice-hero-caption">
+        <strong>Cat-ball hero</strong>
+        <span>Ready for the next question</span>
       </div>
-      <div v-if="cls.participation" class="note small">Your professor counts practice participation for this class: {{ cls.participation.points }} point(s) so far. You get one per completed session of 5+ questions (max {{ cls.participation.weeklyCap }} a week). Your score doesn't affect it.</div>
-      <div class="panel">
-        <h3>See how your practice is going</h3>
-        <p class="small muted">My Progress shows your topic indicators, recent sessions and question report status.</p>
-        <button class="btn" @click="setTab('progress')">View my progress</button>
-      </div>
-    </template>
-  </template>
+    </aside>
+  </div>
 </template>
