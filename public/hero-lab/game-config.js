@@ -39,7 +39,10 @@ export const HERO_FX_COLORS = Object.freeze({
   pilot: { primary: '#ff9e45', highlight: '#ffe0a8' },
   bombardier: { primary: '#ff7838', highlight: '#ffd0a8' },
   bubbles: { primary: '#55dfff', highlight: '#c6f8ff' },
-  electromancer: { primary: '#6edcff', highlight: '#d4f7ff' },
+  // `core` is the white-hot centre of the orb's glow sprite. It is tinted
+  // toward the primary hue so the orb reads as one colour instead of a
+  // purple halo around a cool white dot.
+  electromancer: { primary: '#b17cff', highlight: '#e4d2ff', core: '#f7f2ff' },
 });
 
 // Ability button icons: the single source of truth for the HUD ability

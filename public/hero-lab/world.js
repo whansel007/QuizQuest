@@ -62,6 +62,7 @@ backgroundContext.strokeStyle = '#456f35';
 backgroundContext.lineWidth = 1;
 backgroundContext.strokeRect(0.5, 0.5, ARENA_WIDTH - 1, ARENA_HEIGHT - 1);
 const connectionStatus = document.querySelector('#connection-status');
+const enemyCount = document.querySelector('#enemy-count');
 const waveNumber = document.querySelector('#wave-number');
 const waveDetails = document.querySelector('#wave-details');
 const breakPill = document.querySelector('#break-pill');
@@ -1800,8 +1801,12 @@ function fireWeapon(mode) {
     return;
   }
   const player = state.players.find((candidate) => candidate.id === me);
-  if (player) showMuzzleFlash(player);
-  playSound('shoot', { pitchVariance: ARENA_TUNING.sound.shotPitchVariance });
+  // Shield Rush: M1 cancels the dash into the fan instead of firing Shield
+  // Bash, so that click gets no muzzle flash and no shot sound.
+  if (player && !player.rushDashing) {
+    showMuzzleFlash(player);
+    playSound('shoot', { pitchVariance: ARENA_TUNING.sound.shotPitchVariance });
+  }
   socket.emit('fire', mode);
 }
 
@@ -2206,12 +2211,15 @@ function updateHud(timestamp = performance.now()) {
   updateRoomHud();
   const phase = state.room?.phase;
   if (state.room && phase === 'lobby') {
+    setHudText(enemyCount, '—');
     setHudText(waveNumber, 'Lobby');
     setHudText(waveDetails, state.room.hostId === me ? 'Press START RUN when everyone is in' : 'Waiting for the host to start…');
   } else if (state.room && phase === 'countdown') {
+    setHudText(enemyCount, '0');
     setHudText(waveNumber, 'Get ready');
     setHudText(waveDetails, 'The first wave is coming');
   } else if (state.wave && waveNumber && waveDetails) {
+    setHudText(enemyCount, String(Math.max(0, state.wave.enemiesRemaining ?? 0)));
     setHudText(waveNumber, `Wave ${state.wave.number || 1}`);
     const breakPhase = state.break?.phase || null;
     if (state.buffVote) {
@@ -2223,13 +2231,14 @@ function updateHud(timestamp = performance.now()) {
     } else if (state.wave.nextWaveInMs > 0) {
       const remaining = Math.max(0, state.wave.nextWaveInMs - (timestamp - stateReceivedAt));
       setHudText(waveDetails, remaining > 300
-        ? `Wave cleared · Next wave in ${Math.ceil(remaining / 1000)}s`
+        ? `Next wave in ${Math.ceil(remaining / 1000)}s`
         : 'Next wave starting…');
     } else {
-      setHudText(waveDetails, `${state.wave.twist ? `${state.wave.twist.label} · ` : ''}Enemies left: ${state.wave.enemiesRemaining}`);
+      setHudText(waveDetails, state.wave.twist?.label || 'Keep the campfire safe');
     }
     updateBreakPill(state, breakPhase, timestamp);
   } else {
+    setHudText(enemyCount, '—');
     updateBreakPill(state, null, timestamp);
   }
   const fire = state.campfire;
@@ -2402,9 +2411,17 @@ function updateHud(timestamp = performance.now()) {
     const signature = `${vote.wave}:${voted}:${JSON.stringify(vote.votes)}:${vote.cards.map((card) => card.id).join(',')}:${towerLevel}`;
     if (signature !== lastBuffRender) {
       lastBuffRender = signature;
+      const buffIconAssets = {
+        maxHp: 'zeromancer/heart-plus.svg', attack: 'lorc/crossed-swords.svg', defense: 'sbed/shield.svg',
+        speed: 'darkzaitzev/running-ninja.svg', campfire: 'lorc/campfire.svg', thorns: 'lorc/thorny-vine.svg',
+        scavenger: 'zeromancer/heart-plus.svg', overcharge: 'willdabeast/chain-lightning.svg', rally: 'caro-asercion/french-horn.svg',
+        'glass-cannon': 'lorc/cannon.svg', 'second-wind': 'lorc/whirlwind.svg', 'life-steal': 'lorc/marrow-drain.svg',
+        ricochet: 'lorc/return-arrow.svg', volatile: 'lorc/bright-explosion.svg', 'powder-keg': 'darkzaitzev/smoke-bomb.svg',
+      };
       buffCards.replaceChildren(...vote.cards.map((card) => {
         const button = document.createElement('button'); button.className = `buff-card${card.rare ? ' rare' : ''}${voted === card.id ? ' selected' : ''}`;
         button.type = 'button'; button.disabled = Boolean(voted);
+        const icon = document.createElement('img'); icon.className = 'buff-card-icon'; icon.src = `/hero-lab/game-icons.net.svg/icons/ffffff/000000/1x1/${buffIconAssets[card.id] || 'lorc/campfire.svg'}`; icon.alt = ''; icon.setAttribute('aria-hidden', 'true');
         const title = document.createElement('strong'); title.textContent = `${card.rare ? '✨ ' : ''}${card.label}`;
         // The four scaled cards show the LOCAL player's own resulting value.
         const description = document.createElement('span'); description.textContent = scaledCardText(card);
@@ -2418,7 +2435,7 @@ function updateHud(timestamp = performance.now()) {
         }
         const tally = document.createElement('small'); tally.textContent = `${Object.values(vote.votes || {}).filter((id) => id === card.id).length} votes`;
         nodes.push(tally);
-        button.append(...nodes); button.addEventListener('click', () => socket.emit('buff_vote', card.id)); return button;
+        button.append(icon, ...nodes); button.addEventListener('click', () => socket.emit('buff_vote', card.id)); return button;
       }));
     }
   } else lastBuffRender = '';
@@ -2803,7 +2820,7 @@ function drawScene(timestamp) {
     if (progress >= 1) { areaEffects.splice(i, 1); continue; }
     // Color rules (config AREA_COLORS): enemy danger zones are strong red,
     // player area effects are bright yellow-orange, and the Electromancer's
-    // stun burst keeps its own blue FX color so its identity survives.
+    // stun burst keeps its own purple FX color so its identity survives.
     const electroStun = effect.sourceHeroId === 'electromancer' && effect.sourceAbility === 'skill';
     const danger = effect.kind === 'enemy';
     const stroke = electroStun ? HERO_FX_COLORS.electromancer.primary : danger ? AREA_COLORS.enemyStroke : AREA_COLORS.playerStroke;
@@ -2993,8 +3010,14 @@ function drawScene(timestamp) {
     context.textAlign = 'center';
     context.textBaseline = 'middle';
     context.fillStyle = '#222';
+    // Shield Rush's i-frames hold the sprite solid with no blink and no halo.
+    // The respawn strobe is tuned for a 2 s shield; across a 0.25 s hop the hero
+    // already reads as invulnerable from the movement, and the strobe just made
+    // the sprite flicker on and off.
+    const rushInvuln = Boolean(player.rushIFrames);
+    const invulnBlink = !rushInvuln && Math.floor(currentTime / ARENA_TUNING.respawn.flashIntervalMs) % 2 === 0;
     context.save();
-    if (player.invulnerable && Math.floor(currentTime / ARENA_TUNING.respawn.flashIntervalMs) % 2 === 0) context.globalAlpha = 0.35;
+    if (player.invulnerable && invulnBlink) context.globalAlpha = 0.35;
     if (!drawCachedHero(context, heroSpriteCache, player, center.x - player.aim.x * recoil, center.y - player.aim.y * recoil, visualState)) {
       context.fillText(player.emoji, center.x - player.aim.x * recoil, center.y - player.aim.y * recoil);
     }
@@ -3070,7 +3093,9 @@ function drawScene(timestamp) {
     }
     context.font = '12px sans-serif';
     context.fillText(player.name, center.x, center.y + 30);
-    if ((player.invulnerable || player.ultimateFlash) && Math.floor(currentTime / ARENA_TUNING.respawn.flashIntervalMs) % 2 === 0) {
+    // No i-frame halo during Shield Rush either: the hop itself is the cue, and
+    // `invulnBlink` is already false for it. Every other source still blinks.
+    if ((player.invulnerable || player.ultimateFlash) && invulnBlink) {
       context.save(); context.globalAlpha = 0.25; context.fillStyle = '#fff';
       context.beginPath(); context.arc(center.x, center.y, 25, 0, Math.PI * 2); context.fill(); context.restore();
     }
@@ -3182,7 +3207,7 @@ function drawScene(timestamp) {
     if (p.heroId === 'electromancer' && p.shape === 'orb') {
       // Cached glow sprite (rendered once per color) blitted with drawImage,
       // instead of building a radial gradient per orb per frame.
-      const sprite = glowSprite(HERO_FX_COLORS.electromancer.primary, '#f4fdff', HERO_FX_COLORS.electromancer.highlight);
+      const sprite = glowSprite(HERO_FX_COLORS.electromancer.primary, HERO_FX_COLORS.electromancer.core || '#f4fdff', HERO_FX_COLORS.electromancer.highlight);
       const glowRadius = p.radius * 2.1;
       context.save(); context.globalAlpha = 0.82;
       context.drawImage(sprite.canvas, p.x - glowRadius, p.y - glowRadius, glowRadius * 2, glowRadius * 2);

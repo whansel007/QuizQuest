@@ -38,7 +38,10 @@ const buildings = Object.entries(BUILDING_LAYOUT).map(([id, layout]) => ({ id, .
 const propsOnMap = TOWN_PROP_LAYOUT.map((p, index) => ({ ...p, id: `prop-${index}` }));
 const obstacles = [
   ...buildings.map((b) => ({ type: 'rect', x: b.x, y: b.y, w: b.w, h: b.h })),
-  ...propsOnMap.map((p) => ({ type: 'circle', x: p.x + p.w / 2, y: p.y + p.h * 0.68, r: Math.max(p.w, p.h) * (p.type === 'tree' ? 0.32 : 0.38) })),
+  ...propsOnMap.filter((p) => p.type !== 'flowers').map((p) => p.type === 'tree'
+    // Trees are solid at the trunk; the canopy can overlap the walking space.
+    ? { type: 'rect', x: p.x + p.w * 0.35, y: p.y + p.h * 0.48, w: p.w * 0.3, h: p.h * 0.5 }
+    : { type: 'circle', x: p.x + p.w / 2, y: p.y + p.h * 0.68, r: Math.max(p.w, p.h) * 0.34 }),
 ];
 const keys = new Set();
 const player = { x: 720, y: 518, facing: 1, path: [], waypoint: 0, moving: false };
@@ -268,16 +271,16 @@ function circleHitsRect(x, y, r, rect) {
   return ((x - nx) ** 2 + (y - ny) ** 2) < r ** 2;
 }
 
-function canStand(x, y, ignoreHeroId = null) {
-  if (x < TOWN_AVATAR_RADIUS || y < TOWN_AVATAR_RADIUS || x > TOWN_WIDTH - TOWN_AVATAR_RADIUS || y > TOWN_HEIGHT - TOWN_AVATAR_RADIUS) return false;
+function canStand(x, y, ignoreHeroId = null, radius = TOWN_AVATAR_RADIUS) {
+  if (x < radius || y < radius || x > TOWN_WIDTH - radius || y > TOWN_HEIGHT - radius) return false;
   for (const obstacle of obstacles) {
-    if (obstacle.type === 'rect' ? circleHitsRect(x, y, TOWN_AVATAR_RADIUS, obstacle) : Math.hypot(x - obstacle.x, y - obstacle.y) < TOWN_AVATAR_RADIUS + obstacle.r) return false;
+    if (obstacle.type === 'rect' ? circleHitsRect(x, y, radius, obstacle) : Math.hypot(x - obstacle.x, y - obstacle.y) < radius + obstacle.r) return false;
   }
   return wanderers.every((hero) => hero.id === ignoreHeroId || Math.hypot(x - hero.x, y - hero.y) >= TOWN_HERO_MIN_PLAYER_DISTANCE);
 }
 
 function canWanderStand(hero, x, y) {
-  if (!canStand(x, y, hero.id) || Math.hypot(x - player.x, y - player.y) < TOWN_HERO_MIN_PLAYER_DISTANCE) return false;
+  if (!canStand(x, y, hero.id, TOWN_HERO_AVATAR_RADIUS) || Math.hypot(x - player.x, y - player.y) < TOWN_HERO_MIN_PLAYER_DISTANCE) return false;
   return buildings.every((building) => Math.hypot(x - building.door.x, y - building.door.y) >= TOWN_DOOR_RADIUS + TOWN_HERO_AVATAR_RADIUS);
 }
 

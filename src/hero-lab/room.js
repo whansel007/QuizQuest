@@ -216,7 +216,7 @@ function createRoom({ io, services = null, id, code = null, isDefault = false, l
     resetGame();
     for (const player of players.values()) {
       player.hero = buildHero(player.heroId, player.user);
-      player.name = player.hero.name;
+      player.name = player.user?.name || player.hero.name;
       player.emoji = player.hero.emoji;
       player.kills = 0;
       player.damageDealt = 0;
@@ -1040,7 +1040,7 @@ function createRoom({ io, services = null, id, code = null, isDefault = false, l
       heroId,
       hero,
       user,
-      name: hero.name,
+      name: user?.name || hero.name,
       emoji: hero.emoji,
       x: spawn.x,
       y: spawn.y,
@@ -1208,13 +1208,14 @@ function createRoom({ io, services = null, id, code = null, isDefault = false, l
       if (players.size + waiting.size >= ROOM_MAX_PLAYERS) return full;
       const WaitingHeroClass = HERO_CLASSES[heroId];
       const hero = new WaitingHeroClass();
+      const displayName = user?.name || hero.name;
       waiting.set(socket.id, {
-        id: socket.id, heroId, name: hero.name, emoji: hero.emoji,
+        id: socket.id, heroId, name: displayName, emoji: hero.emoji,
         accountId: user?.id || null, user, joinedAt: now,
       });
       socket.emit('welcome', welcomePayload(socket, true));
-      nsp.emit('player_waiting', { playerId: socket.id, heroId, name: hero.name, emoji: hero.emoji });
-      log(`[Hero Lab] ${hero.name} waiting in ${id} (wave ${waveNumber})`);
+      nsp.emit('player_waiting', { playerId: socket.id, heroId, name: displayName, emoji: hero.emoji });
+      log(`[Hero Lab] ${displayName} waiting in ${id} (wave ${waveNumber})`);
       broadcastState(now);
       return { ok: true, waiting: true };
     }
@@ -1249,7 +1250,7 @@ function createRoom({ io, services = null, id, code = null, isDefault = false, l
     if (entry) {
       const preview = new HERO_CLASSES[heroId]();
       entry.heroId = heroId;
-      entry.name = preview.name;
+      entry.name = entry.user?.name || preview.name;
       entry.emoji = preview.emoji;
       broadcastState(now);
       return { ok: true, waiting: true };
@@ -1261,7 +1262,6 @@ function createRoom({ io, services = null, id, code = null, isDefault = false, l
     hero.position = { x: player.x, y: player.y };
     player.hero = hero;
     player.heroId = heroId;
-    player.name = hero.name;
     player.emoji = hero.emoji;
     // Derive the new hero's stats from the run's card list at its own Tower
     // level (a lobby swap normally has an empty list, so this is just base stats).
@@ -1275,7 +1275,7 @@ function createRoom({ io, services = null, id, code = null, isDefault = false, l
     player.pilotMechReady = true;
     player.sheriffBlastRefunds.clear();
     recomputeCampfire();
-    nsp.emit('hero_swapped', { playerId: player.id, heroId, name: hero.name, emoji: hero.emoji });
+    nsp.emit('hero_swapped', { playerId: player.id, heroId, name: player.name, emoji: hero.emoji });
     broadcastState(now);
     return { ok: true };
   }
@@ -1355,6 +1355,15 @@ function createRoom({ io, services = null, id, code = null, isDefault = false, l
       return;
     }
     if (mode !== 'primary') return;
+    // Guardian: primary fire during Shield Rush ends the dash on the spot and
+    // detonates the fan there, so the shockwave can land short of the full
+    // distance. It replaces the shield bash for that click and does not touch
+    // the weapon cooldown.
+    if (player.dashState?.guardianDash) {
+      endGuardianDash(player, now, false);
+      broadcastState(now);
+      return;
+    }
     if (player.bubbleRush) endBubbleRush(player, now);
     if (!player.hero.canUseAbility('weapon', now)) return;
     const result = player.hero.fire(mode, now);
@@ -1386,7 +1395,13 @@ function createRoom({ io, services = null, id, code = null, isDefault = false, l
     if (player.heroId === 'sheriff') player.sheriffDynamiteReady = false;
     nsp.emit('ability_used', { playerId: player.id, heroId: player.heroId, ability: 'skill' });
     if (skill.type === 'dash') {
-      if (skill.invulnerableMs > 0) player.hero.makeInvulnerable(skill.invulnerableMs, now);
+      if (skill.invulnerableMs > 0) {
+        player.hero.makeInvulnerable(skill.invulnerableMs, now);
+        // Shield Rush's i-frames are the hop plus its 0.3 s tail. Flag them so
+        // the client keeps the sprite solid: the generic respawn strobe reads
+        // as a rendering glitch across a 0.25 s dash.
+        if (player.heroId === 'guardian') player.hero.rushIFrameUntil = now + skill.invulnerableMs;
+      }
       if (skill.durationMs) player.dashState = { ...skill, guardianDash: player.heroId === 'guardian', until: now + skill.durationMs, startedAt: now, startX: player.x, startY: player.y, hit: new Set() };
       else {
         player.x = clamp(player.x + skill.direction.x * skill.distance, ARENA_CONFIG.radius, ARENA_CONFIG.width - ARENA_CONFIG.radius);
@@ -1667,6 +1682,21 @@ function createRoom({ io, services = null, id, code = null, isDefault = false, l
       durationMs: GAME_CONFIG.arenaTuning.heroTweaks.guardianFanFadeMs });
   }
 
+  // Ends a Shield Rush dash and fires its fan from wherever the Guardian is
+  // standing. atEnd = true snaps to the exact landing point so the dash always
+  // covers its full distance no matter how the tick grid lines up with the
+  // duration; atEnd = false stops at the interpolated position, which is what
+  // the M1 early cancel uses.
+  function endGuardianDash(player, now, atEnd) {
+    const dash = player.dashState;
+    if (!dash) return;
+    const frac = atEnd ? 1 : Math.min(1, Math.max(0, (now - dash.startedAt) / Math.max(1, dash.durationMs)));
+    player.x = clamp(dash.startX + dash.direction.x * dash.distance * frac, ARENA_CONFIG.radius, ARENA_CONFIG.width - ARENA_CONFIG.radius);
+    player.y = clamp(dash.startY + dash.direction.y * dash.distance * frac, ARENA_CONFIG.radius, ARENA_CONFIG.height - ARENA_CONFIG.radius);
+    player.dashState = null;
+    if (dash.fan && dash.fanDirection) applyGuardianFan(player, dash.fanDirection, dash.fan, now);
+  }
+
   function damageNearby(player, spec, now) {
     for (const monster of monsters.values()) {
       if (Math.hypot(monster.x-player.x, monster.y-player.y) > spec.distance + monster.radius) continue;
@@ -1783,7 +1813,10 @@ function createRoom({ io, services = null, id, code = null, isDefault = false, l
     return {
       wave: {
         number: waveNumber,
-        enemiesRemaining: enemyCount() + enemiesLeftToSpawn,
+        // Count enemies already alive, still in the spawn queue, and currently
+        // telegraphing into the arena. Omitting telegraphs made the HUD count
+        // briefly drop by one at every spawn, then jump back when it appeared.
+        enemiesRemaining: enemyCount() + enemiesLeftToSpawn + spawnTelegraphs.length,
         nextWaveInMs: nextWaveAt ? Math.max(0, nextWaveAt - now) : 0,
         twist: activeTwist,
       },
@@ -1847,7 +1880,7 @@ function createRoom({ io, services = null, id, code = null, isDefault = false, l
         trapped: Boolean(monster.trappedBy),
         skeletonWindupMs: Math.max(0, (monster.windupUntil || 0) - now),
       })),
-      players: [...players.values()].map(({ id, heroId, hero, name, emoji, x, y, aim, downed, disconnected, respawnRemainingMs, respawnDurationMs, respawnSpeedMultiplier, momentumActive, dawnWaiting, bubbleRush, wavesReached, wavesParticipated }) => ({
+      players: [...players.values()].map(({ id, heroId, hero, name, emoji, x, y, aim, downed, disconnected, respawnRemainingMs, respawnDurationMs, respawnSpeedMultiplier, momentumActive, dawnWaiting, bubbleRush, dashState, wavesReached, wavesParticipated }) => ({
         id, heroId, name, emoji: hero.visual || emoji, type: hero.type, x: Math.round(x), y: Math.round(y), aim: { ...aim },
         disconnected: Boolean(disconnected),
         wavesReached: wavesReached || 0, wavesParticipated: wavesParticipated || 0,
@@ -1862,6 +1895,12 @@ function createRoom({ io, services = null, id, code = null, isDefault = false, l
         dashing: heroId === 'guardian'
           ? (hero.dashingUntil > now || Boolean(players.get(id)?.dashState && players.get(id).dashState.until > now))
           : Boolean(players.get(id)?.dashState && players.get(id).dashState.until > now),
+        // Shield Rush specifically (not the Unbreakable Charge): M1 cancels it
+        // into the fan, so the client suppresses the shield-bash muzzle flash.
+        rushDashing: Boolean(dashState && dashState.guardianDash && dashState.until > now),
+        // The rush's i-frames (hop + 0.3 s). Excludes the ultimate charge, which
+        // keeps the normal invulnerability blink.
+        rushIFrames: Boolean(heroId === 'guardian' && hero.chargeUntil <= now && hero.rushIFrameUntil > now),
         downed: Boolean(downed), respawnRemainingMs: respawnRemainingMs || 0, respawnDurationMs: respawnDurationMs || 0,
         respawnSpeedMultiplier: respawnSpeedMultiplier || 1, momentumActive: Boolean(momentumActive), dawnWaiting: Boolean(dawnWaiting),
         bubbleRush: bubbleRush ? { remainingMs: Math.max(0, bubbleRush.endsAt - now), durationMs: bubbleRush.durationMs } : null,
@@ -1969,13 +2008,7 @@ function createRoom({ io, services = null, id, code = null, isDefault = false, l
       if (player.dashState) {
         const dash=player.dashState;
         if(now>=dash.until){
-          // Snap to the exact landing point so the dash always covers its full
-          // distance regardless of how the tick grid lines up with the duration.
-          player.x=clamp(dash.startX+dash.direction.x*dash.distance,ARENA_CONFIG.radius,ARENA_CONFIG.width-ARENA_CONFIG.radius);
-          player.y=clamp(dash.startY+dash.direction.y*dash.distance,ARENA_CONFIG.radius,ARENA_CONFIG.height-ARENA_CONFIG.radius);
-          const fan=dash.fan, fanDirection=dash.fanDirection;
-          player.dashState=null;
-          if(fan && fanDirection) applyGuardianFan(player, fanDirection, fan, now);
+          endGuardianDash(player, now, true);
         }
         else {
           const frac=Math.min(1,(now-dash.startedAt)/dash.durationMs);

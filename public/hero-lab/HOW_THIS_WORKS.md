@@ -23,7 +23,10 @@ route remains available for quick sandbox playtests.
   refunds 0.4 seconds from Dynamite's remaining cooldown per kill. Dynamite
   kills count; a single blast can refund at most 2 seconds total.
 - **Guardian:** a short-range shield bash, a quick mouse-aimed Shield Rush dash
-  that ends in a fan shockwave, and a steerable invulnerable charge. Unstoppable
+  that ends in a fan shockwave, and a steerable invulnerable charge. Pressing
+  primary fire during the Shield Rush hop ends the dash on the spot and sets the
+  fan off there, so the shockwave can be placed short of the full distance
+  (that click fires no shield bash). Unstoppable
   now applies only to the charge: a kill during Unbreakable Charge extends its
   timer and shows a `+time` popup, within the existing cap. The skill itself no
   longer extends on kills. Each Unbreakable Charge hit increases damage to later
@@ -239,6 +242,8 @@ root. For a manual playtest:
 2. Choose Guardian. Dash with E and steerable-charge with Q. Confirm the
    trail and invulnerability on both. On E, check the fan shockwave at the
    landing point and that enemies are pushed (brutes less, bosses not at all).
+   Then press E again and click primary fire halfway through the hop: the dash
+   stops where it is, the fan fires from there, and no shield bash comes out.
    Confirm the `+time` popup appears only on Q kills, not on E. Chain Q kills,
    check the ramp pill and end slam, and verify the configured dash cap.
 3. Choose Pilot. Fire at a group up close and at range to compare the shotgun.

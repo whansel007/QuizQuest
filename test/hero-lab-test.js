@@ -309,6 +309,7 @@ test('Guardian Shield Rush is a 300px aimed dash with i-frames and no path damag
   assert.ok(after.x > before.x + GUARDIAN_RUSH_DISTANCE - 5, 'dash travels the full 300px');
   assert.ok(Math.abs(after.y - before.y) < 1, 'dash locks to the cast aim, no steering');
   assert.equal(after.invulnerable, true, 'dash plus 0.3s i-frames are active');
+  assert.equal(after.rushIFrames, true, 'the i-frames are flagged as the rush so the client keeps the sprite solid');
   assert.equal(player.hero.chargeUntil, 0, 'the skill does not touch the ultimate charge');
 });
 
@@ -353,6 +354,43 @@ test('Guardian Shield Rush fan deals 1.0x damage and pushes enemies away', async
   const pushed = server.heroLab.monsters.get(monster.id);
   assert.ok(pushed.hp < initialHp, 'the fan deals 1.0x attack damage');
   assert.ok(pushed.x > initialX + 5, 'the fan pushes the enemy radially away from the landing point');
+});
+
+test('primary fire during Shield Rush ends the dash early and fires the fan there', async (t) => {
+  const client = await connectClient();
+  t.after(() => client.disconnect());
+  const welcomePromise = new Promise((resolve) => client.once('welcome', resolve));
+  client.emit('join', { heroId: 'guardian' });
+  const { you: clientId } = await welcomePromise;
+  await nextState(client, (state) => state.players.some((player) => player.id === clientId));
+
+  const player = server.heroLab.players.get(clientId);
+  server.heroLab.monsters.clear();
+  const before = { x: player.x, y: player.y };
+  const weaponReadyAt = player.hero.cooldowns.weapon.readyAt;
+  const shots = [];
+  client.on('weapon_fired', (event) => shots.push(event));
+  // Register before casting: the fan fires as soon as the cancel lands.
+  const effectPromise = new Promise((resolve) => client.once('area_effect', resolve));
+
+  client.emit('aim', { x: 1, y: 0 });
+  client.emit('skill');
+  await new Promise((resolve) => setTimeout(resolve, 60));
+  client.emit('fire', 'primary');
+
+  const effect = await Promise.race([
+    effectPromise,
+    new Promise((_, reject) => setTimeout(() => reject(new Error('area_effect never fired within 3s')), 3000)),
+  ]);
+  const travelled = effect.x - before.x;
+  assert.equal(effect.sourceAbility, 'skill', 'the early end still fires the Shield Rush fan');
+  assert.ok(travelled >= 0, 'the cancel never moves the Guardian backwards');
+  assert.ok(travelled < GUARDIAN_RUSH_DISTANCE - 50,
+    `the fan fires short of the full ${GUARDIAN_RUSH_DISTANCE}px (travelled ${Math.round(travelled)}px)`);
+  assert.ok(Math.abs(effect.y - before.y) < 2, 'the cancel keeps the locked dash line');
+  assert.equal(player.dashState, null, 'the dash is over immediately, not left to expire');
+  assert.equal(shots.length, 0, 'that click fires no Shield Bash');
+  assert.equal(player.hero.cooldowns.weapon.readyAt, weaponReadyAt, 'the weapon cooldown is untouched');
 });
 
 test('respawn selects a separated point on the campfire ring', async (t) => {
@@ -535,6 +573,9 @@ test('Guardian charge ramps into a mouse-triggered slam with the configured radi
   client.emit('ultimate');
   const state = await ramped;
   assert.equal(state.players.find((entry) => entry.id === you).guardianCharging, true);
+  // The charge keeps the normal invulnerability blink, so it must not be
+  // mistaken for the Shield Rush i-frames.
+  assert.equal(state.players.find((entry) => entry.id === you).rushIFrames, false);
   assert.ok(state.players.find((entry) => entry.id === you).guardianDamageRamp <= GUARDIAN_ULT_RAMP_CAP);
 
   const slam = new Promise((resolve, reject) => {

@@ -37,7 +37,7 @@ Cooldowns below are the base server values, before run buffs and hero talents. W
 ### Guardian
 
 - **Shield Bash:** Throws a short-lived shield projectile (0.24 s) for 0.8× attack damage.
-- **Shield Rush (E):** A quick 300 px mouse-aimed hop over 0.25 s, invulnerable for the dash plus 0.3 s after. It ends in a 130° fan shockwave (210 px radius) dealing 1.0× attack damage and pushing enemies radially away — brutes are pushed half as far, bosses and the Brute King not at all. Each enemy is hit at most once. The old kill-extension on the skill is gone.
+- **Shield Rush (E):** A quick 300 px mouse-aimed hop over 0.25 s, invulnerable for the dash plus 0.3 s after. It ends in a 130° fan shockwave (210 px radius) dealing 1.0× attack damage and pushing enemies radially away — brutes are pushed half as far, bosses and the Brute King not at all. Each enemy is hit at most once. **Primary fire during the hop ends it on the spot and detonates the fan there**, so the shockwave can land short of the full 300 px; that click fires no Shield Bash and costs no weapon cooldown. The old kill-extension on the skill is gone.
 - **Unbreakable Charge (Q):** A steerable 6 s charge at 440 px/s with invulnerability. It hits the same enemy at most once every 0.35 s. Each hit increases damage to subsequent hits by 10%, up to +100%. Kills can extend the charge by 0.15 s each, up to 7.2 s total. When the charge ends, Guardian slams for 2× attack damage (before the ramp) in a 150 px radius, with knockback. Press Q again to end early. The optional 40% damage-reduction brace for 1.5 s after the dash is implemented but disabled by default.
 
 ### Pilot
@@ -62,7 +62,7 @@ Cooldowns below are the base server values, before run buffs and hero talents. W
 ### Electromancer
 
 - **Lightning Orb:** Fires a piercing orb (up to 2 pierces) with a 2.4 s lifetime.
-- **Stun Field (E):** Fires a blue projectile at 440 px/s. On detonation it deals 0.7× attack damage and stuns enemies in a 120 px radius for 1.9 s.
+- **Stun Field (E):** Fires a purple projectile at 440 px/s. On detonation it deals 0.7× attack damage and stuns enemies in a 120 px radius for 1.9 s.
 - **Chain Lightning (Q):** Deals 1.4× attack damage per hit and jumps every 0.26 s to nearby enemies within 220 px. It can chain through any number of enemies in range, hitting each target once per cast.
 - **Overload:** Each Chain Lightning hit refunds 4% of its 35 s base ultimate cooldown (1.4 s). Hitting a stunned enemy refunds twice that (2.8 s). Refunds are based on the base cooldown, so Rally does not increase them. Q cannot be cast again for at least 5 s after any cast, even if the cooldown refills sooner. Overload no longer adds damage to stunned targets.
 

@@ -218,9 +218,7 @@ async function closePrize() {
     const finishedIndex = activeSummaryEggIndex.value;
     if (!isCardRevealed(finishedIndex)) revealedCards.value = [...revealedCards.value, finishedIndex];
     const nextIndex = finishedIndex + 1;
-    prize.value = null;
     if (nextIndex < batchResults.value.length) {
-      await nextTick();
       startBatchReveal(nextIndex);
       return;
     }
@@ -402,7 +400,7 @@ onUnmounted(() => {
           <header class="summary-header"><div><p class="modal-kicker">THE ADVENTURER'S NOTES</p><h2 id="summary-title">{{ debugPreview ? 'Preview the haul' : 'Your ten discoveries' }}</h2></div><button type="button" class="modal-close" aria-label="Close results" @click.stop="closeSummary">×</button></header>
           <p class="summary-instruction">All ten discoveries are revealed and added to your traveling tale.</p>
           <div class="summary-grid" :style="{ '--summary-columns': summaryColumns, '--summary-slant': summarySlant + 'deg' }">
-            <article v-for="(row, index) in batchResults" :key="row.rollIndex || index" class="summary-card" :class="'rarity-' + row.rarity">
+            <article v-for="(row, index) in batchResults" :key="row.rollIndex || index" class="summary-card" :class="'rarity-' + row.rarity" :style="{ '--card-index': index }">
               <span class="summary-roll">{{ index + 1 }}</span>
               <HeroIcon v-if="row.type === 'hero' && row.hero" :hero="row.hero" :size="96" />
               <span v-else class="summary-resource" aria-hidden="true">{{ historyResource(row).emoji }}<small>×{{ row.amount }}</small></span>
@@ -457,14 +455,19 @@ onUnmounted(() => {
 .machine-overlay,.story-modal-shade { position:fixed; z-index:15; inset:0; display:grid; place-items:center; padding:20px; background:rgb(15 35 28 / 78%); }.machine-overlay-card { position:relative; width:min(420px,100%); padding:28px 18px 16px; background:#FBF2D8 url('/hero-lab/assets/storybook-paper.svg') repeat; background-size:144px 144px; border:3px solid #23382F; border-radius:14px; box-shadow:0 7px 0 #7A6545; }.machine-overlay-card :deep(.gm-wrap) { margin:0 auto; }
 .machine-skip { display:block; margin:16px auto 0; min-height:42px; }
 .summon-summary-shade { position:fixed; z-index:30; inset:0; display:grid; place-items:center; padding:20px; overflow:auto; background:rgb(11 27 27 / 88%); color:#FBF2D8; }
-.summon-summary-panel { width:min(1190px,100%); max-height:calc(100svh - 40px); overflow:auto; padding:20px 24px; background:linear-gradient(155deg,#182D32,#203B36 60%,#152B33); border:0; border-radius:14px; box-shadow:0 0 0 5px rgb(12 24 27 / 70%),0 16px 48px #071614; }
+.summon-summary-panel { width:min(1190px,100%); max-height:calc(100svh - 40px); overflow:auto; padding:20px 24px; background:radial-gradient(ellipse at 50% 0%,rgb(87 142 189 / 17%),transparent 54%),linear-gradient(155deg,#182D32,#203B36 60%,#152B33); border:0; border-radius:14px; box-shadow:0 0 0 5px rgb(12 24 27 / 70%),0 16px 48px #071614; animation:summary-panel-in .42s cubic-bezier(.2,.8,.25,1) both; }
 .summary-header { display:flex; align-items:center; justify-content:space-between; gap:15px; }.summary-header h2 { margin:0; color:#FBF2D8; font:700 clamp(26px,3vw,36px)/1 Georgia,'Palatino Linotype',serif; }.summary-instruction { margin:7px 0 12px; color:#D7DDC9; font-size:13px; }
 .summary-grid { display:grid; grid-template-columns:repeat(var(--summary-columns),minmax(0,1fr)); gap:10px; transform:skewY(var(--summary-slant)); }
-.summary-card { min-width:0; min-height:220px; position:relative; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:5px; padding:12px 8px; overflow:hidden; color:#FBF2D8; background:#233B3A; border:2px solid #B8C4B3; border-radius:8px; text-align:center; }
+.summary-card { --card-delay:calc(var(--card-index, 0) * 55ms); min-width:0; min-height:220px; position:relative; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:5px; padding:12px 8px; overflow:hidden; color:#FBF2D8; background:radial-gradient(ellipse at 50% 28%,rgb(116 180 220 / 12%),transparent 58%),#233B3A; border:2px solid #B8C4B3; border-radius:8px; text-align:center; animation:summary-card-in .5s cubic-bezier(.16,1,.3,1) both; animation-delay:var(--card-delay); transition:transform .18s ease,box-shadow .18s ease,filter .18s ease; }
+.summary-card:hover { z-index:2; transform:translateY(-5px) scale(1.018); filter:brightness(1.1); box-shadow:0 10px 24px rgb(0 0 0 / 28%); }
 .summary-card.rarity-rare { background:linear-gradient(145deg,#263B56,#33475C); border-color:#8CC4FF; box-shadow:inset 0 0 0 2px #8062A9; }.summary-card.rarity-epic { background:linear-gradient(145deg,#53452B,#766032); border:4px double #F2BA55; box-shadow:0 0 16px rgb(242 186 85 / 30%); }
 .summary-card.rarity-epic::before,.summary-card.rarity-epic::after { content:""; position:absolute; z-index:1; width:4px; height:4px; background:#FFE88A; image-rendering:pixelated; box-shadow:8px 0 #F2BA55,0 8px #F2BA55; }.summary-card.rarity-epic::before { top:12px; right:13px; }.summary-card.rarity-epic::after { bottom:18px; left:13px; transform:rotate(180deg); }
 .summary-roll { position:absolute; top:6px; left:8px; color:#D4C99E; font:700 10px ui-monospace,monospace; }
-.summary-resource { display:grid; place-items:center; font-size:43px; line-height:1; }.summary-resource small { margin-top:4px; font:800 12px Nunito,sans-serif; }.summary-card :deep(canvas) { max-width:100%; }.summary-name { max-width:100%; overflow-wrap:anywhere; font:700 16px/1.1 Georgia,'Palatino Linotype',serif; }.summary-stars { color:#F2BA55; letter-spacing:1px; }.summary-status { display:inline-block; max-width:100%; padding:4px 6px; border-radius:5px; font-size:10px; font-weight:900; }.summary-refunds { margin:12px 0 0; color:#FBE4A4; text-align:center; }.summary-footer { display:flex; justify-content:center; margin-top:12px; }
+.summary-resource { display:grid; place-items:center; font-size:43px; line-height:1; }.summary-resource small { margin-top:4px; font:800 12px Nunito,sans-serif; }.summary-card :deep(canvas) { max-width:100%; }.summary-name { max-width:100%; overflow-wrap:anywhere; font:700 16px/1.1 Georgia,'Palatino Linotype',serif; }.summary-stars { color:#F2BA55; letter-spacing:1px; animation:summary-star-glint 1.8s ease-in-out infinite alternate; }.summary-status { display:inline-block; max-width:100%; padding:4px 6px; border-radius:5px; font-size:10px; font-weight:900; }.summary-refunds { margin:12px 0 0; color:#FBE4A4; text-align:center; }.summary-footer { display:flex; justify-content:center; margin-top:12px; }.summary-footer .story-button { display:inline-flex; align-items:center; justify-content:center; width:max-content; min-width:0; min-height:42px; padding:8px 24px; }
+@keyframes summary-panel-in { from { opacity:0; transform:translateY(16px) scale(.985); } to { opacity:1; transform:translateY(0) scale(1); } }
+@keyframes summary-card-in { from { opacity:0; transform:translateY(18px) scale(.94); } to { opacity:1; transform:translateY(0) scale(1); } }
+@keyframes summary-star-glint { from { filter:brightness(.9); } to { filter:brightness(1.35) drop-shadow(0 0 5px rgb(242 186 85 / 55%)); } }
+@media (prefers-reduced-motion:reduce) { .summon-summary-panel,.summary-card,.summary-stars { animation:none; }.summary-card { transition:none; } }
 .story-modal-shade { z-index:20; }.story-modal { width:min(820px,100%); max-height:min(650px,calc(100svh - 36px)); overflow:auto; padding:20px 22px 18px; color:#23382F; background:#FBF2D8 url('/hero-lab/assets/storybook-paper.svg') repeat; background-size:144px 144px; border:3px solid #23382F; border-radius:15px 12px 16px 13px; box-shadow:0 7px 0 #7A6545; }
 .story-modal-header { display:flex; justify-content:space-between; align-items:center; gap:12px; margin-bottom:14px; }.story-modal-header h2 { margin:0; color:#254937; font:700 28px/1.05 Georgia,'Palatino Linotype',serif; }.modal-kicker { margin-bottom:4px; }
 .modal-close { width:36px; height:36px; padding:0; color:#23382F; background:#FFF8E4; border:2px solid #23382F; border-radius:8px; box-shadow:0 2px 0 #7A6545; font-size:23px; line-height:1; cursor:pointer; }

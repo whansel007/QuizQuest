@@ -17,15 +17,19 @@
     </div>
     <div id="player-roster" aria-label="Players in this room" hidden></div>
   </aside>
-  <aside id="wave-hud" aria-live="polite">
-    <strong id="wave-number">Wave 1</strong>
-    <span id="wave-details">Enemies left: --</span>
-    <div id="break-pill" hidden></div>
-  </aside>
-  <aside id="campfire-hud" aria-label="Campfire health">
-    <span>Campfire</span><span id="campfire-value">-- / --</span>
-    <div class="campfire-track"><span id="campfire-fill"></span></div>
-  </aside>
+  <section id="combat-hud" aria-label="Wave and campfire status">
+    <aside id="wave-hud" aria-live="polite">
+      <strong id="enemy-count" aria-label="Enemies remaining">--</strong>
+      <span class="enemy-count-label">ENEMIES LEFT</span>
+      <strong id="wave-number">Lobby</strong>
+      <span id="wave-details">Press START RUN when everyone is in</span>
+      <div id="break-pill" hidden></div>
+    </aside>
+    <aside id="campfire-hud" aria-label="Campfire health">
+      <div class="campfire-heading"><strong>Campfire</strong><span id="campfire-value">-- / --</span></div>
+      <div class="campfire-track"><span id="campfire-fill"></span></div>
+    </aside>
+  </section>
   <aside id="boss-hud" aria-label="Boss health" hidden><strong id="boss-name">Brute King</strong><div class="boss-track"><span id="boss-health-fill"></span></div><span id="boss-health-value"></span></aside>
   <div id="room-code-corner" hidden aria-label="Room code">
     <button id="room-code" type="button" title="Copy room code" aria-label="Copy room code">
@@ -120,9 +124,11 @@
     <span id="connection-status" role="status">Connecting…</span>
   </aside>
   <section id="buff-vote" hidden aria-label="Choose a team wave buff">
-    <strong id="buff-vote-title">Choose a team buff</strong>
-    <span id="buff-vote-status">Every player votes once. Ties are random.</span>
-    <div id="buff-cards"></div>
+    <div id="buff-vote-panel">
+      <strong id="buff-vote-title">Choose a team buff</strong>
+      <span id="buff-vote-status">Every player votes once. Ties are random.</span>
+      <div id="buff-cards"></div>
+    </div>
   </section>
   <div id="targeting-hint" hidden>Left-click to confirm bombing location · Esc to cancel</div>
   <div id="hud-debug-clusters" hidden aria-hidden="true"></div>
@@ -152,11 +158,14 @@
     </div>
   </section>
   <section id="session-summary" hidden aria-label="Session summary">
-    <strong>Nice session! Here is what you did</strong>
-    <p id="session-summary-text"></p>
-    <div class="run-result-actions">
-      <button id="session-stop" type="button">STOP</button>
-      <button id="session-keep-going" type="button">KEEP GOING</button>
+    <div class="session-summary-card">
+      <span class="session-summary-icon" aria-hidden="true">🔥</span>
+      <strong>Nice session! Here is what you did</strong>
+      <p id="session-summary-text"></p>
+      <div class="run-result-actions">
+        <button id="session-stop" type="button">STOP</button>
+        <button id="session-keep-going" type="button">KEEP GOING</button>
+      </div>
     </div>
   </section>
   <script src="/socket.io/socket.io.js"></script>

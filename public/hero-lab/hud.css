@@ -287,3 +287,413 @@ html, body { width: 100%; height: 100%; margin: 0; overflow: hidden; background:
   #room-code-corner { top: .55rem; right: .55rem; }
   #room-code b { font-size: 1rem; }
 }
+
+/* Storybook game HUD: parchment, ink outlines, and firm paper shadows. */
+:root {
+  --hud-ink: #23382F;
+  --hud-pine: #254937;
+  --hud-paper: #FBF2D8;
+  --hud-paper-light: #FFF8E4;
+  --hud-earth: #7A6545;
+  --hud-gold: #F2BA55;
+  --hud-blue: #6DB8CF;
+  --hud-paper-texture: url('/hero-lab/assets/storybook-paper.svg');
+}
+html, body { font-family: Nunito, 'Trebuchet MS', system-ui, sans-serif; }
+#hero-hud, #wave-hud, #campfire-hud, #boss-hud, #room-code-corner, #waiting-banner,
+#lobby-bar, #settings-panel, .info-card, .toast, #targeting-hint, #hud-debug-clusters {
+  color: var(--hud-ink);
+  background: var(--hud-paper) var(--hud-paper-texture) repeat;
+  background-size: 144px 144px;
+  border: 2px solid var(--hud-ink);
+  border-radius: 12px 10px 13px 11px;
+  box-shadow: 0 4px 0 var(--hud-earth), 0 8px 18px rgb(14 31 23 / 25%);
+}
+#hero-hud { min-width: min(270px, calc(100vw - 2rem)); padding: .72rem .88rem; gap: .42rem; }
+#hero-name { color: var(--hud-pine); font: 700 1.12rem/1.1 Georgia, 'Palatino Linotype', serif; }
+.health-row { color: var(--hud-ink); }
+.health-track, .campfire-track, .boss-track { background: #D8D3B9; border: 1px solid #867A5C; border-radius: 7px; }
+#health-fill { background: #7FAE58; }
+.campfire-track span { background: #7FAE58; }
+#player-roster { border-top: 1px dashed #9A8052; }
+.roster-row, .roster-row.me .roster-name { color: var(--hud-pine); }
+.roster-hp-value { color: #53654A; }
+.roster-row.me .roster-hp-fill { background: #7FAE58; }
+.roster-hp-fill { background: var(--hud-blue); }
+.roster-tag { color: var(--hud-ink); background: var(--hud-gold); }
+#wave-hud { min-width: 190px; padding: .55rem 1rem; }
+#wave-number { color: var(--hud-pine); font: 700 1.15rem/1.1 Georgia, 'Palatino Linotype', serif; }
+#wave-details { color: #52634A; }
+#break-pill { color: #563D1B; background: #F8D98B; border-color: #B58324; }
+#campfire-hud { color: var(--hud-ink); background: var(--hud-paper) var(--hud-paper-texture) repeat; background-size: 144px 144px; border: 2px solid var(--hud-ink); border-radius: 10px; box-shadow: 0 3px 0 var(--hud-earth); }
+#boss-hud { color: var(--hud-ink); background: #F7E4D5 var(--hud-paper-texture) repeat; background-size: 144px 144px; border: 2px solid #8A493B; border-radius: 10px; box-shadow: 0 3px 0 #7A4538; }
+.boss-track { background: #E2C6B4; }
+#boss-health-fill { background: linear-gradient(90deg, #D86F6B, #A8423B); }
+#room-code-corner { padding: .3rem .52rem; }
+#room-code { color: var(--hud-ink); background: var(--hud-paper-light); border: 1px solid #867A5C; border-radius: 6px; font-family: 'Cascadia Code', Consolas, monospace; }
+#room-code:hover, #room-code:focus-visible { background: #F8D98B; border-color: var(--hud-ink); }
+#room-code .room-code-label { color: #65764F; }
+#room-code-copied { color: var(--hud-pine); }
+#lobby-bar { color: var(--hud-ink); }
+#lobby-hero-label { color: #65764F; font-weight: 800; }
+#lobby-hero, #run-again-hero { color: var(--hud-ink); background: var(--hud-paper-light); border: 2px solid #867A5C; border-radius: 7px; }
+#start-run { color: var(--hud-ink); background: var(--hud-gold); border: 2px solid var(--hud-ink); border-radius: 7px 6px 8px 7px; box-shadow: 0 3px 0 var(--hud-earth); font: 800 .84rem Nunito, 'Trebuchet MS', sans-serif; }
+#start-run:hover:not(:disabled) { filter: brightness(1.06); transform: translateY(-1px); }
+#lobby-hint { color: #53634A; }
+#bottom-left-hud { color: var(--hud-ink); }
+#settings-button { color: var(--hud-ink); background: var(--hud-paper); border: 2px solid var(--hud-ink); box-shadow: 0 2px 0 var(--hud-earth); }
+#settings-panel { min-width: 220px; }
+#settings-panel strong, .info-card > strong { color: var(--hud-pine); font: 700 1rem Georgia, 'Palatino Linotype', serif; }
+#settings-panel input[type="range"] { accent-color: #548C66; }
+#settings-panel a, #icon-credits a { color: #315B78; }
+#icon-credits summary, #icon-credits p, #icon-credits li { color: #53634A; }
+#info-button { color: var(--hud-ink); }
+.info-circle { --fill-color: var(--hud-blue); color: var(--hud-ink); }
+.ability-circle { border-color: var(--hud-ink); box-shadow: 0 3px 0 var(--hud-earth), 0 6px 12px rgb(18 33 28 / 25%); }
+.ability-key { min-width: 28px; min-height: 20px; padding: 2px 6px; color: var(--hud-ink); background: var(--hud-paper); border: 1px solid var(--hud-ink); border-radius: 5px; text-shadow: none; box-shadow: 0 2px 0 var(--hud-earth); }
+#buff-icons { align-items: center; gap: .3rem; max-width: min(320px, 62vw); }
+.buff-icon { width: 2rem; height: 2rem; color: var(--hud-ink); background: var(--hud-paper) var(--hud-paper-texture) repeat; background-size: 96px 96px; border: 2px solid var(--hud-ink); border-radius: 7px; box-shadow: 0 2px 0 var(--hud-earth); font-size: 1.05rem; }
+#buff-vote { background: rgb(37 73 62 / 78%); color: var(--hud-ink); }
+#buff-vote-panel { display: grid; justify-items: center; gap: .65rem; width: min(1100px, calc(100vw - 36px)); max-height: calc(100svh - 36px); overflow: auto; padding: clamp(18px, 3vw, 32px); background: var(--hud-paper) var(--hud-paper-texture) repeat; background-size: 144px 144px; border: 3px solid var(--hud-ink); border-radius: 15px 12px 16px 13px; box-shadow: 0 7px 0 var(--hud-earth), 0 18px 48px rgb(5 20 13 / 45%); }
+#buff-vote-title { color: var(--hud-pine); font: 700 clamp(1.5rem, 3vw, 2.25rem)/1.05 Georgia, 'Palatino Linotype', serif; }
+#buff-vote-status { color: #53634A; font-size: .92rem; }
+#buff-cards { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); align-items: stretch; gap: 12px; width: 100%; }
+.buff-card { display: grid; grid-template-rows: auto auto 1fr auto auto; justify-items: center; align-content: start; align-items: start; min-width: 0; min-height: 245px; gap: .55rem; padding: 16px 14px; color: var(--hud-ink); background: var(--hud-paper-light) var(--hud-paper-texture) repeat; background-size: 128px 128px; border: 3px solid var(--hud-ink); border-radius: 12px 10px 13px 11px; box-shadow: 0 4px 0 var(--hud-earth); text-align: center; font: 500 .94rem/1.35 Nunito, 'Trebuchet MS', sans-serif; transition: transform .14s ease, box-shadow .14s ease, filter .14s ease; }
+.buff-card-icon { display: block; width: 48px; height: 48px; padding: 7px; object-fit: contain; background: #F1E5C2; border: 2px solid #8C805E; border-radius: 10px 8px 11px 9px; filter: brightness(0) saturate(100%) opacity(.78); }
+.buff-card > strong { color: var(--hud-pine); font: 700 1.12rem/1.1 Georgia, 'Palatino Linotype', serif; }
+.buff-card > span { align-self: start; color: #3D5140; }
+.buff-card small { color: #65764F; font-weight: 800; }
+.buff-card .buff-tower-line { color: #866123 !important; }
+.buff-card.rare { background: #FFF2D6 var(--hud-paper-texture) repeat; background-size: 128px 128px; border-color: #9C6823; box-shadow: 0 4px 0 #7A6545, inset 0 0 0 2px #F2BA55; }
+.buff-card.rare .buff-card-icon { background: #F8E1B7; border-color: #B58324; filter: brightness(0) saturate(100%) opacity(.84); }
+.buff-card.selected { background-color: #E4EFDA; border-color: #548C66; box-shadow: 0 4px 0 #557244, inset 0 0 0 2px #91B96A; }
+.buff-card:hover:not(:disabled), .buff-card:focus-visible { transform: translateY(-3px); box-shadow: 0 7px 0 var(--hud-earth); outline: 3px solid var(--hud-gold); outline-offset: 2px; }
+.buff-card:disabled { color: #637258; opacity: .78; }
+#join-briefing { color: var(--hud-ink); background: var(--hud-paper) var(--hud-paper-texture) repeat; background-size: 144px 144px; border: 3px solid var(--hud-ink); border-radius: 15px 12px 16px 13px; box-shadow: 0 7px 0 var(--hud-earth), 0 12px 36px #07161488; }
+#join-briefing > strong { color: var(--hud-pine); font: 700 1.5rem Georgia, 'Palatino Linotype', serif; }
+#join-briefing .briefing-tip, #howto-card .briefing-tip { color: #3D5140; }
+#join-briefing small { color: #65764F; }
+#stats-panel { width: min(300px, calc(100vw - 1.1rem)); }
+.info-card { gap: .35rem; padding: .72rem .82rem; font-size: .82rem; }
+#stats-card span, #stats-card .talent-info b { color: #53634A; }
+#stats-card b { color: var(--hud-ink); }
+#stats-card .talent-info { border-top: 1px dashed #9A8052; }
+#stats-card .talent-info em { color: var(--hud-pine); }
+#stats-card .talent-key { color: var(--hud-ink); background: #F3E4BD; border-color: #8C805E; }
+#info-close { color: var(--hud-pine); }
+#info-close:hover, #info-close:focus-visible { color: var(--hud-ink); background: #F2BA5555; }
+#connection-status { color: var(--hud-pine); background: var(--hud-paper); border: 1px solid var(--hud-ink); border-radius: 6px; }
+#waiting-banner { color: var(--hud-ink); }
+#waiting-banner strong { color: var(--hud-pine); font: 700 1.2rem Georgia, 'Palatino Linotype', serif; }
+#waiting-banner span { color: #53634A; }
+.toast { color: var(--hud-ink); background: var(--hud-paper) var(--hud-paper-texture) repeat; background-size: 128px 128px; border: 2px solid var(--hud-ink); }
+#targeting-hint { color: var(--hud-ink); }
+#countdown { color: var(--hud-paper); text-shadow: 0 3px 0 var(--hud-earth), 0 6px 24px #071614; }
+#milestone-dawn, #run-result, #session-summary { color: var(--hud-ink); background: rgb(37 73 62 / 82%); }
+#milestone-dawn > strong { color: #9A6821; font: 700 clamp(3rem, 10vw, 6rem) Georgia, 'Palatino Linotype', serif; text-shadow: 0 2px 0 #FBF2D8; }
+#run-result h1, #session-summary > strong { color: var(--hud-pine); font-family: Georgia, 'Palatino Linotype', serif; }
+#run-result, #session-summary, #milestone-dawn { align-content: center; }
+#run-result::before, #session-summary::before, #milestone-dawn::before { content: ''; position: absolute; z-index: -1; width: min(560px, calc(100vw - 32px)); height: min(640px, calc(100svh - 32px)); background: var(--hud-paper) var(--hud-paper-texture) repeat; background-size: 144px 144px; border: 3px solid var(--hud-ink); border-radius: 15px 12px 16px 13px; box-shadow: 0 7px 0 var(--hud-earth), 0 18px 48px rgb(5 20 13 / 45%); }
+.dawn-actions button, .run-result-actions button { color: var(--hud-ink); background: var(--hud-paper-light); border: 2px solid var(--hud-ink); border-radius: 8px 7px 9px 8px; box-shadow: 0 4px 0 var(--hud-earth); font: 800 1rem Nunito, 'Trebuchet MS', sans-serif; }
+.dawn-actions button:first-child, #run-again { color: var(--hud-ink); background: var(--hud-gold); }
+#run-again-hero { min-width: 210px; color: var(--hud-ink); background: var(--hud-paper-light); border: 2px solid #867A5C; }
+#ability-hud, .hud-debug-cluster { color: var(--hud-ink); }
+#hud-debug-clusters { color: var(--hud-ink); }
+.hud-debug-hero > strong { color: var(--hud-pine); }
+#settings-button:focus-visible, #start-run:focus-visible, .dawn-actions button:focus-visible, .run-result-actions button:focus-visible { outline: 3px solid var(--hud-gold); outline-offset: 3px; }
+@media (max-width: 850px) {
+  #buff-cards { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+@media (max-width: 600px) {
+  #buff-vote-panel { width: calc(100vw - 16px); max-height: calc(100svh - 16px); padding: 16px 12px; }
+  #buff-cards { grid-template-columns: 1fr; gap: 9px; }
+  .buff-card { grid-template-columns: 48px minmax(0, 1fr); grid-template-rows: auto auto auto auto; justify-items: start; align-items: center; min-height: 0; padding: 11px; text-align: left; }
+  .buff-card-icon { grid-column: 1; grid-row: 1 / span 3; }
+  .buff-card > strong, .buff-card > span, .buff-card > small { grid-column: 2; }
+  .buff-card > strong { align-self: end; }
+  .buff-card > span { align-self: start; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .buff-card { transition: none; }
+  .buff-card:hover:not(:disabled), .buff-card:focus-visible { transform: none; }
+}
+
+/* Quiet forest palette and a single, split combat status card. */
+:root {
+  --hud-ink: #25392D;
+  --hud-pine: #31543D;
+  --hud-paper: #D5E0C8;
+  --hud-paper-light: #E1E9D6;
+  --hud-earth: #536548;
+  --hud-gold: #C6A85D;
+  --hud-paper-texture: none;
+}
+#combat-hud {
+  position: fixed;
+  z-index: 1;
+  top: 1rem;
+  left: 50%;
+  display: grid;
+  width: min(560px, calc(100vw - 460px));
+  min-width: 400px;
+  grid-template-columns: minmax(118px, 1fr) minmax(0, 3fr);
+  align-items: stretch;
+  transform: translateX(-50%);
+  overflow: hidden;
+  color: var(--hud-ink);
+  background: linear-gradient(135deg, #D9E3CF, #C9D8BE);
+  border: 2px solid #354C37;
+  border-radius: 12px 10px 13px 11px;
+  box-shadow: 0 4px 0 #536548, 0 8px 18px rgb(14 31 23 / 22%);
+}
+#wave-hud {
+  position: relative;
+  top: auto;
+  left: auto;
+  display: grid;
+  min-width: 0;
+  justify-items: start;
+  align-content: center;
+  gap: .08rem;
+  padding: .55rem .75rem;
+  transform: none;
+  text-align: left;
+  background: transparent;
+  border: 0;
+  border-right: 1px dashed #718465;
+  border-radius: 0;
+  box-shadow: none;
+}
+#enemy-count {
+  color: #31543D;
+  font: 800 clamp(1.8rem, 3vw, 2.65rem)/.9 Nunito, 'Trebuchet MS', sans-serif;
+  font-variant-numeric: tabular-nums;
+}
+.enemy-count-label {
+  color: #617255;
+  font-size: .54rem;
+  font-weight: 900;
+  letter-spacing: .12em;
+}
+#wave-number {
+  margin-top: .2rem;
+  color: var(--hud-pine);
+  font: 700 .85rem/1.1 Georgia, 'Palatino Linotype', serif;
+}
+#wave-details { color: #53634A; font-size: .65rem; line-height: 1.15; }
+#break-pill {
+  position: static;
+  top: auto;
+  left: auto;
+  margin-top: .15rem;
+  padding: .05rem .42rem;
+  color: #354C37;
+  background: #B8CDAA;
+  border: 1px solid #758A68;
+  font-size: .61rem;
+}
+#campfire-hud {
+  position: relative;
+  top: auto;
+  left: auto;
+  display: grid;
+  width: auto;
+  grid-template-columns: minmax(0, 1fr);
+  align-content: center;
+  gap: .4rem;
+  padding: .65rem .9rem;
+  transform: none;
+  color: var(--hud-ink);
+  background: transparent;
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
+  font-size: .8rem;
+}
+.campfire-heading { display: flex; align-items: center; justify-content: space-between; gap: .75rem; }
+.campfire-heading strong { color: var(--hud-pine); font: 700 1rem Georgia, 'Palatino Linotype', serif; }
+.campfire-heading span { font-variant-numeric: tabular-nums; }
+.campfire-track { grid-column: auto; height: 13px; background: #AEBCA0; border-color: #708164; }
+.campfire-track span { background: #719B58; }
+#targeting-hint { top: 6rem; }
+@media (max-width: 850px) {
+  #combat-hud { width: min(500px, calc(100vw - 350px)); min-width: 360px; }
+}
+@media (max-width: 600px) {
+  #combat-hud {
+    top: 5.9rem;
+    left: .55rem;
+    width: calc(100vw - 1.1rem);
+    min-width: 0;
+    grid-template-columns: minmax(88px, 1fr) minmax(0, 3fr);
+    transform: none;
+  }
+  #wave-hud { padding: .45rem .6rem; }
+  #campfire-hud { padding: .55rem .65rem; }
+  #boss-hud { top: 10.5rem; }
+  #targeting-hint { top: 10.5rem; }
+}
+
+/* Buff vote cards use the deeper forest tones from the arena. The icon SVGs
+   ship with a black canvas and white glyph; screen blending removes the dark
+   canvas while keeping the white symbol legible on each forest card. */
+#buff-vote-panel {
+  color: #E8E8D4;
+  background: linear-gradient(145deg, #304A3A, #263F34);
+  border-color: #1D3329;
+  box-shadow: 0 7px 0 #1D3329, 0 18px 48px rgb(5 20 13 / 55%);
+}
+#buff-vote-title { color: #F0EAD2; }
+#buff-vote-status { color: #CFD8C3; }
+.buff-card {
+  color: #E8E8D4;
+  background: #435D49;
+  border-color: #243A2E;
+  box-shadow: 0 4px 0 #1D3329;
+}
+.buff-card-icon {
+  background: #B8C7AA;
+  border-color: #87977A;
+  filter: none;
+  mix-blend-mode: screen;
+}
+.buff-card > strong { color: #F1EBD5; }
+.buff-card > span { color: #D5DEC9; }
+.buff-card small { color: #C3D0B3; }
+.buff-card .buff-tower-line { color: #E5C875 !important; }
+.buff-card.rare {
+  color: #F3EBD6;
+  background: #5A4C32;
+  border-color: #A58A4A;
+  box-shadow: 0 4px 0 #392F21, inset 0 0 0 2px #B99A4C;
+}
+.buff-card.rare .buff-card-icon { background: #C8B681; border-color: #9C8248; filter: none; mix-blend-mode: screen; }
+.buff-card.selected {
+  background: #506B4C;
+  border-color: #91AA72;
+  box-shadow: 0 4px 0 #2A422F, inset 0 0 0 2px #748F5F;
+}
+.buff-card:disabled { color: #BFCBB3; opacity: .88; }
+.buff-card:hover:not(:disabled), .buff-card:focus-visible {
+  box-shadow: 0 7px 0 #1D3329;
+  outline-color: #B6C58E;
+}
+
+/* Extend the buff-card forest palette across the in-game panels. The ability
+   circles, their cooldown fills, and their key labels intentionally keep their
+   hero-specific colors. */
+#hero-hud, #combat-hud, #room-code-corner, #lobby-bar, #settings-panel,
+.info-card, #join-briefing, #waiting-banner, .toast, #targeting-hint,
+#hud-debug-clusters {
+  color: #E8E8D4;
+  background: #304A3A;
+  border-color: #1D3329;
+  box-shadow: 0 5px 0 #1D3329, 0 10px 24px rgb(5 20 13 / 42%);
+}
+#hero-name, #wave-number, #campfire-hud, #campfire-hud strong,
+#room-code-copied, #lobby-bar, #waiting-banner strong,
+#settings-panel strong, .info-card > strong, .hud-debug-hero > strong {
+  color: #F0EAD2;
+}
+.health-row, #wave-details, .enemy-count-label, .campfire-heading span,
+#waiting-banner span, #lobby-hint, #join-briefing small,
+#howto-card .briefing-tip, #stats-card span, #stats-card .talent-info b,
+#stats-card .stat-list, .roster-row, .roster-hp-value,
+#icon-credits summary, #icon-credits p, #icon-credits li {
+  color: #CFD8C3;
+}
+#player-roster { border-color: #71836C; }
+.roster-row.me .roster-name, #stats-card b, #stats-card .talent-info em { color: #F0EAD2; }
+.health-track, .campfire-track, .roster-hp-track { background: #20392D; border-color: #71836C; }
+.roster-hp-fill { background: #9DB68A; }
+.roster-row.me .roster-hp-fill, #health-fill, .campfire-track span { background: #83A96D; }
+#break-pill { color: #F0D994; background: #536344; border-color: #89976E; }
+#boss-hud { color: #F0EAD2; background: #3C4435; border-color: #8D6652; box-shadow: 0 5px 0 #27352B, 0 10px 24px rgb(5 20 13 / 42%); }
+#boss-hud strong, #boss-health-value { color: #F0EAD2; }
+#room-code { color: #F0EAD2; background: #405B46; border-color: #819276; }
+#room-code .room-code-label { color: #C7D4BA; }
+#room-code:hover, #room-code:focus-visible { background: #526D50; border-color: #B8C79D; }
+#lobby-hero, #run-again-hero { color: #F0EAD2; background: #435D49; border-color: #819276; }
+#settings-button { color: #F0EAD2; background: #435D49; border-color: #819276; box-shadow: 0 2px 0 #1D3329; }
+#settings-panel input[type="range"] { accent-color: #9DB68A; }
+#settings-panel a, #icon-credits a { color: #C4D6A8; }
+#info-close { color: #D5DEC9; }
+#info-close:hover, #info-close:focus-visible { color: #F0EAD2; background: #FFFFFF1A; }
+#howto-lead { color: #F0D994; }
+#stats-card .talent-info { border-color: #71836C; }
+#stats-card .talent-key { color: #F0EAD2; background: #405B46; border-color: #819276; }
+#connection-status { color: #E8E8D4; background: #304A3A; border-color: #819276; }
+.buff-icon { color: #F0EAD2; background: #435D49; border-color: #819276; box-shadow: 0 2px 0 #1D3329; }
+#kill-streak { color: #F0D994; background: #304A3A; }
+#targeting-hint { color: #F0EAD2; }
+#milestone-dawn, #run-result, #session-summary { color: #E8E8D4; background: rgb(24 45 34 / 91%); }
+#milestone-dawn > strong { color: #F0D994; }
+#run-result h1, #session-summary > strong { color: #F0EAD2; }
+#run-result::before, #session-summary::before, #milestone-dawn::before {
+  background: #304A3A;
+  border-color: #1D3329;
+  box-shadow: 0 7px 0 #1D3329, 0 18px 48px rgb(5 20 13 / 55%);
+}
+.dawn-actions button, .run-result-actions button {
+  color: #F0EAD2;
+  background: #435D49;
+  border-color: #819276;
+  box-shadow: 0 4px 0 #1D3329;
+}
+.dawn-actions button:first-child, #run-again { color: #F0EAD2; background: #596B43; }
+.info-circle { --fill-color: #536B50; }
+
+/* Center end-screen cards with real content wrappers so the decorative panel
+   cannot drift away from its text at different viewport sizes. */
+#run-result::before, #milestone-dawn::before {
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+}
+#session-summary::before { content: none; }
+#session-summary {
+  place-items: center;
+  align-content: center;
+  padding: 16px;
+  color: #E8E8D4;
+  background: rgb(24 45 34 / 91%);
+}
+.session-summary-card {
+  display: grid;
+  justify-items: center;
+  align-content: center;
+  gap: .8rem;
+  width: min(560px, 100%);
+  min-height: 290px;
+  padding: clamp(24px, 5vw, 42px);
+  color: #E8E8D4;
+  background: linear-gradient(145deg, #304A3A, #263F34);
+  border: 3px solid #1D3329;
+  border-radius: 15px 12px 16px 13px;
+  box-shadow: 0 7px 0 #1D3329, 0 18px 48px rgb(5 20 13 / 55%);
+  text-align: center;
+}
+.session-summary-icon { font-size: 2.5rem; line-height: 1; filter: drop-shadow(0 3px 0 #1D3329); }
+.session-summary-card > strong {
+  max-width: 100%;
+  color: #F0EAD2;
+  font: 700 clamp(1.35rem, 4vw, 2.15rem)/1.12 Georgia, 'Palatino Linotype', serif;
+  text-wrap: balance;
+}
+#session-summary-text, #run-result-message, #run-result-teaser, #run-result-stats, #run-result label {
+  color: #D5DEC9;
+}
+.session-summary-card .run-result-actions { margin-top: .25rem; }
+.session-summary-card .run-result-actions button {
+  min-width: 88px;
+  color: #F0EAD2;
+  background: #435D49;
+  border-color: #819276;
+}
+.session-summary-card .run-result-actions button:hover,
+.session-summary-card .run-result-actions button:focus-visible {
+  background: #526D50;
+}
+@media (max-width: 480px) {
+  .session-summary-card { min-height: 250px; padding: 24px 18px; }
+}

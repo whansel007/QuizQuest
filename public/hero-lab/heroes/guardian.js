@@ -7,6 +7,9 @@ export class Guardian extends Hero {
     super(setup('guardian', 'Guardian', '🛡️', 'physical'));
     this.spec = GAME_CONFIG.heroes.guardian; this.weaponName = 'Shield Bash'; this.skillName = 'Shield Rush'; this.ultimateName = 'Unbreakable Charge';
     this.chargeUntil = 0; this.lastChargeHit = new Map(); this.dashingUntil = 0; this.dashStartedAt = 0; this.dashCapUntil = 0;
+    // Set by the room when Shield Rush is cast: the end of its i-frame window.
+    // The client keeps the sprite solid for it instead of blinking.
+    this.rushIFrameUntil = 0;
   }
   fire() { return shot(this, { ...this.spec.shield, damage: this.attack * this.spec.shield.damageMultiplier }); }
   skill(now = Date.now()) {
