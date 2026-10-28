@@ -43,15 +43,15 @@ test('should not continue with an invalid email address', async ({ page }) => {
   await expect(page.getByText("That doesn't look like an email address.")).toBeVisible();
 });
 
-test('should sign the user out with Switch user then Log out', async ({ page }) => {
+test('should sign the user out with Log out', async ({ page }) => {
   await page.goto('/');
   await page.getByRole('textbox', { name: 'Email' }).fill('student03@quizquest.demo');
   await page.getByRole('button', { name: 'Continue' }).click();
   await page.locator('#login-password').fill('quizquest');
   await page.getByRole('button', { name: 'Sign in' }).click();
-  await page.getByRole('button', { name: 'Switch user' }).click();
-  // opening the menu alone must not sign out
-  await expect(page.getByRole('menuitem', { name: 'Log out' })).toBeVisible();
-  await page.getByRole('menuitem', { name: 'Log out' }).click();
+  // students land in the Kingdom, where the menu is tucked away until focused
+  const logout = page.getByRole('button', { name: 'Log out' });
+  await logout.focus();
+  await logout.click();
   await expect(page.getByRole('heading', { name: 'Log in to your account' })).toBeVisible();
 });

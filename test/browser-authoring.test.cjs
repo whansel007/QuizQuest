@@ -16,7 +16,7 @@ async function pickDemo(page, name) {
   for (const key of ['ArrowUp', 'ArrowUp', 'ArrowDown', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'ArrowLeft', 'ArrowRight', 'b', 'a', 'Enter']) await page.keyboard.press(key);
   await page.getByRole('heading', { name: 'Test accounts' }).waitFor();
   await page.getByRole('button', { name, exact: false }).click();
-  await page.getByRole('button', { name: 'Switch user', exact: true }).waitFor();
+  await page.getByRole('button', { name: 'Log out', exact: true }).waitFor();
 }
 const stems = [
   'A video call has enough capacity but responses are delayed. Which property explains this?',

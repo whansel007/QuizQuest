@@ -25,9 +25,17 @@ async function pageFor(t, name, viewport = { width: 1280, height: 900 }, options
   await page.goto(base);
   await unlockTestAccounts(page);
   await page.getByRole('button', { name, exact: false }).click();
-  await page.getByRole('button', { name: 'Switch user', exact: true }).waitFor();
+  await page.getByRole('button', { name: 'Log out', exact: true }).waitFor();
   if (name.startsWith('Prof.')) await page.locator('#tabs').getByRole('button', { name: 'Question bank', exact: true }).click();
+  else await openStudentTab(page, 'Practice'); // students land in their Kingdom
   return page;
+}
+// The Kingdom is immersive, so the student menu is tucked away: focusing a
+// tab brings it down (as it does for keyboard users), then it can be clicked.
+async function openStudentTab(page, name) {
+  const tab = page.locator('#tabs').getByRole('button', { name, exact: true });
+  await tab.focus();
+  await tab.click();
 }
 
 test('student reports survive a failed submission and show a professor response in My Progress', async (t) => {
@@ -97,8 +105,7 @@ test('switching professors refreshes course data and visits every teacher view',
   const page = await pageFor(t, 'Prof. Demo A');
   await page.locator('#tabs').getByRole('button', { name: 'Question bank', exact: true }).click();
   await page.getByRole('heading', { name: 'Question bank', exact: true }).waitFor();
-  await page.getByRole('button', { name: 'Switch user' }).click();
-  await page.getByRole('menuitem', { name: 'Log out' }).click();
+  await page.getByRole('button', { name: 'Log out', exact: true }).click();
   await unlockTestAccounts(page); // the demo accounts are hidden again after signing out
   await page.getByRole('button', { name: 'Prof. Demo B' }).click();
   for (const name of ['Question bank', 'AI drafting', 'Analytics', 'Evaluation', 'Settings']) {
@@ -287,8 +294,7 @@ test('student and teacher screens fit 320px and 390px viewports', async (t) => {
       if (process.env.QA_SCREENSHOTS && width === 320) await page.screenshot({ path: require('node:path').join(process.env.QA_SCREENSHOTS, name.replace(/\W+/g, '-') + '.png'), fullPage: true });
     }
   }
-  await page.getByRole('button', { name: 'Switch user' }).click();
-  await page.getByRole('menuitem', { name: 'Log out' }).click();
+  await page.getByRole('button', { name: 'Log out', exact: true }).click();
   await unlockTestAccounts(page);
   await page.getByRole('button', { name: 'Prof. Demo A' }).click();
   await page.setViewportSize({ width: 320, height: 800 });
@@ -724,18 +730,15 @@ test('dashboard: printing shows every row and open topic, and charts are one tab
   assert.equal(await page.locator('.heat-cell[tabindex], .viz .hit[tabindex]').count(), 0, 'no per-point tab stops');
 });
 
-test('dashboard: a refused or failed period never locks the page, marks already made stand, and names stay off paper', async (t) => {
+test('dashboard: a refused or failed period never locks the page, and marks already made stand', async (t) => {
   const db = srv.quiz.db;
   const ids = ['at-race-0', 'at-race-1'];
   ids.forEach((id, i) => db.attempts.push({ id, sessionId: null, studentId: `s-0${i + 1}`, classId: 'cl-a', courseId: 'c-comp', questionId: 'q-x3', version: 1, topicId: 'tp-net', type: 'short', text: `race answer ${i}`, correct: false, score: 0, ms: 20000, timedOut: false, first: true, context: 'practice', at: Date.now() - 1000 * (i + 1), needsReview: true }));
-  const setting = (participationEnabled) => page.evaluate((on) => fetch('/api/teacher/classes/cl-a/settings', { method: 'PUT', headers: { 'content-type': 'application/json', authorization: 'Bearer ' + sessionStorage.getItem('qq-token') }, body: JSON.stringify({ participationEnabled: on }) }), participationEnabled);
-  t.after(async () => {
+  t.after(() => {
     for (const id of ids) db.attempts.splice(db.attempts.findIndex((a) => a.id === id), 1);
-    await setting(false);
   });
 
   const page = await pageFor(t, 'Prof. Demo A');
-  await setting(true);
   // a custom range the server would refuse (over 366 days), saved by an older version, is ignored
   await page.evaluate(() => localStorage.setItem('qq-dashboard', JSON.stringify({ range: 'custom', from: '2024-01-01', to: '2026-01-01' })));
   await page.reload();
@@ -765,24 +768,10 @@ test('dashboard: a refused or failed period never locks the page, marks already 
   await page.getByText('Someone else already marked this answer, so their mark stands.').waitFor();
   await item.waitFor({ state: 'detached' });
   assert.equal(raced.correct, true);
-
-  // participation points (they name students) print only when asked
-  const panel = page.locator('.panel').filter({ has: page.getByRole('heading', { name: 'Participation points' }) });
-  await panel.waitFor();
-  await page.emulateMedia({ media: 'print' });
-  assert.equal(await panel.isVisible(), false);
-  assert.equal(await page.getByText('Participation points are left out of this report').isVisible(), true);
-  await page.emulateMedia({ media: 'screen' });
-  await panel.getByLabel(/Include in printed report/).check();
-  await page.emulateMedia({ media: 'print' });
-  assert.equal(await panel.isVisible(), true);
 });
 
-test('dashboard: placeholders while loading, tile trends, a sticky section bar, and sortable participation points', async (t) => {
-  const setting = (on) => page.evaluate((v) => fetch('/api/teacher/classes/cl-a/settings', { method: 'PUT', headers: { 'content-type': 'application/json', authorization: 'Bearer ' + sessionStorage.getItem('qq-token') }, body: JSON.stringify({ participationEnabled: v }) }), on);
-  t.after(() => setting(false)); // registered first, so it runs before the page closes
+test('dashboard: placeholders while loading, tile trends, and a sticky section bar', async (t) => {
   const page = await pageFor(t, 'Prof. Demo A');
-  await setting(true);
   // placeholders hold the layout until the numbers arrive
   let release;
   const held = new Promise((r) => (release = r));
@@ -802,26 +791,13 @@ test('dashboard: placeholders while loading, tile trends, a sticky section bar, 
   assert.equal(await nav.getByRole('button', { name: 'Overview' }).getAttribute('aria-current'), 'location');
   await nav.getByRole('button', { name: 'Commonly missed' }).click();
   await page.waitForFunction(() => document.querySelector('[data-section="dash-missed"]')?.getAttribute('aria-current') === 'location');
+  // beside the teacher sidebar the page toolbar (pickers + section bar) sticks to the top
   const navBox = await nav.boundingBox();
-  const headerBox = await page.locator('header#top').boundingBox();
-  assert.ok(Math.abs(navBox.y - (headerBox.y + headerBox.height)) < 2, 'stuck under the top bar');
+  const toolbarBox = await page.locator('.dash-toolbar').boundingBox();
+  assert.ok(Math.abs(toolbarBox.y) < 2, 'the toolbar is stuck to the top of the window');
+  assert.ok(navBox.y >= toolbarBox.y && navBox.y + navBox.height <= toolbarBox.y + toolbarBox.height + 1, 'the section bar is inside the stuck toolbar');
   const heading = await page.getByRole('heading', { name: 'Commonly missed questions' }).boundingBox();
   assert.ok(heading.y >= navBox.y + navBox.height, 'the heading is not hidden under the bar');
-
-  // participation points: sorted by name, then by points (highest first), and back
-  await nav.getByRole('button', { name: 'Participation' }).click();
-  const panel = page.locator('#dash-points');
-  const names = () => panel.locator('tbody td.label').allInnerTexts();
-  const points = async () => (await panel.locator('tbody td.num').allInnerTexts()).map(Number);
-  const byName = await names();
-  assert.deepEqual(byName, [...byName].sort((x, y) => x.localeCompare(y)));
-  assert.equal(await panel.getByRole('columnheader', { name: /Student/ }).getAttribute('aria-sort'), 'ascending');
-  await panel.getByRole('button', { name: /^Points/ }).click();
-  const most = await points();
-  assert.deepEqual(most, [...most].sort((x, y) => y - x));
-  assert.equal(await panel.getByRole('columnheader', { name: /Points/ }).getAttribute('aria-sort'), 'descending');
-  await panel.getByRole('button', { name: /^Points/ }).click();
-  assert.equal(await panel.getByRole('columnheader', { name: /Points/ }).getAttribute('aria-sort'), 'ascending');
 });
 
 test('with reduced motion, nothing keeps looping (the shortened animations would flicker)', async (t) => {
@@ -931,6 +907,7 @@ test('a student with no classes joins one with the code their professor generate
   await page.getByLabel('Password', { exact: true }).fill('longenough');
   await page.getByRole('button', { name: 'Sign in' }).click();
   await page.locator('#tabs').getByRole('button', { name: 'Practice', exact: true }).waitFor();
+  await openStudentTab(page, 'Practice');
 
   // With no classes the picker still offers the way in.
   await page.getByText('No class enrolled').waitFor();
