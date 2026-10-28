@@ -102,7 +102,7 @@ const outcomeText = (id) => course.value.topics.flatMap((t) => t.outcomes).find(
       <TopicManager v-if="topic" :course="course" @select="id => { S.topicId = id; rerender(); }" />
       <AuthoringWorkflow v-if="course.authoringEnabled && topic" :key="topic.id" :course="course" :topic="topic" :target="workflowTarget" />
       <ImportMaterials v-if="!course.authoringEnabled && topic" :key="topic.id" :course="course" :topic="topic" />
-      <details class="panel"><summary>Material library · Notes, images &amp; older files</summary><MaterialLibrary @changed="rerender" /></details>
+      <details class="panel"><summary>Material library · Notes, images &amp; older files</summary><MaterialLibrary embedded @changed="rerender" /></details>
       <div v-if="!course.authoringEnabled" class="panel">
         <div class="note small">
           <b>Drafter: </b>{{ course.drafter }}. {{ course.geminiEnabled ? '' : 'Set GEMINI_API_KEY in the server environment to use Gemini and unlock every format. ' }}The drafter only sees the retrieved chunks - never student names, grades or tools. Structure checks (and maths sampling) run in code; correctness is your call during review.

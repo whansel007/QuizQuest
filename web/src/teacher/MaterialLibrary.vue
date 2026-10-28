@@ -3,17 +3,26 @@
 // Source material, grouped by weekly topic: paste, PDF, scans & diagrams
 // ============================================================
 import { ref, reactive, computed, markRaw, onMounted } from 'vue';
-import { S, api, rerender } from '../api.js';
+import { S, api, rerender, setTab } from '../api.js';
 import { toast, action, when } from '../ui.js';
 import Field from '../components/Field.vue';
 import AsyncButton from '../components/AsyncButton.vue';
 import TopicOutcomeFields from './TopicOutcomeFields.vue';
+import CoursePicker from './CoursePicker.vue';
 import { loadCourses, currentCourse, initialTags, syncTopic, topicLabel, NEW } from './courses.js';
 import { loadPdfJs, toBase64 } from './pdf.js';
 import { pdfPageHasFigure } from './import-materials.js';
 
 const error = ref('');
 const emit = defineEmits(['changed']);
+// embedded: shown inside AI drafting, which already has its own page title
+const props = defineProps({ embedded: { type: Boolean, default: false } });
+// Jump to the related drafting or review work for one topic
+function openTopicIn(topicId, tab, filter = null) {
+  S.topicId = topicId;
+  if (filter) S.qFilter = filter;
+  setTab(tab);
+}
 const loaded = ref(false);
 const courses = ref([]);
 const course = ref(null);
@@ -230,107 +239,139 @@ const partLabel = (f, p) => p.title.split(f.legacy ? ' — ' : ' · ').slice(1).
   <template v-else-if="loaded">
     <p v-if="!course">You have no assigned courses.</p>
     <template v-else>
-      <button class="btn small" @click="refresh">Refresh material library</button>
-      <div class="panel">
-        <h3>Add notes or transcribe images</h3>
-        <p class="small muted">Material is stored separately from questions and treated as reference content only: instructions inside it are never followed. Long documents are split into chunks so drafting only uses the relevant parts.</p>
-        <p class="small muted">This panel reads the file in your browser and saves what it finds as a note. To upload a lecture file to the server, use <b>Upload Materials</b> instead: an uploaded file is kept with the topic and is what the knowledge report is built from.</p>
-        <Field label="Title" v-slot="{ id }"><input :id="id" v-model="title" type="text" placeholder="e.g. Week 3 notes: protocols" /></Field>
-        <div class="row top"><TopicOutcomeFields v-model:topic-id="tags.topicId" v-model:outcome-id="tags.outcomeId" v-model:topic-name="tags.topicName" v-model:topic-week="tags.topicWeek" v-model:outcome-text="tags.outcomeText" :course="course" allow-new /></div>
-        <div class="row top" style="margin-bottom: 12px">
-          <div class="panel grow" style="margin: 0; min-width: 240px">
-            <b>📄 PDF, read in your browser</b>
-            <p class="small muted">The text is pulled out here and saved as a note, not as a file. Scanned pages and pages with figures are detected, and AI can transcribe or describe them.</p>
-            <input type="file" accept="application/pdf" @change="onPdf" />
-          </div>
-          <div class="panel grow" style="margin: 0; min-width: 240px">
-            <b>🖼️ Scan or diagram image</b>
-            <p class="small muted">{{ course.geminiEnabled ? 'Gemini suggests text; you review it before saving.' : 'Needs GEMINI_API_KEY on the server (no offline OCR).' }} The image is read in your browser and saved as a note.</p>
-            <input ref="imgInput" type="file" accept="image/png,image/jpeg,image/webp" />
-            <div class="row" style="margin-top: 6px">
-              <select v-model="imgMode" style="width: auto" aria-label="Image mode">
-                <option value="text">Transcribe text (scanned page)</option>
-                <option value="diagram">Describe a diagram</option>
-              </select>
-              <AsyncButton class="btn" :disabled="!course.geminiEnabled" :run="transcribeImage">Transcribe</AsyncButton>
-            </div>
-          </div>
-        </div>
+      <div v-if="!embedded" class="t-toolbar">
+        <h2>Source material</h2>
+        <CoursePicker :courses="courses" />
+        <button class="btn" @click="refresh">Refresh material library</button>
+      </div>
+      <button v-else class="btn small" @click="refresh">Refresh material library</button>
+      <p v-if="!embedded" class="small muted t-readable">Lecture files are uploaded in <button class="linklike" @click="setTab('generate')">AI drafting</button>, where each topic's knowledge report is built. Here you can see every topic's material, add notes, and transcribe scans or diagrams.</p>
 
-        <div>
-          <template v-if="importBox">
-            <p v-if="importBox.progress" class="muted small">{{ importBox.progress }}</p>
-            <div v-else-if="importBox.error" class="note bad small">{{ importBox.error }}</div>
-            <div v-else-if="importBox.pages" class="panel" style="background: var(--bg)">
-              <div class="small muted">{{ importBox.pages.length }} page(s). Untick pages you don't want (e.g. title or reference pages).</div>
-              <div v-for="p in importBox.pages" :key="p.n" class="opt-row small">
-                <input v-model="p.checked" type="checkbox" :aria-label="`Include page ${p.n}`" />
-                <span class="grow">Page {{ p.n }}: <span v-if="p.scanned" class="badge draft">no text layer - looks scanned</span><template v-else>{{ `${p.text.length} characters - "${p.text.slice(0, 70)}…"` }} <span v-if="p.figure" class="badge draft">has a figure</span></template></span>
-                <AsyncButton v-if="p.scanned || p.figure" class="btn small" :disabled="!course.geminiEnabled" :title="course.geminiEnabled ? '' : 'Needs GEMINI_API_KEY on the server'" :run="transcribePage(p)">{{ p.scanned ? 'Transcribe with AI' : 'Describe figures with AI' }}</AsyncButton>
+      <div class="t-grid material-grid">
+        <!-- LIBRARY: what each topic already has -->
+        <section class="t-section span-7">
+          <div class="t-section-head"><h3>Library</h3><span class="t-desc">Material by weekly topic</span></div>
+          <div v-if="unsorted.length" class="panel lib-unsorted" style="border-color: var(--warn)">
+            <h4>Files not in a topic <span class="badge draft">{{ unsorted.length }}</span></h4>
+            <p class="small muted">Uploaded before weekly topics. Move each file into the week it was taught, so its topic's knowledge report uses it. Existing reports and questions are kept.</p>
+            <div v-for="f in unsorted" :key="f.key" class="unsorted-file">
+              <details class="grow">
+                <summary><b>{{ f.name }}</b> <span class="small muted">· {{ fileSummary(f) }}</span></summary>
+                <details v-for="p in f.parts" :key="p.id" style="margin: 6px 0 6px 16px">
+                  <summary>{{ partLabel(f, p) }} <span class="small muted">· {{ p.text.length }} chars</span></summary>
+                  <p class="small" style="white-space: pre-wrap; margin-top: 6px; max-height: 240px; overflow: auto">{{ p.text }}</p>
+                </details>
+              </details>
+              <div v-if="f.inUse && !f.legacy" class="row">
+                <select :value="moveTo[f.key] ?? S.topicId" @change="moveTo[f.key] = $event.target.value" style="width: auto; max-width: 100%" :aria-label="`Topic for ${f.name}`">
+                  <option value="" disabled>Move to topic…</option>
+                  <option v-for="t in course.topics" :key="t.id" :value="t.id">{{ topicLabel(t) }}</option>
+                </select>
+                <AsyncButton class="btn small" :disabled="!(moveTo[f.key] ?? S.topicId)" :run="moveFile(f)">Move</AsyncButton>
               </div>
-              <button class="btn primary small" style="margin-top: 8px" @click="addPages">Add selected pages</button>
             </div>
-            <template v-else-if="importBox.notes">
-              <div v-for="([cls, msg], i) in importBox.notes" :key="i" :class="cls">{{ msg }}</div>
-            </template>
-          </template>
-        </div>
-
-        <Field label="Text" v-slot="{ id }">
-          <textarea :id="id" v-model="text" rows="10" placeholder="Paste lecture notes here, or import a PDF / image below. Only use material you are authorised to use, and no student information." @input="preview = null"></textarea>
-          <span class="small muted">{{ text.length }} / 100000</span>
-        </Field>
-        <button class="btn" @click="showPreview">Preview</button>
-        <div>
-          <div v-if="preview" class="panel" style="background: var(--bg)">
-            <h3>Preview</h3>
-            <p class="small muted">{{ preview.summary }}</p>
-            <div style="max-height: 320px; overflow: auto">
-              <p v-for="(para, i) in preview.paras" :key="i" style="white-space: pre-wrap">{{ para }}</p>
-            </div>
-            <label :style="plainLabel"><input v-model="confirm" type="checkbox" /> I confirm this is authorised course material and contains no student personal data.</label>
-            <AsyncButton class="btn primary" :run="savePassage">Save passage</AsyncButton>
           </div>
-        </div>
-      </div>
-
-      <label v-if="replacedCount" :style="plainLabel"><input v-model="showReplaced" type="checkbox" /> Show {{ replacedCount }} replaced, removed or older import(s), kept for question history</label>
-      <div v-for="t in shownTopics" :key="t.id" class="panel">
-        <h3>{{ topicLabel(t) }} <span class="badge plain">{{ filesIn(t.id).filter((f) => f.inUse).length }} file(s)</span> <span v-if="manual(t.id).length" class="badge plain">{{ manual(t.id).length }} passage(s)</span></h3>
-        <p v-if="!filesIn(t.id).length && !manual(t.id).length" class="small muted">No material in this topic yet.</p>
-        <details v-for="f in filesIn(t.id)" :key="f.key" style="margin: 8px 0">
-          <summary><b>{{ f.name }}</b> <span class="small muted">· {{ fileSummary(f) }}</span></summary>
-          <details v-for="p in f.parts" :key="p.id" style="margin: 6px 0 6px 16px">
-            <summary>{{ partLabel(f, p) }} <span class="small muted">· {{ p.text.length }} chars · cited by {{ p.usedBy }}</span></summary>
-            <p class="small" style="white-space: pre-wrap; margin-top: 6px; max-height: 240px; overflow: auto">{{ p.text }}</p>
-          </details>
-        </details>
-        <details v-for="p in manual(t.id)" :key="p.id" style="margin: 8px 0">
-          <summary><b>{{ p.title }}</b> <span class="small muted">{{ `· ${t.outcomes.find((o) => o.id === p.outcomeId)?.text || 'no learning outcome'} · ${p.text.length} chars${p.origin && p.origin !== 'paste' ? ' · from ' + p.origin : ''} · cited by ${p.usedBy} question(s)` }}</span></summary>
-          <p class="small" style="white-space: pre-wrap; margin-top: 6px; max-height: 240px; overflow: auto">{{ p.text }}</p>
-          <AsyncButton class="btn small bad" :run="deletePassage(p)">Delete passage</AsyncButton>
-        </details>
-      </div>
-      <div v-if="unsorted.length" class="panel" style="border-color: var(--warn)">
-        <h3>Files not in a topic <span class="badge draft">{{ unsorted.length }}</span></h3>
-        <p class="small muted">Uploaded before weekly topics. Move each file into the week it was taught, so its topic's knowledge report uses it. Existing reports and questions are kept.</p>
-        <div v-for="f in unsorted" :key="f.key" class="unsorted-file">
-          <details class="grow">
-            <summary><b>{{ f.name }}</b> <span class="small muted">· {{ fileSummary(f) }}</span></summary>
-            <details v-for="p in f.parts" :key="p.id" style="margin: 6px 0 6px 16px">
-              <summary>{{ partLabel(f, p) }} <span class="small muted">· {{ p.text.length }} chars</span></summary>
-              <p class="small" style="white-space: pre-wrap; margin-top: 6px; max-height: 240px; overflow: auto">{{ p.text }}</p>
+          <label v-if="replacedCount" :style="plainLabel"><input v-model="showReplaced" type="checkbox" /> Show {{ replacedCount }} replaced, removed or older import(s), kept for question history</label>
+          <div v-for="t in shownTopics" :key="t.id" class="panel lib-topic">
+            <div class="lib-topic-head">
+              <h4>{{ topicLabel(t) }} <span class="badge plain">{{ filesIn(t.id).filter((f) => f.inUse).length }} file(s)</span> <span v-if="manual(t.id).length" class="badge plain">{{ manual(t.id).length }} passage(s)</span></h4>
+              <span v-if="!embedded" class="lib-actions">
+                <button class="btn small" type="button" @click="openTopicIn(t.id, 'generate')">Draft questions</button>
+                <button class="btn small" type="button" @click="openTopicIn(t.id, 'review', 'draft')">Review questions</button>
+              </span>
+            </div>
+            <p v-if="!filesIn(t.id).length && !manual(t.id).length" class="small muted">No material in this topic yet.</p>
+            <details v-for="f in filesIn(t.id)" :key="f.key" style="margin: 8px 0">
+              <summary><b>{{ f.name }}</b> <span class="small muted">· {{ fileSummary(f) }}</span></summary>
+              <details v-for="p in f.parts" :key="p.id" style="margin: 6px 0 6px 16px">
+                <summary>{{ partLabel(f, p) }} <span class="small muted">· {{ p.text.length }} chars · cited by {{ p.usedBy }}</span></summary>
+                <p class="small" style="white-space: pre-wrap; margin-top: 6px; max-height: 240px; overflow: auto">{{ p.text }}</p>
+              </details>
             </details>
-          </details>
-          <div v-if="f.inUse && !f.legacy" class="row">
-            <select :value="moveTo[f.key] ?? S.topicId" @change="moveTo[f.key] = $event.target.value" style="width: auto; max-width: 100%" :aria-label="`Topic for ${f.name}`">
-              <option value="" disabled>Move to topic…</option>
-              <option v-for="t in course.topics" :key="t.id" :value="t.id">{{ topicLabel(t) }}</option>
-            </select>
-            <AsyncButton class="btn small" :disabled="!(moveTo[f.key] ?? S.topicId)" :run="moveFile(f)">Move</AsyncButton>
+            <details v-for="p in manual(t.id)" :key="p.id" style="margin: 8px 0">
+              <summary><b>{{ p.title }}</b> <span class="small muted">{{ `· ${t.outcomes.find((o) => o.id === p.outcomeId)?.text || 'no learning outcome'} · ${p.text.length} chars${p.origin && p.origin !== 'paste' ? ' · from ' + p.origin : ''} · cited by ${p.usedBy} question(s)` }}</span></summary>
+              <p class="small" style="white-space: pre-wrap; margin-top: 6px; max-height: 240px; overflow: auto">{{ p.text }}</p>
+              <AsyncButton class="btn small bad" :run="deletePassage(p)">Delete passage</AsyncButton>
+            </details>
           </div>
-        </div>
+          <div v-if="!shownTopics.length && !unsorted.length" class="t-empty">No material yet. Add notes here, or upload lecture files in AI drafting.</div>
+        </section>
+
+        <!-- ADD MATERIAL: notes, PDFs read in the browser, scans and diagrams -->
+        <section class="t-section span-5">
+          <div class="t-section-head"><span class="t-desc">Add material</span></div>
+          <div class="panel">
+            <h3>Add notes or transcribe images</h3>
+            <p class="small muted">Material is stored separately from questions and treated as reference content only: instructions inside it are never followed. Long documents are split into chunks so drafting only uses the relevant parts.</p>
+            <p class="small muted">This panel reads the file in your browser and saves what it finds as a note. To upload a lecture file to the server, use <b>Upload Materials</b> instead: an uploaded file is kept with the topic and is what the knowledge report is built from.</p>
+            <Field label="Title" v-slot="{ id }"><input :id="id" v-model="title" type="text" placeholder="e.g. Week 3 notes: protocols" /></Field>
+            <div class="row top"><TopicOutcomeFields v-model:topic-id="tags.topicId" v-model:outcome-id="tags.outcomeId" v-model:topic-name="tags.topicName" v-model:topic-week="tags.topicWeek" v-model:outcome-text="tags.outcomeText" :course="course" allow-new /></div>
+            <div class="import-options">
+            <div class="panel import-option">
+              <b>📄 PDF, read in your browser</b>
+              <p class="small muted">The text is pulled out here and saved as a note, not as a file. Scanned pages and pages with figures are detected, and AI can transcribe or describe them.</p>
+              <input type="file" accept="application/pdf" @change="onPdf" />
+            </div>
+            <div class="panel import-option">
+              <b>🖼️ Scan or diagram image</b>
+              <p class="small muted">{{ course.geminiEnabled ? 'Gemini suggests text; you review it before saving.' : 'Needs GEMINI_API_KEY on the server (no offline OCR).' }} The image is read in your browser and saved as a note.</p>
+              <input ref="imgInput" type="file" accept="image/png,image/jpeg,image/webp" />
+              <div class="row" style="margin-top: 6px">
+                <select v-model="imgMode" style="width: auto" aria-label="Image mode">
+                  <option value="text">Transcribe text (scanned page)</option>
+                  <option value="diagram">Describe a diagram</option>
+                </select>
+                <AsyncButton class="btn" :disabled="!course.geminiEnabled" :run="transcribeImage">Transcribe</AsyncButton>
+              </div>
+            </div>
+            </div>
+            <div>
+            <template v-if="importBox">
+              <p v-if="importBox.progress" class="muted small">{{ importBox.progress }}</p>
+              <div v-else-if="importBox.error" class="note bad small">{{ importBox.error }}</div>
+              <div v-else-if="importBox.pages" class="panel" style="background: var(--bg)">
+                <div class="small muted">{{ importBox.pages.length }} page(s). Untick pages you don't want (e.g. title or reference pages).</div>
+                <div v-for="p in importBox.pages" :key="p.n" class="opt-row small">
+                  <input v-model="p.checked" type="checkbox" :aria-label="`Include page ${p.n}`" />
+                  <span class="grow">Page {{ p.n }}: <span v-if="p.scanned" class="badge draft">no text layer - looks scanned</span><template v-else>{{ `${p.text.length} characters - "${p.text.slice(0, 70)}…"` }} <span v-if="p.figure" class="badge draft">has a figure</span></template></span>
+                  <AsyncButton v-if="p.scanned || p.figure" class="btn small" :disabled="!course.geminiEnabled" :title="course.geminiEnabled ? '' : 'Needs GEMINI_API_KEY on the server'" :run="transcribePage(p)">{{ p.scanned ? 'Transcribe with AI' : 'Describe figures with AI' }}</AsyncButton>
+                </div>
+                <button class="btn primary small" style="margin-top: 8px" @click="addPages">Add selected pages</button>
+              </div>
+              <template v-else-if="importBox.notes">
+                <div v-for="([cls, msg], i) in importBox.notes" :key="i" :class="cls">{{ msg }}</div>
+              </template>
+            </template>
+            </div>
+            <Field label="Text" v-slot="{ id }">
+              <textarea :id="id" v-model="text" rows="10" placeholder="Paste lecture notes here, or import a PDF / image below. Only use material you are authorised to use, and no student information." @input="preview = null"></textarea>
+              <span class="small muted">{{ text.length }} / 100000</span>
+            </Field>
+            <button class="btn" @click="showPreview">Preview</button>
+            <div>
+              <div v-if="preview" class="panel" style="background: var(--bg)">
+                <h3>Preview</h3>
+                <p class="small muted">{{ preview.summary }}</p>
+                <div style="max-height: 320px; overflow: auto">
+                  <p v-for="(para, i) in preview.paras" :key="i" style="white-space: pre-wrap">{{ para }}</p>
+                </div>
+                <label :style="plainLabel"><input v-model="confirm" type="checkbox" /> I confirm this is authorised course material and contains no student personal data.</label>
+                <AsyncButton class="btn primary" :run="savePassage">Save passage</AsyncButton>
+              </div>
+            </div>
+          </div>
+        </section>
       </div>
     </template>
   </template>
 </template>
+
+<style scoped>
+.material-grid { margin-top: 6px; }
+.lib-topic-head { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 8px; margin-bottom: 6px; }
+.lib-topic-head h4 { margin: 0 4px 0 0; font-size: 16px; }
+.lib-actions { display: flex; flex-wrap: wrap; gap: 6px; margin-left: auto; }
+.lib-topic, .lib-unsorted { margin-bottom: 12px; }
+.import-options { display: grid; gap: 10px; margin: 4px 0 12px; }
+.import-option { margin: 0; background: var(--bg); box-shadow: none; }
+</style>

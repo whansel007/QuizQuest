@@ -4,7 +4,7 @@ defineProps({ title: { type: String, required: true } });
 </script>
 
 <template>
-  <div class="row" style="margin-bottom: 14px">
+  <div class="row page-heading" style="margin-bottom: 14px">
     <h2 class="grow" style="margin: 0">{{ title }}</h2>
     <slot />
   </div>
