@@ -22,6 +22,11 @@ export default defineConfig({
   workers: 1, // tests in one browser share that browser's server and data
   // The HTML report is for local runs; CI reads the plain list instead.
   reporter: process.env.CI ? 'list' : 'html',
+  // Playwright's default is 30s per test. WebKit is the slowest engine here
+  // and a journey that answers a whole five-question session can cross 30s on
+  // a slow runner, which fails the test even though nothing is wrong. 60s
+  // still catches a real hang; the longest journeys also call test.slow().
+  timeout: 60 * 1000,
   use: {
     trace: 'on-first-retry',
   },

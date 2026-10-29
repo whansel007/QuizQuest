@@ -6,6 +6,8 @@ import { test, expect } from '@playwright/test';
 import { signIn, openTab, STUDENT } from './helpers.js';
 
 test('the World tab picks a hero and opens a lobby with a room code', async ({ page }) => {
+  // It waits for the server to hand out a room code: give it room.
+  test.slow();
   await signIn(page, STUDENT);
   await openTab(page, 'World');
   await expect(page.getByRole('heading', { name: 'The Clearing', exact: true })).toBeVisible();

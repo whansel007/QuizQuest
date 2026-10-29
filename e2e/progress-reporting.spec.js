@@ -3,6 +3,9 @@ import { test, expect } from '@playwright/test';
 import { signIn, openTab, answerCurrentQuestion, STUDENT, TEACHER } from './helpers.js';
 
 test('a student sees completed practice reflected in topic progress', async ({ page }) => {
+  // It answers a whole five-question session and then checks every topic, so
+  // it needs longer than the default budget on WebKit, the slowest engine.
+  test.slow();
   // Student 12 is seeded into Tutorial Group C with no attempts or sessions.
   await signIn(page, { email: 'student12@quizquest.demo', name: 'Student 12' });
   const baselineResponse = page.waitForResponse((response) =>
@@ -73,6 +76,8 @@ test('a student sees completed practice reflected in topic progress', async ({ p
 });
 
 test('a professor resolves a student report and the student refreshes to see the reply', async ({ browser }, testInfo) => {
+  // Two signed-in browsers and a report round trip: give it room.
+  test.slow();
   const baseURL = testInfo.project.use.baseURL;
   const studentContext = await browser.newContext({ baseURL });
   const professorContext = await browser.newContext({ baseURL });
