@@ -29,7 +29,7 @@ const GEN = {
   maxBatch: 10,
   dailyCallsPerCourse: 30,
   retries: 2, // re-ask the model this many times on malformed output
-  promptVersion: 'v6',
+  promptVersion: 'v7',
   aiFormats: ['mcq', 'tf', 'multi', 'numeric', 'short', 'param'],
 };
 
@@ -156,7 +156,8 @@ function generationRules(sourceKind) {
     '- Difficulty: aim for a useful mix of cognitive demands supported by the material, including easy questions where educationally useful. Do not force a medium/hard quota. ' + DIFFICULTY_RULES + ' Solve the task before labelling it. Never inflate difficulty or add artificial steps to meet a mix.',
     '- Style: test understanding and application of concepts, coding and calculations rather than recall of definitions. Write coding or calculation questions only where the source supports them. When the assessment configuration asks for conceptual questions, write conceptual questions that test understanding instead of application tasks.',
     '- Coverage: cover different important topics and reasoning tasks from the source, giving each question a different concept where the source allows. Changing only the scenario, numbers or wording of the same decision is a duplicate.',
-    '- Sample questions in the source are illustrations of how ideas can be tested. Do not reproduce them or write light variations of them.',
+    "- Application material: where the source has an 'Applying these ideas' section, practical exercises, code examples with their behaviour or debugging cases, those hold the methods for application questions. Use them where the requested style and learning outcome call for application; do not turn every concept into an application task.",
+    '- Sample questions in the source are illustrations of how ideas can be tested. Do not reproduce them or write light variations of them. The same holds for source examples and exercises (including items labelled "Source example"): keep the method, but give an application question a new case, with different code, values, data or situation whose answer the same source-supported rule decides.',
     '- Plan the whole requested batch before writing: choose a supported principle and a learning purpose for each slot, solve it, then write the stem and options. Start from the principle, not a sample question. Shared terminology or methods are fine; avoid copying the sample task with only names or numbers changed.',
     '- Multi-select: each correct option must express a distinct proposition, not a synonym, restatement, or consequence already fully stated by another correct option. Check each option independently against the source before returning the batch.',
     '- Cite only passages actually needed to support the answer and explanation.',
