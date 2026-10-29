@@ -15,10 +15,10 @@ const files = ['server.js', ...['src', 'public', 'web/src', 'test', 'scripts', '
 // import would look like a syntax error instead of being a valid module.
 const esModule = (file) => file.startsWith(path.join('web', 'src') + path.sep) || file.startsWith('e2e' + path.sep);
 for (const file of files) {
-  const module = esModule(file);
+  const asModule = esModule(file);
   const result = spawnSync(process.execPath,
-    module ? ['--input-type=module', '--check'] : ['--check', file],
-    { input: module ? fs.readFileSync(file, 'utf8') : undefined, encoding: 'utf8' });
+    asModule ? ['--input-type=module', '--check'] : ['--check', file],
+    { input: asModule ? fs.readFileSync(file, 'utf8') : undefined, encoding: 'utf8' });
   if (result.status !== 0) {
     console.error(file, result.stderr || result.error);
     process.exit(1);
