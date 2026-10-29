@@ -14,7 +14,7 @@ import {
   drawHouse, drawRock, drawTrailSign, drawTree, drawWell,
 } from './kingdom/town-art.js';
 import { EMOTES, heroLine } from './kingdom/town-voices.js';
-import { AVATAR_COSMETIC_BY_ID } from '../../../config/avatar-cosmetics.js';
+import { AVATAR_COSMETIC_BY_ID } from './kingdom/avatar-cosmetics.js';
 import { playSound, setAudioOptions, warmUpAudio } from '../../../public/hero-lab/arena-audio.js';
 import {
   BUILDING_LAYOUT, TOWN_AVATAR_RADIUS, TOWN_DESTINATIONS, TOWN_DOOR_RADIUS, TOWN_GRASS_COLOR, TOWN_GREET_RADIUS,

@@ -75,6 +75,12 @@ combo, rewards or the wave counter.
 
 - Zombies walk to the campfire. Devils chase the nearest hero. Skeletons pause
   periodically to fire a red bullet at the nearest hero, then resume walking.
+- Shared crowd control is resolved by the server in `src/hero-lab/monster-effects.js`.
+  Pushes ease to their destination and stop at arena bounds or the campfire;
+  Brutes take half distance, dummies take 1.5×, and Kings/bosses are immune.
+  Holds stop movement and attacks, cancel a skeleton wind-up or Exploder fuse,
+  and prevent re-holding for 1.5 seconds after release. Slows affect movement
+  only and use the strongest active slow rather than stacking.
 - Heroes slowly recover health while standing near the campfire.
 - When a wave is cleared the break runs in three phases, so voting never eats
   into the downtime:

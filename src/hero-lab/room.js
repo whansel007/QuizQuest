@@ -1,6 +1,7 @@
 const { HERO_CLASSES } = require('../../public/hero-lab/hero-list.js');
 const { avatarVisual } = require('../quiz/avatar');
-const { GAME_CONFIG } = require('../../public/hero-lab/game-config.js');
+const { GAME_CONFIG, DEBUG_PUSH_DISTANCE_PX, DEBUG_PUSH_DURATION_MS,
+  DEBUG_STATUS_DURATION_MS, DEBUG_SLOW_PCT } = require('../../public/hero-lab/game-config.js');
 const {
   RESPAWN_RING_MIN, RESPAWN_RING_MAX, RESPAWN_MIN_SEPARATION, RESPAWN_CANDIDATE_ATTEMPTS,
   ROOM_MAX_PLAYERS, RECONNECT_GRACE_S, LOBBY_LATE_JOIN, LATE_JOIN_MAX_WAVE, LATE_JOIN_INVULNERABILITY_S,
@@ -15,6 +16,7 @@ const { Devil } = require('../../public/hero-lab/enemies/devil.js');
 const { Skeleton } = require('../../public/hero-lab/enemies/skeleton.js');
 const { EnemyProjectile } = require('../../public/hero-lab/projectiles/enemy-projectile.js');
 const { Brute, Exploder, BruteKing } = require('../../public/hero-lab/enemies/special.js');
+const { applyPush, applyHold, applySlow, stepMonsterEffects } = require('./monster-effects.js');
 
 const ARENA_CONFIG = {
   width: GAME_CONFIG.arena.width,
@@ -423,6 +425,8 @@ function createRoom({ io, services = null, id, code = null, isDefault = false, m
     for (const dummy of [...monsters.values()]) {
       if (!dummy.isDummy) continue;
       if (dummy.fadeStartedAt && now - dummy.fadeStartedAt >= DUMMY_FADE_MS) { monsters.delete(dummy.id); liveDummyCount -= 1; continue; }
+      stepMonsterEffects(dummy, now);
+      if (dummy.heldUntil > now) continue;
       for (const player of players.values()) {
         if (player.downed || player.disconnected) continue;
         const dx = dummy.x - player.x, dy = dummy.y - player.y;
@@ -446,6 +450,21 @@ function createRoom({ io, services = null, id, code = null, isDefault = false, m
       dummy.x = clamp(dummy.x, dummy.radius, ARENA_CONFIG.width - dummy.radius);
       dummy.y = clamp(dummy.y, dummy.radius, ARENA_CONFIG.height - dummy.radius);
     }
+  }
+
+  function roomApplyPush(entity, direction, distancePx, durationMs, opts = {}) {
+    return applyPush(entity, direction, distancePx, durationMs, {
+      ...opts, now: opts.now ?? Date.now(),
+      bounds: { minX: 0, minY: 0, maxX: ARENA_CONFIG.width, maxY: ARENA_CONFIG.height },
+      obstacles: opts.obstacles || [{ x: campfire.x, y: campfire.y, radius: campfire.radius }],
+    });
+  }
+
+  function roomApplyHold(entity, durationMs, sourceId, now = Date.now()) {
+    const wasFusing = Boolean(entity?.fuseUntil > now);
+    const held = applyHold(entity, durationMs, sourceId, now);
+    if (held && wasFusing) nsp.emit('area_telegraph_cancel', { sourceAbility: `exploder:${entity.id}` });
+    return held;
   }
 
   function dummyCount() {
@@ -1937,6 +1956,8 @@ function createRoom({ io, services = null, id, code = null, isDefault = false, m
         scale: monster.scale || 1,
         fuseRemainingMs: Math.max(0, (monster.fuseUntil || 0) - now),
         stunned: monster.stunnedUntil > now,
+        held: monster.heldUntil > now,
+        slowed: monster.slowUntil > now,
         trapped: Boolean(monster.trappedBy),
         skeletonWindupMs: Math.max(0, (monster.windupUntil || 0) - now),
       })),
@@ -2158,6 +2179,8 @@ function createRoom({ io, services = null, id, code = null, isDefault = false, m
     }
     for (const monster of monsters.values()) {
       if (monster.isDummy) continue;
+      stepMonsterEffects(monster, now);
+      if (monster.heldUntil > now || monster.pushMotion) continue;
       if (monster.dashPush) {
         const progress = Math.min(1, (now - monster.dashPush.startedAt) / monster.dashPush.durationMs);
         const eased = 1 - (1 - progress) * (1 - progress);
@@ -2185,7 +2208,7 @@ function createRoom({ io, services = null, id, code = null, isDefault = false, m
         const result = monster.update(dt, campfire, now);
         if (result === 'telegraph') nsp.emit('area_telegraph', { x: campfire.x, y: campfire.y,
           radius: GAME_CONFIG.arenaTuning.enemies.exploder.campfireRadius, kind: 'enemy',
-          telegraphMs: GAME_CONFIG.arenaTuning.enemies.exploder.fuseMs, sourceAbility: 'exploder' });
+          telegraphMs: GAME_CONFIG.arenaTuning.enemies.exploder.fuseMs, sourceAbility: `exploder:${monster.id}` });
         if (result === 'explode') {
           monsters.delete(monster.id);
           resolveEnemyBlast({ x: campfire.x, y: campfire.y, radius: GAME_CONFIG.arenaTuning.enemies.exploder.campfireRadius,
@@ -2253,7 +2276,7 @@ function createRoom({ io, services = null, id, code = null, isDefault = false, m
       }
       if (proj.trapTargetId) {
         const target = monsters.get(proj.trapTargetId);
-        if (target) { target.x = proj.x; target.y = proj.y; }
+        if (target && (target.heldUntil || 0) <= now) { target.x = proj.x; target.y = proj.y; }
         const travel = Math.hypot(proj.x - proj.trapOrigin.x, proj.y - proj.trapOrigin.y);
         if (target && (travel >= proj.trap.travelDistance || proj.dead)) {
           const finisher = target.hp <= proj.trap.finisherDamage;
@@ -2687,6 +2710,19 @@ function createRoom({ io, services = null, id, code = null, isDefault = false, m
     },
     spawnDummies: () => spawnDummies(Date.now()),
     debugSpawnEnemies,
+    applyDebugMonsterEffect: (effect, targetType) => {
+      if (!['push', 'hold', 'slow'].includes(effect) || !['enemy', 'dummy'].includes(targetType)) return false;
+      const target = [...monsters.values()].find((monster) => !monster.dead
+        && (targetType === 'dummy' ? monster.isDummy : !monster.isDummy));
+      if (!target) return false;
+      const now = Date.now();
+      const campfireVector = { fromX: campfire.x, fromY: campfire.y };
+      if (effect === 'push') roomApplyPush(target, campfireVector, DEBUG_PUSH_DISTANCE_PX, DEBUG_PUSH_DURATION_MS, { now });
+      else if (effect === 'hold') roomApplyHold(target, DEBUG_STATUS_DURATION_MS, 'debug', now);
+      else applySlow(target, DEBUG_SLOW_PCT, DEBUG_STATUS_DURATION_MS, 'debug', now);
+      broadcastState(now);
+      return true;
+    },
     debugKillAll,
     debugKillDummies,
     spawnTrialEnemy,

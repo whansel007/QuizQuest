@@ -28,6 +28,22 @@ import { ELECTRO_STUN_PROJECTILE_SCALE, ELECTRO_STUN_RADIUS_SCALE, PARTICLE_CAP,
   BASE_CAMPFIRE_HP, SUMMON_BANNER_TITLE, SUMMON_BANNER_SUBTITLE, SUMMON_BANNER_ORDER,
   SUMMON_MULTI_DISCOUNT, SUMMON_SHOW_DETAILS } from '../../config/tuning.js';
 
+// Shared crowd-control tuning. These named values are used by server-side
+// monster effects and by the client renderer for their matching indicators.
+export const HOLD_REHOLD_IMMUNITY_MS = 1500;
+export const HELD_ENEMY_TINT = '#b9a8d8';
+export const SLOWED_ENEMY_TINT = '#74d9d0';
+export const PUSH_DEFAULT_DURATION_MS = 150;
+export const DUMMY_PUSH_MULTIPLIER = 1.5;
+export const DEBUG_PUSH_DISTANCE_PX = 120;
+export const DEBUG_PUSH_DURATION_MS = 300;
+export const DEBUG_STATUS_DURATION_MS = 2000;
+export const DEBUG_SLOW_PCT = 0.3;
+export const HOLD_SWIRL_RADIUS_PX = 7;
+export const HOLD_SWIRL_Y_OFFSET_PX = 34;
+export const HOLD_SWIRL_LINE_WIDTH = 2;
+export const HOLD_SWIRL_SPRITE_SIZE = 32;
+
 // The only buff cards the Tower scales. Extend this list (one line) to make the
 // Tower scale another stat card later. The campfire card and all rare effect
 // cards are deliberately excluded.
@@ -224,6 +240,13 @@ export const ARENA_TUNING = Object.freeze({
 
 export const GAME_CONFIG = Object.freeze({
   heroFxColors: HERO_FX_COLORS,
+  effects: { holdReholdImmunityMs: HOLD_REHOLD_IMMUNITY_MS,
+    heldEnemyTint: HELD_ENEMY_TINT, slowedEnemyTint: SLOWED_ENEMY_TINT,
+    pushDefaultDurationMs: PUSH_DEFAULT_DURATION_MS, dummyPushMultiplier: DUMMY_PUSH_MULTIPLIER,
+    debugPushDistancePx: DEBUG_PUSH_DISTANCE_PX, debugPushDurationMs: DEBUG_PUSH_DURATION_MS,
+    debugStatusDurationMs: DEBUG_STATUS_DURATION_MS, debugSlowPct: DEBUG_SLOW_PCT,
+    holdSwirlRadiusPx: HOLD_SWIRL_RADIUS_PX, holdSwirlYOffsetPx: HOLD_SWIRL_Y_OFFSET_PX,
+    holdSwirlLineWidth: HOLD_SWIRL_LINE_WIDTH, holdSwirlSpriteSize: HOLD_SWIRL_SPRITE_SIZE },
   arenaTuning: ARENA_TUNING,
   arena: { width: 1920, height: 1080, playerRadius: 24, tickHz: 30 },
   heroDefaults: { hp: 100, attack: 10, defense: 5, speed: 220 },

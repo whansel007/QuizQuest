@@ -28,6 +28,17 @@ Cooldowns below are the base server values, before run buffs and hero talents. W
 | Bubbles | 0.105 s | 14 s | 35 s |
 | Electromancer | 0.525 s | 10 s | 35 s |
 
+## Shared monster effects
+
+New crowd-control abilities use the server-side helpers in
+[`src/hero-lab/monster-effects.js`](../../src/hero-lab/monster-effects.js).
+Pushes ease toward their destination and stop at arena edges or the campfire;
+Brutes normally take half distance, the Brute King and bosses do not move, and
+training dummies take 1.5× distance. Holds stop enemy movement and attacks,
+cancel a skeleton wind-up or Exploder fuse, and prevent another hold for 1.5 s
+after release. Brutes can be held, while the Brute King and bosses are immune.
+Slows reduce movement speed without stacking beyond the strongest active slow.
+
 ### Sheriff
 
 - **Revolver:** Fires one fast bullet. **Dynamite (E):** Throws a fast explosive with a 1.5 s lifetime and 115 px blast radius; it deals 1.6× attack damage.
@@ -125,6 +136,7 @@ From the repository root, run `npm run dev`, then open `http://localhost:5173/he
 - [`heroes/roster.js`](./heroes/roster.js): compatibility registry that exports the hero constructors and shared instances.
 - [`heroes/sheriff.js`](./heroes/sheriff.js), [`heroes/guardian.js`](./heroes/guardian.js), [`heroes/pilot.js`](./heroes/pilot.js), [`heroes/bombardier.js`](./heroes/bombardier.js), [`heroes/bubbles.js`](./heroes/bubbles.js), and [`heroes/electromancer.js`](./heroes/electromancer.js): individual hero stats and combat behavior.
 - [`heroes/shared.js`](./heroes/shared.js): shared configuration and projectile construction helpers.
+- [`src/hero-lab/monster-effects.js`](../../src/hero-lab/monster-effects.js): server-authoritative eased pushes, holds, and non-stacking slows.
 - [`world.js`](./world.js): browser renderer, controls, and HUD.
 - [`src/hero-lab/world.js`](../../src/hero-lab/world.js): authoritative combat server and student-session kingdom bonus application.
 - [`HOW_THIS_WORKS.md`](./HOW_THIS_WORKS.md): plain-language implementation notes and playtest guide.

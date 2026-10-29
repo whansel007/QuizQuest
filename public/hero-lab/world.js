@@ -403,6 +403,20 @@ void profiler.start().then((debugEnabled) => {
     const cardId = towerTools.querySelector('[data-tower-card]').value;
     if (cardId) socket.emit('debug_add_stat_card', cardId);
   });
+  const crowdControlTools = document.createElement('div');
+  crowdControlTools.className = 'tower-debug-tools';
+  crowdControlTools.innerHTML = '<strong>Monster effects</strong><div class="debug-effect-buttons">'
+    + '<button type="button" data-monster-effect="push:enemy">Push enemy</button>'
+    + '<button type="button" data-monster-effect="hold:enemy">Hold enemy</button>'
+    + '<button type="button" data-monster-effect="slow:enemy">Slow enemy</button>'
+    + '<button type="button" data-monster-effect="push:dummy">Push dummy</button>'
+    + '<button type="button" data-monster-effect="hold:dummy">Hold dummy</button>'
+    + '<button type="button" data-monster-effect="slow:dummy">Slow dummy</button></div>';
+  controls.append(crowdControlTools);
+  crowdControlTools.querySelectorAll('[data-monster-effect]').forEach((button) => button.addEventListener('click', () => {
+    const [effect, target] = button.dataset.monsterEffect.split(':');
+    socket.emit('debug_monster_effect', { effect, target });
+  }));
   window.setInterval(() => {
     const local = state.players.find((candidate) => candidate.id === me);
     const out = towerTools.querySelector('[data-tower-readout]');
@@ -699,6 +713,21 @@ function particleWhiteGlyph(emoji, size) {
 // One cached radial-glow sprite per color, blitted with drawImage. Replaces a
 // per-projectile createRadialGradient every frame.
 const _glowSprites = new Map();
+let _heldIndicatorSprite = null;
+function heldIndicatorSprite() {
+  if (_heldIndicatorSprite) return _heldIndicatorSprite;
+  const size = GAME_CONFIG.effects.holdSwirlSpriteSize;
+  const radius = GAME_CONFIG.effects.holdSwirlRadiusPx;
+  const canvas = document.createElement('canvas'); canvas.width = size; canvas.height = size;
+  const g = canvas.getContext('2d');
+  g.strokeStyle = GAME_CONFIG.effects.heldEnemyTint; g.lineWidth = GAME_CONFIG.effects.holdSwirlLineWidth;
+  g.beginPath(); g.arc(size / 2, size / 2, radius, -Math.PI * 0.65, Math.PI * 1.45); g.stroke();
+  g.beginPath(); g.moveTo(size / 2 + radius * 0.72, size / 2 - radius * 0.72);
+  g.lineTo(size / 2 + radius * 1.15, size / 2 - radius * 0.86);
+  g.lineTo(size / 2 + radius, size / 2 - radius * 0.29); g.stroke();
+  _heldIndicatorSprite = { canvas, size };
+  return _heldIndicatorSprite;
+}
 function glowSprite(color, inner, outer) {
   const key = `${color}|${inner}|${outer}`;
   let sprite = _glowSprites.get(key);
@@ -1869,6 +1898,10 @@ if (typeof window !== 'undefined' && new URLSearchParams(location.search).has('p
   };
 }
 socket.on('area_telegraph', (effect) => showAreaEffect({ ...effect, telegraphMs: effect.telegraphMs || ARENA_TUNING.areaEffects.targetedTelegraphMs }));
+socket.on('area_telegraph_cancel', ({ sourceAbility } = {}) => {
+  const index = areaEffects.findLastIndex((effect) => effect.phase === 'telegraph' && effect.sourceAbility === sourceAbility);
+  if (index >= 0) areaEffects.splice(index, 1);
+});
 socket.on('area_effect', (effect) => {
   showAreaEffect(effect);
   playSound(effect.sourceAbility === 'ultimate' ? 'ultimateCast' : 'explosion');
@@ -3021,7 +3054,9 @@ function drawScene(timestamp) {
         }
         continue;
       }
-      const tint = monster.type === 'brute-king' ? '#7e222c' : monster.type === 'brute' ? '#514638'
+      const tint = monster.held ? GAME_CONFIG.effects.heldEnemyTint
+        : monster.slowed ? GAME_CONFIG.effects.slowedEnemyTint
+        : monster.type === 'brute-king' ? '#7e222c' : monster.type === 'brute' ? '#514638'
         : monster.type === 'exploder' ? '#b86b28' : '#4B3D58';
       context.beginPath();
       context.arc(mx, my, visualRadius, 0, Math.PI * 2);
@@ -3448,6 +3483,18 @@ function drawScene(timestamp) {
     if (monster.stunned) {
       context.font = '16px sans-serif'; context.textAlign = 'center'; context.textBaseline = 'middle';
       context.fillText('⚡', monster.x, monster.y - 30);
+    }
+    if (monster.held || monster.slowed) {
+      context.save();
+      context.beginPath(); context.arc(monster.x, monster.y, monster.radius || 20, 0, Math.PI * 2);
+      context.strokeStyle = monster.held ? GAME_CONFIG.effects.heldEnemyTint : GAME_CONFIG.effects.slowedEnemyTint;
+      context.lineWidth = AREA_RING_WIDTH; context.stroke();
+      context.restore();
+    }
+    if (monster.held) {
+      const sprite = heldIndicatorSprite();
+      context.drawImage(sprite.canvas, monster.x - sprite.size / 2,
+        monster.y - GAME_CONFIG.effects.holdSwirlYOffsetPx - sprite.size / 2, sprite.size, sprite.size);
     }
     if ((enemyFlashes.get(monster.id) || 0) > currentTime) {
       context.beginPath(); context.arc(monster.x, monster.y, 25, 0, Math.PI * 2); context.strokeStyle = HERO_FX_COLORS.electromancer.highlight; context.lineWidth = 4; context.stroke();

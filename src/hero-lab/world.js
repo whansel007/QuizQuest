@@ -132,6 +132,10 @@ function attachHeroLab(io, services = null) {
       if (!isDebugSocket()) return;
       roomOf()?.debugAddStatCard?.(cardId, socket.id);
     }));
+    socket.on('debug_monster_effect', safe('debug_monster_effect', ({ effect, target } = {}) => {
+      if (!isDebugSocket()) return;
+      roomOf()?.applyDebugMonsterEffect?.(effect, target);
+    }));
 
     socket.on('disconnect', () => {
       const room = roomOf();

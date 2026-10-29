@@ -18,9 +18,9 @@ export class Devil extends Enemy {
   }
 
   update(dt, target, now = Date.now()) {
-    if (!target || !target.hero || this.dead) return 0;
+    if (!target || !target.hero || this.dead || this.heldUntil > now) return 0;
 
-    const touching = this.moveTowards(dt, target);
+    const touching = this.moveTowards(dt, target, now);
     if (!touching || now < this.nextAttackAt) return 0;
 
     this.nextAttackAt = now + this.attackCooldownMs;

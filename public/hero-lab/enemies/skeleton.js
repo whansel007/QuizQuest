@@ -14,7 +14,7 @@ export class Skeleton extends Enemy {
   }
 
   update(dt, campfire, target, now = Date.now()) {
-    if (this.dead || !campfire) return null;
+    if (this.dead || !campfire || this.heldUntil > now) return null;
     if (this.windupUntil && now >= this.windupUntil) {
       const aim = this.windupAim || { x: 1, y: 0 };
       this.windupUntil = 0;
