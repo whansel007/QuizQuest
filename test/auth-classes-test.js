@@ -164,6 +164,48 @@ test('Task 1B: Class creation, join codes, student redemption and roster', async
   }
 });
 
+test('Professors enrol an existing student into one of their classes by class name', async () => {
+  const { call, close } = await testServer();
+  try {
+    const tToken = (await call(null, 'POST', '/api/login', { userId: 't-a' })).body.token;
+    const enrol = (body, token = tToken) => call(token, 'POST', '/api/classes/enrol', body);
+
+    // Student 07 is in Prof. B's Statistics class; Prof. A adds them to Group A.
+    // The class name is matched ignoring case and surrounding spaces.
+    const added = await enrol({ email: 'Student07@quizquest.demo', className: '  computing - tutorial group a ' });
+    assert.equal(added.status, 201);
+    assert.equal(added.body.class.id, 'cl-a');
+    assert.equal(added.body.student.id, 's-07');
+    const roster = await call(tToken, 'GET', '/api/classes/cl-a/members');
+    assert.ok(roster.body.some((m) => m.id === 's-07'));
+
+    // They keep their other class
+    const sToken = (await call(null, 'POST', '/api/login', { userId: 's-07' })).body.token;
+    const theirs = await call(sToken, 'GET', '/api/classes');
+    assert.deepEqual(theirs.body.map((c) => c.id).sort(), ['cl-a', 'cl-b']);
+
+    assert.equal((await enrol({ email: 'student07@quizquest.demo', className: 'Computing - Tutorial Group A' })).status, 409, 'already enrolled');
+    assert.equal((await enrol({ email: 'nobody@example.com', className: 'Computing - Tutorial Group A' })).status, 404, 'no such account');
+    assert.equal((await enrol({ email: 'prof.b@quizquest.demo', className: 'Computing - Tutorial Group A' })).status, 400, 'not a student');
+    assert.equal((await enrol({ email: 'not-an-email', className: 'Computing - Tutorial Group A' })).status, 400);
+    assert.equal((await enrol({ email: 'student08@quizquest.demo', className: '' })).status, 400);
+    // Another professor's class is not found, same as a class that does not exist
+    assert.equal((await enrol({ email: 'student08@quizquest.demo', className: 'Statistics - Tutorial Group B' })).status, 404);
+    // Students cannot enrol anyone, themselves included
+    assert.equal((await enrol({ email: 'student07@quizquest.demo', className: 'Computing - Tutorial Group C' }, sToken)).status, 403);
+
+    // An archived class takes no new students
+    await call(tToken, 'POST', '/api/classes/cl-c/archive');
+    assert.equal((await enrol({ email: 'student08@quizquest.demo', className: 'Computing - Tutorial Group C' })).status, 404);
+
+    // Two active classes with the same name: ask the professor to rename one
+    await call(tToken, 'POST', '/api/classes', { courseId: 'c-comp', name: 'Computing - Tutorial Group A' });
+    assert.equal((await enrol({ email: 'student08@quizquest.demo', className: 'Computing - Tutorial Group A' })).status, 409);
+  } finally {
+    await close();
+  }
+});
+
 test('Task 2: Passage soft-archival and metadata editing', async () => {
   const { call, close } = await testServer();
   try {
