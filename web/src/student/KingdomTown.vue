@@ -14,6 +14,7 @@ import {
   drawHouse, drawRock, drawTrailSign, drawTree, drawWell,
 } from './kingdom/town-art.js';
 import { EMOTES, heroLine } from './kingdom/town-voices.js';
+import { AVATAR_COSMETIC_BY_ID } from '../../../config/avatar-cosmetics.js';
 import { playSound, setAudioOptions, warmUpAudio } from '../../../public/hero-lab/arena-audio.js';
 import {
   BUILDING_LAYOUT, TOWN_AVATAR_RADIUS, TOWN_DESTINATIONS, TOWN_DOOR_RADIUS, TOWN_GRASS_COLOR, TOWN_GREET_RADIUS,
@@ -28,6 +29,7 @@ const props = defineProps({
   buildings: { type: Array, required: true },
   castleLevel: { type: Number, required: true },
   avatarColor: { type: String, required: true },
+  avatarVisual: { type: Object, default: () => ({ hat: null }) },
   heroes: { type: Array, default: () => [] },
   // intro spotlight: 'castle' | 'buildings' | 'north' | null
   highlight: { type: String, default: null },
@@ -774,6 +776,32 @@ function drawWanderingHero(g, actor, time) {
   g.restore();
 }
 
+function drawAvatarHat(g, x, y, radius) {
+  const cosmetic = AVATAR_COSMETIC_BY_ID[props.avatarVisual?.hat];
+  if (!cosmetic || cosmetic.slot !== 'hat') return;
+  g.save();
+  g.font = Math.round(radius * 1.35) + 'px serif';
+  g.textAlign = 'center';
+  g.textBaseline = 'middle';
+  g.fillText(cosmetic.renderValue, x, y);
+  g.restore();
+}
+
+function drawAvatarAccessory(g, x, y, radius) {
+  const cosmetic = AVATAR_COSMETIC_BY_ID[props.avatarVisual?.accessory];
+  if (!cosmetic || cosmetic.slot !== 'accessory' || cosmetic.anchor !== 'badge') return;
+  g.save();
+  g.fillStyle = '#fff8e4';
+  g.strokeStyle = INK;
+  g.lineWidth = 1.5;
+  g.beginPath(); g.arc(x, y, radius * .72, 0, Math.PI * 2); g.fill(); g.stroke();
+  g.font = Math.round(radius * .94) + 'px serif';
+  g.textAlign = 'center';
+  g.textBaseline = 'middle';
+  g.fillText(cosmetic.renderValue, x, y + 1);
+  g.restore();
+}
+
 function drawAvatar(g, time) {
   const r = TOWN_AVATAR_RADIUS;
   const hopPhase = Math.abs(Math.sin(time * .018));
@@ -797,6 +825,8 @@ function drawAvatar(g, time) {
     g.imageSmoothingQuality = 'high';
     g.drawImage(sprite, 0, 0, sprite.width, sprite.height, -spriteWidth / 2, -spriteHeight, spriteWidth, spriteHeight);
     g.restore();
+    drawAvatarHat(g, player.x, player.y - hop - spriteHeight * 0.82, r);
+    drawAvatarAccessory(g, player.x + r * .7, player.y - hop - r * 1.15, r);
     return;
   }
   // Small vector fallback while the player frames decode.
@@ -811,6 +841,8 @@ function drawAvatar(g, time) {
   g.beginPath(); g.ellipse(-r * .34, -r * .2, 2.3, 3.2, 0, 0, Math.PI * 2); g.fill();
   g.beginPath(); g.ellipse(r * .34, -r * .2, 2.3, 3.2, 0, 0, Math.PI * 2); g.fill();
   g.restore();
+  drawAvatarHat(g, player.x, player.y - hop - r * 1.35, r);
+  drawAvatarAccessory(g, player.x + r * .7, player.y - hop - r * .58, r);
 }
 
 function drawEmote(g, time) {

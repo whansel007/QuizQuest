@@ -54,7 +54,10 @@ function attachHeroLab(io, services = null) {
 
       let room = null;
       let error = null;
-      if (payload?.create) {
+      if (payload?.trialTicket) {
+        room = manager.findTrialByTicket(payload.trialTicket);
+        if (!room) error = { code: 'trial_expired', message: 'This workshop trial has expired. Return to the Workshop to start another.' };
+      } else if (payload?.create) {
         room = manager.create();
         if (!room) error = { code: 'server_full', message: 'All rooms are busy right now. Try again shortly.' };
       } else if (payload?.roomCode) {
@@ -103,6 +106,18 @@ function attachHeroLab(io, services = null) {
       if (!room) return;
       const result = room.swapHero(socket, heroId);
       if (!result.ok) socket.emit('swap_rejected', result);
+    }));
+    socket.on('spawn_trial_enemy', safe('spawn_trial_enemy', (enemyId) => {
+      const room = roomOf();
+      if (!room) return;
+      const result = room.spawnTrialEnemy?.(socket, enemyId);
+      if (result && !result.ok) socket.emit('trial_spawn_rejected', result);
+    }));
+    socket.on('summon_trial_wave', safe('summon_trial_wave', () => {
+      const room = roomOf();
+      if (!room) return;
+      const result = room.summonTrialWave?.(socket);
+      if (result && !result.ok) socket.emit('trial_spawn_rejected', result);
     }));
 
     // Debug menu (same gate as the profiler): only seeded demo accounts may

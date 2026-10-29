@@ -55,8 +55,9 @@ button:focus-visible, select:focus-visible, input:focus-visible { outline: 3px s
 .roster-row { display: grid; grid-template-columns: 32px minmax(0, 1fr) auto; grid-template-rows: auto auto; align-items: center; column-gap: .5rem; row-gap: .2rem; padding: .35rem .45rem; background: var(--hud-panel-deep); border: 1px solid #415E4A; border-radius: 8px 7px 9px 7px; }
 .roster-row.me { background: var(--hud-panel-raised); border-color: var(--hud-line); }
 .roster-row.downed { opacity: .62; }
-.roster-portrait { grid-row: 1 / span 2; display: grid; place-items: center; width: 32px; height: 32px; background: #F0EAD21A; border-radius: 50%; font-size: 1.1rem; }
+.roster-portrait { position: relative; grid-row: 1 / span 2; display: grid; place-items: center; width: 32px; height: 32px; background: #F0EAD21A; border-radius: 50%; font-size: 1.1rem; }
 .roster-portrait .hero-ui-sprite { height: 30px; }
+.roster-avatar-mark { position: absolute; right: -5px; bottom: -4px; display: grid; width: 16px; height: 16px; place-items: center; overflow: hidden; color: #23382f; background: var(--avatar-color); border: 1.5px solid var(--hud-ink); border-radius: 50%; box-shadow: 0 1px #111; font-size: 8px; line-height: 1; }
 .roster-who { display: grid; min-width: 0; line-height: 1.15; }
 .roster-name { overflow: hidden; color: var(--hud-text); font-weight: 800; font-size: .86rem; text-overflow: ellipsis; white-space: nowrap; }
 .roster-hero { overflow: hidden; color: var(--hud-muted); font-size: .68rem; text-overflow: ellipsis; white-space: nowrap; }
@@ -148,6 +149,28 @@ button:focus-visible, select:focus-visible, input:focus-visible { outline: 3px s
 #start-run:active { transform: translateY(2px); box-shadow: 0 1px 0 var(--hud-ink); }
 #start-run[hidden], #lobby-hint[hidden] { display: none; }
 #lobby-hint { color: var(--hud-soft); font-size: .82rem; }
+
+/* A private Workshop trial reuses combat controls without exposing run flow. */
+#trial-tools[hidden] { display: none; }
+body[data-mode="workshop-trial"] #trial-tools { position: fixed; z-index: 20; top: 1rem; right: 1rem; display: grid; width: min(300px, calc(100vw - 2rem)); gap: .6rem; padding: .85rem; color: var(--hud-text); background: var(--hud-panel); border: 2px solid var(--hud-ink); border-radius: 10px; box-shadow: 0 4px 0 var(--hud-ink); font: 700 .82rem Nunito, 'Trebuchet MS', sans-serif; }
+body[data-mode="workshop-trial"] #trial-tools > div:first-child { display: flex; align-items: center; justify-content: space-between; gap: .5rem; }
+.trial-kicker { color: var(--hud-leaf); font: 900 .62rem ui-monospace, monospace; letter-spacing: .06em; }
+#trial-tools select, #trial-tools button { min-height: 36px; padding: .35rem .65rem; color: var(--hud-text); background: var(--hud-panel-raised); border: 2px solid var(--hud-ink); border-radius: 7px; font: 800 .8rem Nunito, 'Trebuchet MS', sans-serif; }
+#trial-tools button { cursor: pointer; }
+#trial-tools button:hover, #trial-tools button:focus-visible, #trial-tools select:focus-visible { outline: 3px solid var(--hud-gold); outline-offset: 2px; }
+#trial-tools #trial-exit { background: var(--hud-gold); }
+.trial-actions { display: grid; grid-template-columns: 1fr auto; gap: .45rem; }
+#trial-expiry { color: var(--hud-soft); font-size: .72rem; }
+body[data-mode="workshop-trial"] #combat-hud,
+body[data-mode="workshop-trial"] #room-code-corner,
+body[data-mode="workshop-trial"] #lobby-bar,
+body[data-mode="workshop-trial"] #start-run,
+body[data-mode="workshop-trial"] #lobby-hint,
+body[data-mode="workshop-trial"] #run-result,
+body[data-mode="workshop-trial"] #session-summary,
+body[data-mode="workshop-trial"] #milestone-dawn,
+body[data-mode="workshop-trial"] #buff-vote,
+body[data-mode="workshop-trial"] #waiting-banner { display: none !important; }
 
 /* ---- Bottom left: buffs, settings, information --------------------------- */
 #bottom-left-hud { position: fixed; z-index: 1; bottom: 1rem; left: 1rem; display: grid; justify-items: start; gap: .45rem; color: var(--hud-text); }

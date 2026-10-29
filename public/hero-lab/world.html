@@ -42,6 +42,13 @@
     </button>
     <span id="room-code-copied" role="status" hidden>Copied!</span>
   </div>
+  <section id="trial-tools" hidden aria-label="Workshop trial controls">
+    <div><span class="trial-kicker">PRIVATE PRACTICE · NO REWARDS</span><button id="trial-exit" type="button" aria-label="Exit workshop trial">Exit trial</button></div>
+    <label for="trial-enemy">Training target</label>
+    <div class="trial-actions"><select id="trial-enemy"><option value="zombie">Zombie</option><option value="skeleton">Skeleton</option><option value="devil">Devil</option><option value="exploder">Exploder</option><option value="brute">Brute</option><option value="boss">Boss</option></select><button id="trial-spawn" type="button">Spawn target</button></div>
+    <button id="trial-wave" type="button">Summon mixed wave</button>
+    <span id="trial-expiry" role="status">Your practice session is private. Exit any time.</span>
+  </section>
   <div id="moment-banner" aria-live="assertive" hidden></div>
   <section id="waiting-banner" aria-live="polite" hidden>
     <strong>Joining after this wave…</strong>

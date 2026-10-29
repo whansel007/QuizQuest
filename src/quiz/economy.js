@@ -119,7 +119,9 @@ function build(db, studentId, buildingId, requestId, now = Date.now()) {
 // Offers are posted to the whole class (no targeting a specific
 // classmate). The offered resources are held in escrow so they can't
 // be spent twice, and are refunded on cancel.
-function createTrade(db, { cls, studentId, give, want, now = Date.now() }) {
+function createTrade(db, { cls, studentId, give, want, requestId = crypto.randomUUID(), now = Date.now() }) {
+  const prior = db.trades.find((trade) => trade.classId === cls.id && trade.fromId === studentId && trade.requestId === requestId);
+  if (prior) return { ok: true, trade: prior, duplicate: true };
   if (!cls.settings.tradingEnabled) return { ok: false, error: 'Trading is turned off for this class.' };
   const g = bundle(give);
   const w = bundle(want);
@@ -128,7 +130,7 @@ function createTrade(db, { cls, studentId, give, want, now = Date.now() }) {
   if (open >= TRADE.maxOpenPerStudent) return { ok: false, error: `You can have at most ${TRADE.maxOpenPerStudent} open offers.` };
   const res = resources(db, studentId);
   if (!has(res, g)) return { ok: false, error: 'You do not have those resources.' };
-  const trade = { id: newId('tr'), classId: cls.id, fromId: studentId, give: g, want: w, status: 'open', createdAt: now };
+  const trade = { id: newId('tr'), requestId, classId: cls.id, fromId: studentId, give: g, want: w, status: 'open', createdAt: now };
   apply(res, g, -1);
   log(db, studentId, 'escrow', Object.fromEntries(Object.entries(g).map(([k, v]) => [k, -v])), 'Trade offer (held)', `escrow:${trade.id}`, now);
   db.trades.push(trade);
@@ -140,9 +142,12 @@ function completedToday(db, studentId, now) {
   return db.trades.filter((t) => t.status === 'accepted' && dayKey(t.acceptedAt) === d && (t.fromId === studentId || t.acceptedBy === studentId)).length;
 }
 
-function acceptTrade(db, { cls, trade, studentId, now = Date.now() }) {
+function acceptTrade(db, { cls, trade, studentId, requestId, now = Date.now() }) {
+  if (trade.status !== 'open') {
+    if (trade.status === 'accepted' && trade.acceptedBy === studentId && trade.acceptRequestId === requestId) return { ok: true, duplicate: true, trade };
+    return { ok: false, error: 'This offer is no longer open.' };
+  }
   if (!cls.settings.tradingEnabled) return { ok: false, error: 'Trading is turned off for this class.' };
-  if (trade.status !== 'open') return { ok: false, error: 'This offer is no longer open.' };
   if (trade.fromId === studentId) return { ok: false, error: 'You cannot accept your own offer.' };
   for (const who of [studentId, trade.fromId]) {
     if (completedToday(db, who, now) >= TRADE.maxCompletedPerDay) return { ok: false, error: 'Daily trade limit reached. Try again tomorrow.' };
@@ -155,6 +160,7 @@ function acceptTrade(db, { cls, trade, studentId, now = Date.now() }) {
   trade.status = 'accepted';
   trade.acceptedBy = studentId;
   trade.acceptedAt = now;
+  trade.acceptRequestId = requestId;
   const net = {}; // acceptor's change: + what they got, - what they paid
   for (const [k, v] of Object.entries(trade.give)) net[k] = (net[k] || 0) + v;
   for (const [k, v] of Object.entries(trade.want)) net[k] = (net[k] || 0) - v;
@@ -163,11 +169,16 @@ function acceptTrade(db, { cls, trade, studentId, now = Date.now() }) {
   return { ok: true, trade };
 }
 
-function cancelTrade(db, { trade, reason = 'Trade offer cancelled', now = Date.now() }) {
-  if (trade.status !== 'open') return { ok: false, error: 'This offer is no longer open.' };
+function cancelTrade(db, { cls = null, trade, requestId, reason = 'Trade offer cancelled', now = Date.now() }) {
+  if (trade.status !== 'open') {
+    if (trade.status === 'cancelled' && trade.cancelRequestId === requestId) return { ok: true, duplicate: true, trade };
+    return { ok: false, error: 'This offer is no longer open.' };
+  }
+  if (cls && !cls.settings.tradingEnabled) return { ok: false, error: 'Trading is turned off for this class.' };
   apply(resources(db, trade.fromId), trade.give, 1);
   trade.status = 'cancelled';
   trade.closedAt = now;
+  trade.cancelRequestId = requestId;
   log(db, trade.fromId, 'refund', trade.give, reason, `refund:${trade.id}`, now);
   return { ok: true, trade };
 }

@@ -292,6 +292,9 @@ const heroId = query.get('heroId');
 const embedded = query.has('embedded') && window.parent !== window;
 const requestedRoomCode = (query.get('room') || '').trim().toUpperCase();
 const createRequested = query.get('create') === '1';
+const trialTicket = query.get('trialTicket') || '';
+const workshopTrial = Boolean(trialTicket);
+if (workshopTrial) document.body.dataset.mode = 'workshop-trial';
 const selectedHero = HEROES.find((hero) => hero.id === heroId);
 if (!selectedHero) location.replace('/hero-lab');
 // The hero this client is playing. Lobby swaps change it without a reload.
@@ -1305,6 +1308,7 @@ function showMuzzleFlash(player) {
 
 function joinPayload() {
   const payload = { heroId: activeHeroId };
+  if (trialTicket) payload.trialTicket = trialTicket;
   if (activeRoomCode) payload.roomCode = activeRoomCode;
   else if (createRequested) payload.create = true;
   return payload;
@@ -1328,6 +1332,13 @@ socket.on('welcome', (welcome) => {
   me = welcome.you;
   joinFailed = false;
   if (welcome.room?.code) activeRoomCode = welcome.room.code;
+  if (workshopTrial) {
+    if (welcome.room?.mode !== 'workshop_trial') { exitWorkshopTrial(); return; }
+    const controls = document.querySelector('#trial-tools');
+    if (controls) controls.hidden = false;
+    const expiry = document.querySelector('#trial-expiry');
+    if (expiry && welcome.room.expiresAt) expiry.textContent = `Private practice · ends ${new Date(welcome.room.expiresAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`;
+  }
   connectionStatus.textContent = 'Connected';
   if (embedded && welcome.room?.code) window.parent.postMessage({ type: 'hero-lab-room', code: welcome.room.code }, location.origin);
   openBriefing();
@@ -1338,7 +1349,26 @@ socket.on('join_error', ({ code, message } = {}) => {
   connectionStatus.textContent = message || 'Could not join the room';
   if (embedded) window.parent.postMessage({ type: 'hero-lab-join-error', code, message }, location.origin);
   else showBanner(message || 'Could not join the room');
+  if (workshopTrial && code === 'trial_expired') setTimeout(exitWorkshopTrial, 900);
 });
+socket.on('trial_expired', () => {
+  const expiry = document.querySelector('#trial-expiry');
+  if (expiry) expiry.textContent = 'This practice session has expired. Returning to the Workshop…';
+  setTimeout(exitWorkshopTrial, 700);
+});
+socket.on('trial_spawn_rejected', ({ code } = {}) => {
+  const messages = { rate_limited: 'Give the arena a moment before spawning again.', entity_cap: 'Clear a few targets before adding more.', invalid_enemy: 'That target is not available.' };
+  const expiry = document.querySelector('#trial-expiry');
+  if (expiry) expiry.textContent = messages[code] || 'That practice action could not be completed.';
+});
+function exitWorkshopTrial() {
+  if (!workshopTrial) return;
+  if (window.history.length > 1) window.history.back();
+  else window.location.assign('/');
+}
+document.querySelector('#trial-exit')?.addEventListener('click', exitWorkshopTrial);
+document.querySelector('#trial-spawn')?.addEventListener('click', () => socket.emit('spawn_trial_enemy', document.querySelector('#trial-enemy')?.value));
+document.querySelector('#trial-wave')?.addEventListener('click', () => socket.emit('summon_trial_wave'));
 socket.on('state', (snapshot) => {
   state = snapshot;
   stateReceivedAt = performance.now();
@@ -2128,6 +2158,11 @@ roomCodeButton?.addEventListener('click', async () => {
 //   room.waiting  — joining entries (no gameplay data yet)
 //   state.players — gameplay data (hp, maxHp, downed, respawn)
 // The label is the account display name, NOT the hero/class name.
+const AVATAR_MARKS = Object.freeze({
+  hat_ribbon: '🎀', hat_top_hat: '🎩', hat_crown: '👑', hat_cowboy: '🤠',
+  accessory_star_pin: '⭐', accessory_leaf_pin: '🍃', accessory_heart_pin: '💛',
+});
+
 let playerListSignature = '';
 let pendingHeroSwap = null;
 let pendingHeroSwapAt = 0;
@@ -2163,7 +2198,7 @@ function renderPlayerList(room) {
 
   const signature = all.map((e) => {
     const downedSecs = e.downed ? Math.ceil((e.respawnRemainingMs || 0) / 1000) : 0;
-    return `${e.id}:${e.name}:${e.heroId}:${e.emoji}:${e.host}:${e.waiting}:${e.disconnected}:${e.downed}:${downedSecs}:${e.hp || 0}:${e.maxHp || 0}`;
+    return `${e.id}:${e.name}:${e.heroId}:${e.emoji}:${e.host}:${e.waiting}:${e.disconnected}:${e.downed}:${downedSecs}:${e.hp || 0}:${e.maxHp || 0}:${e.avatarVisual?.color}:${e.avatarVisual?.hat}:${e.avatarVisual?.accessory}`;
   }).join('|');
   if (signature === playerListSignature) return;
   playerListSignature = signature;
@@ -2179,6 +2214,16 @@ function renderPlayerList(room) {
     const heroImage = createHeroImage(entry.heroId, entry.emoji, 30);
     if (heroImage) portrait.append(heroImage);
     else portrait.textContent = entry.emoji || '';
+    const visual = entry.avatarVisual;
+    if (visual && /^#[0-9A-F]{6}$/i.test(visual.color)) {
+      const mark = document.createElement('span');
+      mark.className = 'roster-avatar-mark';
+      mark.style.setProperty('--avatar-color', visual.color);
+      mark.textContent = AVATAR_MARKS[visual.accessory] || AVATAR_MARKS[visual.hat] || '•';
+      mark.title = [visual.hat && AVATAR_MARKS[visual.hat], visual.accessory && AVATAR_MARKS[visual.accessory]].filter(Boolean).join(' ') || 'Player avatar';
+      mark.setAttribute('aria-hidden', 'true');
+      portrait.append(mark);
+    }
     row.append(portrait);
 
     // Display name (NOT hero/class), truncated + duplicate suffix.
