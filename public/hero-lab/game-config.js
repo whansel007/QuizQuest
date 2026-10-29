@@ -44,6 +44,78 @@ export const HOLD_SWIRL_Y_OFFSET_PX = 34;
 export const HOLD_SWIRL_LINE_WIDTH = 2;
 export const HOLD_SWIRL_SPRITE_SIZE = 32;
 
+// Fairy combat tuning. These values are shared by server hitboxes and effects.
+export const FAIRY_FX_PRIMARY = '#FF8AD8';
+export const FAIRY_FX_SECONDARY = '#FFB3E0';
+export const VORTEX_EYE_COLOR = '#D94A9B';
+export const VORTEX_CORE_COLOR = '#05030F';
+export const FAIRY_WEAPON_COOLDOWN_MS = 350;
+export const FAIRY_SKILL_COOLDOWN_MS = 12000;
+export const FAIRY_ULTIMATE_COOLDOWN_MS = 40000;
+export const WIND_ARROW_SPEED = 650;
+export const WIND_ARROW_RANGE = 380;
+export const WIND_ARROW_DAMAGE_MULT = 0.7;
+export const WIND_ARROW_PIERCE_COUNT = 1;
+export const WIND_ARROW_PUSH_PX = 50;
+export const WIND_ARROW_PUSH_MS = 150;
+export const GALE_SPEED = 520;
+export const GALE_RANGE = 360;
+export const GALE_RADIUS = 150;
+export const GALE_DAMAGE_MULT = 0.4;
+export const GALE_PUSH_PX = 220;
+export const GALE_PUSH_MS = 300;
+export const CAMPFIRE_PUSH_ZONE_RADIUS = 250;
+export const VORTEX_SPEED = 450;
+export const VORTEX_RANGE = 420;
+export const VORTEX_RADIUS = 180;
+export const VORTEX_DURATION_S = 4;
+export const VORTEX_PULL_S = 0.4;
+export const VORTEX_LATE_PULL_MS = 120;
+export const VORTEX_DPS_MULT = 0.35;
+export const VORTEX_DAMAGE_TICK_MS = 250;
+export const VORTEX_PULL_SPEED_PX_S = 600;
+export const VORTEX_END_PUSH_PX = 18;
+export const VORTEX_END_PUSH_MS = 140;
+export const VORTEX_END_DAMAGE_MULT = 0;
+export const FAIRY_SLOW_PCT = 0.3;
+export const FAIRY_SLOW_DURATION_S = 2;
+export const VORTEX_CORE_RADIUS_PX = 34;
+export const VORTEX_DISK_TILT = 0.55;
+export const VORTEX_ZOOM_PULSE = true;
+export const VORTEX_POP_STILL_MS = 100;
+export const VORTEX_DEBRIS_POOL_SIZE = 16;
+export const VORTEX_DEBRIS_SPAWN_MS = 100;
+export const VORTEX_RIPPLE_INTERVAL_MS = 500;
+export const VORTEX_RIPPLE_DURATION_MS = 700;
+export const FAIRY_GALE_SHAKE_MULT = 0.3;
+export const VORTEX_GROUND_FILL = '#1A0B2E';
+export const VORTEX_FORMATION_FLASH_MS = 80;
+export const VORTEX_CORE_GROW_MS = 150;
+export const VORTEX_SHOCKWAVE_MS = 250;
+export const VORTEX_CORE_PULSE_HZ = 2;
+export const VORTEX_DISK_ROTATION_HZ = 0.6;
+export const VORTEX_DISK_OUTER_RADIUS_PX = 75;
+export const VORTEX_LENS_ARC_DEG = 120;
+export const VORTEX_COLLAPSE_MS = 400;
+export const VORTEX_FLASH_POP_MS = 120;
+export const VORTEX_POP_RING_MS = 180;
+export const VORTEX_POP_SPARK_COUNT = 10;
+export const VORTEX_ZOOM_SCALE = 1.03;
+export const VORTEX_ZOOM_DURATION_MS = 250;
+export const FAIRY_GALE_WIND_LINES = 4;
+export const FAIRY_ARROW_IMPACT_LINES = 3;
+export const FAIRY_ARROW_TRAIL_COUNT = 3;
+export const FAIRY_MUZZLE_PUFF_RADIUS_PX = 7;
+export const FAIRY_GALE_VFX_DURATION_MS = 420;
+export const FAIRY_WIND_IMPACT_MS = 260;
+export const VORTEX_GROUND_RING_WIDTH_PX = 4;
+export const VORTEX_GROUND_DASH_ON_PX = 14;
+export const VORTEX_GROUND_DASH_OFF_PX = 10;
+export const VORTEX_GROUND_FILL_ALPHA = 0.28;
+export const VORTEX_SUSTAIN_FADE_MS = 200;
+export const VORTEX_DEBRIS_LIFETIME_MS = 900;
+export const VORTEX_POP_STILL_CORE_PX = 12;
+
 // The only buff cards the Tower scales. Extend this list (one line) to make the
 // Tower scale another stat card later. The campfire card and all rare effect
 // cards are deliberately excluded.
@@ -59,7 +131,9 @@ export const HERO_FX_COLORS = Object.freeze({
   // toward the primary hue so the orb reads as one colour instead of a
   // purple halo around a cool white dot.
   electromancer: { primary: '#b17cff', highlight: '#e4d2ff', core: '#f7f2ff' },
+  fairy: { primary: FAIRY_FX_PRIMARY, highlight: '#fff0fa' },
 });
+export const HERO_FX_SECONDARY = Object.freeze({ fairy: FAIRY_FX_SECONDARY });
 
 // Ability button icons: the single source of truth for the HUD ability
 // clusters, the World-page hero preview and the Settings icon-credits entry.
@@ -107,6 +181,12 @@ export const ABILITY_ICONS = Object.freeze({
     ultimate: 'assets/icons/electromancer-ultimate.svg',
     talent: 'assets/icons/electromancer-talent.svg',
   }),
+  fairy: Object.freeze({
+    primary: 'assets/icons/fairy-primary.svg',
+    skill: 'assets/icons/fairy-skill.svg',
+    ultimate: 'assets/icons/fairy-ultimate.svg',
+    talent: 'assets/icons/fairy-talent.svg',
+  }),
 });
 
 // Slots that sit on the amber highlight colour family instead of the hero's
@@ -118,6 +198,7 @@ export const ABILITY_BTN_HIGHLIGHT = Object.freeze({
   bombardier: Object.freeze(['primary']),
   bubbles: Object.freeze(['skill']),
   electromancer: Object.freeze(['ultimate']),
+  fairy: Object.freeze([]),
 });
 
 // While Pilot's Mech Suit is up the weapon slot shows the mech punch and moves
@@ -146,6 +227,10 @@ export const ARENA_TUNING = Object.freeze({
       abilityReady: { frequency: 760, durationMs: 110, gain: 0.08, type: 'sine' }, ultimateReady: { frequency: 990, durationMs: 220, gain: 0.1, type: 'sine' },
       dynamiteReady: SHERIFF_READY_SOUND,
       ultimateCast: { frequency: 360, durationMs: 300, gain: 0.12, type: 'sawtooth' }, explosion: { frequency: 95, durationMs: 260, gain: 0.18, type: 'triangle' },
+      fairyWhoosh: { frequency: 720, slideTo: 260, durationMs: 360, gain: 0.07, type: 'sine', minIntervalMs: 100 },
+      fairyTravel: { frequency: 240, durationMs: 1, gain: 0.018, type: 'sine' },
+      fairyHum: { frequency: 54, durationMs: 1, gain: 0.035, type: 'sine' },
+      fairyPoof: { frequency: 420, slideTo: 110, durationMs: 320, gain: 0.1, type: 'triangle', minIntervalMs: 160 },
       campfireDamaged: { frequency: 125, durationMs: 220, gain: 0.14, type: 'sawtooth' }, heroDowned: { frequency: 110, durationMs: 420, gain: 0.16, type: 'sawtooth' },
       heroRespawn: { frequency: 520, durationMs: 340, gain: 0.12, type: 'sine' }, waveStart: { frequency: 660, durationMs: 320, gain: 0.12, type: 'sine' },
       waveEnd: { frequency: 880, durationMs: 480, gain: 0.12, type: 'sine' }, cardPick: { frequency: 740, durationMs: 170, gain: 0.1, type: 'triangle' },
@@ -240,6 +325,8 @@ export const ARENA_TUNING = Object.freeze({
 
 export const GAME_CONFIG = Object.freeze({
   heroFxColors: HERO_FX_COLORS,
+  heroFxSecondary: HERO_FX_SECONDARY,
+  vortexColors: Object.freeze({ eye: VORTEX_EYE_COLOR, core: VORTEX_CORE_COLOR }),
   effects: { holdReholdImmunityMs: HOLD_REHOLD_IMMUNITY_MS,
     heldEnemyTint: HELD_ENEMY_TINT, slowedEnemyTint: SLOWED_ENEMY_TINT,
     pushDefaultDurationMs: PUSH_DEFAULT_DURATION_MS, dummyPushMultiplier: DUMMY_PUSH_MULTIPLIER,
@@ -303,7 +390,7 @@ export const GAME_CONFIG = Object.freeze({
     heroPityPulls: 10,
     epicPityPulls: 50,
     starterHero: 'sheriff',
-    rarities: { sheriff: 'rare', guardian: 'rare', bubbles: 'rare', electromancer: 'rare', pilot: 'epic', bombardier: 'epic' },
+    rarities: { sheriff: 'rare', guardian: 'rare', bubbles: 'rare', electromancer: 'rare', pilot: 'epic', bombardier: 'epic', fairy: 'epic' },
     bannerTitle: SUMMON_BANNER_TITLE,
     bannerSubtitle: SUMMON_BANNER_SUBTITLE,
     bannerOrder: SUMMON_BANNER_ORDER,
@@ -430,6 +517,23 @@ export const GAME_CONFIG = Object.freeze({
       ball: { speed: 570, radius: 18, lifetimeMs: 2400, pierces: 2, shape: 'orb' },
       stunBall: { speed: 440, radius: 10 * ELECTRO_STUN_PROJECTILE_SCALE, lifetimeMs: 2300, areaRadius: 80 * ELECTRO_STUN_RADIUS_SCALE, damageMultiplier: 0.7, stunMs: 1900, emoji: '⚡' },
       chain: { damageMultiplier: 1.4, range: 220, jumpDelayMs: 260 },
+    },
+    fairy: {
+      type: 'magic', hp: 85, attack: 14, defense: 2, speed: 235,
+      weaponCooldownMs: FAIRY_WEAPON_COOLDOWN_MS,
+      skillCooldownMs: FAIRY_SKILL_COOLDOWN_MS,
+      ultimateCooldownMs: FAIRY_ULTIMATE_COOLDOWN_MS,
+      talent: {
+        name: 'Windswept',
+        icon: ABILITY_ICONS.fairy.talent,
+        description: `Enemies you push or pull are slowed ${Math.round(FAIRY_SLOW_PCT * 100)}% for ${FAIRY_SLOW_DURATION_S} s.`,
+        linkedSlot: ['skill', 'ultimate'],
+      },
+      campfirePushZoneRadius: CAMPFIRE_PUSH_ZONE_RADIUS,
+      windArrow: { speed: WIND_ARROW_SPEED, range: WIND_ARROW_RANGE, damageMultiplier: WIND_ARROW_DAMAGE_MULT, pierces: WIND_ARROW_PIERCE_COUNT, pushPx: WIND_ARROW_PUSH_PX, pushMs: WIND_ARROW_PUSH_MS },
+      gale: { speed: GALE_SPEED, range: GALE_RANGE, radius: GALE_RADIUS, damageMultiplier: GALE_DAMAGE_MULT, pushPx: GALE_PUSH_PX, pushMs: GALE_PUSH_MS, visualDurationMs: FAIRY_GALE_VFX_DURATION_MS },
+      vortex: { speed: VORTEX_SPEED, range: VORTEX_RANGE, radius: VORTEX_RADIUS, durationMs: VORTEX_DURATION_S * 1000, pullMs: VORTEX_PULL_S * 1000, latePullMs: VORTEX_LATE_PULL_MS, pullSpeedPxPerSecond: VORTEX_PULL_SPEED_PX_S, damageTickMs: VORTEX_DAMAGE_TICK_MS, dpsMultiplier: VORTEX_DPS_MULT, endPushPx: VORTEX_END_PUSH_PX, endPushMs: VORTEX_END_PUSH_MS, endDamageMultiplier: VORTEX_END_DAMAGE_MULT },
+      windswept: { slowPct: FAIRY_SLOW_PCT, durationMs: FAIRY_SLOW_DURATION_S * 1000 },
     },
   },
   hud: { physical: '#48a8ff', magic: '#b17cff' },

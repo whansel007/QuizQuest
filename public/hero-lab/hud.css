@@ -183,7 +183,7 @@ body[data-mode="workshop-trial"] #waiting-banner { display: none !important; }
 #settings-button { display: grid; place-items: center; width: 2.2rem; height: 2.2rem; padding: 0; background: var(--hud-panel); border: 2px solid var(--hud-ink); border-radius: 50%; box-shadow: 0 3px 0 var(--hud-ink); cursor: pointer; }
 #settings-button svg { width: 18px; height: 18px; fill: none; stroke: var(--hud-text); stroke-width: 1.6; stroke-linejoin: round; }
 #settings-button:hover { background: var(--hud-panel-raised); }
-#settings-panel { position: absolute; bottom: calc(100% + .6rem); left: 0; display: grid; min-width: 230px; gap: .55rem; padding: .8rem; font-size: .82rem; }
+#settings-panel { position: absolute; bottom: calc(100% + .6rem); left: 0; display: grid; width: min(350px, calc(100vw - 2rem)); max-height: min(76vh, 760px); overflow-y: auto; overscroll-behavior: contain; min-width: 230px; gap: .65rem; padding: .9rem; font-size: .82rem; }
 #settings-panel[hidden] { display: none; }
 #settings-panel strong { font: 700 1rem var(--hud-serif); }
 #settings-panel label { display: flex; align-items: center; gap: .45rem; color: var(--hud-soft); }
@@ -386,9 +386,19 @@ body[data-mode="workshop-trial"] #waiting-banner { display: none !important; }
 .hud-debug-hero { display: grid; justify-items: center; gap: .3rem; }
 .hud-debug-hero > strong { color: var(--hud-soft); font-size: .66rem; font-weight: 700; white-space: nowrap; }
 .hud-debug-hero .ability-key { min-height: auto; font-size: 11px; }
-.sprite-debug-tools { display: grid; gap: .35rem; margin-top: .65rem; padding-top: .65rem; border-top: 1px dashed var(--hud-line); font-size: .75rem; }
-.sprite-debug-tools label { display: flex; gap: .4rem; align-items: center; }
-.sprite-debug-tools button { min-height: 32px; color: var(--hud-ink); background: var(--hud-gold); border: 2px solid var(--hud-ink); border-radius: 8px; box-shadow: 0 3px 0 var(--hud-ink); cursor: pointer; }
+.debug-menu { display: grid; gap: .45rem; margin-top: .35rem; padding-top: .7rem; border-top: 1px dashed var(--hud-line); }
+.debug-menu-title { margin-bottom: .05rem; }
+.debug-section { min-width: 0; padding: .48rem .55rem; background: rgb(255 255 255 / 4%); border: 1px solid var(--hud-line); border-radius: 8px; }
+.debug-section > summary { display: flex; align-items: center; gap: .4rem; color: var(--hud-text); font-weight: 800; cursor: pointer; list-style: none; }
+.debug-section > summary::-webkit-details-marker { display: none; }
+.debug-section > summary::before { content: '›'; color: var(--hud-gold); font-size: 1.1rem; line-height: .8; transition: transform .15s ease; }
+.debug-section[open] > summary::before { transform: rotate(90deg); }
+.debug-section-body { display: grid; gap: .45rem; margin-top: .55rem; padding-top: .5rem; border-top: 1px solid rgb(255 255 255 / 12%); font-size: .76rem; }
+.debug-section-body label { display: flex; gap: .4rem; align-items: center; color: var(--hud-soft); }
+.debug-section-body select { min-width: 0; }
+.sprite-debug-tools .debug-section-body button, .tower-debug-tools .debug-section-body > button { min-height: 32px; color: var(--hud-ink); background: var(--hud-gold); border: 2px solid var(--hud-ink); border-radius: 8px; box-shadow: 0 3px 0 var(--hud-ink); cursor: pointer; }
+.tower-debug-tools .debug-section-body > span { color: var(--hud-soft); font-size: .7rem; line-height: 1.4; }
+.hud-debug-tools > .debug-section-body > label { margin: 0; }
 .debug-effect-buttons { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: .35rem; }
 .debug-effect-buttons button { min-height: 30px; color: var(--hud-ink); background: var(--hud-paper); border: 1px solid var(--hud-line); border-radius: 6px; cursor: pointer; }
 

@@ -90,6 +90,8 @@ The student navigation is fixed just above the top edge while hidden. Moving the
 - Use a full-bleed forest clearing with square viewport edges; do not leave a white page rim or rounded outer frame.
 - The party panel and the 2×2 camp-buff board sit at the upper left. The party panel has a clear horizontal divider between joining and hosting.
 - Keep the selected hero’s stats and talent in a shallow strip above the hero on the right.
+- In combat, preserve each enemy’s normal body and circle colors during stun, slow, pull, and hold effects. Show the state with small head icons only: ⚡ stunned, 🌀 pulled or held by a vortex, and 🐌 slowed. Never tint or add a colored status ring to an enemy, since that can reduce contrast. Place status icons higher over larger training dummies so they do not collide with the target or health bar.
+- Fairy’s combat effects use a pink-only palette, from bright pink through pale pink highlights. Keep the Vortex core near-black, but use pink for its rim, disk, arcs, wind trails, and debris; do not introduce teal or cyan accents.
 - Let the campfire sit visibly left of center and anchor it to the ground line. Make the selected cat the largest character in the clearing, on the right, with its shadow directly below its base.
 - Keep the hero selector as one horizontal paper strip along the bottom on wide screens.
 - Include a short story line explaining the objective: choose a hero, gather friends, and keep the campfire alive.

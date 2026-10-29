@@ -522,6 +522,7 @@ export const TALENT_FALLBACK_EMOJI = Object.freeze({
   bombardier: '💥',
   bubbles: '🫧',
   electromancer: '⚡',
+  fairy: '🍃',
 });
 
 // Performance profiler. Debug builds only (same gate as the debug menu): the

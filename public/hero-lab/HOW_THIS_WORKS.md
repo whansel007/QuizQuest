@@ -62,6 +62,10 @@ route remains available for quick sandbox playtests.
   five-second lockout prevents an immediate recast. Overload no longer adds
   damage to stunned enemies. Stunned enemies show an ⚡ indicator while they
   remain stunned.
+- **Fairy:** 🧚 fires a piercing Wind Arrow, a Gale Burst that pushes enemies
+  away from the campfire, and a Vortex Orb that pulls and holds enemies for
+  four seconds before releasing them with a small campfire-safe push. Windswept
+  slows targets pushed or released by the skill and ultimate.
 Every hero has a passive talent (name, icon, one-line description and the button
 it works with) defined once in `game-config.js`. The World-page hero preview and
 the in-game Info panel both read that single entry, so they can never disagree.

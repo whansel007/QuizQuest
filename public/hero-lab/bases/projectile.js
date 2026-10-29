@@ -110,6 +110,41 @@ export class Projectile {
       context.beginPath(); context.arc(this.x, this.y, this.radius, 0, Math.PI * 2);
       context.fillStyle = this.flashColors[Math.floor(Date.now() / this.flashIntervalMs) % this.flashColors.length]; context.fill();
     }
+    if (this.heroId === 'fairy' && this.shape === 'arrow') {
+      const pinkAccent = GAME_CONFIG.heroFxSecondary.fairy;
+      context.save();
+      context.translate(this.x, this.y);
+      context.rotate(Math.atan2(this.vy, this.vx));
+      context.strokeStyle = pinkAccent;
+      context.lineWidth = 2;
+      context.lineCap = 'round';
+      context.beginPath(); context.moveTo(-13, 4); context.quadraticCurveTo(-8, -3, -3, 2); context.quadraticCurveTo(1, 7, 6, 0); context.stroke();
+      context.strokeStyle = this.color;
+      context.lineWidth = 3;
+      context.beginPath(); context.moveTo(-4, 0); context.lineTo(9, 0); context.stroke();
+      context.fillStyle = '#fff';
+      context.beginPath(); context.moveTo(12, 0); context.lineTo(5, -4); context.lineTo(7, 0); context.lineTo(5, 4); context.closePath(); context.fill();
+      context.restore(); context.restore();
+      return;
+    }
+    if (this.heroId === 'fairy' && (this.shape === 'gale' || this.shape === 'vortex-orb')) {
+      const pinkAccent = GAME_CONFIG.heroFxSecondary.fairy;
+      const vortex = this.shape === 'vortex-orb';
+      const rotation = Date.now() / (vortex ? 210 : 280);
+      context.save(); context.translate(this.x, this.y); context.rotate(rotation);
+      context.fillStyle = vortex ? GAME_CONFIG.vortexColors.core : this.color;
+      context.beginPath(); context.arc(0, 0, this.radius, 0, Math.PI * 2); context.fill();
+      context.strokeStyle = vortex ? pinkAccent : '#fff0fa'; context.lineWidth = vortex ? 2 : 1.5;
+      context.beginPath(); context.arc(0, 0, this.radius, 0, Math.PI * 2); context.stroke();
+      for (let i = 0; i < (vortex ? 4 : 3); i++) {
+        const a = (Math.PI * 2 * i) / (vortex ? 4 : 3);
+        context.strokeStyle = i % 2 ? pinkAccent : '#fff0fa'; context.lineWidth = 1.5;
+        context.beginPath(); context.moveTo(-this.radius - 7, Math.sin(a) * 4);
+        context.quadraticCurveTo(-this.radius - 3, Math.sin(a + 0.5) * 7, -this.radius, 0); context.stroke();
+      }
+      context.restore(); context.restore();
+      return;
+    }
     if (this.emoji) {
       context.save();
       context.translate(this.x, this.y);

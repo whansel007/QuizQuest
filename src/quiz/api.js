@@ -20,6 +20,7 @@
 // ============================================================
 
 const crypto = require('crypto');
+const { HERO_CLASSES } = require('../../public/hero-lab/hero-list.js');
 const {
   DEBUG_TUNING, ROOM_MAX_ACTIVE, TOWN_AVATAR_COLOR_MAX_LIGHTNESS,
   TOWN_AVATAR_COLOR_MIN_LIGHTNESS, TOWN_AVATAR_DEFAULT_COLOR,
@@ -544,6 +545,7 @@ attemptId: attempt.id,
     route('GET', '/api/dev-ready', null, () => ({
       ready: true,
       demoAccounts: db.users.filter(isSeededDemoUser).length,
+      heroLabHeroes: Object.keys(HERO_CLASSES),
     }));
   }
 

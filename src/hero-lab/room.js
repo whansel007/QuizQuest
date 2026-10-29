@@ -43,6 +43,7 @@ function createRoom({ io, services = null, id, code = null, isDefault = false, m
   const monsters = new Map();
   const pickups = new Map();
   const traps = new Map();
+  const fairyVortices = new Map();
   const timedEffects = [];
   const spawnTelegraphs = [];
   const pendingChains = [];
@@ -61,6 +62,7 @@ function createRoom({ io, services = null, id, code = null, isDefault = false, m
   let liveDummyCount = 0;
 
   let projectileCounter = 0;
+  let vortexCounter = 0;
   let monsterSeq = 0;
   let lastTrialSpawnAt = 0;
   const TRIAL_ENEMY_CAP = 12;
@@ -130,6 +132,7 @@ function createRoom({ io, services = null, id, code = null, isDefault = false, m
 
   function resetGame() {
     projectiles.clear();
+    fairyVortices.clear();
     monsters.clear(); liveDummyCount = 0;
     pickups.clear();
     traps.clear();
@@ -198,6 +201,7 @@ function createRoom({ io, services = null, id, code = null, isDefault = false, m
     setPhase('running');
     countdownEndsAt = 0;
     monsters.clear(); liveDummyCount = 0;
+    fairyVortices.clear();
     for (const player of players.values()) {
       player.hero.hp = player.hero.maxHp;
       player.hero.invulnerableUntil = 0;
@@ -427,6 +431,9 @@ function createRoom({ io, services = null, id, code = null, isDefault = false, m
       if (dummy.fadeStartedAt && now - dummy.fadeStartedAt >= DUMMY_FADE_MS) { monsters.delete(dummy.id); liveDummyCount -= 1; continue; }
       stepMonsterEffects(dummy, now);
       if (dummy.heldUntil > now) continue;
+      // Keep the vortex authoritative over the lobby's separate player-shove
+      // physics so a nearby hero cannot cancel or reverse the inward pull.
+      if (dummy.fairyVortexId) continue;
       for (const player of players.values()) {
         if (player.downed || player.disconnected) continue;
         const dx = dummy.x - player.x, dy = dummy.y - player.y;
@@ -465,6 +472,122 @@ function createRoom({ io, services = null, id, code = null, isDefault = false, m
     const held = applyHold(entity, durationMs, sourceId, now);
     if (held && wasFusing) nsp.emit('area_telegraph_cancel', { sourceAbility: `exploder:${entity.id}` });
     return held;
+  }
+
+  function fairySlow(entity, now) {
+    const slow = GAME_CONFIG.heroes.fairy.windswept;
+    applySlow(entity, slow.slowPct, slow.durationMs, 'fairy-windswept', now);
+  }
+
+  function resolveFairyGale(x, y, ownerId, now) {
+    const spec = GAME_CONFIG.heroes.fairy;
+    const radius = spec.gale.radius;
+    const hits = [];
+    for (const monster of monsters.values()) {
+      if (Math.hypot(monster.x - x, monster.y - y) > radius + monster.radius) continue;
+      damageMonster(monster, (players.get(ownerId)?.hero.attack || spec.attack) * spec.gale.damageMultiplier,
+        { ownerId, sourceAbility: 'skill' });
+      const fireDistance = Math.hypot(monster.x - campfire.x, monster.y - campfire.y);
+      const origin = fireDistance <= GAME_CONFIG.heroes.fairy.campfirePushZoneRadius
+        ? { fromX: campfire.x, fromY: campfire.y }
+        : { fromX: x, fromY: y };
+      if (roomApplyPush(monster, origin, spec.gale.pushPx, spec.gale.pushMs,
+        { ignoreHalfKnockback: true, now })) {
+        fairySlow(monster, now);
+        const dx = origin.fromX - monster.x, dy = origin.fromY - monster.y;
+        const length = Math.hypot(dx, dy) || 1;
+        hits.push({ id: monster.id, x: monster.x, y: monster.y, dirX: -dx / length, dirY: -dy / length });
+      }
+    }
+    nsp.emit('area_effect', { x, y, radius, kind: 'player', telegraphMs: 0,
+      color: GAME_CONFIG.heroFxColors.fairy.primary, sourceHeroId: 'fairy', sourceAbility: 'skill',
+      hits, durationMs: GAME_CONFIG.heroes.fairy.gale.visualDurationMs });
+  }
+
+  function createFairyVortex(x, y, ownerId, now) {
+    const spec = GAME_CONFIG.heroes.fairy.vortex;
+    const id = `fairy-vortex:${++vortexCounter}`;
+    fairyVortices.set(id, { id, x, y, ownerId, startedAt: now, endsAt: now + spec.durationMs,
+      pullEndsAt: now + spec.pullMs, targets: new Map() });
+  }
+
+  function processFairyVortices(now) {
+    const spec = GAME_CONFIG.heroes.fairy;
+    for (const [id, vortex] of fairyVortices) {
+      if (now >= vortex.endsAt) {
+        for (const [monsterId, targetState] of vortex.targets) {
+          const monster = monsters.get(monsterId);
+          if (!monster || monster.fairyVortexId !== id) continue;
+          monster.fairyVortexId = null;
+          monster.heldUntil = now;
+          const fireDistance = Math.hypot(monster.x - campfire.x, monster.y - campfire.y);
+          const origin = fireDistance <= GAME_CONFIG.heroes.fairy.campfirePushZoneRadius
+            ? { fromX: campfire.x, fromY: campfire.y } : { fromX: vortex.x, fromY: vortex.y };
+          if (roomApplyPush(monster, origin, spec.vortex.endPushPx, spec.vortex.endPushMs,
+            { ignoreHalfKnockback: true, now })) fairySlow(monster, now);
+        }
+        fairyVortices.delete(id);
+        nsp.emit('fairy_vortex_end', { id, x: vortex.x, y: vortex.y, radius: spec.vortex.radius });
+        continue;
+      }
+
+      for (const monster of monsters.values()) {
+        if (monster.isBoss || monster.type === 'brute-king') continue;
+        const distance = Math.hypot(monster.x - vortex.x, monster.y - vortex.y);
+        if (distance > spec.vortex.radius + monster.radius) {
+          if (vortex.targets.get(monster.id)?.stage === 'pulling') {
+            vortex.targets.delete(monster.id);
+            if (monster.fairyVortexId === id) monster.fairyVortexId = null;
+          }
+          continue;
+        }
+        if (monster.fairyVortexId && monster.fairyVortexId !== id) continue;
+        let target = vortex.targets.get(monster.id);
+        if (!target) {
+          if ((monster.heldUntil || 0) > now || (monster.holdImmuneUntil || 0) > now) continue;
+          const pullDuration = now < vortex.pullEndsAt
+            ? vortex.pullEndsAt - now : spec.vortex.latePullMs;
+          target = { stage: 'pulling', holdAt: Math.min(vortex.endsAt, now + pullDuration), lastDamageAt: now };
+          vortex.targets.set(monster.id, target);
+          monster.fairyVortexId = id;
+        }
+
+        // Pull every tick, including while held. This acts like a gravity well:
+        // outside nudges may move the target briefly, then the vortex draws it
+        // back toward the core on the next tick. Direct correction also avoids
+        // the campfire obstacle used by ordinary knockback.
+        const pullX = vortex.x - monster.x, pullY = vortex.y - monster.y;
+        const pullStopRadius = Math.max(12, (monster.radius || 20) * 0.5);
+        const pullDistance = Math.max(0, distance - pullStopRadius);
+        if (pullDistance > 0) {
+          const stepPx = Math.min(pullDistance, spec.vortex.pullSpeedPxPerSecond / ARENA_CONFIG.tickHz);
+          monster.x = clamp(monster.x + pullX / distance * stepPx, monster.radius, ARENA_CONFIG.width - monster.radius);
+          monster.y = clamp(monster.y + pullY / distance * stepPx, monster.radius, ARENA_CONFIG.height - monster.radius);
+          monster.knockbackX = 0; monster.knockbackY = 0;
+        }
+
+        const damageElapsedMs = Math.max(0, now - target.lastDamageAt);
+        if (damageElapsedMs >= spec.vortex.damageTickMs) {
+          const attack = players.get(vortex.ownerId)?.hero.attack || spec.attack;
+          const damage = attack * spec.vortex.dpsMultiplier * damageElapsedMs / 1000;
+          target.lastDamageAt = now;
+          damageMonster(monster, damage, { ownerId: vortex.ownerId, sourceAbility: 'ultimate' });
+          if (monster.dead) continue;
+        }
+
+        if (target.stage === 'pulling' && now >= target.holdAt) {
+          if (roomApplyHold(monster, vortex.endsAt - now, id, now)) {
+            monster.fairyVortexId = id;
+            target.stage = 'held';
+          } else {
+            vortex.targets.delete(monster.id);
+            if (monster.fairyVortexId === id) monster.fairyVortexId = null;
+          }
+        } else if (target.stage === 'held') {
+          monster.heldUntil = Math.max(monster.heldUntil || 0, vortex.endsAt);
+        }
+      }
+    }
   }
 
   function dummyCount() {
@@ -664,6 +787,7 @@ function createRoom({ io, services = null, id, code = null, isDefault = false, m
   // waiting for every enemy to spawn. Used by tests and the debug menu.
   function clearWave() {
     monsters.clear(); liveDummyCount = 0;
+    fairyVortices.clear();
     spawnTelegraphs.length = 0;
     spawnQueue = [];
     enemiesLeftToSpawn = 0;
@@ -1957,6 +2081,7 @@ function createRoom({ io, services = null, id, code = null, isDefault = false, m
         fuseRemainingMs: Math.max(0, (monster.fuseUntil || 0) - now),
         stunned: monster.stunnedUntil > now,
         held: monster.heldUntil > now,
+        vortexed: Boolean(monster.fairyVortexId),
         slowed: monster.slowUntil > now,
         trapped: Boolean(monster.trappedBy),
         skeletonWindupMs: Math.max(0, (monster.windupUntil || 0) - now),
@@ -2014,6 +2139,12 @@ function createRoom({ io, services = null, id, code = null, isDefault = false, m
         radius,
         color,
       })),
+      fairyVortices: [...fairyVortices.values()].map((vortex) => ({
+        id: vortex.id, x: vortex.x, y: vortex.y,
+        remainingMs: Math.max(0, vortex.endsAt - now),
+        pullRemainingMs: Math.max(0, vortex.pullEndsAt - now),
+        radius: GAME_CONFIG.heroes.fairy.vortex.radius,
+      })),
     };
   }
 
@@ -2040,6 +2171,7 @@ function createRoom({ io, services = null, id, code = null, isDefault = false, m
     if (phase === 'countdown' && now >= countdownEndsAt) startRun(now);
     if (phase === 'lobby' && nextDummySpawnAt && now >= nextDummySpawnAt) { nextDummySpawnAt = 0; spawnDummies(now); }
     updateDummies(dt, now);
+    processFairyVortices(now);
 
     // 1. Move players
     for (const player of players.values()) if (player.bubbleRush && now >= player.bubbleRush.endsAt) endBubbleRush(player, now);
@@ -2180,7 +2312,7 @@ function createRoom({ io, services = null, id, code = null, isDefault = false, m
     for (const monster of monsters.values()) {
       if (monster.isDummy) continue;
       stepMonsterEffects(monster, now);
-      if (monster.heldUntil > now || monster.pushMotion) continue;
+      if (monster.heldUntil > now || monster.pushMotion || monster.fairyVortexId) continue;
       if (monster.dashPush) {
         const progress = Math.min(1, (now - monster.dashPush.startedAt) / monster.dashPush.durationMs);
         const eased = 1 - (1 - progress) * (1 - progress);
@@ -2256,6 +2388,21 @@ function createRoom({ io, services = null, id, code = null, isDefault = false, m
     // 4. Move projectiles
     for (const [id, proj] of projectiles.entries()) {
       proj.update(dt, ARENA_CONFIG);
+      if (proj.heroId === 'fairy' && (proj.sourceAbility === 'skill' || proj.sourceAbility === 'ultimate')) {
+        const contact = [...monsters.values()].find((monster) => proj.collidesWith(monster));
+        if (proj.sourceAbility === 'skill' && (contact || proj.dead)) {
+          resolveFairyGale(proj.x, proj.y, proj.ownerId, now);
+          projectiles.delete(id);
+          continue;
+        }
+        if (proj.sourceAbility === 'ultimate' && (contact || proj.dead)) {
+          createFairyVortex(proj.x, proj.y, proj.ownerId, now);
+          nsp.emit('fairy_vortex_start', { id: `fairy-vortex:${vortexCounter}`, x: proj.x, y: proj.y,
+            radius: GAME_CONFIG.heroes.fairy.vortex.radius });
+          projectiles.delete(id);
+          continue;
+        }
+      }
       // Stun balls detonate on body contact only: the blast radius must not
       // set them off while the ball is still in flight. On contact the ball
       // applies its damage and stun to everything inside the radius, emits
@@ -2330,6 +2477,10 @@ function createRoom({ io, services = null, id, code = null, isDefault = false, m
             break;
           }
           const damage = damageMonster(monster,proj.damage,{ownerId:proj.ownerId,sourceAbility:proj.sourceAbility||'weapon',refundGroupId:proj.id});
+          if (proj.heroId === 'fairy' && proj.sourceAbility === 'weapon') {
+            roomApplyPush(monster, { dirX: proj.vx, dirY: proj.vy }, GAME_CONFIG.heroes.fairy.windArrow.pushPx,
+              GAME_CONFIG.heroes.fairy.windArrow.pushMs, { now });
+          }
           proj.hitTargets.add(mId);
           if (!proj.ricocheted && proj.sourceAbility === 'weapon' && hasRunEffect('ricochet')) {
             const ricochet = GAME_CONFIG.arenaTuning.cards.effects;
@@ -2548,6 +2699,7 @@ function createRoom({ io, services = null, id, code = null, isDefault = false, m
     players.clear();
     waiting.clear();
     monsters.clear(); liveDummyCount = 0;
+    fairyVortices.clear();
     projectiles.clear();
     buffVotes.clear();
     dawnPending.clear();

@@ -240,6 +240,42 @@
       "originalFile": "power-lightning.svg",
       "originalPath": "game-icons.net.svg/icons/ffffff/000000/1x1/lorc/power-lightning.svg",
       "license": "CC BY 3.0"
+    },
+    "fairy-primary.svg": {
+      "hero": "fairy",
+      "slot": "primary",
+      "ability": "Wind Arrow",
+      "author": "lorc",
+      "originalFile": "winged-arrow.svg",
+      "originalPath": "game-icons.net.svg/icons/ffffff/000000/1x1/lorc/winged-arrow.svg",
+      "license": "CC BY 3.0"
+    },
+    "fairy-skill.svg": {
+      "hero": "fairy",
+      "slot": "skill",
+      "ability": "Gale Burst",
+      "author": "lorc",
+      "originalFile": "whirlwind.svg",
+      "originalPath": "game-icons.net.svg/icons/ffffff/000000/1x1/lorc/whirlwind.svg",
+      "license": "CC BY 3.0"
+    },
+    "fairy-ultimate.svg": {
+      "hero": "fairy",
+      "slot": "ultimate",
+      "ability": "Vortex Orb",
+      "author": "lorc",
+      "originalFile": "vortex.svg",
+      "originalPath": "game-icons.net.svg/icons/ffffff/000000/1x1/lorc/vortex.svg",
+      "license": "CC BY 3.0"
+    },
+    "fairy-talent.svg": {
+      "hero": "fairy",
+      "slot": "talent",
+      "ability": "Windswept",
+      "author": "lorc",
+      "originalFile": "falling-leaf.svg",
+      "originalPath": "game-icons.net.svg/icons/ffffff/000000/1x1/lorc/falling-leaf.svg",
+      "license": "CC BY 3.0"
     }
   }
 }

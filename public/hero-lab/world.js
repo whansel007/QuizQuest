@@ -1,7 +1,17 @@
 import { HEROES } from './hero-list.js';
 import { EnemyProjectile } from './projectiles/enemy-projectile.js';
 import { Projectile } from './bases/projectile.js';
-import { GAME_CONFIG, HERO_FX_COLORS, ABILITY_ICONS, ABILITY_BTN_HIGHLIGHT, ABILITY_BTN_HIGHLIGHT_MECH } from './game-config.js';
+import { GAME_CONFIG, HERO_FX_COLORS, HERO_FX_SECONDARY, ABILITY_ICONS, ABILITY_BTN_HIGHLIGHT, ABILITY_BTN_HIGHLIGHT_MECH,
+  VORTEX_CORE_RADIUS_PX, VORTEX_DISK_TILT, VORTEX_ZOOM_PULSE, VORTEX_POP_STILL_MS, VORTEX_DEBRIS_POOL_SIZE,
+  VORTEX_DEBRIS_SPAWN_MS, VORTEX_RIPPLE_INTERVAL_MS, VORTEX_RIPPLE_DURATION_MS, FAIRY_GALE_SHAKE_MULT,
+  VORTEX_GROUND_FILL, VORTEX_FORMATION_FLASH_MS, VORTEX_CORE_GROW_MS, VORTEX_SHOCKWAVE_MS,
+  VORTEX_CORE_PULSE_HZ, VORTEX_DISK_ROTATION_HZ, VORTEX_DISK_OUTER_RADIUS_PX, VORTEX_LENS_ARC_DEG,
+  VORTEX_COLLAPSE_MS, VORTEX_FLASH_POP_MS, VORTEX_POP_RING_MS, VORTEX_POP_SPARK_COUNT,
+  VORTEX_ZOOM_SCALE, VORTEX_ZOOM_DURATION_MS, FAIRY_GALE_WIND_LINES, FAIRY_ARROW_IMPACT_LINES,
+  FAIRY_ARROW_TRAIL_COUNT, FAIRY_MUZZLE_PUFF_RADIUS_PX, FAIRY_GALE_VFX_DURATION_MS, FAIRY_WIND_IMPACT_MS,
+  VORTEX_GROUND_RING_WIDTH_PX, VORTEX_GROUND_DASH_ON_PX, VORTEX_GROUND_DASH_OFF_PX,
+  VORTEX_GROUND_FILL_ALPHA, VORTEX_SUSTAIN_FADE_MS, VORTEX_DEBRIS_LIFETIME_MS,
+  VORTEX_POP_STILL_CORE_PX } from './game-config.js';
 import { SHAKE_PLAYER_HIT_TRAUMA, SHAKE_ULTIMATE_TRAUMA, SHAKE_BOSS_SLAM_TRAUMA, SHAKE_EXPLOSION_BASE_TRAUMA,
   SHAKE_EXPLOSION_RADIUS_SCALE, SHAKE_MAX_TRAUMA, SHAKE_DECAY, SHAKE_MAX_OFFSET, SHAKE_EXPLOSION_COOLDOWN_MS,
   SHAKE_NOISE_HZ, SHAKE_NOISE_PRIMARY_PHASE, SHAKE_NOISE_PRIMARY_FREQUENCY, SHAKE_NOISE_SECONDARY_FREQUENCY, SHAKE_NOISE_SECONDARY_PHASE, SHAKE_DEFAULT_INTENSITY,
@@ -20,7 +30,7 @@ import { SHAKE_PLAYER_HIT_TRAUMA, SHAKE_ULTIMATE_TRAUMA, SHAKE_BOSS_SLAM_TRAUMA,
   BTN_GAP_X, BTN_LABEL_GAP, BTN_LABEL_HEIGHT, BTN_LABEL_SIZE, BTN_LABEL_CLEARANCE,
   BTN_ICON_SCALE, MECH_ICON_SWAP, BTN_COLORS, BTN_HIGHLIGHT_READY_COLOR, PARTICLE_CAP,
   CONFETTI_QUALITY_FACTOR } from '../../config/tuning.js';
-import { playSound, setAudioOptions, setHeartbeat, audioStats, setAudioEnabled, warmUpAudio } from './arena-audio.js';
+import { playSound, setAudioOptions, setHeartbeat, audioStats, setAudioEnabled, warmUpAudio, startSoundLoop } from './arena-audio.js';
 import { createProfiler, effectToggles } from './perf-profiler.js';
 import { createTalentBadge, talentKeyLabel, talentKeyTooltip } from './talent-badge.js';
 import { preloadHeroSprites, drawCachedHero, getHeroSpriteUrl } from './hero-visuals.js';
@@ -341,6 +351,12 @@ let me = null;
 let state = { players: [], projectiles: [], monsters: [], campfire: null, wave: null };
 let stateReceivedAt = performance.now();
 const clientProjectiles = new Map();
+const fairyVortexVisuals = new Map();
+const fairyVortexPops = [];
+const fairyTravelSoundStops = new Map();
+const fairyWindImpacts = [];
+const fairyMuzzlePuffs = [];
+const fairyPushStreaks = [];
 const particles = [];
 const damageTexts = [];
 const lightningArcs = [];
@@ -400,10 +416,23 @@ const profiler = createProfiler({
 profiler.onSoundToggle = (on) => setAudioEnabled(on);
 void profiler.start().then((debugEnabled) => {
   if (!debugEnabled) return;
-  const controls = document.createElement('div');
-  controls.className = 'sprite-debug-tools';
+  const debugMenu = document.createElement('div');
+  debugMenu.className = 'debug-menu';
+  debugMenu.innerHTML = '<strong class="debug-menu-title">Debug tools</strong>';
+  const makeDebugSection = (title, className = '') => {
+    const section = document.createElement('details');
+    section.className = `debug-section ${className}`.trim();
+    const summary = document.createElement('summary');
+    summary.textContent = title;
+    const body = document.createElement('div');
+    body.className = 'debug-section-body';
+    section.append(summary, body);
+    debugMenu.append(section);
+    return body;
+  };
+  const controls = makeDebugSection('Hero visuals', 'sprite-debug-tools');
   controls.innerHTML = '<label><input type="checkbox" data-sprite-debug="hitboxes"> Show hitboxes</label><label><input type="checkbox" data-sprite-debug="disable"> Disable sprites</label><button type="button" data-sprite-debug="ultimate">Force ultimate look</button><button type="button" data-sprite-debug="downed">Force downed</button>';
-  settingsPanel.append(controls);
+  settingsPanel.append(debugMenu);
   controls.querySelector('[data-sprite-debug="disable"]').addEventListener('change', (event) => {
     heroSpritesDisabled = event.target.checked;
     syncHeroMenus(); updateHud();
@@ -412,31 +441,49 @@ void profiler.start().then((debugEnabled) => {
   controls.querySelector('[data-sprite-debug="downed"]').addEventListener('click', () => { heroDebugDowned = !heroDebugDowned; });
   controls.querySelector('[data-sprite-debug="hitboxes"]').addEventListener('change', (event) => { heroDebugHitboxes = event.target.checked; });
 
+  const heroUnlockTools = makeDebugSection('Hero testing');
+  heroUnlockTools.innerHTML = '<label>Unlock hero <select data-debug-unlock-hero></select></label><button type="button" data-debug-unlock>Unlock for this browser</button><button type="button" data-debug-preview-vortex>Preview vortex</button>';
+  const heroUnlockSelect = heroUnlockTools.querySelector('[data-debug-unlock-hero]');
+  heroUnlockSelect.replaceChildren(...HEROES.map((hero) => {
+    const option = document.createElement('option'); option.value = hero.id; option.textContent = `${hero.name} · ${hero.rarity}`; return option;
+  }));
+  heroUnlockTools.querySelector('[data-debug-unlock]').addEventListener('click', () => {
+    const heroId = heroUnlockSelect.value;
+    try {
+      const key = 'hero-lab-debug-unlocked-heroes';
+      const existing = JSON.parse(localStorage.getItem(key) || '[]');
+      if (!existing.includes(heroId)) localStorage.setItem(key, JSON.stringify([...existing, heroId]));
+    } catch { /* the parent picker still receives the unlock message */ }
+    window.parent?.postMessage({ type: 'hero-lab-debug-unlock', heroId }, window.location.origin);
+    socket.emit('swap_hero', heroId);
+    connectionStatus.textContent = `${HEROES.find((hero) => hero.id === heroId)?.name || 'Hero'} unlocked for browser testing.`;
+  });
+  heroUnlockTools.querySelector('[data-debug-preview-vortex]').addEventListener('click', () => {
+    const cursor = window.lastPointerWorld || { x: ARENA_WIDTH / 2, y: ARENA_HEIGHT / 2 };
+    previewFairyVortex(cursor.x, cursor.y);
+  });
+
   // Tower debug: set this player's Tower level 0..max and force-add a stat card,
   // with a live readout of the derived stats. Same debug gate as above.
-  const towerTools = document.createElement('div');
-  towerTools.className = 'tower-debug-tools';
+  const towerTools = makeDebugSection('Tower & stat cards', 'tower-debug-tools');
   const maxTowerLevel = GAME_CONFIG.arenaTuning.tower.maxLevel;
   const levelOptions = Array.from({ length: maxTowerLevel + 1 }, (_, i) => `<option value="${i}">${i}</option>`).join('');
   towerTools.innerHTML = `<label>Tower Lv <select data-tower-level>${levelOptions}</select></label>`
     + '<label>Add card <select data-tower-card><option value="">—</option><option value="maxHp">maxHp</option><option value="attack">attack</option><option value="defense">defense</option><option value="speed">speed</option></select></label>'
     + '<button type="button" data-tower-add>Add</button><span data-tower-readout></span>';
-  controls.append(towerTools);
   towerTools.querySelector('[data-tower-level]').addEventListener('change', (event) => socket.emit('debug_set_tower', Number(event.target.value)));
   towerTools.querySelector('[data-tower-add]').addEventListener('click', () => {
     const cardId = towerTools.querySelector('[data-tower-card]').value;
     if (cardId) socket.emit('debug_add_stat_card', cardId);
   });
-  const crowdControlTools = document.createElement('div');
-  crowdControlTools.className = 'tower-debug-tools';
-  crowdControlTools.innerHTML = '<strong>Monster effects</strong><div class="debug-effect-buttons">'
+  const crowdControlTools = makeDebugSection('Monster effects', 'tower-debug-tools');
+  crowdControlTools.innerHTML = '<div class="debug-effect-buttons">'
     + '<button type="button" data-monster-effect="push:enemy">Push enemy</button>'
     + '<button type="button" data-monster-effect="hold:enemy">Hold enemy</button>'
     + '<button type="button" data-monster-effect="slow:enemy">Slow enemy</button>'
     + '<button type="button" data-monster-effect="push:dummy">Push dummy</button>'
     + '<button type="button" data-monster-effect="hold:dummy">Hold dummy</button>'
     + '<button type="button" data-monster-effect="slow:dummy">Slow dummy</button></div>';
-  controls.append(crowdControlTools);
   crowdControlTools.querySelectorAll('[data-monster-effect]').forEach((button) => button.addEventListener('click', () => {
     const [effect, target] = button.dataset.monsterEffect.split(':');
     socket.emit('debug_monster_effect', { effect, target });
@@ -534,10 +581,15 @@ async function loadAbilityIcon(path) {
   }
 }
 
-function setAbilityIcon(host, path) {
+const FAIRY_ABILITY_FALLBACK = Object.freeze({ primary: '🏹', skill: '💨', ultimate: '🌪️' });
+function setAbilityIcon(host, path, fallbackEmoji = '') {
   const cached = iconSvgCache.get(path);
   if (cached) {
     host.replaceChildren(cached.cloneNode(true));
+    return;
+  }
+  if (iconLoadFailed.has(path)) {
+    host.replaceChildren(fallbackEmoji ? document.createTextNode(fallbackEmoji) : fallbackIconSvg());
     return;
   }
   // Interim ring so the button never sits empty while the file loads.
@@ -545,6 +597,7 @@ function setAbilityIcon(host, path) {
   if (iconLoadFailed.has(path)) return;
   loadAbilityIcon(path).then((svg) => {
     if (svg && host.isConnected) host.replaceChildren(svg.cloneNode(true));
+    else if (!svg && host.isConnected && fallbackEmoji) host.replaceChildren(document.createTextNode(fallbackEmoji));
   });
 }
 
@@ -560,7 +613,7 @@ function applyClusterIcons(heroId, mechActive, elements) {
       if (slot === 'primary' && map.mechPrimary) path = map.mechPrimary;
       if (slot === 'skill' && map.mechSkill) path = map.mechSkill;
     }
-    if (path) setAbilityIcon(host, path);
+    if (path) setAbilityIcon(host, path, heroId === 'fairy' ? FAIRY_ABILITY_FALLBACK[slot] : '');
   }
 }
 
@@ -737,21 +790,6 @@ function particleWhiteGlyph(emoji, size) {
 // One cached radial-glow sprite per color, blitted with drawImage. Replaces a
 // per-projectile createRadialGradient every frame.
 const _glowSprites = new Map();
-let _heldIndicatorSprite = null;
-function heldIndicatorSprite() {
-  if (_heldIndicatorSprite) return _heldIndicatorSprite;
-  const size = GAME_CONFIG.effects.holdSwirlSpriteSize;
-  const radius = GAME_CONFIG.effects.holdSwirlRadiusPx;
-  const canvas = document.createElement('canvas'); canvas.width = size; canvas.height = size;
-  const g = canvas.getContext('2d');
-  g.strokeStyle = GAME_CONFIG.effects.heldEnemyTint; g.lineWidth = GAME_CONFIG.effects.holdSwirlLineWidth;
-  g.beginPath(); g.arc(size / 2, size / 2, radius, -Math.PI * 0.65, Math.PI * 1.45); g.stroke();
-  g.beginPath(); g.moveTo(size / 2 + radius * 0.72, size / 2 - radius * 0.72);
-  g.lineTo(size / 2 + radius * 1.15, size / 2 - radius * 0.86);
-  g.lineTo(size / 2 + radius, size / 2 - radius * 0.29); g.stroke();
-  _heldIndicatorSprite = { canvas, size };
-  return _heldIndicatorSprite;
-}
 function glowSprite(color, inner, outer) {
   const key = `${color}|${inner}|${outer}`;
   let sprite = _glowSprites.get(key);
@@ -1205,16 +1243,277 @@ function smoothShakeNoise(timestamp, phase = SHAKE_NOISE_PRIMARY_PHASE) {
   return valueAt(sample) + (valueAt(sample + 1) - valueAt(sample)) * eased;
 }
 
-function showAreaEffect({ x, y, radius, kind = 'player', telegraphMs = 0, sourceAbility = 'weapon', color = null, sourceHeroId = null, angleRad = null, angleDeg = null, durationMs = null }) {
+function showAreaEffect({ x, y, radius, kind = 'player', telegraphMs = 0, sourceAbility = 'weapon', color = null, sourceHeroId = null, angleRad = null, angleDeg = null, durationMs = null, hits = null }) {
   const cone = angleRad != null && angleDeg != null;
   const now = performance.now();
-  areaEffects.push({ x, y, radius, kind, sourceAbility, color, sourceHeroId, angleRad, angleDeg, cone, phase: telegraphMs > 0 ? 'telegraph' : 'detonation', startedAt: now,
-    durationMs: durationMs != null ? durationMs : (telegraphMs > 0 ? telegraphMs : ARENA_TUNING.areaEffects.detonationMs) });
+  areaEffects.push({ x, y, radius, kind, sourceAbility, color, sourceHeroId, angleRad, angleDeg, cone, hits, phase: telegraphMs > 0 ? 'telegraph' : 'detonation', startedAt: now,
+    durationMs: durationMs != null ? durationMs : (sourceHeroId === 'fairy' && sourceAbility === 'skill' ? FAIRY_GALE_VFX_DURATION_MS : telegraphMs > 0 ? telegraphMs : ARENA_TUNING.areaEffects.detonationMs) });
   if (areaEffects.length > 24) areaEffects.shift();
   if (telegraphMs <= 0) {
     if (sourceAbility === 'boss-slam') shakeCamera(SHAKE_BOSS_SLAM_TRAUMA, 'major');
     else if (sourceHeroId === 'guardian' && sourceAbility === 'ultimate') shakeCamera(SHAKE_ULTIMATE_TRAUMA, 'major');
+    else if (sourceHeroId === 'fairy' && sourceAbility === 'skill') shakeCamera((SHAKE_EXPLOSION_BASE_TRAUMA + radius / SHAKE_EXPLOSION_RADIUS_SCALE) * FAIRY_GALE_SHAKE_MULT, 'explosion');
+    else if (sourceHeroId === 'fairy' && sourceAbility === 'ultimate') shakeCamera(SHAKE_ULTIMATE_TRAUMA * 0.6, 'major');
     else shakeCamera(SHAKE_EXPLOSION_BASE_TRAUMA + radius / SHAKE_EXPLOSION_RADIUS_SCALE, 'explosion');
+  }
+}
+
+const reducedMotionQuery = window.matchMedia?.('(prefers-reduced-motion: reduce)');
+let prefersReducedMotion = Boolean(reducedMotionQuery?.matches);
+reducedMotionQuery?.addEventListener?.('change', (event) => { prefersReducedMotion = event.matches; });
+let fairyVortexHumStop = null;
+
+function makeFairyVortexVisual({ id, x, y, remainingMs = GAME_CONFIG.heroes.fairy.vortex.durationMs,
+  pullRemainingMs = GAME_CONFIG.heroes.fairy.vortex.pullMs, preview = false }) {
+  const now = performance.now();
+  const durationMs = GAME_CONFIG.heroes.fairy.vortex.durationMs;
+  const age = Math.max(0, durationMs - remainingMs);
+  return {
+    id, x, y, preview, startedAt: now - age, endsAt: now + remainingMs,
+    pullEndsAt: now + pullRemainingMs, nextDebrisAt: now + VORTEX_DEBRIS_SPAWN_MS,
+    debrisCursor: 0, debris: Array.from({ length: VORTEX_DEBRIS_POOL_SIZE }, () => ({ at: -Infinity, angle: 0, durationMs: VORTEX_DEBRIS_LIFETIME_MS })),
+    ripples: [], nextRippleAt: now + VORTEX_RIPPLE_INTERVAL_MS, humStop: null,
+  };
+}
+
+function startFairyVortexVisual(vortex) {
+  const visual = makeFairyVortexVisual(vortex);
+  fairyVortexVisuals.set(visual.id, visual);
+  if (effectToggles.sound) {
+    playSound('fairyWhoosh');
+    if (!fairyVortexHumStop) fairyVortexHumStop = startSoundLoop('fairyHum');
+  }
+  shakeCamera(SHAKE_ULTIMATE_TRAUMA, 'major');
+  if (VORTEX_ZOOM_PULSE && effectiveQuality() !== 'low' && !prefersReducedMotion) {
+    cameraZoom = { startedAt: performance.now(), until: performance.now() + VORTEX_ZOOM_DURATION_MS, scale: VORTEX_ZOOM_SCALE };
+  }
+}
+
+function finishFairyVortexVisual(id, x, y) {
+  const visual = fairyVortexVisuals.get(id);
+  if (visual) {
+    x = visual.x; y = visual.y;
+    fairyVortexVisuals.delete(id);
+    if (fairyVortexVisuals.size === 0 && fairyVortexHumStop) {
+      fairyVortexHumStop(); fairyVortexHumStop = null;
+    }
+  }
+  if (effectToggles.sound) playSound('fairyPoof');
+  showAreaEffect({ x, y, radius: GAME_CONFIG.heroes.fairy.vortex.radius, kind: 'player', sourceAbility: 'ultimate', sourceHeroId: 'fairy',
+    color: HERO_FX_COLORS.fairy.primary, durationMs: VORTEX_POP_RING_MS });
+  fairyVortexPops.push({ x, y, startedAt: performance.now() });
+  if (!prefersReducedMotion && effectiveQuality() !== 'low') {
+    for (let i = 0; i < VORTEX_POP_SPARK_COUNT; i++) {
+      const angle = Math.PI * 2 * i / VORTEX_POP_SPARK_COUNT;
+      const speed = 95 + (i % 3) * 25;
+      addParticle({ x, y, vx: Math.cos(angle) * speed, vy: Math.sin(angle) * speed,
+        radius: 2.5, color: i % 2 ? HERO_FX_COLORS.fairy.primary : HERO_FX_SECONDARY.fairy,
+        alpha: 1, startedAt: performance.now(), durationMs: VORTEX_FLASH_POP_MS, expiresAt: performance.now() + VORTEX_FLASH_POP_MS });
+    }
+  }
+}
+
+function drawFairyWindFeedback(now) {
+  for (let i = fairyMuzzlePuffs.length - 1; i >= 0; i--) {
+    const puff = fairyMuzzlePuffs[i], age = now - puff.startedAt;
+    if (age >= FAIRY_WIND_IMPACT_MS) { fairyMuzzlePuffs.splice(i, 1); continue; }
+    context.save(); context.translate(puff.x, puff.y); context.rotate(puff.angle);
+    context.globalAlpha = 1 - age / FAIRY_WIND_IMPACT_MS;
+    for (let n = 0; n < FAIRY_ARROW_TRAIL_COUNT; n++) {
+      context.strokeStyle = n === 1 ? '#fff0fa' : HERO_FX_SECONDARY.fairy; context.lineWidth = 1.6;
+      context.beginPath(); context.moveTo(-n * 3, n * 2 - 3); context.quadraticCurveTo(3, -6 + n * 4, 8 + n * 2, 0); context.stroke();
+    }
+    context.restore();
+  }
+  for (let i = fairyWindImpacts.length - 1; i >= 0; i--) {
+    const impact = fairyWindImpacts[i], age = now - impact.startedAt;
+    if (age >= FAIRY_WIND_IMPACT_MS) { fairyWindImpacts.splice(i, 1); continue; }
+    const fade = 1 - age / FAIRY_WIND_IMPACT_MS;
+    context.save(); context.translate(impact.x, impact.y); context.rotate(impact.angle); context.globalAlpha = fade;
+    for (let n = 0; n < FAIRY_ARROW_IMPACT_LINES; n++) {
+      context.strokeStyle = n % 2 ? HERO_FX_SECONDARY.fairy : '#fff0fa'; context.lineWidth = 2;
+      const y = (n - 1) * 5;
+      context.beginPath(); context.moveTo(-4, y + 3); context.quadraticCurveTo(0, y - 5, 7, y); context.stroke();
+    }
+    context.restore();
+  }
+  for (let i = fairyPushStreaks.length - 1; i >= 0; i--) {
+    const streak = fairyPushStreaks[i], age = now - streak.startedAt;
+    if (age >= FAIRY_WIND_IMPACT_MS) { fairyPushStreaks.splice(i, 1); continue; }
+    const target = state.monsters?.find((monster) => monster.id === streak.id);
+    const x = target?.x ?? streak.x, y = target?.y ?? streak.y;
+    context.save(); context.globalAlpha = (1 - age / FAIRY_WIND_IMPACT_MS) * 0.72; context.lineCap = 'round';
+    for (let n = 0; n < 3; n++) {
+      context.strokeStyle = n === 1 ? '#fff0fa' : HERO_FX_SECONDARY.fairy; context.lineWidth = 1.7;
+      const offset = (n - 1) * 4;
+      context.beginPath(); context.moveTo(x - streak.dirX * (10 + n * 3) - streak.dirY * offset, y - streak.dirY * (10 + n * 3) + streak.dirX * offset);
+      context.quadraticCurveTo(x - streak.dirX * 6, y - streak.dirY * 6, x, y); context.stroke();
+    }
+    context.restore();
+  }
+}
+
+function syncFairyVortices(snapshot) {
+  const active = new Set();
+  for (const vortex of snapshot.fairyVortices || []) {
+    active.add(vortex.id);
+    const visual = fairyVortexVisuals.get(vortex.id);
+    if (!visual) startFairyVortexVisual(vortex);
+    else { visual.x = vortex.x; visual.y = vortex.y; visual.endsAt = performance.now() + vortex.remainingMs; visual.pullEndsAt = performance.now() + vortex.pullRemainingMs; }
+  }
+  for (const [id, visual] of fairyVortexVisuals) if (!active.has(id) && !visual.preview) finishFairyVortexVisual(id, visual.x, visual.y);
+}
+
+function previewFairyVortex(x, y) {
+  const id = `debug-fairy-vortex-${performance.now()}`;
+  const visual = makeFairyVortexVisual({ id, x, y, preview: true });
+  visual.endsAt = performance.now() + GAME_CONFIG.heroes.fairy.vortex.durationMs;
+  if (effectToggles.sound) {
+    if (!fairyVortexHumStop) fairyVortexHumStop = startSoundLoop('fairyHum');
+    playSound('fairyWhoosh');
+  }
+  fairyVortexVisuals.set(id, visual);
+  shakeCamera(SHAKE_ULTIMATE_TRAUMA, 'major');
+  if (VORTEX_ZOOM_PULSE && effectiveQuality() !== 'low' && !prefersReducedMotion) cameraZoom = { startedAt: performance.now(), until: performance.now() + VORTEX_ZOOM_DURATION_MS, scale: VORTEX_ZOOM_SCALE };
+}
+
+function updateVortexDecorations(visual, now) {
+  const quality = effectiveQuality();
+  const debrisCount = quality === 'high' ? VORTEX_DEBRIS_POOL_SIZE : quality === 'medium' ? 8 : 0;
+  if (!prefersReducedMotion && debrisCount > 0 && now >= visual.nextDebrisAt) {
+    const births = Math.min(4, Math.floor((now - visual.nextDebrisAt) / VORTEX_DEBRIS_SPAWN_MS) + 1);
+    for (let i = 0; i < births; i++) {
+      const streak = visual.debris[visual.debrisCursor++ % debrisCount];
+      streak.at = now; streak.angle = Math.random() * Math.PI * 2; streak.color = visual.debrisCursor % 2 ? HERO_FX_COLORS.fairy.primary : HERO_FX_SECONDARY.fairy;
+    }
+    visual.nextDebrisAt = now + VORTEX_DEBRIS_SPAWN_MS;
+  }
+  if (!prefersReducedMotion && quality === 'high' && now >= visual.nextRippleAt) {
+    visual.ripples.push({ at: now }); visual.nextRippleAt = now + VORTEX_RIPPLE_INTERVAL_MS;
+    while (visual.ripples.length > 2) visual.ripples.shift();
+  }
+}
+
+function drawFairyVortexGround(now) {
+  for (const visual of fairyVortexVisuals.values()) {
+    const elapsed = Math.max(0, now - visual.startedAt);
+    const radius = GAME_CONFIG.heroes.fairy.vortex.radius;
+    const fadeIn = Math.max(0, Math.min(1, (elapsed - VORTEX_FORMATION_FLASH_MS) / VORTEX_SUSTAIN_FADE_MS));
+    const collapse = Math.max(0, Math.min(1, (visual.endsAt - now) / VORTEX_COLLAPSE_MS));
+    context.save(); context.globalAlpha = fadeIn * (prefersReducedMotion ? VORTEX_GROUND_FILL_ALPHA : VORTEX_GROUND_FILL_ALPHA + 0.05 * Math.sin(now * 0.005));
+    context.fillStyle = VORTEX_GROUND_FILL;
+    context.beginPath(); context.arc(visual.x, visual.y, radius * (0.9 - 0.06 * (1 - collapse)), 0, Math.PI * 2); context.fill();
+    context.globalAlpha *= fadeIn;
+    context.strokeStyle = AREA_COLORS.understroke; context.lineWidth = VORTEX_GROUND_RING_WIDTH_PX + 4;
+    context.setLineDash([VORTEX_GROUND_DASH_ON_PX, VORTEX_GROUND_DASH_OFF_PX]);
+    context.beginPath(); context.arc(visual.x, visual.y, radius, 0, Math.PI * 2); context.stroke();
+    context.strokeStyle = HERO_FX_COLORS.fairy.primary; context.lineWidth = VORTEX_GROUND_RING_WIDTH_PX;
+    context.beginPath(); context.arc(visual.x, visual.y, radius, 0, Math.PI * 2); context.stroke(); context.setLineDash([]);
+    for (const ripple of (effectiveQuality() === 'high' && !prefersReducedMotion ? visual.ripples : [])) {
+      const progress = (now - ripple.at) / VORTEX_RIPPLE_DURATION_MS;
+      if (progress >= 1) continue;
+      context.globalAlpha = (1 - progress) * 0.7;
+      context.strokeStyle = HERO_FX_COLORS.fairy.primary; context.lineWidth = 2;
+      context.beginPath(); context.arc(visual.x, visual.y,
+        radius * (1 - progress) + VORTEX_CORE_RADIUS_PX * progress, 0, Math.PI * 2); context.stroke();
+    }
+    context.restore();
+  }
+}
+
+function drawFairyVortexStructures(now) {
+  for (const [id, visual] of fairyVortexVisuals) {
+    const elapsed = Math.max(0, now - visual.startedAt);
+    const remaining = visual.endsAt - now;
+    if (remaining <= 0) { if (visual.preview) finishFairyVortexVisual(id, visual.x, visual.y); continue; }
+    updateVortexDecorations(visual, now);
+    const formation = Math.max(0, Math.min(1, elapsed / VORTEX_FORMATION_FLASH_MS));
+    const sustain = Math.max(0, Math.min(1, (elapsed - VORTEX_FORMATION_FLASH_MS) / VORTEX_SUSTAIN_FADE_MS));
+    const collapse = prefersReducedMotion ? 0 : Math.max(0, Math.min(1, (VORTEX_COLLAPSE_MS - remaining) / VORTEX_COLLAPSE_MS));
+    const still = remaining <= VORTEX_POP_STILL_MS;
+    const coreRadius = prefersReducedMotion ? VORTEX_CORE_RADIUS_PX : remaining <= VORTEX_POP_STILL_MS
+      ? VORTEX_POP_STILL_CORE_PX : VORTEX_CORE_RADIUS_PX * Math.max(0.35, 1 - 0.55 * collapse);
+    const diskScale = prefersReducedMotion ? 1 : Math.max(0.45, 1 - 0.5 * collapse);
+    let diskRotation = now / 1000 * Math.PI * 2 * VORTEX_DISK_ROTATION_HZ;
+    if (prefersReducedMotion) diskRotation = now / 1000 * Math.PI * 2 * 0.08;
+    else if (remaining < VORTEX_COLLAPSE_MS) diskRotation += collapse * Math.PI * 2 * VORTEX_DISK_ROTATION_HZ * 2;
+    if (still) diskRotation = Math.round(diskRotation / (Math.PI / 8)) * (Math.PI / 8);
+    const pulse = prefersReducedMotion || still ? 1 : 1 + 0.03 * Math.sin(now / 1000 * Math.PI * 2 * VORTEX_CORE_PULSE_HZ);
+
+    if (!prefersReducedMotion && effectiveQuality() !== 'low' && elapsed < VORTEX_SHOCKWAVE_MS) {
+      const progress = elapsed / VORTEX_SHOCKWAVE_MS;
+      context.save(); context.globalAlpha = 1 - progress; context.strokeStyle = AREA_COLORS.understroke; context.lineWidth = 9;
+      context.beginPath(); context.arc(visual.x, visual.y, VORTEX_CORE_RADIUS_PX + (GAME_CONFIG.heroes.fairy.vortex.radius - VORTEX_CORE_RADIUS_PX) * progress, 0, Math.PI * 2); context.stroke();
+      context.strokeStyle = HERO_FX_COLORS.fairy.primary; context.lineWidth = 5;
+      context.beginPath(); context.arc(visual.x, visual.y, VORTEX_CORE_RADIUS_PX + (GAME_CONFIG.heroes.fairy.vortex.radius - VORTEX_CORE_RADIUS_PX) * progress, 0, Math.PI * 2); context.stroke(); context.restore();
+    }
+    if (!prefersReducedMotion && effectiveQuality() !== 'low' && elapsed < VORTEX_FORMATION_FLASH_MS) {
+      context.save(); context.globalAlpha = 1 - elapsed / VORTEX_FORMATION_FLASH_MS;
+      context.fillStyle = '#fff0fa'; context.beginPath(); context.arc(visual.x, visual.y, VORTEX_CORE_RADIUS_PX * 1.6, 0, Math.PI * 2); context.fill(); context.restore();
+    }
+
+    // Draw the accretion disk directly on the arena canvas. Offscreen bitmap
+    // sprites were being composited as opaque rectangles in some browsers.
+    // Vector ellipses keep every edge transparent and smooth at any scale.
+    const diskScaleX = diskScale;
+    const diskScaleY = VORTEX_DISK_TILT * diskScale;
+    context.save(); context.translate(visual.x, visual.y); context.rotate(diskRotation); context.scale(diskScaleX, diskScaleY);
+    context.globalAlpha = sustain * 0.28; context.strokeStyle = HERO_FX_COLORS.fairy.primary; context.lineWidth = 24;
+    context.beginPath(); context.arc(0, 0, VORTEX_DISK_OUTER_RADIUS_PX * 0.78, 0, Math.PI * 2); context.stroke();
+    context.globalAlpha = sustain * 0.78; context.strokeStyle = '#fff6fc'; context.lineWidth = 3;
+    context.beginPath(); context.ellipse(0, 0, VORTEX_DISK_OUTER_RADIUS_PX * 0.78, VORTEX_DISK_OUTER_RADIUS_PX * 0.78, 0, -0.16, 1.62); context.stroke();
+    context.globalAlpha = sustain * 0.72; context.strokeStyle = HERO_FX_SECONDARY.fairy; context.lineWidth = 2;
+    context.beginPath(); context.ellipse(0, 0, VORTEX_DISK_OUTER_RADIUS_PX * 0.9, VORTEX_DISK_OUTER_RADIUS_PX * 0.9, 0, Math.PI - 0.12, Math.PI * 2 - 0.7); context.stroke();
+    context.globalAlpha = sustain * 0.52; context.strokeStyle = '#fff0fa'; context.lineWidth = 1.5;
+    context.beginPath(); context.ellipse(0, 0, VORTEX_DISK_OUTER_RADIUS_PX, VORTEX_DISK_OUTER_RADIUS_PX, 0, 0.15, Math.PI * 1.18); context.stroke();
+    context.restore();
+    if (effectiveQuality() === 'high' && !prefersReducedMotion) {
+      const arcHalf = VORTEX_LENS_ARC_DEG * Math.PI / 360;
+      context.save(); context.translate(visual.x, visual.y); context.rotate(-diskRotation * 0.7);
+      context.globalAlpha = sustain * 0.9; context.lineWidth = 2; context.lineCap = 'round';
+      context.strokeStyle = '#fff0fa'; context.beginPath(); context.arc(0, 0, VORTEX_CORE_RADIUS_PX + 7, -Math.PI / 2 - arcHalf, -Math.PI / 2 + arcHalf); context.stroke();
+      context.strokeStyle = HERO_FX_SECONDARY.fairy; context.beginPath(); context.arc(0, 0, VORTEX_CORE_RADIUS_PX + 11, Math.PI / 2 - arcHalf, Math.PI / 2 + arcHalf); context.stroke();
+      context.restore();
+    }
+    if (!prefersReducedMotion && !still && effectiveQuality() !== 'low') {
+      const count = effectiveQuality() === 'high' ? VORTEX_DEBRIS_POOL_SIZE : 8;
+      for (let i = 0; i < count; i++) {
+        const streak = visual.debris[i]; const age = now - streak.at;
+        if (age < 0 || age >= streak.durationMs) continue;
+        const t = age / streak.durationMs;
+        const angle = streak.angle + t * 1.2;
+        const r = GAME_CONFIG.heroes.fairy.vortex.radius * (1 - t) + VORTEX_CORE_RADIUS_PX * t;
+        const x = visual.x + Math.cos(angle) * r, y = visual.y + Math.sin(angle) * r;
+        const length = 12 + t * 24, inward = 10 + t * 9;
+        context.save(); context.globalAlpha = sustain * (1 - t); context.strokeStyle = streak.color; context.lineWidth = 2.4 - t * 1.4; context.lineCap = 'round';
+        context.beginPath(); context.moveTo(x + Math.cos(angle) * length * 0.5, y + Math.sin(angle) * length * 0.5);
+        context.quadraticCurveTo(x, y, x - Math.cos(angle) * inward, y - Math.sin(angle) * inward); context.stroke(); context.restore();
+      }
+    }
+    context.save(); context.globalAlpha = prefersReducedMotion || effectiveQuality() === 'low' ? 1 : Math.max(formation, sustain) * (elapsed < VORTEX_CORE_GROW_MS ? elapsed / VORTEX_CORE_GROW_MS : 1);
+    context.translate(visual.x, visual.y); context.scale(pulse, pulse);
+    const coreGlow = context.createRadialGradient(0, 0, coreRadius * 0.72, 0, 0, coreRadius + 9);
+    coreGlow.addColorStop(0, `${GAME_CONFIG.vortexColors.core}00`);
+    coreGlow.addColorStop(0.72, `${GAME_CONFIG.vortexColors.core}00`);
+    coreGlow.addColorStop(0.88, `${GAME_CONFIG.vortexColors.eye}dd`);
+    coreGlow.addColorStop(1, `${HERO_FX_SECONDARY.fairy}00`);
+    context.fillStyle = coreGlow; context.beginPath(); context.arc(0, 0, coreRadius + 9, 0, Math.PI * 2); context.fill();
+    const hole = context.createRadialGradient(-coreRadius * 0.28, -coreRadius * 0.32, 0, 0, 0, coreRadius);
+    hole.addColorStop(0, '#160d20'); hole.addColorStop(0.42, GAME_CONFIG.vortexColors.core); hole.addColorStop(1, '#000000');
+    context.fillStyle = hole; context.beginPath(); context.arc(0, 0, coreRadius, 0, Math.PI * 2); context.fill();
+    context.strokeStyle = GAME_CONFIG.vortexColors.eye; context.lineWidth = 2.5;
+    context.beginPath(); context.arc(0, 0, coreRadius - 1, 0, Math.PI * 2); context.stroke();
+    context.restore();
+    if (!prefersReducedMotion && effectiveQuality() !== 'low' && elapsed < VORTEX_FORMATION_FLASH_MS) {
+      context.save(); context.globalAlpha = 0.8 * (1 - elapsed / VORTEX_FORMATION_FLASH_MS);
+      context.fillStyle = '#fff'; context.beginPath(); context.arc(visual.x, visual.y, VORTEX_CORE_RADIUS_PX, 0, Math.PI * 2); context.fill(); context.restore();
+    }
+  }
+  for (let i = fairyVortexPops.length - 1; i >= 0; i--) {
+    const pop = fairyVortexPops[i]; const age = now - pop.startedAt;
+    if (age >= VORTEX_FLASH_POP_MS) { fairyVortexPops.splice(i, 1); continue; }
+    context.save(); context.globalAlpha = 1 - age / VORTEX_FLASH_POP_MS; context.fillStyle = '#fff0fa';
+    context.beginPath(); context.arc(pop.x, pop.y, VORTEX_CORE_RADIUS_PX * (1 + age / VORTEX_FLASH_POP_MS), 0, Math.PI * 2); context.fill(); context.restore();
   }
 }
 
@@ -1357,6 +1656,11 @@ function showMuzzleFlash(player) {
   lastMuzzleAt.set(player.id, now);
   muzzleFlashes.set(player.id, { startedAt: now, aim: { ...player.aim }, heroId: player.heroId,
     recoil: ARENA_TUNING.muzzleFlash.recoilMinPx + Math.random() * (ARENA_TUNING.muzzleFlash.recoilMaxPx - ARENA_TUNING.muzzleFlash.recoilMinPx) });
+  if (player.heroId === 'fairy') fairyMuzzlePuffs.push({
+    x: player.x + player.aim.x * (GAME_CONFIG.weaponMuzzleOffset + FAIRY_MUZZLE_PUFF_RADIUS_PX),
+    y: player.y + player.aim.y * (GAME_CONFIG.weaponMuzzleOffset + FAIRY_MUZZLE_PUFF_RADIUS_PX),
+    angle: Math.atan2(player.aim.y, player.aim.x), startedAt: now,
+  });
 }
 
 function joinPayload() {
@@ -1378,6 +1682,10 @@ socket.on('disconnect', () => {
   me = null;
   state = { players: [], projectiles: [], monsters: [], campfire: null, wave: null };
   clientProjectiles.clear();
+  for (const stop of fairyTravelSoundStops.values()) stop();
+  fairyTravelSoundStops.clear();
+  fairyVortexHumStop?.(); fairyVortexHumStop = null;
+  fairyVortexVisuals.clear();
   releaseKeys();
   connectionStatus.textContent = 'Disconnected from the server. Reconnecting…';
 });
@@ -1425,6 +1733,7 @@ document.querySelector('#trial-wave')?.addEventListener('click', () => socket.em
 socket.on('state', (snapshot) => {
   state = snapshot;
   stateReceivedAt = performance.now();
+  syncFairyVortices(snapshot);
   if (Array.isArray(snapshot.projectiles)) {
     const active = new Set(snapshot.projectiles.map((projectile) => projectile.id));
     for (const id of clientProjectiles.keys()) {
@@ -1435,6 +1744,12 @@ socket.on('state', (snapshot) => {
     }
   }
 });
+socket.on('fairy_vortex_start', (vortex) => {
+  for (const stop of fairyTravelSoundStops.values()) stop();
+  fairyTravelSoundStops.clear();
+  if (!fairyVortexVisuals.has(vortex.id)) startFairyVortexVisual(vortex);
+});
+socket.on('fairy_vortex_end', ({ id, x, y } = {}) => finishFairyVortexVisual(id, x, y));
 socket.on('notice', (message) => {
   connectionStatus.textContent = message;
 });
@@ -1491,8 +1806,19 @@ socket.on('player_leave', (player) => leavingPlayers.push({ ...player, startedAt
 socket.on('run_result', showRunResult);
 socket.on('ability_used', (event) => {
   if (event.ability === 'ultimate') {
+    if (event.heroId === 'fairy') {
+      if (effectToggles.sound) {
+        playSound('fairyWhoosh', { volume: event.playerId === me ? 1 : 0.65 });
+        fairyTravelSoundStops.set(event.playerId, startSoundLoop('fairyTravel', { volume: 0.35 }));
+      }
+      return;
+    }
     playSound('ultimateCast', { volume: event.playerId === me ? 1 : 0.65 });
     shakeCamera(SHAKE_ULTIMATE_TRAUMA, 'major');
+    return;
+  }
+  if (event.ability === 'skill' && event.heroId === 'fairy') {
+    if (effectToggles.sound) playSound('fairyWhoosh', { volume: event.playerId === me ? 1 : 0.65 });
     return;
   }
   if (event.ability === 'skill' && event.heroId === 'guardian') {
@@ -1516,7 +1842,10 @@ socket.on('ability_used', (event) => {
   }
 });
 socket.on('weapon_fired', (event) => {
-  if (event.playerId !== me) { playSound('shoot', { pitchVariance: ARENA_TUNING.sound.shotPitchVariance, volume: 0.6 }); return; }
+  if (event.playerId !== me) {
+    playSound(event.heroId === 'fairy' ? 'fairyWhoosh' : 'shoot', { pitchVariance: ARENA_TUNING.sound.shotPitchVariance, volume: 0.6 });
+    return;
+  }
   // Own shots are repeated by the server while primary fire is held, so their
   // muzzle flash and sound have to come from the event. A 'click' shot already
   // played both locally, before the round trip.
@@ -1524,7 +1853,7 @@ socket.on('weapon_fired', (event) => {
   const shooter = state.players.find((candidate) => candidate.id === me);
   if (!shooter) return;
   showMuzzleFlash(shooter);
-  playSound('shoot', { pitchVariance: ARENA_TUNING.sound.shotPitchVariance });
+  playSound(shooter.heroId === 'fairy' ? 'fairyWhoosh' : 'shoot', { pitchVariance: ARENA_TUNING.sound.shotPitchVariance });
 });
 socket.on('buff_applied', () => playSound('cardPick'));
 socket.on('dash_hit', (event) => {
@@ -1570,6 +1899,15 @@ socket.on('game_over', (result = {}) => {
 function handleHit(hit) {
   const fx = HERO_FX_COLORS[hit.heroId] || {};
   const now = performance.now();
+  if (hit.heroId === 'fairy' && hit.sourceAbility === 'weapon') {
+    const angle = Math.atan2(hit.y - (hit.sourceY ?? hit.y), hit.x - (hit.sourceX ?? hit.x));
+    fairyWindImpacts.push({ x: hit.x, y: hit.y, angle, startedAt: now });
+    if (effectToggles.sparks && effectiveQuality() !== 'low') {
+      for (let i = 0; i < 2; i++) addParticle({ x: hit.x, y: hit.y, vx: Math.cos(angle + (i ? 1 : -1)) * 32,
+        vy: Math.sin(angle + (i ? 1 : -1)) * 32, radius: 2, color: i ? HERO_FX_SECONDARY.fairy : HERO_FX_COLORS.fairy.primary,
+        alpha: 1, startedAt: now, durationMs: FAIRY_WIND_IMPACT_MS, expiresAt: now + FAIRY_WIND_IMPACT_MS });
+    }
+  }
   // Thorns Fire (and any future aura/repeating source) is pure damage-over-
   // time: it gets a slower flash cadence, no knockback, no sparks and no
   // sound, so an enemy standing in the ring pulses instead of strobing.
@@ -1876,7 +2214,12 @@ if (typeof window !== 'undefined' && new URLSearchParams(location.search).has('p
   const hudDebugRow = document.querySelector('#hud-debug-clusters');
   const hudDebugLabel = document.createElement('label');
   hudDebugLabel.innerHTML = '<input id="hud-debug-setting" type="checkbox"> Show all hero HUD clusters';
-  settingsPanel.append(hudDebugLabel);
+  const hudDebugTools = document.createElement('details');
+  hudDebugTools.className = 'debug-section hud-debug-tools';
+  hudDebugTools.innerHTML = '<summary>HUD preview</summary><div class="debug-section-body"></div>';
+  (settingsPanel.querySelector('.debug-menu') || settingsPanel).append(hudDebugTools);
+  const hudDebugBody = hudDebugTools.querySelector('.debug-section-body');
+  hudDebugBody.append(hudDebugLabel);
   const hudDebugInput = hudDebugLabel.querySelector('input');
   const hudDebugHeroes = HEROES.map((hero) => {
     const column = document.createElement('div');
@@ -1928,6 +2271,11 @@ socket.on('area_telegraph_cancel', ({ sourceAbility } = {}) => {
 });
 socket.on('area_effect', (effect) => {
   showAreaEffect(effect);
+  if (effect.sourceHeroId === 'fairy' && effect.sourceAbility === 'skill') {
+    if (effectToggles.sound) playSound('fairyWhoosh');
+    for (const hit of effect.hits || []) fairyPushStreaks.push({ ...hit, startedAt: performance.now() });
+    return;
+  }
   playSound(effect.sourceAbility === 'ultimate' ? 'ultimateCast' : 'explosion');
   for (let i = 0; i < 20; i++) {
     const angle = Math.random() * Math.PI * 2;
@@ -2156,7 +2504,7 @@ function fireWeapon(mode, target = window.lastPointerWorld) {
   // Bash, so that click gets no muzzle flash and no shot sound.
   if (player && !player.rushDashing) {
     showMuzzleFlash(player);
-    playSound('shoot', { pitchVariance: ARENA_TUNING.sound.shotPitchVariance });
+    playSound(player.heroId === 'fairy' ? 'fairyWhoosh' : 'shoot', { pitchVariance: ARENA_TUNING.sound.shotPitchVariance });
   }
   socket.emit('fire', mode);
 }
@@ -3189,6 +3537,7 @@ function drawScene(timestamp) {
   const shakeOverscan = SHAKE_MAX_OFFSET;
   context.drawImage(backgroundCanvas, -shakeOverscan, -shakeOverscan,
     ARENA_WIDTH + shakeOverscan * 2, ARENA_HEIGHT + shakeOverscan * 2);
+  drawFairyVortexGround(currentTime);
 
   // 1. Draw Campfire in the middle
   const cf = state.campfire || {
@@ -3254,6 +3603,8 @@ function drawScene(timestamp) {
     drawCampfire(context, cf, currentTime);
   }
 
+  drawFairyVortexStructures(currentTime);
+
   // 2. Draw Zombie Monsters
   if (Array.isArray(state.monsters)) {
     for (const monster of state.monsters) {
@@ -3275,7 +3626,7 @@ function drawScene(timestamp) {
       context.globalAlpha = fading ? Math.max(0, monster.fadeRemainingMs / 400) : 1;
       context.globalCompositeOperation = 'source-over';
       const pulse = monster.type === 'exploder' ? 1 + Math.sin(currentTime * 0.012) * 0.09 : 1;
-      const scale = (monster.scale || 1) * pulse;
+      const scale = (monster.scale || 1) * pulse * (monster.held ? 0.85 : 1);
       const visualRadius = 20 * scale;
       if (monster.type === 'dummy') {
         drawTrainingDummy(context, mx, my, scale, hitFlash);
@@ -3289,9 +3640,7 @@ function drawScene(timestamp) {
         }
         continue;
       }
-      const tint = monster.held ? GAME_CONFIG.effects.heldEnemyTint
-        : monster.slowed ? GAME_CONFIG.effects.slowedEnemyTint
-        : monster.type === 'brute-king' ? '#7e222c' : monster.type === 'brute' ? '#514638'
+      const tint = monster.type === 'brute-king' ? '#7e222c' : monster.type === 'brute' ? '#514638'
         : monster.type === 'exploder' ? '#b86b28' : '#4B3D58';
       context.beginPath();
       context.arc(mx, my, visualRadius, 0, Math.PI * 2);
@@ -3333,6 +3682,8 @@ function drawScene(timestamp) {
       }
     }
   }
+
+  drawFairyWindFeedback(currentTime);
 
   for (const pickup of state.pickups || []) {
     context.save(); context.globalAlpha = 0.85 + Math.sin(currentTime * 0.01) * 0.15;
@@ -3385,9 +3736,11 @@ function drawScene(timestamp) {
     // player area effects are bright yellow-orange, and the Electromancer's
     // stun burst keeps its own purple FX color so its identity survives.
     const electroStun = effect.sourceHeroId === 'electromancer' && effect.sourceAbility === 'skill';
+    const fairyFx = effect.sourceHeroId === 'fairy';
+    const fairyGale = effect.sourceHeroId === 'fairy' && effect.sourceAbility === 'skill';
     const danger = effect.kind === 'enemy';
-    const stroke = electroStun ? HERO_FX_COLORS.electromancer.primary : danger ? AREA_COLORS.enemyStroke : AREA_COLORS.playerStroke;
-    const fillColor = electroStun ? HERO_FX_COLORS.electromancer.primary : danger ? AREA_COLORS.enemyFill : AREA_COLORS.playerFill;
+    const stroke = fairyFx ? HERO_FX_COLORS.fairy.primary : electroStun ? HERO_FX_COLORS.electromancer.primary : danger ? AREA_COLORS.enemyStroke : AREA_COLORS.playerStroke;
+    const fillColor = fairyFx ? HERO_FX_COLORS.fairy.primary : electroStun ? HERO_FX_COLORS.electromancer.primary : danger ? AREA_COLORS.enemyFill : AREA_COLORS.playerFill;
     context.save();
     if (effect.phase === 'telegraph') {
       // The Bombardier's ultimate marker fills like a clock hand sweeping
@@ -3445,6 +3798,33 @@ function drawScene(timestamp) {
         context.globalAlpha = 0.9;
         context.drawImage(marker.canvas, effect.x - marker.w / 2, effect.y - marker.h / 2, marker.w, marker.h);
       }
+    } else if (fairyGale) {
+      context.globalAlpha = 0.16 * (1 - progress * 0.6); context.fillStyle = fillColor;
+      context.beginPath(); context.arc(effect.x, effect.y, effect.radius, 0, Math.PI * 2); context.fill();
+      context.globalAlpha = 0.8 * (1 - progress * 0.4); context.strokeStyle = AREA_COLORS.understroke;
+      context.lineWidth = AREA_TELEGRAPH_WIDTH + AREA_UNDERSTROKE_EXTRA_PX;
+      context.beginPath(); context.arc(effect.x, effect.y, effect.radius, 0, Math.PI * 2); context.stroke();
+      context.globalAlpha = 1 - progress * 0.35; context.strokeStyle = fillColor; context.lineWidth = AREA_TELEGRAPH_WIDTH;
+      context.setLineDash([AREA_DASH_ON, AREA_DASH_OFF]);
+      context.beginPath(); context.arc(effect.x, effect.y, effect.radius, 0, Math.PI * 2); context.stroke(); context.setLineDash([]);
+      const wave = progress * FAIRY_GALE_WIND_LINES;
+      for (let k = 0; k < FAIRY_GALE_WIND_LINES; k++) {
+        const t = wave - k;
+        if (t <= 0 || t > 1) continue;
+        const r = effect.radius * t;
+        context.globalAlpha = (1 - t) * (1 - progress * 0.25); context.strokeStyle = k % 2 ? HERO_FX_SECONDARY.fairy : '#fff0fa';
+        context.lineWidth = 2;
+        context.beginPath(); context.arc(effect.x, effect.y, r, -Math.PI * 0.82 + k * 0.45, Math.PI * 0.78 + k * 0.45); context.stroke();
+      }
+    } else if (fairyFx && effect.sourceAbility === 'ultimate') {
+      const radius = effect.radius * (0.4 + 0.6 * progress);
+      context.globalAlpha = 0.12 * (1 - progress); context.fillStyle = fillColor;
+      context.beginPath(); context.arc(effect.x, effect.y, effect.radius, 0, Math.PI * 2); context.fill();
+      context.globalAlpha = 0.8 * (1 - progress); context.strokeStyle = AREA_COLORS.understroke;
+      context.lineWidth = AREA_TELEGRAPH_WIDTH + AREA_UNDERSTROKE_EXTRA_PX;
+      context.beginPath(); context.arc(effect.x, effect.y, radius, 0, Math.PI * 2); context.stroke();
+      context.globalAlpha = 1 - progress; context.strokeStyle = fillColor; context.lineWidth = AREA_TELEGRAPH_WIDTH;
+      context.beginPath(); context.arc(effect.x, effect.y, radius, 0, Math.PI * 2); context.stroke();
     } else if (effect.cone) {
       // Guardian Shield Rush fan: a bright wedge at the TRUE radius and angle,
       // with the usual dark under-stroke plus a bright main stroke on the two
@@ -3715,21 +4095,17 @@ function drawScene(timestamp) {
       context.save(); context.strokeStyle = '#ff2d55'; context.lineWidth = 2; context.setLineDash([5, 4]);
       context.beginPath(); context.arc(monster.x, monster.y, monster.radius || 20, 0, Math.PI * 2); context.stroke(); context.restore();
     }
-    if (monster.stunned) {
-      context.font = '16px sans-serif'; context.textAlign = 'center'; context.textBaseline = 'middle';
-      context.fillText('⚡', monster.x, monster.y - 30);
-    }
-    if (monster.held || monster.slowed) {
-      context.save();
-      context.beginPath(); context.arc(monster.x, monster.y, monster.radius || 20, 0, Math.PI * 2);
-      context.strokeStyle = monster.held ? GAME_CONFIG.effects.heldEnemyTint : GAME_CONFIG.effects.slowedEnemyTint;
-      context.lineWidth = AREA_RING_WIDTH; context.stroke();
+    if (monster.stunned || monster.vortexed || monster.slowed) {
+      const statusMarks = [
+        ...(monster.stunned ? ['⚡'] : []),
+        ...(monster.vortexed ? ['🌀'] : []),
+        ...(monster.slowed ? ['🐌'] : []),
+      ];
+      context.save(); context.font = '16px sans-serif'; context.textAlign = 'center'; context.textBaseline = 'middle';
+      statusMarks.forEach((mark, index) => context.fillText(mark,
+        monster.x + (index - (statusMarks.length - 1) / 2) * 18,
+        monster.y - (monster.isDummy || monster.type === 'dummy' ? 50 : 30)));
       context.restore();
-    }
-    if (monster.held) {
-      const sprite = heldIndicatorSprite();
-      context.drawImage(sprite.canvas, monster.x - sprite.size / 2,
-        monster.y - GAME_CONFIG.effects.holdSwirlYOffsetPx - sprite.size / 2, sprite.size, sprite.size);
     }
     if ((enemyFlashes.get(monster.id) || 0) > currentTime) {
       context.beginPath(); context.arc(monster.x, monster.y, 25, 0, Math.PI * 2); context.strokeStyle = HERO_FX_COLORS.electromancer.highlight; context.lineWidth = 4; context.stroke();

@@ -36,7 +36,7 @@
 </style>
 </head>
 <body>
-<h1>Ability icon candidates &mdash; Stage 1</h1>
+<h1>Ability icon candidates &mdash; Stage 3</h1>
 <p class="sub">White silhouette at the real 44&nbsp;px button size on the Stage-2 button colours
 (<code>M1</code> smallest/lightest, <code>E</code> medium, <code>Q</code> biggest/darkest). Slots tagged
 <b>amber highlight</b> sit on the highlight family instead of the hero&rsquo;s type family: Sheriff&rsquo;s
@@ -765,7 +765,45 @@ provenance for every icon is in <code>assets/icons/CREDITS.json</code>.</p>
         </div>
       </div>
     </section>
+<section class="hero" aria-label="Fairy icon candidates">
+  <h2>Fairy <span class="type magic">magic</span></h2>
+  <p class="sub">Purple button family. Chosen icons are outlined; two alternates are shown for each slot.</p>
+  <div class="fairy-icons">
+    <article class="fairy-slot"><h3>M1 · Wind Arrow</h3><div class="fairy-candidates">
+      <div class="fairy-candidate chosen"><span class="fairy-mask" style="--icon:url('assets/icons/fairy-primary.svg')"></span><b>CHOSEN</b><span>winged-arrow.svg</span><small>lorc</small></div>
+      <div class="fairy-candidate"><span class="fairy-mask" style="--icon:url('assets/icons/candidates/fast-arrow.svg')"></span><b>ALT</b><span>fast-arrow.svg</span><small>lorc</small></div>
+      <div class="fairy-candidate"><span class="fairy-mask" style="--icon:url('assets/icons/candidates/feather.svg')"></span><b>ALT</b><span>feather.svg</span><small>lorc</small></div>
+    </div></article>
+    <article class="fairy-slot"><h3>E · Gale Burst</h3><div class="fairy-candidates">
+      <div class="fairy-candidate chosen"><span class="fairy-mask" style="--icon:url('assets/icons/fairy-skill.svg')"></span><b>CHOSEN</b><span>whirlwind.svg</span><small>lorc</small></div>
+      <div class="fairy-candidate"><span class="fairy-mask" style="--icon:url('assets/icons/candidates/tornado.svg')"></span><b>ALT</b><span>tornado.svg</span><small>lorc</small></div>
+      <div class="fairy-candidate"><span class="fairy-mask" style="--icon:url('assets/icons/candidates/push.svg')"></span><b>ALT</b><span>push.svg</span><small>delapouite</small></div>
+    </div></article>
+    <article class="fairy-slot"><h3>Q · Vortex Orb</h3><div class="fairy-candidates">
+      <div class="fairy-candidate chosen"><span class="fairy-mask" style="--icon:url('assets/icons/fairy-ultimate.svg')"></span><b>CHOSEN</b><span>vortex.svg</span><small>lorc</small></div>
+      <div class="fairy-candidate"><span class="fairy-mask" style="--icon:url('assets/icons/candidates/divided-spiral.svg')"></span><b>ALT</b><span>divided-spiral.svg</span><small>lorc</small></div>
+      <div class="fairy-candidate"><span class="fairy-mask" style="--icon:url('assets/icons/candidates/whirlpool-shuriken.svg')"></span><b>ALT</b><span>whirlpool-shuriken.svg</span><small>darkzaitzev</small></div>
+    </div></article>
+    <article class="fairy-slot"><h3>Talent · Windswept</h3><div class="fairy-candidates">
+      <div class="fairy-candidate chosen"><span class="fairy-mask" style="--icon:url('assets/icons/fairy-talent.svg')"></span><b>CHOSEN</b><span>falling-leaf.svg</span><small>lorc</small></div>
+      <div class="fairy-candidate"><span class="fairy-mask" style="--icon:url('assets/icons/candidates/curled-leaf.svg')"></span><b>ALT</b><span>curled-leaf.svg</span><small>lorc</small></div>
+      <div class="fairy-candidate"><span class="fairy-mask" style="--icon:url('assets/icons/candidates/snail.svg')"></span><b>ALT</b><span>snail.svg</span><small>lorc</small></div>
+    </div></article>
+  </div>
+</section>
+<style>
+  .fairy-icons { display:grid; grid-template-columns:repeat(auto-fit,minmax(300px,1fr)); gap:12px; }
+  .fairy-slot { padding:14px; border:1px solid #30304a; border-radius:10px; background:#15151f; }
+  .fairy-slot h3 { margin:0 0 12px; font-size:13px; }
+  .fairy-candidates { display:flex; gap:10px; }
+  .fairy-candidate { width:88px; display:flex; flex-direction:column; align-items:center; gap:3px; color:#b8b8cc; font-size:10px; text-align:center; }
+  .fairy-candidate.chosen { color:#7dffb0; }
+  .fairy-mask { width:54px; height:54px; display:block; margin-bottom:4px; border-radius:50%; background:#7B4FD8; -webkit-mask:var(--icon) center/38px 38px no-repeat; mask:var(--icon) center/38px 38px no-repeat; }
+  .fairy-candidate.chosen .fairy-mask { outline:3px solid #fff; outline-offset:3px; }
+  .fairy-candidate span:not(.fairy-mask) { overflow-wrap:anywhere; }
+  .fairy-candidate small { color:#8a8aa4; }
+</style>
 <footer>All icons from game-icons.net, licensed CC BY 3.0 &mdash; credit: &ldquo;Icons made by
-{author}&rdquo;. The Settings icon-credits entry is generated from CREDITS.json in Stage 2.</footer>
+{author}&rdquo;. The Settings icon-credits entry is generated from CREDITS.json.</footer>
 </body>
 </html>

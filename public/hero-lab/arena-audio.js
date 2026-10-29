@@ -2,6 +2,7 @@ import { GAME_CONFIG } from './game-config.js';
 
 const profiles = GAME_CONFIG.arenaTuning.sound.profiles;
 const voices = [];
+const loops = new Map();
 const lastPlayedAt = Object.create(null);
 let audio = null;
 let masterVolume = 0.55;
@@ -28,6 +29,38 @@ export function warmUpAudio() {
 export function setAudioOptions({ volume = masterVolume, mute = muted } = {}) {
   masterVolume = Math.max(0, Math.min(1, Number(volume) || 0));
   muted = Boolean(mute);
+  const now = audio?.currentTime || 0;
+  for (const loop of loops.values()) {
+    const level = disabled || muted ? 0 : loop.profile.gain * masterVolume * loop.volume;
+    loop.gain.gain.cancelScheduledValues(now);
+    loop.gain.gain.setTargetAtTime(level, now, 0.025);
+  }
+}
+
+export function startSoundLoop(name, { volume = 0.45 } = {}) {
+  if (disabled || muted || masterVolume <= 0 || loops.has(name)) return () => {};
+  const profile = profiles[name];
+  const context = profile && getContext();
+  if (!context) return () => {};
+  const osc = context.createOscillator();
+  const gain = context.createGain();
+  osc.type = profile.type;
+  osc.frequency.value = profile.frequency;
+  gain.gain.setValueAtTime(0, context.currentTime);
+  gain.gain.linearRampToValueAtTime(profile.gain * masterVolume * volume, context.currentTime + 0.08);
+  osc.connect(gain); gain.connect(context.destination); osc.start();
+  const loop = { osc, gain, profile, volume };
+  loops.set(name, loop);
+  return () => {
+    if (loops.get(name) !== loop) return;
+    loops.delete(name);
+    try {
+      const now = context.currentTime;
+      gain.gain.cancelScheduledValues(now);
+      gain.gain.setTargetAtTime(0, now, 0.025);
+      osc.stop(now + 0.12);
+    } catch { /* already stopped */ }
+  };
 }
 
 export function playSound(name, { semitones = 0, volume = 1, pitchVariance = 0 } = {}) {
@@ -75,6 +108,12 @@ export function audioStats() {
 // Profiler hook: mute the whole engine without touching the user's settings.
 export function setAudioEnabled(enabled) {
   disabled = !enabled;
+  const now = audio?.currentTime || 0;
+  for (const loop of loops.values()) {
+    const level = disabled || muted ? 0 : loop.profile.gain * masterVolume * loop.volume;
+    loop.gain.gain.cancelScheduledValues(now);
+    loop.gain.gain.setTargetAtTime(level, now, 0.025);
+  }
 }
 
 export function setHeartbeat(active) {
