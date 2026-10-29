@@ -47,6 +47,7 @@ Derived from `BRANDBOOK.md` (the QuizQuest brand book) — sections 1 and 9.
   correct. The flavour sits on top of the academic content, never in place of
   it.
 - Never replace a scenario the source material supports with a storybook one.
-  If the material gives a worked case, use that case.
+  Preserve its academic meaning, but create a distinct assessment task rather
+  than copying the worked case or its sample question.
 - Never use the game world to smuggle in a fact that is not in the source
   material.

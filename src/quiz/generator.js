@@ -153,10 +153,12 @@ function generationRules(sourceKind) {
       ' Use only source-supported subject knowledge and methods.',
     '- Number and types: write exactly the number and types of questions requested below, not a fixed 10 multiple-choice questions. The professor chose them for this batch.',
     '- "4 options, one correct answer, and an explanation" applies to single-answer (mcq) questions. Other requested types follow their own format rules below, and every question has an explanation.',
-    '- Difficulty: mix moderate questions (difficulty "medium") and challenging ones (difficulty "hard"). Write easy questions only when the assessment configuration or subject guidance asks for easier questions. ' + DIFFICULTY_RULES + ' Label every format by the same rules. If a question makes less demand than its label, make the task harder. If it stays simple, label it easy: never raise a label to meet the mix.',
+    '- Difficulty: aim for a useful mix of cognitive demands supported by the material, including easy questions where educationally useful. Do not force a medium/hard quota. ' + DIFFICULTY_RULES + ' Solve the task before labelling it. Never inflate difficulty or add artificial steps to meet a mix.',
     '- Style: test understanding and application of concepts, coding and calculations rather than recall of definitions. Write coding or calculation questions only where the source supports them. When the assessment configuration asks for conceptual questions, write conceptual questions that test understanding instead of application tasks.',
     '- Coverage: cover different important topics and reasoning tasks from the source, giving each question a different concept where the source allows. Changing only the scenario, numbers or wording of the same decision is a duplicate.',
     '- Sample questions in the source are illustrations of how ideas can be tested. Do not reproduce them or write light variations of them.',
+    '- Plan the whole requested batch before writing: choose a supported principle and a learning purpose for each slot, solve it, then write the stem and options. Start from the principle, not a sample question. Shared terminology or methods are fine; avoid copying the sample task with only names or numbers changed.',
+    '- Multi-select: each correct option must express a distinct proposition, not a synonym, restatement, or consequence already fully stated by another correct option. Check each option independently against the source before returning the batch.',
     '- Cite only passages actually needed to support the answer and explanation.',
     "- Precedence, highest first: these rules and the response schema; the professor's settings for this batch (topic, learning outcome, question types and quantities, assessment configuration); the instructor's subject guidance for this course; then the professor instructions above.",
     '- Write maths and units in plain text (e.g. 1 px = 1/96 inch, x^2 + 1); never use LaTeX or $ delimiters, which are not rendered. Use × for multiplication, not *.',
@@ -184,7 +186,7 @@ function buildUserPrompt(ctx, prompts = loadPrompts()) {
     quantities ? `Required quantities by type (return exactly these remaining slots): ${JSON.stringify(quantities)}` : null,
     'Professor assessment configuration: ' + (ctx.guidance || ''),
     related.length
-      ? 'Existing questions on this topic or source, as [concept / task type] stem. Do not repeat a concept with the same task type, and prefer concepts not listed yet: ' +
+      ? 'Existing questions on this topic or source, as [concept / task type] stem. Prefer concepts not listed yet. Shared concept/task labels are allowed for a genuinely different decision or inference; avoid repeating the same task with cosmetic changes: ' +
         JSON.stringify(related.slice(-60).map((r) =>
           (r.concept ? `[${r.concept}${r.taskType ? ' / ' + r.taskType : ''}] ` : '') + r.stem.slice(0, 200) + (r.rejected ? ' (rejected by the professor)' : '')))
       : null,
@@ -255,6 +257,7 @@ async function generate({
   onBatchComplete = async () => {},
   checkpoint = async () => {},
   resumeLogId,
+  reuseDraft = () => false,
   replaces = [],
 }) {
   count = count === undefined ? 1 : count;
@@ -341,7 +344,7 @@ async function generate({
   const callsToday = db.generationLog
     .filter((g) => g.courseId === course.id && dayKey(g.at) === today)
     .reduce((n, g) => n + (g.calls || 1), 0);
-  if (callsToday >= GEN.dailyCallsPerCourse) {
+  if (callsToday >= GEN.dailyCallsPerCourse && !reuseDraft()) {
     return {
       status: 429,
       body: {
@@ -378,6 +381,11 @@ async function generate({
   const existingStems = db.questions
     .filter((q) => q.courseId === course.id && q.status !== 'rejected')
     .map((q) => ({ id: q.id, stem: q.versions.at(-1).stem }));
+  // Word overlap loses negations, operators and distinctions in small subject
+  // vocabularies. With semantic verification, only exact copies block locally.
+  const compactStem = s => String(s || '').normalize('NFKC').replace(/\s+/g, ' ').trim();
+  const validationStems = item => batchVerifier
+    ? existingStems.filter(e => compactStem(e.stem) === compactStem(item.stem)) : existingStems;
   // Questions on this topic or citing this source. A question being replaced
   // does not count, so a rewrite may keep its concept.
   const related = () => db.questions
@@ -399,15 +407,16 @@ async function generate({
   };
   let lastError,
     hadOutput = false,
-    calls = 0;
+    calls = 0, rounds = 0;
   inFlight.add(course.id);
   try {
     await checkpoint(log);
     // Small batches bound latency; each attempt fills only missing slots.
     const maxCalls = Math.ceil(count / batchSize) + GEN.retries;
-    while (log.createdQuestionIds.length < count && calls < maxCalls && callsToday + calls < GEN.dailyCallsPerCourse) {
-      calls++;
-      log.calls++;
+    while (log.createdQuestionIds.length < count && rounds < maxCalls && (callsToday + calls < GEN.dailyCallsPerCourse || reuseDraft())) {
+      const replay = reuseDraft();
+      rounds++;
+      if (!replay) { calls++; log.calls++; }
       await checkpoint(log); // reserve the call before contacting the provider
       let out;
       const remaining = () => quantities && Object.fromEntries(Object.entries(quantities).map(([type, n]) => [type,
@@ -434,10 +443,17 @@ async function generate({
       }
       const items = out.items.slice(0, Math.min(batchSize, count - log.createdQuestionIds.length));
       const plans = items.map(planOf);
+      // An identical rejected candidate is not a repair. Reuse its failure
+      // within this source-bound job instead of paying to verify it again.
+      const repeatedFailures = new Map();
+      items.forEach((item, index) => {
+        const prior = log.rejected.find(r => r.candidate && inputHash(r.candidate) === inputHash(item));
+        if (prior) repeatedFailures.set(index, prior.errors.join(' '));
+      });
       const eligible = items
-        .map((item, index) => ({ index, ...validateQuestion(item, { allowedSourceIds: allowed, requireSource: true, existingStems }) }))
-        .filter((c) => !c.errors.length && matches(c.q) && (c.q.type !== 'mcq' || c.q.options?.length === 4) && (c.q.type!=='multi' || c.q.answerIndexes.length>=2));
-      const batchIssues = new Map();
+        .map((item, index) => ({ index, ...validateQuestion(item, { allowedSourceIds: allowed, requireSource: true, existingStems: validationStems(item) }) }))
+        .filter((c) => !repeatedFailures.has(c.index) && !c.errors.length && matches(c.q) && (c.q.type !== 'mcq' || c.q.options?.length === 4) && (c.q.type!=='multi' || c.q.answerIndexes.length>=2));
+      const batchIssues = new Map(repeatedFailures);
       if (batchVerifier && eligible.length) {
         const issues = await batchVerifier(
           eligible.map((c) => c.q),
@@ -449,12 +465,12 @@ async function generate({
         );
       }
       for (const [index, item] of items.entries()) {
-        const { q, errors, warnings } = validateQuestion(item, { allowedSourceIds: allowed, requireSource: true, existingStems });
+        const { q, errors, warnings } = validateQuestion(item, { allowedSourceIds: allowed, requireSource: true, existingStems: validationStems(item) });
         if (!matches(q)) errors.push('The question does not match a remaining requested question type.');
         if (q.type === 'mcq' && q.options?.length !== 4) errors.push('Generated MCQs require exactly four options.');
         if (q.type === 'multi' && q.answerIndexes.length < 2) errors.push('Generated Multi-select questions require multiple correct answers.');
         if (
-          q.type === 'mcq' &&
+          !batchVerifier && q.type === 'mcq' &&
           db.questions.some(
             (existing) =>
               existing.courseId === course.id && existing.status !== 'rejected' && duplicateContent(q, existing.versions.at(-1)),
@@ -467,10 +483,15 @@ async function generate({
         if (typeof verdict === 'string') errors.push(verdict);
         else if (verdict) {
           if (verdict.difficulty) q.difficulty = verdict.difficulty;
+          if (verdict.options && q.type === 'multi') {
+            q.options = verdict.options;
+            q.answerIndexes = verdict.answerIndexes;
+            errors.push(...validateQuestion(q, { allowedSourceIds: allowed }).errors);
+          }
           warnings.push(...(verdict.warnings || []));
         }
         const repeat = !errors.length && conceptRepeat(plans[index]);
-        if (repeat) errors.push(repeat);
+        if (repeat) warnings.push('Coverage review: ' + repeat);
         if (!errors.length && verifier) {
           try {
             const issue = await verifier(q, chunks);

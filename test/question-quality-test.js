@@ -46,7 +46,7 @@ test('concept labels match on their content words, not on wording', () => {
   assert.deepEqual(planOf({ blueprint: { taskType: 'invent' } }), {}, 'unknown task types are dropped');
 });
 
-test('a second question on the same concept in one batch is rejected and refilled with a new concept', async () => {
+test('concept labels alone flag coverage without discarding independently verified tasks', async () => {
   const { r, db, prompts } = await direct({ count: 2, rounds: [
     [mcq('Which matcher should check that two separately built objects hold the same data?', 'toBe vs toEqual', 'decide'),
       mcq('An adventurer compares two fresh objects with toBe. Why does the assertion fail?', 'Difference between toBe() and toEqual()', 'decide')],
@@ -54,10 +54,11 @@ test('a second question on the same concept in one batch is rejected and refille
   ] });
   assert.equal(r.status, 200);
   assert.equal(r.body.created.length, 2);
-  assert.match(r.body.rejected[0].errors[0], /repeats the concept "Difference between toBe\(\) and toEqual\(\)"/);
-  assert.match(JSON.stringify(prompts[1].validationFeedback), /Choose a different concept/, 'the drafter is told why');
+  assert.equal(r.body.rejected.length, 0);
+  assert.equal(prompts.length, 1);
+  assert.match(db.questions.find(q => q.id === r.body.created[1]).versions[0].warnings.join(' '), /Coverage review/);
   const saved = r.body.created.map((id) => db.questions.find((q) => q.id === id).assessment);
-  assert.deepEqual(saved.map((a) => [a.concept, a.taskType, a.intendedStyle]), [['toBe vs toEqual', 'decide', 'conceptual'], ['arrange act assert', 'classify', 'conceptual']]);
+  assert.deepEqual(saved.map((a) => a.taskType), ['decide', 'decide']);
   const restored = fromTables(toTables(db, () => 1)).questions.find((q) => q.id === r.body.created[0]);
   assert.equal(restored.assessment.concept, 'toBe vs toEqual', 'the concept survives the database round trip');
 });
@@ -72,11 +73,11 @@ test('larger batches may revisit a concept once, through a different task type',
     mcq('Which step of a test calls the function whose behaviour is being checked?', 'arrange act assert', 'classify'),
   ];
   const { r } = await direct({ count: 6, rounds: [items, [], []] });
-  assert.equal(r.body.created.length, 4, 'a third question on one concept is rejected, as is a repeated task type');
-  assert.deepEqual(r.body.rejected.map((x) => x.stem.slice(0, 21)), ['Which statement expla', 'Which matcher compare']);
+  assert.equal(r.body.created.length, 6, 'concept reuse is not proof of duplicated reasoning');
+  assert.equal(r.body.rejected.length, 0);
 });
 
-test('earlier questions block the same concept and task type, but not a rejected or a different task', async () => {
+test('earlier concept and task labels guide coverage without automatic rejection', async () => {
   const old = (id, stem, concept, taskType, status = 'draft') => ({ id, status, assessment: { concept, taskType }, versions: [{ v: 1, type: 'mcq', stem, sourceIds: ['p-report'] }] });
   const { r, prompts } = await direct({ count: 3, rounds: [[
     mcq('Which matcher should a quest log use to compare two separately built item lists?', 'toBe vs toEqual', 'decide'),
@@ -86,8 +87,8 @@ test('earlier questions block the same concept and task type, but not a rejected
     old('q-old1', 'Choose the right matcher for comparing two separately constructed objects.', 'toBe vs toEqual', 'decide'),
     old('q-old2', 'Why do we mock dependencies?', 'mocking dependencies', 'explain', 'rejected'),
   ] });
-  assert.equal(r.body.created.length, 2);
-  assert.match(r.body.rejected[0].errors[0], /existing question already assesses "toBe vs toEqual" with a decide task/);
+  assert.equal(r.body.created.length, 3);
+  assert.equal(r.body.rejected.length, 0);
   const prompt = buildUserPrompt({ ...prompts[0], chunks: prompts[0].chunks });
   assert.match(prompt, /\[toBe vs toEqual \/ decide\] Choose the right matcher/, 'the drafter sees covered concepts');
   assert.match(prompt, /Why do we mock dependencies\? \(rejected by the professor\)/);
@@ -168,15 +169,48 @@ test('the verifier is asked for difficulty, weak distractors and concept-level d
   const f = await queued({ draft: () => [hard], decision: (v) => v });
   const prompt = f.prompts[0];
   assert.doesNotMatch(prompt, /Distinct applications of a concept are allowed/);
-  assert.match(prompt, /the same concept assessed through the same kind of task in a new story is a duplicate/);
+  assert.match(prompt, /Shared concept or task labels alone are not proof of duplication/);
   assert.match(prompt, /estimatedDifficulty from the reasoning YOU needed/);
   assert.match(prompt, /weakDistractorIndexes/);
+  assert.match(prompt, /sample questions and worked assessment examples/);
 });
 
-test('implausible distractors are flagged for the professor, never the answer itself', async () => {
+test('a copied report sample is rejected through the existing duplicate safeguard', async () => {
+  const f = await queued({ draft: round => round === 0 ? [hard] : [], decision: v => ({ ...v, duplicate: true }) });
+  assert.equal(f.created.length, 0);
+  assert.match(f.rejected[0].errors.join(' '), /repeats the reasoning/);
+});
+
+test('Multi-select weak distractors are flagged without treating correct options as distractors', async () => {
+  let verified = 0;
+  const item = { ...hard, type: 'multi', answerIndex: undefined, answerIndexes: [0, 1] };
+  const f = await queued({ quantities: { multi: 1 }, draft: () => [item], decision: v => ({ ...v, answerIndex: -1,
+    answerIndexes: [0, 1], weakDistractorIndexes: verified++ === 0 ? [0, 1, 2] : [] }) });
+  assert.equal(f.created.length, 1);
+  assert.equal(f.job.calls, 2);
+  assert.match(f.created[0].versions[0].warnings.join(' '), /option indexes 2:/);
+});
+
+test('implausible distractors are moderate warnings, never flagging the answer itself', async () => {
   const f = await queued({ draft: () => [hard], decision: (v) => ({ ...v, weakDistractorIndexes: [0, 2, 3, 9] }) });
-  assert.equal(f.job.status, 'complete', f.job.message);
-  assert.match(f.created[0].versions[0].warnings.join(' '), /Check options C, D: the independent check found these distractors too easy to rule out/);
+  assert.equal(f.created.length, 1);
+  assert.equal(f.job.calls, 2);
+  assert.match(f.created[0].versions[0].warnings.join(' '), /option indexes 2, 3/);
+  const valid = await queued({ draft: () => [hard], decision: v => ({ ...v, weakDistractorIndexes: [0, 9] }) });
+  assert.equal(valid.created.length, 1);
+});
+
+test('redundant multi-select propositions are safely trimmed or retained with a warning', async () => {
+  const item = { ...hard, type: 'multi', options: ['Compare contents', 'Compare the contents recursively', 'Check identity', 'Ignore all fields', 'Replace the dependency'], answerIndexes: [0, 1, 2] };
+  const f = await queued({ quantities: { multi: 1 }, draft: () => [item], decision: v => ({ ...v, answerIndex: -1, answerIndexes: [0, 1, 2], redundantCorrectOptionIndexes: [1] }) });
+  assert.equal(f.job.calls, 2);
+  assert.deepEqual(f.created[0].versions[0].answerIndexes, [0, 1]);
+  assert.deepEqual(f.created[0].versions[0].options, [item.options[0], ...item.options.slice(2)]);
+  const overlap = await queued({ quantities: { multi: 1 }, draft: () => [{ ...item, options: item.options.slice(0, 4), answerIndexes: [0, 1] }],
+    decision: v => ({ ...v, answerIndex: -1, answerIndexes: [0, 1], redundantCorrectOptionIndexes: [1] }) });
+  assert.equal(overlap.job.calls, 2);
+  assert.equal(overlap.created[0].versions[0].options.length, 4);
+  assert.match(overlap.created[0].versions[0].warnings.join(' '), /overlap in meaning/);
 });
 
 test('an unsupported explanation now fails for every format, not only True/False', async () => {
@@ -185,7 +219,7 @@ test('an unsupported explanation now fails for every format, not only True/False
   assert.match(f.rejected[0].errors.join(' '), /The explanation includes claims the source does not support/);
 });
 
-test('under Both, a would-be application question that is really recall is sent back when it is the missing style', async () => {
+test('Both relabels recall and reports coverage instead of replacing valid questions', async () => {
   const recall = { ...mcq('A guild scribe is writing tests. Which matcher compares object contents rather than identity?', 'toBe vs toEqual', 'classify'), blueprint: blueprint('toBe vs toEqual', 'classify', 'application') };
   const concept = mcq('Why does a unit test replace the database with a mock?', 'mocking dependencies', 'explain');
   const real = { ...mcq('This guild test compares two fresh quest objects with toBe and fails. Which change makes it pass, and why?', 'toBe vs toEqual', 'diagnose'), blueprint: blueprint('toBe vs toEqual', 'diagnose', 'application') };
@@ -195,13 +229,14 @@ test('under Both, a would-be application question that is really recall is sent 
     : v;
   const f = await queued({ style: 'both', count: 2, draft: (round) => round === 0 ? [concept, recall] : [real], decision });
   assert.equal(f.job.status, 'complete', f.job.message);
-  assert.match(f.rejected[0].errors.join(' '), /conceptual recall inside a scenario/, 'the downgraded draft, not the sound conceptual one, is sent back');
-  assert.deepEqual(f.created.map((q) => q.assessment.cognitiveStyle).sort(), ['application', 'conceptual']);
+  assert.equal(f.job.calls, 2);
+  assert.deepEqual(f.created.map((q) => q.assessment.cognitiveStyle), ['conceptual', 'conceptual']);
+  assert.match(f.job.result.warnings.join(' '), /do not cover both/);
 
   const kept = await queued({ style: 'both', count: 3, draft: () => [concept, real, { ...recall, blueprint: blueprint('mock assertions', 'classify', 'application'), stem: 'A guild scribe is writing tests. Which tool stands in for a dependency?' }], decision });
-  assert.equal(kept.job.status, 'complete', kept.job.message);
+  assert.equal(kept.created.length, 3);
   const downgraded = kept.created.find((q) => q.assessment.intendedStyle === 'application' && q.assessment.cognitiveStyle === 'conceptual');
-  assert.match(downgraded.versions[0].warnings.join(' '), /Drafted as application, but it can be answered without using the scenario details/);
+  assert.match(downgraded.versions[0].warnings.join(' '), /classified this task as conceptual/);
 });
 
 // --- difficulty calibration and application vs recall ----------------------
@@ -224,7 +259,7 @@ test('difficulty is the lowest of the label, the estimate and the step ceiling, 
   assert.equal(calibrateDifficulty('hard', { estimatedDifficulty: 'extreme', reasoningSteps: 'three' }), null, 'malformed verdicts are ignored');
 });
 
-test('regression: "Write a Vitest assertion that calculateBonus(15) returns High" is saved as Easy/Conceptual, not Hard/Application', async () => {
+test('regression: copying a Vitest assertion is accurately labelled Easy/Conceptual', async () => {
   const vitest = {
     type: 'short', answerMode: 'text', difficulty: 'hard', blueprint: blueprint('writing assertions', 'decide', 'application'),
     stem: "The guild's treasurer has calculateBonus(score). Write a Vitest assertion that calculateBonus(15) returns 'High'.",
@@ -235,18 +270,14 @@ test('regression: "Write a Vitest assertion that calculateBonus(15) returns High
   // a single transcription.
   const f = await queued({ style: 'both', quantities: { short: 1 }, draft: () => [vitest], decision: (v) => ({
     ...v, cognitiveStyle: 'application', answerableWithoutScenario: false, reasoningSteps: ONE_STEP, estimatedDifficulty: 'hard' }) });
-  assert.equal(f.job.status, 'complete', f.job.message);
-  assert.equal(f.job.calls, 2, 'no extra Gemini call');
-  const [q] = f.created, warnings = q.versions[0].warnings.join(' ');
-  assert.equal(q.versions[0].difficulty, 'easy');
-  assert.equal(q.assessment.cognitiveStyle, 'conceptual');
-  assert.match(warnings, /Drafted as hard, but the independent check judged its reasoning demand easy \(1 reasoning step\)/);
-  assert.match(warnings, /Drafted as application, but it can be answered without using the scenario details/);
-  assert.equal(q.assessment.intendedStyle, 'application', 'the drafter plan is kept for review');
+  assert.equal(f.created.length, 1);
+  assert.equal(f.job.calls, 2);
+  assert.equal(f.created[0].versions[0].difficulty, 'easy');
+  assert.equal(f.created[0].assessment.cognitiveStyle, 'conceptual');
   assert.doesNotMatch(f.prompts[0], /"difficulty":"hard"/, 'the verifier never sees the drafted label');
 });
 
-test('regression: a single Playwright click assertion drafted as Medium/Application is saved as Easy/Conceptual', async () => {
+test('regression: a single Playwright click assertion is retained with accurate labels', async () => {
   const click = {
     ...mcq("The guild's scout writes a Playwright test that clicks the 'Join quest' button and checks the 'Welcome, adventurer' banner appears. Which line makes that check?",
       'Playwright visibility assertions', 'decide', { difficulty: 'medium', blueprint: blueprint('Playwright visibility assertions', 'decide', 'application') }),
@@ -255,7 +286,7 @@ test('regression: a single Playwright click assertion drafted as Medium/Applicat
   };
   const f = await queued({ style: 'both', draft: () => [click], decision: (v) => ({
     ...v, cognitiveStyle: 'application', answerableWithoutScenario: false, reasoningSteps: ['Pick the visibility matcher for the stated banner.'], estimatedDifficulty: 'medium' }) });
-  assert.equal(f.job.status, 'complete', f.job.message);
+  assert.equal(f.created.length, 1);
   assert.equal(f.created[0].versions[0].difficulty, 'easy');
   assert.equal(f.created[0].assessment.cognitiveStyle, 'conceptual');
 });
@@ -305,7 +336,7 @@ test('prompts tell the drafter and verifier that transcribing givens is recall, 
   assert.match(COVERAGE_GUIDE, /For mcq and multi, write in blueprint.distractorRationale/);
   const db = seed(), course = db.courses.find((c) => c.id === 'c-comp'), topic = db.topics.find((t) => t.courseId === course.id);
   const drafting = buildUserPrompt({ course, topic, outcome: topic.outcomes[0], count: 2, format: 'mixed', chunks: [{ passageId: 'p', text: REPORT }], quantities: { mcq: 1, short: 1 } });
-  assert.match(drafting, /never raise a label to meet the mix/);
+  assert.match(drafting, /Never inflate difficulty or add artificial steps/);
   assert.match(drafting, /The adventure frame never supplies an option/);
   assert.match(drafting, /single assertion or call whose inputs and expected result the stem already states is easy syntax recall/);
   const verifying = buildVerificationPrompt({ questions: [{ ...hard, sourceIds: ['p'] }], chunks: [], existingStems: [], guidance: '{}' });
