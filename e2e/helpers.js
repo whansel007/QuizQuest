@@ -33,10 +33,21 @@ export async function openTab(page, name) {
 export async function answerCurrentQuestion(page) {
   const written = page.getByLabel('Written answer');
   const numeric = page.getByLabel('Numeric answer');
+  const choice = page.locator('.options button').first();
   const submit = page.getByRole('button', { name: 'Submit answer' });
-  if (await written.count()) await written.fill('Latency measures travel delay, while bandwidth describes transfer capacity.');
-  else if (await numeric.count()) await numeric.fill('13');
-  else await page.locator('.options button').first().click();
+  let answerKind;
+  // Wait for QuestionForm to mount before choosing a format; the question counter can appear first.
+  await expect.poll(async () => {
+    if (await written.isVisible()) answerKind = 'written';
+    else if (await numeric.isVisible()) answerKind = 'numeric';
+    else if (await choice.isVisible()) answerKind = 'choice';
+    else answerKind = null;
+    return answerKind;
+  }, { message: 'A supported answer control should appear before answering', timeout: 10_000 }).toBeTruthy();
+
+  if (answerKind === 'written') await written.fill('Latency measures travel delay, while bandwidth describes transfer capacity.');
+  else if (answerKind === 'numeric') await numeric.fill('13');
+  else await choice.click();
   if (await submit.count()) await submit.click();
   await expect(page.getByText(VERDICT)).toBeVisible();
 }
