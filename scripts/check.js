@@ -9,11 +9,12 @@ function walk(dir) {
     return e.isDirectory() ? walk(p) : /\.(js|cjs)$/.test(p) ? [p] : [];
   });
 }
-const files = ['server.js', ...['src', 'public', 'web/src', 'test', 'scripts', 'e2e'].flatMap(walk)];
-// The browser modules and the end-to-end specs are ES modules. node --check
-// reads a .js file as CommonJS unless it is told otherwise, so a stray
-// import would look like a syntax error instead of being a valid module.
-const esModule = (file) => file.startsWith(path.join('web', 'src') + path.sep) || file.startsWith('e2e' + path.sep);
+const files = ['server.js', ...['src', 'public', 'web/src', 'test', 'scripts', 'e2e', 'config'].flatMap(walk)];
+// The browser modules, the end-to-end specs and the shared config are ES
+// modules. node --check reads a .js file as CommonJS unless it is told
+// otherwise, so a stray import would look like a syntax error instead of
+// being a valid module.
+const esModule = (file) => ['web/src', 'e2e', 'config'].some((dir) => file.startsWith(dir + path.sep));
 for (const file of files) {
   const asModule = esModule(file);
   const result = spawnSync(process.execPath,
