@@ -56,6 +56,8 @@ Omit `--project=chromium` to check all three configured browsers. You do not nee
 
 Tests follow setup, actions and assertions, as in Week 10c. The comments explain why accounts use separate browser contexts and what each assertion proves. Playwright waits for locators and assertions automatically; fixed sleeps would make these journeys unreliable.
 
+Three timeouts are set in `playwright.config.js`, because WebKit is much slower than Chromium on the same machine: **60 s per test** (Playwright's default is 30 s), **10 s per assertion**, and **30 s per click** — so a click that never finds its element fails in half a minute and names the selector, instead of waiting for the whole test and reporting only "test timed out". The journeys that are genuinely long (a whole five-question session, two browsers at once, a shared socket room) also call `test.slow()`, which triples their budget to 180 s. On CI each test is retried once: a slow redraw can lose a single run on a busy runner, and a test that fails twice still fails the job.
+
 After a failure, run `pnpm exec playwright show-report` to inspect the failed step. To watch a specific test locally, add `--headed`; to step through it, add `--debug`. A failing assertion should be investigated rather than removed just to make the run pass.
 
 These checks cover selected journeys, not every possible game action. They exercise the local Node backend and temporary data store; they do not certify a live Supabase connection, external AI services, or a complete multiplayer battle.
@@ -65,5 +67,6 @@ You can also record a new test with the **Playwright Test for VS Code** extensio
 ## Writing new tests
 
 - Name test files `*.spec.js`. Vitest only picks up files inside `__tests__` folders; Playwright only looks in `e2e/`.
+- If a test drives **two pages at once**, bring the page you are working on to the front first (`await page.bringToFront()`). WebKit stops animating a page that is not in front, and a click waits for the page to settle before it fires, so the click waits for ever. The shared `signIn()` helper already does this.
 - Test behaviour, not implementation: check what the user sees (`wrapper.text()`, `getByText`, `getByRole`), not internal function names or exact HTML.
 - Component tests stub children only when needed; integration tests mount the real children.
