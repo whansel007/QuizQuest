@@ -40,7 +40,9 @@ function createRoom({ io, services = null, id, code = null, isDefault = false, m
 
   const players = new Map();
   const projectiles = new Map();
+  const turretProjectilePool = [];
   const monsters = new Map();
+  const turrets = new Map();
   const pickups = new Map();
   const traps = new Map();
   const fairyVortices = new Map();
@@ -62,6 +64,7 @@ function createRoom({ io, services = null, id, code = null, isDefault = false, m
   let liveDummyCount = 0;
 
   let projectileCounter = 0;
+  let turretCounter = 0;
   let vortexCounter = 0;
   let monsterSeq = 0;
   let lastTrialSpawnAt = 0;
@@ -132,6 +135,7 @@ function createRoom({ io, services = null, id, code = null, isDefault = false, m
 
   function resetGame() {
     projectiles.clear();
+    turrets.clear();
     fairyVortices.clear();
     monsters.clear(); liveDummyCount = 0;
     pickups.clear();
@@ -227,6 +231,7 @@ function createRoom({ io, services = null, id, code = null, isDefault = false, m
   function resetRunToLobby(now) {
     resetGame();
     for (const player of players.values()) {
+      player.engineerLaserCharge = null;
       player.hero = buildHero(player.heroId, player.user);
       player.name = player.user?.name || player.hero.name;
       player.emoji = player.hero.emoji;
@@ -416,7 +421,7 @@ function createRoom({ io, services = null, id, code = null, isDefault = false, m
       liveDummyCount -= 1;
       // A broken dummy counts as a kill for kill-triggered TALENTS only: no
       // kill count, combo, reward or wave progress.
-      applyKillTalents(owner, source);
+      if (!source.turretKill) applyKillTalents(owner, source);
       nsp.emit('dummy_broken', { id: dummy.id, x: dummy.x, y: dummy.y, emoji: DUMMY_EMOJI });
       nextDummySpawnAt = Date.now() + DUMMY_RESPAWN_S * 1000;
     }
@@ -827,6 +832,7 @@ function createRoom({ io, services = null, id, code = null, isDefault = false, m
   }
 
   function startRestPhase(now) {
+    for (const turret of turrets.values()) { turret.hp = GAME_CONFIG.turret.hp; turret.ammo = GAME_CONFIG.turret.ammoMax; }
     const clearedBoss = waveNumber > 0 && waveNumber % GAME_CONFIG.arenaTuning.enemies.bruteKing.everyWaves === 0;
     setBreakPhase('rest', now + (clearedBoss ? BREAK.bossRestMs : BREAK.restMs));
     nextWaveAt = 0;
@@ -968,6 +974,115 @@ function createRoom({ io, services = null, id, code = null, isDefault = false, m
       }
     }
     return closest;
+  }
+
+  function activeTurretTarget(monster, now) {
+    if (!GAME_CONFIG.turret.taunt || !['zombie', 'skeleton', 'brute', 'brute-king'].includes(monster.type)) return null;
+    if (monster.targetId && monster.targetId.startsWith('turret:') && now < (monster.targetLockUntil || 0)) {
+      const locked = turrets.get(monster.targetId);
+      if (locked && locked.deployingUntil <= now && locked.hp > 0) return locked;
+    }
+    // Spread distance checks across enemies over each reevaluation window.
+    if (now < (monster.nextTargetEvalAt || 0)) {
+      const current = turrets.get(monster.targetId);
+      return current && current.deployingUntil <= now && current.hp > 0 ? current : null;
+    }
+    monster.nextTargetEvalAt = now + GAME_CONFIG.turret.targetReevalMs
+      + ((Number(String(monster.id).replace(/\D/g, '').slice(-2)) || 0) % GAME_CONFIG.turret.targetReevalStaggerMs);
+    let nearest = null;
+    let nearestDistance = GAME_CONFIG.turret.aggroRadius;
+    for (const turret of turrets.values()) {
+      if (turret.hp <= 0 || turret.deployingUntil > now) continue;
+      const distance = Math.hypot(turret.x - monster.x, turret.y - monster.y);
+      if (distance <= nearestDistance) { nearest = turret; nearestDistance = distance; }
+    }
+    monster.targetId = nearest?.id || null;
+    monster.targetLockUntil = nearest ? now + GAME_CONFIG.turret.targetLockMs : 0;
+    return nearest;
+  }
+
+  function damageTurret(turret, damage, sourceAbility = 'enemy') {
+    if (!turret || turret.hp <= 0 || damage <= 0) return;
+    const amount = Math.min(turret.hp, damage);
+    turret.hp -= amount;
+    nsp.emit('turret_hit', { id: turret.id, x: turret.x, y: turret.y, damage: amount });
+    if (turret.hp <= 0) {
+      turrets.delete(turret.id);
+      nsp.emit('turret_destroyed', { id: turret.id, x: turret.x, y: turret.y, sourceAbility });
+    }
+  }
+
+  function removeOwnerTurrets(ownerId) {
+    for (const [id, turret] of turrets) if (turret.ownerId === ownerId) {
+      turrets.delete(id);
+      nsp.emit('turret_removed', { id, x: turret.x, y: turret.y });
+    }
+  }
+
+  function makeTurret(ownerId, x, y, now = Date.now()) {
+    const owner = players.get(ownerId);
+    const turret = { id: `turret:${++turretCounter}`, ownerId, x, y, createdAt: now, hp: GAME_CONFIG.turret.hp,
+      ammo: GAME_CONFIG.turret.initialAmmo, radius: GAME_CONFIG.turret.radius, barrelAngle: 0, targetId: null, deployingUntil: now + GAME_CONFIG.turret.deployMs,
+      targetReevalAt: 0, nextFireAt: now, ownerAttack: owner?.hero.attack || GAME_CONFIG.heroDefaults.attack };
+    turrets.set(turret.id, turret);
+    nsp.emit('turret_deployed', { id: turret.id, x, y });
+    return turret;
+  }
+
+  function createTurretProjectile(turret, now, angle) {
+    const id = `turret-shot:${++projectileCounter}`;
+    let projectile = turretProjectilePool.pop();
+    if (!projectile) projectile = new Projectile();
+    projectile.id = id; projectile.ownerId = turret.ownerId; projectile.heroId = 'engineer';
+    projectile.x = turret.x + Math.cos(angle) * GAME_CONFIG.turret.muzzleOffset; projectile.y = turret.y + Math.sin(angle) * GAME_CONFIG.turret.muzzleOffset;
+    projectile.vx = Math.cos(angle) * GAME_CONFIG.turret.bulletSpeed; projectile.vy = Math.sin(angle) * GAME_CONFIG.turret.bulletSpeed;
+    projectile.radius = GAME_CONFIG.turret.bulletRadius; projectile.color = '#FF9F1C'; projectile.damage = turret.ownerAttack * GAME_CONFIG.turret.damageMultiplier;
+    projectile.piercing = false; projectile.piercesRemaining = 0; projectile.targetTeam = 'monsters'; projectile.heal = 0;
+    projectile.explosionRadius = 0; projectile.knockback = 0; projectile.stunMs = 0; projectile.detonateOnExpire = false;
+    projectile.shape = 'circle'; projectile.emoji = ''; projectile.rotateToAim = false; projectile.flashColors = null;
+    projectile.flashIntervalMs = 100; projectile.fadeLastFraction = 0; projectile.sourceAbility = 'turret'; projectile.trap = null;
+    projectile.trapTargetId = null; projectile.trapOrigin = null; projectile.lifetimeMs = GAME_CONFIG.turret.range / GAME_CONFIG.turret.bulletSpeed * 1000;
+    projectile.kind = 'player'; projectile.speed = GAME_CONFIG.turret.bulletSpeed; projectile.createdAt = now;
+    projectile.dead = false; projectile.hitTargets.clear(); projectile.turretKill = true;
+    return projectile;
+  }
+
+  function recycleTurretProjectile(projectile) {
+    if (projectile?.sourceAbility === 'turret' && turretProjectilePool.length < GAME_CONFIG.turret.projectilePoolMax)
+      turretProjectilePool.push(projectile);
+  }
+
+  function updateTurrets(dt, now) {
+    for (const turret of turrets.values()) {
+      const owner = players.get(turret.ownerId);
+      if (owner) turret.ownerAttack = owner.hero.attack;
+      if (turret.deployingUntil > now) continue;
+      let target = turret.targetId ? monsters.get(turret.targetId) : null;
+      if (!target || target.dead || target.fadeStartedAt || Math.hypot(target.x - turret.x, target.y - turret.y) > GAME_CONFIG.turret.range
+        || now >= turret.targetReevalAt) {
+        target = null;
+        let nearestSquared = GAME_CONFIG.turret.range ** 2;
+        for (const monster of monsters.values()) {
+          if (monster.dead || monster.fadeStartedAt) continue;
+          const dx = monster.x - turret.x, dy = monster.y - turret.y, d2 = dx * dx + dy * dy;
+          if (d2 <= nearestSquared) { target = monster; nearestSquared = d2; }
+        }
+        turret.targetReevalAt = now + GAME_CONFIG.turret.fireTargetReevalMs;
+      }
+      if (!target) { turret.targetId = null; continue; }
+      turret.targetId = target.id;
+      const wanted = Math.atan2(target.y - turret.y, target.x - turret.x);
+      let delta = ((wanted - turret.barrelAngle + Math.PI * 3) % (Math.PI * 2)) - Math.PI;
+      const maxStep = GAME_CONFIG.turret.turnRateDegS * Math.PI / 180 * dt;
+      delta = clamp(delta, -maxStep, maxStep);
+      turret.barrelAngle += delta;
+      if (turret.ammo <= 0 || Math.abs(((wanted - turret.barrelAngle + Math.PI * 3) % (Math.PI * 2)) - Math.PI) > GAME_CONFIG.turret.fireConeDeg * Math.PI / 180 || now < turret.nextFireAt) continue;
+      turret.ammo -= 1;
+      turret.nextFireAt = now + 1000 / GAME_CONFIG.turret.fireRate;
+      const angle = turret.barrelAngle;
+      const projectile = createTurretProjectile(turret, now, angle);
+      projectiles.set(projectile.id, projectile);
+    }
   }
 
   function downPlayer(player, now) {
@@ -1197,6 +1312,7 @@ function createRoom({ io, services = null, id, code = null, isDefault = false, m
       aim: { x: 1, y: 0 },
       keys: {},
       primaryHeld: false,
+      engineerLaserCharge: null,
       kills: 0,
       damageDealt: 0,
       bonusDamage: 0,
@@ -1287,6 +1403,10 @@ function createRoom({ io, services = null, id, code = null, isDefault = false, m
   function removePlayer(player, now) {
     const wasHost = hostId === player.id;
     players.delete(player.id);
+    removeOwnerTurrets(player.id);
+    for (const [projectileId, projectile] of projectiles) if (projectile.ownerId === player.id && projectile.engineerWrench) projectiles.delete(projectileId);
+    player.engineerLaserCharge = null;
+    player.hero.wrenchInFlight = false;
     dawnPending.delete(player.id);
     buffVotes.delete(player.id);
     traps.delete(player.id);
@@ -1434,6 +1554,9 @@ function createRoom({ io, services = null, id, code = null, isDefault = false, m
     const player = players.get(socket.id);
     if (!player) return { ok: false, code: 'not_in_room' };
     if (player.heroId === heroId) return { ok: true };
+    removeOwnerTurrets(player.id);
+    for (const [projectileId, projectile] of projectiles) if (projectile.ownerId === player.id && projectile.engineerWrench) projectiles.delete(projectileId);
+    player.engineerLaserCharge = null;
     const hero = buildHero(heroId, player.user);
     hero.position = { x: player.x, y: player.y };
     player.hero = hero;
@@ -1482,6 +1605,7 @@ function createRoom({ io, services = null, id, code = null, isDefault = false, m
     if (choice === 'leave') {
       nsp.emit('player_leave', { playerId: player.id, x: player.x, y: player.y, emoji: player.emoji });
       socket.emit('run_result', makeRunResult(player, true, 'milestone'));
+      removeOwnerTurrets(player.id);
       players.delete(socket.id);
       buffVotes.delete(socket.id);
       if (hostId === player.id) migrateHost();
@@ -1567,13 +1691,14 @@ function createRoom({ io, services = null, id, code = null, isDefault = false, m
         nsp.emit('overcharge', { playerId: player.id, count: player.overchargeShots });
       }
     }
-    player.hero.useAbility('weapon', now);
+    const engineerWrench = player.heroId === 'engineer' && Boolean(result.engineerWrench);
+    if (!engineerWrench) player.hero.useAbility('weapon', now);
     // A held shot lands on the first tick at or after readyAt, so the rate
     // would otherwise round up to a whole tick (Bubbles would fire every 133 ms
     // instead of 105 ms). Anchor the next shot to the moment the weapon was
     // actually ready. The overshoot is capped at one tick so a player who was
     // idle before pressing the button does not get a burst of catch-up shots.
-    if (source === 'hold') {
+    if (source === 'hold' && !engineerWrench) {
       const overshoot = Math.min(Math.max(0, now - weaponReadyAt), 1000 / ARENA_CONFIG.tickHz);
       player.hero.cooldowns.weapon.readyAt -= overshoot;
     }
@@ -1581,7 +1706,7 @@ function createRoom({ io, services = null, id, code = null, isDefault = false, m
     for (const projectile of Array.isArray(result) ? result : [result]) addProjectile(player, projectile);
   }
 
-  function skill(socket) {
+  function skill(socket, target = null) {
     const player = players.get(socket.id);
     if (!player || player.downed || player.dawnWaiting || gameEnded) return;
 
@@ -1589,6 +1714,14 @@ function createRoom({ io, services = null, id, code = null, isDefault = false, m
     const now = Date.now();
     if (player.bubbleRush) endBubbleRush(player, now);
     if (!player.hero.canUseAbility('skill', now)) return;
+    if (player.heroId === 'engineer') {
+      const placed = placeEngineerTurret(player, target, now);
+      if (!placed) { direct.to(player.id).emit('engineer_place_failed'); return; }
+      player.hero.useAbility('skill', now);
+      nsp.emit('ability_used', { playerId: player.id, heroId: player.heroId, ability: 'skill' });
+      broadcastState(now);
+      return;
+    }
     const skill = player.hero.skill(now);
     if (!skill) return;
 
@@ -1618,6 +1751,85 @@ function createRoom({ io, services = null, id, code = null, isDefault = false, m
     syncHeroAimAndPosition(player);
   }
 
+  function placeEngineerTurret(player, target, now) {
+    const spec = player.hero.spec.turretSkill;
+    const wantedX = Number.isFinite(target?.x) ? target.x : player.x + player.aim.x * spec.placeRange;
+    const wantedY = Number.isFinite(target?.y) ? target.y : player.y + player.aim.y * spec.placeRange;
+    const dx = wantedX - player.x, dy = wantedY - player.y;
+    const distance = Math.hypot(dx, dy);
+    const scale = distance > spec.placeRange ? spec.placeRange / distance : 1;
+    const x = clamp(player.x + dx * scale, GAME_CONFIG.turret.radius, ARENA_CONFIG.width - GAME_CONFIG.turret.radius);
+    const y = clamp(player.y + dy * scale, GAME_CONFIG.turret.radius, ARENA_CONFIG.height - GAME_CONFIG.turret.radius);
+    const valid = (px, py) => {
+      if (px < GAME_CONFIG.turret.radius || py < GAME_CONFIG.turret.radius
+        || px > ARENA_CONFIG.width - GAME_CONFIG.turret.radius || py > ARENA_CONFIG.height - GAME_CONFIG.turret.radius) return false;
+      if (Math.hypot(px - campfire.x, py - campfire.y) < spec.minCampfireDist) return false;
+      for (const turret of turrets.values()) if (Math.hypot(px - turret.x, py - turret.y) < spec.minSpacing) return false;
+      return true;
+    };
+    let spot = valid(x, y) ? { x, y } : null;
+    if (!spot) {
+      // Search outward from the clamped point in deterministic rings; choosing
+      // the closest valid candidate keeps the preview and server outcome stable.
+      let bestDistance = spec.snapRadius + 1;
+      for (let radius = spec.snapStep; radius <= spec.snapRadius; radius += spec.snapStep) {
+        for (let step = 0; step < spec.snapSlices; step += 1) {
+          const angle = step * Math.PI * 2 / spec.snapSlices;
+          const px = clamp(x + Math.cos(angle) * radius, GAME_CONFIG.turret.radius, ARENA_CONFIG.width - GAME_CONFIG.turret.radius);
+          const py = clamp(y + Math.sin(angle) * radius, GAME_CONFIG.turret.radius, ARENA_CONFIG.height - GAME_CONFIG.turret.radius);
+          const actualDistance = Math.hypot(px - x, py - y);
+          if (actualDistance < bestDistance && valid(px, py)) { bestDistance = actualDistance; spot = { x: px, y: py }; }
+        }
+        if (spot) break;
+      }
+    }
+    if (!spot) return false;
+    const owned = [...turrets.values()].filter((turret) => turret.ownerId === player.id).sort((a, b) => a.createdAt - b.createdAt);
+    if (owned.length >= spec.maxTurrets) damageTurret(owned[0], owned[0].hp, 'owner-replaced');
+    makeTurret(player.id, spot.x, spot.y, now);
+    return true;
+  }
+
+  function startEngineerLaser(player, now) {
+    if (player.engineerLaserCharge) return false;
+    const spec = player.hero.spec.laser;
+    player.engineerLaserCharge = { startedAt: now, endsAt: now + spec.chargeMs,
+      lockAt: now + spec.chargeMs - spec.lockLastMs, aim: { ...player.aim } };
+    nsp.emit('engineer_laser_charge', { playerId: player.id, startedAt: now, chargeMs: spec.chargeMs });
+    broadcastState(now);
+    return true;
+  }
+
+  function fireEngineerLaser(player, now) {
+    const charge = player.engineerLaserCharge;
+    if (!charge || player.downed) return false;
+    player.engineerLaserCharge = null;
+    player.hero.useAbility('ultimate', now);
+    const spec = player.hero.spec.laser;
+    const direction = charge.aim;
+    const dx = direction.x, dy = direction.y;
+    let length = spec.length;
+    if (dx > 0) length = Math.min(length, (ARENA_CONFIG.width - player.x) / dx);
+    else if (dx < 0) length = Math.min(length, -player.x / dx);
+    if (dy > 0) length = Math.min(length, (ARENA_CONFIG.height - player.y) / dy);
+    else if (dy < 0) length = Math.min(length, -player.y / dy);
+    length = Math.max(0, length);
+    const hits = [];
+    for (const monster of monsters.values()) {
+      const mx = monster.x - player.x, my = monster.y - player.y;
+      const along = mx * dx + my * dy;
+      const across = Math.abs(mx * dy - my * dx);
+      if (along < 0 || along > length || across > spec.width / 2 + monster.radius) continue;
+      damageMonster(monster, player.hero.attack * spec.damageMultiplier,
+        { ownerId: player.id, sourceAbility: 'ultimate' });
+      hits.push({ id: monster.id, x: monster.x, y: monster.y });
+    }
+    nsp.emit('ability_used', { playerId: player.id, heroId: player.heroId, ability: 'ultimate' });
+    nsp.emit('engineer_laser_fired', { playerId: player.id, x: player.x, y: player.y,
+      dx, dy, length, width: spec.width, durationMs: spec.durationMs, hits });
+    return true;
+  }
+
   function ultimate(socket) {
     const player = players.get(socket.id);
     if (!player || player.downed || player.dawnWaiting || gameEnded) return;
@@ -1630,6 +1842,10 @@ function createRoom({ io, services = null, id, code = null, isDefault = false, m
       return;
     }
     if (!player.hero.canUseAbility('ultimate', now)) return;
+    if (player.heroId === 'engineer') {
+      startEngineerLaser(player, now);
+      return;
+    }
     const result = player.hero.ultimate(now);
     if (!result || (typeof result !== 'object' && result !== true)) return;
     if (result.type === 'targeting') { broadcastState(now); return; }
@@ -1699,6 +1915,18 @@ function createRoom({ io, services = null, id, code = null, isDefault = false, m
   // wave counter - only the talent fires.
   function applyKillTalents(killer, source) {
     if (!killer) return;
+    if (killer.heroId === 'engineer' && !source.turretKill) {
+      const spec = killer.hero.spec.salvage;
+      const restored = [];
+      for (const turret of turrets.values()) {
+        if (turret.ownerId !== killer.id || turret.hp <= 0) continue;
+        turret.ammo = Math.min(GAME_CONFIG.turret.ammoMax, turret.ammo + spec.ammo);
+        turret.hp = Math.min(GAME_CONFIG.turret.hp, turret.hp + GAME_CONFIG.turret.hp * spec.healPct);
+        restored.push({ id: turret.id, x: turret.x, y: turret.y, ammo: turret.ammo, hp: Math.round(turret.hp) });
+      }
+      if (restored.length) nsp.emit('engineer_salvage', { playerId: killer.id, x: killer.x, y: killer.y,
+        ammo: spec.ammo, turrets: restored });
+    }
     if (killer.heroId === 'sheriff' && (source.sourceAbility !== 'skill' || killer.hero.spec.kills.countDynamiteKills)) {
       const cd = killer.hero.cooldowns.skill;
       const now = Date.now();
@@ -1755,11 +1983,11 @@ function createRoom({ io, services = null, id, code = null, isDefault = false, m
     const source = typeof sourceId === 'object' ? sourceId : { ownerId: sourceId, sourceAbility: 'weapon' };
     if (monster.isDummy) {
       const dummyOwner = players.get(source.ownerId);
-      const dummyMomentum = dummyOwner?.momentumActive ? 1 + GAME_CONFIG.arenaTuning.momentum.bonus : 1;
+      const dummyMomentum = !source.turretKill && dummyOwner?.momentumActive ? 1 + GAME_CONFIG.arenaTuning.momentum.bonus : 1;
       return damageDummy(monster, amount * dummyMomentum, source);
     }
     const killer = players.get(source.ownerId);
-    const momentumMultiplier = killer?.momentumActive ? 1 + GAME_CONFIG.arenaTuning.momentum.bonus : 1;
+    const momentumMultiplier = !source.turretKill && killer?.momentumActive ? 1 + GAME_CONFIG.arenaTuning.momentum.bonus : 1;
     const appliedAmount = amount * momentumMultiplier;
     const hpBefore = monster.hp;
     const damage = monster.takeDamage(appliedAmount);
@@ -1782,18 +2010,18 @@ function createRoom({ io, services = null, id, code = null, isDefault = false, m
       enemyType: monster.type, boss: Boolean(monster.isBoss), elite: Boolean(monster.isElite) });
     if (monster.dead) {
       monsters.delete(monster.id);
-      partyKillCount += 1;
+      if (!source.turretKill) partyKillCount += 1;
       if (killer) killer.kills = (killer.kills || 0) + 1;
       queueKill({ id: monster.id, x: monster.x, y: monster.y, sourceId: source.ownerId,
         heroId: killer?.heroId || null, sourceX: killer?.x, sourceY: killer?.y, emoji: monster.emoji, sourceAbility: source.sourceAbility || 'weapon',
         enemyType: monster.type, boss: Boolean(monster.isBoss), elite: Boolean(monster.isElite), finisher: Boolean(source.finisher) });
-      if (hasRunEffect('scavenger') && Math.random() < GAME_CONFIG.arenaTuning.cards.effects.scavengerDropChance)
+      if (!source.turretKill && hasRunEffect('scavenger') && Math.random() < GAME_CONFIG.arenaTuning.cards.effects.scavengerDropChance)
         dropPickup(monster.x, monster.y, GAME_CONFIG.arenaTuning.cards.effects.scavengerHeal, GAME_CONFIG.arenaTuning.cards.effects.scavengerLifetimeMs);
-      if (activeTwist?.id === 'supply-drop' && partyKillCount % GAME_CONFIG.arenaTuning.waveTwists.supplyDropEveryKills === 0) {
+      if (!source.turretKill && activeTwist?.id === 'supply-drop' && partyKillCount % GAME_CONFIG.arenaTuning.waveTwists.supplyDropEveryKills === 0) {
         dropPickup(monster.x, monster.y, 0, GAME_CONFIG.arenaTuning.cards.effects.scavengerLifetimeMs, 'supply',
           GAME_CONFIG.arenaTuning.waveTwists.supplyDropHealFraction);
       }
-      applyKillTalents(killer, source);
+      if (!source.turretKill) applyKillTalents(killer, source);
       if (monster.type === 'exploder') {
         const spec = GAME_CONFIG.arenaTuning.enemies.exploder;
         resolveEnemyBlast({ x: monster.x, y: monster.y, radius: spec.deathRadius,
@@ -1935,6 +2163,10 @@ function createRoom({ io, services = null, id, code = null, isDefault = false, m
   }
 
   function resolveEnemyBlast(effect, now) {
+    for (const turret of [...turrets.values()]) {
+      if (Math.hypot(turret.x - effect.x, turret.y - effect.y) <= effect.radius + GAME_CONFIG.turret.radius)
+        damageTurret(turret, effect.damage, 'enemy-explosion');
+    }
     for (const monster of monsters.values()) {
       if (monster.id === effect.sourceId || Math.hypot(monster.x - effect.x, monster.y - effect.y) > effect.radius + monster.radius) continue;
       damageMonster(monster, effect.damage, { ownerId: null, sourceAbility: 'enemy-explosion' });
@@ -1955,6 +2187,10 @@ function createRoom({ io, services = null, id, code = null, isDefault = false, m
   }
 
   function resolveEnemySlam(effect, now) {
+    for (const turret of [...turrets.values()]) {
+      if (Math.hypot(turret.x - effect.x, turret.y - effect.y) <= effect.radius + GAME_CONFIG.turret.radius)
+        damageTurret(turret, effect.damage, 'boss-slam');
+    }
     for (const player of players.values()) {
       if (Math.hypot(player.x - effect.x, player.y - effect.y) > effect.radius + ARENA_CONFIG.radius) continue;
       const damage = player.hero.damage(effect.damage, now);
@@ -2056,6 +2292,10 @@ function createRoom({ io, services = null, id, code = null, isDefault = false, m
       },
       spawnTelegraphs: spawnTelegraphs.map(({ id, x, y, spawnAt }) => ({ id, x, y, remainingMs: Math.max(0, spawnAt - now) })),
       traps: [...traps.values()],
+      turrets: [...turrets.values()].map((turret) => ({
+        id: turret.id, ownerId: turret.ownerId, x: turret.x, y: turret.y, hp: Math.max(0, Math.round(turret.hp)),
+        ammo: turret.ammo, angle: turret.barrelAngle, deploying: Boolean(turret.deployingUntil > now),
+      })),
       pickups: [...pickups.values()].map(({ id, x, y, type }) => ({ id, x, y, type })),
       effects: timedEffects.map(({ type, x, y, radius, at, startAt }) => ({ type, x, y, radius, at, startAt })),
       campfire: {
@@ -2092,6 +2332,12 @@ function createRoom({ io, services = null, id, code = null, isDefault = false, m
         wavesReached: wavesReached || 0, wavesParticipated: wavesParticipated || 0,
         ultimateFlash: hero.ultimateFlashUntil > now,
         talent: hero.talent, targeting: hero.targetingUntil > now,
+        engineerLaserCharge: players.get(id)?.engineerLaserCharge ? {
+          startedAt: players.get(id).engineerLaserCharge.startedAt,
+          endsAt: players.get(id).engineerLaserCharge.endsAt,
+          lockAt: players.get(id).engineerLaserCharge.lockAt,
+          aim: { ...players.get(id).engineerLaserCharge.aim },
+        } : null,
         guardianCharging: heroId === 'guardian' && hero.chargeUntil > now,
         // Pilot Mech Suit state, so the client can swap the M1/E icons and
         // move the weapon slot onto the highlight colour family.
@@ -2183,7 +2429,9 @@ function createRoom({ io, services = null, id, code = null, isDefault = false, m
         const length = Math.hypot(dx, dy);
         const burst = Math.max(player.bubbleRush?.speedMultiplier || 1,
           activeTwist?.id === 'fast-night' ? 1 + GAME_CONFIG.arenaTuning.waveTwists.fastNightHeroSpeed : 1);
-        const step = player.hero.speed * burst / ARENA_CONFIG.tickHz;
+        const chargeSlow = player.heroId === 'engineer' && player.engineerLaserCharge
+          ? GAME_CONFIG.heroes.engineer.laser.moveFactor : 1;
+        const step = player.hero.speed * burst * chargeSlow / ARENA_CONFIG.tickHz;
         const oldX = player.x, oldY = player.y;
         const moveX = dx / length;
         const moveY = dy / length;
@@ -2215,8 +2463,17 @@ function createRoom({ io, services = null, id, code = null, isDefault = false, m
 
     // 3. Zombies chase the campfire; devils chase the closest living player.
     for (const player of players.values()) {
+      if (player.engineerLaserCharge && player.downed) {
+        player.engineerLaserCharge = null;
+        direct.to(player.id).emit('engineer_laser_cancelled');
+      }
       if (player.downed || player.dawnWaiting) continue;
       syncHeroAimAndPosition(player);
+      if (player.engineerLaserCharge) {
+        const charge = player.engineerLaserCharge;
+        if (now < charge.lockAt) charge.aim = { ...player.aim };
+        if (now >= charge.endsAt) fireEngineerLaser(player, now);
+      }
       // Held primary fire: re-fire as soon as the weapon cooldown allows, so
       // every hero keeps shooting while the button stays down. firePlayer bails
       // out on the cooldown check, so this costs one comparison per tick.
@@ -2358,15 +2615,30 @@ function createRoom({ io, services = null, id, code = null, isDefault = false, m
           });
         }
       } else if (monster instanceof Skeleton) {
-        const target=closestPlayer(monster);
-        const projectile=monster.update(dt,campfire,target,now);
-        if(projectile) addProjectile({id:monster.id,heroId:'skeleton'},projectile);
+        const turretTarget = activeTurretTarget(monster, now);
+        const target = turretTarget || closestPlayer(monster);
+        const projectile = monster.update(dt, campfire, target, now, turretTarget);
+        if (projectile) {
+          if (projectile.targetTurretId) projectile.targetTurretOwnerId = turretTarget?.ownerId || null;
+          addProjectile({id:monster.id,heroId:'skeleton'},projectile);
+        }
       } else {
-        const hpBefore = campfire.hp;
-        monster.update(dt, campfire, now);
-        if (campfire.hp < hpBefore) pendingCampfireDamage += hpBefore - campfire.hp;
+        const turretTarget = activeTurretTarget(monster, now);
+        if (turretTarget) {
+          const touching = monster.moveTowards(dt, turretTarget, now);
+          if (touching && now >= (monster.nextTurretAttackAt || 0)) {
+            monster.nextTurretAttackAt = now + GAME_CONFIG.arenaTuning.campfire.contactDamageCooldownMs;
+            damageTurret(turretTarget, monster.damage, monster.type);
+          }
+        } else {
+          const hpBefore = campfire.hp;
+          monster.update(dt, campfire, now);
+          if (campfire.hp < hpBefore) pendingCampfireDamage += hpBefore - campfire.hp;
+        }
       }
     }
+
+    updateTurrets(dt, now);
 
     if (pendingCampfireDamage > 0 && now - lastCampfireFeedbackAt >= GAME_CONFIG.arenaTuning.campfire.alertCooldownMs) {
       nsp.emit('campfire_hit', { x: campfire.x, y: campfire.y, damage: pendingCampfireDamage });
@@ -2387,6 +2659,51 @@ function createRoom({ io, services = null, id, code = null, isDefault = false, m
 
     // 4. Move projectiles
     for (const [id, proj] of projectiles.entries()) {
+      if (proj.engineerWrench) {
+        const owner = players.get(proj.ownerId);
+        const expired = Date.now() - proj.createdAt >= proj.lifetimeMs;
+        if (!owner || owner.downed || expired) {
+          if (owner) {
+            owner.hero.wrenchInFlight = false;
+            if (!owner.downed) owner.hero.useAbility('weapon', now);
+          }
+          projectiles.delete(id);
+          if (owner && expired && !owner.downed) nsp.emit('engineer_wrench_caught', { playerId: owner.id, x: proj.x, y: proj.y, expired: true });
+          continue;
+        }
+        const previousX = proj.x, previousY = proj.y;
+        if (proj.wrenchLeg === 'outbound') {
+          const stepX = proj.vx * dt, stepY = proj.vy * dt, step = Math.hypot(stepX, stepY);
+          const remaining = Math.max(0, owner.hero.spec.wrench.range - proj.wrenchDistance);
+          const fraction = step > remaining && step > 0 ? remaining / step : 1;
+          proj.x += stepX * fraction; proj.y += stepY * fraction;
+          proj.wrenchDistance += step * fraction;
+          if (proj.wrenchDistance >= owner.hero.spec.wrench.range) {
+            proj.wrenchLeg = 'returning'; proj.hitTargets.clear();
+          }
+        } else {
+          const toOwnerX = owner.x - proj.x, toOwnerY = owner.y - proj.y;
+          const distance = Math.hypot(toOwnerX, toOwnerY);
+          if (distance <= owner.hero.spec.wrench.catchRadius) {
+          owner.hero.wrenchInFlight = false; owner.hero.useAbility('weapon', now);
+            nsp.emit('engineer_wrench_caught', { playerId: owner.id, x: owner.x, y: owner.y });
+            projectiles.delete(id);
+            continue;
+          }
+          const step = Math.min(distance, owner.hero.spec.wrench.speed * dt);
+          proj.vx = toOwnerX / (distance || 1) * owner.hero.spec.wrench.speed;
+          proj.vy = toOwnerY / (distance || 1) * owner.hero.spec.wrench.speed;
+          proj.x += toOwnerX / (distance || 1) * step; proj.y += toOwnerY / (distance || 1) * step;
+        }
+        for (const monster of monsters.values()) {
+          if (proj.hitTargets.has(monster.id) || !proj.collidesWith(monster)) continue;
+          proj.hitTargets.add(monster.id);
+          damageMonster(monster, proj.damage, { ownerId: owner.id, sourceAbility: 'weapon' });
+          roomApplyPush(monster, { dirX: proj.vx, dirY: proj.vy }, owner.hero.spec.wrench.push,
+            GAME_CONFIG.effects.pushDefaultDurationMs, { now });
+        }
+        continue;
+      }
       proj.update(dt, ARENA_CONFIG);
       if (proj.heroId === 'fairy' && (proj.sourceAbility === 'skill' || proj.sourceAbility === 'ultimate')) {
         const contact = [...monsters.values()].find((monster) => proj.collidesWith(monster));
@@ -2443,6 +2760,7 @@ function createRoom({ io, services = null, id, code = null, isDefault = false, m
         }
         if (proj.detonateOnExpire || (proj.explosionRadius > 0 && !proj.trap && !proj.stunMs)) explode({x:proj.x,y:proj.y,radius:proj.explosionRadius||proj.radius,damage:proj.damage,knockback:proj.knockback,stunMs:proj.stunMs,ownerId:proj.ownerId,sourceAbility:proj.sourceAbility,refundGroupId:proj.id,color:proj.color},now);
         projectiles.delete(id);
+        recycleTurretProjectile(proj);
       }
     }
 
@@ -2450,6 +2768,12 @@ function createRoom({ io, services = null, id, code = null, isDefault = false, m
     // enemy shots hit heroes and still pass through the normal defense rules.
     for (const [pId, proj] of projectiles.entries()) {
       if (proj.kind === 'enemy') {
+        const targetTurret = proj.targetTurretId ? turrets.get(proj.targetTurretId) : null;
+        if (targetTurret && proj.collidesWith({ ...targetTurret, radius: GAME_CONFIG.turret.radius })) {
+          damageTurret(targetTurret, proj.damage, 'skeleton-shot');
+          projectiles.delete(pId);
+          continue;
+        }
         for (const player of players.values()) {
           if (!proj.collidesWith({ x: player.x, y: player.y, radius: ARENA_CONFIG.radius }) || proj.hitTargets.has(player.id)) continue;
           proj.hitTargets.add(player.id);
@@ -2458,6 +2782,17 @@ function createRoom({ io, services = null, id, code = null, isDefault = false, m
           if (damage > 0) nsp.emit('player_hit', { id: player.id, x: player.x, y: player.y, damage });
           break;
         }
+        continue;
+      }
+      if (proj.sourceAbility === 'turret') {
+        let hit = false;
+        for (const monster of monsters.values()) {
+          if (!proj.collidesWith(monster)) continue;
+          damageMonster(monster, proj.damage, { ownerId: proj.ownerId, sourceAbility: 'turret', turretKill: true });
+          hit = true;
+          break;
+        }
+        if (hit || proj.dead) { projectiles.delete(pId); recycleTurretProjectile(proj); }
         continue;
       }
       if (proj.targetTeam === 'players') {
@@ -2754,6 +3089,37 @@ function createRoom({ io, services = null, id, code = null, isDefault = false, m
     return spawned;
   }
 
+  function debugPlaceTurret(ownerId, x, y) {
+    if (!players.has(ownerId) || turrets.size >= 8 || !Number.isFinite(x) || !Number.isFinite(y)) return false;
+    makeTurret(ownerId, clamp(x, 22, ARENA_CONFIG.width - 22), clamp(y, 22, ARENA_CONFIG.height - 22));
+    broadcastState();
+    return true;
+  }
+
+  function debugTurretAction(action, ownerId) {
+    const owned = [...turrets.values()].filter((turret) => turret.ownerId === ownerId);
+    if (action === 'fill' || action === 'empty') {
+      for (const turret of owned) turret.ammo = action === 'fill' ? GAME_CONFIG.turret.ammoMax : 0;
+    } else if (action === 'damage') {
+      for (const turret of owned) damageTurret(turret, GAME_CONFIG.turret.hp * 0.5, 'debug');
+    }
+    broadcastState();
+    return owned.length > 0;
+  }
+
+  function debugSpawnAt(type, x, y) {
+    if (!['zombie', 'skeleton', 'brute'].includes(type) || !Number.isFinite(x) || !Number.isFinite(y)) return false;
+    const id = `enemy_${++monsterSeq}`;
+    const options = { id, x: clamp(x, 30, ARENA_CONFIG.width - 30), y: clamp(y, 30, ARENA_CONFIG.height - 30) };
+    const monster = type === 'skeleton' ? new Skeleton(options) : type === 'brute' ? new Brute(options) : new Zombie(options);
+    const damageScale = 1 + GAME_CONFIG.arenaTuning.enemies.wave.damagePerWave * waveNumber;
+    monster.damage *= damageScale;
+    monster.damageScale = damageScale;
+    monsters.set(id, monster);
+    broadcastState();
+    return true;
+  }
+
   // Profiler harness: kill every enemy in one tick, which is the burst the
   // client sees after a Bombardier ultimate or an Electromancer chain.
   function debugKillAll() {
@@ -2862,6 +3228,9 @@ function createRoom({ io, services = null, id, code = null, isDefault = false, m
     },
     spawnDummies: () => spawnDummies(Date.now()),
     debugSpawnEnemies,
+    debugPlaceTurret,
+    debugTurretAction,
+    debugSpawnAt,
     applyDebugMonsterEffect: (effect, targetType) => {
       if (!['push', 'hold', 'slow'].includes(effect) || !['enemy', 'dummy'].includes(targetType)) return false;
       const target = [...monsters.values()].find((monster) => !monster.dead

@@ -150,7 +150,11 @@ export class Projectile {
       context.translate(this.x, this.y);
       if (this.rotateToAim) {
         const facingLeft = this.vx < 0;
-        const angle = Math.atan2(this.vy, facingLeft ? -this.vx : this.vx);
+        const aimAngle = Math.atan2(this.vy, facingLeft ? -this.vx : this.vx);
+        const spin = this.shape === 'wrench'
+          ? age / 1000 * GAME_CONFIG.heroes.engineer.wrench.spinRadPerSecond
+          : 0;
+        const angle = aimAngle + spin;
         if (facingLeft) context.scale(-1, 1);
         context.rotate(angle);
       }

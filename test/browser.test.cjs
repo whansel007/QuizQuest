@@ -255,8 +255,8 @@ test('hero lab picks a hero and hands off to the arena', async (t) => {
   // anchors, not buttons.
   const cards = page.locator('#hero-list a');
   await cards.first().waitFor();
-  assert.equal(await cards.count(), 6);
-  for (const hero of ['Guardian', 'Sheriff', 'Pilot', 'Bombardier', 'Bubbles', 'Electromancer']) {
+  assert.equal(await cards.count(), 8);
+  for (const hero of ['Guardian', 'Sheriff', 'Pilot', 'Bombardier', 'Bubbles', 'Electromancer', 'Fairy', 'Engineer']) {
     assert.ok(await cards.filter({ hasText: hero }).count(), `${hero} is offered`);
   }
   await cards.filter({ hasText: 'Sheriff' }).click();
@@ -267,6 +267,57 @@ test('hero lab picks a hero and hands off to the arena', async (t) => {
   // the arena picks up the hero it was handed, rather than booting blind
   await page.waitForFunction(() => document.querySelector('#hero-name')?.textContent?.includes('Sheriff'));
   assert.deepEqual(errors, [], 'the arena starts without errors');
+});
+
+test('Engineer E toggles turret placement and primary fire confirms it', async (t) => {
+  const page = await browser.newPage({ viewport: { width: 1280, height: 800 } });
+  const errors = [];
+  page.on('pageerror', (e) => errors.push(e.message));
+  page.on('console', (m) => { if (m.type() === 'error') errors.push(m.text()); });
+  t.after(() => page.close());
+  await page.goto(`${base}/hero-lab/world?heroId=engineer`);
+  await page.waitForFunction(() => document.querySelector('#hero-name')?.textContent?.includes('Engineer'));
+
+  const room = srv.heroLab.rooms.peekDefaultRoom();
+  const player = room.snapshot().players.find((candidate) => candidate.heroId === 'engineer');
+  assert.ok(player, 'the arena has joined as Engineer');
+  const canvas = page.locator('#world');
+  const box = await canvas.boundingBox();
+  const target = { x: player.x + 100, y: player.y };
+  await page.mouse.move(box.x + target.x * box.width / 1920, box.y + target.y * box.height / 1080);
+  const readRegion = () => page.evaluate(({ x, y }) => {
+    const ctx = document.querySelector('#world').getContext('2d');
+    return [...ctx.getImageData(Math.round(x) - 24, Math.round(y) - 20, 48, 40).data];
+  }, target);
+  await page.waitForTimeout(100);
+  const before = await readRegion();
+  await page.locator('.ability[data-ability="skill"]').click();
+  const targetingHint = page.locator('#targeting-hint');
+  await targetingHint.waitFor({ state: 'visible' });
+  assert.match(await targetingHint.textContent(), /Primary fire to place/);
+  await page.keyboard.press('e');
+  await targetingHint.waitFor({ state: 'hidden' });
+  assert.equal(room.snapshot().turrets.some((candidate) => candidate.ownerId === player.id), false,
+    'pressing E again cancels without placing a turret');
+
+  await page.keyboard.press('e');
+  await targetingHint.waitFor({ state: 'visible' });
+  await page.mouse.move(box.x + target.x * box.width / 1920, box.y + target.y * box.height / 1080);
+  await page.mouse.click(box.x + target.x * box.width / 1920, box.y + target.y * box.height / 1080);
+
+  const deadline = Date.now() + 2000;
+  let turret;
+  while (Date.now() < deadline) {
+    turret = room.snapshot().turrets.find((candidate) => candidate.ownerId === player.id);
+    if (turret) break;
+    await new Promise((resolve) => setTimeout(resolve, 30));
+  }
+  assert.ok(turret, 'primary fire confirms an owned turret at the cursor');
+  await page.waitForTimeout(100);
+  const after = await readRegion();
+  const changedPixels = before.reduce((count, value, index) => count + (value !== after[index] ? 1 : 0), 0);
+  assert.ok(changedPixels > 40, 'placing the turret changes pixels at its arena location');
+  assert.deepEqual(errors, [], 'the Engineer arena has no browser errors');
 });
 
 test('refreshing a timed quiz offers resume without resetting the server deadline', async (t) => {

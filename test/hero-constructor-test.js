@@ -76,18 +76,18 @@ test('selected hero constructors create independent state and own their attacks'
   assert.equal(first.fire().speed, 980);
 });
 
-test('the selectable roster contains exactly the six configured heroes', async () => {
+test('the selectable roster contains exactly the eight configured heroes', async () => {
   const { HEROES, HERO_CLASSES } = await import('../public/hero-lab/hero-list.js');
   const ids = HEROES.map((hero) => hero.id);
-  assert.deepEqual(new Set(ids), new Set(['sheriff', 'guardian', 'pilot', 'bombardier', 'bubbles', 'electromancer']));
+  assert.deepEqual(new Set(ids), new Set(['sheriff', 'guardian', 'pilot', 'bombardier', 'bubbles', 'electromancer', 'fairy', 'engineer']));
   for (const id of ids) {
     assert.ok(ids.includes(id), `${id} is selectable in Hero Lab`);
     assert.equal(typeof HERO_CLASSES[id], 'function');
   }
   assert.equal(HERO_CLASSES.flamekeeper, undefined);
   assert.equal(HERO_CLASSES.ranger, undefined);
-  const { Sheriff, Guardian, Pilot, Bombardier, Bubbles, Electromancer } = await import('../public/hero-lab/heroes/roster.js');
-  for (const HeroClass of [Sheriff, Guardian, Pilot, Bombardier, Bubbles, Electromancer]) {
+  const { Sheriff, Guardian, Pilot, Bombardier, Bubbles, Electromancer, Fairy, Engineer } = await import('../public/hero-lab/heroes/roster.js');
+  for (const HeroClass of [Sheriff, Guardian, Pilot, Bombardier, Bubbles, Electromancer, Fairy, Engineer]) {
     const hero = new HeroClass();
     assert.ok(hero.hp > 0);
     assert.ok(hero.cooldowns.weapon.durationMs > 0);

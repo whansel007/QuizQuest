@@ -1601,9 +1601,14 @@ attemptId: attempt.id,
   route('GET', '/api/student/debug-mode', 'student', ({ user }) => ({ enabled: isSeededDemoUser(user) }));
   // Live Hero Lab rooms for the debug menu. Same gate as the rest of the menu:
   // only synthetic demo accounts can see it.
-  route('GET', '/api/student/hero-lab/rooms', 'student', ({ user }) => {
-    if (!isSeededDemoUser(user)) fail(403, 'Debug tools are only available for synthetic demo accounts.');
+  route('GET', '/api/student/hero-lab/rooms', null, ({ user, query }) => {
     const rooms = services.heroLab?.rooms?.list?.() || [];
+    const isDebugUser = Boolean(user && isSeededDemoUser(user));
+    if (!isDebugUser) {
+      const code = String(query.get('code') || '').trim().toUpperCase();
+      if (!code) fail(400, 'Room code is required.');
+      return { rooms: rooms.filter((room) => room.code === code).map((room) => room.debugInfo()) };
+    }
     return {
       maxRooms: ROOM_MAX_ACTIVE,
       rooms: rooms.map((room) => room.debugInfo()),

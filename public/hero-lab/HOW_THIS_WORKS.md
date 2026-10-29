@@ -63,9 +63,12 @@ route remains available for quick sandbox playtests.
   damage to stunned enemies. Stunned enemies show an ⚡ indicator while they
   remain stunned.
 - **Fairy:** 🧚 fires a piercing Wind Arrow, a Gale Burst that pushes enemies
-  away from the campfire, and a Vortex Orb that pulls and holds enemies for
-  four seconds before releasing them with a small campfire-safe push. Windswept
-  slows targets pushed or released by the skill and ultimate.
+  away from the campfire, and a Vortex Orb that continuously pulls enemies
+  toward its center for four seconds. It holds them there, corrects small
+  knockbacks on the next server tick, and deals 0.35× attack per second in
+  250 ms damage ticks. Training dummies are affected; bosses and Kings are
+  immune. Its 18 px final nudge is intentionally too small to scatter the
+  group. Windswept slows skill and ultimate targets after the push or release.
 Every hero has a passive talent (name, icon, one-line description and the button
 it works with) defined once in `game-config.js`. The World-page hero preview and
 the in-game Info panel both read that single entry, so they can never disagree.
@@ -79,12 +82,45 @@ combo, rewards or the wave counter.
 
 - Zombies walk to the campfire. Devils chase the nearest hero. Skeletons pause
   periodically to fire a red bullet at the nearest hero, then resume walking.
+- Engineer turret staging: each turret is server-owned, holds 150 HP and 40
+  rounds, and selects the nearest enemy or lobby dummy within 260 px every
+  100 ms. It turns at 540 degrees/s and fires at 2.5 shots/s inside an 8-degree
+  cone for half its owner's current attack. Turrets persist across waves and
+  refill at the start of REST. ZOMBIES, SKELETONS and BRUTES within 220 px
+  taunt to the nearest active turret, with a 1.5 s target lock and 500 ms
+  staggered retargeting. Skeletons stop 260 px away and shoot through their
+  normal wind-up. Devils still chase heroes; Exploders still run to the fire.
+  Enemy explosions and King slams damage turrets, while player area attacks do
+  not. The turret's server snapshot stays compact; the browser draws its
+  placeholder body, barrel, health and ammo bars. Debug-only placement and
+  enemy spawn controls are available in the existing debug menu.
+- Engineer play controls are server-authoritative too. E sends the last arena
+  cursor point; the server clamps it to 140 px, validates campfire/turret
+  spacing, and searches for a nearby legal point before spending the cooldown.
+  Each Engineer owns at most two turrets, and a third breaks the oldest. The
+  Wrench Boomerang tracks its outbound and return legs on the server, with one
+  hit per target on each leg. Q charges for 0.4 s, locks aim for its last 0.1 s,
+  and applies one 6x attack pass through a clipped 70-by-900 px beam. Engineer
+  kills refill each living owned turret by 3 rounds and 5% of turret max HP;
+  dummy kills can trigger Salvage but do not change run statistics.
 - Shared crowd control is resolved by the server in `src/hero-lab/monster-effects.js`.
   Pushes ease to their destination and stop at arena bounds or the campfire;
   Brutes take half distance, dummies take 1.5×, and Kings/bosses are immune.
   Holds stop movement and attacks, cancel a skeleton wind-up or Exploder fuse,
   and prevent re-holding for 1.5 seconds after release. Slows affect movement
-  only and use the strongest active slow rather than stacking.
+  only and use the strongest active slow rather than stacking. Vortex attraction
+  is the exception to ordinary push collision: it supplies an inward vector and
+  may cross the campfire obstacle. Its server tick keeps pulling targets inside
+  the 180 px radius toward the core, including after small knockbacks. Training
+  dummies have separate lobby shove physics, so an active Vortex must take
+  priority over that shove loop.
+- Crowd-control indicators do not recolor enemy bodies or add status rings.
+  ⚡ marks stun, 🌀 marks Vortex pull/hold, and 🐌 marks slow; place these icons
+  above the taller training dummies so they do not cover the target or health bar.
+- Fairy and Vortex effects use pink and pale pink accents with a near-black
+  core. Keep teal/cyan out of the Fairy palette. Draw the Vortex directly with
+  vector canvas paths; offscreen bitmap layers produced opaque square artifacts
+  in the browser.
 - Heroes slowly recover health while standing near the campfire.
 - When a wave is cleared the break runs in three phases, so voting never eats
   into the downtime:
@@ -198,7 +234,7 @@ from wave 3, one rare effect that is not already active.
 The student **Summon** tab replaces the old collection page. A new
 student starts with Sheriff. Each summon costs 50 coins by default. A common
 pull gives 5 units of one kingdom resource; rare pulls are Sheriff, Guardian,
-Bubbles, or Electromancer; epic pulls are Pilot or Bombardier. Duplicate heroes
+Bubbles, or Electromancer; epic pulls are Pilot, Bombardier, Fairy, or Engineer. Duplicate heroes
 refund the full pull cost by default. Cost, refund fraction, resource amount,
 rates, hero rarities, and pity thresholds are in `game-config.js`.
 
@@ -273,7 +309,13 @@ root. For a manual playtest:
    status. Use Q on a group; check the CHAIN counter, cooldown refill, doubled
    stunned-target refunds, and the 5-second lockout. Confirm stunned targets do
    not take Overload bonus damage.
-7. Use two tabs. Let enemies reach the campfire to see the global game-over
+7. Choose Fairy. Cast Q into a group of training dummies inside the ground ring.
+   Confirm they move toward the center, show 🌀 while pulled/held, stay their
+   normal colors, and are pulled back after a small displacement. Check that
+   health chips away during the four-second hold, the final nudge keeps the
+   group together, and 🐌 appears on released enemies. Confirm all Fairy VFX
+   are pink/pale pink with a near-black core and no teal/cyan accents.
+8. Use two tabs. Let enemies reach the campfire to see the global game-over
    overlay. In another run, clear a wave, vote in both tabs, and verify the
    same winning buff updates both players. Disconnect one voter during a vote
    to confirm their vote no longer counts.

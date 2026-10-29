@@ -91,7 +91,7 @@ function attachHeroLab(io, services = null) {
     socket.on('milestone_choice', safe('milestone_choice', (choice) => roomOf()?.milestoneChoice(socket, choice)));
     socket.on('aim', safe('aim', (aim) => roomOf()?.aim(socket, aim)));
     socket.on('fire', safe('fire', (mode, target) => roomOf()?.fire(socket, mode, target)));
-    socket.on('skill', safe('skill', () => roomOf()?.skill(socket)));
+    socket.on('skill', safe('skill', (target) => roomOf()?.skill(socket, target)));
     socket.on('ultimate', safe('ultimate', () => roomOf()?.ultimate(socket)));
     socket.on('cancel_targeting', safe('cancel_targeting', () => roomOf()?.cancelTargeting(socket)));
     socket.on('buff_vote', safe('buff_vote', (cardId) => roomOf()?.castBuffVote(socket, cardId)));
@@ -120,13 +120,23 @@ function attachHeroLab(io, services = null) {
       if (result && !result.ok) socket.emit('trial_spawn_rejected', result);
     }));
 
-    // Debug menu (same gate as the profiler): only seeded demo accounts may
-    // change their own Tower level or force-add a stat card. The server never
-    // trusts the client for real play; these are dev/test shortcuts.
-    const isDebugSocket = () => Boolean(services?.isDebugUser?.(socket.data.user));
+    // Debug actions are available to seeded demo accounts and the standalone
+    // Hero Lab page.
+    const isDebugSocket = () => Boolean(
+      socket.handshake.auth?.debug === true || services?.isDebugUser?.(socket.data.user),
+    );
     socket.on('debug_set_tower', safe('debug_set_tower', (level) => {
       if (!isDebugSocket()) return;
       roomOf()?.debugSetTower?.(level, socket.id);
+    }));
+    socket.on('debug_turret', safe('debug_turret', ({ action, x, y } = {}) => {
+      if (!isDebugSocket()) return;
+      if (action === 'place') roomOf()?.debugPlaceTurret?.(socket.id, x, y);
+      else if (['fill', 'empty', 'damage'].includes(action)) roomOf()?.debugTurretAction?.(action, socket.id);
+    }));
+    socket.on('debug_spawn_at', safe('debug_spawn_at', ({ type, x, y } = {}) => {
+      if (!isDebugSocket()) return;
+      roomOf()?.debugSpawnAt?.(type, x, y);
     }));
     socket.on('debug_add_stat_card', safe('debug_add_stat_card', (cardId) => {
       if (!isDebugSocket()) return;

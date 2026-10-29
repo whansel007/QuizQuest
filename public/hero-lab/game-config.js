@@ -108,6 +108,64 @@ export const FAIRY_ARROW_TRAIL_COUNT = 3;
 export const FAIRY_MUZZLE_PUFF_RADIUS_PX = 7;
 export const FAIRY_GALE_VFX_DURATION_MS = 420;
 export const FAIRY_WIND_IMPACT_MS = 260;
+
+// Engineer turret targeting and durability (Stage 1 systems).
+export const TURRET_HP = 150;
+export const TURRET_AMMO_MAX = 40;
+export const TURRET_AMMO_INITIAL = Math.floor(TURRET_AMMO_MAX / 2);
+export const TURRET_FIRE_RATE = 2.5;
+export const TURRET_TARGET_REEVAL_MS = 100;
+export const TURRET_TARGET_REEVAL_STAGGER_MS = 100;
+export const TURRET_PROJECTILE_POOL_MAX = 64;
+export const TURRET_BULLET_RADIUS_PX = 4;
+export const TURRET_MUZZLE_OFFSET_PX = 24;
+export const TURRET_DAMAGE_MULT = 0.5;
+export const TURRET_RANGE = 260;
+export const TURRET_BULLET_SPEED = 600;
+export const TURRET_TURN_RATE_DEG_S = 540;
+export const TURRET_FIRE_CONE_DEG = 8;
+export const TURRET_DEPLOY_S = 0.4;
+export const TURRET_RADIUS = 22;
+export const ENGINEER_TURRETS_TAUNT = true;
+export const TURRET_AGGRO_RADIUS = 220;
+export const TARGET_REEVAL_MS = 500;
+export const TARGET_LOCK_MS = 1500;
+// Engineer kit tuning; shared by the authoritative room and matching client visuals.
+export const ENGINEER_WRENCH_SPEED = 1200;
+export const ENGINEER_WRENCH_RANGE = 300;
+export const ENGINEER_WRENCH_DAMAGE_MULT = 0.9;
+export const ENGINEER_WRENCH_PUSH = 30;
+export const ENGINEER_WRENCH_MAX_S = 2;
+export const ENGINEER_WRENCH_COOLDOWN_S = 0.35;
+export const ENGINEER_WRENCH_SPIN_RAD_S = Math.PI * 12;
+export const ENGINEER_WRENCH_CATCH_RADIUS = 24;
+export const ENGINEER_WRENCH_RADIUS = 13;
+export const ENGINEER_PLACE_RANGE = 140;
+export const ENGINEER_SKILL_COOLDOWN_S = 18;
+export const ENGINEER_ULTIMATE_COOLDOWN_S = 40;
+export const ENGINEER_MAX_TURRETS = 2;
+export const TURRET_MIN_CAMPFIRE_DIST = 50;
+export const TURRET_MIN_SPACING = 60;
+export const ENGINEER_TURRET_SNAP_RADIUS = 60;
+export const ENGINEER_TURRET_SNAP_STEP = 10;
+export const ENGINEER_TURRET_SNAP_SLICES = 24;
+export const ENGINEER_LASER_CHARGE_S = 0.4;
+export const ENGINEER_LASER_LOCK_LAST_S = 0.1;
+export const ENGINEER_LASER_MOVE_FACTOR = 0.3;
+export const ENGINEER_LASER_LENGTH = 900;
+export const ENGINEER_LASER_WIDTH = 70;
+export const ENGINEER_LASER_DURATION_S = 0.25;
+export const ENGINEER_LASER_DAMAGE_MULT = 6;
+export const ENGINEER_KILL_AMMO = 3;
+export const ENGINEER_KILL_HEAL_PCT = 0.05;
+export const ENGINEER_SALVAGE_FLIGHT_MS = 250;
+export const ENGINEER_SALVAGE_PULSE_MS = 100;
+export const ENGINEER_SALVAGE_POPUP_MERGE_MS = 300;
+export const ENGINEER_SALVAGE_POPUP_MS = 500;
+export const TURRET_VISUALS = Object.freeze({ body: null, barrel: null, bodySize: { w: 44, h: 32 }, barrelPivot: { x: 22, y: 14 },
+  barrelLength: 26, recoilPx: 3, recoilMs: 80, muzzleFlashMs: 60, muzzleFlashRadiusPx: 5, barWidth: 40,
+  hpBarHeight: 5, ammoSegments: 10, ammoPerSegment: 4, barOffsetY: 22,
+  idleSwayAmplitudeRad: 0.035, idleSwaySpeed: 0.002, deployDustCount: 5, destroyDebrisCount: 6 });
 export const VORTEX_GROUND_RING_WIDTH_PX = 4;
 export const VORTEX_GROUND_DASH_ON_PX = 14;
 export const VORTEX_GROUND_DASH_OFF_PX = 10;
@@ -132,8 +190,9 @@ export const HERO_FX_COLORS = Object.freeze({
   // purple halo around a cool white dot.
   electromancer: { primary: '#b17cff', highlight: '#e4d2ff', core: '#f7f2ff' },
   fairy: { primary: FAIRY_FX_PRIMARY, highlight: '#fff0fa' },
+  engineer: { primary: '#FF9F1C', highlight: '#FFD27A' },
 });
-export const HERO_FX_SECONDARY = Object.freeze({ fairy: FAIRY_FX_SECONDARY });
+export const HERO_FX_SECONDARY = Object.freeze({ fairy: FAIRY_FX_SECONDARY, engineer: '#9AA7B8' });
 
 // Ability button icons: the single source of truth for the HUD ability
 // clusters, the World-page hero preview and the Settings icon-credits entry.
@@ -187,6 +246,12 @@ export const ABILITY_ICONS = Object.freeze({
     ultimate: 'assets/icons/fairy-ultimate.svg',
     talent: 'assets/icons/fairy-talent.svg',
   }),
+  engineer: Object.freeze({
+    primary: 'assets/icons/engineer-primary.svg',
+    skill: 'assets/icons/engineer-skill.svg',
+    ultimate: 'assets/icons/engineer-ultimate.svg',
+    talent: 'assets/icons/engineer-talent.svg',
+  }),
 });
 
 // Slots that sit on the amber highlight colour family instead of the hero's
@@ -223,6 +288,11 @@ export const ARENA_TUNING = Object.freeze({
     shotPitchVariance: 0.08, maxVoices: 6, killSemitonePerStep: 1, maxKillPitchSteps: 8, heartbeatIntervalMs: 650, defaultMasterVolume: 0.55,
     profiles: {
       shoot: { frequency: 500, durationMs: 55, gain: 0.08, type: 'square' }, hit: { frequency: 180, durationMs: 70, gain: 0.09, type: 'triangle', minIntervalMs: HIT_SOUND_MIN_INTERVAL_MS },
+      turretDeploy: { frequency: 420, slideTo: 680, durationMs: 130, gain: 0.09, type: 'triangle' },
+      turretDestroy: { frequency: 180, slideTo: 65, durationMs: 280, gain: 0.16, type: 'triangle' },
+      engineerWrenchCatch: { frequency: 980, slideTo: 360, durationMs: 110, gain: 0.12, type: 'triangle' },
+      engineerCharge: { frequency: 360, durationMs: 1, gain: 0.028, type: 'sine' },
+      engineerLaser: { frequency: 210, slideTo: 58, durationMs: 420, gain: 0.2, type: 'sawtooth' },
       kill: { frequency: 580, durationMs: 150, gain: 0.12, type: 'sine', minIntervalMs: KILL_SOUND_MIN_INTERVAL_MS }, pickup: { frequency: 900, durationMs: 180, gain: 0.1, type: 'sine' },
       abilityReady: { frequency: 760, durationMs: 110, gain: 0.08, type: 'sine' }, ultimateReady: { frequency: 990, durationMs: 220, gain: 0.1, type: 'sine' },
       dynamiteReady: SHERIFF_READY_SOUND,
@@ -324,6 +394,14 @@ export const ARENA_TUNING = Object.freeze({
 });
 
 export const GAME_CONFIG = Object.freeze({
+  turret: Object.freeze({ hp: TURRET_HP, ammoMax: TURRET_AMMO_MAX, initialAmmo: TURRET_AMMO_INITIAL, fireRate: TURRET_FIRE_RATE,
+    damageMultiplier: TURRET_DAMAGE_MULT, range: TURRET_RANGE, bulletSpeed: TURRET_BULLET_SPEED,
+    turnRateDegS: TURRET_TURN_RATE_DEG_S, fireConeDeg: TURRET_FIRE_CONE_DEG, deployMs: TURRET_DEPLOY_S * 1000,
+    radius: TURRET_RADIUS, taunt: ENGINEER_TURRETS_TAUNT, aggroRadius: TURRET_AGGRO_RADIUS,
+    targetReevalMs: TARGET_REEVAL_MS, targetReevalStaggerMs: TURRET_TARGET_REEVAL_STAGGER_MS,
+    targetLockMs: TARGET_LOCK_MS, fireTargetReevalMs: TURRET_TARGET_REEVAL_MS,
+    projectilePoolMax: TURRET_PROJECTILE_POOL_MAX, bulletRadius: TURRET_BULLET_RADIUS_PX, muzzleOffset: TURRET_MUZZLE_OFFSET_PX,
+    visuals: TURRET_VISUALS }),
   heroFxColors: HERO_FX_COLORS,
   heroFxSecondary: HERO_FX_SECONDARY,
   vortexColors: Object.freeze({ eye: VORTEX_EYE_COLOR, core: VORTEX_CORE_COLOR }),
@@ -390,7 +468,7 @@ export const GAME_CONFIG = Object.freeze({
     heroPityPulls: 10,
     epicPityPulls: 50,
     starterHero: 'sheriff',
-    rarities: { sheriff: 'rare', guardian: 'rare', bubbles: 'rare', electromancer: 'rare', pilot: 'epic', bombardier: 'epic', fairy: 'epic' },
+    rarities: { sheriff: 'rare', guardian: 'rare', bubbles: 'rare', electromancer: 'rare', pilot: 'epic', bombardier: 'epic', fairy: 'epic', engineer: 'epic' },
     bannerTitle: SUMMON_BANNER_TITLE,
     bannerSubtitle: SUMMON_BANNER_SUBTITLE,
     bannerOrder: SUMMON_BANNER_ORDER,
@@ -534,6 +612,28 @@ export const GAME_CONFIG = Object.freeze({
       gale: { speed: GALE_SPEED, range: GALE_RANGE, radius: GALE_RADIUS, damageMultiplier: GALE_DAMAGE_MULT, pushPx: GALE_PUSH_PX, pushMs: GALE_PUSH_MS, visualDurationMs: FAIRY_GALE_VFX_DURATION_MS },
       vortex: { speed: VORTEX_SPEED, range: VORTEX_RANGE, radius: VORTEX_RADIUS, durationMs: VORTEX_DURATION_S * 1000, pullMs: VORTEX_PULL_S * 1000, latePullMs: VORTEX_LATE_PULL_MS, pullSpeedPxPerSecond: VORTEX_PULL_SPEED_PX_S, damageTickMs: VORTEX_DAMAGE_TICK_MS, dpsMultiplier: VORTEX_DPS_MULT, endPushPx: VORTEX_END_PUSH_PX, endPushMs: VORTEX_END_PUSH_MS, endDamageMultiplier: VORTEX_END_DAMAGE_MULT },
       windswept: { slowPct: FAIRY_SLOW_PCT, durationMs: FAIRY_SLOW_DURATION_S * 1000 },
+    },
+    engineer: {
+      type: 'physical', hp: 120, attack: 14, defense: 6, speed: 210,
+      weaponCooldownMs: ENGINEER_WRENCH_COOLDOWN_S * 1000,
+      skillCooldownMs: ENGINEER_SKILL_COOLDOWN_S * 1000, ultimateCooldownMs: ENGINEER_ULTIMATE_COOLDOWN_S * 1000,
+      talent: {
+        name: 'Salvage', icon: ABILITY_ICONS.engineer.talent,
+        description: `Your kills refill each living turret by ${ENGINEER_KILL_AMMO} rounds and heal it for ${ENGINEER_KILL_HEAL_PCT * 100}% of its max HP.`,
+        linkedSlot: ['skill'],
+      },
+      wrench: { speed: ENGINEER_WRENCH_SPEED, range: ENGINEER_WRENCH_RANGE, damageMultiplier: ENGINEER_WRENCH_DAMAGE_MULT,
+        push: ENGINEER_WRENCH_PUSH, maxMs: ENGINEER_WRENCH_MAX_S * 1000, catchRadius: ENGINEER_WRENCH_CATCH_RADIUS,
+        radius: ENGINEER_WRENCH_RADIUS, spinRadPerSecond: ENGINEER_WRENCH_SPIN_RAD_S },
+      turretSkill: { placeRange: ENGINEER_PLACE_RANGE, maxTurrets: ENGINEER_MAX_TURRETS,
+        minCampfireDist: TURRET_MIN_CAMPFIRE_DIST, minSpacing: TURRET_MIN_SPACING, snapRadius: ENGINEER_TURRET_SNAP_RADIUS,
+        snapStep: ENGINEER_TURRET_SNAP_STEP, snapSlices: ENGINEER_TURRET_SNAP_SLICES },
+      laser: { chargeMs: ENGINEER_LASER_CHARGE_S * 1000, length: ENGINEER_LASER_LENGTH, width: ENGINEER_LASER_WIDTH,
+        durationMs: ENGINEER_LASER_DURATION_S * 1000, damageMultiplier: ENGINEER_LASER_DAMAGE_MULT,
+        lockLastMs: ENGINEER_LASER_LOCK_LAST_S * 1000, moveFactor: ENGINEER_LASER_MOVE_FACTOR },
+      salvage: { ammo: ENGINEER_KILL_AMMO, healPct: ENGINEER_KILL_HEAL_PCT,
+        flightMs: ENGINEER_SALVAGE_FLIGHT_MS, pulseMs: ENGINEER_SALVAGE_PULSE_MS,
+        popupMergeMs: ENGINEER_SALVAGE_POPUP_MERGE_MS, popupMs: ENGINEER_SALVAGE_POPUP_MS },
     },
   },
   hud: { physical: '#48a8ff', magic: '#b17cff' },

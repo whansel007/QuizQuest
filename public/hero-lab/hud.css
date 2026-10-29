@@ -234,6 +234,9 @@ body[data-mode="workshop-trial"] #waiting-banner { display: none !important; }
 #ability-hud { position: fixed; z-index: 1; right: 1rem; bottom: 1rem; }
 #ability-hud[hidden] { display: none; }
 .ability { position: relative; display: grid; justify-items: center; gap: var(--btn-label-gap, 4px); padding: 0; color: inherit; background: transparent; border: 0; font: inherit; text-align: center; cursor: pointer; touch-action: none; appearance: none; -webkit-appearance: none; -webkit-tap-highlight-color: transparent; }
+.engineer-turret-pips { position: absolute; top: -10px; left: 50%; z-index: 2; display: flex; gap: 2px; transform: translateX(-50%); color: #b9c2ce; font: 900 10px/1 system-ui; text-shadow: 0 1px 2px #101018; pointer-events: none; }
+.engineer-turret-pip.active { color: #FF9F1C; }
+.engineer-turret-pip.low { color: #ff4b4b; }
 .ability:focus-visible { outline: 3px solid var(--hud-gold); outline-offset: 5px; border-radius: 50%; }
 .ability.aiming .ability-circle { outline: 3px solid var(--hud-text); outline-offset: 4px; }
 .ability.aiming::before { position: absolute; z-index: 2; top: 50%; left: 50%; width: 104px; height: 104px; content: ''; border: 2px solid rgb(255 248 228 / 88%); border-radius: 50%; background: rgb(29 51 41 / 18%); pointer-events: none; transform: translate(-50%, -50%); }

@@ -18,8 +18,8 @@ import { SHAKE_PLAYER_HIT_TRAUMA, SHAKE_ULTIMATE_TRAUMA, SHAKE_BOSS_SLAM_TRAUMA,
   SHAKE_MIN_INTENSITY, SHAKE_MAX_INTENSITY, SHAKE_INTENSITY_STEP, SHAKE_SLIDER_REFERENCE, SHAKE_ABSOLUTE_CAP_PX,
   SHAKE_HIT_TRAUMA, SHAKE_HIT_DAMAGE_REFERENCE, SHAKE_HIT_MIN_INTERVAL_MS, SHAKE_KILL_TRAUMA,
   HIT_FLASH_MIN_INTERVAL_MS, THORNS_FLASH_INTERVAL_MS, THORNS_NUMBER_MERGE_MS, THORNS_NUMBER_COLOR,
-  AREA_RING_WIDTH, AREA_TELEGRAPH_WIDTH, AREA_DASH_ON, AREA_DASH_OFF, AREA_UNDERSTROKE_EXTRA_PX,
-  AREA_UNDERSTROKE_ALPHA, AREA_RING_STROKE_ALPHA, AREA_TELEGRAPH_STROKE_ALPHA, AREA_RING_FILL_ALPHA,
+  AREA_RING_WIDTH, AREA_TELEGRAPH_WIDTH, AREA_DASH_ON, AREA_DASH_OFF,
+  AREA_RING_STROKE_ALPHA, AREA_TELEGRAPH_STROKE_ALPHA, AREA_RING_FILL_ALPHA,
   AREA_TELEGRAPH_FILL_START_ALPHA, AREA_TELEGRAPH_FILL_END_ALPHA, AREA_ENEMY_FILL_END_ALPHA,
   AREA_TELEGRAPH_SWEEP_BASE_ALPHA, AREA_TELEGRAPH_SWEEP_FILL_ALPHA,
   AREA_TELEGRAPH_SWEEP_HAND_ALPHA, AREA_TELEGRAPH_SWEEP_HAND_WIDTH,
@@ -281,6 +281,8 @@ const buffCards = document.querySelector('#buff-cards');
 const targetingHint = document.querySelector('#targeting-hint');
 const targetingCancel = document.querySelector('#targeting-cancel');
 const targetingReticle = document.querySelector('#targeting-reticle');
+const targetingHintText = targetingHint.firstChild;
+const defaultTargetingHintText = targetingHintText?.textContent || '';
 const movementStick = document.querySelector('#move-stick');
 const touchHelp = document.querySelector('#touch-help');
 const runResultPanel = document.querySelector('#run-result');
@@ -311,12 +313,19 @@ const ultimateAbility = document.querySelector('.ability[data-ability="ultimate"
 // The ability tiles are static markup; cache the list so the 10Hz HUD refresh
 // does not re-query the document every tick.
 const abilityElements = document.querySelectorAll('.ability[data-ability]');
+const engineerTurretPips = document.createElement('span');
+engineerTurretPips.className = 'engineer-turret-pips';
+const engineerTurretPipLabels = Array.from({ length: 2 }, () => {
+  const pip = document.createElement('span'); pip.className = 'engineer-turret-pip'; pip.textContent = '○';
+  engineerTurretPips.append(pip); return pip;
+});
+document.querySelector('.ability[data-ability="skill"]')?.append(engineerTurretPips);
 let token = null;
-try { token = sessionStorage.getItem('qq-token'); } catch { /* standalone Hero Lab has no app session */ }
-const socket = window.io('/hero-lab', { auth: token ? { token } : {} });
 const query = new URLSearchParams(location.search);
-const heroId = query.get('heroId');
 const embedded = query.has('embedded') && window.parent !== window;
+try { if (embedded) token = sessionStorage.getItem('qq-token'); } catch { /* standalone Hero Lab has no app session */ }
+const socket = window.io('/hero-lab', { auth: { ...(token ? { token } : {}), debug: !embedded } });
+const heroId = query.get('heroId');
 const requestedRoomCode = (query.get('room') || '').trim().toUpperCase();
 const createRequested = query.get('create') === '1';
 const trialTicket = query.get('trialTicket') || '';
@@ -339,6 +348,7 @@ const keys = { up: false, down: false, left: false, right: false };
 const stickKeys = { up: false, down: false, left: false, right: false };
 let movementPointerId = null;
 let abilityGesture = null;
+let engineerPlacementTargeting = false;
 let primaryPointerId = null;
 let lastSentMovement = { up: false, down: false, left: false, right: false };
 let abilityAimTimer = null;
@@ -349,6 +359,38 @@ const codeToKey = {
 };
 let me = null;
 let state = { players: [], projectiles: [], monsters: [], campfire: null, wave: null };
+let debugTurretRanges = false;
+const turretVisualState = new Map();
+const turretHitFlashes = new Map();
+const turretHitFlashLast = new Map();
+const engineerLaserBeams = [];
+const engineerLaserWhineStops = new Map();
+const engineerSalvagePulses = new Map();
+const engineerSalvagePopups = new Map();
+const turretBodyCanvas = document.createElement('canvas');
+turretBodyCanvas.width = 44; turretBodyCanvas.height = 32;
+{
+  const g = turretBodyCanvas.getContext('2d');
+  g.fillStyle = '#9AA7B8'; g.strokeStyle = '#101018'; g.lineWidth = 3;
+  g.beginPath(); g.moveTo(2, 29); g.lineTo(42, 29); g.lineTo(42, 22); g.arc(22, 22, 20, 0, Math.PI, true); g.closePath(); g.fill(); g.stroke();
+  g.fillStyle = '#FF9F1C'; g.fillRect(4, 25, 36, 3);
+}
+const turretBarrelCanvas = document.createElement('canvas');
+turretBarrelCanvas.width = 34; turretBarrelCanvas.height = 16;
+{
+  const g = turretBarrelCanvas.getContext('2d');
+  g.fillStyle = '#5B6675'; g.strokeStyle = '#101018'; g.lineWidth = 3;
+  g.fillRect(1, 4, 30, 9); g.strokeRect(1.5, 4.5, 30, 9);
+}
+const turretSpriteImages = { body: null, barrel: null };
+for (const part of ['body', 'barrel']) {
+  const path = GAME_CONFIG.turret.visuals[part];
+  if (!path) continue;
+  const sprite = new Image();
+  sprite.onload = () => { turretSpriteImages[part] = sprite; };
+  sprite.onerror = () => console.warn(`[hero-lab] turret ${part} sprite failed to load (${path}); using placeholder shapes.`);
+  sprite.src = new URL(path, `${location.origin}/hero-lab/`).href;
+}
 let stateReceivedAt = performance.now();
 const clientProjectiles = new Map();
 const fairyVortexVisuals = new Map();
@@ -400,7 +442,7 @@ let momentumNudge = null;
 let sessionNudgeCount = 0;
 
 // Debug-only profiler. It stays dormant unless the account passes the debug
-// gate; the effect toggles stay readable either way (all true by default).
+// gate or the user opened the explicit anonymous debug entry.
 const profiler = createProfiler({
   getStats: () => ({
     particles: particles.length,
@@ -440,6 +482,18 @@ void profiler.start().then((debugEnabled) => {
   controls.querySelector('[data-sprite-debug="ultimate"]').addEventListener('click', () => { heroDebugUltimate = !heroDebugUltimate; });
   controls.querySelector('[data-sprite-debug="downed"]').addEventListener('click', () => { heroDebugDowned = !heroDebugDowned; });
   controls.querySelector('[data-sprite-debug="hitboxes"]').addEventListener('change', (event) => { heroDebugHitboxes = event.target.checked; });
+  const turretTools = makeDebugSection('Turret testing', 'tower-debug-tools');
+  turretTools.innerHTML = '<button type="button" data-turret-place>Place turret at last arena cursor</button><button type="button" data-turret-action="fill">Fill ammo</button><button type="button" data-turret-action="empty">Empty ammo</button><button type="button" data-turret-action="damage">Damage 50%</button><label><input type="checkbox" data-turret-ranges> Show turret ranges</label><div class="debug-effect-buttons"><button type="button" data-spawn-at="zombie">Spawn zombie at cursor</button><button type="button" data-spawn-at="skeleton">Spawn skeleton at cursor</button><button type="button" data-spawn-at="brute">Spawn Brute at cursor</button></div>';
+  turretTools.querySelector('[data-turret-place]').addEventListener('click', () => {
+    const point = window.lastPointerWorld || { x: ARENA_WIDTH / 2, y: ARENA_HEIGHT / 2 };
+    socket.emit('debug_turret', { action: 'place', ...point });
+  });
+  turretTools.querySelector('[data-turret-ranges]').addEventListener('change', (event) => { debugTurretRanges = event.target.checked; });
+  turretTools.querySelectorAll('[data-turret-action]').forEach((button) => button.addEventListener('click', () => socket.emit('debug_turret', { action: button.dataset.turretAction })));
+  turretTools.querySelectorAll('[data-spawn-at]').forEach((button) => button.addEventListener('click', () => {
+    const point = window.lastPointerWorld || { x: ARENA_WIDTH / 2, y: ARENA_HEIGHT / 2 };
+    socket.emit('debug_spawn_at', { type: button.dataset.spawnAt, ...point });
+  }));
 
   const heroUnlockTools = makeDebugSection('Hero testing');
   heroUnlockTools.innerHTML = '<label>Unlock hero <select data-debug-unlock-hero></select></label><button type="button" data-debug-unlock>Unlock for this browser</button><button type="button" data-debug-preview-vortex>Preview vortex</button>';
@@ -582,6 +636,7 @@ async function loadAbilityIcon(path) {
 }
 
 const FAIRY_ABILITY_FALLBACK = Object.freeze({ primary: '🏹', skill: '💨', ultimate: '🌪️' });
+const ENGINEER_ABILITY_FALLBACK = Object.freeze({ primary: '🔧', skill: '🛠️', ultimate: '⚡' });
 function setAbilityIcon(host, path, fallbackEmoji = '') {
   const cached = iconSvgCache.get(path);
   if (cached) {
@@ -603,17 +658,18 @@ function setAbilityIcon(host, path, fallbackEmoji = '') {
 
 function applyClusterIcons(heroId, mechActive, elements) {
   const map = ABILITY_ICONS[heroId];
-  if (!map) return;
   for (const element of elements) {
     const slot = ABILITY_SLOT[element.dataset.ability];
     const host = element.querySelector('.ability-icon');
     if (!slot || !host) continue;
-    let path = map[slot];
+    let path = map?.[slot];
     if (MECH_ICON_SWAP && mechActive) {
       if (slot === 'primary' && map.mechPrimary) path = map.mechPrimary;
       if (slot === 'skill' && map.mechSkill) path = map.mechSkill;
     }
-    if (path) setAbilityIcon(host, path, heroId === 'fairy' ? FAIRY_ABILITY_FALLBACK[slot] : '');
+    if (path) setAbilityIcon(host, path, heroId === 'fairy' ? FAIRY_ABILITY_FALLBACK[slot]
+      : heroId === 'engineer' ? ENGINEER_ABILITY_FALLBACK[slot] : '');
+    else if (heroId === 'engineer') host.replaceChildren(document.createTextNode(ENGINEER_ABILITY_FALLBACK[slot] || ''));
   }
 }
 
@@ -812,8 +868,8 @@ function glowSprite(color, inner, outer) {
 }
 
 // Pre-rendered permanent area rings (heal ring, Thorns ring). Each sprite is
-// the full ring treatment - dark under-stroke, dashed bright main stroke and
-// the translucent inner fill - rasterized once per radius and blitted with
+// the full ring treatment - dashed colored stroke and translucent inner fill
+// - rasterized once per radius and blitted with
 // drawImage, so the two permanent rings cost one blit each per frame instead
 // of ~6 stroked arcs. Transient telegraphs still draw live: their radius and
 // fill alpha change every frame.
@@ -821,7 +877,7 @@ const _ringSprites = new Map();
 function ringSprite(key, radius, strokeColor, fillColor, width, strokeAlpha) {
   let sprite = _ringSprites.get(key);
   if (sprite) return sprite;
-  const pad = Math.ceil(width / 2 + AREA_UNDERSTROKE_EXTRA_PX + 2);
+  const pad = Math.ceil(width / 2 + 2);
   const size = Math.ceil((radius + pad) * 2);
   const canvas = document.createElement('canvas');
   canvas.width = size;
@@ -831,12 +887,7 @@ function ringSprite(key, radius, strokeColor, fillColor, width, strokeAlpha) {
   // Inner fill first so the strokes stay crisp on top of it.
   c.beginPath(); c.arc(center, center, radius, 0, Math.PI * 2);
   c.globalAlpha = AREA_RING_FILL_ALPHA; c.fillStyle = fillColor; c.fill();
-  // Dark under-stroke: guarantees the bright stroke reads on any floor.
-  c.globalAlpha = AREA_UNDERSTROKE_ALPHA;
-  c.strokeStyle = AREA_COLORS.understroke;
-  c.lineWidth = width + AREA_UNDERSTROKE_EXTRA_PX;
-  c.beginPath(); c.arc(center, center, radius, 0, Math.PI * 2); c.stroke();
-  // Bright dashed main stroke.
+  // Dashed colored main stroke.
   c.globalAlpha = strokeAlpha;
   c.strokeStyle = strokeColor;
   c.lineWidth = width;
@@ -879,6 +930,14 @@ function addParticle(particle) {
   // every later property access slower. Shape stays stable across reuse.
   p.emoji = particle.emoji;
   p.text = particle.text;
+  p.travelTargetX = particle.travelTargetX ?? null;
+  p.travelTargetY = particle.travelTargetY ?? null;
+  p.travelStartX = particle.travelStartX ?? null;
+  p.travelStartY = particle.travelStartY ?? null;
+  p.travelStartedAt = particle.travelStartedAt ?? null;
+  p.travelDurationMs = particle.travelDurationMs ?? null;
+  p.salvageTurretId = particle.salvageTurretId ?? null;
+  p.salvageAmmo = particle.salvageAmmo ?? 0;
   Object.assign(p, particle);
   particles.push(p);
 }
@@ -1404,9 +1463,7 @@ function drawFairyVortexGround(now) {
     context.fillStyle = VORTEX_GROUND_FILL;
     context.beginPath(); context.arc(visual.x, visual.y, radius * (0.9 - 0.06 * (1 - collapse)), 0, Math.PI * 2); context.fill();
     context.globalAlpha *= fadeIn;
-    context.strokeStyle = AREA_COLORS.understroke; context.lineWidth = VORTEX_GROUND_RING_WIDTH_PX + 4;
     context.setLineDash([VORTEX_GROUND_DASH_ON_PX, VORTEX_GROUND_DASH_OFF_PX]);
-    context.beginPath(); context.arc(visual.x, visual.y, radius, 0, Math.PI * 2); context.stroke();
     context.strokeStyle = HERO_FX_COLORS.fairy.primary; context.lineWidth = VORTEX_GROUND_RING_WIDTH_PX;
     context.beginPath(); context.arc(visual.x, visual.y, radius, 0, Math.PI * 2); context.stroke(); context.setLineDash([]);
     for (const ripple of (effectiveQuality() === 'high' && !prefersReducedMotion ? visual.ripples : [])) {
@@ -1442,8 +1499,7 @@ function drawFairyVortexStructures(now) {
 
     if (!prefersReducedMotion && effectiveQuality() !== 'low' && elapsed < VORTEX_SHOCKWAVE_MS) {
       const progress = elapsed / VORTEX_SHOCKWAVE_MS;
-      context.save(); context.globalAlpha = 1 - progress; context.strokeStyle = AREA_COLORS.understroke; context.lineWidth = 9;
-      context.beginPath(); context.arc(visual.x, visual.y, VORTEX_CORE_RADIUS_PX + (GAME_CONFIG.heroes.fairy.vortex.radius - VORTEX_CORE_RADIUS_PX) * progress, 0, Math.PI * 2); context.stroke();
+      context.save(); context.globalAlpha = 1 - progress;
       context.strokeStyle = HERO_FX_COLORS.fairy.primary; context.lineWidth = 5;
       context.beginPath(); context.arc(visual.x, visual.y, VORTEX_CORE_RADIUS_PX + (GAME_CONFIG.heroes.fairy.vortex.radius - VORTEX_CORE_RADIUS_PX) * progress, 0, Math.PI * 2); context.stroke(); context.restore();
     }
@@ -1680,6 +1736,9 @@ socket.on('connect_error', (error) => {
 });
 socket.on('disconnect', () => {
   me = null;
+  engineerPlacementTargeting = false;
+  targetingHint.hidden = true;
+  targetingReticle.hidden = true;
   state = { players: [], projectiles: [], monsters: [], campfire: null, wave: null };
   clientProjectiles.clear();
   for (const stop of fairyTravelSoundStops.values()) stop();
@@ -1706,6 +1765,7 @@ socket.on('welcome', (welcome) => {
 });
 socket.on('join_error', ({ code, message } = {}) => {
   joinFailed = true;
+  engineerPlacementTargeting = false;
   releaseKeys();
   connectionStatus.textContent = message || 'Could not join the room';
   if (embedded) window.parent.postMessage({ type: 'hero-lab-join-error', code, message }, location.origin);
@@ -1733,6 +1793,23 @@ document.querySelector('#trial-wave')?.addEventListener('click', () => socket.em
 socket.on('state', (snapshot) => {
   state = snapshot;
   stateReceivedAt = performance.now();
+  const activeTurrets = new Set();
+  for (const turret of snapshot.turrets || []) {
+    activeTurrets.add(turret.id);
+    const visual = turretVisualState.get(turret.id);
+    if (!visual) turretVisualState.set(turret.id, { bornAt: performance.now(), ammo: turret.ammo, angle: turret.angle,
+      angleChangedAt: performance.now(), recoilUntil: 0, flashUntil: 0 });
+    else {
+      if (turret.ammo < visual.ammo) {
+        visual.recoilUntil = performance.now() + GAME_CONFIG.turret.visuals.recoilMs;
+        visual.flashUntil = performance.now() + GAME_CONFIG.turret.visuals.muzzleFlashMs;
+      }
+      if (Math.abs(turret.angle - visual.angle) > 0.001) visual.angleChangedAt = performance.now();
+      visual.angle = turret.angle;
+      visual.ammo = turret.ammo;
+    }
+  }
+  for (const id of turretVisualState.keys()) if (!activeTurrets.has(id)) turretVisualState.delete(id);
   syncFairyVortices(snapshot);
   if (Array.isArray(snapshot.projectiles)) {
     const active = new Set(snapshot.projectiles.map((projectile) => projectile.id));
@@ -1743,6 +1820,89 @@ socket.on('state', (snapshot) => {
       addOrUpdateProjectile(proj);
     }
   }
+});
+
+function engineerFeedbackParticleCount(count) {
+  if (prefersReducedMotion || count <= 0) return 0;
+  const factor = QUALITY_PARTICLE_FACTOR[effectiveQuality()] ?? 1;
+  return Math.min(count, Math.max(1, Math.floor(count * factor)));
+}
+
+function recordEngineerSalvageArrival(turretId, x, y, ammo, now) {
+  const salvage = GAME_CONFIG.heroes.engineer.salvage;
+  engineerSalvagePulses.set(turretId, now + salvage.pulseMs);
+  const popup = engineerSalvagePopups.get(turretId);
+  engineerSalvagePopups.set(turretId, popup && now - popup.startedAt <= salvage.popupMergeMs
+    ? { startedAt: now, count: popup.count + 1, ammo, x, y }
+    : { startedAt: now, count: 1, ammo, x, y });
+}
+
+socket.on('turret_deployed', ({ id, x, y }) => {
+  turretVisualState.set(id, { bornAt: performance.now(), ammo: GAME_CONFIG.turret.initialAmmo, angle: 0,
+    angleChangedAt: performance.now(), recoilUntil: 0, flashUntil: 0 });
+  const dustCount = engineerFeedbackParticleCount(GAME_CONFIG.turret.visuals.deployDustCount);
+  for (let i = 0; i < dustCount; i++) { const a = Math.PI * 2 * i / dustCount; addParticle({ x, y: y + 8, vx: Math.cos(a) * 35, vy: Math.sin(a) * 20 - 12, radius: 2 + Math.random() * 2, color: '#c8b99a', alpha: 0.75, decay: 0.04 }); }
+  playSound('turretDeploy');
+});
+socket.on('turret_hit', ({ id, x, y, damage }) => {
+  const now = performance.now();
+  if (now - (turretHitFlashLast.get(id) ?? -Infinity) >= HIT_FLASH_MIN_INTERVAL_MS) {
+    turretHitFlashLast.set(id, now);
+    turretHitFlashes.set(id, now + ARENA_TUNING.hitFlashMs);
+  }
+  addDamageNumber({ x, y: y - 22, damage, sourceId: null, targetId: id, color: '#ff6161' });
+});
+socket.on('turret_destroyed', ({ id, x, y }) => {
+  turretVisualState.delete(id);
+  turretHitFlashes.delete(id); turretHitFlashLast.delete(id);
+  if (engineerFeedbackParticleCount(1)) addParticle({ x, y, vx: 0, vy: -18, radius: 7, color: '#646b72', alpha: 0.9, decay: 0.02 });
+  const debrisCount = engineerFeedbackParticleCount(GAME_CONFIG.turret.visuals.destroyDebrisCount);
+  for (let i = 0; i < debrisCount; i++) { const a = Math.PI * 2 * i / debrisCount; addParticle({ x, y, vx: Math.cos(a) * (55 + Math.random() * 30), vy: Math.sin(a) * (55 + Math.random() * 30), radius: 2 + Math.random() * 2, color: i % 2 ? '#9AA7B8' : '#FF9F1C', alpha: 1, decay: 0.035 }); }
+  playSound('turretDestroy');
+});
+socket.on('turret_removed', ({ id }) => { turretVisualState.delete(id); turretHitFlashes.delete(id); turretHitFlashLast.delete(id); });
+socket.on('engineer_place_failed', () => { playSound('hit'); showToast("Can't place turret here", 'engineer', '🔧'); });
+socket.on('engineer_wrench_caught', ({ playerId, x, y } = {}) => {
+  if (playerId !== me) return;
+  playSound('engineerWrenchCatch');
+  const sparkCount = engineerFeedbackParticleCount(4);
+  for (let i = 0; i < sparkCount; i++) {
+    const angle = Math.PI * 2 * i / sparkCount;
+    addParticle({ x, y, vx: Math.cos(angle) * 42, vy: Math.sin(angle) * 42, radius: 2.5, color: '#FFD27A', alpha: 1, decay: 0.08 });
+  }
+});
+socket.on('engineer_laser_charge', ({ playerId } = {}) => {
+  engineerLaserWhineStops.get(playerId)?.();
+  engineerLaserWhineStops.set(playerId, startSoundLoop('engineerCharge', { volume: playerId === me ? 1 : 0.5 }));
+});
+socket.on('engineer_laser_cancelled', ({ playerId } = {}) => {
+  engineerLaserWhineStops.get(playerId)?.(); engineerLaserWhineStops.delete(playerId);
+});
+socket.on('engineer_laser_fired', (beam) => {
+  engineerLaserWhineStops.get(beam.playerId)?.(); engineerLaserWhineStops.delete(beam.playerId);
+  engineerLaserBeams.push({ ...beam, startedAt: performance.now() });
+  playSound('engineerLaser', { volume: beam.playerId === me ? 1 : 0.55 });
+  const sparkCount = engineerFeedbackParticleCount(4);
+  if (sparkCount) {
+    for (const hit of beam.hits || []) for (let i = 0; i < sparkCount; i++) {
+      const angle = Math.random() * Math.PI * 2, speed = 25 + Math.random() * 40;
+      addParticle({ x: hit.x, y: hit.y, vx: Math.cos(angle) * speed, vy: Math.sin(angle) * speed,
+        radius: 1.5 + Math.random() * 1.5, color: i % 2 ? '#FFD27A' : '#fff', alpha: 1, decay: 0.08 });
+    }
+  }
+});
+socket.on('engineer_salvage', (event) => {
+  if (event.playerId !== me) return;
+  if (prefersReducedMotion) return;
+  const startedAt = performance.now();
+  const ammo = event.ammo || GAME_CONFIG.heroes.engineer.salvage.ammo;
+  for (const turret of event.turrets || []) addParticle({
+    x: event.x, y: event.y, vx: 0, vy: 0, radius: 3, color: '#fff6ae', alpha: 1,
+    travelStartX: event.x, travelStartY: event.y,
+    travelTargetX: turret.x, travelTargetY: turret.y, travelStartedAt: startedAt,
+    travelDurationMs: GAME_CONFIG.heroes.engineer.salvage.flightMs,
+    salvageTurretId: turret.id, salvageAmmo: ammo,
+  });
 });
 socket.on('fairy_vortex_start', (vortex) => {
   for (const stop of fairyTravelSoundStops.values()) stop();
@@ -1843,7 +2003,7 @@ socket.on('ability_used', (event) => {
 });
 socket.on('weapon_fired', (event) => {
   if (event.playerId !== me) {
-    playSound(event.heroId === 'fairy' ? 'fairyWhoosh' : 'shoot', { pitchVariance: ARENA_TUNING.sound.shotPitchVariance, volume: 0.6 });
+    playSound(event.heroId === 'fairy' || event.heroId === 'engineer' ? 'fairyWhoosh' : 'shoot', { pitchVariance: ARENA_TUNING.sound.shotPitchVariance, volume: 0.6 });
     return;
   }
   // Own shots are repeated by the server while primary fire is held, so their
@@ -1853,7 +2013,7 @@ socket.on('weapon_fired', (event) => {
   const shooter = state.players.find((candidate) => candidate.id === me);
   if (!shooter) return;
   showMuzzleFlash(shooter);
-  playSound(shooter.heroId === 'fairy' ? 'fairyWhoosh' : 'shoot', { pitchVariance: ARENA_TUNING.sound.shotPitchVariance });
+  playSound(shooter.heroId === 'fairy' || shooter.heroId === 'engineer' ? 'fairyWhoosh' : 'shoot', { pitchVariance: ARENA_TUNING.sound.shotPitchVariance });
 });
 socket.on('buff_applied', () => playSound('cardPick'));
 socket.on('dash_hit', (event) => {
@@ -1971,11 +2131,12 @@ function handleHit(hit) {
 function handleMonsterKilled(data) {
   const fx = HERO_FX_COLORS[data.heroId] || {};
   const now = performance.now();
+  const turretKill = data.sourceAbility === 'turret';
   // Kill-path budget: crossing KILL_BURST_THRESHOLD within the window makes
   // this kill the window's single big puff + sound + shake.
-  const announceMass = registerKill(now);
-  const massWindow = isMassKillWindow(now);
-  updateKillStreak(data.sourceId, announceMass);
+  const announceMass = turretKill ? false : registerKill(now);
+  const massWindow = turretKill ? false : isMassKillWindow(now);
+  if (!turretKill) updateKillStreak(data.sourceId, announceMass);
   // A boss kill is the one moment that earns the banner + fanfare + confetti.
   if (data.boss) celebrateBossDefeat();
   if (effectToggles.burst) {
@@ -2015,14 +2176,14 @@ function handleMonsterKilled(data) {
         alpha: 1, startedAt: now, durationMs: 240, expiresAt: now + 240 });
     }
   }
-  if (effectToggles.sound && data.sourceId !== me) {
+  if (!turretKill && effectToggles.sound && data.sourceId !== me) {
     // One louder sound for the whole mass-kill window, normal sound otherwise.
     if (announceMass) playSound('kill', { volume: 0.9 });
     else if (!massWindow) playSound('kill', { volume: 0.5 });
   }
   // Extra camera kick on YOUR killing blow (stacks with the hit kick toward a
   // boss-slam-sized moment). The mass window already plays its single shake.
-  if (data.sourceId === me && !massWindow) shakeCamera(SHAKE_KILL_TRAUMA);
+  if (!turretKill && data.sourceId === me && !massWindow) shakeCamera(SHAKE_KILL_TRAUMA);
 }
 // The server batches hit and kill events into one message per tick; a payload
 // is either a single event (low volume, e.g. the training dummy) or an array
@@ -2495,16 +2656,20 @@ function getPointerCoordinates(event) {
 
 function fireWeapon(mode, target = window.lastPointerWorld) {
   if (!me || !socket.connected) return;
+  const player = state.players.find((candidate) => candidate.id === me);
+  if (mode === 'primary' && player?.heroId === 'engineer' && engineerPlacementTargeting) {
+    confirmEngineerPlacement(target);
+    return;
+  }
   if (mode === 'secondary') {
     if (target) socket.emit('fire', mode, target);
     return;
   }
-  const player = state.players.find((candidate) => candidate.id === me);
   // Shield Rush: M1 cancels the dash into the fan instead of firing Shield
   // Bash, so that click gets no muzzle flash and no shot sound.
   if (player && !player.rushDashing) {
     showMuzzleFlash(player);
-    playSound(player.heroId === 'fairy' ? 'fairyWhoosh' : 'shoot', { pitchVariance: ARENA_TUNING.sound.shotPitchVariance });
+    playSound(player.heroId === 'fairy' || player.heroId === 'engineer' ? 'fairyWhoosh' : 'shoot', { pitchVariance: ARENA_TUNING.sound.shotPitchVariance });
   }
   socket.emit('fire', mode);
 }
@@ -2538,8 +2703,35 @@ function sendCurrentAim() {
 }
 
 function activateAbility(slot) {
+  const local = state.players?.find((player) => player.id === me);
+  if (slot === 'skill' && local?.heroId === 'engineer') {
+    toggleEngineerPlacementTargeting();
+    return;
+  }
   sendCurrentAim();
-  socket.emit(slot === 'skill' ? 'skill' : 'ultimate');
+  if (slot === 'skill') socket.emit('skill', local?.heroId === 'engineer' ? window.lastPointerWorld : undefined);
+  else socket.emit('ultimate');
+}
+
+function toggleEngineerPlacementTargeting() {
+  const player = state.players?.find((candidate) => candidate.id === me);
+  if (!player || player.heroId !== 'engineer' || player.downed) return;
+  if (engineerPlacementTargeting) {
+    engineerPlacementTargeting = false;
+    targetingReticle.hidden = true;
+    return;
+  }
+  const skill = player.abilities?.skill;
+  if (Math.max(0, (skill?.remainingMs || 0) - (performance.now() - stateReceivedAt)) > 0) return;
+  engineerPlacementTargeting = true;
+}
+
+function confirmEngineerPlacement(target = window.lastPointerWorld) {
+  if (!engineerPlacementTargeting) return false;
+  engineerPlacementTargeting = false;
+  targetingReticle.hidden = true;
+  socket.emit('skill', target || null);
+  return true;
 }
 
 // The server repeats the shot for as long as this flag is true, so every hero
@@ -2999,6 +3191,7 @@ function steadyEnemyCount(value, wave, now) {
 
 function updateHud(timestamp = performance.now()) {
   const player = state.players?.find((candidate) => candidate.id === me);
+  if (!player || player.heroId !== 'engineer' || player.downed) engineerPlacementTargeting = false;
   const phase = state.room?.phase;
   setHudHidden(movementStick, !player || player.downed || player.dawnWaiting || (phase && phase !== 'running'));
   setHudHidden(touchHelp, !player || player.downed || player.dawnWaiting || (phase && phase !== 'running'));
@@ -3130,6 +3323,14 @@ function updateHud(timestamp = performance.now()) {
   }
 
   const mechActive = MECH_ICON_SWAP && Boolean(player.mech);
+  const engineerTurrets = (state.turrets || []).filter((turret) => turret.ownerId === me);
+  setHudHidden(engineerTurretPips, player.heroId !== 'engineer');
+  engineerTurretPipLabels.forEach((pip, index) => {
+    const turret = engineerTurrets[index];
+    pip.textContent = turret ? (turret.hp < GAME_CONFIG.turret.hp * 0.3 ? '!' : '●') : '○';
+    pip.classList.toggle('active', Boolean(turret));
+    pip.classList.toggle('low', Boolean(turret && turret.hp < GAME_CONFIG.turret.hp * 0.3));
+  });
   if (player.heroId !== hudIconHeroId || mechActive !== hudIconMech) applyAbilityIcons(player.heroId, mechActive);
   const highlightSlots = heroHighlightSlots(player.heroId, mechActive);
   abilityElements.forEach((element) => {
@@ -3138,8 +3339,10 @@ function updateHud(timestamp = performance.now()) {
     const circle = element.querySelector('.ability-circle');
     if (!data) return;
     const controlName = data.name || (id === 'weapon' ? 'Primary fire' : id === 'skill' ? 'Skill' : 'Ultimate');
-    const label = id === 'weapon' ? `Hold and drag to aim and fire ${controlName}`
-      : `Hold and drag to aim ${controlName}; tap to activate`;
+    const label = player.heroId === 'engineer' && id === 'skill'
+      ? (engineerPlacementTargeting ? 'Cancel turret placement' : 'Choose a turret placement location')
+      : id === 'weapon' ? `Hold and drag to aim and fire ${controlName}`
+        : `Hold and drag to aim ${controlName}; tap to activate`;
     if (element.getAttribute('aria-label') !== label) element.setAttribute('aria-label', label);
     if (element.title !== label) element.title = label;
     const heroType = player.type || 'physical';
@@ -3237,8 +3440,12 @@ function updateHud(timestamp = performance.now()) {
       }));
     }
   } else lastBuffRender = '';
-  targetingHint.hidden = !player.targeting;
-  if (!player.targeting) targetingReticle.hidden = true;
+  const engineerTargeting = player.heroId === 'engineer' && engineerPlacementTargeting;
+  targetingHint.hidden = !player.targeting && !engineerTargeting;
+  if (targetingHintText) targetingHintText.textContent = engineerTargeting
+    ? 'Move to a spot · Primary fire to place · E to cancel '
+    : defaultTargetingHintText;
+  if (!player.targeting && !engineerTargeting) targetingReticle.hidden = true;
 }
 
 function onKeyUp(event) {
@@ -3262,6 +3469,10 @@ function onPointerDown(event) {
   }
   if (event.button === 2) { fireWeapon('secondary'); return; }
   if (event.button === 0) {
+    if (player?.heroId === 'engineer' && engineerPlacementTargeting) {
+      confirmEngineerPlacement(pointer);
+      return;
+    }
     // While the Bombardier ultimate is targeting, primary fire confirms the
     // strike location (same emit as the right-click confirm) instead of
     // firing the weapon.
@@ -3301,6 +3512,10 @@ function beginAbilityGesture(event) {
   const player = state.players.find((candidate) => candidate.id === me);
   if (!player) return;
   if (slot === 'weapon' && player.targeting) return;
+  if (slot === 'weapon' && player.heroId === 'engineer' && engineerPlacementTargeting) {
+    confirmEngineerPlacement();
+    return;
+  }
   const targetedBombing = slot === 'ultimate' && player.heroId === 'bombardier';
   abilityGesture = { pointerId: event.pointerId, button, slot, startX: event.clientX, startY: event.clientY,
     dragged: false, targetedBombing, targetPoint: null, cancelled: false };
@@ -3365,7 +3580,10 @@ function finishAbilityGesture(event, cancelled = false) {
   if (cancelled) return;
   if (gesture.dragged) sendAimVector(event.clientX - gesture.startX, event.clientY - gesture.startY, true);
   else sendCurrentAim();
-  socket.emit(gesture.slot === 'skill' ? 'skill' : 'ultimate');
+  const local = state.players?.find((player) => player.id === me);
+  if (gesture.slot === 'skill' && local?.heroId === 'engineer') toggleEngineerPlacementTargeting();
+  else if (gesture.slot === 'skill') socket.emit('skill');
+  else socket.emit('ultimate');
 }
 
 function onAbilityKeyboardClick(event) {
@@ -3377,6 +3595,7 @@ function onAbilityKeyboardClick(event) {
 
 function cancelTargeting() {
   socket.emit('cancel_targeting');
+  engineerPlacementTargeting = false;
   targetingReticle.hidden = true;
   if (abilityGesture?.targetedBombing) {
     abilityGesture.button.classList.remove('aiming');
@@ -3495,6 +3714,160 @@ function getHeroVisualState(player, now) {
   };
 }
 
+function drawTurrets(now) {
+  for (const turret of state.turrets || []) {
+    const visual = turretVisualState.get(turret.id) || { bornAt: now, ammo: turret.ammo, angleChangedAt: now, recoilUntil: 0, flashUntil: 0 };
+    const pop = prefersReducedMotion || effectiveQuality() === 'low'
+      ? 1 : Math.min(1, Math.max(0, (now - visual.bornAt) / GAME_CONFIG.turret.deployMs));
+    const scale = turret.deploying ? Math.max(0.05, pop) : 1;
+    if (debugTurretRanges) {
+      context.save(); context.strokeStyle = 'rgba(255,255,255,.28)'; context.lineWidth = 1; context.setLineDash([6, 5]);
+      for (const radius of [GAME_CONFIG.turret.radius, GAME_CONFIG.turret.range, GAME_CONFIG.turret.aggroRadius]) {
+        context.beginPath(); context.arc(turret.x, turret.y, radius, 0, Math.PI * 2); context.stroke();
+      }
+      context.restore();
+    }
+    context.save(); context.translate(turret.x, turret.y); context.scale(scale, scale);
+    const bodySprite = turretSpriteImages.body;
+    const bodySize = GAME_CONFIG.turret.visuals.bodySize;
+    context.drawImage(bodySprite || turretBodyCanvas, -bodySize.w / 2, -bodySize.h / 2, bodySize.w, bodySize.h);
+    if (turret.ammo <= 0) {
+      context.fillStyle = 'rgba(110,115,125,.48)'; context.beginPath(); context.arc(0, 0, 20, 0, Math.PI * 2); context.fill();
+    }
+    let angle = turret.ammo <= 0 ? turret.angle + Math.PI * 70 / 180 : turret.angle;
+    const visualSpec = GAME_CONFIG.turret.visuals;
+    if (now - visual.angleChangedAt > 200) angle += Math.sin(now * visualSpec.idleSwaySpeed + turret.x) * visualSpec.idleSwayAmplitudeRad;
+    let recoil = visual.recoilUntil > now ? visualSpec.recoilPx * (visual.recoilUntil - now) / visualSpec.recoilMs : 0;
+    const barrelX = -4 - recoil;
+    context.save();
+    const pivot = GAME_CONFIG.turret.visuals.barrelPivot;
+    context.translate(pivot.x - bodySize.w / 2, pivot.y - bodySize.h / 2);
+    context.rotate(angle);
+    const barrelSprite = turretSpriteImages.barrel;
+    context.drawImage(barrelSprite || turretBarrelCanvas, barrelX, barrelSprite ? -barrelSprite.height / 2 : -8,
+      barrelSprite ? barrelSprite.width : 34, barrelSprite ? barrelSprite.height : 16);
+    if (visual.flashUntil > now) {
+      context.fillStyle = '#fff4cf'; context.beginPath(); context.arc(27 - recoil, 0, visualSpec.muzzleFlashRadiusPx * (visual.flashUntil - now) / visualSpec.muzzleFlashMs, 0, Math.PI * 2); context.fill();
+    }
+    context.restore();
+    if (turretHitFlashes.get(turret.id) > now) { context.fillStyle = 'rgba(255,255,255,.68)'; context.beginPath(); context.arc(0, 0, 19, 0, Math.PI * 2); context.fill(); }
+    const ratio = Math.max(0, Math.min(1, turret.hp / GAME_CONFIG.turret.hp));
+    const barX = -visualSpec.barWidth / 2, barY = visualSpec.barOffsetY;
+    context.fillStyle = '#101018'; context.fillRect(barX - 1, barY - 1, visualSpec.barWidth + 2, visualSpec.hpBarHeight + 2);
+    const hpGradient = context.createLinearGradient(barX, 0, barX + visualSpec.barWidth, 0);
+    hpGradient.addColorStop(0, '#58cc64'); hpGradient.addColorStop(.5, '#f0d84a'); hpGradient.addColorStop(1, '#e64545');
+    context.fillStyle = hpGradient; context.fillRect(barX, barY, visualSpec.barWidth * ratio, visualSpec.hpBarHeight);
+    if (ratio < .3 && Math.sin(now * Math.PI / 1000) > 0) { context.strokeStyle = '#ff3030'; context.lineWidth = 2; context.strokeRect(barX - 2, barY - 2, visualSpec.barWidth + 4, visualSpec.hpBarHeight + 4); }
+    const segmentWidth = visualSpec.barWidth / visualSpec.ammoSegments;
+    for (let segment = 0; segment < visualSpec.ammoSegments; segment++) {
+      const sx = barX + segment * segmentWidth;
+      const rounds = Math.max(0, Math.min(visualSpec.ammoPerSegment, turret.ammo - segment * visualSpec.ammoPerSegment));
+      const fillWidth = (segmentWidth - 1) * rounds / visualSpec.ammoPerSegment;
+      context.fillStyle = rounds > 0 ? '#ffd23f' : '#35363a'; context.fillRect(sx, barY + 8, fillWidth, 4);
+      context.strokeStyle = '#101018'; context.lineWidth = .6; context.strokeRect(sx, barY + 8, segmentWidth - 1, 4);
+    }
+    if (turret.ammo <= 0) {
+      context.globalAlpha = .6 + .4 * Math.sin(now * Math.PI / 350); context.font = 'bold 12px sans-serif';
+      context.textAlign = 'center'; context.fillStyle = '#fff'; context.fillText('▱', 0, -23);
+    }
+    context.restore();
+  }
+}
+
+function engineerPlacementPoint(player, target = window.lastPointerWorld) {
+  const spec = GAME_CONFIG.heroes.engineer.turretSkill;
+  const aim = player.aim || { x: 1, y: 0 };
+  const wanted = target || { x: player.x + aim.x * spec.placeRange, y: player.y + aim.y * spec.placeRange };
+  const dx = wanted.x - player.x, dy = wanted.y - player.y, distance = Math.hypot(dx, dy);
+  const scale = distance > spec.placeRange ? spec.placeRange / distance : 1;
+  const x = Math.max(GAME_CONFIG.turret.radius, Math.min(ARENA_WIDTH - GAME_CONFIG.turret.radius, player.x + dx * scale));
+  const y = Math.max(GAME_CONFIG.turret.radius, Math.min(ARENA_HEIGHT - GAME_CONFIG.turret.radius, player.y + dy * scale));
+  const valid = (px, py) => {
+    const campfire = state.campfire || { x: ARENA_WIDTH / 2, y: ARENA_HEIGHT / 2 };
+    if (Math.hypot(px - campfire.x, py - campfire.y) < spec.minCampfireDist) return false;
+    return !(state.turrets || []).some((turret) => Math.hypot(px - turret.x, py - turret.y) < spec.minSpacing);
+  };
+  if (valid(x, y)) return { x, y, valid: true };
+  for (let radius = spec.snapStep; radius <= spec.snapRadius; radius += spec.snapStep) {
+    let bestSpot = null;
+    let bestDistance = spec.snapRadius + 1;
+    for (let step = 0; step < spec.snapSlices; step += 1) {
+      const angle = step * Math.PI * 2 / spec.snapSlices;
+      const px = Math.max(GAME_CONFIG.turret.radius, Math.min(ARENA_WIDTH - GAME_CONFIG.turret.radius, x + Math.cos(angle) * radius));
+      const py = Math.max(GAME_CONFIG.turret.radius, Math.min(ARENA_HEIGHT - GAME_CONFIG.turret.radius, y + Math.sin(angle) * radius));
+      const actualDistance = Math.hypot(px - x, py - y);
+      if (actualDistance < bestDistance && valid(px, py)) {
+        bestDistance = actualDistance;
+        bestSpot = { x: px, y: py, valid: true };
+      }
+    }
+    if (bestSpot) return bestSpot;
+  }
+  return { x, y, valid: false };
+}
+
+function drawEngineerEffects(now) {
+  for (const player of state.players || []) {
+    if (player.heroId !== 'engineer') continue;
+    const charge = player.engineerLaserCharge;
+    if (charge) {
+      const spec = GAME_CONFIG.heroes.engineer.laser;
+      const chargeProgress = Math.max(0, Math.min(1, 1 - (charge.endsAt - Date.now()) / spec.chargeMs));
+      const direction = Date.now() < charge.lockAt ? player.aim : charge.aim;
+      const angle = Math.atan2(direction.y, direction.x);
+      let length = spec.length;
+      if (direction.x > 0) length = Math.min(length, (ARENA_WIDTH - player.x) / direction.x);
+      else if (direction.x < 0) length = Math.min(length, -player.x / direction.x);
+      if (direction.y > 0) length = Math.min(length, (ARENA_HEIGHT - player.y) / direction.y);
+      else if (direction.y < 0) length = Math.min(length, -player.y / direction.y);
+      context.save(); context.translate(player.x, player.y); context.rotate(angle);
+      context.globalAlpha = player.id === me ? 1 : 0.5;
+      context.fillStyle = `rgba(255,201,60,${0.15 + 0.2 * chargeProgress})`; context.fillRect(0, -spec.width / 2, length, spec.width);
+      context.setLineDash([14, 10]); context.lineCap = 'butt';
+      context.strokeStyle = 'rgba(12,12,18,.8)'; context.lineWidth = 7; context.strokeRect(0, -spec.width / 2, length, spec.width);
+      context.strokeStyle = '#FFC93C'; context.lineWidth = 4; context.strokeRect(0, -spec.width / 2, length, spec.width);
+      context.restore();
+    }
+  }
+  const local = state.players?.find((player) => player.id === me);
+  if (local?.heroId === 'engineer' && !local.downed && engineerPlacementTargeting) {
+    const spec = GAME_CONFIG.heroes.engineer.turretSkill;
+    const spot = engineerPlacementPoint(local);
+    context.save(); context.globalAlpha = 0.22; context.strokeStyle = '#fff'; context.lineWidth = 1.5;
+    context.beginPath(); context.arc(local.x, local.y, spec.placeRange, 0, Math.PI * 2); context.stroke();
+    context.globalAlpha = 0.4; context.fillStyle = spot.valid ? '#fff' : '#ff5151';
+    context.beginPath(); context.arc(spot.x, spot.y, GAME_CONFIG.turret.radius, 0, Math.PI * 2); context.fill();
+    context.globalAlpha = 0.28; context.drawImage(turretBodyCanvas, spot.x - 22, spot.y - 16);
+    context.restore();
+  }
+  for (let i = engineerLaserBeams.length - 1; i >= 0; i -= 1) {
+    const beam = engineerLaserBeams[i], progress = (now - beam.startedAt) / beam.durationMs;
+    if (progress >= 1) { engineerLaserBeams.splice(i, 1); continue; }
+    const fade = progress > 0.68 ? (1 - progress) / 0.32 : 1;
+    const reduced = prefersReducedMotion || effectiveQuality() === 'low';
+    const jitter = reduced ? 0 : (Math.random() - 0.5) * beam.width * 0.02;
+    context.save(); context.translate(beam.x, beam.y); context.rotate(Math.atan2(beam.dy, beam.dx)); context.globalAlpha = Math.max(0, fade);
+    context.fillStyle = '#FF8A1F'; context.globalAlpha *= 0.55; context.fillRect(0, -beam.width / 2, beam.length, beam.width);
+    context.globalAlpha = Math.max(0, fade) * 0.85; context.fillStyle = '#FFD27A'; context.fillRect(0, -beam.width * 0.3, beam.length, beam.width * 0.6);
+    context.globalAlpha = Math.max(0, fade); context.fillStyle = '#fff'; context.fillRect(0, -beam.width * 0.14 + jitter, beam.length, beam.width * 0.28);
+    context.fillStyle = '#fff6d0'; context.beginPath(); context.arc(0, 0, 18 * fade, 0, Math.PI * 2); context.fill();
+    context.restore();
+  }
+  for (const turret of state.turrets || []) {
+    const pulseUntil = engineerSalvagePulses.get(turret.id) || 0;
+    if (pulseUntil > now) {
+      context.save(); context.globalAlpha = (pulseUntil - now) / GAME_CONFIG.heroes.engineer.salvage.pulseMs; context.fillStyle = '#fff';
+      context.beginPath(); context.arc(turret.x, turret.y, 23, 0, Math.PI * 2); context.fill(); context.restore();
+    } else engineerSalvagePulses.delete(turret.id);
+  }
+  for (const [id, popup] of engineerSalvagePopups) {
+    const progress = (now - popup.startedAt) / GAME_CONFIG.heroes.engineer.salvage.popupMs;
+    if (progress >= 1) { engineerSalvagePopups.delete(id); continue; }
+    context.save(); context.globalAlpha = 1 - progress; context.fillStyle = '#fff6ae'; context.font = 'bold 12px sans-serif';
+    context.textAlign = 'center'; context.fillText(`+${(popup.ammo || GAME_CONFIG.heroes.engineer.salvage.ammo) * popup.count}`, popup.x, popup.y - 28 - progress * 12); context.restore();
+  }
+}
+
 function drawScene(timestamp) {
   const currentTime = timestamp || performance.now();
   if (currentTime - lastHudUpdateAt >= ARENA_TUNING.performance.hudUpdateMs) {
@@ -3548,7 +3921,7 @@ function drawScene(timestamp) {
     maxHp: GAME_CONFIG.campfire.hp,
   };
   if (cf) {
-    // Permanent rings: pre-rendered sprites (under-stroke + dashed main stroke
+    // Permanent rings: pre-rendered sprites (dashed colored stroke
     // + fill), blitted once each. The sprite stroke is baked at full alpha so
     // the heal ring's gentle pulse keeps the stroke at or above the
     // AREA_RING_STROKE_ALPHA floor; the Thorns ring stays steady.
@@ -3683,6 +4056,8 @@ function drawScene(timestamp) {
     }
   }
 
+  drawTurrets(currentTime);
+  drawEngineerEffects(currentTime);
   drawFairyWindFeedback(currentTime);
 
   for (const pickup of state.pickups || []) {
@@ -3779,12 +4154,7 @@ function drawScene(timestamp) {
         context.fillStyle = fillColor;
         context.beginPath(); context.arc(effect.x, effect.y, effect.radius, 0, Math.PI * 2); context.fill();
       }
-      // Dark under-stroke keeps the bright outline readable on the green floor.
-      context.globalAlpha = AREA_UNDERSTROKE_ALPHA;
-      context.strokeStyle = AREA_COLORS.understroke;
-      context.lineWidth = AREA_TELEGRAPH_WIDTH + AREA_UNDERSTROKE_EXTRA_PX;
-      context.beginPath(); context.arc(effect.x, effect.y, effect.radius, 0, Math.PI * 2); context.stroke();
-      // Bright dashed main stroke (never fades).
+      // Dashed colored main stroke (never fades).
       context.globalAlpha = AREA_TELEGRAPH_STROKE_ALPHA;
       context.strokeStyle = stroke;
       context.lineWidth = AREA_TELEGRAPH_WIDTH;
@@ -3801,9 +4171,6 @@ function drawScene(timestamp) {
     } else if (fairyGale) {
       context.globalAlpha = 0.16 * (1 - progress * 0.6); context.fillStyle = fillColor;
       context.beginPath(); context.arc(effect.x, effect.y, effect.radius, 0, Math.PI * 2); context.fill();
-      context.globalAlpha = 0.8 * (1 - progress * 0.4); context.strokeStyle = AREA_COLORS.understroke;
-      context.lineWidth = AREA_TELEGRAPH_WIDTH + AREA_UNDERSTROKE_EXTRA_PX;
-      context.beginPath(); context.arc(effect.x, effect.y, effect.radius, 0, Math.PI * 2); context.stroke();
       context.globalAlpha = 1 - progress * 0.35; context.strokeStyle = fillColor; context.lineWidth = AREA_TELEGRAPH_WIDTH;
       context.setLineDash([AREA_DASH_ON, AREA_DASH_OFF]);
       context.beginPath(); context.arc(effect.x, effect.y, effect.radius, 0, Math.PI * 2); context.stroke(); context.setLineDash([]);
@@ -3812,23 +4179,20 @@ function drawScene(timestamp) {
         const t = wave - k;
         if (t <= 0 || t > 1) continue;
         const r = effect.radius * t;
-        context.globalAlpha = (1 - t) * (1 - progress * 0.25); context.strokeStyle = k % 2 ? HERO_FX_SECONDARY.fairy : '#fff0fa';
-        context.lineWidth = 2;
+      context.globalAlpha = (1 - t) * (1 - progress * 0.25); context.strokeStyle = k % 2 ? HERO_FX_SECONDARY.fairy : '#fff0fa';
+      context.lineWidth = 2;
         context.beginPath(); context.arc(effect.x, effect.y, r, -Math.PI * 0.82 + k * 0.45, Math.PI * 0.78 + k * 0.45); context.stroke();
       }
     } else if (fairyFx && effect.sourceAbility === 'ultimate') {
       const radius = effect.radius * (0.4 + 0.6 * progress);
       context.globalAlpha = 0.12 * (1 - progress); context.fillStyle = fillColor;
       context.beginPath(); context.arc(effect.x, effect.y, effect.radius, 0, Math.PI * 2); context.fill();
-      context.globalAlpha = 0.8 * (1 - progress); context.strokeStyle = AREA_COLORS.understroke;
-      context.lineWidth = AREA_TELEGRAPH_WIDTH + AREA_UNDERSTROKE_EXTRA_PX;
-      context.beginPath(); context.arc(effect.x, effect.y, radius, 0, Math.PI * 2); context.stroke();
       context.globalAlpha = 1 - progress; context.strokeStyle = fillColor; context.lineWidth = AREA_TELEGRAPH_WIDTH;
       context.beginPath(); context.arc(effect.x, effect.y, radius, 0, Math.PI * 2); context.stroke();
     } else if (effect.cone) {
       // Guardian Shield Rush fan: a bright wedge at the TRUE radius and angle,
-      // with the usual dark under-stroke plus a bright main stroke on the two
-      // edges and the arc (no shadowBlur / filters, matching the other markers),
+      // with a colored stroke on the two edges and the arc (no shadowBlur /
+      // filters, matching the other markers),
       // and a few arcs sweeping outward across the wedge as it fades.
       const half = (effect.angleDeg * Math.PI / 180) / 2;
       const a0 = effect.angleRad - half, a1 = effect.angleRad + half;
@@ -3845,11 +4209,6 @@ function drawScene(timestamp) {
       context.globalAlpha = AREA_TELEGRAPH_FILL_END_ALPHA * (1 - progress * 0.6);
       context.fillStyle = fx;
       trace(); context.fill();
-      // Dark under-stroke (keeps the bright wedge readable on the floor)
-      context.globalAlpha = AREA_UNDERSTROKE_ALPHA * (1 - progress * 0.5);
-      context.strokeStyle = AREA_COLORS.understroke;
-      context.lineWidth = AREA_TELEGRAPH_WIDTH + AREA_UNDERSTROKE_EXTRA_PX;
-      trace(); context.stroke();
       // Bright main stroke
       context.globalAlpha = 1 - progress * 0.5;
       context.strokeStyle = fx;
@@ -3873,14 +4232,6 @@ function drawScene(timestamp) {
       context.globalAlpha = endAlpha * (1 - progress * 0.6);
       context.fillStyle = fillColor;
       context.beginPath(); context.arc(effect.x, effect.y, effect.radius, 0, Math.PI * 2); context.fill();
-      // The dark under-stroke rides the expanding ring so the bright stroke
-      // keeps a readable edge on the floor. Drawn at the full radius instead,
-      // it stayed put while the ring expanded past it and read as a black
-      // border around the explosion.
-      context.globalAlpha = AREA_UNDERSTROKE_ALPHA * (1 - progress * 0.5);
-      context.strokeStyle = AREA_COLORS.understroke;
-      context.lineWidth = AREA_TELEGRAPH_WIDTH + AREA_UNDERSTROKE_EXTRA_PX;
-      context.beginPath(); context.arc(effect.x, effect.y, ringRadius, 0, Math.PI * 2); context.stroke();
       context.globalAlpha = 1 - progress * 0.5;
       context.strokeStyle = stroke;
       context.lineWidth = AREA_TELEGRAPH_WIDTH;
@@ -4200,12 +4551,25 @@ function drawScene(timestamp) {
   for (let i = particles.length - 1; i >= 0; i--) {
     const part = particles[i];
     if (part.startedAt && currentTime < part.startedAt) continue;
-    part.x += part.vx * dt;
-    part.y += part.vy * dt;
+    if (part.travelStartedAt !== null && part.travelTargetX !== null && part.travelTargetY !== null) {
+      const progress = Math.max(0, Math.min(1, (currentTime - part.travelStartedAt) / Math.max(1, part.travelDurationMs || 1)));
+      const eased = progress * progress * (3 - 2 * progress);
+      part.x = part.travelStartX + (part.travelTargetX - part.travelStartX) * eased;
+      part.y = part.travelStartY + (part.travelTargetY - part.travelStartY) * eased;
+      if (progress >= 1) {
+        recordEngineerSalvageArrival(part.salvageTurretId, part.travelTargetX, part.travelTargetY,
+          part.salvageAmmo || GAME_CONFIG.heroes.engineer.salvage.ammo, currentTime);
+        particles.splice(i, 1); particlePool.push(part);
+        continue;
+      }
+    } else {
+      part.x += part.vx * dt;
+      part.y += part.vy * dt;
+    }
     if (part.expiresAt) {
       const duration = part.durationMs || ARENA_TUNING.impactSparks.durationMs;
       part.alpha = Math.max(0, (part.expiresAt - currentTime) / duration);
-    } else part.alpha -= part.decay || 0.04;
+    } else if (part.travelStartedAt == null) part.alpha -= part.decay || 0.04;
     if (part.alpha <= 0) {
       particles.splice(i, 1);
       particlePool.push(part);
@@ -4309,7 +4673,9 @@ addEventListener('keydown', onKeyDown);
 addEventListener('keyup', onKeyUp);
 addEventListener('blur', () => {
   if (abilityGesture) finishAbilityGesture({ pointerId: abilityGesture.pointerId }, true);
+  engineerPlacementTargeting = false;
   releaseKeys();
+  targetingHint.hidden = true;
   targetingReticle.hidden = true;
 });
 requestAnimationFrame(draw);

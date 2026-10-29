@@ -276,6 +276,42 @@
       "originalFile": "falling-leaf.svg",
       "originalPath": "game-icons.net.svg/icons/ffffff/000000/1x1/lorc/falling-leaf.svg",
       "license": "CC BY 3.0"
+    },
+    "engineer-primary.svg": {
+      "hero": "engineer",
+      "slot": "primary",
+      "ability": "Wrench Boomerang",
+      "author": "delapouite",
+      "originalFile": "monkey-wrench.svg",
+      "originalPath": "game-icons.net.svg/icons/ffffff/000000/1x1/delapouite/monkey-wrench.svg",
+      "license": "CC BY 3.0"
+    },
+    "engineer-skill.svg": {
+      "hero": "engineer",
+      "slot": "skill",
+      "ability": "Deploy Turret",
+      "author": "sbed",
+      "originalFile": "turret.svg",
+      "originalPath": "game-icons.net.svg/icons/ffffff/000000/1x1/sbed/turret.svg",
+      "license": "CC BY 3.0"
+    },
+    "engineer-ultimate.svg": {
+      "hero": "engineer",
+      "slot": "ultimate",
+      "ability": "Overclock Laser",
+      "author": "lorc",
+      "originalFile": "ray-gun.svg",
+      "originalPath": "game-icons.net.svg/icons/ffffff/000000/1x1/lorc/ray-gun.svg",
+      "license": "CC BY 3.0"
+    },
+    "engineer-talent.svg": {
+      "hero": "engineer",
+      "slot": "talent",
+      "ability": "Salvage",
+      "author": "lorc",
+      "originalFile": "cog.svg",
+      "originalPath": "game-icons.net.svg/icons/ffffff/000000/1x1/lorc/cog.svg",
+      "license": "CC BY 3.0"
     }
   }
 }

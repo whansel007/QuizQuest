@@ -1,8 +1,8 @@
 # Campfire Defense: Hero Guide
 
-The World is a co-op arena game in QuizQuest. Pick one of the seven heroes below, survive waves of monsters, and keep the campfire alive. The run ends when the campfire reaches 0 HP.
+The World is a co-op arena game in QuizQuest. Pick one of the eight heroes below, survive waves of monsters, and keep the campfire alive. The run ends when the campfire reaches 0 HP.
 
-## The seven heroes
+## The eight heroes
 
 Base stats are shown before kingdom upgrades and wave buffs. Attack values are base values; abilities can apply their own multipliers or effects.
 
@@ -15,6 +15,15 @@ Base stats are shown before kingdom upgrades and wave buffs. Attack values are b
 | Bubbles 🫧 | Magic | 110 | 12 | 4 | 220 | Bubble Spray | Bubble Trap | Bubble Rush | Finisher — Bubble Trap kills trigger a larger explosion and halve the remaining skill cooldown. |
 | Electromancer ⚡ | Magic | 100 | 16 | 4 | 225 | Lightning Orb | Stun Field | Chain Lightning | Overload — Chain Lightning refunds its cooldown; stunned targets refund twice as much. |
 | Fairy 🧚 | Magic | 85 | 14 | 2 | 235 | Wind Arrow | Gale Burst | Vortex Orb | Windswept — enemies pushed or pulled by Gale Burst or Vortex Orb are slowed 30% for 2 s. |
+| Engineer 🔧 | Physical | 120 | 14 | 6 | 210 | Wrench Boomerang | Deploy Turret | Overclock Laser | Salvage — your kills add 3 rounds and heal 5% max HP on each living turret. |
+
+### Engineer
+
+- **Wrench Boomerang:** Throws a piercing wrench 300 px at 1,200 px/s, then returns to the Engineer's current position. It deals 0.9× attack and pushes each target 30 px once per leg. The 0.35 s weapon cooldown begins on catch or after its 2 s lifetime; only one wrench can be in flight.
+- **Deploy Turret (E):** Places a turret toward the mouse, clamped to 140 px. Invalid spots snap to a valid point within 60 px; placement fails without using the 18 s cooldown if none exists. Spots must be at least 50 px from the campfire and 60 px from other turrets. A new turret starts with 20 of its 40 rounds. Each Engineer can own two; a third destroys the oldest. The E button shows two pips for the owner's turrets.
+- **Overclock Laser (Q):** Charges for 0.4 s while movement is slowed to 30%, then fires a single 70 px wide beam up to 900 px. It hits each enemy and lobby dummy in the beam once for 6× attack. Its 40 s cooldown starts when the beam fires, and the final 0.1 s locks its direction.
+- **Salvage:** Each Engineer-attributed kill, including kills on lobby dummies, gives 3 rounds and heals 5% of max turret HP to each living owned turret. Turret kills do not trigger Salvage.
+- **Turret targeting:** Turrets use the Stage 1 server-owned entity and targeting rules below. They persist across waves and refill at REST. Use the debug Turret testing menu when you need a turret outside of the Engineer's E skill.
 
 ## Ability cooldowns and mechanics
 
@@ -29,12 +38,13 @@ Cooldowns below are the base server values, before run buffs and hero talents. W
 | Bubbles | 0.105 s | 14 s | 35 s |
 | Electromancer | 0.525 s | 10 s | 35 s |
 | Fairy | 0.35 s | 12 s | 40 s |
+| Engineer | 0.35 s (cooldown after catch) | 18 s | 40 s |
 
 ### Fairy
 
 - **Wind Arrow:** Fires a 0.7× attack arrow at 650 px/s for 380 px. It pierces one enemy and pushes each hit target 50 px along its path (Brutes receive their normal half push).
 - **Gale Burst (E):** A 520 px/s wind projectile bursts on impact or at 360 px. Its 150 px radius deals 0.4× attack and pushes enemies 220 px over 300 ms; Brutes take the full push. Enemies within 250 px of the campfire move radially away from it. Bosses and Kings are immune to pushes.
-- **Vortex Orb (Q):** A 450 px/s orb forms a 180 px radius vortex on impact or at 420 px. For 4 s, it continuously pulls nearby enemies toward the center, then holds them there while the inward force corrects small knockbacks. New arrivals are also pulled and held; Brutes and training dummies are affected, while bosses and Kings are immune. It deals 0.35× attack per second in 250 ms damage ticks. Its final release gives only a slight 18 px nudge over 140 ms so the group stays together; enemies near the campfire are nudged away from it.
+- **Vortex Orb (Q):** A 450 px/s orb forms a 180 px radius vortex on impact or at 420 px. For 4 s, it continuously pulls nearby enemies toward the center, then holds them there while the inward force corrects small knockbacks. New arrivals are also pulled and held; Brutes and training dummies are affected, while bosses and Kings are immune. It deals 0.35× attack per second in 250 ms damage ticks. Its final release gives only a slight 18 px nudge over 140 ms so the group stays together; enemies near the campfire are nudged away from it. Status is shown with ⚡ (stun), 🌀 (Vortex pull/hold), and 🐌 (slow), without changing enemy colors.
 - **Windswept:** Gale Burst and Vortex Orb apply a 30% movement slow for 2 s to enemies they push or release. Wind Arrow does not apply the talent. Holds prevent movement and attacks, and the shared 1.5 s re-hold immunity prevents two Fairies from chaining holds.
 
 ## Shared monster effects
@@ -141,7 +151,7 @@ From the repository root, run `npm run dev`, then open `http://localhost:5173/he
 ## Code map
 
 - [`game-config.js`](./game-config.js): hero stats, combat tuning, building bonuses, waves, and HUD colors.
-- [`hero-list.js`](./hero-list.js): the six selectable hero instances and server constructor registry.
+- [`hero-list.js`](./hero-list.js): the eight selectable hero instances and server constructor registry.
 - [`heroes/roster.js`](./heroes/roster.js): compatibility registry that exports the hero constructors and shared instances.
 - [`heroes/sheriff.js`](./heroes/sheriff.js), [`heroes/guardian.js`](./heroes/guardian.js), [`heroes/pilot.js`](./heroes/pilot.js), [`heroes/bombardier.js`](./heroes/bombardier.js), [`heroes/bubbles.js`](./heroes/bubbles.js), and [`heroes/electromancer.js`](./heroes/electromancer.js): individual hero stats and combat behavior.
 - [`heroes/shared.js`](./heroes/shared.js): shared configuration and projectile construction helpers.

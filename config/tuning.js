@@ -75,16 +75,13 @@ export const THORNS_NUMBER_MERGE_MS = 1_000;
 export const THORNS_NUMBER_COLOR = '#e8a05a';
 
 // --- Area rings and telegraphs (visibility pass) ----------------------------
-// Every ring and area marker is drawn as a dark under-stroke plus a bright
-// dashed main stroke (plain strokes and alpha fills only - no shadowBlur, no
-// filters). The arena floor is a #70a94f/#79b456 checkerboard, so ring colors
-// are chosen to contrast with that green.
+// Area rings use a colored dashed stroke over a translucent fill (plain strokes
+// and alpha fills only - no shadowBlur, no filters). The arena floor is a
+// #70a94f/#79b456 checkerboard, so ring colors are chosen to remain legible.
 export const AREA_RING_WIDTH = 4;
 export const AREA_TELEGRAPH_WIDTH = 5;
 export const AREA_DASH_ON = 14;
 export const AREA_DASH_OFF = 10;
-export const AREA_UNDERSTROKE_EXTRA_PX = 3;
-export const AREA_UNDERSTROKE_ALPHA = 0.45;
 export const AREA_RING_STROKE_ALPHA = 0.8;
 export const AREA_TELEGRAPH_STROKE_ALPHA = 0.9;
 export const AREA_RING_FILL_ALPHA = 0.12;
@@ -106,8 +103,7 @@ export const AREA_TELEGRAPH_SWEEP_HAND_WIDTH = 3;
 // zone centre is unambiguous.
 export const AREA_ENEMY_MARKER_MIN_RADIUS = 100;
 export const AREA_COLORS = Object.freeze({
-  understroke: '#000000',
-  healStroke: '#B8FFE0',
+  healStroke: '#C2D7A7',
   healFill: '#3CFF8A',
   thornsStroke: '#FF8A1F',
   thornsFill: '#FF8A1F',
@@ -523,6 +519,7 @@ export const TALENT_FALLBACK_EMOJI = Object.freeze({
   bubbles: '🫧',
   electromancer: '⚡',
   fairy: '🍃',
+  engineer: '⚙️',
 });
 
 // Performance profiler. Debug builds only (same gate as the debug menu): the

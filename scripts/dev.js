@@ -32,7 +32,11 @@ function hasSeededDemoAccounts(users) {
 }
 
 function supportsCurrentHeroLab(status) {
-  return Array.isArray(status?.heroLabHeroes) && status.heroLabHeroes.includes('fairy');
+  // Require the newest hero so a stale, already-running API cannot serve the
+  // refreshed picker while rejecting Engineer joins.
+  return Array.isArray(status?.heroLabHeroes)
+    && status.heroLabHeroes.includes('fairy')
+    && status.heroLabHeroes.includes('engineer');
 }
 
 async function isDemoApiReady(port) {
