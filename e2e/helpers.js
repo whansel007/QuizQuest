@@ -12,6 +12,10 @@ export const STUDENT = { email: 'student01@quizquest.demo', name: 'Student 01' }
 const VERDICT = /Correct!|Not quite\.|Partly right|Time is up|No answer given/;
 
 export async function signIn(page, { email, password = PASSWORD }) {
+  // A test that opens two pages has to say which one it is driving: WebKit
+  // stops animating a page that is not in front, and a click waits for the
+  // page to settle before it fires. Without this the click waits forever.
+  await page.bringToFront();
   await page.goto('/');
   await page.getByRole('textbox', { name: 'Email' }).fill(email);
   await page.getByRole('button', { name: 'Continue' }).click();

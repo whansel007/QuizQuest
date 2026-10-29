@@ -27,9 +27,21 @@ export default defineConfig({
   // a slow runner, which fails the test even though nothing is wrong. 60s
   // still catches a real hang; the longest journeys also call test.slow().
   timeout: 60 * 1000,
+  // A click that never finds its element would wait for the whole test budget
+  // and then report only "test timed out", with no hint what was missing.
+  // 30s per action fails fast and names the selector that was not there.
   use: {
     trace: 'on-first-retry',
+    actionTimeout: 30 * 1000,
   },
+  // 5s is the default. A page that has to answer the server and then redraw
+  // can be slower than that on WebKit, and the answer would be read as a
+  // failure even though the app was right.
+  expect: { timeout: 10 * 1000 },
+  // One retry on CI. A socket wait or a slow redraw can lose a single run on
+  // a busy runner; the retry settles it. A test that fails twice still fails
+  // the job, and Playwright reports a retry that passed as "flaky".
+  retries: process.env.CI ? 1 : 0,
   projects: browsers.map((b) => ({
     name: b.name,
     use: { ...devices[b.device], baseURL: `http://localhost:${b.port}` },

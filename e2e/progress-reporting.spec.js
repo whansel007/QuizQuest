@@ -110,6 +110,7 @@ test('a professor resolves a student report and the student refreshes to see the
     await report.getByRole('button', { name: 'Mark resolved', exact: true }).click();
     await expect(professorPage.getByText('Report resolved. The student can see the status in My Progress.', { exact: true })).toBeVisible();
 
+    await studentPage.bringToFront();
     await studentPage.getByRole('button', { name: 'Refresh progress', exact: true }).click();
     await studentPage.getByLabel('Report status', { exact: true }).selectOption('resolved');
     await expect(studentPage.getByText(response, { exact: false })).toBeVisible();
