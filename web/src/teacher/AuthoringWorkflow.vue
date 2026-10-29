@@ -175,23 +175,40 @@ async function action(fn) {
   try { if (refreshing) await refreshing; await fn(); await refresh(); schedulePoll(); } catch(e) { error.value = e.message; } finally { busy.value = false; }
 }
 const materialUploader = ref(null);
+let reportAttempt = null;
 function startReport() {
   if (busy.value || attachments.value.busy || attachments.value.pending || !attachments.value.ready) return;
   const materialIds=[...attachments.value.materialIds].sort();
   const changed = reports.value.some(j=>j.status==='complete') && !reports.value.some(j=>j.status==='complete' && sameIds(j.input.passageIds, materialIds));
   if (changed && !window.confirm('Attached files have changed. Generate a new report from the currently attached files? Existing reports, saved versions and questions will be kept.' + (dirty.value ? ' Unsaved edits in this editor will be replaced.' : ''))) return;
-  if (!changed && dirty.value && !window.confirm('Keep editing the current report? Choose Cancel to keep editing, or OK to open the report for all uploaded material. Unsaved edits in this editor may be replaced.')) return;
+  if (!changed && dirty.value && !window.confirm('Generate a fresh report from the currently attached material? Unsaved editor changes will be replaced; saved reports and questions will be kept.')) return;
   return action(async () => {
-    const payload = {kind:'report',topicId:props.topic.id,materialIds,confirmMaterialChange:changed};
+    reportAttempt ||= await draftStore(key + ':report-attempt') || {
+      kind:'report',topicId:props.topic.id,materialIds,confirmMaterialChange:changed,
+      regenerate: reports.value.length > 0, attemptId: reqId() };
+    await draftStore(key + ':report-attempt', reportAttempt);
+    const payload = reportAttempt;
     let j;
     try { j = await api('POST',path+'/authoring',payload); }
     catch (e) {
       // The server also checks content/model/prompt changes, which the local ID comparison cannot see.
-      if (changed || e.status !== 409 || e.message !== 'Attached files changed. Confirm generating a new report; existing reports and questions will be kept.') throw e;
+      if (changed || e.status !== 409 || e.message !== 'Attached files changed. Confirm generating a new report; existing reports and questions will be kept.') {
+        // A definite validation rejection created no job. Allow corrected
+        // material selections to start a new request; retain uncertain outages.
+        if ([400, 409].includes(e.status)) {
+          await draftStore(key + ':report-attempt', null);
+          reportAttempt = null;
+        }
+        throw e;
+      }
       if (!window.confirm(e.message + (dirty.value ? ' Unsaved edits in this editor will be replaced.' : ''))) return;
-      j = await api('POST',path+'/authoring',{...payload,confirmMaterialChange:true});
+      reportAttempt = {...payload,confirmMaterialChange:true};
+      await draftStore(key + ':report-attempt', reportAttempt);
+      j = await api('POST',path+'/authoring',reportAttempt);
     }
     materialUploader.value?.collapse();
+    await draftStore(key + ':report-attempt', null);
+    reportAttempt = null;
     reportId.value=j.id; loadedId=''; review.value=''; baseRevision.value=0;
   });
 }
@@ -233,7 +250,8 @@ function generate() {
 function resume(j) { return action(async () => track((await api('POST',path+`/authoring/${j.id}/resume`)).id)); }
 // Opens the Question bank on this batch's topic, where its drafts are. The
 // bank loads its questions when it opens, so newly saved drafts are listed.
-function reviewDrafts(topicId=props.topic.id) { S.qFilter='draft'; S.topicId=topicId; setTab('review'); }
+// rewrite: also bring the bank's rewrite toolbar into view.
+function reviewDrafts(topicId=props.topic.id, rewrite=false) { S.qFilter='draft'; S.topicId=topicId; S.focusRewrite=rewrite; setTab('review'); }
 function download() {
   const url=URL.createObjectURL(new Blob([review.value],{type:'text/markdown;charset=utf-8'}));
   const a=document.createElement('a'); a.href=url; a.download=`knowledge-report${props.topic.week ? '-week-' + props.topic.week : ''}.md`; a.click(); setTimeout(()=>URL.revokeObjectURL(url),1000);
@@ -259,7 +277,7 @@ function download() {
     <button v-if="['failed','interrupted'].includes(current.status) && !current.result.applicationUnsupported" class="btn" :disabled="running" @click="resume(current)">Resume saved work</button>
   </div>
   <ImportMaterials ref="materialUploader" :course="course" :topic="topic" :disabled="running" in-workflow @available="hasMaterial=$event" @state="attachments=$event" />
-  <button v-if="hasMaterial" class="btn" :disabled="running || attachments.busy || attachments.pending || !attachments.ready" @click="startReport">Generate report</button>
+  <button v-if="hasMaterial" class="btn" :disabled="running || attachments.busy || attachments.pending || !attachments.ready" @click="startReport">{{ reports.length ? 'Regenerate Report' : 'Generate report' }}</button>
   <p v-if="attachments.pending" class="small muted">Upload or remove selected files before generating a report.</p>
   <div v-if="reports.length || olderReports.length" class="panel">
     <h3>Knowledge report</h3>
@@ -271,8 +289,9 @@ function download() {
     <p v-if="!report && !reports.length" class="small muted">Upload this topic's lecture files above and click <strong>Generate report</strong>, or choose an older report.</p>
     <p v-if="report && !report.input.topicId" class="note warn small">This older report was made from every file in the course, not just this topic's. Questions drafted from it are still filed under {{ topicLabel(topic) }}.</p>
     <p v-if="reportSources" class="small muted">Made from: {{ reportSources }}</p>
-    <p v-if="reportOutdated" class="note warn" role="status">This report was made from different files than the ones attached now. Click <strong>Generate report</strong> to make one from the current files, or keep using this one.</p>
+    <p v-if="reportOutdated" class="note warn" role="status">This report was made from different files than the ones attached now. Click <strong>Regenerate Report</strong> to make one from the current files, or keep using this one.</p>
     <template v-if="report?.status === 'complete'">
+      <p v-if="report.input.regenerate && !report.reportSourceId" class="note" role="status">Review this regenerated report before saving it. Previous reports and their saved versions remain available in the report selector; existing questions keep their original sources.</p>
       <p>Edit this report to reflect what students should learn. Questions use only the latest saved report.</p>
       <p v-if="report.result.insufficient" class="note warn">Some material could not support a complete explanation. Review the gaps and add missing information before assessing it.</p>
       <p v-if="report.reportRevision && baseRevision !== report.reportRevision" class="note warn">A newer saved version is available. Your editor has been kept. Download your edits or load the saved report to compare.</p>
@@ -301,9 +320,10 @@ function download() {
     <h3>Review and publish</h3>
     <p>{{ generation.result.created.length }} of {{ generation.input.count }} questions saved as drafts. Review answers and explanations before approval; AI checks can miss errors.</p>
     <p>Edit, reject or regenerate individual questions in the Question Bank. Approve &amp; publish makes approved questions available to students.</p>
-    <button class="btn primary" @click="reviewDrafts()">Review drafts</button>
+    <p>Not the mix you wanted? Tick the drafts to change and rewrite them as Application or Conceptual questions. Your originals are kept.</p>
+    <div class="actions"><button class="btn primary" @click="reviewDrafts()">Review drafts</button><button class="btn" @click="reviewDrafts(topic.id, true)">Rewrite drafts</button></div>
   </div>
-  <GenerationStatus :job="floating" :topic-label="floatingTopic" :busy="running" @view="reviewDrafts(floating.input.topicId)" @resume="resume(floating)" @dismiss="dismissed = floating.id" />
+  <GenerationStatus :job="floating" :topic-label="floatingTopic" :busy="running" @view="reviewDrafts(floating.input.topicId)" @rewrite="reviewDrafts(floating.input.topicId, true)" @resume="resume(floating)" @dismiss="dismissed = floating.id" />
 </template>
 
 <style scoped>

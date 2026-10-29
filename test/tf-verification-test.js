@@ -81,7 +81,8 @@ test('invalid keys, explanations, ambiguity and missing evidence remain fail-clo
     const f=await fixture({draft:({sourceId})=>[item(false,sourceId,overrides)],verify:({decision:d})=>decision(d)});
     const job=await f.generate();
     assert.equal(job.status,'failed');assert.equal(job.result.created.length,0);
-    assert.equal(job.calls,6,'three bounded drafting/verification rounds');
+    assert.equal(job.calls,4,'three bounded drafts reuse the first critical rejection');
+    assert.equal(job._validation.length,1,'identical invalid candidates need no repeated verification');
     const log=f.db.generationLog.find(l=>l.id===job.result.generationId);
     assert.equal(log.rejected.length,3);assert.ok(job._validation.every(v=>!v.pass));
     assert.equal(log.rejected[0].candidate.answerIndex,overrides.answerIndex??1);
