@@ -51,7 +51,7 @@ test('student reports survive a failed submission and show a professor response 
     else await page.getByLabel('Written answer').fill('My practice answer.');
     await page.getByRole('button', { name: 'Submit answer' }).click();
   }
-  await page.getByRole('button', { name: 'Report a problem with this question', exact: true }).click();
+  await page.getByRole('button', { name: 'Report a problem', exact: true }).click();
   await page.getByLabel('Problem category').selectOption('ambiguous');
   const reason = 'Browser workflow: the wording could be clearer.';
   await page.getByLabel('Report this question to your professor').fill(reason);
@@ -225,7 +225,10 @@ test('the Konami debug menu exposes test accounts and fills the sign-in form', a
   const password = page.getByLabel('Password', { exact: true });
   await password.fill('quizquest');
   await password.press('Enter');
-  await page.getByRole('heading', { name: 'Practice', exact: true }).waitFor();
+  // students land in their Kingdom; signed in once the menu offers Log out
+  await page.getByRole('button', { name: 'Log out', exact: true }).waitFor();
+  await openStudentTab(page, 'Practice');
+  await page.getByRole('region', { name: 'Practice setup', exact: true }).waitFor();
 });
 test('an unavailable API shows a useful error and the debug account list can be retried', async (t) => {
   const page = await browser.newPage();
@@ -285,10 +288,17 @@ test('student and teacher screens fit 320px and 390px viewports', async (t) => {
   const page = await pageFor(t, 'Student 02', { width: 320, height: 800 });
   for (const width of [320, 390]) {
     await page.setViewportSize({ width, height: 800 });
-    // the tab is still "Summon" but the view it opens is Hero Summon
-    for (const [name, heading] of [['Practice', 'Practice'], ['My Progress', 'My Progress'], ['World', 'World'], ['Kingdom', 'Kingdom'], ['Summon', 'Hero Summon']]) {
-      await page.locator('#tabs').getByRole('button', { name, exact: true }).click();
-      await page.getByRole('heading', { name: heading, exact: true }).waitFor();
+    // each tab, and what shows its page has opened
+    const pages = {
+      Practice: () => page.getByRole('region', { name: 'Practice setup', exact: true }),
+      'My Progress': () => page.getByRole('heading', { name: 'My Progress', exact: true }),
+      World: () => page.getByRole('heading', { name: 'The Clearing', exact: true }),
+      Kingdom: () => page.getByRole('heading', { name: /^Your Kingdom/ }),
+      Summon: () => page.getByRole('heading', { name: 'Summon', exact: true }),
+    };
+    for (const [name, opened] of Object.entries(pages)) {
+      await openStudentTab(page, name);
+      await opened().waitFor();
       const overflow = await page.evaluate(() => document.documentElement.scrollWidth - innerWidth);
       assert.ok(overflow <= 1, `${name} overflows ${width}px by ${overflow}px`);
       if (process.env.QA_SCREENSHOTS && width === 320) await page.screenshot({ path: require('node:path').join(process.env.QA_SCREENSHOTS, name.replace(/\W+/g, '-') + '.png'), fullPage: true });
@@ -299,6 +309,8 @@ test('student and teacher screens fit 320px and 390px viewports', async (t) => {
   await page.getByRole('button', { name: 'Prof. Demo A' }).click();
   await page.setViewportSize({ width: 320, height: 800 });
   for (const name of ['Question bank', 'AI drafting', 'Analytics', 'Evaluation', 'Settings']) {
+    // on a phone the teacher menu is a drawer behind the menu button
+    await page.getByRole('button', { name: 'Open navigation', exact: true }).click();
     await page.locator('#tabs').getByRole('button', { name, exact: true }).click();
     await page.locator('main h2').waitFor();
     const overflow = await page.evaluate(() => document.documentElement.scrollWidth - innerWidth);
@@ -341,7 +353,7 @@ test('a summon with a lost response reuses its purchase key', async (t) => {
   srv.quiz.db.ledger.push({ id: 'test-funds', studentId: 's-02', amount: 200, kind: 'refund', refKey: 'test-funds', at: Date.now() });
   await page.locator('#tabs').getByRole('button', { name: 'Summon' }).click();
   // the new x1 control carries its cost beneath the label
-  const open = page.getByRole('button', { name: /Summon ×1/ });
+  const open = page.getByRole('button', { name: /^Summon ×1(?!0)/ });
   await open.waitFor();
   let body;
   await page.route('**/hero-summon', async (route) => {
@@ -364,30 +376,19 @@ test('kingdom builds drop new blocks in place and the summon reveal hands over t
   const page = await pageFor(t, 'Student 03');
   const R = require('../src/quiz/rewards');
   R.inventory(srv.quiz.db, 's-03').resources = { wood: 40, crystal: 40, herb: 40 };
-  await page.locator('#tabs').getByRole('button', { name: 'Kingdom' }).click();
-  // How the kingdom is drawn is the student's side of the work, and it is
-  // being redrawn as a 2D map, so this test goes after what the kingdom says
-  // and does rather than after how it is drawn. The scene is found by the text
-  // of its accessible name, so it does not matter whether the scene ends up
-  // being an <svg> or a <div>. The one thing it must keep is an accessible
-  // name that says what the kingdom is.
-  const scene = page.locator('[aria-label*="Your kingdom: castle level 0"]');
-  await scene.waitFor();
-  const build = page.getByRole('button', { name: /^Build: / }).first();
-  await build.hover();
-  // The ghost preview and the drop are isometric details, so they are only
-  // checked when the isometric scene is the one on screen.
-  const isometric = (await page.locator('.iso .vx').count()) > 0;
-  if (isometric) {
-    assert.ok(await page.locator('.iso .vx.ghost').count() > 0, 'hovering Build previews ghost blocks');
-  }
-  await build.click();
-  // The first plot is the Library, so building it takes the Library to level 1.
-  await page.locator('[aria-label*="Library level 1"]').waitFor();
-  if (isometric) {
-    assert.ok(await page.locator('.iso .vx.drop').count() > 0, 'new blocks drop in without remounting the view');
-  }
-  assert.equal(await page.locator('.tile .v').first().innerText(), '🪵 35');
+  await openStudentTab(page, 'Kingdom');
+  // The town is a canvas, so this test goes after what the kingdom says and
+  // does rather than how it is drawn: the Buildings list opens a building's
+  // panel, and building it spends resources on the server.
+  await page.getByRole('heading', { name: /^Your Kingdom/ }).waitFor();
+  await page.getByRole('button', { name: 'Buildings', exact: true }).click();
+  await page.locator('#town-building-list').getByRole('button', { name: /Library/ }).click();
+  const panel = page.getByRole('dialog', { name: 'Library' });
+  await panel.getByText(/Level 0 \//).waitFor();
+  await panel.getByRole('button', { name: /^Build · / }).click();
+  await panel.getByText(/Level 1 \//).waitFor();
+  assert.ok(R.inventory(srv.quiz.db, 's-03').resources.wood < 40, 'building spends wood');
+  await panel.getByRole('button', { name: 'Close', exact: true }).click();
 
   srv.quiz.db.ledger.push({ id: 'test-funds-3', studentId: 's-03', amount: 100, kind: 'refund', refKey: 'test-funds-3', at: Date.now() });
   // The Summon tab now summons heroes, not eggs: pin the pull to one hero.
@@ -399,7 +400,7 @@ test('kingdom builds drop new blocks in place and the summon reveal hands over t
   });
   t.after(() => { R.drawHeroSummon = draw; });
   await page.locator('#tabs').getByRole('button', { name: 'Summon' }).click();
-  await page.getByRole('button', { name: /Summon ×1/ }).click();
+  await page.getByRole('button', { name: /^Summon ×1(?!0)/ }).click();
   const dialog = page.getByRole('dialog');
   await dialog.waitFor();
   await dialog.click(); // skip the wobble
@@ -410,7 +411,7 @@ test('kingdom builds drop new blocks in place and the summon reveal hands over t
   // the pulled hero appears in the lazy-loaded summon journal
   await page.getByRole('button', { name: 'History', exact: true }).click();
   await page.getByRole('heading', { name: 'Summon History' }).waitFor();
-  await page.getByText('Bubbles', { exact: true }).waitFor();
+  await page.getByText('Bubbles', { exact: true }).first().waitFor();
   await page.getByText('NEW', { exact: true }).waitFor();
 });
 
@@ -804,17 +805,19 @@ test('with reduced motion, nothing keeps looping (the shortened animations would
   const page = await pageFor(t, 'Student 04', undefined, { reducedMotion: 'reduce' });
   const running = () => page.evaluate(() => document.getAnimations().filter((a) => a.playState === 'running').map((a) => a.animationName || a.constructor.name));
   const settle = () => page.waitForTimeout(300);
-  // the summon machine idles with a wiggling callout; the kingdom previews pulse
+  // the summon screen idles with a wiggling callout; ready buildings bob their arrows
   await page.locator('#tabs').getByRole('button', { name: 'Summon' }).click();
-  await page.getByRole('button', { name: /Summon ×1/ }).waitFor();
+  await page.getByRole('button', { name: /^Summon ×1(?!0)/ }).waitFor();
   await settle();
   assert.deepEqual(await running(), [], 'Summon');
   const R = require('../src/quiz/rewards');
   R.inventory(srv.quiz.db, 's-04').resources = { wood: 40, crystal: 40, herb: 40 };
-  await page.locator('#tabs').getByRole('button', { name: 'Kingdom' }).click();
-  await page.getByRole('button', { name: /^Build: / }).first().hover();
+  await openStudentTab(page, 'Kingdom');
+  await page.getByRole('heading', { name: /^Your Kingdom/ }).waitFor();
+  await page.getByRole('button', { name: 'Buildings', exact: true }).click();
+  await page.locator('#town-building-list').getByText(/ready/).first().waitFor();
   await settle();
-  assert.deepEqual(await running(), [], 'Kingdom build preview');
+  assert.deepEqual(await running(), [], 'Kingdom with buildings ready to upgrade');
 });
 
 test('weekly topics: narrow the dashboard, follow a next step, and add a topic for uploads', async (t) => {

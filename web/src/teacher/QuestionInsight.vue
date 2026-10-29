@@ -57,10 +57,10 @@ function openInBank() {
           <span :class="'badge ' + q.status">{{ q.status }}</span>
           <span v-if="q.difficulty" class="badge plain">{{ q.difficulty }}</span>
           <span v-if="q.difficultyVerdict" class="badge draft">⚠ {{ q.difficultyVerdict }}</span>
-          <span class="muted">{{ q.topic }}<template v-if="q.outcome"> · {{ q.outcome }}</template> · version {{ q.version }}</span>
+          <span class="muted">{{ q.topic }}<template v-if="q.outcome"> · {{ q.outcome }}</template></span>
         </div>
 
-        <div class="tiles">
+        <div class="tiles insight-tiles">
           <div class="tile"><div class="v">{{ q.first.n ? pct(q.first.accuracy) : '-' }}</div><div class="l">first-attempt accuracy ({{ q.first.correct }}/{{ q.first.n }})</div></div>
           <div class="tile"><div class="v">{{ q.retry.n ? pct(q.retry.accuracy) : '-' }}</div><div class="l">retry accuracy ({{ q.retry.correct }}/{{ q.retry.n }})</div></div>
           <div class="tile"><div class="v">{{ secs(q.time.meanMs) }}</div><div class="l">average time ({{ q.time.students }} students, median {{ secs(q.time.medianMs) }})</div></div>
@@ -69,7 +69,7 @@ function openInBank() {
 
         <!-- how the class answered -->
         <template v-if="q.answers.kind === 'options'">
-          <h4>Answers chosen <span class="muted small">({{ q.answers.answered }} answers to version {{ q.version }}{{ q.answers.multi ? '; students could pick several' : '' }})</span></h4>
+          <h4>Answers chosen <span class="muted small">({{ q.answers.answered }} {{ q.answers.answered === 1 ? 'answer' : 'answers' }}{{ q.answers.multi ? '; students could pick several' : '' }})</span></h4>
           <div v-if="q.answers.answered" class="optbars">
             <div v-for="(o, i) in q.answers.options" :key="i" class="optbar">
               <div class="optbar-label">
@@ -83,7 +83,7 @@ function openInBank() {
               </div>
             </div>
           </div>
-          <p v-else class="muted small">No answers to this version in the period.</p>
+          <p v-else class="muted small">No answers {{ q.choicesChangedAt ? 'since the question was changed' : 'in the period' }}.</p>
           <p v-if="q.answers.options.some((o) => o.rarelyChosen)" class="small muted">"Rarely chosen" wrong options were picked by under {{ Math.round(q.answers.unused.maxShare * 100) }}% of answers: they may be too obviously wrong to test understanding. Consider a more plausible distractor.</p>
         </template>
         <template v-else-if="q.answers.kind === 'numeric'">
@@ -109,7 +109,7 @@ function openInBank() {
           <p v-else class="muted small">No answers in the period.</p>
         </template>
         <p v-else class="muted small">This is a maths variation: every student gets different numbers and options, so choices can't be compared. {{ q.answers.answered }} answers in the period.</p>
-        <p v-if="q.olderVersionAnswers" class="muted small">{{ q.olderVersionAnswers }} answer(s) to older versions are counted in accuracy but not in the choices above.</p>
+        <p v-if="q.earlierAnswers" class="muted small">The question's answers were changed{{ q.choicesChangedAt ? ` on ${when(q.choicesChangedAt)}` : '' }}, so {{ q.earlierAnswers }} earlier {{ q.earlierAnswers === 1 ? 'answer is' : 'answers are' }} left out of the counts above. {{ q.earlierAnswers === 1 ? 'It still counts' : 'They still count' }} towards accuracy.</p>
 
         <template v-if="q.explanation">
           <h4>Explanation shown to students</h4>
@@ -118,13 +118,15 @@ function openInBank() {
 
         <template v-if="q.reports.length">
           <h4>Student reports ({{ q.reports.filter((r) => !r.resolved).length }} open)</h4>
-          <div v-for="(r, i) in q.reports" :key="i" class="small" style="padding: 6px 0; border-bottom: 1px solid var(--line)">
+          <!-- the date never splits: it moves to its own line when it doesn't fit -->
+          <div v-for="(r, i) in q.reports" :key="i" class="insight-report small">
             <span :class="'badge ' + (r.resolved ? 'plain' : 'draft')">{{ r.resolved ? 'resolved' : 'open' }}</span>
-            {{ r.reason }} <span class="muted">· {{ when(r.at) }}</span>
+            <span class="insight-report-reason">{{ r.reason }}</span>
+            <span class="insight-report-when muted">{{ when(r.at) }}</span>
           </div>
         </template>
 
-        <div class="row" style="margin-top: 16px; justify-content: flex-end">
+        <div class="row insight-actions" style="margin-top: 16px; justify-content: flex-end">
           <button class="btn" @click="close">Close</button>
           <button class="btn primary" @click="openInBank">Open in Question bank</button>
         </div>

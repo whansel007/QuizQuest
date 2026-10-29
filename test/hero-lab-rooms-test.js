@@ -287,7 +287,8 @@ test('a signed-in hero waits for its owner to reconnect', async (t) => {
   const state = await waitFor(second, 'state', (snapshot) => snapshot.players.length === 1, 4000);
   assert.equal(state.players[0].id, resumed.you);
   assert.equal(state.players[0].disconnected, false);
-  assert.equal(state.players[0].name, 'Sheriff');
+  // a signed-in hero carries its student's name, not the hero's
+  assert.equal(state.players[0].name, server.quiz.db.users.find((u) => u.id === 's-02').name);
 });
 
 // ---------------------------------------------------------------------------

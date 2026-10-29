@@ -167,6 +167,12 @@ test('topics break down into learning outcomes with question coverage', () => {
   const published = (id) => db.questions.filter((q) => q.outcomeId === id && q.status === 'published').length;
   assert.equal(data.outcomes[0].published, published('lo-data-1'));
   assert.equal(data.outcomes[1].published, published('lo-data-2'));
+  // outcomes carry the topic row's participation and timing figures too
+  assert.equal(data.outcomes.reduce((n, o) => n + o.timeouts, 0), data.timeouts);
+  for (const o of data.outcomes) {
+    assert.ok(o.students <= data.students, 'an outcome cannot have more students than its topic');
+    assert.ok(o.timedAnswers === 0 || (o.medianMs > 0 && o.p75Ms >= o.medianMs), 'median and p75 times are set when there are timed answers');
+  }
 });
 
 test('slow and mostly-wrong questions are flagged as possibly confusing', () => {
@@ -206,7 +212,7 @@ test('participation points (opt-in) name students but carry no student ids', () 
   for (const p of points) assert.deepEqual(Object.keys(p).sort(), ['name', 'points']);
 });
 
-test('question detail: option counts on the current version, no student names', () => {
+test('question detail: option counts since the options last changed, no student names', () => {
   const { db, add } = setup();
   db.attempts = db.attempts.filter((a) => a.questionId !== 'q-n2');
   for (const choice of [0, 0, 0, 1, 2]) add({ questionId: 'q-n2', topicId: 'tp-net', choice, correct: choice === 1 });
@@ -215,7 +221,7 @@ test('question detail: option counts on the current version, no student names', 
   assert.equal(d.answers.kind, 'options');
   assert.deepEqual(d.answers.options.map((o) => o.count), [3, 1, 1, 0]);
   assert.deepEqual(d.answers.options.map((o) => o.correct), [false, true, false, false]);
-  assert.equal(d.olderVersionAnswers, 1);
+  assert.equal(d.earlierAnswers, 1);
   assert.ok(d.reports.length >= 1 && !('studentId' in d.reports[0]), 'reports without the reporter');
   assert.ok(!/Student \d|s-0\d/.test(JSON.stringify(d)), 'no student names or ids');
   // multi-select counts every pick; numeric lists common wrong values
@@ -445,4 +451,28 @@ test('"This semester" runs from the course setting to today, or to its end', asy
   } finally {
     srv.io.close();
   }
+});
+
+test('question detail: a wording fix keeps the answer counts, new options restart them', () => {
+  const { db, add } = setup();
+  db.attempts = db.attempts.filter((a) => a.questionId !== 'q-n2');
+  const q = db.questions.find((x) => x.id === 'q-n2');
+  const v1 = q.versions.find((x) => x.v === q.publishedVersion) || q.versions.at(-1);
+  add({ questionId: 'q-n2', topicId: 'tp-net', version: v1.v, choice: 0, correct: false });
+  // reworded only: answers to both versions are counted together
+  q.versions.push({ ...v1, v: v1.v + 1, stem: `${v1.stem} (reworded)`, editedAt: NOW - 1000 });
+  q.publishedVersion = v1.v + 1;
+  add({ questionId: 'q-n2', topicId: 'tp-net', version: v1.v + 1, choice: 1, correct: true });
+  let d = questionInsights(db, 'cl-a', 'q-n2', NOW, { range: 'all' });
+  assert.equal(d.answers.answered, 2);
+  assert.equal(d.earlierAnswers, 0);
+  assert.equal(d.choicesChangedAt, null);
+  // an option replaced: the counts start again, the older answers stay in accuracy
+  q.versions.push({ ...v1, v: v1.v + 2, options: [...v1.options.slice(0, -1), 'A new option'], editedAt: NOW - 500 });
+  q.publishedVersion = v1.v + 2;
+  d = questionInsights(db, 'cl-a', 'q-n2', NOW, { range: 'all' });
+  assert.equal(d.answers.answered, 0);
+  assert.equal(d.earlierAnswers, 2);
+  assert.equal(d.choicesChangedAt, NOW - 500);
+  assert.equal(d.first.n, 2);
 });
