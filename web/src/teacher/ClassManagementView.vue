@@ -290,30 +290,32 @@ function copyToClipboard(text) {
             + Generate a Join Code to Invite Students
           </button>
         </div>
-        <table v-else class="data-table">
-          <thead>
-            <tr>
-              <th>Student Name</th>
-              <th>Email</th>
-              <th>Questions Attempted</th>
-              <th>Last Active</th>
-              <th style="text-align: right;">Actions</th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr v-for="m in roster" :key="m.id">
-              <td><b>{{ m.name }}</b></td>
-              <td class="muted small">{{ m.email }}</td>
-              <td>{{ m.attemptsCount }}</td>
-              <td class="muted small">{{ m.lastActive ? new Date(m.lastActive).toLocaleDateString() : 'Never' }}</td>
-              <td style="text-align: right;">
-                <button class="btn small bad" @click="handleRemoveMember(m)($event)">
-                  Remove
-                </button>
-              </td>
-            </tr>
-          </tbody>
-        </table>
+        <div v-else class="table-wrap teacher-roster-table">
+          <table class="data-table">
+            <thead>
+              <tr>
+                <th>Student Name</th>
+                <th>Email</th>
+                <th>Questions Attempted</th>
+                <th>Last Active</th>
+                <th style="text-align: right;">Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr v-for="m in roster" :key="m.id">
+                <td><b>{{ m.name }}</b></td>
+                <td class="muted small">{{ m.email }}</td>
+                <td>{{ m.attemptsCount }}</td>
+                <td class="muted small">{{ m.lastActive ? new Date(m.lastActive).toLocaleDateString() : 'Never' }}</td>
+                <td style="text-align: right;">
+                  <button class="btn small bad" @click="handleRemoveMember(m)($event)">
+                    Remove
+                  </button>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
       </div>
 
       <!-- TAB 2: JOIN CODES -->
@@ -335,52 +337,54 @@ function copyToClipboard(text) {
             Generate First Join Code
           </button>
         </div>
-        <table v-else class="data-table">
-          <thead>
-            <tr>
-              <th>Join Code</th>
-              <th>Usage</th>
-              <th>Expires</th>
-              <th>Status</th>
-              <th style="text-align: right;">Actions</th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr v-for="c in joinCodes" :key="c.id">
-              <td>
-                <div style="display: flex; align-items: center; gap: 8px;">
-                  <code class="code-badge-table">{{ c.code || c.id }}</code>
+        <div v-else class="table-wrap teacher-codes-table">
+          <table class="data-table">
+            <thead>
+              <tr>
+                <th>Join Code</th>
+                <th>Usage</th>
+                <th>Expires</th>
+                <th>Status</th>
+                <th style="text-align: right;">Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr v-for="c in joinCodes" :key="c.id">
+                <td>
+                  <div style="display: flex; align-items: center; gap: 8px;">
+                    <code class="code-badge-table">{{ c.code || c.id }}</code>
+                    <button
+                      v-if="c.code && !c.revoked && !c.isExpired"
+                      type="button"
+                      class="btn small"
+                      style="padding: 2px 8px; font-size: 11px;"
+                      @click="copyToClipboard(c.code)"
+                    >
+                      Copy
+                    </button>
+                  </div>
+                </td>
+                <td>{{ c.usageCount }} / {{ c.usageLimit ? c.usageLimit : '∞' }}</td>
+                <td class="small muted">{{ c.expiresAt ? new Date(c.expiresAt).toLocaleDateString() : 'Never' }}</td>
+                <td>
+                  <span v-if="c.revoked" class="badge bad">Revoked</span>
+                  <span v-else-if="c.isExpired" class="badge warn">Expired</span>
+                  <span v-else class="badge good">Active</span>
+                </td>
+                <td style="text-align: right;">
                   <button
-                    v-if="c.code && !c.revoked && !c.isExpired"
-                    type="button"
-                    class="btn small"
-                    style="padding: 2px 8px; font-size: 11px;"
-                    @click="copyToClipboard(c.code)"
+                    v-if="!c.revoked && !c.isExpired"
+                    class="btn small bad"
+                    @click="handleRevokeCode(c)($event)"
                   >
-                    Copy
+                    Revoke
                   </button>
-                </div>
-              </td>
-              <td>{{ c.usageCount }} / {{ c.usageLimit ? c.usageLimit : '∞' }}</td>
-              <td class="small muted">{{ c.expiresAt ? new Date(c.expiresAt).toLocaleDateString() : 'Never' }}</td>
-              <td>
-                <span v-if="c.revoked" class="badge bad">Revoked</span>
-                <span v-else-if="c.isExpired" class="badge warn">Expired</span>
-                <span v-else class="badge good">Active</span>
-              </td>
-              <td style="text-align: right;">
-                <button
-                  v-if="!c.revoked && !c.isExpired"
-                  class="btn small bad"
-                  @click="handleRevokeCode(c)($event)"
-                >
-                  Revoke
-                </button>
-                <span v-else class="muted small">—</span>
-              </td>
-            </tr>
-          </tbody>
-        </table>
+                  <span v-else class="muted small">—</span>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
       </div>
     </template>
 

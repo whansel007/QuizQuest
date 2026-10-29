@@ -110,6 +110,9 @@ const TABLES = [
   },
   {
     table: 'inventories', collection: 'inventory', key: ['student_id'],
+    // avatarWardrobe stays in the row's `extra` JSONB, beside resources. This
+    // keeps a cosmetic resource debit, owned IDs, loadout and retry receipts
+    // under the snapshot store's existing single-writer row boundary.
     fields: { studentId: f('student_id'), pets: f('pets'), items: f('items'), equippedPet: f('equipped_pet'), equippedItem: f('equipped_item', { keepNull: true }), resources: f('resources') },
   },
   {

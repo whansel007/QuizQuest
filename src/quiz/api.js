@@ -45,6 +45,8 @@ const T = require('./topics');
 const R = require('./rewards');
 const E = require('./economy');
 const { SESSION_RESOURCES } = require('./seed');
+const { AVATAR_COSMETIC_BY_ID, AVATAR_COSMETIC_CATALOG } = require('../../config/avatar-cosmetics');
+const { avatarVisual, wardrobeState, wardrobeView, legacyColorItem } = require('./avatar');
 const P = require('./passwords');
 
 const BODY_LIMIT = 100 * 1024;     // bytes, default per request
@@ -224,10 +226,27 @@ function createQuizApi({ dataFile = null, store = null, now = () => Date.now(), 
       fail(400, 'Choose a color that stands apart from the grass.');
     return color;
   }
+  // New wardrobe state is loaded with the inventory row so resource-priced
+  // purchases, owned IDs, loadout and retry receipts share one database write.
+  const avatarInventory = (u) => db.inventory.find((item) => item.studentId === u.id) || null;
+  const avatarAppearance = (u) => avatarVisual(u, avatarInventory(u));
+
+  function wardrobeInventory(user) {
+    const existing = avatarInventory(user);
+    const inventory = existing || R.inventory(db, user.id);
+    let changed = !existing;
+    if (!inventory.avatarWardrobe && user.avatarWardrobe && typeof user.avatarWardrobe === 'object') {
+      inventory.avatarWardrobe = user.avatarWardrobe;
+      changed = true;
+    }
+    if (changed) save({ analytics: false });
+    return inventory;
+  }
+
   // What the browser may see of a user: never the password hash
   const publicUser = (u) => ({
     id: u.id, name: u.name, role: u.role, email: u.email,
-    ...(u.role === 'student' ? { avatarColor: u.avatarColor || TOWN_AVATAR_DEFAULT_COLOR } : {}),
+    ...(u.role === 'student' ? { avatarColor: avatarAppearance(u).color, avatarVisual: avatarAppearance(u) } : {}),
   });
 
   // Shape a question for the teacher UI (full detail incl. answers)
@@ -496,6 +515,7 @@ attemptId: attempt.id,
     pickChallenge,
     classOf: (id) => db.classes.find((c) => c.id === id),
     kingdomBuildings: (studentId) => E.kingdom(db, studentId).buildings,
+    avatarVisual: avatarAppearance,
     // Same gate the debug menu uses: only seeded synthetic demo accounts.
     isDebugUser: isSeededDemoUser,
     grantResources: (studentId, bundle, reason, refKey) => E.grantResources(db, studentId, bundle, reason, refKey, now()),
@@ -1974,6 +1994,14 @@ return studentProgress(db, user.id, cl);
     return { pet, duplicatePet: !!owned, inventory: inv, wallet: wallet(user.id) };
   });
 
+  route('POST', '/api/student/workshop/trial', 'student', ({ user, body }) => {
+    const heroId = str(body.heroId, 40, 'Hero');
+    if (!R.HERO_CATALOG.some((hero) => hero.id === heroId)) fail(400, 'Choose a hero from the catalog.');
+    const trial = services.heroLab?.rooms?.createTrial?.(user.id, heroId);
+    if (!trial) fail(503, 'The training ground is full. Try again shortly.');
+    return { url: `/hero-lab/world?heroId=${encodeURIComponent(heroId)}&trialTicket=${encodeURIComponent(trial.ticket)}`, expiresAt: trial.expiresAt };
+  });
+
   route('POST', '/api/student/hero-summon', 'student', ({ user, body }) => {
     const rid = requestId(body.requestId);
     const count = body.count === undefined ? 1 : Number(body.count);
@@ -2146,7 +2174,91 @@ return studentProgress(db, user.id, cl);
   route('POST', '/api/student/avatar/color', 'student', ({ user, body }) => {
     user.avatarColor = validatedAvatarColor(body.color);
     save({ analytics: false });
-    return { avatarColor: user.avatarColor };
+    return { avatarColor: user.avatarColor, avatarVisual: avatarAppearance(user) };
+  });
+
+  route('GET', '/api/student/castle/wardrobe', 'student', ({ user }) => {
+    const inventory = wardrobeInventory(user);
+    return { ...wardrobeView(user, inventory), resources: { ...E.resources(db, user.id) } };
+  });
+
+  // Wardrobe ownership, loadout, request receipts, and resource balances share
+  // the existing inventory row (including its JSONB `extra` field). The snapshot
+  // store remains the sole database writer for these entities.
+  route('POST', '/api/student/castle/wardrobe/purchase', 'student', ({ user, body }) => {
+    const cosmeticId = str(body.cosmeticId, 64, 'Cosmetic');
+    const item = AVATAR_COSMETIC_BY_ID[cosmeticId];
+    if (!item || !['hat', 'accessory'].includes(item.slot) || !item.active) fail(400, 'That cosmetic is unavailable.');
+    const rid = requestId(body.requestId);
+    const inventory = wardrobeInventory(user);
+    const state = wardrobeState(user, inventory);
+    const prior = Object.hasOwn(state.requests, rid) ? state.requests[rid] : null;
+    if (prior) {
+      if (prior.cosmeticId !== cosmeticId) fail(409, 'This wardrobe request was already used for another item.');
+      let repairedLog = false;
+      if (prior.refKey && Object.hasOwn(E.RESOURCES, prior.currency) && Number.isSafeInteger(prior.cost) && prior.cost > 0 && !db.resourceLog.some((entry) => entry.refKey === prior.refKey)) {
+        db.resourceLog.push({ id: newId('rl'), studentId: user.id, kind: 'cosmetic', delta: { [prior.currency]: -prior.cost }, reason: `Wardrobe: ${item.name}`, refKey: prior.refKey, at: now(), cosmeticId });
+        repairedLog = true;
+      }
+      if (repairedLog) save({ analytics: false });
+      return { ok: true, cosmeticId, owned: true, alreadyOwned: Boolean(prior.alreadyOwned), repeated: true, ...wardrobeView(user, inventory), resources: { ...E.resources(db, user.id) } };
+    }
+    const alreadyOwned = state.ownedCosmetics.includes(cosmeticId);
+    const refKey = `wardrobe:${user.id}:${rid}`;
+    const priorSpend = db.resourceLog.find((entry) => entry.refKey === refKey);
+    if (priorSpend && (priorSpend.studentId !== user.id || priorSpend.kind !== 'cosmetic' || priorSpend.cosmeticId !== cosmeticId))
+      fail(409, 'This wardrobe request was already used for another purchase.');
+    if (alreadyOwned && !priorSpend) return { ok: true, cosmeticId, owned: true, alreadyOwned: true, ...wardrobeView(user, inventory), resources: { ...E.resources(db, user.id) } };
+
+    let chargeCurrency = item.currency;
+    let chargeAmount = item.cost;
+    if (priorSpend) {
+      const loggedCost = Object.entries(priorSpend.delta || {}).filter(([, amount]) => Number.isSafeInteger(amount) && amount !== 0);
+      if (loggedCost.length !== 1 || loggedCost[0][1] >= 0) fail(409, 'This wardrobe purchase receipt is invalid.');
+      chargeCurrency = loggedCost[0][0];
+      chargeAmount = -loggedCost[0][1];
+    }
+
+    if (chargeAmount > 0) {
+      if (!Object.hasOwn(E.RESOURCES, chargeCurrency) || !Number.isSafeInteger(chargeAmount) || chargeAmount < 0) fail(400, 'That cosmetic has an invalid price.');
+      const resources = E.resources(db, user.id);
+      if ((resources[chargeCurrency] || 0) < chargeAmount) fail(400, `You need ${chargeAmount} ${E.RESOURCES[chargeCurrency].name.toLowerCase()} to add this cosmetic.`);
+      resources[chargeCurrency] = (resources[chargeCurrency] || 0) - chargeAmount;
+      if (!priorSpend) db.resourceLog.push({ id: newId('rl'), studentId: user.id, kind: 'cosmetic', delta: { [chargeCurrency]: -chargeAmount }, reason: `Wardrobe: ${item.name}`, refKey, at: now(), cosmeticId });
+    }
+
+    const ownedIds = alreadyOwned ? state.ownedCosmetics : [...state.ownedCosmetics, cosmeticId];
+    inventory.avatarWardrobe = {
+      ownedIds, hatId: state.hatId, accessoryId: state.accessoryId,
+      requests: { ...state.requests, [rid]: { cosmeticId, alreadyOwned, refKey: chargeAmount > 0 ? refKey : null, currency: chargeCurrency, cost: chargeAmount } },
+    };
+    save({ analytics: false });
+    return { ok: true, cosmeticId, owned: true, alreadyOwned, ...wardrobeView(user, inventory), resources: { ...E.resources(db, user.id) } };
+  });
+
+  route('PUT', '/api/student/castle/wardrobe/loadout', 'student', ({ user, body }) => {
+    const inventory = wardrobeInventory(user);
+    const state = wardrobeState(user, inventory);
+    const hatId = body.hatId === undefined ? state.hatId : body.hatId;
+    if (hatId !== null && (!AVATAR_COSMETIC_BY_ID[hatId] || AVATAR_COSMETIC_BY_ID[hatId].slot !== 'hat' || !state.ownedHats.includes(hatId)))
+      fail(400, 'You do not own that hat.');
+    const accessoryId = body.accessoryId === undefined ? state.accessoryId : body.accessoryId;
+    if (accessoryId !== null && (!AVATAR_COSMETIC_BY_ID[accessoryId] || AVATAR_COSMETIC_BY_ID[accessoryId].slot !== 'accessory' || !state.ownedAccessories.includes(accessoryId)))
+      fail(400, 'You do not own that accessory.');
+    const colorId = body.colorId === undefined ? wardrobeView(user, inventory).equipped.colorId : body.colorId;
+    const defaultColorId = AVATAR_COSMETIC_CATALOG.find((item) => item.slot === 'color' && item.renderValue === TOWN_AVATAR_DEFAULT_COLOR)?.id;
+    const color = AVATAR_COSMETIC_BY_ID[colorId || defaultColorId];
+    const legacyColor = legacyColorItem(user);
+    const keepLegacyColor = !!legacyColor && legacyColor.id === colorId;
+    if (keepLegacyColor) {
+      // Preserve a valid color saved by the older custom-color picker.
+    } else {
+      if (!color || color.slot !== 'color' || !color.active || !state.ownedIds.includes(color.id)) fail(400, 'Choose an available avatar color.');
+      user.avatarColor = validatedAvatarColor(color.renderValue);
+    }
+    inventory.avatarWardrobe = { ownedIds: state.ownedCosmetics, hatId, accessoryId, requests: state.requests };
+    save({ analytics: false });
+    return { ...wardrobeView(user, inventory), avatarColor: user.avatarColor, resources: { ...E.resources(db, user.id) } };
   });
 
   // ---------------- student: kingdom ----------------
@@ -2172,7 +2284,10 @@ return studentProgress(db, user.id, cl);
   // ---------------- student: trading ----------------
   route('GET', '/api/student/classes/:classId/trades', 'student', ({ user, params }) => {
     const cls = studentClass(user, params.classId);
+    if (E.kingdom(db, user.id).buildings.tower < 1) fail(403, 'Build the Tower to level 1 to unlock class trading.');
     const list = db.trades.filter((t) => t.classId === cls.id);
+    if (!cls.settings.tradingEnabled) return { enabled: false, unlocked: true, limits: E.TRADE, resources: E.resources(db, user.id), market: [], mine: [], history: [] };
+    const openNotes = list.filter((t) => t.status === 'open').sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
     const view = (t) => ({
       id: t.id,
       give: t.give,
@@ -2186,10 +2301,11 @@ return studentProgress(db, user.id, cl);
     });
     return {
       enabled: cls.settings.tradingEnabled,
+      unlocked: true,
       limits: E.TRADE,
       resources: E.resources(db, user.id),
-      market: list.filter((t) => t.status === 'open' && t.fromId !== user.id).map(view),
-      mine: list.filter((t) => t.status === 'open' && t.fromId === user.id).map(view),
+      market: openNotes.filter((t) => t.fromId !== user.id && isEnrolled(t.fromId, cls.id) && E.kingdom(db, t.fromId).buildings.tower >= 1).map(view),
+      mine: openNotes.filter((t) => t.fromId === user.id).map(view),
       history: list
         .filter((t) => t.status !== 'open' && (t.fromId === user.id || t.acceptedBy === user.id))
         .slice(-10)
@@ -2200,24 +2316,36 @@ return studentProgress(db, user.id, cl);
 
   route('POST', '/api/student/classes/:classId/trades', 'student', ({ user, params, body }) => {
     const cls = studentClass(user, params.classId);
-    const r = E.createTrade(db, { cls, studentId: user.id, give: body.give, want: body.want, now: now() });
+    if (E.kingdom(db, user.id).buildings.tower < 1) fail(403, 'Build the Tower to level 1 to unlock class trading.');
+    const r = E.createTrade(db, { cls, studentId: user.id, give: body.give, want: body.want, requestId: requestId(body.requestId), now: now() });
     if (!r.ok) fail(400, r.error);
     save({ analytics: false });
     return [201, { id: r.trade.id }];
   });
 
-  route('POST', '/api/student/trades/:tid/accept', 'student', ({ user, params }) => {
+  route('POST', '/api/student/trades/:tid/accept', 'student', ({ user, params, body }) => {
     const t = db.trades.find((x) => x.id === params.tid) || fail(404, 'Not found.');
-    const cls = studentClass(user, t.classId); // must be in the same class
-    const r = E.acceptTrade(db, { cls, trade: t, studentId: user.id, now: now() });
+    const rid = requestId(body.requestId);
+    const replay = t.status === 'accepted' && t.acceptedBy === user.id && t.acceptRequestId === rid;
+    const cls = replay ? db.classes.find((x) => x.id === t.classId) || fail(404, 'Not found.') : studentClass(user, t.classId);
+    if (!replay) {
+      if (E.kingdom(db, user.id).buildings.tower < 1) fail(403, 'Build the Tower to level 1 to unlock class trading.');
+      if (!isEnrolled(t.fromId, cls.id)) fail(409, 'This offer is no longer available because its creator left the class.');
+      if (E.kingdom(db, t.fromId).buildings.tower < 1) fail(409, 'This offer is no longer available because its creator no longer has an active Tower.');
+    }
+    const r = E.acceptTrade(db, { cls, trade: t, studentId: user.id, requestId: rid, now: now() });
     if (!r.ok) fail(409, r.error);
     save({ analytics: false });
     return { ok: true, resources: E.resources(db, user.id) };
   });
 
-  route('POST', '/api/student/trades/:tid/cancel', 'student', ({ user, params }) => {
+  route('POST', '/api/student/trades/:tid/cancel', 'student', ({ user, params, body }) => {
     const t = db.trades.find((x) => x.id === params.tid && x.fromId === user.id) || fail(404, 'Not found.');
-    const r = E.cancelTrade(db, { trade: t, now: now() });
+    const rid = requestId(body.requestId);
+    const replay = t.status === 'cancelled' && t.cancelRequestId === rid;
+    const cls = replay ? db.classes.find((x) => x.id === t.classId) || fail(404, 'Not found.') : studentClass(user, t.classId);
+    if (!replay && E.kingdom(db, user.id).buildings.tower < 1) fail(403, 'Build the Tower to level 1 to manage class trades.');
+    const r = E.cancelTrade(db, { cls, trade: t, requestId: rid, now: now() });
     if (!r.ok) fail(409, r.error);
     save({ analytics: false });
     return { ok: true, resources: E.resources(db, user.id) };

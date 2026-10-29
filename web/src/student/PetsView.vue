@@ -235,11 +235,13 @@ function timeLabel(at) { return when(at); }
 
 // the Kingdom's telescope leaves a note so the lens can open here
 const lensOpening = ref(false);
+let lensOpeningTimer;
 try {
   if (sessionStorage.getItem('qq-summon-from-telescope') === '1') {
     sessionStorage.removeItem('qq-summon-from-telescope');
     lensOpening.value = true;
-    setTimeout(() => { lensOpening.value = false; }, 900);
+    const reducedMotion = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
+    lensOpeningTimer = setTimeout(() => { lensOpening.value = false; }, reducedMotion ? 220 : 800);
   }
 } catch { /* storage blocked: no lens, the page opens as usual */ }
 
@@ -250,6 +252,7 @@ onMounted(async () => {
 });
 onUnmounted(() => {
   alive = false;
+  clearTimeout(lensOpeningTimer);
   document.body.style.overflow = '';
 });
 </script>
@@ -467,8 +470,8 @@ onUnmounted(() => {
 @keyframes gaze-glint { 50% { opacity:.2; transform:scale(.5); } }
 /* arriving from the Kingdom telescope: the lens opens onto the sky */
 .lens-open { position:fixed; z-index:40; inset:0; overflow:hidden; pointer-events:none; }
-.lens-open .lens { position:absolute; left:50%; top:50%; width:160vmax; height:160vmax; border:10px solid #C8963E; border-radius:50%; box-shadow:0 0 0 4px #23382F, 0 0 0 200vmax #17123A; transform:translate(-50%,-50%) scale(0); animation:lens-open .85s cubic-bezier(.6,0,.4,1) forwards; }
-@keyframes lens-open { to { transform:translate(-50%,-50%) scale(1); opacity:.0; } }
+.lens-open .lens { position:absolute; left:50%; top:50%; width:160vmax; height:160vmax; border:12px solid #C8963E; border-radius:50%; box-shadow:0 0 0 4px #23382F,inset 0 0 0 5px #F2BA55,0 0 0 200vmax #101D42; transform:translate(-50%,-50%) scale(0); animation:lens-open .76s cubic-bezier(.65,0,.4,1) forwards; }
+@keyframes lens-open { 0% { transform:translate(-50%,-50%) scale(0); opacity:1; } 84% { opacity:1; } 100% { transform:translate(-50%,-50%) scale(1); opacity:0; } }
 .summon-summary-shade { position:fixed; z-index:30; inset:0; display:grid; place-items:center; padding:20px; overflow:auto; background:rgb(11 27 27 / 88%); color:#FBF2D8; }
 .summon-summary-panel { width:min(1190px,100%); max-height:calc(100svh - 40px); overflow:auto; padding:20px 24px; background:radial-gradient(ellipse at 50% 0%,rgb(87 142 189 / 17%),transparent 54%),linear-gradient(155deg,#182D32,#203B36 60%,#152B33); border:0; border-radius:14px; box-shadow:0 0 0 5px rgb(12 24 27 / 70%),0 16px 48px #071614; animation:summary-panel-in .42s cubic-bezier(.2,.8,.25,1) both; }
 .summary-header { display:flex; align-items:center; justify-content:space-between; gap:15px; }.summary-header h2 { margin:0; color:#FBF2D8; font:700 clamp(26px,3vw,36px)/1 Georgia,'Palatino Linotype',serif; }.summary-instruction { margin:7px 0 12px; color:#D7DDC9; font-size:13px; }
@@ -482,7 +485,7 @@ onUnmounted(() => {
 @keyframes summary-panel-in { from { opacity:0; transform:translateY(16px) scale(.985); } to { opacity:1; transform:translateY(0) scale(1); } }
 @keyframes summary-card-in { from { opacity:0; transform:translateY(18px) scale(.94); } to { opacity:1; transform:translateY(0) scale(1); } }
 @keyframes summary-star-glint { from { filter:brightness(.9); } to { filter:brightness(1.35) drop-shadow(0 0 5px rgb(242 186 85 / 55%)); } }
-@media (prefers-reduced-motion:reduce) { .summon-summary-panel,.summary-card,.summary-stars { animation:none; }.summary-card { transition:none; } }
+@media (prefers-reduced-motion:reduce) { .summon-summary-panel,.summary-card,.summary-stars { animation:none; }.summary-card { transition:none; }.lens-open .lens { animation:none; opacity:0; } }
 .story-modal-shade { z-index:20; }.story-modal { width:min(820px,100%); max-height:min(650px,calc(100svh - 36px)); overflow:auto; padding:20px 22px 18px; color:#23382F; background:#FBF2D8 url('/hero-lab/assets/storybook-paper.svg') repeat; background-size:144px 144px; border:3px solid #23382F; border-radius:15px 12px 16px 13px; box-shadow:0 7px 0 #7A6545; }
 .story-modal-header { display:flex; justify-content:space-between; align-items:center; gap:12px; margin-bottom:14px; }.story-modal-header h2 { margin:0; color:#254937; font:700 28px/1.05 Georgia,'Palatino Linotype',serif; }.modal-kicker { margin-bottom:4px; }
 .modal-close { width:36px; height:36px; padding:0; color:#23382F; background:#FFF8E4; border:2px solid #23382F; border-radius:8px; box-shadow:0 2px 0 #7A6545; font-size:23px; line-height:1; cursor:pointer; }

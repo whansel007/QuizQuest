@@ -3,19 +3,19 @@
 // The server owns the session: every question is fetched fresh, answers
 // are graded there, and timers count down from the server's remainingMs.
 import { ref, computed, nextTick, onMounted, onUnmounted } from 'vue';
-import { api, rerender, setTab } from '../api.js';
+import { S, api, rerender, setTab } from '../api.js';
 import { toast, action, fmtBundle } from '../ui.js';
 import { store } from './home.js';
 import QuestionForm from './QuestionForm.vue';
 import ResultBlock from './ResultBlock.vue';
 import ReportForm from './ReportForm.vue';
-import HeroIcon from './HeroIcon.vue';
+import AvatarPreview from './AvatarPreview.vue';
+import { TOWN_AVATAR_DEFAULT_COLOR } from '../../../config/tuning.js';
 
 const props = defineProps({ sid: { type: String, required: true }, initial: { type: Object, required: true } });
 const sid = props.sid;
 const home = store.home;
-const practiceHero = { id: 'player', emoji: '🐱' };
-const item = home.catalog.items.find((i) => i.id === home.inventory.equippedItem);
+const avatarVisual = computed(() => S.me?.avatarVisual || { color: S.me?.avatarColor || TOWN_AVATAR_DEFAULT_COLOR, hat: null, accessory: null });
 const notes = props.initial.notes;
 
 // --- battle stage (persists across questions) ---
@@ -292,7 +292,9 @@ onUnmounted(() => {
       </div>
 
       <div class="battle-player" aria-hidden="true">
-        <span ref="petSprite" class="battle-player-sprite"><HeroIcon :hero="practiceHero" :size="180" :animated="true" label="Your cat-ball hero" /><span v-if="item" class="hat">{{ item.emoji }}</span></span>
+        <span ref="petSprite" class="battle-player-sprite">
+          <AvatarPreview class="duel-avatar-preview" :color="avatarVisual.color" :hat-id="avatarVisual.hat" :accessory-id="avatarVisual.accessory" />
+        </span>
         <span v-for="d in playerDamage" :key="d.id" class="battle-damage player-damage">{{ d.text }}</span>
       </div>
 

@@ -1,4 +1,5 @@
 const { HERO_CLASSES } = require('../../public/hero-lab/hero-list.js');
+const { avatarVisual } = require('../quiz/avatar');
 const { GAME_CONFIG } = require('../../public/hero-lab/game-config.js');
 const {
   RESPAWN_RING_MIN, RESPAWN_RING_MAX, RESPAWN_MIN_SEPARATION, RESPAWN_CANDIDATE_ATTEMPTS,
@@ -24,7 +25,9 @@ const ARENA_CONFIG = {
 const MOVEMENT_KEYS = ['up', 'down', 'left', 'right'];
 const clamp = (value, min, max) => Math.min(max, Math.max(min, value));
 
-function createRoom({ io, services = null, id, code = null, isDefault = false, log = console.log }) {
+function createRoom({ io, services = null, id, code = null, isDefault = false, mode = 'campfire', ownerId = null, trialTicket = null, expiresAt = null, heroId = null, log = console.log }) {
+  const workshopTrial = mode === 'workshop_trial';
+  const initialTrialHeroId = heroId;
   // Every broadcast below goes through a room-scoped operator, so an event can
   // never reach a socket that belongs to another room. Private messages use
   // `direct.to(socketId)`, which is safe because a socket lives in one room.
@@ -57,6 +60,9 @@ function createRoom({ io, services = null, id, code = null, isDefault = false, l
 
   let projectileCounter = 0;
   let monsterSeq = 0;
+  let lastTrialSpawnAt = 0;
+  const TRIAL_ENEMY_CAP = 12;
+  const TRIAL_SPAWN_COOLDOWN_MS = 350;
   let chainCastCounter = 0;
 
   // Per-tick event batching: hit and kill events are collected during the tick
@@ -116,8 +122,8 @@ function createRoom({ io, services = null, id, code = null, isDefault = false, l
     x: ARENA_CONFIG.width / 2,
     y: ARENA_CONFIG.height / 2,
     radius: GAME_CONFIG.campfire.radius,
-    hp: GAME_CONFIG.campfire.hp,
-    maxHp: GAME_CONFIG.campfire.hp,
+    hp: workshopTrial ? Number.MAX_SAFE_INTEGER : GAME_CONFIG.campfire.hp,
+    maxHp: workshopTrial ? Number.MAX_SAFE_INTEGER : GAME_CONFIG.campfire.hp,
   };
 
   function resetGame() {
@@ -915,7 +921,7 @@ function createRoom({ io, services = null, id, code = null, isDefault = false, l
   }
 
   function roomInfo() {
-    return { code, phase, hostId, maxPlayers: ROOM_MAX_PLAYERS };
+    return { code, phase, hostId, maxPlayers: ROOM_MAX_PLAYERS, mode, ...(workshopTrial ? { expiresAt, heroId } : {}) };
   }
 
   // Every phase change is logged once, so a session can be replayed from the
@@ -1185,6 +1191,31 @@ function createRoom({ io, services = null, id, code = null, isDefault = false, l
       return { ok: true, waiting: true };
     }
 
+    if (workshopTrial) {
+      if (!user || user.id !== ownerId || payload?.trialTicket !== trialTicket || heroId !== initialTrialHeroId || now >= expiresAt) {
+        return { ok: false, code: 'trial_auth', message: 'This private workshop trial is not yours or has expired.' };
+      }
+      const returning = [...players.values()].find((entry) => entry.disconnected && entry.accountId === ownerId);
+      if (returning) {
+        resumePlayer(socket, returning, now);
+        socket.emit('welcome', welcomePayload(socket, false));
+        nsp.emit('player_reconnected', { playerId: socket.id, heroId: returning.heroId, name: returning.name, emoji: returning.emoji });
+        broadcastState(now);
+        return { ok: true, waiting: false, resumed: true };
+      }
+      if (players.size || waiting.size) return { ok: false, code: 'trial_in_use', message: 'This workshop trial is already open in another session.' };
+      hostId = socket.id;
+      const player = spawnPlayer(socket.id, heroId, user, now);
+      setPhase('running');
+      campfire.maxHp = Number.MAX_SAFE_INTEGER;
+      campfire.hp = campfire.maxHp;
+      start();
+      log(`[Hero Lab] ${player.name} started private workshop trial ${id}`);
+      socket.emit('welcome', welcomePayload(socket, false));
+      broadcastState(now);
+      return { ok: true, waiting: false };
+    }
+
     if (user) {
       const returning = [...players.values()].find((entry) => entry.disconnected && entry.accountId === user.id);
       if (returning) {
@@ -1234,6 +1265,7 @@ function createRoom({ io, services = null, id, code = null, isDefault = false, l
   // The host starts the run from the lobby. Non-hosts are ignored, so a stray
   // or spoofed event can never start somebody else's game.
   function startRunBy(socket) {
+    if (workshopTrial) return { ok: false, code: 'trial_mode' };
     if (socket.id !== hostId) return { ok: false, code: 'not_host' };
     if (phase !== 'lobby') return { ok: false, code: 'wrong_phase' };
     if (players.size === 0) return { ok: false, code: 'empty' };
@@ -1243,6 +1275,7 @@ function createRoom({ io, services = null, id, code = null, isDefault = false, l
   // Lobby-only hero swap. The hero object is rebuilt from scratch, so no stat
   // card or ability state leaks between heroes.
   function swapHero(socket, heroId) {
+    if (workshopTrial) return { ok: false, code: 'trial_mode' };
     if (phase !== 'lobby') return { ok: false, code: 'locked' };
     if (!Object.hasOwn(HERO_CLASSES, heroId)) return { ok: false, code: 'invalid_hero' };
     const now = Date.now();
@@ -1869,10 +1902,12 @@ function createRoom({ io, services = null, id, code = null, isDefault = false, l
         countdownEndsAt: phase === 'countdown' ? countdownEndsAt : 0,
         players: [...players.values()].map((player) => ({
           id: player.id, name: player.name, emoji: player.emoji, heroId: player.heroId,
+          avatarVisual: player.user ? (services?.avatarVisual ? services.avatarVisual(player.user) : avatarVisual(player.user)) : null,
           waiting: false, disconnected: Boolean(player.disconnected), host: player.id === hostId,
         })),
         waiting: [...waiting.values()].map((entry) => ({
           id: entry.id, name: entry.name, emoji: entry.emoji, heroId: entry.heroId,
+          avatarVisual: entry.user ? (services?.avatarVisual ? services.avatarVisual(entry.user) : avatarVisual(entry.user)) : null,
           waiting: true, host: entry.id === hostId,
         })),
       },
@@ -2345,7 +2380,7 @@ function createRoom({ io, services = null, id, code = null, isDefault = false, l
         ownerId: null, kind: 'player', sourceAbility: 'second-wind' }, now);
       nsp.emit('second_wind', { x: campfire.x, y: campfire.y, hp: campfire.hp, maxHp: campfire.maxHp });
     }
-    if (!gameEnded && campfire.hp <= 0) {
+    if (!workshopTrial && !gameEnded && campfire.hp <= 0) {
       gameEnded=true; campfire.hp=0; nextWaveAt=0; enemiesLeftToSpawn=0; spawnTelegraphs.length = 0;
       breakPhase = null; breakPhaseEndsAt = 0; buffVote = null; buffVotes.clear();
       if (pendingCampfireDamage > 0) {
@@ -2568,9 +2603,64 @@ function createRoom({ io, services = null, id, code = null, isDefault = false, l
     return killed;
   }
 
+  function spawnTrialEnemy(socket, enemyId) {
+    if (!workshopTrial || socket.data.user?.id !== ownerId || !players.has(socket.id)) return { ok: false, code: 'trial_auth' };
+    const classes = { zombie: Zombie, skeleton: Skeleton, devil: Devil, exploder: Exploder, brute: Brute, boss: BruteKing };
+    const EnemyClass = classes[enemyId];
+    if (!EnemyClass) return { ok: false, code: 'invalid_enemy' };
+    const now = Date.now();
+    if (now - lastTrialSpawnAt < TRIAL_SPAWN_COOLDOWN_MS) return { ok: false, code: 'rate_limited' };
+    if (enemyCount() >= TRIAL_ENEMY_CAP) return { ok: false, code: 'entity_cap' };
+    const player = players.get(socket.id);
+    const angle = Math.random() * Math.PI * 2;
+    const radius = 230 + Math.random() * 80;
+    const x = clamp(player.x + Math.cos(angle) * radius, 40, ARENA_CONFIG.width - 40);
+    const y = clamp(player.y + Math.sin(angle) * radius, 40, ARENA_CONFIG.height - 40);
+    monsterSeq += 1;
+    const monster = new EnemyClass({ id: `enemy_${monsterSeq}`, x, y, now });
+    monster.isBoss = enemyId === 'boss';
+    monster.isElite = monster.isBoss;
+    monster.damageScale = 1;
+    monsters.set(monster.id, monster);
+    lastTrialSpawnAt = now;
+    if (monster.isBoss) nsp.emit('boss_spawn', { id: monster.id, hp: monster.maxHp });
+    broadcastState(now);
+    return { ok: true, spawned: enemyId };
+  }
+
+  function summonTrialWave(socket) {
+    if (!workshopTrial || socket.data.user?.id !== ownerId || !players.has(socket.id)) return { ok: false, code: 'trial_auth' };
+    const wave = ['zombie', 'skeleton', 'devil', 'exploder', 'brute', 'zombie'];
+    if (enemyCount() + wave.length > TRIAL_ENEMY_CAP) return { ok: false, code: 'entity_cap' };
+    const now = Date.now();
+    const player = players.get(socket.id);
+    wave.forEach((type, index) => {
+      const EnemyClass = { zombie: Zombie, skeleton: Skeleton, devil: Devil, exploder: Exploder, brute: Brute }[type];
+      const angle = Math.PI * 2 * index / wave.length;
+      const x = clamp(player.x + Math.cos(angle) * 260, 40, ARENA_CONFIG.width - 40);
+      const y = clamp(player.y + Math.sin(angle) * 260, 40, ARENA_CONFIG.height - 40);
+      monsterSeq += 1;
+      monsters.set(`enemy_${monsterSeq}`, new EnemyClass({ id: `enemy_${monsterSeq}`, x, y, now }));
+    });
+    lastTrialSpawnAt = now;
+    broadcastState(now);
+    return { ok: true, spawned: wave.length };
+  }
+
+  function expireTrial() {
+    if (!workshopTrial) return;
+    nsp.emit('trial_expired');
+    stop();
+  }
+
   return {
     id,
     code,
+    mode,
+    ownerId,
+    trialTicket,
+    expiresAt,
+    heroId: initialTrialHeroId,
     isDefault,
     join, input, primaryHold, milestoneChoice, aim, fire, skill, ultimate,
     cancelTargeting, castBuffVote, leave,
@@ -2599,6 +2689,9 @@ function createRoom({ io, services = null, id, code = null, isDefault = false, l
     debugSpawnEnemies,
     debugKillAll,
     debugKillDummies,
+    spawnTrialEnemy,
+    summonTrialWave,
+    expireTrial,
     // Debug menu: set a player's Tower level (0..max) and re-derive their stats.
     debugSetTower: (level, playerId = hostId) => {
       const player = players.get(playerId);
