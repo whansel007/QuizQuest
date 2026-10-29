@@ -53,6 +53,8 @@ Tests follow setup, actions and assertions, as in Week 10c. The comments explain
 
 After a failure, run `pnpm exec playwright show-report` to inspect the failed step. To watch a specific test locally, add `--headed`; to step through it, add `--debug`. A failing assertion should be investigated rather than removed just to make the run pass.
 
+CI keeps first-attempt failure traces and screenshots in the **playwright-test-results** artifact for seven days. Download and unzip it from the GitHub Actions run, then open a trace with `pnpm exec playwright show-trace path/to/trace.zip`. The report journey has named steps for student submission, professor resolution and student refresh; a separate fixture owns the professor browser's cleanup so a teardown error can be distinguished from a journey failure.
+
 These checks cover selected journeys, not every possible game action. They exercise the local Node backend and temporary data store; they do not certify a live Supabase connection, external AI services, or a complete multiplayer battle.
 
 You can also record a new test with the **Playwright Test for VS Code** extension ("Record new"), as in the Week 10c lab. Start a server first with `pnpm build` and then `pnpm start`, record against http://localhost:3000, and replace the last recorded click with an `expect(...)` assertion.

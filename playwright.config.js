@@ -23,7 +23,9 @@ export default defineConfig({
   // The HTML report is for local runs; CI reads the plain list instead.
   reporter: process.env.CI ? 'list' : 'html',
   use: {
-    trace: 'on-first-retry',
+    // Keep first-attempt failure evidence available to the CI artifact step.
+    trace: 'retain-on-failure',
+    screenshot: 'only-on-failure',
   },
   projects: browsers.map((b) => ({
     name: b.name,

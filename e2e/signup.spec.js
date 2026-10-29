@@ -13,10 +13,10 @@ test('should create a student account and sign the student in', async ({ page })
   await page.locator('#signup-password').fill('longenough');
   await page.getByRole('button', { name: 'Create account' }).click();
 
-  // a brand-new student is signed in but not in any class yet
+  // A brand-new student is signed in and lands in the classless Kingdom home hub.
   await expect(page.getByText('New Student')).toBeVisible();
-  // the student lands on the practice tab, which says how to join a class
-  await expect(page.getByText('You are not enrolled in any class yet.')).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Find your party', exact: true })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Join a class in Practice', exact: true })).toBeVisible();
 });
 
 test('should refuse an email that already has an account', async ({ page }) => {

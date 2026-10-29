@@ -1,6 +1,18 @@
 // End-to-end journeys for student progress and professor report replies.
-import { test, expect } from '@playwright/test';
+import { test as base, expect } from '@playwright/test';
 import { signIn, openTab, answerCurrentQuestion, STUDENT, TEACHER } from './helpers.js';
+
+const test = base.extend({
+  // Let Playwright own the second role's context teardown, with a bound so a stuck close is identifiable.
+  professorPage: [async ({ browser, baseURL }, use) => {
+    const professorContext = await browser.newContext({ baseURL });
+    try {
+      await use(await professorContext.newPage());
+    } finally {
+      await professorContext.close();
+    }
+  }, { timeout: 20_000, title: 'professor browser context lifecycle' }],
+});
 
 test('a student sees completed practice reflected in topic progress', async ({ page }) => {
   // Student 12 is seeded into Tutorial Group C with no attempts or sessions.
@@ -72,17 +84,11 @@ test('a student sees completed practice reflected in topic progress', async ({ p
   await expect(page.getByText('Recent sessions', { exact: true })).toBeVisible();
 });
 
-test('a professor resolves a student report and the student refreshes to see the reply', async ({ browser }, testInfo) => {
-  const baseURL = testInfo.project.use.baseURL;
-  const studentContext = await browser.newContext({ baseURL });
-  const professorContext = await browser.newContext({ baseURL });
+test('a professor resolves a student report and the student refreshes to see the reply', async ({ page: studentPage, professorPage }) => {
+  const reason = `Progress journey ${Date.now()}: please clarify this question.`;
+  const response = 'I checked the source notes and clarified the wording.';
 
-  try {
-    const studentPage = await studentContext.newPage();
-    const professorPage = await professorContext.newPage();
-    const reason = `Progress journey ${Date.now()}: please clarify this question.`;
-    const response = 'I checked the source notes and clarified the wording.';
-
+  await test.step('student submits a report', async () => {
     await signIn(studentPage, STUDENT);
     await openTab(studentPage, 'Practice');
     await studentPage.getByLabel('Length', { exact: true }).selectOption('5');
@@ -95,7 +101,9 @@ test('a professor resolves a student report and the student refreshes to see the
     await expect(studentPage.getByText('Report sent. You can follow its status in My Progress.')).toBeVisible();
     await openTab(studentPage, 'My Progress');
     await expect(studentPage.getByText(reason, { exact: false })).toBeVisible();
+  });
 
+  await test.step('professor resolves the report', async () => {
     await signIn(professorPage, TEACHER);
     await openTab(professorPage, 'Question bank');
     await professorPage.getByRole('button', { name: /^Reported \(/ }).click();
@@ -104,12 +112,12 @@ test('a professor resolves a student report and the student refreshes to see the
     await report.getByLabel('Professor response (optional, visible to the student)').fill(response);
     await report.getByRole('button', { name: 'Mark resolved', exact: true }).click();
     await expect(professorPage.getByText('Report resolved. The student can see the status in My Progress.', { exact: true })).toBeVisible();
+  });
 
+  await test.step('student refreshes progress to see the reply', async () => {
     await studentPage.getByRole('button', { name: 'Refresh progress', exact: true }).click();
     await studentPage.getByLabel('Report status', { exact: true }).selectOption('resolved');
     await expect(studentPage.getByText(response, { exact: false })).toBeVisible();
     await expect(studentPage.locator('.pg-report').filter({ hasText: reason }).getByText('Resolved', { exact: true })).toBeVisible();
-  } finally {
-    await Promise.all([studentContext.close(), professorContext.close()]);
-  }
+  });
 });
