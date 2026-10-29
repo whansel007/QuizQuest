@@ -29,7 +29,7 @@ const canvas = document.querySelector('#world');
 const ARENA_WIDTH = GAME_CONFIG.arena.width;
 const ARENA_HEIGHT = GAME_CONFIG.arena.height;
 // Rasterize close to the displayed viewport while keeping world coordinates fixed.
-const renderScale = Math.min(1, Math.max(0.4, Math.min(innerWidth / ARENA_WIDTH, innerHeight / ARENA_HEIGHT)));
+let renderScale = Math.min(1, Math.max(0.4, Math.min(innerWidth / ARENA_WIDTH, innerHeight / ARENA_HEIGHT)));
 canvas.width = Math.round(ARENA_WIDTH * renderScale);
 canvas.height = Math.round(ARENA_HEIGHT * renderScale);
 let particleBudget = Math.max(100, Math.floor(GAME_CONFIG.arenaTuning.performance.maxParticles * renderScale * renderScale));
@@ -55,6 +55,19 @@ backgroundCanvas.height = canvas.height;
 const backgroundContext = backgroundCanvas.getContext('2d');
 backgroundContext.scale(renderScale, renderScale);
 paintForestClearing(backgroundContext);
+
+function resizeArenaRaster() {
+  const nextScale = Math.min(1, Math.max(0.4, Math.min(innerWidth / ARENA_WIDTH, innerHeight / ARENA_HEIGHT)));
+  if (Math.abs(nextScale - renderScale) < 0.001) return;
+  renderScale = nextScale;
+  canvas.width = Math.round(ARENA_WIDTH * renderScale);
+  canvas.height = Math.round(ARENA_HEIGHT * renderScale);
+  backgroundCanvas.width = canvas.width;
+  backgroundCanvas.height = canvas.height;
+  backgroundContext.scale(renderScale, renderScale);
+  paintForestClearing(backgroundContext);
+  particleBudget = Math.max(100, Math.floor(GAME_CONFIG.arenaTuning.performance.maxParticles * renderScale * renderScale));
+}
 
 // The arena floor: a calm woodland clearing. Everything here is low contrast
 // on purpose, so enemies, projectiles, rings and the campfire stay the
@@ -256,6 +269,10 @@ const infoCloseButton = document.querySelector('#info-close');
 const buffVote = document.querySelector('#buff-vote');
 const buffCards = document.querySelector('#buff-cards');
 const targetingHint = document.querySelector('#targeting-hint');
+const targetingCancel = document.querySelector('#targeting-cancel');
+const targetingReticle = document.querySelector('#targeting-reticle');
+const movementStick = document.querySelector('#move-stick');
+const touchHelp = document.querySelector('#touch-help');
 const runResultPanel = document.querySelector('#run-result');
 const milestoneDawn = document.querySelector('#milestone-dawn');
 const sessionSummary = document.querySelector('#session-summary');
@@ -309,6 +326,13 @@ let joinFailed = false;
 let leftRoom = false;
 
 const keys = { up: false, down: false, left: false, right: false };
+const stickKeys = { up: false, down: false, left: false, right: false };
+let movementPointerId = null;
+let abilityGesture = null;
+let primaryPointerId = null;
+let lastSentMovement = { up: false, down: false, left: false, right: false };
+let abilityAimTimer = null;
+let pendingAbilityAim = null;
 const codeToKey = {
   ArrowUp: 'up', KeyW: 'up', ArrowDown: 'down', KeyS: 'down',
   ArrowLeft: 'left', KeyA: 'left', ArrowRight: 'right', KeyD: 'right',
@@ -2020,13 +2044,64 @@ function addOrUpdateProjectile(data) {
   }
 }
 
+function sendMovement() {
+  const next = Object.fromEntries(Object.keys(keys).map((key) => [key, Boolean(keys[key] || stickKeys[key])]));
+  if (!socket.connected || (lastSentMovement && Object.keys(next).every((key) => next[key] === lastSentMovement[key]))) return;
+  lastSentMovement = next;
+  socket.emit('input', next);
+}
+
 function releaseKeys() {
-  let changed = false;
-  for (const key of Object.keys(keys)) {
-    if (keys[key]) changed = true;
-    keys[key] = false;
+  for (const key of Object.keys(keys)) { keys[key] = false; stickKeys[key] = false; }
+  movementPointerId = null;
+  movementStick?.style.setProperty('--stick-x', '0px');
+  movementStick?.style.setProperty('--stick-y', '0px');
+  sendMovement();
+  if (primaryPointerId !== null) {
+    primaryPointerId = null;
+    setPrimaryHeld(false);
   }
-  if (changed && socket.connected) socket.emit('input', keys);
+}
+
+function onMovementPointerDown(event) {
+  if (movementPointerId !== null || !me) return;
+  event.preventDefault();
+  movementPointerId = event.pointerId;
+  movementStick.setPointerCapture?.(event.pointerId);
+  updateMovementStick(event);
+}
+
+function updateMovementStick(event) {
+  if (event.pointerId !== movementPointerId) return;
+  const base = movementStick.querySelector('.virtual-stick-base');
+  const knob = movementStick.querySelector('.virtual-stick-knob');
+  if (!base || !knob) return;
+  const rect = base.getBoundingClientRect();
+  const max = rect.width * .34;
+  const cx = rect.left + rect.width / 2;
+  const cy = rect.top + rect.height / 2;
+  let dx = event.clientX - cx;
+  let dy = event.clientY - cy;
+  const length = Math.hypot(dx, dy);
+  if (length > max) { dx *= max / length; dy *= max / length; }
+  const nx = dx / max;
+  const ny = dy / max;
+  movementStick.style.setProperty('--stick-x', `${dx}px`);
+  movementStick.style.setProperty('--stick-y', `${dy}px`);
+  stickKeys.up = ny < -.22;
+  stickKeys.down = ny > .22;
+  stickKeys.left = nx < -.22;
+  stickKeys.right = nx > .22;
+  sendMovement();
+}
+
+function onMovementPointerEnd(event) {
+  if (event.pointerId !== movementPointerId) return;
+  movementPointerId = null;
+  for (const key of Object.keys(stickKeys)) stickKeys[key] = false;
+  movementStick.style.setProperty('--stick-x', '0px');
+  movementStick.style.setProperty('--stick-y', '0px');
+  sendMovement();
 }
 
 function getPointerCoordinates(event) {
@@ -2037,10 +2112,10 @@ function getPointerCoordinates(event) {
   };
 }
 
-function fireWeapon(mode) {
+function fireWeapon(mode, target = window.lastPointerWorld) {
   if (!me || !socket.connected) return;
   if (mode === 'secondary') {
-    if (window.lastPointerWorld) socket.emit('fire', mode, window.lastPointerWorld);
+    if (target) socket.emit('fire', mode, target);
     return;
   }
   const player = state.players.find((candidate) => candidate.id === me);
@@ -2051,6 +2126,39 @@ function fireWeapon(mode) {
     playSound('shoot', { pitchVariance: ARENA_TUNING.sound.shotPitchVariance });
   }
   socket.emit('fire', mode);
+}
+
+function sendAimVector(x, y, immediate = false) {
+  if (!socket.connected || !me || Math.hypot(x, y) < 0.001) return;
+  pendingAbilityAim = { x, y };
+  const send = () => {
+    if (!pendingAbilityAim || !socket.connected || !me) return;
+    const aim = pendingAbilityAim;
+    pendingAbilityAim = null;
+    socket.emit('aim', aim);
+    lastAimSentAt = performance.now();
+  };
+  if (immediate) {
+    clearTimeout(abilityAimTimer);
+    abilityAimTimer = null;
+    send();
+    return;
+  }
+  if (abilityAimTimer !== null) return;
+  const delay = Math.max(0, ARENA_TUNING.performance.aimUpdateMs - (performance.now() - lastAimSentAt));
+  if (delay === 0) { send(); return; }
+  abilityAimTimer = setTimeout(() => { abilityAimTimer = null; send(); }, delay);
+}
+
+function sendCurrentAim() {
+  const player = state.players?.find((candidate) => candidate.id === me);
+  const aim = player?.aim;
+  if (aim && Number.isFinite(aim.x) && Number.isFinite(aim.y)) sendAimVector(aim.x, aim.y, true);
+}
+
+function activateAbility(slot) {
+  sendCurrentAim();
+  socket.emit(slot === 'skill' ? 'skill' : 'ultimate');
 }
 
 // The server repeats the shot for as long as this flag is true, so every hero
@@ -2080,19 +2188,19 @@ function onKeyDown(event) {
   if (key) {
     if (!keys[key]) {
       keys[key] = true;
-      if (socket.connected) socket.emit('input', keys);
+      sendMovement();
     }
     event.preventDefault();
   } else if (event.code === 'KeyE' && !event.repeat) {
-    socket.emit('skill');
+    activateAbility('skill');
   } else if (event.code === 'KeyQ' && !event.repeat) {
-    socket.emit('ultimate');
+    activateAbility('ultimate');
   } else if (event.code === 'KeyI' && !event.repeat) {
     toggleStats();
   } else if (event.code === 'Escape' && !event.repeat) {
     // Esc closes the info panel first, then cancels any Bombardier targeting.
     if (!statsPanel.hidden) closeStats();
-    else socket.emit('cancel_targeting');
+    else cancelTargeting();
   }
 }
 
@@ -2373,7 +2481,7 @@ function syncHeroMenuIcons() {
   const selectedLobbyHero = HEROES.find((hero) => hero.id === lobbyHero.value);
   document.querySelector('#lobby-hero-icon')?.replaceChildren(...[createHeroImage(selectedLobbyHero?.id, selectedLobbyHero?.emoji, 28)].filter(Boolean));
   const selectedRunHero = HEROES.find((hero) => hero.id === runAgainHero.value);
-  document.querySelector('#run-again-hero-icon')?.replaceChildren(...[createHeroImage(selectedRunHero?.id, selectedRunHero?.emoji, 28)].filter(Boolean));
+  document.querySelector('#run-again-hero-icon')?.replaceChildren(...[createHeroImage(selectedRunHero?.id, selectedRunHero?.emoji, 48)].filter(Boolean));
 }
 runAgainHero.addEventListener('change', syncHeroMenuIcons);
 function setHudText(element, value) {
@@ -2510,8 +2618,10 @@ function steadyEnemyCount(value, wave, now) {
 
 function updateHud(timestamp = performance.now()) {
   const player = state.players?.find((candidate) => candidate.id === me);
-  updateRoomHud();
   const phase = state.room?.phase;
+  setHudHidden(movementStick, !player || player.downed || player.dawnWaiting || (phase && phase !== 'running'));
+  setHudHidden(touchHelp, !player || player.downed || player.dawnWaiting || (phase && phase !== 'running'));
+  updateRoomHud();
   if (state.room && phase === 'lobby') {
     // The same status panel doubles as the lobby card: party size on the left.
     const total = (state.room.players?.length || 0) + (state.room.waiting?.length || 0);
@@ -2646,6 +2756,11 @@ function updateHud(timestamp = performance.now()) {
     const data = player.abilities?.[id];
     const circle = element.querySelector('.ability-circle');
     if (!data) return;
+    const controlName = data.name || (id === 'weapon' ? 'Primary fire' : id === 'skill' ? 'Skill' : 'Ultimate');
+    const label = id === 'weapon' ? `Hold and drag to aim and fire ${controlName}`
+      : `Hold and drag to aim ${controlName}; tap to activate`;
+    if (element.getAttribute('aria-label') !== label) element.setAttribute('aria-label', label);
+    if (element.title !== label) element.title = label;
     const heroType = player.type || 'physical';
     const slot = ABILITY_SLOT[id];
     if (element.dataset.type !== heroType) element.dataset.type = heroType;
@@ -2742,13 +2857,14 @@ function updateHud(timestamp = performance.now()) {
     }
   } else lastBuffRender = '';
   targetingHint.hidden = !player.targeting;
+  if (!player.targeting) targetingReticle.hidden = true;
 }
 
 function onKeyUp(event) {
   const key = codeToKey[event.code];
   if (key && keys[key]) {
     keys[key] = false;
-    if (socket.connected) socket.emit('input', keys);
+    sendMovement();
   }
 }
 
@@ -2774,6 +2890,125 @@ function onPointerDown(event) {
     // that follows would be refused by the cooldown - one shot, one sound.
     fireWeapon('primary');
     setPrimaryHeld(true);
+    primaryPointerId = event.pointerId;
+  }
+}
+
+function paintTargetReticle(event, gesture = abilityGesture) {
+  const rect = canvas.getBoundingClientRect();
+  const inside = event.clientX >= rect.left && event.clientX <= rect.right
+    && event.clientY >= rect.top && event.clientY <= rect.bottom;
+  if (!inside) {
+    targetingReticle.hidden = true;
+    if (gesture) gesture.targetPoint = null;
+    return;
+  }
+  const point = getPointerCoordinates(event);
+  if (gesture) gesture.targetPoint = { x: Math.max(0, Math.min(ARENA_WIDTH, point.x)), y: Math.max(0, Math.min(ARENA_HEIGHT, point.y)) };
+  const radius = GAME_CONFIG.heroes.bombardier.airstrike.circleRadius;
+  targetingReticle.style.left = `${event.clientX}px`;
+  targetingReticle.style.top = `${event.clientY}px`;
+  targetingReticle.style.setProperty('--target-size', `${radius * 2 * rect.width / ARENA_WIDTH}px`);
+  targetingReticle.hidden = false;
+}
+
+function beginAbilityGesture(event) {
+  const button = event.target.closest?.('.ability[data-ability]');
+  if (!button || !me || abilityGesture) return;
+  event.preventDefault();
+  const slot = button.dataset.ability;
+  const player = state.players.find((candidate) => candidate.id === me);
+  if (!player) return;
+  if (slot === 'weapon' && player.targeting) return;
+  const targetedBombing = slot === 'ultimate' && player.heroId === 'bombardier';
+  abilityGesture = { pointerId: event.pointerId, button, slot, startX: event.clientX, startY: event.clientY,
+    dragged: false, targetedBombing, targetPoint: null, cancelled: false };
+  button.classList.add('aiming');
+  try { button.setPointerCapture(event.pointerId); } catch { /* window listeners still handle uncaptured pointers */ }
+  if (slot === 'weapon') {
+    fireWeapon('primary');
+    setPrimaryHeld(true);
+    primaryPointerId = event.pointerId;
+  } else if (targetedBombing) {
+    socket.emit('ultimate');
+  }
+}
+
+function moveAbilityGesture(event) {
+  const gesture = abilityGesture;
+  if (!gesture || event.pointerId !== gesture.pointerId) return;
+  const dx = event.clientX - gesture.startX;
+  const dy = event.clientY - gesture.startY;
+  const distance = Math.hypot(dx, dy);
+  if (distance > 10) gesture.dragged = true;
+  if (gesture.targetedBombing) {
+    if (gesture.dragged) paintTargetReticle(event, gesture);
+    return;
+  }
+  if (gesture.dragged) {
+    sendAimVector(dx, dy);
+    const scale = Math.min(1, 48 / Math.max(1, distance));
+    gesture.button.style.setProperty('--aim-x', `${dx * scale}px`);
+    gesture.button.style.setProperty('--aim-y', `${dy * scale}px`);
+  }
+}
+
+function finishAbilityGesture(event, cancelled = false) {
+  const gesture = abilityGesture;
+  if (!gesture || event.pointerId !== gesture.pointerId) return;
+  abilityGesture = null;
+  gesture.button.classList.remove('aiming');
+  gesture.button.style.removeProperty('--aim-x');
+  gesture.button.style.removeProperty('--aim-y');
+  if (gesture.slot === 'weapon') {
+    if (primaryPointerId === event.pointerId) {
+      primaryPointerId = null;
+      setPrimaryHeld(false);
+    }
+    return;
+  }
+  if (gesture.targetedBombing) {
+    if (cancelled) {
+      socket.emit('cancel_targeting');
+      targetingReticle.hidden = true;
+      return;
+    }
+    if (gesture.dragged) paintTargetReticle(event, gesture);
+    if (gesture.dragged && gesture.targetPoint) {
+      window.lastPointerWorld = gesture.targetPoint;
+      fireWeapon('secondary', gesture.targetPoint);
+      targetingReticle.hidden = true;
+    }
+    return;
+  }
+  if (cancelled) return;
+  if (gesture.dragged) sendAimVector(event.clientX - gesture.startX, event.clientY - gesture.startY, true);
+  else sendCurrentAim();
+  socket.emit(gesture.slot === 'skill' ? 'skill' : 'ultimate');
+}
+
+function onAbilityKeyboardClick(event) {
+  if (event.detail !== 0) return;
+  const slot = event.currentTarget.dataset.ability;
+  if (slot === 'weapon') fireWeapon('primary');
+  else activateAbility(slot);
+}
+
+function cancelTargeting() {
+  socket.emit('cancel_targeting');
+  targetingReticle.hidden = true;
+  if (abilityGesture?.targetedBombing) {
+    abilityGesture.button.classList.remove('aiming');
+    abilityGesture = null;
+  }
+}
+
+function releasePointerControls(event) {
+  finishAbilityGesture(event, event.type === 'pointercancel');
+  onMovementPointerEnd(event);
+  if (primaryPointerId === event.pointerId) {
+    primaryPointerId = null;
+    setPrimaryHeld(false);
   }
 }
 
@@ -3620,6 +3855,23 @@ function spawnDashTrail(player) {
 
 canvas.addEventListener('pointermove', onPointerMove);
 canvas.addEventListener('pointerdown', onPointerDown);
+movementStick.addEventListener('pointerdown', onMovementPointerDown);
+movementStick.addEventListener('pointermove', updateMovementStick);
+movementStick.addEventListener('pointerup', onMovementPointerEnd);
+movementStick.addEventListener('pointercancel', onMovementPointerEnd);
+abilityElements.forEach((button) => {
+  button.addEventListener('pointerdown', beginAbilityGesture);
+  button.addEventListener('click', onAbilityKeyboardClick);
+});
+targetingCancel.addEventListener('click', cancelTargeting);
+window.addEventListener('pointermove', moveAbilityGesture, { passive: false });
+window.addEventListener('pointerup', releasePointerControls);
+window.addEventListener('pointercancel', releasePointerControls);
+window.addEventListener('resize', resizeArenaRaster, { passive: true });
+socket.on('connect', () => {
+  lastSentMovement = null;
+  sendMovement();
+});
 // Pre-warm the audio context on the first user input so the first kill/hit
 // sound has no context-resume hitch.
 const warmAudioOnFirstInput = () => {
@@ -3632,7 +3884,9 @@ window.addEventListener('keydown', warmAudioOnFirstInput);
 canvas.addEventListener('contextmenu', (event) => event.preventDefault());
 addEventListener('keydown', onKeyDown);
 addEventListener('keyup', onKeyUp);
-addEventListener('blur', () => { releaseKeys(); setPrimaryHeld(false); });
-addEventListener('pointerup', () => setPrimaryHeld(false));
-addEventListener('pointercancel', () => setPrimaryHeld(false));
+addEventListener('blur', () => {
+  if (abilityGesture) finishAbilityGesture({ pointerId: abilityGesture.pointerId }, true);
+  releaseKeys();
+  targetingReticle.hidden = true;
+});
 requestAnimationFrame(draw);

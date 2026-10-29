@@ -12,7 +12,8 @@ import ClassPicker from './ClassPicker.vue';
 import WalletBadge from './WalletBadge.vue';
 import ResourceBadge from './ResourceBadge.vue';
 import QuizRunner from './QuizRunner.vue';
-import HeroIcon from './HeroIcon.vue';
+import AvatarPreview from './AvatarPreview.vue';
+import { TOWN_AVATAR_DEFAULT_COLOR } from '../../../config/tuning.js';
 
 const error = ref('');
 const loaded = ref(false);
@@ -25,7 +26,7 @@ let alive = true;
 const home = computed(() => store.home);
 const cls = computed(() => home.value.classes.find((c) => c.id === S.classId));
 const resumable = computed(() => home.value.resumable?.find((s) => s.classId === S.classId));
-const practiceHero = { id: 'player', emoji: '🐱' };
+const avatarVisual = computed(() => S.me?.avatarVisual || { color: S.me?.avatarColor || TOWN_AVATAR_DEFAULT_COLOR, hat: null, accessory: null });
 
 onMounted(async () => {
   try {
@@ -160,7 +161,9 @@ const onStart = action(() => enterBattle(async () => {
     <aside class="panel practice-hero" aria-label="Your cat-ball hero">
       <span class="practice-hero-kicker">YOUR LEARNING COMPANION</span>
       <div class="practice-hero-orbit" aria-hidden="true"></div>
-      <div class="practice-hero-art"><HeroIcon :hero="practiceHero" :size="340" :animated="true" label="Your cat-ball hero" /></div>
+      <div class="practice-hero-art">
+        <AvatarPreview class="practice-avatar-preview" :color="avatarVisual.color" :hat-id="avatarVisual.hat" :accessory-id="avatarVisual.accessory" />
+      </div>
       <div class="practice-hero-caption">
         <strong>Cat-ball hero</strong>
         <span>Ready for the next question</span>

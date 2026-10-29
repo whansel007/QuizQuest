@@ -12,6 +12,7 @@ import { ref, nextTick, onMounted, onUnmounted } from 'vue';
 import { io } from 'socket.io-client';
 import { S } from '../api.js';
 import { toast, fmtBundle } from '../ui.js';
+import { TOWN_AVATAR_DEFAULT_COLOR } from '../../../config/tuning.js';
 import Heading from '../components/Heading.vue';
 import { store, loadHome, updateBalances } from './home.js';
 import ClassPicker from './ClassPicker.vue';
@@ -20,6 +21,7 @@ import ResourceBadge from './ResourceBadge.vue';
 import QuestionForm from './QuestionForm.vue';
 import ResultBlock from './ResultBlock.vue';
 import ReportForm from './ReportForm.vue';
+import { drawAvatarCosmetics, loadPlayerVisuals, tintedPlayerFrames } from './avatar.js';
 
 const error = ref('');
 const loaded = ref(false);
@@ -41,6 +43,7 @@ let challengeId = null;
 let world = null; // welcome message: arena, ranges, catalog
 let state = { players: [], nodes: [], boss: null };
 let me = null;
+let playerVisuals = null;
 let floaters = []; // floating damage numbers
 let raf = 0;
 let feedSeq = 0;
@@ -151,6 +154,49 @@ const closeResult = () => showMessage('Press E near a resource or the boss for a
 
 // --- render loop ---
 const near = (a, b, r) => Math.hypot(a.x - b.x, a.y - b.y) <= r;
+function drawWorldAvatar(ctx, player) {
+  const visual = player.avatarVisual || {};
+  const x = player.x;
+  const y = player.y;
+  const crop = playerVisuals?.visual.crop.open;
+  const frame = playerVisuals && tintedPlayerFrames(playerVisuals, visual.color || TOWN_AVATAR_DEFAULT_COLOR).open;
+  const height = 44;
+  const width = crop ? height * crop[2] / crop[3] : height;
+
+  ctx.fillStyle = 'rgba(19,31,23,.24)';
+  ctx.beginPath();
+  ctx.ellipse(x, y + 2, 17, 5, 0, 0, Math.PI * 2);
+  ctx.fill();
+  if (frame && crop) {
+    ctx.imageSmoothingEnabled = true;
+    ctx.imageSmoothingQuality = 'high';
+    ctx.drawImage(frame, 0, 0, frame.width, frame.height, x - width / 2, y - height, width, height);
+  } else {
+    ctx.font = '32px serif';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'bottom';
+    ctx.fillText('🐱', x, y);
+  }
+  drawAvatarCosmetics(ctx, {
+    left: x - width / 2,
+    top: y - height,
+    width,
+    height,
+    hatId: visual.hat,
+    accessoryId: visual.accessory,
+  });
+
+  // Keep the equipped pet visible as a small companion beside the player's
+  // cat avatar instead of using the pet as the player's identity marker.
+  ctx.font = '15px serif';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillText(player.pet || '🐣', x + 18, y + 7);
+  if (player.item) {
+    ctx.font = '12px serif';
+    ctx.fillText(player.item, x + 18, y - 8);
+  }
+}
 function draw() {
   raf = requestAnimationFrame(draw);
   const cv = canvas.value;
@@ -227,15 +273,10 @@ function draw() {
       ctx.arc(p.x, p.y, world.radius + 4, 0, Math.PI * 2);
       ctx.stroke();
     }
-    ctx.font = '32px serif';
-    ctx.fillText(p.pet, p.x, p.y);
-    if (p.item) {
-      ctx.font = '18px serif';
-      ctx.fillText(p.item, p.x, p.y - 22);
-    }
+    drawWorldAvatar(ctx, p);
     ctx.font = `bold ${txt(12)}px system-ui, sans-serif`;
     ctx.fillStyle = '#fff';
-    ctx.fillText(p.name + (p.busy ? ' ✎' : ''), p.x, p.y + 20 + txt(8));
+    ctx.fillText(p.name + (p.busy ? ' ✎' : ''), p.x, p.y + 28 + txt(8));
     if (p.emote) {
       ctx.font = '22px serif';
       ctx.fillText(p.emote, p.x + 22, p.y - 26);
@@ -271,6 +312,8 @@ function draw() {
 }
 
 onMounted(async () => {
+  loadPlayerVisuals().then((visuals) => { if (alive) playerVisuals = visuals; })
+    .catch((err) => console.warn('[World avatar] Player appearance sprites unavailable.', err));
   try {
     await loadHome();
   } catch (err) {

@@ -494,6 +494,7 @@ async function upgrade(p) {
       </div>
       <div class="town-hud town-controls-hud">
         <span><kbd>WASD</kbd> walk</span><span><kbd>E</kbd> open / greet</span><span><kbd>Z</kbd> emote</span><span class="north-hint">Battles: walk north ↑</span>
+        <span class="touch-controls-hint">Tap the ground to walk · tap a building to open</span>
       </div>
 
       <section v-if="customizeOpen" class="avatar-customize" role="dialog" aria-label="Customize your town avatar">
@@ -743,7 +744,7 @@ async function upgrade(p) {
                 <aside class="wardrobe-preview" aria-label="Live avatar preview">
                   <div class="castle-window"><span>✦</span><i /><i /></div>
                   <span class="preview-tag">Castle mirror</span>
-                  <div class="wardrobe-avatar"><AvatarPreview :color="wardrobeColor" /><span v-if="wardrobeHat" class="wardrobe-hat" aria-hidden="true">{{ wardrobeHat.renderValue }}</span><span v-if="wardrobeAccessory" class="wardrobe-accessory" aria-hidden="true">{{ wardrobeAccessory.renderValue }}</span></div>
+                  <div class="wardrobe-avatar"><AvatarPreview :color="wardrobeColor" :hat-id="wardrobeHat?.id" :accessory-id="wardrobeAccessory?.id" /></div>
                   <b>Your look · preview</b>
                 </aside>
               </div>
@@ -798,6 +799,7 @@ async function upgrade(p) {
 .town-controls-hud { right: 18px; bottom: 16px; display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 4px 14px; max-width: min(560px, 60vw); padding: 9px 14px; color: #fff8e4; background: rgb(35 56 47 / 90%); border-radius: 9px; font: 700 .8rem/1.3 Nunito, Trebuchet MS, sans-serif; pointer-events: none; }
 .town-controls-hud kbd { padding: 1px 5px; color: #23382f; background: #f2ba55; border: 1px solid #23382f; border-radius: 4px; font: 800 .68rem ui-monospace, monospace; }
 .north-hint { color: #f2ba55; }
+.touch-controls-hint { display: none; }
 .avatar-customize { position: absolute; z-index: 4; left: 18px; bottom: 70px; width: min(360px, calc(100vw - 32px)); max-height: calc(100% - 100px); overflow-y: auto; padding: 22px; color: #23382f; background: #fbf2d8; background-image: url('/hero-lab/assets/storybook-paper.svg'), linear-gradient(135deg, #fff8e4, #f1e6c7); background-size: 144px 144px, auto; border: 3px solid #23382f; border-radius: 14px 11px 16px 12px; box-shadow: 0 6px 0 #7a6545, 0 14px 30px rgb(16 33 23 / 28%); }
 .avatar-customize h2 { margin: 4px 38px 0 0; color: #254937; font: 700 22px/1.1 Georgia, "Palatino Linotype", serif; }
 .customize-close { top: 10px; right: 10px; }
@@ -970,8 +972,8 @@ async function upgrade(p) {
 .wardrobe-swatches { justify-content: flex-start; max-width: 480px; margin: 20px 0; }
 .wardrobe-current { color: #5f6d58; font-size: .85rem; }
 .wardrobe-preview { position: relative; display: flex; flex-direction: column; align-items: center; justify-content: end; gap: 8px; overflow: hidden; padding: 14px; background: linear-gradient(#b7d4df 0 35%,#e7ddb9 36% 100%); border: 2px solid #6b5847; border-radius: 8px; }
-.wardrobe-preview :deep(.avatar-preview) { position: relative; z-index: 1; width: 144px; height: 144px; }
-.wardrobe-hat { position: absolute; z-index: 2; bottom: 128px; left: 50%; font-size: 48px; filter: drop-shadow(1px 2px #493827); transform: translateX(-50%) rotate(-5deg); }
+.wardrobe-avatar { position: relative; z-index: 1; flex: 0 0 144px; width: 144px; height: 144px; }
+.wardrobe-avatar :deep(.avatar-preview) { width: 144px; height: 144px; }
 .wardrobe-tabs { display:flex; flex-wrap:wrap; gap:7px; margin:14px 0 12px; padding-bottom:9px; border-bottom:2px dashed #c5b58e; }
 .wardrobe-tab { min-height:34px; padding:5px 13px; color:#493827; background:#f3e4c4; border:1.5px solid #9b8157; border-radius:5px 8px 5px 7px; font:800 .78rem Nunito,sans-serif; cursor:pointer; }
 .wardrobe-tab[aria-pressed="true"] { color:#fff8e4; background:#315b45; border-color:#23382f; box-shadow:0 2px #23382f; }
@@ -979,7 +981,6 @@ async function upgrade(p) {
 .wardrobe-items { min-height:154px; margin:8px 0 12px; }
 .wardrobe-items h4 { margin:0 0 9px; color:#57412f; font:800 .78rem ui-monospace,monospace; letter-spacing:.06em; text-transform:uppercase; }
 .wardrobe-save { margin-top:4px; }
-.wardrobe-accessory { position:absolute; z-index:3; right:calc(50% - 68px); bottom:92px; display:grid; width:30px; height:30px; place-items:center; background:#fff8e4; border:2px solid #493827; border-radius:50%; box-shadow:0 2px #7a6545; font-size:17px; }
 .wardrobe-title-row { display:flex; align-items:center; justify-content:space-between; gap:12px; }.wardrobe-stamp { display:grid; width:56px; height:56px; place-items:center; color:#8062a9; border:2px double #8062a9; border-radius:50%; font:800 .53rem/1.1 ui-monospace,monospace; text-align:center; transform:rotate(9deg); }
 .wardrobe-selection-grid { display:grid; grid-template-columns:minmax(0,1fr) minmax(200px,.8fr); gap:20px; margin:18px 0; }
 .wardrobe-selection-grid h4 { margin:0 0 9px; color:#57412f; font:800 .78rem ui-monospace,monospace; letter-spacing:.06em; text-transform:uppercase; }
@@ -1053,5 +1054,41 @@ async function upgrade(p) {
   .workshop-detail { min-height: 520px; }
   .workshop-preview-stage { flex: 0 0 155px; }
   .hero-book-stats { grid-template-columns: repeat(2, 1fr); }
+}
+@media (pointer: coarse) {
+  .town-controls-hud { display: flex; right: 10px; bottom: calc(74px + env(safe-area-inset-bottom)); left: 10px; justify-content: center; max-width: none; padding: 7px 10px; font-size: .75rem; text-align: center; }
+  .town-controls-hud > span:not(.touch-controls-hint) { display: none; }
+  .touch-controls-hint { display: inline; }
+  .town-actions { bottom: max(10px, env(safe-area-inset-bottom)); }
+  .town-actions .hud-btn { min-height: 44px; }
+  .town-title-actions .hud-btn { min-height: 42px; }
+  .town-modal-shade { padding: max(8px, env(safe-area-inset-top)) max(8px, env(safe-area-inset-right)) max(8px, env(safe-area-inset-bottom)) max(8px, env(safe-area-inset-left)); }
+  .town-modal { width: 100%; height: 100%; max-height: 100%; }
+}
+@media (pointer: coarse) and (max-width: 600px) and (orientation: portrait) {
+  .town-title-hud { top: max(8px, env(safe-area-inset-top)); left: max(8px, env(safe-area-inset-left)); padding: 7px 9px; }
+  .town-title-hud .scene-kicker { font-size: .58rem; }
+  .town-title { font-size: 16px; }
+  .town-title span:last-child { display: none; }
+  .town-level { top: max(8px, env(safe-area-inset-top)); right: max(8px, env(safe-area-inset-right)); padding: 5px 8px; }
+  .town-actions { right: max(8px, env(safe-area-inset-right)); left: max(8px, env(safe-area-inset-left)); justify-content: center; gap: 6px; }
+  .town-actions .hud-btn { flex: 1 1 0; justify-content: center; padding: 6px 8px; font-size: .78rem; }
+  .town-controls-hud { bottom: calc(68px + env(safe-area-inset-bottom)); }
+  .town-list { top: 92px; left: max(8px, env(safe-area-inset-left)); width: min(290px, calc(100vw - 16px)); }
+  .town-intro, .avatar-customize { bottom: calc(124px + env(safe-area-inset-bottom)); left: 8px; width: min(430px, calc(100vw - 16px)); max-height: calc(100svh - 150px); overflow: auto; }
+}
+@media (pointer: coarse) and (orientation: landscape) and (max-height: 520px) {
+  .town-title-hud { top: max(6px, env(safe-area-inset-top)); left: max(8px, env(safe-area-inset-left)); padding: 6px 9px; }
+  .town-title { margin-bottom: 5px; font-size: 16px; }
+  .town-title-hud .scene-kicker { display: none; }
+  .town-title-actions .hud-btn { min-height: 38px; }
+  .town-level { top: max(8px, env(safe-area-inset-top)); right: max(8px, env(safe-area-inset-right)); }
+  .town-actions { bottom: max(6px, env(safe-area-inset-bottom)); left: max(8px, env(safe-area-inset-left)); }
+  .town-actions .hud-btn { min-height: 40px; }
+  .town-controls-hud { right: max(8px, env(safe-area-inset-right)); bottom: max(8px, env(safe-area-inset-bottom)); left: auto; width: min(370px, 45vw); }
+  .town-modal { padding: 12px; }
+  .panel-head { padding-bottom: 8px; }
+  .panel-title h2 { font-size: 23px; }
+  .panel-purpose { margin: 8px 0; }
 }
 </style>

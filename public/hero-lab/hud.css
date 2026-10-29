@@ -27,7 +27,7 @@
   --hud-mono: 'Cascadia Code', ui-monospace, Consolas, monospace;
 }
 html, body { width: 100%; height: 100%; margin: 0; overflow: hidden; background: #2F5E3E; font: 15px/1.4 Nunito, 'Trebuchet MS', system-ui, sans-serif; }
-#world { position: fixed; top: 50%; left: 50%; display: block; width: min(100vw, 177.78vh); height: auto; aspect-ratio: 16 / 9; transform: translate(-50%, -50%); }
+#world { position: fixed; top: 50%; left: 50%; display: block; width: min(100vw, 177.78svh); height: auto; aspect-ratio: 16 / 9; transform: translate(-50%, -50%); touch-action: none; user-select: none; -webkit-user-select: none; }
 .sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
 .hud-kicker { color: var(--hud-gold); font: 800 .62rem/1.2 var(--hud-mono); letter-spacing: .14em; }
 
@@ -102,6 +102,10 @@ button:focus-visible, select:focus-visible, input:focus-visible { outline: 3px s
 .boss-track span { display: block; width: 100%; height: 100%; background: linear-gradient(90deg, #E0807B, #A8423B); transition: width .12s linear; }
 #targeting-hint { position: fixed; z-index: 2; top: 6.4rem; left: 50%; padding: .45rem .75rem; transform: translateX(-50%); }
 #targeting-hint[hidden] { display: none; }
+#targeting-hint button { min-height: 36px; margin-left: .45rem; padding: .25rem .6rem; color: var(--hud-text); background: var(--hud-panel-raised); border: 1px solid var(--hud-line); border-radius: 6px; font: inherit; font-weight: 800; cursor: pointer; }
+#targeting-reticle { position: fixed; z-index: 8; display: grid; place-items: center; width: var(--target-size, 120px); height: var(--target-size, 120px); border: 2px dashed #fff8e4; border-radius: 50%; background: rgb(239 113 55 / 20%); transform: translate(-50%, -50%); pointer-events: none; }
+#targeting-reticle[hidden] { display: none; }
+#targeting-reticle span { width: 8px; height: 8px; background: #fff8e4; border: 2px solid #23382f; border-radius: 50%; }
 
 /* ---- Room code (top right) ---------------------------------------------- */
 #room-code-corner { position: fixed; z-index: 2; top: 1rem; right: 1rem; display: grid; gap: .15rem; padding: .35rem .45rem; }
@@ -229,7 +233,11 @@ body[data-mode="workshop-trial"] #waiting-banner { display: none !important; }
 }
 #ability-hud { position: fixed; z-index: 1; right: 1rem; bottom: 1rem; }
 #ability-hud[hidden] { display: none; }
-.ability { display: grid; justify-items: center; gap: var(--btn-label-gap, 4px); text-align: center; }
+.ability { position: relative; display: grid; justify-items: center; gap: var(--btn-label-gap, 4px); padding: 0; color: inherit; background: transparent; border: 0; font: inherit; text-align: center; cursor: pointer; touch-action: none; appearance: none; -webkit-appearance: none; -webkit-tap-highlight-color: transparent; }
+.ability:focus-visible { outline: 3px solid var(--hud-gold); outline-offset: 5px; border-radius: 50%; }
+.ability.aiming .ability-circle { outline: 3px solid var(--hud-text); outline-offset: 4px; }
+.ability.aiming::before { position: absolute; z-index: 2; top: 50%; left: 50%; width: 104px; height: 104px; content: ''; border: 2px solid rgb(255 248 228 / 88%); border-radius: 50%; background: rgb(29 51 41 / 18%); pointer-events: none; transform: translate(-50%, -50%); }
+.ability.aiming::after { position: absolute; z-index: 3; top: 50%; left: 50%; width: 18px; height: 18px; content: ''; background: var(--hud-gold); border: 2px solid var(--hud-ink); border-radius: 50%; box-shadow: 0 1px 3px #0008; pointer-events: none; transform: translate(calc(-50% + var(--aim-x, 0px)), calc(-50% + var(--aim-y, 0px))); }
 .ability[data-ability="weapon"] { grid-area: 2 / 1; --btn-size: var(--btn-size-primary, 56px); }
 .ability[data-ability="skill"] { grid-area: 1 / 2; justify-self: center; --btn-size: var(--btn-size-skill, 70px); }
 .ability[data-ability="ultimate"] { grid-area: 2 / 2; --btn-size: var(--btn-size-ult, 88px); }
@@ -275,6 +283,7 @@ body[data-mode="workshop-trial"] #waiting-banner { display: none !important; }
 #join-briefing.fade-out { opacity: 0; transform: translate(-50%, -48%); }
 #join-briefing > strong { color: var(--hud-text); font: 700 1.45rem var(--hud-serif); text-align: center; }
 #join-briefing small { color: var(--hud-muted); text-align: center; }
+.touch-input-help, .touch-dismiss-help { display: none; }
 
 /* ---- Team buff vote: one dark forest card per choice, icon first --------- */
 #buff-vote { position: fixed; z-index: 2; inset: 0; display: grid; align-content: center; justify-items: center; padding: 1rem; color: var(--hud-text); text-align: center; background: rgb(22 40 31 / 72%); }
@@ -338,6 +347,8 @@ body[data-mode="workshop-trial"] #waiting-banner { display: none !important; }
 #run-result-teaser { display: flex; align-items: center; gap: .4rem; font-size: .82rem; }
 .run-result-picker { display: grid; gap: .35rem; width: min(320px, 100%); }
 .run-result-picker label { display: flex; align-items: center; gap: .4rem; font-size: .8rem; font-weight: 700; }
+.run-result-picker #run-again-hero-icon { flex: 0 0 48px; justify-content: center; width: 48px; height: 48px; }
+.run-result-picker #run-again-hero-icon .hero-ui-sprite { width: auto; height: 46px; max-width: 48px; object-fit: contain; }
 #run-again-hero { width: 100%; }
 .run-result-card .run-result-actions { justify-content: flex-start; width: 100%; }
 .run-result-card .run-result-actions button { display: inline-flex; align-items: center; justify-content: center; gap: .4rem; }
@@ -414,6 +425,38 @@ body[data-mode="workshop-trial"] #waiting-banner { display: none !important; }
   .buff-card-icon { grid-column: 1; grid-row: 1 / span 3; }
   .buff-card > strong, .buff-card > span, .buff-card > small { grid-column: 2; }
   .session-summary-card { min-height: 250px; padding: 24px 18px; }
+}
+/* Touch controls are independent overlays; they do not change the game canvas
+   coordinate system, and are hidden on a mouse-first laptop. */
+.virtual-stick, #touch-help { display: none; }
+.virtual-stick[hidden] { display: none; }
+#touch-help[hidden] { display: none; }
+@media (pointer: coarse) {
+  .desktop-input-help, .desktop-dismiss-help { display: none; }
+  .touch-input-help { display: inline !important; }
+  .touch-dismiss-help { display: block; }
+  .virtual-stick {
+    position: fixed; z-index: 4; left: max(.65rem, env(safe-area-inset-left)); bottom: max(.65rem, env(safe-area-inset-bottom));
+    display: grid; justify-items: center; gap: 2px; width: 132px; height: 154px; color: var(--hud-text);
+    font: 800 .62rem var(--hud-mono); letter-spacing: .12em; touch-action: none; user-select: none; -webkit-user-select: none;
+  }
+  .virtual-stick-base { position: relative; display: grid; width: 128px; height: 128px; place-items: center; background: rgb(29 51 41 / 58%); border: 2px solid rgb(240 234 210 / 72%); border-radius: 50%; box-shadow: inset 0 0 0 8px rgb(29 51 41 / 24%); }
+  .virtual-stick-knob { width: 58px; height: 58px; border: 2px solid var(--hud-ink); border-radius: 50%; background: rgb(242 186 85 / 90%); box-shadow: 0 3px 0 var(--hud-ink); transform: translate(var(--stick-x, 0px), var(--stick-y, 0px)); }
+  .virtual-stick-label { padding: 2px 7px; color: var(--hud-text); background: rgb(29 51 41 / 82%); border-radius: 99px; }
+  #touch-help { position: fixed; z-index: 3; top: max(.5rem, env(safe-area-inset-top)); left: 50%; display: block; max-width: calc(100vw - 260px); padding: .3rem .55rem; color: var(--hud-text); background: rgb(29 51 41 / 84%); border: 1px solid var(--hud-line); border-radius: 7px; font-size: .7rem; text-align: center; transform: translateX(-50%); pointer-events: none; }
+  #ability-hud { right: max(.65rem, env(safe-area-inset-right)); bottom: max(.65rem, env(safe-area-inset-bottom)); grid-template-columns: 70px 82px; column-gap: 14px; row-gap: 8px; }
+  .ability[data-ability="weapon"] { --btn-size: 70px; }
+  .ability[data-ability="skill"] { --btn-size: 72px; }
+  .ability[data-ability="ultimate"] { --btn-size: 82px; }
+  .ability-key { min-height: 23px; }
+  .ability-key { font-size: 0; }
+  .ability-key::after { content: attr(data-touch-label); font: 900 10px/1 Nunito, sans-serif; letter-spacing: .04em; }
+  #bottom-left-hud { bottom: calc(10rem + env(safe-area-inset-bottom)); left: max(.65rem, env(safe-area-inset-left)); }
+  #targeting-hint { top: max(4rem, env(safe-area-inset-top)); right: .6rem; bottom: auto; left: .6rem; width: auto; text-align: center; transform: none; }
+  #targeting-hint button { min-height: 44px; margin: .35rem .2rem 0; }
+}
+@media (pointer: coarse) and (orientation: portrait) {
+  #touch-help::after { content: ' · Turn sideways for a larger arena'; }
 }
 @media (prefers-reduced-motion: reduce) {
   .buff-card { transition: none; }

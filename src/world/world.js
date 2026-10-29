@@ -150,7 +150,7 @@ function attachWorld(io, services) {
       const world = getWorld(classId);
       const look = services.look(user.id);
       const spot = randomSpot(world, 170, 0);
-      world.players.set(socket.id, { socketId: socket.id, userId: user.id, name: user.name, pet: look.pet.emoji, petName: look.pet.name, move: look.pet.move, item: look.item?.emoji || null, ...spot, keys: {}, challenge: null, lastInteract: 0, emote: null });
+      world.players.set(socket.id, { socketId: socket.id, userId: user.id, name: user.name, pet: look.pet.emoji, petName: look.pet.name, move: look.pet.move, item: look.item?.emoji || null, avatarVisual: services.avatarVisual?.(user) || null, ...spot, keys: {}, challenge: null, lastInteract: 0, emote: null });
       socket.data.classId = classId;
       socket.join('class:' + classId);
       world.dirty = true; // make sure the newcomer gets a snapshot even if nothing moved
@@ -301,7 +301,7 @@ function attachWorld(io, services) {
         nsp.to('class:' + world.classId).emit('notice', 'The Fog of Confusion has returned!');
       }
       const snapshot = {
-        players: [...world.players.values()].map((p) => ({ id: p.socketId, name: p.name, pet: p.pet, item: p.item, x: Math.round(p.x), y: Math.round(p.y), emote: p.emote?.e || null, busy: !!p.challenge })),
+        players: [...world.players.values()].map((p) => ({ id: p.socketId, name: p.name, pet: p.pet, item: p.item, avatarVisual: p.avatarVisual, x: Math.round(p.x), y: Math.round(p.y), emote: p.emote?.e || null, busy: !!p.challenge })),
         nodes: world.nodes.map((n) => ({ id: n.id, type: n.type, x: Math.round(n.x), y: Math.round(n.y), claimed: !!n.claimedBy })),
         // respawn countdown in whole seconds, so an idle world's snapshot really is unchanged
         boss: { x: world.boss.x, y: world.boss.y, hp: world.boss.hp, maxHp: world.boss.maxHp, alive: world.boss.alive, respawnIn: world.boss.alive ? 0 : Math.ceil(Math.max(0, world.boss.respawnAt - t) / 1000) * 1000 },

@@ -51,7 +51,7 @@ function wardrobeView(user, inventory = null) {
       ({ id, slot, name, description, renderValue, currency, cost, active, sortOrder, ...(anchor ? { anchor } : {}) })),
     ownedIds: [...wardrobe.ownedIds, ...(legacyColor ? [legacyColor.id] : [])],
     equipped: { hatId: wardrobe.hatId, accessoryId: wardrobe.accessoryId, colorId },
-    avatarVisual: avatarVisual(user),
+    avatarVisual: avatarVisual(user, inventory),
   };
 }
 

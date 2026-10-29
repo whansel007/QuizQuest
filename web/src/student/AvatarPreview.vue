@@ -1,27 +1,78 @@
 <script setup>
-import { onMounted, ref, watch } from 'vue';
-import { loadPlayerVisuals, tintedPlayerFrames } from './avatar.js';
+import { onMounted, onUnmounted, ref, watch } from 'vue';
+import { drawAvatarCosmetics, loadPlayerVisuals, tintedPlayerFrames } from './avatar.js';
 
-const props = defineProps({ color: { type: String, required: true } });
+const props = defineProps({
+  color: { type: String, required: true },
+  hatId: { type: String, default: null },
+  accessoryId: { type: String, default: null },
+});
 const canvas = ref(null);
 let visuals = null;
+let resizeObserver = null;
+let blinkTimer = null;
+let lastFrameName = '';
+let lastColor = '';
 
-function draw() {
+function draw(time = performance.now(), force = false) {
   if (!visuals || !canvas.value) return;
-  const frame = tintedPlayerFrames(visuals, props.color).open;
+  const clip = visuals.config.IDLE_CLIP?.length ? visuals.config.IDLE_CLIP : ['open'];
+  const fps = Math.max(1, Number(visuals.config.IDLE_FPS) || 5);
+  const frameName = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches
+    ? 'open'
+    : (clip[Math.floor((time / 1000) * fps) % clip.length] || 'open');
+  const rect = canvas.value.getBoundingClientRect();
+  if (!rect.width || !rect.height) return;
+  const dpr = Math.min(3, Math.max(1, window.devicePixelRatio || 1));
+  const backingWidth = Math.max(1, Math.round(rect.width * dpr));
+  const backingHeight = Math.max(1, Math.round(rect.height * dpr));
+  const resized = canvas.value.width !== backingWidth || canvas.value.height !== backingHeight;
+  if (!force && !resized && frameName === lastFrameName && props.color === lastColor) return;
+  if (resized) {
+    canvas.value.width = backingWidth;
+    canvas.value.height = backingHeight;
+  }
+  const frame = tintedPlayerFrames(visuals, props.color)[frameName]
+    || tintedPlayerFrames(visuals, props.color).open;
   const context = canvas.value.getContext('2d');
-  const height = canvas.value.height - 4;
+  const height = canvas.value.height - 4 * dpr;
   const width = height * frame.width / frame.height;
+  const left = (canvas.value.width - width) / 2;
+  const top = 2 * dpr;
   context.clearRect(0, 0, canvas.value.width, canvas.value.height);
   context.imageSmoothingEnabled = true;
   context.imageSmoothingQuality = 'high';
-  context.drawImage(frame, (canvas.value.width - width) / 2, 2, width, height);
+  context.drawImage(frame, left, top, width, height);
+  drawAvatarCosmetics(context, {
+    left, top, width, height,
+    hatId: props.hatId,
+    accessoryId: props.accessoryId,
+  });
+  lastFrameName = frameName;
+  lastColor = props.color;
 }
 
-watch(() => props.color, draw);
+function tick() {
+  draw();
+  if (!window.matchMedia?.('(prefers-reduced-motion: reduce)').matches) {
+    const fps = Math.max(1, Number(visuals?.config.IDLE_FPS) || 5);
+    blinkTimer = setTimeout(tick, 1000 / fps);
+  }
+}
+
+watch(() => [props.color, props.hatId, props.accessoryId], () => draw(performance.now(), true));
 onMounted(async () => {
-  try { visuals = await loadPlayerVisuals(); draw(); }
+  try {
+    visuals = await loadPlayerVisuals();
+    resizeObserver = new ResizeObserver(() => draw(performance.now(), true));
+    resizeObserver.observe(canvas.value);
+    tick();
+  }
   catch (error) { console.warn('[Avatar preview] Could not load player visuals.', error); }
+});
+onUnmounted(() => {
+  clearTimeout(blinkTimer);
+  resizeObserver?.disconnect();
 });
 </script>
 
