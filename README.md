@@ -315,6 +315,7 @@ it fills the gaps they leave on voice and framing.
 
 - [PROTOTYPE.md](docs/PROTOTYPE.md): full guide (architecture, Supabase, hosting, features)
 - [Student progress and reporting](docs/STUDENT_PROGRESS_REPORTING.md): calculations, report workflow, code map and testing
+- [Class enrolment](docs/CLASS_ENROLMENT.md): adding and removing students, join codes, demo classes and testing
 - [docs/AUDIT.md](docs/AUDIT.md): implementation audit and known limitations
 - [docs/API_RECOMMENDATIONS.md](docs/API_RECOMMENDATIONS.md): useful APIs for later phases
 - [public/tag/HOW_THIS_WORKS.md](public/tag/HOW_THIS_WORKS.md): how the original Circle Tag game works (at `/tag`)
