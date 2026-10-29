@@ -555,6 +555,11 @@ function createAuthoring({ db, persist, ai = gemini.generateJson, drafter }) {
       const topic = db.topics.find((t) => t.id === j.input.topicId && t.courseId === c.id),
         outcome = topic.outcomes.find((o) => o.id === j.input.outcomeId);
       const assessment=j.input.assessmentStyle ? {topic:topic.name,learningOutcome:outcome.text,style:j.input.assessmentStyle} : undefined;
+      if (j.regeneration) {
+        j.regeneration.otherQuestions = db.questions.filter(q => q.courseId === c.id && q.status !== 'rejected' &&
+          !replacesOf(j).includes(q.id) && q.topicId === topic.id)
+          .map(q => ({ id: q.id, assessment: q.assessment, question: structuredClone(q.versions.at(-1)) }));
+      }
       const warnApplication = (reason) => {
         j.result.applicationUnsupported=true;
         const warning=`The saved report cannot reliably support application questions for this learning outcome. ${text(reason,500)} Add relevant methods, assumptions, worked reasoning or evidence to the report and save it, or choose Conceptual.`;
@@ -564,6 +569,7 @@ function createAuthoring({ db, persist, ai = gemini.generateJson, drafter }) {
       if(assessment?.style==='both' && j.input.count===1)
         j.result.warnings=['One question cannot cover both assessment styles. Request at least two questions to include both when the report supports them.'];
       const guidance = JSON.stringify({
+        ...(j.regeneration ? { regeneration: j.regeneration } : {}),
         ...(assessment || {}),
         learningGoals: assessment ? undefined : j.input.learningGoals,
         assessmentStyles: assessment ? undefined : j.input.assessmentStyles,
@@ -592,6 +598,7 @@ function createAuthoring({ db, persist, ai = gemini.generateJson, drafter }) {
         resumeLogId: j.result.generationId,
         reuseDraft: () => Boolean(j.pendingBatch),
         replaces: replacesOf(j),
+        regeneration: j.regeneration,
         drafter: async (ctx) => {
             if (j.pendingBatch)
               return { ...j.pendingBatch, items: j.pendingBatch.items.filter((q) => !ctx.existingStems.includes(q.stem)) };
@@ -634,6 +641,7 @@ function createAuthoring({ db, persist, ai = gemini.generateJson, drafter }) {
           };
           const check = report ? reportCheckSchema(questions, chunks) : {schema:CHECK_SCHEMA};
           let verificationPrompt=buildVerificationPrompt({ questions, chunks, existingStems: existing(questions), guidance, anchors:check.anchors });
+          if (j.regeneration) verificationPrompt=verificationPrompt.replace('\n', ' REGENERATION VALIDATION (overrides the moderate style/difficulty policy below): The configuration contains the original and all other batch questions with their answers and concepts. Compare actual reasoning across ALL formats, including Short Answer versus MCQ: changed numbers, names, scenarios or answer format do not make an equivalent task unique. Set duplicate=true for equivalent coverage. Set fitsConfiguration=false if the original concept or learning objective changed without source/coverage necessity, or the intended difficulty or assessment style is not preserved. For Short Answer, set fitsConfiguration=false unless the task and complete model answer genuinely require at most one line (code, number or explanation); a flattened multi-line task is not acceptable. Explain failures and any necessary concept change in reason.\n');
           verificationPrompt=verificationPrompt.replace('\n', ' VERIFICATION POLICY: correctness, answerability, unambiguous keys, source grounding and serious duplication are critical. Weak distractors, minor option overlap, limited reasoning, style mismatch and difficulty mismatch are moderate: report them accurately without setting correct, oneCorrect, aligned, outcomeAligned or fitsConfiguration false solely for those reasons. outcomeAligned checks relevance to the learning objective; difficultyAppropriate reports demand separately. fitsConfiguration checks requested format and subject scope, not preferred style or difficulty. For multi, identify redundantCorrectOptionIndexes only for correct options that restate another retained proposition; overlapping but distinct claims are not duplicates. Duplicate means substantially the same assessment task and answer reasoning, not just the same concept, taskType, source principle or vocabulary. A genuinely different inference, constraint or decision is allowed.\n');
           if(assessment) {
             check.schema=structuredClone(check.schema);
@@ -706,7 +714,8 @@ function createAuthoring({ db, persist, ai = gemini.generateJson, drafter }) {
               (v.cognitiveStyle!=='application' || result.applicationSupported===true));
             const weak = ['mcq', 'multi'].includes(q.type) && Array.isArray(v.weakDistractorIndexes)
               ? v.weakDistractorIndexes.filter(i => Number.isInteger(i) && i >= 0 && i < q.options.length && i !== q.answerIndex && !(q.answerIndexes || []).includes(i)) : [];
-            const pass = valid && styleValid &&
+            const regenerationStyleValid = !j.regeneration || !assessment || v.cognitiveStyle === assessment.style;
+            const pass = valid && styleValid && regenerationStyleValid &&
               v.aligned === true &&
               v.duplicate === false &&
               v.fitsConfiguration === true &&
@@ -715,7 +724,7 @@ function createAuthoring({ db, persist, ai = gemini.generateJson, drafter }) {
               answerKeyMatches &&
               q.sourceIds.every((id) => covered.has(id));
             const failedChecks = Object.entries({ ...(tfChecks || { explanationSupported: v.explanationSupported === true }), assessmentStyleAndTask:styleValid, questionValidity: valid, answerKeyMatches,
-              singleDecision: decisions.length === 1, aligned: v.aligned === true, unique: v.duplicate === false,
+              singleDecision: decisions.length === 1, regenerationStyleValid, aligned: v.aligned === true, unique: v.duplicate === false,
               fitsConfiguration: v.fitsConfiguration === true,
               noUnsupportedClaims: Array.isArray(v.unsupportedClaims) && v.unsupportedClaims.length === 0,
               evidenceCovered: q.sourceIds.every(id=>covered.has(id)),
@@ -765,13 +774,14 @@ function createAuthoring({ db, persist, ai = gemini.generateJson, drafter }) {
             }
             if (!tfChecks && v.explanationSupported !== true && v.correct === true && v.oneCorrect === true && answerKeyMatches)
               return 'The explanation includes claims the source does not support or that are incorrect. Correct the explanation. ' + text(v.reason, 300);
+            if (!regenerationStyleValid) return 'Preserve the original assessment style. ' + text(v.reason, 300);
             if(!styleValid && v.styleDowngraded) return 'This is conceptual recall inside a scenario, not application: it can be answered without using the scenario givens or in a single step. Make the correct answer depend on specific scenario details and require at least two reasoning steps. '+text(v.reason,300);
             if(!styleValid) return 'The cognitive task, difficulty or application grounding does not meet the selected assessment style and learning outcome. '+text(v.reason,300);
             if (q.type === 'tf') return 'True/False verification failed: ' + failedChecks.join(', ') + '. ' + text(v.reason, 300);
             return v.duplicate === true
-              ? 'This repeats the reasoning of another question.'
+              ? 'This repeats the reasoning of another question. ' + text(v.reason, 300)
               : v.fitsConfiguration === false
-                ? 'This does not match the selected assessment goals, styles or difficulty.'
+                ? 'This does not match the selected assessment goals, styles or difficulty. ' + text(v.reason, 300)
                 : !q.sourceIds.every((id) => covered.has(id))
                   ? 'Source alignment could not be verified for every cited passage.'
                   : 'Answer or source alignment could not be verified. ' + text(v.reason, 300);
@@ -790,6 +800,8 @@ function createAuthoring({ db, persist, ai = gemini.generateJson, drafter }) {
       });
       if (result.status !== 200) throw new Error(result.body.error);
       j.result = { ...j.result, ...result.body };
+      if (result.body.missing && j.regeneration)
+        error(409, 'Regeneration could not produce a distinct, valid replacement within three attempts. Your original question is kept. Review the validation feedback before trying again.');
       if (result.body.missing)
         error(409, `${result.body.created.length} questions saved; ${result.body.missing} still missing. ${j.result.applicationUnsupported ? 'Improve the saved report or choose Conceptual before generating again.' : 'Resume to fill the remaining '+result.body.missing+'.'}`);
     }
@@ -884,12 +896,12 @@ function createAuthoring({ db, persist, ai = gemini.generateJson, drafter }) {
   const replacesOf = (j) => (Array.isArray(j.replaces) ? j.replaces : [j.replaces]).filter(Boolean);
 
   function regenerate(c, q, userId, requestedStyle) {
-    return rewrite(c, [q], userId, requestedStyle);
+    return rewrite(c, [q], userId, requestedStyle, !requestedStyle);
   }
   function regenerateMany(c, qs, userId, requestedStyle) {
     return rewrite(c, qs, userId, requestedStyle);
   }
-  function rewrite(c, list, userId, requestedStyle) {
+  function rewrite(c, list, userId, requestedStyle, strictRegeneration = false) {
     const qs = [...list];
     if (!qs.length) error(400, 'Select at least one question to regenerate.');
     if (qs.length > GEN.maxBatch) error(400, `Regenerate up to ${GEN.maxBatch} questions at a time.`);
@@ -940,6 +952,7 @@ function createAuthoring({ db, persist, ai = gemini.generateJson, drafter }) {
       const r = replacesOf(j);
       return (
         r.length === ids.length &&
+        Boolean(j.regeneration) === strictRegeneration &&
         ids.every((id) => r.includes(id)) &&
         (j.input?.assessmentStyle || undefined) === (input.assessmentStyle || undefined)
       );
@@ -948,6 +961,12 @@ function createAuthoring({ db, persist, ai = gemini.generateJson, drafter }) {
     if (jobs(c).some((j) => ['queued', 'running'].includes(j.status))) error(409, 'Another step is already running.');
     const j = {
       kind: 'generation',
+      ...(strictRegeneration ? { regeneration: {
+        original: { id: qs[0].id, assessment: qs[0].assessment, question: structuredClone(qs[0].versions.at(-1)) },
+        otherQuestions: db.questions.filter(q => q.courseId === c.id && q.status !== 'rejected' && !ids.includes(q.id) &&
+          (q.topicId === topicId || q.generationId === qs[0].generationId))
+          .map(q => ({ id: q.id, assessment: q.assessment, question: structuredClone(q.versions.at(-1)) })),
+      } } : {}),
       provider: 'gemini',
       sourceDigest: a.input.reportBased ? hash([a.sourceDigest, a.reviewedText]) : parent.sourceDigest,
       id: 'job-' + randomUUID(),

@@ -186,6 +186,7 @@ function buildUserPrompt(ctx, prompts = loadPrompts()) {
     `Write ${count} question(s). Format rules: ${quantities ? Object.keys(quantities).map((type) => FORMAT_RULES[type]).join('\n') : FORMAT_RULES[format]}`,
     quantities ? `Required quantities by type (return exactly these remaining slots): ${JSON.stringify(quantities)}` : null,
     'Professor assessment configuration: ' + (ctx.guidance || ''),
+    ctx.regeneration ? 'REGENERATION CONTRACT (takes precedence over general coverage preferences): Preserve the original concept, learning objective, question type, intended difficulty and assessment style. Repair the task rather than choosing an unrelated concept. Change concept only if the source or other batch questions make preservation impossible; explain that necessity in blueprint.targetSkill. Keep source grounding and the adventure theme. Short Answer must require at most one line of response, whether code, a number or an explanation; supply surrounding code in the stem and ask for a single missing line if needed. Never merely flatten a multi-line task. Original and other current batch questions (data): ' + JSON.stringify(ctx.regeneration) : null,
     related.length
       ? 'Existing questions on this topic or source, as [concept / task type] stem. Prefer concepts not listed yet. Shared concept/task labels are allowed for a genuinely different decision or inference; avoid repeating the same task with cosmetic changes: ' +
         JSON.stringify(related.slice(-60).map((r) =>
@@ -260,6 +261,7 @@ async function generate({
   resumeLogId,
   reuseDraft = () => false,
   replaces = [],
+  regeneration,
 }) {
   count = count === undefined ? 1 : count;
   if (!Number.isInteger(count) || count < 1 || count > GEN.maxBatch)
@@ -354,7 +356,7 @@ async function generate({
     };
   }
 
-  const ctx = { course, topic, outcome, count, format, chunks, sourceKind: sourceChunks ? 'report' : 'lecture', allCoursePassages: coursePassages, guidance, assessment };
+  const ctx = { course, topic, outcome, count, format, chunks, sourceKind: sourceChunks ? 'report' : 'lecture', allCoursePassages: coursePassages, guidance, assessment, regeneration };
   const run = drafter || geminiDraft;
   const log = db.generationLog.find((g) => g.id === resumeLogId && g.courseId === course.id) || {
     id: 'gen-' + crypto.randomUUID().slice(0, 8),
@@ -492,7 +494,15 @@ async function generate({
           warnings.push(...(verdict.warnings || []));
         }
         const repeat = !errors.length && conceptRepeat(plans[index]);
-        if (repeat) warnings.push('Coverage review: ' + repeat);
+        if (repeat) (regeneration ? errors : warnings).push('Coverage review: ' + repeat);
+        if (regeneration) {
+          if (q.type === 'short' && /[\r\n\u2028\u2029]/.test(item.modelAnswer || ''))
+            errors.push('Short Answer must be answerable in at most one line, including code, numbers and explanations. Repair the task, not just its formatting.');
+          if (q.difficulty !== regeneration.original.question.difficulty)
+            errors.push('Preserve the original intended difficulty with a genuinely equivalent reasoning demand.');
+          if (db.questions.some(existing => existing.courseId === course.id && existing.status !== 'rejected' && !replaces.includes(existing.id) && duplicateContent(q, existing.versions.at(-1))))
+            errors.push('This repeats an existing assessment task, including across question types or with different numbers. Preserve the original concept with a distinct task.');
+        }
         if (!errors.length && verifier) {
           try {
             const issue = await verifier(q, chunks);

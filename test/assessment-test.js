@@ -142,6 +142,30 @@ test('novel grounded application scenarios and all four drafting formats remain 
   assert.equal(replacement.status,'complete',replacement.message);
   assert.equal(replacement.input.assessmentStyle,oldMetadata.cognitiveStyle,'selective regeneration preserves the original task style');
 });
+test('regeneration propagates semantic and concept drift failures, keeps original and reports exhaustion',async()=>{
+  let regenerating=false;
+  const f=await fixture({style:'conceptual',quantities:{short:1},draft:({make})=>[make('short','conceptual',0,
+    regenerating?{stem:'Assess a different relationship for the guild archive.'}:{})],
+    decision:(v)=>regenerating?{...v,fitsConfiguration:false,duplicate:true,reason:'This changes the original concept and repeats an existing cascade decision across formats.'}:v});
+  const original=f.db.questions.find(q=>q.id===f.job.result.created[0]);
+  const saved=structuredClone(original);
+  regenerating=true;
+  const job=f.queue.regenerate(f.course,original,'t-a');
+  await settled(job);
+  assert.equal(job.status,'failed');
+  assert.deepEqual(job.result.created,[]);
+  assert.match(job.message,/within three attempts.*original question is kept/);
+  assert.equal(f.db.generationLog.find(g=>g.id===job.result.generationId).calls,3);
+  assert.deepEqual(original,saved);
+  assert.match(job.result.rejected[0].errors.join(' '),/cascade decision across formats/);
+  const prompt=f.requests.filter(r=>r.requestContext.stage==='verification').at(-1).prompt;
+  assert.match(prompt,/REGENERATION VALIDATION/);
+  const config=JSON.parse(prompt.slice(prompt.indexOf('\n')+1)).configuration;
+  assert.ok(config.includes(JSON.stringify(job.regeneration)));
+  assert.equal(job.regeneration.original.id,original.id);
+  assert.ok(Array.isArray(job.regeneration.otherQuestions));
+});
+
 test('Application retains valid conceptual work with an explicit limitation when material is insufficient',async()=>{
   const f=await fixture({style:'application',support:false,draft:({make})=>[make('short','conceptual')]});
   assert.equal(f.job.status,'failed');assert.equal(f.job.result.created.length,1);assert.equal(f.job.calls,2);
