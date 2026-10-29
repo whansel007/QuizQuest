@@ -684,5 +684,5 @@ onUnmounted(() => window.removeEventListener('message', returnToSelection));
     transition-duration: .01ms !important;
   }
 }
-.hero-lab-frame { position: fixed; z-index: 10; inset: 0; display: block; width: 100vw; height: 100vh; border: 0; border-radius: 0; background: #70a94f; }
+.hero-lab-frame { position: fixed; z-index: 10; inset: 0; display: block; width: 100vw; height: 100vh; height: 100dvh; border: 0; border-radius: 0; background: #70a94f; }
 </style>

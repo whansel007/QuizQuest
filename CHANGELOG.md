@@ -32,6 +32,15 @@ this file is informal and human-edited.
   `pnpm-lock.yaml` is now the canonical lockfile. `package-lock.json` is kept
   for backward compat — safe to delete once the team confirms.
 
+### Removed
+- **`public/hero-lab/main.js`** — the earlier single-page version of the hero
+  field, from before the picker and the arena were split apart. No page loaded
+  it, the elements it reached for are not on either page, and it imports
+  `./hero.js`, which no longer exists, so it threw if it was loaded. The one
+  thing in it that was not already in the arena — the "Test AI" handler — is
+  now `public/hero-lab/test-ai.js`, which stays inert until the page has a
+  `#test-ai-btn` element.
+
 ---
 
 ## [2026-10-17] — Marxel's Tasks 1 & 2 (merged to main)
