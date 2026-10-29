@@ -31,7 +31,12 @@ The older server tests in `test/` still run with `pnpm test` (Node's built-in te
 **End-to-end tests** (whole app in Chromium, Firefox and WebKit)
 - `e2e/login.spec.js`: student and professor login, wrong password, invalid email, signing out.
 - `e2e/signup.spec.js`: creating a student account, an email that is taken, a short password.
+- `e2e/join-class.spec.js`: a professor generates a join code and a new student enrols with it; a wrong join code is refused.
+- `e2e/practice.spec.js`: starting a practice session, answering a question, the session summary, and a student who is in no class yet.
 - `e2e/question-bank.spec.js`: a professor sees drafts needing review and publishes one.
+- `e2e/student-views.spec.js`: the World lobby picks a hero and opens a room; the Kingdom town and its buildings; the Summon banner and its drop rates.
+- `e2e/teacher-views.spec.js`: the Analytics, Evaluation, Settings and AI drafting tabs open for a professor.
+- `e2e/raid-boss.spec.js`: two students share one raid boss; a correct answer damages it for the class and the reward is split.
 - `e2e/progress-reporting.spec.js`: practice changes the topic's correct/count figures; a student report reaches the professor and the student sees the resolution response.
 - `e2e/team-room.spec.js`: two students create and join the same Campfire Defense room and see its membership.
 
