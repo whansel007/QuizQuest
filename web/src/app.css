@@ -1913,10 +1913,11 @@ main#main.main-practice .practice-hero-art {
   aspect-ratio: 1;
   filter: drop-shadow(0 20px 22px rgb(5 15 32 / 38%));
 }
-main#main.main-practice .practice-hero-art .hero-icon {
+main#main.main-practice .practice-hero-art .practice-avatar-preview {
   width: clamp(180px, min(31vw, 44vh), 390px) !important;
   height: auto !important;
   max-width: 100%;
+  margin: 0;
 }
 main#main.main-practice .practice-hero-caption {
   z-index: 1;
@@ -1939,14 +1940,14 @@ main#main.main-practice .practice-page-message { width: min(1540px, 100%); margi
   main#main.main-practice .practice-layout { min-height: 0; grid-template-columns: minmax(0, 1fr); }
   main#main.main-practice .practice-controls { grid-template-rows: auto minmax(310px, auto) auto; }
   main#main.main-practice .practice-hero { min-height: 400px; }
-  main#main.main-practice .practice-hero-art .hero-icon { width: clamp(220px, 48vw, 320px) !important; }
+  main#main.main-practice .practice-hero-art .practice-avatar-preview { width: clamp(220px, 48vw, 320px) !important; }
 }
 @media (max-width: 560px) {
   main#main.main-practice .practice-class-picker { padding: 7px 9px; }
   main#main.main-practice .practice-fields { grid-template-columns: minmax(0, 1fr); }
   main#main.main-practice .practice-actions { grid-template-columns: minmax(0, 1fr); }
   main#main.main-practice .practice-hero { min-height: 340px; padding: 18px; }
-  main#main.main-practice .practice-hero-art .hero-icon { width: clamp(200px, 66vw, 280px) !important; }
+  main#main.main-practice .practice-hero-art .practice-avatar-preview { width: clamp(200px, 66vw, 280px) !important; }
 }
 
 /* Live practice battle: question and answers to the left, Pokémon-style
@@ -2068,8 +2069,7 @@ main#main.main-practice .battle-enemy { top: 15%; right: 8%; width: 42%; height:
 main#main.main-practice .battle-player { bottom: 16%; left: 7%; width: 44%; height: 40%; }
 main#main.main-practice .battle-enemy-sprite { display: inline-block; color: #26364F; font-size: clamp(92px, 9.2vw, 142px); line-height: 1; filter: drop-shadow(0 13px 10px rgb(26 41 69 / 30%)); transform-origin: center bottom; }
 main#main.main-practice .battle-player-sprite { position: relative; display: inline-block; line-height: 1; filter: drop-shadow(0 14px 12px rgb(26 41 69 / 28%)); transform-origin: center bottom; }
-main#main.main-practice .battle-player-sprite .hero-icon { width: clamp(135px, 14vw, 205px) !important; height: auto !important; }
-main#main.main-practice .battle-player-sprite .hat { position: absolute; top: -10%; right: 0; font-size: 30px; }
+main#main.main-practice .battle-player-sprite .duel-avatar-preview { width: clamp(135px, 14vw, 205px) !important; height: auto !important; margin: 0; }
 main#main.main-practice .battle-enemy-sprite.defeated { filter: grayscale(1); opacity: .38; transform: rotate(72deg) translateY(18px); transition: all .55s ease; }
 main#main.main-practice .battle-damage { position: absolute; z-index: 5; color: #FFF8E4; font: 900 34px/1 Nunito, "Trebuchet MS", sans-serif; text-shadow: 0 2px 0 #1B3154, 0 0 14px #1B3154; animation: battle-damage-float .9s ease-out both; pointer-events: none; }
 main#main.main-practice .enemy-damage { top: 20%; left: 44%; }
@@ -2107,7 +2107,7 @@ main#main.main-practice .battle-impact { animation: practice-impact .42s ease-ou
   main#main.main-practice .battle-player-status { width: 57%; padding: 10px 12px; }
   main#main.main-practice .battle-enemy { top: 21%; right: 3%; width: 44%; height: 30%; }
   main#main.main-practice .battle-player { bottom: 17%; left: 1%; width: 43%; height: 34%; }
-  main#main.main-practice .battle-player-sprite .hero-icon { width: clamp(105px, 34vw, 150px) !important; }
+  main#main.main-practice .battle-player-sprite .duel-avatar-preview { width: clamp(105px, 34vw, 150px) !important; }
   main#main.main-practice .battle-enemy-sprite { font-size: clamp(75px, 24vw, 105px); }
   main#main.main-practice .battle-name { font-size: 16px; }
   main#main.main-practice .quiz-action-row { align-items: stretch; }
@@ -3087,4 +3087,128 @@ body:has(.teacher-app) { background: var(--bg); }
   .insight-tiles .tile .v { font-size: 20px; }
   .insight-report-when { flex-basis: 100%; margin-left: 0; }
   .insight-actions > .btn.primary { flex: 1 1 auto; }
+}
+
+/* Student quiz: keep the question flow comfortable in portrait and use the
+   extra width in landscape without forcing an orientation change. */
+@media (max-width: 900px) {
+  main#main.main-practice { padding: max(10px, env(safe-area-inset-top)) max(10px, env(safe-area-inset-right)) calc(20px + env(safe-area-inset-bottom)) max(10px, env(safe-area-inset-left)); overflow-x: hidden; }
+  main#main.main-practice .practice-quiz-layout { width: 100%; gap: 14px; }
+  main#main.main-practice .quiz-content-column { min-width: 0; }
+  main#main.main-practice .quiz-prompt-card .stem { overflow-wrap: anywhere; }
+  main#main.main-practice .quiz-answers-card { min-width: 0; }
+  main#main.main-practice .quiz-answers-card .options button { min-height: 48px; text-align: left; overflow-wrap: anywhere; }
+  main#main.main-practice .quiz-action-row .btn { min-height: 46px; }
+}
+@media (max-width: 560px) {
+  main#main.main-practice .practice-quiz-layout { margin: 0; }
+  main#main.main-practice .quiz-content-column { gap: 10px; }
+  main#main.main-practice .quiz-content-column > .quiz-prompt-card,
+  main#main.main-practice .quiz-content-column > .quiz-answers-card,
+  main#main.main-practice .quiz-content-column > .quiz-details-card { padding: 14px; }
+  main#main.main-practice .quiz-head { flex-wrap: wrap; }
+  main#main.main-practice .quiz-prompt-card .stem { font-size: clamp(18px, 5.2vw, 22px); line-height: 1.3; }
+  main#main.main-practice .quiz-battle-stage { height: clamp(235px, 36svh, 320px); min-height: 235px; }
+  main#main.main-practice .battle-enemy-status,
+  main#main.main-practice .battle-player-status { width: min(64%, 280px); padding: 8px 10px; }
+  main#main.main-practice .battle-status-top { font-size: 9px; }
+  main#main.main-practice .battle-name { margin: 4px 0 6px; font-size: 15px; }
+  main#main.main-practice .battle-health { height: 10px; }
+  main#main.main-practice .battle-turn-label { bottom: 1%; max-width: 90%; }
+  main#main.main-practice .quiz-summary-card { max-height: none; }
+  main#main.main-practice :is(input:not([type]), input[type="text"], input[type="number"], textarea, select) { min-height: 44px; font-size: 16px; }
+  main#main.main-practice .quiz-action-row { gap: 8px; }
+  main#main.main-practice .quiz-action-row .btn { min-height: 48px; }
+}
+@media (min-width: 561px) and (max-width: 900px) and (max-height: 600px) {
+  main#main.main-practice { padding-top: max(8px, env(safe-area-inset-top)); padding-bottom: max(8px, env(safe-area-inset-bottom)); }
+  main#main.main-practice .practice-quiz-layout { min-height: 0; grid-template-columns: minmax(0, 1.2fr) minmax(220px, .8fr); align-items: start; gap: 12px; }
+  main#main.main-practice .quiz-content-column { grid-template-rows: auto auto auto; gap: 8px; }
+  main#main.main-practice .quiz-content-column > .quiz-prompt-card,
+  main#main.main-practice .quiz-content-column > .quiz-answers-card,
+  main#main.main-practice .quiz-content-column > .quiz-details-card { padding: 10px 12px; }
+  main#main.main-practice .quiz-prompt-card .stem { font-size: clamp(17px, 2.6vw, 21px); }
+  main#main.main-practice .quiz-battle-stage { position: sticky; top: 8px; height: min(66svh, 360px); min-height: 220px; }
+  main#main.main-practice .battle-enemy-status,
+  main#main.main-practice .battle-player-status { padding: 7px 9px; }
+  main#main.main-practice .quiz-summary-card,
+  main#main.main-practice .quiz-content-column > .quiz-details-card:only-child { max-height: calc(100svh - 20px); }
+}
+@media (pointer: coarse) and (max-width: 900px) {
+  header#top.student-immersive-nav nav#tabs button { min-height: 44px; padding: 9px 12px; }
+  .nav-peek { width: 54px; height: 28px; font-size: 11px; }
+}
+
+/* ---------- professor workspace: phone and small tablet layouts ---------- */
+@media (max-width: 767.98px) {
+  .teacher-app { min-height: 100vh; min-height: 100dvh; overflow-x: clip; }
+  .teacher-app header#top.t-topbar {
+    padding: max(6px, env(safe-area-inset-top)) max(12px, env(safe-area-inset-right)) 6px max(12px, env(safe-area-inset-left));
+  }
+  .teacher-app .t-topbar .t-icon-btn { width: 44px; height: 44px; }
+  .teacher-app .t-topbar-page { min-width: 0; max-width: 45vw; font-size: 13px; }
+  .teacher-app .t-sidebar {
+    width: min(320px, calc(100vw - 44px));
+    padding: max(12px, env(safe-area-inset-top)) 12px max(12px, env(safe-area-inset-bottom));
+  }
+  .teacher-app nav#tabs.t-nav button { min-height: 48px; }
+  .teacher-app .t-sidebar .t-account .account-popover { right: 0; left: auto; }
+  .teacher-app main#main.main-teacher {
+    min-width: 0;
+    padding: 16px max(12px, env(safe-area-inset-right)) calc(30px + env(safe-area-inset-bottom)) max(12px, env(safe-area-inset-left));
+    overflow-x: clip;
+  }
+  .teacher-app main#main.main-teacher > * { min-width: 0; max-width: 100%; }
+  .teacher-app h2 { font-size: clamp(21px, 5.5vw, 26px); }
+  .teacher-app h3 { overflow-wrap: anywhere; }
+  .teacher-app .panel { min-width: 0; padding: 14px; }
+  .teacher-app .t-toolbar { align-items: stretch; gap: 8px; margin-bottom: 14px; }
+  .teacher-app .t-toolbar > h2 { flex: 1 0 100%; margin-bottom: 2px; }
+  .teacher-app .t-toolbar > :is(button, .btn, select, .field, .row) { max-width: 100%; }
+  .teacher-app .t-toolbar :is(.btn, select) { min-height: 44px; }
+  .teacher-app .t-section { margin-bottom: 22px; }
+  .teacher-app .t-section-head { align-items: flex-start; }
+  .teacher-app .t-section-head .t-desc.grow { flex-basis: 100%; }
+  .teacher-app .row { min-width: 0; }
+  .teacher-app .row > * { min-width: 0; }
+  .teacher-app .row > .field,
+  .teacher-app .row > .grow.field { flex-basis: 100%; }
+  .teacher-app :is(input:not([type]), input[type="text"], input[type="number"], input[type="email"], input[type="password"], input[type="date"], select, textarea) {
+    min-height: 44px;
+    max-width: 100%;
+    font-size: 16px;
+  }
+  .teacher-app input[type="checkbox"], .teacher-app input[type="radio"] { min-width: 20px; min-height: 20px; }
+  .teacher-app button:not(.sort), .teacher-app a.btn { min-height: 44px; touch-action: manipulation; }
+  .teacher-app .btn.small { padding: 8px 11px; }
+  .teacher-app .actions { gap: 8px; }
+  .teacher-app .table-wrap { width: 100%; max-width: 100%; overflow-x: auto; overscroll-behavior-inline: contain; -webkit-overflow-scrolling: touch; }
+  .teacher-app .table-wrap > table { min-width: 520px; }
+  .teacher-app .table-wrap > table.compact { min-width: 0; }
+  .teacher-app .data-table { min-width: 660px; }
+  .teacher-app .sub-tabs { max-width: 100%; overflow-x: auto; flex-wrap: nowrap; scrollbar-width: thin; }
+  .teacher-app .sub-tab-btn { flex: 0 0 auto; min-height: 44px; white-space: nowrap; }
+  .teacher-app .modal-overlay { align-items: flex-end; padding: max(8px, env(safe-area-inset-top)) max(8px, env(safe-area-inset-right)) max(8px, env(safe-area-inset-bottom)) max(8px, env(safe-area-inset-left)); }
+  .teacher-app .modal-card { width: 100%; max-width: 560px; max-height: calc(100dvh - 16px); overflow-y: auto; padding: 18px 14px; border-radius: 16px 16px 12px 12px; }
+  .teacher-app .t-footer { margin-top: 24px; font-size: 12px; }
+  .teacher-app .dash-nav { top: calc(56px + env(safe-area-inset-top)); }
+  .teacher-app .overview-tiles,
+  .teacher-app .t-grid .tiles { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .teacher-app .charts { grid-template-columns: minmax(0, 1fr); }
+  .teacher-app .heat { grid-template-columns: 30px repeat(8, minmax(20px, 1fr)); overflow-x: auto; }
+  .teacher-app .heat-cell { min-width: 20px; }
+}
+@media (max-width: 430px) {
+  .teacher-app header#top.t-topbar { gap: 6px; padding-right: 8px; padding-left: 8px; }
+  .teacher-app .t-topbar-page { max-width: 40vw; font-size: 12px; }
+  .teacher-app main#main.main-teacher { padding-right: max(8px, env(safe-area-inset-right)); padding-left: max(8px, env(safe-area-inset-left)); }
+  .teacher-app .panel { padding: 12px; }
+  .teacher-app .overview-tiles,
+  .teacher-app .t-grid .tiles { gap: 8px; }
+  .teacher-app .overview-tiles .tile,
+  .teacher-app .t-grid .tiles .tile { padding: 10px; }
+  .teacher-app .overview-tiles .tile .v,
+  .teacher-app .t-grid .tiles .tile .v { font-size: 20px; }
+  .teacher-app .insight-actions { flex-direction: column; align-items: stretch; }
+  .teacher-app .insight-actions .btn { width: 100%; }
 }

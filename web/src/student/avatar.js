@@ -1,4 +1,5 @@
 import { TOWN_AVATAR_ORIGINAL_COLOR } from '../../../config/tuning.js';
+import { AVATAR_COSMETIC_BY_ID } from './avatar-cosmetics.js';
 
 let playerVisualPromise;
 
@@ -93,4 +94,45 @@ export function tintedPlayerFrames(visuals, color) {
   }
   visuals.tintCache.set(key, result);
   return result;
+}
+
+// Keep the cosmetic scale and anchor consistent in the Castle mirror, Duel,
+// World, and walkable Kingdom. Coordinates describe the cropped sprite bounds.
+export function drawAvatarCosmetics(context, { left, top, width, height, hatId, accessoryId }) {
+  const hat = AVATAR_COSMETIC_BY_ID[hatId];
+  if (hat?.slot === 'hat') {
+    context.save();
+    context.font = `${Math.round(width * 0.38)}px serif`;
+    context.textAlign = 'center';
+    context.textBaseline = 'middle';
+    context.shadowColor = 'rgb(35 56 47 / 48%)';
+    context.shadowBlur = width * 0.018;
+    context.shadowOffsetY = width * 0.012;
+    context.fillText(hat.renderValue, left + width / 2, top + height * 0.15);
+    context.restore();
+  }
+
+  const accessory = AVATAR_COSMETIC_BY_ID[accessoryId];
+  if (accessory?.slot === 'accessory' && accessory.anchor === 'badge') {
+    const radius = width * 0.12;
+    const x = left + width * 0.91;
+    const y = top + height * 0.84;
+    context.save();
+    context.fillStyle = '#fff8e4';
+    context.strokeStyle = '#493827';
+    context.lineWidth = Math.max(1, width * 0.014);
+    context.shadowColor = 'rgb(73 56 39 / 30%)';
+    context.shadowBlur = width * 0.018;
+    context.shadowOffsetY = width * 0.012;
+    context.beginPath();
+    context.arc(x, y, radius, 0, Math.PI * 2);
+    context.fill();
+    context.stroke();
+    context.shadowColor = 'transparent';
+    context.font = `${Math.round(width * 0.135)}px serif`;
+    context.textAlign = 'center';
+    context.textBaseline = 'middle';
+    context.fillText(accessory.renderValue, x, y + width * 0.005);
+    context.restore();
+  }
 }

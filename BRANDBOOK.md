@@ -99,6 +99,18 @@ The student navigation is fixed just above the top edge while hidden. Moving the
 
 Use the same paper, forest, linework, and type. Apply navigation behavior according to the page modes above. Preserve each page’s task hierarchy and readable scrolling where its content needs more than one viewport.
 
+### Kingdom building windows
+
+Kingdom building windows are **in-world rooms and objects**, not generic application panels. Keep the town visible around the centered window. On desktop, use the approved near-full-screen footprint of about 82vw × 82vh, capped at 1540 × 900 px; on small screens, use nearly the full viewport and stack the feature without clipping controls.
+
+The header is a narrow parchment sign or counter strip. It contains the building name and level, the close control, and only the building’s upgrade/effect controls. Put upgrade details behind a small, accessible information chip when the feature benefits from the space. Do not repeat upgrade copy in the feature scene.
+
+Everything below the header must look like it belongs inside that building. Build the feature from illustrated environments and recognizable props: Library shelves with rows of visible books and a book that opens into a two-page story; Tower timber with pinned paper requests on the left and an offer-writing desk on the right; Garden night sky that fills the full lower scene, with constellations, occasional meteor showers, and a telescope on a small garden horizon; Workshop training paperwork, clipped member roster sheets, and a practice-yard illustration; Castle wardrobe mirrors, clothing, keepsake pins, color selections, and a live avatar view. Non-interactive scenery may decorate these spaces, but it must not look like disabled controls or compete with the working feature.
+
+Avoid repeating the same rounded card treatment inside every building. Use paper notes, book pages, timber boards, stitched forms, shelves, ink annotations, clips, pins, and scene lighting as appropriate to the room. Preserve the shared forest-and-parchment palette, readable contrast, keyboard operation, visible focus, and reduced-motion behavior. The Garden telescope hand-off must cover the full viewport before switching to Summon, then reveal the destination without a blank flash; reduced-motion users receive a brief fade or immediate navigation.
+
+For the Garden sky, reuse the Summon page's `SummonSky` canvas so star density, glimmer, meteor timing, and meteor direction stay consistent. Draw constellation paths with no fill and place distinct star points on the path; avoid distorted SVG aspect ratios. Keep Library book spines within a stable shelf height range and open the selected story as an overlay above the shelves. Keep Workshop paper and roster surfaces in parchment, sage, forest ink, and muted wood tones so the room belongs to the same palette.
+
 ---
 
 ## 6. Interface pieces

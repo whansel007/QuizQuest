@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <title>Hero Lab World</title>
   <link rel="stylesheet" href="/hero-lab/hud.css">
 </head>
@@ -42,6 +42,13 @@
     </button>
     <span id="room-code-copied" role="status" hidden>Copied!</span>
   </div>
+  <section id="trial-tools" hidden aria-label="Workshop trial controls">
+    <div><span class="trial-kicker">PRIVATE PRACTICE · NO REWARDS</span><button id="trial-exit" type="button" aria-label="Exit workshop trial">Exit trial</button></div>
+    <label for="trial-enemy">Training target</label>
+    <div class="trial-actions"><select id="trial-enemy"><option value="zombie">Zombie</option><option value="skeleton">Skeleton</option><option value="devil">Devil</option><option value="exploder">Exploder</option><option value="brute">Brute</option><option value="boss">Boss</option></select><button id="trial-spawn" type="button">Spawn target</button></div>
+    <button id="trial-wave" type="button">Summon mixed wave</button>
+    <span id="trial-expiry" role="status">Your practice session is private. Exit any time.</span>
+  </section>
   <div id="moment-banner" aria-live="assertive" hidden></div>
   <section id="waiting-banner" aria-live="polite" hidden>
     <strong>Joining after this wave…</strong>
@@ -61,8 +68,8 @@
     <strong>Defend the campfire!</strong>
     <div class="briefing-tip"><span aria-hidden="true">🟢</span><span>Stand in the green ring to heal.</span></div>
     <div class="briefing-tip"><span aria-hidden="true">🏃</span><span>Keep moving: +20% damage while you move.</span></div>
-    <div class="briefing-tip"><span aria-hidden="true">🎮</span><span>Click fire | E skill | Q ultimate | WASD move</span></div>
-    <small>Press any key or click to close · Press I any time to see this again.</small>
+    <div class="briefing-tip"><span aria-hidden="true">🎮</span><span class="desktop-input-help">Click fire | E skill | Q ultimate | WASD move</span><span class="touch-input-help">Left stick moves · hold an ability and drag to aim</span></div>
+    <small class="desktop-dismiss-help">Press any key or click to close · Press I any time to see this again.</small><small class="touch-dismiss-help">Tap to close · Open Information any time to see this again.</small>
   </section>
   <aside id="bottom-left-hud">
     <div id="bottom-left-tools">
@@ -107,7 +114,7 @@
         <p id="howto-lead">Defend the campfire!</p>
         <div class="briefing-tip"><span aria-hidden="true">🟢</span><span>Stand in the green ring to heal.</span></div>
         <div class="briefing-tip"><span aria-hidden="true">🏃</span><span>Keep moving: +20% damage while you move.</span></div>
-        <div class="briefing-tip"><span aria-hidden="true">🎮</span><span>Click fire | E skill | Q ultimate | WASD move</span></div>
+        <div class="briefing-tip"><span aria-hidden="true">🎮</span><span class="desktop-input-help">Click fire | E skill | Q ultimate | WASD move</span><span class="touch-input-help">Left stick moves · hold an ability and drag to aim</span></div>
       </section>
       <section id="stats-card" class="info-card" aria-label="Current hero stats">
         <strong>Current stats</strong>
@@ -135,12 +142,24 @@
       <div id="buff-cards"></div>
     </div>
   </section>
-  <div id="targeting-hint" hidden>Left-click to confirm bombing location · Esc to cancel</div>
+  <div id="targeting-hint" hidden>Hold Ultimate, drag to a target, release to confirm · tap the arena if needed · Esc to cancel <button id="targeting-cancel" type="button">Cancel</button></div>
+  <div id="targeting-reticle" hidden aria-hidden="true"><span></span></div>
+  <div id="move-stick" class="virtual-stick" aria-hidden="true">
+    <span class="virtual-stick-base"><span class="virtual-stick-knob"></span></span>
+    <span class="virtual-stick-label">MOVE</span>
+  </div>
+  <div id="touch-help" aria-hidden="true" hidden>Move with the left stick · hold an ability and drag to aim</div>
   <div id="hud-debug-clusters" hidden aria-hidden="true"></div>
   <aside id="ability-hud" aria-label="Hero abilities">
-    <div class="ability" data-ability="weapon"><span class="ability-circle"><span class="ability-icon"></span></span><span class="ability-key">M1</span></div>
-    <div class="ability" data-ability="skill"><span class="ability-circle"><span class="ability-icon"></span></span><span class="ability-key">E</span></div>
-    <div class="ability" data-ability="ultimate"><span class="ability-circle"><span class="ability-icon"></span><small class="ability-lockout"></small></span><span class="ability-key">Q</span></div>
+    <button class="ability" data-ability="weapon" type="button" aria-label="Primary weapon">
+      <span class="ability-circle"><span class="ability-icon"></span></span><span class="ability-key" data-touch-label="FIRE">M1</span>
+    </button>
+    <button class="ability" data-ability="skill" type="button" aria-label="Hero skill">
+      <span class="ability-circle"><span class="ability-icon"></span></span><span class="ability-key" data-touch-label="SKILL">E</span>
+    </button>
+    <button class="ability" data-ability="ultimate" type="button" aria-label="Hero ultimate">
+      <span class="ability-circle"><span class="ability-icon"></span><small class="ability-lockout"></small></span><span class="ability-key" data-touch-label="ULT">Q</span>
+    </button>
   </aside>
   <section id="milestone-dawn" hidden aria-label="Wave milestone choice">
     <strong>DAWN!</strong>

@@ -8,7 +8,7 @@
 // pans smoothly north (and back).
 // ============================================================
 import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue';
-import { loadOwnedHeroVisuals, loadPlayerVisuals, tintedPlayerFrames } from './avatar.js';
+import { drawAvatarCosmetics, loadOwnedHeroVisuals, loadPlayerVisuals, tintedPlayerFrames } from './avatar.js';
 import {
   INK, drawBarterCorner, drawBuilding, drawCampfireCamp, drawCastle, drawDuelCamp, drawFlame, drawFlowers,
   drawHouse, drawRock, drawTrailSign, drawTree, drawWell,
@@ -28,6 +28,7 @@ const props = defineProps({
   buildings: { type: Array, required: true },
   castleLevel: { type: Number, required: true },
   avatarColor: { type: String, required: true },
+  avatarVisual: { type: Object, default: () => ({ hat: null }) },
   heroes: { type: Array, default: () => [] },
   // intro spotlight: 'castle' | 'buildings' | 'north' | null
   highlight: { type: String, default: null },
@@ -797,6 +798,14 @@ function drawAvatar(g, time) {
     g.imageSmoothingQuality = 'high';
     g.drawImage(sprite, 0, 0, sprite.width, sprite.height, -spriteWidth / 2, -spriteHeight, spriteWidth, spriteHeight);
     g.restore();
+    drawAvatarCosmetics(g, {
+      left: player.x - spriteWidth / 2,
+      top: player.y - hop - spriteHeight,
+      width: spriteWidth,
+      height: spriteHeight,
+      hatId: props.avatarVisual?.hat,
+      accessoryId: props.avatarVisual?.accessory,
+    });
     return;
   }
   // Small vector fallback while the player frames decode.
@@ -811,6 +820,14 @@ function drawAvatar(g, time) {
   g.beginPath(); g.ellipse(-r * .34, -r * .2, 2.3, 3.2, 0, 0, Math.PI * 2); g.fill();
   g.beginPath(); g.ellipse(r * .34, -r * .2, 2.3, 3.2, 0, 0, Math.PI * 2); g.fill();
   g.restore();
+  drawAvatarCosmetics(g, {
+    left: player.x - r * .8,
+    top: player.y - hop - r * 1.54,
+    width: r * 1.6,
+    height: r * 2.36,
+    hatId: props.avatarVisual?.hat,
+    accessoryId: props.avatarVisual?.accessory,
+  });
 }
 
 function drawEmote(g, time) {
@@ -1088,7 +1105,6 @@ defineExpose({ openEmotes: openWheel, focus: () => canvas.value?.focus({ prevent
 .town-shell { position: absolute; inset: 0; width: 100%; height: 100%; overflow: hidden; background: #2f5e3e; }
 .town-frame { position: relative; width: 100%; height: 100%; overflow: hidden; background: #2f5e3e; }
 .town-canvas { display: block; width: 100%; height: 100%; outline: none; cursor: crosshair; touch-action: none; }
-.town-canvas:focus-visible { outline: 4px solid #f2ba55; outline-offset: -6px; }
 .emote-wheel { position: absolute; z-index: 3; width: 0; height: 0; }
 .emote-wheel::before { content: ""; position: absolute; left: -78px; top: -78px; width: 156px; height: 156px; border-radius: 50%; background: rgb(35 56 47 / 72%); border: 3px solid #23382f; box-shadow: 0 5px 0 rgb(35 56 47 / 40%); }
 .emote-choice { position: absolute; left: -22px; top: -22px; display: grid; place-items: center; width: 44px; height: 44px; padding: 0; color: #23382f; background: #fbf2d8; border: 2px solid #23382f; border-radius: 50%; box-shadow: 0 3px 0 #7a6545; font-size: 22px; cursor: pointer; transform: rotate(var(--angle)) translate(56px) rotate(calc(-1 * var(--angle))); }

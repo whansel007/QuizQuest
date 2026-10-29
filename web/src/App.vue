@@ -25,7 +25,7 @@ import TeacherNavIcon from './teacher/TeacherNavIcon.vue';
 
 const TABS = {
   teacher: [['analytics', 'Analytics', AnalyticsView], ['classes', 'Classes & Roster', ClassManagementView], ['review', 'Question bank', ReviewView], ['content', 'Source material', MaterialLibrary], ['generate', 'AI drafting', GenerateView], ['evaluation', 'Evaluation', EvaluationView], ['settings', 'Settings', SettingsView]],
-  student: [['practice', 'Practice', PracticeView], ['progress', 'My Progress', ProgressView], ['world', 'World', HeroLabView], ['kingdom', 'Kingdom', KingdomView], ['pets', 'Summon', PetsView]],
+  student: [['kingdom', 'Kingdom', KingdomView], ['practice', 'Practice', PracticeView], ['progress', 'My Progress', ProgressView], ['world', 'World', HeroLabView], ['pets', 'Summon', PetsView]],
 };
 
 const ready = ref(false);
