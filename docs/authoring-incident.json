@@ -30,7 +30,7 @@
     {"path":"src/quiz/generator.js","trigger":"Authenticated professor POST /courses/:cid/generate or authoring generation","details":"Legacy generator already has an in-flight course lock, cache, daily drafting limit and bounded drafting rounds. Authoring additionally uses durable job deduplication and the lifetime Gemini request budget."},
     {"path":"src/quiz/vision.js","trigger":"Professor explicitly clicks Transcribe / Transcribe with AI","details":"Multimodal calls count tokens before inference. Each shared-client invocation has at most three transport attempts, at most six provider operations including recounting after fallback."},
     {"path":"src/quiz/grading.js","trigger":"Student submits a nonempty short answer through practice or Game","details":"One Gemini attempt, 15-second timeout, no quota wait, keyword fallback. Blank or expired answers are handled locally; idle timeout does not initiate inference."},
-    {"path":"src/quiz/api.js and public/hero-lab/main.js","trigger":"Teacher explicitly clicks Hero Lab AI test","details":"Uses the shared Gemini client, capped at three attempts."},
+    {"path":"src/quiz/api.js and public/hero-lab/test-ai.js","trigger":"Teacher explicitly clicks Hero Lab AI test","details":"Uses the shared Gemini client, capped at three attempts."},
     {"path":"scripts/probe-gemini.js, scripts/verify-gemini-live.js, scripts/verify-authoring-live.js, scripts/verify-gemini-consumers.js","trigger":"Manual script invocation","details":"These can consume live quota but are not imported by application startup or the test runner. They were inspected and never executed during this incident fix."}
   ],
   "safeguards": {
