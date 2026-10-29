@@ -53,6 +53,19 @@ function rate(list) {
 }
 const group = (list, key) => Map.groupBy(list, key);
 const currentVersion = (q) => q.versions.find((x) => x.v === q.publishedVersion) || q.versions.at(-1);
+// What students choose from and what counts as right. A wording fix leaves
+// this alone; changing the options or the answer does not.
+const answerKey = (v) => JSON.stringify([v.type || 'mcq', v.options, v.answerIndex, v.answerIndexes, v.answer, v.tolerance, v.unit, v.keyPoints]);
+// The versions whose answers can be counted together with the current one:
+// back from it for as long as the options and answer stayed the same.
+// `since` is when they last changed (null if they never did).
+function sameChoices(q, v = currentVersion(q)) {
+  const key = answerKey(v);
+  const versions = new Set([v.v]);
+  let i = q.versions.findIndex((x) => x.v === v.v);
+  while (i > 0 && answerKey(q.versions[i - 1]) === key) versions.add(q.versions[--i].v);
+  return { versions, since: i > 0 ? q.versions[i].editedAt : null };
+}
 
 // ---------------- the period ----------------
 // parsePeriod(query) -> { range, from, to } or { error }
@@ -200,12 +213,13 @@ function timeByQuestion(questionsById, byQuestion, topics) {
   return { questions: out.sort((a, b) => b.meanMs - a.meanMs), slowMs, maxAccuracy: CONFUSING.maxAccuracy, minN: LOW_N };
 }
 
-// How often each option of a fixed-option question was picked, current
-// version only (options may have changed between versions)
-function optionCounts(v, list) {
+// How often each option of a fixed-option question was picked, since the
+// options last changed (older answers were to different options)
+function optionCounts(q, v, list) {
   const type = v.type || 'mcq';
   if (!['mcq', 'tf', 'multi'].includes(type)) return null;
-  const current = list.filter((a) => a.version === v.v && !a.timedOut);
+  const { versions } = sameChoices(q, v);
+  const current = list.filter((a) => versions.has(a.version) && !a.timedOut);
   const counts = v.options.map(() => 0);
   for (const a of current) {
     for (const i of type === 'multi' ? a.choices || [] : [a.choice]) if (Number.isInteger(i) && i >= 0 && i < counts.length) counts[i]++;
@@ -232,7 +246,7 @@ function quality(courseQs, byQuestion, topics) {
       if (v.difficulty === 'hard' && r.accuracy > DIFFICULTY_CHECK.hardAbove) difficulty.push({ ...meta, tagged: 'hard', accuracy: r, verdict: 'easier than tagged' });
     }
     if (v.type !== 'tf') {
-      const oc = optionCounts(v, list);
+      const oc = optionCounts(q, v, list);
       const rare = rarelyChosen(oc);
       if (rare.length) unusedOptions.push({ ...meta, answered: oc.answered, options: rare.map((o) => ({ text: o.text, count: o.count })) });
     }
@@ -322,6 +336,7 @@ function classAnalytics(db, classId, now = Date.now(), period = { range: 'all' }
       outcomes: t.outcomes.map((o) => {
         const mineAll = byOutcome.get(o.id) || [];
         const mine = mineAll.filter((a) => !a.needsReview);
+        const mineTimes = mineAll.filter((a) => !a.timedOut).map((a) => a.ms).sort((x, y) => x - y);
         return {
           outcomeId: o.id,
           text: o.text,
@@ -329,6 +344,12 @@ function classAnalytics(db, classId, now = Date.now(), period = { range: 'all' }
           retry: rate(mine.filter((a) => !a.first)),
           awaitingMarking: mineAll.length - mine.length,
           published: courseQs.filter((q) => q.outcomeId === o.id && q.status === 'published').length,
+          // the same participation and timing figures as the topic row
+          students: new Set(mineAll.map((a) => a.studentId)).size,
+          medianMs: quantile(mineTimes, 0.5),
+          p75Ms: quantile(mineTimes, 0.75),
+          timedAnswers: mineTimes.length, // how many answers the times rest on
+          timeouts: mineAll.filter((a) => a.timedOut).length,
         };
       }),
     };
@@ -342,11 +363,12 @@ function classAnalytics(db, classId, now = Date.now(), period = { range: 'all' }
     const v = currentVersion(q);
     // Most popular wrong option often reveals a misconception or an
     // ambiguous distractor. Only meaningful for fixed-option questions,
-    // counted on the CURRENT version since options may have changed.
+    // counted since the options last changed.
     let topWrong = null;
     if (v.type === 'mcq' || v.type === 'tf' || v.type === undefined) {
+      const { versions } = sameChoices(q, v);
       const counts = {};
-      for (const a of list) if (!a.correct && Number.isInteger(a.choice) && a.version === v.v) counts[a.choice] = (counts[a.choice] || 0) + 1;
+      for (const a of list) if (!a.correct && Number.isInteger(a.choice) && versions.has(a.version)) counts[a.choice] = (counts[a.choice] || 0) + 1;
       const top = Object.entries(counts).sort((x, y) => y[1] - x[1])[0];
       if (top) topWrong = { option: v.options[Number(top[0])], count: top[1] };
     }
@@ -356,7 +378,6 @@ function classAnalytics(db, classId, now = Date.now(), period = { range: 'all' }
       type: TYPE_LABELS[v.type || 'mcq'],
       topic: topics.find((t) => t.id === q.topicId)?.name,
       status: q.status,
-      versionsAttempted: [...new Set(list.map((a) => a.version))].sort((x, y) => x - y),
       first: rate(list.filter((a) => a.first)),
       retry: rate(list.filter((a) => !a.first)),
       topWrong,
@@ -443,10 +464,11 @@ function questionInsights(db, classId, questionId, now = Date.now(), period = { 
   const topic = topics.find((t) => t.id === q.topicId);
   const all = inRange.filter((a) => a.questionId === q.id);
   const confirmed = all.filter((a) => !a.needsReview);
-  const current = all.filter((a) => a.version === v.v && !a.timedOut);
+  const same = sameChoices(q, v);
+  const current = all.filter((a) => same.versions.has(a.version) && !a.timedOut);
 
   let answers;
-  const oc = optionCounts(v, all);
+  const oc = optionCounts(q, v, all);
   if (oc) {
     const rare = new Set(rarelyChosen(oc).map((o) => o.text));
     answers = { kind: 'options', ...oc, options: oc.options.map((o) => ({ ...o, rarelyChosen: type !== 'tf' && rare.has(o.text) })), unused: UNUSED };
@@ -482,8 +504,10 @@ function questionInsights(db, classId, questionId, now = Date.now(), period = { 
     difficulty: v.difficulty || null,
     difficultyVerdict,
     status: q.status,
-    version: v.v,
-    olderVersionAnswers: all.filter((a) => a.version !== v.v).length,
+    // answers from before the options or answer last changed: in the
+    // accuracy figures, but not in the breakdown of what was chosen
+    choicesChangedAt: same.since,
+    earlierAnswers: all.filter((a) => !same.versions.has(a.version)).length,
     first: rate(confirmed.filter((a) => a.first)),
     retry: rate(confirmed.filter((a) => !a.first)),
     awaitingMarking: all.length - confirmed.length,

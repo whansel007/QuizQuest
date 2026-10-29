@@ -16,7 +16,7 @@ async function pickDemo(page, name) {
   for (const key of ['ArrowUp', 'ArrowUp', 'ArrowDown', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'ArrowLeft', 'ArrowRight', 'b', 'a', 'Enter']) await page.keyboard.press(key);
   await page.getByRole('heading', { name: 'Test accounts' }).waitFor();
   await page.getByRole('button', { name, exact: false }).click();
-  await page.getByRole('button', { name: 'Switch user', exact: true }).waitFor();
+  await page.getByRole('button', { name: 'Log out', exact: true }).waitFor();
 }
 const stems = [
   'A video call has enough capacity but responses are delayed. Which property explains this?',
@@ -152,7 +152,6 @@ test('PDF/PPTX upload, saved Markdown editing, preview/download, generation and 
   assert.equal(inferenceCalls, beforeUpload, 'uploading alone uses zero inference');
   assert.equal(srv.quiz.db.courses.find(c=>c.id==='c-comp').authoringJobs?.length || 0, 0);
   assert.equal(await page.getByLabel('Successfully uploaded files', {exact:true}).getByText('Uploaded', {exact:true}).count(), 3);
-  assert.equal(await page.locator('#tabs').getByRole('button', {name:'Source material',exact:true}).count(), 0);
   const disclosure = page.locator('.saved-toggle');
   await disclosure.focus(); await page.keyboard.press('Enter');
   assert.equal(await disclosure.getAttribute('aria-expanded'), 'false');

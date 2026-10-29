@@ -50,8 +50,10 @@ const ITEMS = [
 // Disclosed to students before they spend anything. Out of 1000.
 const EGG_ODDS = { common: 600, rare: 300, epic: 100 };
 const HERO_SUMMON = GAME_CONFIG.heroSummon;
-const HERO_CATALOG = HEROES.map(({ id, name, emoji, type, maxHp, attack, defense, speed, weaponName, skillName, ultimateName }) => ({
+const HERO_CATALOG = HEROES.map(({ id, name, emoji, type, maxHp, attack, defense, speed, weaponName, skillName, ultimateName, talent }) => ({
   id, name, emoji, type, rarity: HERO_SUMMON.rarities[id], hp: maxHp, attack, defense, speed, weapon: weaponName, skill: skillName, ultimate: ultimateName,
+  // Talent text/icon come from game-config.js so the World page never hardcodes them.
+  talent,
 }));
 
 

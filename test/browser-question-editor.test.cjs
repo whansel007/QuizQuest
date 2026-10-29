@@ -11,7 +11,7 @@ async function pickDemo(page, name) {
   for (const key of ['ArrowUp', 'ArrowUp', 'ArrowDown', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'ArrowLeft', 'ArrowRight', 'b', 'a', 'Enter']) await page.keyboard.press(key);
   await page.getByRole('heading', { name: 'Test accounts' }).waitFor();
   await page.getByRole('button', { name, exact: false }).click();
-  await page.getByRole('button', { name: 'Switch user', exact: true }).waitFor();
+  await page.getByRole('button', { name: 'Log out', exact: true }).waitFor();
 }
 test.before(async()=>{
   srv=start(0,{dataFile:null,authoringAI:async()=>{calls++;throw Error('Manual authoring must never infer');}});

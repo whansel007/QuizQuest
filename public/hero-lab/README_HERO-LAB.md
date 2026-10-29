@@ -9,7 +9,7 @@ Base stats are shown before kingdom upgrades and wave buffs. Attack values are b
 | Hero | Type | HP | Attack | Defense | Speed | Weapon | Skill | Ultimate | Talent |
 | --- | --- | ---: | ---: | ---: | ---: | --- | --- | --- | --- |
 | Sheriff 🤠 | Physical | 105 | 12 | 5 | 225 | Revolver | Dynamite | Bullet Rush | Quick Draw — each kill refunds 0.4 s; one Dynamite blast refunds at most 2 s. |
-| Guardian 🛡️ | Physical | 155 | 18 | 12 | 190 | Shield Bash | Shield Rush | Unbreakable Charge | Unstoppable — dash kills extend the dash; Charge ramps damage and ends with a slam. |
+| Guardian 🛡️ | Physical | 155 | 18 | 12 | 190 | Shield Bash | Shield Rush | Unbreakable Charge | Unstoppable — a kill during Unbreakable Charge extends the charge; Charge ramps damage and ends with a slam. |
 | Pilot 🧑‍✈️ | Physical | 78 | 10 | 2 | 245 | Scattershot | Dash | Mech Suit | Adrenaline — kills bring Mech Suit closer. |
 | Bombardier 💣 | Magic | 95 | 22 | 3 | 210 | Blast Bomb | Proximity Trap | Targeted Bombing | Demolitionist — primary fire explodes. |
 | Bubbles 🫧 | Magic | 110 | 12 | 4 | 220 | Bubble Spray | Bubble Trap | Bubble Rush | Finisher — Bubble Trap kills trigger a larger explosion and halve the remaining skill cooldown. |
@@ -37,8 +37,8 @@ Cooldowns below are the base server values, before run buffs and hero talents. W
 ### Guardian
 
 - **Shield Bash:** Throws a short-lived shield projectile (0.24 s) for 0.8× attack damage.
-- **Shield Rush (E):** A 0.7 s mouse-aimed burst at 3.2× movement speed, with 0.7 s of invulnerability. It deals 1.2× attack damage and knocks enemies back. Kills can add 0.15 s per kill, up to 1.2× the base dash duration (0.84 s total).
-- **Unbreakable Charge (Q):** A steerable 6 s charge at 440 px/s with invulnerability. It hits the same enemy at most once every 0.35 s. Each hit increases damage to subsequent hits by 10%, up to +100%. Kills can extend the charge by 0.15 s each, up to 7.2 s total. When the charge ends, Guardian slams for 2× attack damage (before the ramp) in a 150 px radius, with knockback. Press Q again to end early. The optional 40% damage-reduction brace for 1.5 s after Shield Rush is implemented but disabled by default.
+- **Shield Rush (E):** A quick 300 px mouse-aimed hop over 0.25 s, invulnerable for the dash plus 0.3 s after. It ends in a 130° fan shockwave (210 px radius) dealing 1.0× attack damage and pushing enemies radially away — brutes are pushed half as far, bosses and the Brute King not at all. Each enemy is hit at most once. **Primary fire during the hop ends it on the spot and detonates the fan there**, so the shockwave can land short of the full 300 px; that click fires no Shield Bash and costs no weapon cooldown. The old kill-extension on the skill is gone.
+- **Unbreakable Charge (Q):** A steerable 6 s charge at 440 px/s with invulnerability. It hits the same enemy at most once every 0.35 s. Each hit increases damage to subsequent hits by 10%, up to +100%. Kills can extend the charge by 0.15 s each, up to 7.2 s total. When the charge ends, Guardian slams for 2× attack damage (before the ramp) in a 150 px radius, with knockback. Press Q again to end early. The optional 40% damage-reduction brace for 1.5 s after the dash is implemented but disabled by default.
 
 ### Pilot
 
@@ -51,7 +51,7 @@ Cooldowns below are the base server values, before run buffs and hero talents. W
 
 - **Blast Bomb:** Bomb travels at 410 px/s, then explodes at its 0.85 s lifetime or range end, dealing 1.2× attack damage in a 100 px radius.
 - **Proximity Trap (E):** Places a trap at Bombardier's position. It triggers within 125 px, then deals 2.2× attack damage in a 130 px blast.
-- **Targeted Bombing (Q):** Opens a 5 s targeting window. Left-click confirms a 280 px pattern and schedules five bombs at 1 s intervals. Each blast uses a 135 px radius and 1.7× attack damage. The 40 s cooldown starts on confirmation; canceling or timing out does not consume it.
+- **Targeted Bombing (Q):** Opens a 5 s targeting window. Left-click confirms a 280 px pattern and schedules five bombs at 1 s intervals. Each blast uses a 135 px radius and 1.7× attack damage. The 40 s cooldown starts on confirmation; canceling or timing out does not consume it. The impact marker fills clockwise from 12 o'clock like the ability cooldown ring, so the time left before the blast is readable at a glance.
 
 ### Bubbles
 
@@ -62,7 +62,7 @@ Cooldowns below are the base server values, before run buffs and hero talents. W
 ### Electromancer
 
 - **Lightning Orb:** Fires a piercing orb (up to 2 pierces) with a 2.4 s lifetime.
-- **Stun Field (E):** Fires a blue projectile at 440 px/s. On detonation it deals 0.7× attack damage and stuns enemies in a 120 px radius for 1.9 s.
+- **Stun Field (E):** Fires a purple projectile at 440 px/s. On detonation it deals 0.7× attack damage and stuns enemies in a 120 px radius for 1.9 s.
 - **Chain Lightning (Q):** Deals 1.4× attack damage per hit and jumps every 0.26 s to nearby enemies within 220 px. It can chain through any number of enemies in range, hitting each target once per cast.
 - **Overload:** Each Chain Lightning hit refunds 4% of its 35 s base ultimate cooldown (1.4 s). Hitting a stunned enemy refunds twice that (2.8 s). Refunds are based on the base cooldown, so Rally does not increase them. Q cannot be cast again for at least 5 s after any cast, even if the cooldown refills sooner. Overload no longer adds damage to stunned targets.
 
@@ -75,9 +75,22 @@ The server reads building levels from the signed-in student's saved kingdom when
 - **Library:** +10% base attack per level for magic heroes.
 - **Workshop:** +10% base attack per level for physical heroes.
 - **Garden:** +10% of base campfire max HP per level per player in the shared run.
-- **Tower:** no combat bonus is configured yet.
+- **Tower:** makes the four stat buff cards (max HP, attack, defense, speed) 10% stronger per level on your own hero, up to level 3 (+30%).
 
 At level 3, the Library or Workshop grants +30% matching attack. With the 100 HP base campfire, Garden level 3 gives 130 max HP in a solo run; four players with Garden level 3 each give the shared campfire 220 max HP. The shared run adds each player's Garden bonus once. The client does not send its own building levels or bonus values.
+
+The Tower multiplies the four stat buff cards on the owner's own hero only: each level adds 10% to the card's effect, so at level 3 an attack card's +15% becomes +19.5%. Every hero uses its own Tower level — nothing is pooled, averaged or taken from the host. It never scales the campfire card or the rare effect cards.
+
+#### How stat buff cards are derived
+
+The room stores only the ordered list of cards taken this run, never pre-scaled numbers. Each hero's final stats are recomputed from that list, its base stats, its own building levels and the active effect cards:
+
+1. `attack = baseAttack × (1 + Library/Workshop bonus) × (1 + Σ attack cards × Tower) × Glass Cannon`
+2. `maxHP = baseHP × (1 + Σ max-HP cards × Tower) × Glass Cannon`
+3. `defense = min(50%, baseDefense + Σ defense cards × Tower)`
+4. `speed = baseSpeed × (1 + min(40%, Σ speed cards × Tower))`
+
+Same-stat cards add together, then the Tower multiplier scales that sum; caps apply after the multiplier. At Tower level 3, one card each becomes: attack +19.5%, max HP +26%, defense +13%, speed +10.4%; two attack cards become +39%. Increasing max HP raises current HP by the same amount; Glass Cannon lowers max HP and clamps current HP.
 
 ## Controls
 
@@ -85,11 +98,13 @@ At level 3, the Library or Workshop grants +30% matching attack. With the 100 HP
 | --- | --- |
 | Move | `W`, `A`, `S`, `D` or arrow keys |
 | Aim | Mouse pointer |
-| Weapon | Left mouse button |
+| Weapon | Left mouse button — hold to keep firing at the weapon cooldown |
 | Skill | `E` |
 | Ultimate | `Q` |
 | Bombardier target | Activate ultimate with `Q`, aim, then left-click to confirm; `Esc` cancels |
 | Hero information | `I` or the Information button |
+
+Holding the weapon button works for every hero: the server repeats the shot the moment the weapon cooldown allows, so the rate is exactly the cooldown (105 ms for Bubbles, 1.05 s for the Pilot mech punch) and does not depend on click speed. A held button never ends a Shield Rush dash or pops a Bubble Rush — those stay click-only — and it stays quiet while the Bombardier is choosing a strike point.
 
 ## Game loop
 

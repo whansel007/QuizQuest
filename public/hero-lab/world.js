@@ -11,14 +11,19 @@ import { SHAKE_PLAYER_HIT_TRAUMA, SHAKE_ULTIMATE_TRAUMA, SHAKE_BOSS_SLAM_TRAUMA,
   AREA_RING_WIDTH, AREA_TELEGRAPH_WIDTH, AREA_DASH_ON, AREA_DASH_OFF, AREA_UNDERSTROKE_EXTRA_PX,
   AREA_UNDERSTROKE_ALPHA, AREA_RING_STROKE_ALPHA, AREA_TELEGRAPH_STROKE_ALPHA, AREA_RING_FILL_ALPHA,
   AREA_TELEGRAPH_FILL_START_ALPHA, AREA_TELEGRAPH_FILL_END_ALPHA, AREA_ENEMY_FILL_END_ALPHA,
+  AREA_TELEGRAPH_SWEEP_BASE_ALPHA, AREA_TELEGRAPH_SWEEP_FILL_ALPHA,
+  AREA_TELEGRAPH_SWEEP_HAND_ALPHA, AREA_TELEGRAPH_SWEEP_HAND_WIDTH,
   AREA_ENEMY_MARKER_MIN_RADIUS, AREA_COLORS,
   MAX_BURSTS_PER_FRAME, KILL_BURST_THRESHOLD, KILL_BURST_WINDOW_MS, KILL_MASS_SHAKE_TRAUMA, KILL_MASS_PUFF_PARTICLES,
   FRAME_TIME_TARGET_MS, ADAPTIVE_RESTORE_MS, ADAPTIVE_SAMPLE_FRAMES, QUALITY_PARTICLE_FACTOR, FRAME_CAP_FPS,
   BTN_SIZE_PRIMARY, BTN_SIZE_SKILL, BTN_SIZE_ULT, BTN_OUTLINE_WIDTH, BTN_OUTLINE_COLOR,
   BTN_GAP_X, BTN_LABEL_GAP, BTN_LABEL_HEIGHT, BTN_LABEL_SIZE, BTN_LABEL_CLEARANCE,
-  BTN_ICON_SCALE, MECH_ICON_SWAP, BTN_COLORS, BTN_HIGHLIGHT_READY_COLOR } from '../../config/tuning.js';
+  BTN_ICON_SCALE, MECH_ICON_SWAP, BTN_COLORS, BTN_HIGHLIGHT_READY_COLOR, PARTICLE_CAP,
+  CONFETTI_QUALITY_FACTOR } from '../../config/tuning.js';
 import { playSound, setAudioOptions, setHeartbeat, audioStats, setAudioEnabled, warmUpAudio } from './arena-audio.js';
 import { createProfiler, effectToggles } from './perf-profiler.js';
+import { createTalentBadge, talentKeyLabel, talentKeyTooltip } from './talent-badge.js';
+import { preloadHeroSprites, drawCachedHero, getHeroSpriteUrl } from './hero-visuals.js';
 
 const canvas = document.querySelector('#world');
 const ARENA_WIDTH = GAME_CONFIG.arena.width;
@@ -29,29 +34,203 @@ canvas.width = Math.round(ARENA_WIDTH * renderScale);
 canvas.height = Math.round(ARENA_HEIGHT * renderScale);
 let particleBudget = Math.max(100, Math.floor(GAME_CONFIG.arenaTuning.performance.maxParticles * renderScale * renderScale));
 const context = canvas.getContext('2d', { alpha: false, desynchronized: true });
+let heroSpriteCache = null;
+let heroSpriteConfig = null;
+let heroSpritesDisabled = false;
+const heroOffsets = new Map();
+const heroFacing = new Map();
+const heroUltimateLook = new Map();
+const heroTransformStarts = new Map();
+const heroPreviousPositions = new Map();
+const heroHitFlashStarts = new Map();
+const heroHitFlashLast = new Map();
+void preloadHeroSprites().then((cache) => {
+  heroSpriteCache = cache; heroSpriteConfig = cache.config;
+  syncHeroMenus();
+  updateHud();
+}).catch((error) => console.warn('[Hero sprites] Config failed; using emoji.', error));
 const backgroundCanvas = document.createElement('canvas');
 backgroundCanvas.width = canvas.width;
 backgroundCanvas.height = canvas.height;
 const backgroundContext = backgroundCanvas.getContext('2d');
 backgroundContext.scale(renderScale, renderScale);
-for (let y = 0; y < ARENA_HEIGHT; y += 80) {
-  for (let x = 0; x < ARENA_WIDTH; x += 80) {
-    backgroundContext.fillStyle = (Math.floor(x / 80) + Math.floor(y / 80)) % 2 ? '#79b456' : '#70a94f';
-    backgroundContext.fillRect(x, y, 80, 80);
+paintForestClearing(backgroundContext);
+
+// The arena floor: a calm woodland clearing. Everything here is low contrast
+// on purpose, so enemies, projectiles, rings and the campfire stay the
+// clearest things on screen, and nothing reads as a wall or a hitbox. A fixed
+// seed keeps the floor identical between visits.
+function paintForestClearing(g) {
+  const W = ARENA_WIDTH; const H = ARENA_HEIGHT;
+  const cx = W / 2; const cy = H / 2;
+  let seed = 0x5eed;
+  const rand = () => { seed = (seed * 1664525 + 1013904223) >>> 0; return seed / 0x100000000; };
+  const base = g.createRadialGradient(cx, cy, 80, cx, cy, Math.hypot(cx, cy));
+  base.addColorStop(0, '#8CBB66');
+  base.addColorStop(0.55, '#7DAF5A');
+  base.addColorStop(1, '#5F9448');
+  g.fillStyle = base;
+  g.fillRect(0, 0, W, H);
+  // soft mottling, like light through leaves
+  for (let i = 0; i < 46; i += 1) {
+    g.globalAlpha = 0.06 + rand() * 0.05;
+    g.fillStyle = rand() < 0.5 ? '#9CC873' : '#6A9E4E';
+    g.beginPath();
+    g.ellipse(rand() * W, rand() * H, 90 + rand() * 170, 50 + rand() * 90, rand() * Math.PI, 0, Math.PI * 2);
+    g.fill();
   }
+  // worn earth around the campfire, where the party gathers
+  g.globalAlpha = 1;
+  const worn = g.createRadialGradient(cx, cy, 30, cx, cy, 230);
+  worn.addColorStop(0, 'rgba(178,160,104,.42)');
+  worn.addColorStop(0.6, 'rgba(160,160,96,.16)');
+  worn.addColorStop(1, 'rgba(160,160,96,0)');
+  g.fillStyle = worn;
+  g.beginPath(); g.ellipse(cx, cy, 250, 220, 0, 0, Math.PI * 2); g.fill();
+  // faint footpaths wandering in from the forest toward the fire
+  const paths = [
+    [[cx - 40, -20], [cx - 120, cy * 0.45], [cx - 30, cy - 175]],
+    [[cx + 60, H + 20], [cx + 170, cy * 1.55], [cx + 40, cy + 175]],
+    [[-20, cy + 60], [cx * 0.42, cy + 140], [cx - 180, cy + 30]],
+    [[W + 20, cy - 80], [cx * 1.6, cy - 150], [cx + 180, cy - 30]],
+  ];
+  g.lineCap = 'round';
+  for (const [width, alpha] of [[78, 0.1], [50, 0.16]]) {
+    g.strokeStyle = `rgba(176,150,96,${alpha})`;
+    g.lineWidth = width;
+    for (const [a, b, c] of paths) {
+      g.beginPath(); g.moveTo(a[0], a[1]); g.quadraticCurveTo(b[0], b[1], c[0], c[1]); g.stroke();
+    }
+  }
+  // grass tufts and a few tiny flowers, kept out of the campfire ring
+  const blades = ['#5F984C', '#6EA451', '#A2C66B'];
+  for (let tuft = 0; tuft < 420; tuft += 1) {
+    const x = rand() * W; const y = rand() * H;
+    if (Math.hypot(x - cx, y - cy) < 190) continue;
+    g.globalAlpha = 0.22 + rand() * 0.2;
+    const count = 2 + Math.floor(rand() * 3);
+    for (let b = 0; b < count; b += 1) {
+      const bx = x + (b - (count - 1) / 2) * 3.4;
+      const h = 4 + rand() * 5;
+      g.fillStyle = blades[Math.floor(rand() * blades.length)];
+      g.beginPath(); g.moveTo(bx - 1.8, y + 1.5); g.lineTo(bx + (rand() - 0.5) * 4, y - h); g.lineTo(bx + 1.8, y + 1.5); g.closePath(); g.fill();
+    }
+  }
+  const petals = ['#FFF4C9', '#F2BA55', '#D86F6B', '#BBA6E6'];
+  for (let i = 0; i < 70; i += 1) {
+    const x = rand() * W; const y = rand() * H;
+    if (Math.hypot(x - cx, y - cy) < 260) continue;
+    g.globalAlpha = 0.5;
+    g.fillStyle = petals[i % petals.length];
+    g.beginPath(); g.arc(x, y, 2.2, 0, Math.PI * 2); g.fill();
+  }
+  // the forest edge frames the clearing (the arena bounds are the real limit)
+  g.globalAlpha = 1;
+  const edge = (x0, y0, x1, y1) => {
+    const grad = g.createLinearGradient(x0, y0, x1, y1);
+    grad.addColorStop(0, 'rgba(37,73,55,.62)');
+    grad.addColorStop(1, 'rgba(37,73,55,0)');
+    return grad;
+  };
+  g.fillStyle = edge(0, 0, 0, 110); g.fillRect(0, 0, W, 110);
+  g.fillStyle = edge(0, H, 0, H - 110); g.fillRect(0, H - 110, W, 110);
+  g.fillStyle = edge(0, 0, 110, 0); g.fillRect(0, 0, 110, H);
+  g.fillStyle = edge(W, 0, W - 110, 0); g.fillRect(W - 110, 0, 110, H);
+  const bushes = ['#2F5E3E', '#3B7048', '#467747'];
+  const bush = (x, y) => {
+    const r = 24 + rand() * 18;
+    g.fillStyle = bushes[Math.floor(rand() * bushes.length)];
+    g.strokeStyle = 'rgba(35,56,47,.55)'; g.lineWidth = 3;
+    g.beginPath(); g.arc(x, y, r, 0, Math.PI * 2); g.fill(); g.stroke();
+  };
+  for (let x = -10; x <= W + 10; x += 34) { bush(x + rand() * 10, -8 + rand() * 10); bush(x + rand() * 10, H + 8 - rand() * 10); }
+  for (let y = -10; y <= H + 10; y += 34) { bush(-8 + rand() * 10, y + rand() * 10); bush(W + 8 - rand() * 10, y + rand() * 10); }
+  g.globalAlpha = 1;
 }
-backgroundContext.strokeStyle = '#456f35';
-backgroundContext.lineWidth = 1;
-backgroundContext.strokeRect(0.5, 0.5, ARENA_WIDTH - 1, ARENA_HEIGHT - 1);
+
+// Storybook campfire: a stone ring, crossed logs and a layered flame (or a
+// charred heap with smoke once it has gone out). Replaces the old emoji.
+function drawCampfire(g, cf, time) {
+  const lit = cf.hp > 0;
+  const r = cf.radius;
+  g.save();
+  g.lineJoin = 'round';
+  g.lineCap = 'round';
+  g.fillStyle = 'rgba(35,56,47,.28)';
+  g.beginPath(); g.ellipse(cf.x, cf.y + r * 0.35, r * 1.35, r * 0.6, 0, 0, Math.PI * 2); g.fill();
+  g.fillStyle = lit ? '#4A3424' : '#3A3A36';
+  g.beginPath(); g.ellipse(cf.x, cf.y + 4, r * 0.92, r * 0.5, 0, 0, Math.PI * 2); g.fill();
+  const log = (x1, y1, x2, y2, color) => {
+    g.strokeStyle = '#23382F'; g.lineWidth = 11; g.beginPath(); g.moveTo(x1, y1); g.lineTo(x2, y2); g.stroke();
+    g.strokeStyle = color; g.lineWidth = 7; g.beginPath(); g.moveTo(x1, y1); g.lineTo(x2, y2); g.stroke();
+  };
+  log(cf.x - r * 0.75, cf.y + 10, cf.x + r * 0.6, cf.y - 4, lit ? '#9E6238' : '#4C4640');
+  log(cf.x + r * 0.75, cf.y + 10, cf.x - r * 0.6, cf.y - 4, lit ? '#7A4A2E' : '#3F3A35');
+  for (let i = 0; i < 10; i += 1) {
+    const a = (i / 10) * Math.PI * 2;
+    const sx = cf.x + Math.cos(a) * r; const sy = cf.y + 4 + Math.sin(a) * r * 0.55;
+    g.fillStyle = i % 2 ? '#AAB6A0' : '#98A58F';
+    g.strokeStyle = '#23382F'; g.lineWidth = 2;
+    g.beginPath(); g.ellipse(sx, sy, 7.5, 5.5, a, 0, Math.PI * 2); g.fill(); g.stroke();
+  }
+  if (lit) {
+    const t = time / 150;
+    const layers = [['#EF7137', 17, 46], ['#F2BA55', 11, 33], ['#FFF1B8', 5.5, 18]];
+    for (const [color, w, h] of layers) {
+      const sway = Math.sin(t + w) * 3;
+      const lift = Math.sin(t * 1.6 + h) * 3;
+      const baseY = cf.y + 2;
+      g.fillStyle = color;
+      g.beginPath();
+      g.moveTo(cf.x - w, baseY);
+      g.quadraticCurveTo(cf.x - w * 1.1, baseY - h * 0.55, cf.x + sway, baseY - h - lift);
+      g.quadraticCurveTo(cf.x + w * 1.1, baseY - h * 0.55, cf.x + w, baseY);
+      g.closePath();
+      g.fill();
+      if (color === '#EF7137') { g.strokeStyle = '#23382F'; g.lineWidth = 2.5; g.stroke(); }
+    }
+  } else {
+    for (let i = 0; i < 3; i += 1) {
+      const phase = ((time / 1800) + i / 3) % 1;
+      g.globalAlpha = 0.45 * (1 - phase);
+      g.fillStyle = '#C9CFC4';
+      g.beginPath(); g.arc(cf.x + Math.sin(phase * 6 + i) * 6, cf.y - 8 - phase * 46, 8 + phase * 10, 0, Math.PI * 2); g.fill();
+    }
+  }
+  g.restore();
+}
+
+// Lobby training dummy: a straw target on a post instead of an emoji disk.
+function drawTrainingDummy(g, x, y, scale, flash) {
+  g.save();
+  g.lineJoin = 'round';
+  g.fillStyle = 'rgba(35,56,47,.22)';
+  g.beginPath(); g.ellipse(x, y + 20 * scale, 16 * scale, 5 * scale, 0, 0, Math.PI * 2); g.fill();
+  g.strokeStyle = '#23382F'; g.lineWidth = 7 * scale;
+  g.beginPath(); g.moveTo(x, y + 20 * scale); g.lineTo(x, y - 4 * scale); g.stroke();
+  g.strokeStyle = '#7A4A2E'; g.lineWidth = 4 * scale;
+  g.beginPath(); g.moveTo(x, y + 20 * scale); g.lineTo(x, y - 4 * scale); g.stroke();
+  const rings = [[19, flash ? '#FFFFFF' : '#E8CB7A'], [12.5, flash ? '#FFFFFF' : '#FFF8E4'], [6, flash ? '#FFFFFF' : '#D86F6B']];
+  for (const [radius, fill] of rings) {
+    g.fillStyle = fill; g.strokeStyle = '#23382F'; g.lineWidth = 2.5;
+    g.beginPath(); g.arc(x, y - 10 * scale, radius * scale, 0, Math.PI * 2); g.fill(); g.stroke();
+  }
+  g.restore();
+}
 const connectionStatus = document.querySelector('#connection-status');
+const enemyCount = document.querySelector('#enemy-count');
 const waveNumber = document.querySelector('#wave-number');
 const waveDetails = document.querySelector('#wave-details');
+const breakPill = document.querySelector('#break-pill');
+// I-card talent row: the badge is shared with the World page (talent-badge.js).
+const talentBadgeHost = document.querySelector('#stat-talent-badge');
+const talentKeyChip = document.querySelector('#stat-talent-key');
 const heroName = document.querySelector('#hero-name');
 const healthFill = document.querySelector('#health-fill');
 const healthTrack = document.querySelector('.health-track');
 const healthValue = document.querySelector('#health-value');
-const teamHealth = document.querySelector('#team-health');
-const roomRow = document.querySelector('#room-row');
+const teamHealth = null; // (removed — merged into #player-roster)
+const roomCodeCorner = document.querySelector('#room-code-corner');
 const roomCodeButton = document.querySelector('#room-code');
 const roomCodeValue = document.querySelector('#room-code-value');
 const roomCodeCopied = document.querySelector('#room-code-copied');
@@ -59,8 +238,9 @@ const waitingBanner = document.querySelector('#waiting-banner');
 const waitingDetail = document.querySelector('#waiting-detail');
 const abilityHud = document.querySelector('#ability-hud');
 const toastStack = document.querySelector('#toast-stack');
-const playerList = document.querySelector('#player-list');
-const playerListRows = document.querySelector('#player-list-rows');
+const playerRoster = document.querySelector('#player-roster');
+const partyCount = document.querySelector('#party-count');
+const enemyCountLabel = document.querySelector('.enemy-count-label');
 const lobbyBar = document.querySelector('#lobby-bar');
 const lobbyHero = document.querySelector('#lobby-hero');
 const startRunButton = document.querySelector('#start-run');
@@ -68,11 +248,11 @@ const lobbyHint = document.querySelector('#lobby-hint');
 const countdownOverlay = document.querySelector('#countdown');
 const countdownValue = document.querySelector('#countdown-value');
 const buffIcons = document.querySelector('#buff-icons');
-const downedList = document.querySelector('#downed-list');
-const briefingButton = document.querySelector('#briefing-button');
+const downedList = null; // (removed — merged into #player-roster)
 const joinBriefing = document.querySelector('#join-briefing');
 const infoButton = document.querySelector('#info-button');
 const statsPanel = document.querySelector('#stats-panel');
+const infoCloseButton = document.querySelector('#info-close');
 const buffVote = document.querySelector('#buff-vote');
 const buffCards = document.querySelector('#buff-cards');
 const targetingHint = document.querySelector('#targeting-hint');
@@ -100,7 +280,7 @@ const volumeSetting = document.querySelector('#volume-setting');
 const killStreakHud = document.querySelector('#kill-streak');
 const overloadFlash = document.querySelector('#overload-flash');
 const sheriffSkillAbility = document.querySelector('.ability[data-ability="skill"]');
-const sheriffRefundLabel = sheriffSkillAbility.querySelector('.cooldown-refund-label');
+const ultimateAbility = document.querySelector('.ability[data-ability="ultimate"]');
 // The ability tiles are static markup; cache the list so the 10Hz HUD refresh
 // does not re-query the document every tick.
 const abilityElements = document.querySelectorAll('.ability[data-ability]');
@@ -158,9 +338,19 @@ const momentumVisualAlpha = new Map();
 const momentumPositions = new Map();
 const momentumReadyLabels = [];
 const chainCounters = new Map();
-const dynamiteReadyBounces = new Map();
-let sheriffRefundLabelState = null;
-let sheriffRefundLabelTimer = null;
+// Emoji bounce above a hero whose ability just came back: Sheriff's 🧨
+// Dynamite and Pilot's 🤖 Mech Suit. playerId -> { at, emoji }.
+const readyBounces = new Map();
+// Talent refund popups: playerId -> { totalMs, startedAt }. Rendered above the
+// hero as a clock emoji plus the merged refund amount, replacing the old
+// "-0.4s" label that used to sit inside the skill button. Used by Sheriff's
+// Quick Draw and Pilot's Adrenaline.
+const refundPopups = new Map();
+// Guardian Shield Rush: a momentary directional squash of the hero sprite at the
+// instant the dash fires. playerId -> { dir: {x,y}, startedAt }. Drawn while the
+// dash trail is also live, but the squash is purely cosmetic and decays fast.
+const guardianDashSquash = new Map();
+let refundPopupState = null;
 let lastLocalPosition = null;
 let localIdleSince = performance.now();
 let momentumNudge = null;
@@ -181,14 +371,51 @@ const profiler = createProfiler({
   getToken: () => token,
 });
 profiler.onSoundToggle = (on) => setAudioEnabled(on);
-void profiler.start();
+void profiler.start().then((debugEnabled) => {
+  if (!debugEnabled) return;
+  const controls = document.createElement('div');
+  controls.className = 'sprite-debug-tools';
+  controls.innerHTML = '<label><input type="checkbox" data-sprite-debug="hitboxes"> Show hitboxes</label><label><input type="checkbox" data-sprite-debug="disable"> Disable sprites</label><button type="button" data-sprite-debug="ultimate">Force ultimate look</button><button type="button" data-sprite-debug="downed">Force downed</button>';
+  settingsPanel.append(controls);
+  controls.querySelector('[data-sprite-debug="disable"]').addEventListener('change', (event) => {
+    heroSpritesDisabled = event.target.checked;
+    syncHeroMenus(); updateHud();
+  });
+  controls.querySelector('[data-sprite-debug="ultimate"]').addEventListener('click', () => { heroDebugUltimate = !heroDebugUltimate; });
+  controls.querySelector('[data-sprite-debug="downed"]').addEventListener('click', () => { heroDebugDowned = !heroDebugDowned; });
+  controls.querySelector('[data-sprite-debug="hitboxes"]').addEventListener('change', (event) => { heroDebugHitboxes = event.target.checked; });
+
+  // Tower debug: set this player's Tower level 0..max and force-add a stat card,
+  // with a live readout of the derived stats. Same debug gate as above.
+  const towerTools = document.createElement('div');
+  towerTools.className = 'tower-debug-tools';
+  const maxTowerLevel = GAME_CONFIG.arenaTuning.tower.maxLevel;
+  const levelOptions = Array.from({ length: maxTowerLevel + 1 }, (_, i) => `<option value="${i}">${i}</option>`).join('');
+  towerTools.innerHTML = `<label>Tower Lv <select data-tower-level>${levelOptions}</select></label>`
+    + '<label>Add card <select data-tower-card><option value="">—</option><option value="maxHp">maxHp</option><option value="attack">attack</option><option value="defense">defense</option><option value="speed">speed</option></select></label>'
+    + '<button type="button" data-tower-add>Add</button><span data-tower-readout></span>';
+  controls.append(towerTools);
+  towerTools.querySelector('[data-tower-level]').addEventListener('change', (event) => socket.emit('debug_set_tower', Number(event.target.value)));
+  towerTools.querySelector('[data-tower-add]').addEventListener('click', () => {
+    const cardId = towerTools.querySelector('[data-tower-card]').value;
+    if (cardId) socket.emit('debug_add_stat_card', cardId);
+  });
+  window.setInterval(() => {
+    const local = state.players.find((candidate) => candidate.id === me);
+    const out = towerTools.querySelector('[data-tower-readout]');
+    if (!local) { out.textContent = ''; return; }
+    out.textContent = `Lv${local.towerLevel ?? 0} ×${Number(local.towerMultiplier ?? 1).toFixed(2)} · HP ${Math.round(local.maxHp)} · ATK ${Number(local.attack).toFixed(1)} · DEF ${Number(local.defense).toFixed(1)} · SPD ${Number(local.speed).toFixed(1)}`;
+  }, 500);
+});
+let heroDebugUltimate = false;
+let heroDebugDowned = false;
+let heroDebugHitboxes = false;
 try { sessionNudgeCount = Number(sessionStorage.getItem('hero-lab-momentum-nudges') || 0) || 0; } catch { /* session storage is optional */ }
 const ARENA_TUNING = GAME_CONFIG.arenaTuning;
 document.documentElement.style.setProperty('--cooldown-ring-transition', `${ARENA_TUNING.heroTweaks.cooldownRingTransitionMs}ms`);
 document.documentElement.style.setProperty('--ready-glow-period', `${ARENA_TUNING.heroTweaks.readyGlowPeriodMs}ms`);
 document.documentElement.style.setProperty('--sheriff-ready-ring-duration', `${ARENA_TUNING.heroTweaks.sheriffReadyRingMs}ms`);
 document.documentElement.style.setProperty('--sheriff-refund-pulse-duration', `${ARENA_TUNING.heroTweaks.sheriffRefundPulseMs}ms`);
-document.documentElement.style.setProperty('--sheriff-refund-label-duration', `${ARENA_TUNING.heroTweaks.sheriffRefundLabelMs}ms`);
 document.documentElement.style.setProperty('--overload-flash-duration', `${ARENA_TUNING.heroTweaks.electroOverloadFlashMs}ms`);
 document.documentElement.style.setProperty('--overload-feedback-duration', `${ARENA_TUNING.heroTweaks.electroOverloadFeedbackMs}ms`);
 
@@ -363,7 +590,6 @@ let lastHitShakeAt = 0;
 let cameraZoom = { until: 0, scale: 1 };
 let combo = { count: 0, lastKillAt: 0 };
 let bannerTimer = null;
-let primaryFireTimer = null;
 let lastHudUpdateAt = 0;
 let lastAimSentAt = 0;
 let aimSendTimer = null;
@@ -373,6 +599,7 @@ const BRIEFING_SESSION_KEY = 'hero-lab-briefing-shown';
 const abilityReadyAt = new Map();
 const runAgainHero = document.querySelector('#run-again-hero');
 const runResultStats = document.querySelector('#run-result-stats');
+const runResultUpgrades = document.querySelector('#run-result-upgrades');
 let latestRunResult = null;
 
 function saveSettings() {
@@ -620,6 +847,91 @@ function spawnMassKillPuff(x, y, fx) {
   shakeCamera(KILL_MASS_SHAKE_TRAUMA, 'major');
 }
 
+// --- Boss-defeated confetti -----------------------------------------------
+// Only a boss kill earns confetti. Pieces live in their own array because they
+// are drawn in SCREEN space (never shaken, never camera-zoomed) and must not be
+// recycled by the world-space particle pool while they fall. Pure fillRect, no
+// glyph rasterisation and no shadowBlur, so the cost is one rect per piece.
+const confetti = [];
+
+function spawnBossConfetti() {
+  const cfg = GAME_CONFIG.confetti;
+  const factor = CONFETTI_QUALITY_FACTOR[effectiveQuality()] ?? 1;
+  // Hard cap: confetti may never push the total live effects past PARTICLE_CAP.
+  const room = Math.max(0, PARTICLE_CAP - particles.length - confetti.length);
+  const total = Math.min(Math.round(cfg.count * factor), room);
+  if (total <= 0) return;
+  const now = performance.now();
+  // Two bursts, one per top corner, aimed down and toward the middle.
+  const corners = [
+    { x: cfg.burstInsetPx, y: cfg.burstInsetPx, dirX: 1 },
+    { x: ARENA_WIDTH - cfg.burstInsetPx, y: cfg.burstInsetPx, dirX: -1 },
+  ];
+  for (let i = 0; i < total; i += 1) {
+    const corner = corners[i % 2];
+    const angle = Math.PI * (0.15 + Math.random() * 0.35);
+    const speed = cfg.burstSpeedMin + Math.random() * (cfg.burstSpeedMax - cfg.burstSpeedMin);
+    confetti.push({
+      x: corner.x + (Math.random() - 0.5) * cfg.burstSpreadPx,
+      y: corner.y + (Math.random() - 0.5) * cfg.burstSpreadPx * 0.4,
+      vx: Math.cos(angle) * speed * corner.dirX,
+      vy: Math.sin(angle) * speed,
+      size: cfg.pieceMinPx + Math.random() * (cfg.pieceMaxPx - cfg.pieceMinPx),
+      color: cfg.colors[i % cfg.colors.length],
+      rotation: Math.random() * Math.PI * 2,
+      spin: (Math.random() - 0.5) * 2 * cfg.spinTurnsMax * Math.PI,
+      swayPhase: Math.random() * Math.PI * 2,
+      swaySpeed: 2 + Math.random() * 2,
+      bornAt: now,
+    });
+  }
+}
+
+// One boss kill = gold banner + the wave-end fanfare + the confetti burst.
+function celebrateBossDefeat() {
+  showBanner('BOSS DEFEATED!', false, GAME_CONFIG.confetti.bannerMs, 'gold');
+  playSound('waveEnd');
+  spawnBossConfetti();
+}
+
+function updateConfetti(currentTime, dt) {
+  if (confetti.length === 0) return;
+  const cfg = GAME_CONFIG.confetti;
+  const drag = Math.max(0, 1 - cfg.drag * dt);
+  for (let i = confetti.length - 1; i >= 0; i -= 1) {
+    const piece = confetti[i];
+    const age = currentTime - piece.bornAt;
+    if (age >= cfg.durationMs) { confetti.splice(i, 1); continue; }
+    piece.vy += cfg.fallGravity * dt;
+    piece.vx *= drag;
+    piece.vy *= drag;
+    piece.x += (piece.vx + Math.sin((age / 1000) * piece.swaySpeed + piece.swayPhase) * cfg.swayPx) * dt;
+    piece.y += piece.vy * dt;
+    piece.rotation += piece.spin * dt;
+  }
+}
+
+// Drawn AFTER the camera transform is reset, so shake and the boss zoom can
+// never move it. Caller has already set the identity transform.
+function drawConfetti(currentTime) {
+  if (confetti.length === 0) return;
+  const cfg = GAME_CONFIG.confetti;
+  const fadeWindow = cfg.durationMs * 0.35;
+  context.setTransform(renderScale, 0, 0, renderScale, 0, 0);
+  for (let i = 0; i < confetti.length; i += 1) {
+    const piece = confetti[i];
+    const remaining = cfg.durationMs - (currentTime - piece.bornAt);
+    context.globalAlpha = remaining >= fadeWindow ? 1 : Math.max(0, remaining / fadeWindow);
+    context.fillStyle = piece.color;
+    context.save();
+    context.translate(piece.x, piece.y);
+    context.rotate(piece.rotation);
+    context.fillRect(-piece.size / 2, -piece.size / 4, piece.size, piece.size / 2);
+    context.restore();
+  }
+  context.globalAlpha = 1;
+}
+
 
 function returnToKingdom() {
   if (embedded) {
@@ -627,16 +939,56 @@ function returnToKingdom() {
   } else location.replace('/hero-lab');
 }
 
+// Drawn emblems for the result card: a gold star over a glowing fire for a
+// finished run, cold logs with a wisp of smoke for a campfire that went out.
+const RESULT_EMBLEMS = {
+  victory: '<svg viewBox="0 0 64 64"><path d="M14 52 50 40M14 40l36 12" stroke="#23382F" stroke-width="7" stroke-linecap="round"/><path d="M14 52 50 40M14 40l36 12" stroke="#9E6238" stroke-width="4" stroke-linecap="round"/><path d="M32 44c-9 0-13-6-11-13 2-5 6-7 6-13 5 3 7 7 6 11 2-2 3-4 3-7 5 4 7 9 6 13-1 6-5 9-10 9Z" fill="#EF7137" stroke="#23382F" stroke-width="2.5" stroke-linejoin="round"/><path d="M32 41c-4 0-6-3-5-6 1-2 3-3 3-6 3 2 5 5 4 8 2 0 2-2 2-3 2 2 2 4 1 6-1 1-3 1-5 1Z" fill="#F2BA55"/><path d="m32 4 3.2 6.5 7.2 1-5.2 5 1.2 7.1L32 20.3l-6.4 3.3 1.2-7.1-5.2-5 7.2-1Z" fill="#F2BA55" stroke="#23382F" stroke-width="2" stroke-linejoin="round"/></svg>',
+  defeat: '<svg viewBox="0 0 64 64"><path d="M14 52 50 40M14 40l36 12" stroke="#23382F" stroke-width="7" stroke-linecap="round"/><path d="M14 52 50 40M14 40l36 12" stroke="#5B5550" stroke-width="4" stroke-linecap="round"/><path d="M30 36c-4-4 4-7 0-12s5-8 1-13M38 34c-3-3 3-5 0-9" fill="none" stroke="#C9CFC4" stroke-width="3" stroke-linecap="round"/></svg>',
+};
+
+// The party panel shows everyone who was in the room for this run: their own
+// name first, the hero they played underneath. Only real roster data is used.
+function renderResultParty() {
+  const host = document.querySelector('#run-result-party');
+  if (!host) return;
+  const roster = state.room?.players?.length ? state.room.players : (state.players || []);
+  const members = roster.length ? roster : [{ id: me, name: 'You', heroId: activeHeroId }];
+  const ordered = [...members].sort((a, b) => (a.id === me ? -1 : b.id === me ? 1 : 0));
+  host.dataset.size = String(Math.min(ordered.length, 4));
+  host.replaceChildren(...ordered.map((member) => {
+    const figure = document.createElement('figure');
+    figure.className = `party-member${member.id === me ? ' me' : ''}`;
+    const stage = document.createElement('span'); stage.className = 'party-stage';
+    const hero = HEROES.find((candidate) => candidate.id === member.heroId);
+    const sprite = createHeroImage(member.heroId, member.emoji || hero?.emoji, 140);
+    if (sprite) stage.append(sprite); else stage.textContent = member.emoji || hero?.emoji || '';
+    const caption = document.createElement('figcaption');
+    const name = document.createElement('strong'); name.textContent = truncateName(member.name);
+    name.title = member.name || '';
+    const heroLine = document.createElement('span'); heroLine.textContent = `${hero?.name || 'Hero'}${member.id === me ? ' · you' : ''}`;
+    caption.append(name, heroLine);
+    figure.append(stage, caption);
+    return figure;
+  }));
+}
+
 function showRunResult(result) {
   latestRunResult = result;
   milestoneDawn.hidden = true;
   runResultPanel.hidden = false;
+  // The final victory screen earns the same celebration as a boss kill.
+  if (result.victory) spawnBossConfetti();
   const bestKey = `hero-lab-best:${result.heroId || activeHeroId}`;
   let personalBest = Number(result.wavesReached) || 0;
   try {
     personalBest = Math.max(personalBest, Number(localStorage.getItem(bestKey)) || 0);
     localStorage.setItem(bestKey, String(personalBest));
   } catch { /* storage may be unavailable */ }
+  // Victory and defeat share one layout; heading, emblem and accent tell them apart.
+  runResultPanel.classList.toggle('victory', Boolean(result.victory));
+  runResultPanel.classList.toggle('defeat', !result.victory);
+  document.querySelector('#run-result-emblem').innerHTML = result.victory ? RESULT_EMBLEMS.victory : RESULT_EMBLEMS.defeat;
+  renderResultParty();
   document.querySelector('#run-result-title').textContent = result.victory ? 'Victory!' : 'Campfire extinguished';
   document.querySelector('#run-result-message').textContent = `${result.wavesCleared || 0} waves cleared · ${result.rewardCoins || 0} placeholder coins${result.victory ? ' claimed' : ' earned'}.`;
   runResultStats.replaceChildren();
@@ -644,20 +996,31 @@ function showRunResult(result) {
     ? [`Your ${result.attackBonusBuilding || 'Kingdom'} +${result.attackBonusPercent}% base attack bonus dealt ${result.bonusDamage || 0} extra damage`]
     : [`Kingdom attack bonus: 0% · Extra damage: ${result.bonusDamage || 0}`];
   if (result.campfireBonusPercent > 0) upgradeLines.push(`Garden +${result.campfireBonusPercent}% base campfire HP per player`);
-  for (const line of [
-    `Waves reached: ${result.wavesReached || 0}`,
-    `Kills: ${result.kills || 0}`,
-    `Damage dealt: ${result.damageDealt || 0}`,
-    `Personal best with this hero: ${personalBest} waves`,
-    ...upgradeLines,
-  ]) {
-    const item = document.createElement('span'); item.textContent = line; runResultStats.append(item);
+  if (result.towerBonusPercent > 0) upgradeLines.push(`Tower Lv${result.towerLevel}: buffs +${result.towerBonusPercent}% on your hero`);
+  const statTiles = [
+    ['Waves reached', result.wavesReached || 0, 'waves'],
+    ['Enemies defeated', result.kills || 0, 'kills'],
+    ['Damage dealt', result.damageDealt || 0, 'damage'],
+    ['Personal best', `${personalBest} waves`, 'best'],
+  ];
+  for (const [label, value, kind] of statTiles) {
+    const tile = document.createElement('div'); tile.className = 'run-result-stat'; tile.dataset.kind = kind;
+    const number = document.createElement('strong'); number.textContent = value;
+    const caption = document.createElement('span'); caption.textContent = label;
+    tile.append(number, caption); runResultStats.append(tile);
   }
-  document.querySelector('#run-result-teaser').textContent = `Brute King awaits at wave ${result.nextBossWave || ARENA_TUNING.run.bossTeaserWave}.`;
+  runResultUpgrades.replaceChildren(...upgradeLines.map((line) => {
+    const item = document.createElement('li');
+    const marker = document.createElement('span'); marker.setAttribute('aria-hidden', 'true'); marker.textContent = '✦';
+    const text = document.createElement('span'); text.textContent = line;
+    item.append(marker, text); return item;
+  }));
+  document.querySelector('#run-result-teaser-text').textContent = `The Brute King awaits at wave ${result.nextBossWave || ARENA_TUNING.run.bossTeaserWave}.`;
   runAgainHero.replaceChildren(...HEROES.map((hero) => {
-    const option = document.createElement('option'); option.value = hero.id; option.textContent = `${hero.emoji} ${hero.name}`;
+    const option = document.createElement('option'); option.value = hero.id; option.textContent = heroOptionText(hero);
     option.selected = hero.id === (result.heroId || activeHeroId); return option;
   }));
+  syncHeroMenuIcons();
 
   let runCount = 0;
   try {
@@ -749,11 +1112,13 @@ volumeSetting.addEventListener('input', () => { settings.masterVolume = Number(v
 lobbyHero.replaceChildren(...HEROES.map((hero) => {
   const option = document.createElement('option');
   option.value = hero.id;
-  option.textContent = `${hero.emoji} ${hero.name}`;
+  option.textContent = heroOptionText(hero);
   return option;
 }));
 lobbyHero.value = activeHeroId;
+syncHeroMenuIcons();
 lobbyHero.addEventListener('change', () => {
+  syncHeroMenuIcons();
   if (!socket.connected) return;
   pendingHeroSwap = lobbyHero.value;
   pendingHeroSwapAt = performance.now();
@@ -784,10 +1149,11 @@ function smoothShakeNoise(timestamp, phase = SHAKE_NOISE_PRIMARY_PHASE) {
   return valueAt(sample) + (valueAt(sample + 1) - valueAt(sample)) * eased;
 }
 
-function showAreaEffect({ x, y, radius, kind = 'player', telegraphMs = 0, sourceAbility = 'weapon', color = null, sourceHeroId = null }) {
+function showAreaEffect({ x, y, radius, kind = 'player', telegraphMs = 0, sourceAbility = 'weapon', color = null, sourceHeroId = null, angleRad = null, angleDeg = null, durationMs = null }) {
+  const cone = angleRad != null && angleDeg != null;
   const now = performance.now();
-  areaEffects.push({ x, y, radius, kind, sourceAbility, color, sourceHeroId, phase: telegraphMs > 0 ? 'telegraph' : 'detonation', startedAt: now,
-    durationMs: telegraphMs > 0 ? telegraphMs : ARENA_TUNING.areaEffects.detonationMs });
+  areaEffects.push({ x, y, radius, kind, sourceAbility, color, sourceHeroId, angleRad, angleDeg, cone, phase: telegraphMs > 0 ? 'telegraph' : 'detonation', startedAt: now,
+    durationMs: durationMs != null ? durationMs : (telegraphMs > 0 ? telegraphMs : ARENA_TUNING.areaEffects.detonationMs) });
   if (areaEffects.length > 24) areaEffects.shift();
   if (telegraphMs <= 0) {
     if (sourceAbility === 'boss-slam') shakeCamera(SHAKE_BOSS_SLAM_TRAUMA, 'major');
@@ -865,11 +1231,12 @@ function showElectroOverload(event) {
   setTimeout(() => circle.classList.remove('overload-pulse'), ARENA_TUNING.heroTweaks.electroOverloadFeedbackMs);
 }
 
-function showBanner(text, boss = false, durationMs = ARENA_TUNING.waveMoments.bannerMs) {
+function showBanner(text, boss = false, durationMs = ARENA_TUNING.waveMoments.bannerMs, extraClass = '') {
   if (!momentBanner) return;
   clearTimeout(bannerTimer);
   momentBanner.hidden = false;
   momentBanner.classList.toggle('boss', boss);
+  momentBanner.classList.toggle('gold', extraClass === 'gold');
   momentBanner.classList.remove('show');
   momentBanner.textContent = text;
   momentBanner.style.setProperty('--banner-scale-start', String(ARENA_TUNING.waveMoments.bannerScaleStart));
@@ -905,8 +1272,8 @@ function openBriefing(force = false) {
   briefingTimer = setTimeout(closeBriefing, ARENA_TUNING.briefing.durationMs);
 }
 
-briefingButton.addEventListener('click', (event) => { event.stopPropagation(); openBriefing(true); });
-
+// The "?" button was fused into the I-key hero info card; the one-time
+// onboarding overlay still auto-shows via openBriefing().
 function updateKillStreak(sourceId, announceMass = false) {
   if (sourceId !== me) return;
   const now = performance.now();
@@ -988,10 +1355,10 @@ socket.on('state', (snapshot) => {
 socket.on('notice', (message) => {
   connectionStatus.textContent = message;
 });
-socket.on('host_changed', ({ name } = {}) => { if (name) showToast(`${name} is now the host`); });
-socket.on('player_waiting', ({ name } = {}) => { if (name) showToast(`${name} is joining after this wave`); });
-socket.on('player_joined', ({ name } = {}) => { if (name) showToast(`${name} joined`); });
-socket.on('player_reconnected', ({ name } = {}) => { if (name) showToast(`${name} reconnected`); });
+socket.on('host_changed', ({ name, heroId, emoji } = {}) => { if (name) showToast(`${name} is now the host`, heroId, emoji); });
+socket.on('player_waiting', ({ name, heroId, emoji } = {}) => { if (name) showToast(`${name} is joining after this wave`, heroId, emoji); });
+socket.on('player_joined', ({ name, heroId, emoji } = {}) => { if (name) showToast(`${name} joined`, heroId, emoji); });
+socket.on('player_reconnected', ({ name, heroId, emoji } = {}) => { if (name) showToast(`${name} reconnected`, heroId, emoji); });
 socket.on('countdown', () => { playSound('waveStart'); });
 socket.on('run_started', () => {
   countdownOverlay.hidden = true;
@@ -1027,6 +1394,9 @@ socket.on('wave_start', (event) => {
 });
 socket.on('wave_twist', (twist) => showBanner(twist.label));
 socket.on('wave_end', (event) => {
+  // On a boss wave the gold "BOSS DEFEATED!" banner and the fanfare already
+  // played from the kill event; re-bannering here would cut them to ~0 ms.
+  if (event?.boss) return;
   showBanner('WAVE CLEARED', false, ARENA_TUNING.waveMoments.clearedBannerMs);
   playSound('waveEnd');
 });
@@ -1040,10 +1410,38 @@ socket.on('ability_used', (event) => {
   if (event.ability === 'ultimate') {
     playSound('ultimateCast', { volume: event.playerId === me ? 1 : 0.65 });
     shakeCamera(SHAKE_ULTIMATE_TRAUMA, 'major');
+    return;
+  }
+  if (event.ability === 'skill' && event.heroId === 'guardian') {
+    // Dash start: a dust puff kicked up behind the launch point plus a short
+    // directional squash of the sprite (applied in the player draw pass).
+    const player = state.players.find((candidate) => candidate.id === event.playerId);
+    const dir = event.direction || (player ? player.aim : { x: 1, y: 0 });
+    const length = Math.hypot(dir.x, dir.y) || 1;
+    const dx = dir.x / length, dy = dir.y / length;
+    const px = player ? player.x : 0, py = player ? player.y : 0;
+    if (player) guardianDashSquash.set(player.id, { dir: { x: dx, y: dy }, startedAt: performance.now() });
+    const fx = HERO_FX_COLORS.guardian.primary;
+    for (let i = 0; i < 14; i++) {
+      const spread = (Math.random() - 0.5) * 1.4;
+      const back = -0.4 - Math.random() * 0.5;
+      const ang = Math.atan2(dy, dx) + spread;
+      const speed = 40 + Math.random() * 90;
+      addParticle({ x: px - dx * 14, y: py - dy * 14, vx: Math.cos(ang) * speed * 0.6 + dx * back * 60,
+        vy: Math.sin(ang) * speed * 0.6 + dy * back * 60 - 20, radius: 2 + Math.random() * 3, color: fx, alpha: 0.9, decay: 0.06, expiresAt: performance.now() + 360 });
+    }
   }
 });
 socket.on('weapon_fired', (event) => {
-  if (event.playerId !== me) playSound('shoot', { pitchVariance: ARENA_TUNING.sound.shotPitchVariance, volume: 0.6 });
+  if (event.playerId !== me) { playSound('shoot', { pitchVariance: ARENA_TUNING.sound.shotPitchVariance, volume: 0.6 }); return; }
+  // Own shots are repeated by the server while primary fire is held, so their
+  // muzzle flash and sound have to come from the event. A 'click' shot already
+  // played both locally, before the round trip.
+  if (event.source !== 'hold') return;
+  const shooter = state.players.find((candidate) => candidate.id === me);
+  if (!shooter) return;
+  showMuzzleFlash(shooter);
+  playSound('shoot', { pitchVariance: ARENA_TUNING.sound.shotPitchVariance });
 });
 socket.on('buff_applied', () => playSound('cardPick'));
 socket.on('dash_hit', (event) => {
@@ -1157,6 +1555,8 @@ function handleMonsterKilled(data) {
   const announceMass = registerKill(now);
   const massWindow = isMassKillWindow(now);
   updateKillStreak(data.sourceId, announceMass);
+  // A boss kill is the one moment that earns the banner + fanfare + confetti.
+  if (data.boss) celebrateBossDefeat();
   if (effectToggles.burst) {
     if (announceMass) {
       spawnMassKillPuff(data.x, data.y, fx);
@@ -1279,6 +1679,41 @@ if (typeof window !== 'undefined' && new URLSearchParams(location.search).has('p
     },
     counts() {
       return { particles: particles.length, numbers: damageTexts.length, sprites: deathSprites.length, budget: particleBudget };
+    },
+    // Boss celebration probe: runs the real kill path with boss=true so the
+    // gold banner, the fanfare and the screen-space confetti can be inspected.
+    simulateBossKill(x = ARENA_WIDTH / 2, y = ARENA_HEIGHT / 2) {
+      handleMonsterKilled({ id: 'sim_boss', x, y, sourceId: me, emoji: '👑', enemyType: 'brute-king',
+        heroId: activeHeroId, sourceX: x, sourceY: y, boss: true });
+    },
+    confetti() {
+      return {
+        count: confetti.length,
+        banner: momentBanner ? momentBanner.textContent : null,
+        bannerBoss: momentBanner ? momentBanner.classList.contains('boss') : false,
+        bannerGold: momentBanner ? momentBanner.classList.contains('gold') : false,
+        bannerHidden: momentBanner ? momentBanner.hidden : true,
+      };
+    },
+    // Read-only view of the canvas-drawn feedback above a hero: the "it's back"
+    // bounce (🧨 Dynamite, 🤖 Mech Suit) and the cooldown-refund popup. Both are
+    // painted, not DOM, so this is how they are verified.
+    aboveHero() {
+      const now = performance.now();
+      return {
+        ready: [...readyBounces.entries()].map(([playerId, value]) => ({
+          playerId, emoji: value.emoji, ageMs: Math.round(now - value.at),
+        })),
+        refunds: [...refundPopups.entries()].map(([playerId, value]) => ({
+          playerId, totalMs: value.totalMs, ageMs: Math.round(now - value.startedAt),
+        })),
+      };
+    },
+    // Test-only quality switch, so the confetti scaling can be measured.
+    setQuality(value) {
+      settings.effectsQuality = value;
+      applyEffectsQuality();
+      return effectiveQuality();
     },
     // Read-only view of the adaptive-quality state (Auto level + live budget).
     quality() {
@@ -1413,6 +1848,18 @@ socket.on('area_effect', (effect) => {
     addParticle({ x: effect.x, y: effect.y, vx: Math.cos(angle) * speed, vy: Math.sin(angle) * speed,
       radius: 2 + Math.random() * 3, color: effect.color || '#ff9c45', alpha: 1, expiresAt: performance.now() + ARENA_TUNING.areaEffects.detonationMs });
   }
+  // Guardian fan: a small push-impact spark at each enemy the shockwave shoved.
+  if (Array.isArray(effect.hits)) {
+    const dur = effect.durationMs || ARENA_TUNING.areaEffects.detonationMs;
+    for (const hit of effect.hits) {
+      for (let i = 0; i < 6; i++) {
+        const angle = Math.random() * Math.PI * 2;
+        const speed = 20 + Math.random() * 60;
+        addParticle({ x: hit.x, y: hit.y, vx: Math.cos(angle) * speed, vy: Math.sin(angle) * speed,
+          radius: 2, color: effect.color || '#ff9c45', alpha: 0.95, decay: 0.08, expiresAt: performance.now() + dur });
+      }
+    }
+  }
 });
 socket.on('lightning_chain', (arc) => lightningArcs.push({ ...arc, expires: performance.now() + GAME_CONFIG.visuals.lightningArcMs,
   color: HERO_FX_COLORS.electromancer.highlight }));
@@ -1424,7 +1871,7 @@ socket.on('electro_chain_refund', (event) => {
   if (event.playerId === me && event.cooldownRefilled) showElectroOverload(event);
 });
 socket.on('dynamite_ready', ({ playerId }) => {
-  dynamiteReadyBounces.set(playerId, performance.now());
+  readyBounces.set(playerId, { at: performance.now(), emoji: '🧨' });
   if (playerId === me) {
     playSound('dynamiteReady');
     const circle = sheriffSkillAbility.querySelector('.ability-circle');
@@ -1432,26 +1879,46 @@ socket.on('dynamite_ready', ({ playerId }) => {
     setTimeout(() => circle.classList.remove('dynamite-ready-pulse'), ARENA_TUNING.heroTweaks.sheriffReadyRingMs);
   }
 });
-socket.on('sheriff_cooldown_refund', (event) => {
-  if (event.playerId !== me) return;
+// Pilot's Mech Suit coming back: the same emoji bounce, with a robot instead of
+// dynamite. The generic ready ring/sound already fires from the HUD cooldown
+// sweep, so this only adds the bounce (no second sound).
+socket.on('mech_ready', ({ playerId }) => {
+  readyBounces.set(playerId, { at: performance.now(), emoji: '🤖' });
+});
+// Talent refund popup, shared by Sheriff's Quick Draw and Pilot's Adrenaline.
+function showRefundPopup(playerId, refundMs) {
+  if (playerId !== me) return;
   const now = performance.now();
-  if (!sheriffRefundLabelState || now > sheriffRefundLabelState.mergeUntil) sheriffRefundLabelState = { totalMs: 0 };
-  sheriffRefundLabelState.totalMs += event.refundMs;
-  sheriffRefundLabelState.mergeUntil = now + ARENA_TUNING.heroTweaks.sheriffRefundMergeMs;
-  sheriffRefundLabel.textContent = `-${(sheriffRefundLabelState.totalMs / 1000).toFixed(1)}s`;
-  sheriffRefundLabel.hidden = false;
-  sheriffRefundLabel.classList.remove('show');
-  void sheriffRefundLabel.offsetWidth;
-  sheriffRefundLabel.classList.add('show');
+  // Merge rapid refunds (one blast / one chain can refund several kills) into
+  // one running total, exactly as the old HUD label did.
+  if (!refundPopupState || now > refundPopupState.mergeUntil) {
+    refundPopupState = { totalMs: 0, startedAt: now };
+  }
+  refundPopupState.totalMs += refundMs;
+  refundPopupState.mergeUntil = now + ARENA_TUNING.heroTweaks.sheriffRefundMergeMs;
+  refundPopups.set(playerId, {
+    totalMs: refundPopupState.totalMs,
+    startedAt: refundPopupState.startedAt,
+  });
+}
+socket.on('sheriff_cooldown_refund', (event) => {
+  showRefundPopup(event.playerId, event.refundMs);
+  if (event.playerId !== me) return;
+  // The button ring still pulses so the player links the popup to Dynamite.
   const circle = sheriffSkillAbility.querySelector('.ability-circle');
   circle.classList.remove('cooldown-refund-pulse');
   void circle.offsetWidth;
   circle.classList.add('cooldown-refund-pulse');
-  clearTimeout(sheriffRefundLabelTimer);
-  sheriffRefundLabelTimer = setTimeout(() => {
-    sheriffRefundLabel.hidden = true;
-    sheriffRefundLabel.classList.remove('show');
-  }, ARENA_TUNING.heroTweaks.sheriffRefundLabelMs);
+});
+socket.on('pilot_cooldown_refund', (event) => {
+  showRefundPopup(event.playerId, event.refundMs);
+  if (event.playerId !== me) return;
+  // Same linkage on the Mech Suit button.
+  const circle = ultimateAbility.querySelector('.ability-circle');
+  if (!circle) return;
+  circle.classList.remove('cooldown-refund-pulse');
+  void circle.offsetWidth;
+  circle.classList.add('cooldown-refund-pulse');
 });
 socket.on('lightning_flash', (flash) => enemyFlashes.set(flash.id, performance.now() + GAME_CONFIG.visuals.enemyFlashMs));
 socket.on('ricochet_line', (arc) => lightningArcs.push({ ...arc, expires: performance.now() + GAME_CONFIG.arenaTuning.cards.effects.ricochetLineMs,
@@ -1547,18 +2014,20 @@ function fireWeapon(mode) {
     return;
   }
   const player = state.players.find((candidate) => candidate.id === me);
-  if (player) showMuzzleFlash(player);
-  playSound('shoot', { pitchVariance: ARENA_TUNING.sound.shotPitchVariance });
+  // Shield Rush: M1 cancels the dash into the fan instead of firing Shield
+  // Bash, so that click gets no muzzle flash and no shot sound.
+  if (player && !player.rushDashing) {
+    showMuzzleFlash(player);
+    playSound('shoot', { pitchVariance: ARENA_TUNING.sound.shotPitchVariance });
+  }
   socket.emit('fire', mode);
 }
 
-function stopPrimaryFire() {
-  if (primaryFireTimer !== null) clearInterval(primaryFireTimer);
-  primaryFireTimer = null;
-}
-
+// The server repeats the shot for as long as this flag is true, so every hero
+// fires continuously while the button is held. The first shot is still sent
+// immediately as a normal 'fire' event so it does not wait for a tick.
 function setPrimaryHeld(held) {
-  if (activeHeroId === 'sheriff' && socket.connected) socket.emit('primary_hold', Boolean(held));
+  if (socket.connected) socket.emit('primary_hold', Boolean(held));
 }
 
 function onPointerMove(event) {
@@ -1591,26 +2060,39 @@ function onKeyDown(event) {
   } else if (event.code === 'KeyI' && !event.repeat) {
     toggleStats();
   } else if (event.code === 'Escape' && !event.repeat) {
-    socket.emit('cancel_targeting');
+    // Esc closes the info panel first, then cancels any Bombardier targeting.
+    if (!statsPanel.hidden) closeStats();
+    else socket.emit('cancel_targeting');
   }
 }
 
 function toggleStats() {
-  const open = statsPanel.hidden;
-  statsPanel.hidden = !open;
-  infoButton.setAttribute('aria-expanded', String(open));
+  if (statsPanel.hidden) openStats(); else closeStats();
+}
+
+function openStats() {
+  statsPanel.hidden = false;
+  infoButton.setAttribute('aria-expanded', 'true');
+}
+
+function closeStats() {
+  statsPanel.hidden = true;
+  infoButton.setAttribute('aria-expanded', 'false');
 }
 
 infoButton.addEventListener('click', toggleStats);
+infoCloseButton.addEventListener('click', (event) => { event.stopPropagation(); closeStats(); });
 
 let roomCodeCopiedTimer = null;
 
-function showToast(message) {
+function showToast(message, heroId = null, emoji = '') {
   if (!toastStack || !message) return;
   while (toastStack.children.length >= 4) toastStack.firstElementChild.remove();
   const toast = document.createElement('div');
   toast.className = 'toast';
-  toast.textContent = message;
+  const icon = createHeroImage(heroId, emoji, 24);
+  if (icon) toast.append(icon, document.createTextNode(message));
+  else toast.textContent = message;
   toastStack.append(toast);
   setTimeout(() => toast.classList.add('fade'), 2600);
   setTimeout(() => toast.remove(), 3000);
@@ -1635,36 +2117,130 @@ roomCodeButton?.addEventListener('click', async () => {
   }
   roomCodeCopied.hidden = false;
   clearTimeout(roomCodeCopiedTimer);
-  roomCodeCopiedTimer = setTimeout(() => { roomCodeCopied.hidden = true; }, 1200);
+  roomCodeCopiedTimer = setTimeout(() => { roomCodeCopied.hidden = true; }, 1500);
 });
 
-// Room code under the hero health bar, plus the spectate banner for players
-// who joined after the run started.
+// Unified player roster inside #hero-hud (top-left). Every player in the
+// room — local player first, then others — with display name + HP bar.
+// Downed rows are greyed with a respawn timer; WAITING players show a
+// "joining" tag instead of an HP bar. The roster combines:
+//   room.players  — roster entries (id, name, host, waiting, disconnected)
+//   room.waiting  — joining entries (no gameplay data yet)
+//   state.players — gameplay data (hp, maxHp, downed, respawn)
+// The label is the account display name, NOT the hero/class name.
 let playerListSignature = '';
 let pendingHeroSwap = null;
 let pendingHeroSwapAt = 0;
 
+const MAX_NAME_DISPLAY_LEN = 12;
+function truncateName(name) {
+  if (!name) return 'Hero';
+  return name.length > MAX_NAME_DISPLAY_LEN ? name.slice(0, MAX_NAME_DISPLAY_LEN - 1) + '…' : name;
+}
+
 function renderPlayerList(room) {
-  const entries = [...(room.players || []), ...(room.waiting || [])];
-  playerList.hidden = entries.length === 0;
-  if (!entries.length) return;
-  const signature = entries.map((entry) => `${entry.id}:${entry.heroId}:${entry.host}:${entry.waiting}:${entry.disconnected}`).join('|');
+  // Build a unified list: local player first, then everyone else.
+  // Merge roster (host flag, waiting flag, disconnected) with gameplay (hp, downed).
+  const rosterPlayers = (room.players || []).map((entry) => {
+    const gp = (state.players || []).find((p) => p.id === entry.id) || {};
+    return { ...entry, ...gp, waiting: false };
+  });
+  const rosterWaiting = (room.waiting || []).map((entry) => ({ ...entry, waiting: true }));
+  const all = [...rosterPlayers, ...rosterWaiting].sort((a, b) => {
+    if (a.id === me) return -1;
+    if (b.id === me) return 1;
+    return 0; // keep server order for non-local
+  });
+
+  playerRoster.hidden = all.length === 0;
+  setHudText(partyCount, `${all.length}/${room.maxPlayers || 4}`);
+  if (!all.length) return;
+
+  // Detect duplicate names so we can suffix " (2)".
+  const nameCounts = {};
+  for (const e of all) { const n = e.name || 'Hero'; nameCounts[n] = (nameCounts[n] || 0) + 1; }
+  const nameSeen = {};
+
+  const signature = all.map((e) => {
+    const downedSecs = e.downed ? Math.ceil((e.respawnRemainingMs || 0) / 1000) : 0;
+    return `${e.id}:${e.name}:${e.heroId}:${e.emoji}:${e.host}:${e.waiting}:${e.disconnected}:${e.downed}:${downedSecs}:${e.hp || 0}:${e.maxHp || 0}`;
+  }).join('|');
   if (signature === playerListSignature) return;
   playerListSignature = signature;
-  playerListRows.replaceChildren(...entries.map((entry) => {
+
+  // Each row: hero portrait, the player's own name (primary), their hero
+  // (secondary), and that player's health exactly once.
+  playerRoster.replaceChildren(...all.map((entry) => {
     const row = document.createElement('div');
-    row.className = `player-row${entry.id === me ? ' me' : ''}${entry.waiting ? ' waiting' : ''}`;
-    const emoji = document.createElement('span'); emoji.className = 'player-emoji'; emoji.textContent = entry.emoji || '🙂';
-    const name = document.createElement('span'); name.className = 'player-name'; name.textContent = entry.name || 'Hero';
-    row.append(emoji, name);
-    if (entry.host) {
-      const crown = document.createElement('span'); crown.className = 'player-crown'; crown.textContent = '👑';
-      crown.title = 'Host'; crown.setAttribute('aria-label', 'Host'); row.append(crown);
+    row.className = `roster-row${entry.id === me ? ' me' : ''}${entry.downed ? ' downed' : ''}`;
+
+    const portrait = document.createElement('span');
+    portrait.className = 'roster-portrait';
+    const heroImage = createHeroImage(entry.heroId, entry.emoji, 30);
+    if (heroImage) portrait.append(heroImage);
+    else portrait.textContent = entry.emoji || '';
+    row.append(portrait);
+
+    // Display name (NOT hero/class), truncated + duplicate suffix.
+    let displayName = truncateName(entry.name);
+    if ((nameCounts[entry.name] || 0) > 1) {
+      nameSeen[entry.name] = (nameSeen[entry.name] || 0) + 1;
+      if (nameSeen[entry.name] > 1) displayName = truncateName(`${entry.name} (${nameSeen[entry.name]})`);
     }
-    if (entry.waiting) {
-      const tag = document.createElement('span'); tag.className = 'player-tag'; tag.textContent = 'joining'; row.append(tag);
-    } else if (entry.disconnected) {
-      const tag = document.createElement('span'); tag.className = 'player-tag'; tag.textContent = 'away'; row.append(tag);
+    const who = document.createElement('span');
+    who.className = 'roster-who';
+    const name = document.createElement('span');
+    name.className = 'roster-name';
+    name.textContent = displayName;
+    name.title = entry.name || 'Hero';
+    const hero = document.createElement('span');
+    hero.className = 'roster-hero';
+    hero.textContent = HEROES.find((candidate) => candidate.id === entry.heroId)?.name || 'Hero';
+    if (entry.id === me) hero.textContent += ' · you';
+    who.append(name, hero);
+    row.append(who);
+
+    const status = document.createElement('span');
+    status.className = 'roster-status';
+    if (entry.host) {
+      const host = document.createElement('span');
+      host.className = 'roster-tag host';
+      host.textContent = 'host';
+      status.append(host);
+    }
+    if (entry.waiting || entry.disconnected) {
+      const tag = document.createElement('span');
+      tag.className = 'roster-tag';
+      tag.textContent = entry.waiting ? 'joining' : 'away';
+      status.append(tag);
+    } else if (entry.downed) {
+      const timer = document.createElement('span');
+      timer.className = 'roster-hp-value';
+      timer.textContent = `Back in ${Math.ceil((entry.respawnRemainingMs || 0) / 1000)}s`;
+      status.append(timer);
+    } else {
+      const value = document.createElement('span');
+      value.className = 'roster-hp-value';
+      value.textContent = `${entry.hp || 0}/${entry.maxHp || 0}`;
+      status.append(value);
+    }
+    row.append(status);
+
+    if (!entry.waiting && !entry.disconnected) {
+      const hp = entry.downed ? 0 : (entry.hp || 0);
+      const pct = Math.max(0, Math.min(100, hp / Math.max(1, entry.maxHp || 1) * 100));
+      const track = document.createElement('span');
+      track.className = 'roster-hp-track';
+      track.setAttribute('role', 'meter');
+      track.setAttribute('aria-label', `${displayName} health`);
+      track.setAttribute('aria-valuemin', '0');
+      track.setAttribute('aria-valuemax', String(entry.maxHp || 0));
+      track.setAttribute('aria-valuenow', String(hp));
+      const fill = document.createElement('span');
+      fill.className = `roster-hp-fill${pct <= 25 ? ' low' : pct <= 55 ? ' mid' : ''}`;
+      fill.style.width = `${pct}%`;
+      track.append(fill);
+      row.append(track);
     }
     return row;
   }));
@@ -1685,12 +2261,10 @@ function renderLobbyBar(room) {
     if (mine.heroId === pendingHeroSwap || performance.now() - pendingHeroSwapAt > 2000) pendingHeroSwap = null;
     else return;
   }
-  if (lobbyHero.value !== mine.heroId) lobbyHero.value = mine.heroId;
+  if (lobbyHero.value !== mine.heroId) { lobbyHero.value = mine.heroId; syncHeroMenuIcons(); }
 }
 
 let countdownLabel = '';
-let teamHealthSignature = null;
-let downedListSignature = null;
 let buffIconsSignature = null;
 function renderCountdown(room, timestamp) {
   const endsAt = room?.countdownEndsAt || 0;
@@ -1719,10 +2293,57 @@ function renderCountdown(room, timestamp) {
 // Every write below is skipped when the value is unchanged, so a steady-state
 // HUD update costs almost nothing and only real changes touch the DOM.
 const hudTextCache = new Map();
+function createHeroImage(heroId, emoji, sizePx = 24) {
+  if (!heroSpriteConfig?.HERO_VISUALS?.[heroId] || heroSpritesDisabled) return null;
+  const img = document.createElement('img');
+  img.src = getHeroSpriteUrl(heroSpriteConfig, heroId, 'open');
+  img.alt = '';
+  img.width = sizePx;
+  img.height = sizePx;
+  img.className = 'hero-ui-sprite';
+  img.setAttribute('aria-hidden', 'true');
+  img.onerror = () => { img.replaceWith(document.createTextNode(`${emoji || ''} `)); };
+  return img;
+}
+function heroOptionText(hero) {
+  return heroSpriteConfig?.HERO_VISUALS?.[hero.id] && !heroSpritesDisabled ? hero.name : `${hero.emoji} ${hero.name}`;
+}
+function syncHeroMenus() {
+  const selectedLobbyHero = lobbyHero.value || activeHeroId;
+  lobbyHero.replaceChildren(...HEROES.map((hero) => {
+    const option = document.createElement('option'); option.value = hero.id; option.textContent = heroOptionText(hero); return option;
+  }));
+  lobbyHero.value = HEROES.some((hero) => hero.id === selectedLobbyHero) ? selectedLobbyHero : activeHeroId;
+  syncHeroMenuIcons();
+  if (runAgainHero.options.length) {
+    const selected = runAgainHero.value;
+    for (const option of runAgainHero.options) {
+      const hero = HEROES.find((candidate) => candidate.id === option.value);
+      if (hero) option.textContent = heroOptionText(hero);
+    }
+    runAgainHero.value = selected;
+  }
+}
+function syncHeroMenuIcons() {
+  const selectedLobbyHero = HEROES.find((hero) => hero.id === lobbyHero.value);
+  document.querySelector('#lobby-hero-icon')?.replaceChildren(...[createHeroImage(selectedLobbyHero?.id, selectedLobbyHero?.emoji, 28)].filter(Boolean));
+  const selectedRunHero = HEROES.find((hero) => hero.id === runAgainHero.value);
+  document.querySelector('#run-again-hero-icon')?.replaceChildren(...[createHeroImage(selectedRunHero?.id, selectedRunHero?.emoji, 28)].filter(Boolean));
+}
+runAgainHero.addEventListener('change', syncHeroMenuIcons);
 function setHudText(element, value) {
   if (hudTextCache.get(element) === value) return;
   hudTextCache.set(element, value);
   element.textContent = value;
+}
+function setHeroLabel(element, heroId, emoji, text) {
+  const signature = `${heroId}:${emoji}:${text}:${Boolean(heroSpritesDisabled)}:${Boolean(heroSpriteConfig?.HERO_VISUALS?.[heroId])}`;
+  if (element.dataset.heroLabel === signature) return;
+  element.dataset.heroLabel = signature;
+  element.replaceChildren();
+  const image = createHeroImage(heroId, emoji, 24);
+  if (image) element.append(image, document.createTextNode(` ${text}`));
+  else element.textContent = `${emoji || ''} ${text}`.trim();
 }
 const hudStyleCache = new Map();
 function setHudStyle(element, prop, value) {
@@ -1740,8 +2361,8 @@ function setHudHidden(element, value) {
 function updateRoomHud(timestamp = performance.now()) {
   const room = state.room;
   if (!room) return;
-  // The dev sandbox has no shareable code; hide the whole row so no divider is left behind.
-  if (roomRow) setHudHidden(roomRow, !room.code);
+  // Room code in the top-right corner.
+  if (roomCodeCorner) setHudHidden(roomCodeCorner, !room.code);
   setHudHidden(roomCodeButton, !room.code);
   if (room.code) setHudText(roomCodeValue, room.code);
   renderPlayerList(room);
@@ -1758,34 +2379,135 @@ function updateRoomHud(timestamp = performance.now()) {
   setHudStyle(healthFill, 'width', '0%');
 }
 
+// Rest pill: a small non-blocking countdown under the wave counter. It only
+// appears during the REST phase, so it can never overlap the vote cards.
+function updateBreakPill(current, breakPhase, timestamp) {
+  if (!breakPill) return;
+  if (breakPhase !== 'rest' || !current.break) {
+    setHudHidden(breakPill, true);
+    setHudText(breakPill, '');
+    return;
+  }
+  const remaining = Math.max(0, current.break.remainingMs - (timestamp - stateReceivedAt));
+  setHudHidden(breakPill, false);
+  setHudText(breakPill, `Rest ${Math.ceil(remaining / 1000)}s`);
+}
+
+// Stats arrive as floats once a building bonus multiplies them (12 * 1.1 =
+// 13.200000000000001), so trim to one decimal and drop a trailing ".0".
+function formatStat(value) {
+  const number = Number(value);
+  if (!Number.isFinite(number)) return '--';
+  return String(Math.round(number * 10) / 10);
+}
+
+// Kingdom upgrades render as a list, one bonus per line, so a hero with both a
+// Library and a Garden bonus does not turn into one wrapped sentence.
+let lastBuildingBonusRender = null;
+function renderStatList(rows) {
+  const list = document.querySelector('#building-bonus-list');
+  if (!list) return;
+  const signature = rows.join('|');
+  if (signature === lastBuildingBonusRender) return;
+  lastBuildingBonusRender = signature;
+  list.replaceChildren(...(rows.length > 0 ? rows : ['None']).map((text) => {
+    const item = document.createElement('li');
+    item.textContent = text;
+    return item;
+  }));
+}
+
+// I-card talent row. Rebuilt only when the hero (or its type) changes, so the
+// 10 Hz HUD refresh never touches the badge; the key chip is cheap to sync.
+let talentBadgeSignature = '';
+function updateTalentBadge(player) {
+  if (!talentBadgeHost || !talentKeyChip) return;
+  const linked = player.talent?.linkedSlot;
+  setHudText(talentKeyChip, talentKeyLabel(linked) || '--');
+  const signature = `${player.heroId}:${player.type}:${player.talent?.name || ''}`;
+  if (signature === talentBadgeSignature) return;
+  talentBadgeSignature = signature;
+  talentKeyChip.title = talentKeyTooltip(linked);
+  talentBadgeHost.replaceChildren(createTalentBadge({
+    heroId: player.heroId, type: player.type, talent: player.talent,
+  }));
+}
+
+// One illustrated icon per team buff, shared by the vote cards and the small
+// active-buff badges (game-icons.net, credited in Settings).
+const BUFF_ICON_ASSETS = {
+  maxHp: 'zeromancer/heart-plus.svg', attack: 'lorc/crossed-swords.svg', defense: 'sbed/shield.svg',
+  speed: 'darkzaitzev/running-ninja.svg', campfire: 'lorc/campfire.svg', thorns: 'lorc/thorny-vine.svg',
+  scavenger: 'zeromancer/heart-plus.svg', overcharge: 'willdabeast/chain-lightning.svg', rally: 'caro-asercion/french-horn.svg',
+  'glass-cannon': 'lorc/cannon.svg', 'second-wind': 'lorc/whirlwind.svg', 'life-steal': 'lorc/marrow-drain.svg',
+  ricochet: 'lorc/return-arrow.svg', volatile: 'lorc/bright-explosion.svg', 'powder-keg': 'darkzaitzev/smoke-bomb.svg',
+};
+const buffIconUrl = (id) => `/hero-lab/game-icons.net.svg/icons/ffffff/000000/1x1/${BUFF_ICON_ASSETS[id] || 'lorc/campfire.svg'}`;
+
+// The enemy count only moves once the server's number has held for a moment,
+// so a one-snapshot wobble can never make it flicker between nearby values.
+// A new wave shows its full count at once.
+const ENEMY_COUNT_SETTLE_MS = 180;
+let shownEnemyCount = null;
+let shownEnemyWave = null;
+let pendingEnemyCount = null;
+let pendingEnemySince = 0;
+function steadyEnemyCount(value, wave, now) {
+  if (shownEnemyCount === null || wave !== shownEnemyWave) {
+    shownEnemyCount = value; shownEnemyWave = wave; pendingEnemyCount = null;
+    return value;
+  }
+  if (value === shownEnemyCount) { pendingEnemyCount = null; return value; }
+  if (value !== pendingEnemyCount) { pendingEnemyCount = value; pendingEnemySince = now; }
+  if (now - pendingEnemySince >= ENEMY_COUNT_SETTLE_MS) { shownEnemyCount = value; pendingEnemyCount = null; }
+  return shownEnemyCount;
+}
+
 function updateHud(timestamp = performance.now()) {
   const player = state.players?.find((candidate) => candidate.id === me);
   updateRoomHud();
   const phase = state.room?.phase;
   if (state.room && phase === 'lobby') {
+    // The same status panel doubles as the lobby card: party size on the left.
+    const total = (state.room.players?.length || 0) + (state.room.waiting?.length || 0);
+    setHudText(enemyCountLabel, 'IN THE PARTY');
+    setHudText(enemyCount, `${total}/${state.room.maxPlayers || 4}`);
     setHudText(waveNumber, 'Lobby');
-    setHudText(waveDetails, state.room.hostId === me ? 'Press START RUN when everyone is in' : 'Waiting for the host to start…');
+    setHudText(waveDetails, state.room.hostId === me ? 'Start the run when ready' : 'Waiting for the host…');
   } else if (state.room && phase === 'countdown') {
+    setHudText(enemyCountLabel, 'ENEMIES LEFT');
+    setHudText(enemyCount, '0');
     setHudText(waveNumber, 'Get ready');
     setHudText(waveDetails, 'The first wave is coming');
   } else if (state.wave && waveNumber && waveDetails) {
+    setHudText(enemyCountLabel, 'ENEMIES LEFT');
+    setHudText(enemyCount, String(steadyEnemyCount(Math.max(0, state.wave.enemiesRemaining ?? 0), state.wave.number, timestamp)));
     setHudText(waveNumber, `Wave ${state.wave.number || 1}`);
+    const breakPhase = state.break?.phase || null;
     if (state.buffVote) {
       setHudText(waveDetails, 'Choose a team buff');
+    } else if (breakPhase === 'rest') {
+      setHudText(waveDetails, 'Wave cleared');
+    } else if (breakPhase === 'ready') {
+      setHudText(waveDetails, 'Next wave starting…');
     } else if (state.wave.nextWaveInMs > 0) {
       const remaining = Math.max(0, state.wave.nextWaveInMs - (timestamp - stateReceivedAt));
       setHudText(waveDetails, remaining > 300
-        ? `Wave cleared · Next wave in ${Math.ceil(remaining / 1000)}s`
+        ? `Next wave in ${Math.ceil(remaining / 1000)}s`
         : 'Next wave starting…');
     } else {
-      setHudText(waveDetails, `${state.wave.twist ? `${state.wave.twist.label} · ` : ''}Enemies left: ${state.wave.enemiesRemaining}`);
+      setHudText(waveDetails, state.wave.twist?.label || 'Keep the campfire safe');
     }
+    updateBreakPill(state, breakPhase, timestamp);
+  } else {
+    setHudText(enemyCount, '—');
+    updateBreakPill(state, null, timestamp);
   }
   const fire = state.campfire;
   if (fire) {
     const ratio = Math.max(0, Math.min(1, fire.hp / Math.max(1, fire.maxHp)));
     setHudStyle(campfireFill, 'width', `${ratio * 100}%`);
-    setHudStyle(campfireFill, 'backgroundColor', ratio > 0.5 ? '#55ce69' : ratio > 0.25 ? '#ffc34d' : '#f04b54');
+    setHudStyle(campfireFill, 'backgroundColor', ratio > 0.5 ? '#8DB872' : ratio > 0.25 ? '#F2BA55' : '#E0807B');
     setHudText(campfireValue, `${fire.hp} / ${fire.maxHp}`);
     setHeartbeat(ratio < ARENA_TUNING.lowHp.threshold);
   }
@@ -1798,7 +2520,7 @@ function updateHud(timestamp = performance.now()) {
   }
   if (!player) return;
 
-  setHudText(heroName, `${player.emoji} ${player.name}`);
+  setHeroLabel(heroName, player.heroId, player.emoji, player.name);
   const hpRatio = player.maxHp > 0 ? Math.max(0, Math.min(1, player.hp / player.maxHp)) : 0;
   setHudStyle(healthFill, 'width', `${hpRatio * 100}%`);
   setHudStyle(healthFill, 'background', hpRatio <= .25 ? '#ef5350' : hpRatio <= .55 ? '#ffb74d' : '#64d985');
@@ -1837,53 +2559,36 @@ function updateHud(timestamp = performance.now()) {
     setHudHidden(killStreakHud, true);
   }
 
-  const teammates = (state.players || []).filter((candidate) => candidate.id !== me);
-  setHudHidden(teamHealth, teammates.length === 0);
-  // Rebuild the rows only when the roster or a teammate's hp actually changes;
-  // replaceChildren() ten times a second is pure churn otherwise.
-  const teamSignature = teammates
-    .map((teammate) => `${teammate.id}:${teammate.hp}:${teammate.maxHp}:${teammate.emoji || ''}:${teammate.name || ''}`)
-    .join('|');
-  if (teamSignature !== teamHealthSignature) {
-    teamHealthSignature = teamSignature;
-    teamHealth.replaceChildren(...teammates.map((teammate) => {
-      const row = document.createElement('div'); row.className = 'teammate-health';
-      const label = document.createElement('span'); label.className = 'teammate-health-label';
-      label.textContent = `${teammate.emoji || ''} ${teammate.name}`;
-      const value = document.createElement('span'); value.className = 'teammate-health-value';
-      value.textContent = `${teammate.hp}/${teammate.maxHp}`;
-      const track = document.createElement('span'); track.className = 'teammate-health-track';
-      const fill = document.createElement('span'); fill.className = 'teammate-health-fill';
-      fill.style.width = `${Math.max(0, Math.min(100, teammate.hp / Math.max(1, teammate.maxHp) * 100))}%`;
-      track.append(fill); row.append(label, value, track); return row;
-    }));
-  }
-  const downedPlayers = (state.players || []).filter((candidate) => candidate.downed);
-  setHudHidden(downedList, downedPlayers.length === 0);
-  // The respawn countdown re-renders once per second (the seconds value is part
-  // of the signature), not ten times a second.
-  const downedSignature = downedPlayers
-    .map((candidate) => `${candidate.id}:${Math.ceil(candidate.respawnRemainingMs / 1000)}:${candidate.respawnSpeedMultiplier > 1 ? candidate.respawnSpeedMultiplier : ''}`)
-    .join('|');
-  if (downedSignature !== downedListSignature) {
-    downedListSignature = downedSignature;
-    downedList.replaceChildren(...downedPlayers.map((candidate) => {
-      const item = document.createElement('div');
-      const seconds = Math.ceil(candidate.respawnRemainingMs / 1000);
-      item.textContent = `${candidate.emoji || '👻'} ${candidate.name}: ${seconds}s${candidate.respawnSpeedMultiplier > 1 ? ` · x${candidate.respawnSpeedMultiplier}` : ''}`;
-      return item;
-    }));
-  }
-  const buffEmoji = { maxHp: '❤️', attack: '⚔️', defense: '🛡️', speed: '🏃', campfire: '🔥', thorns: '🔥', scavenger: '💚', overcharge: '⚡', rally: '📣', 'glass-cannon': '💥', 'second-wind': '🕊️', 'life-steal': '🩸', ricochet: '↗️', volatile: '☄️', 'powder-keg': '🧨' };
-  const buffSignature = (state.activeBuffs || []).map((buff) => buff.id).join('|');
+  // (The old team-health and downed-list blocks were merged into the unified
+  // #player-roster via renderPlayerList in updateRoomHud.)
+  // Tower scaling for the four stat cards (display only; the server owns the
+  // actual values). Everything here uses the LOCAL player's own Tower level.
+  const scaledCards = GAME_CONFIG.towerScaledCards;
+  const towerLevel = Math.max(0, Math.min(GAME_CONFIG.arenaTuning.tower.maxLevel, Number(player.towerLevel) || 0));
+  const towerMult = 1 + GAME_CONFIG.arenaTuning.tower.bonusPerLevel * towerLevel;
+  const towerPercent = Math.round(GAME_CONFIG.arenaTuning.tower.bonusPerLevel * 100) * towerLevel;
+  const scaledCardText = (card) => {
+    if (!scaledCards.includes(card.id)) return card.description;
+    const v = card.value;
+    if (card.id === 'maxHp') return `Max HP +${(v * towerMult * 100).toFixed(1)}%`;
+    if (card.id === 'attack') return `Attack +${(v * towerMult * 100).toFixed(1)}%`;
+    if (card.id === 'defense') return `Defense +${(v * towerMult).toFixed(1)}%`;
+    if (card.id === 'speed') return `Speed +${(v * towerMult * 100).toFixed(1)}%`;
+    return card.description;
+  };
+
+  const buffSignature = `${(state.activeBuffs || []).map((buff) => buff.id).join('|')}@${towerLevel}`;
   if (buffSignature !== buffIconsSignature) {
     buffIconsSignature = buffSignature;
     buffIcons.replaceChildren(...(state.activeBuffs || []).map((buff) => {
       const icon = document.createElement('span');
       icon.className = 'buff-icon';
-      icon.textContent = buffEmoji[buff.id] || '✨';
-      icon.title = `${buff.label}: ${buff.description}`;
+      icon.title = `${buff.label}: ${scaledCardText(buff)}`;
+      icon.setAttribute('role', 'img');
       icon.setAttribute('aria-label', icon.title);
+      const glyph = document.createElement('img');
+      glyph.src = buffIconUrl(buff.id); glyph.alt = ''; glyph.setAttribute('aria-hidden', 'true');
+      icon.append(glyph);
       return icon;
     }));
   }
@@ -1938,15 +2643,17 @@ function updateHud(timestamp = performance.now()) {
     abilityReadyAt.set(key, remaining);
   });
 
-  document.querySelector('#stat-health').textContent = `${player.hp} / ${player.maxHp}`;
-  document.querySelector('#stat-attack').textContent = String(player.attack);
-  document.querySelector('#stat-defense').textContent = String(player.defense);
-  document.querySelector('#stat-speed').textContent = String(player.speed);
+  document.querySelector('#stat-health').textContent = `${formatStat(player.hp)} / ${formatStat(player.maxHp)}`;
+  document.querySelector('#stat-attack').textContent = formatStat(player.attack);
+  document.querySelector('#stat-defense').textContent = formatStat(player.defense);
+  document.querySelector('#stat-speed').textContent = formatStat(player.speed);
   const buildingBonus = player.buildingBonuses || {};
   const buildingRows = [];
   if (buildingBonus.attackPercent > 0) buildingRows.push(`${player.type === 'magic' ? '📚 Library' : '🛠️ Workshop'} +${Math.round(buildingBonus.attackPercent * 100)}% ${player.type === 'magic' ? 'magic' : 'physical'} attack`);
   if (buildingBonus.campfireMaxHpPercent > 0) buildingRows.push(`🌷 Garden +${Math.round(buildingBonus.campfireMaxHpPercent * 100)}% campfire max HP`);
-  document.querySelector('#building-bonus-value').textContent = buildingRows.join(' · ') || 'None';
+  if (towerLevel > 0) buildingRows.push(`🗼 Tower Lv${towerLevel}: buffs +${towerPercent}%`);
+  // One bonus per line: joining them with " · " wrapped into an unreadable blob.
+  renderStatList(buildingRows);
   document.querySelector('#building-bonus-stat').title = buildingRows.join(' · ') || 'No kingdom building bonuses apply to this hero';
   const momentumStatus = document.querySelector('#momentum-status');
   momentumStatus.textContent = player.momentumActive ? 'Active' : 'Inactive';
@@ -1954,6 +2661,7 @@ function updateHud(timestamp = performance.now()) {
   document.querySelector('#momentum-stat').title = `Moving: +${Math.round(ARENA_TUNING.momentum.bonus * 100)}% damage`;
   document.querySelector('#stat-talent-name').textContent = player.talent?.name || 'Talent';
   document.querySelector('#stat-talent-description').textContent = player.talent?.description || 'No special passive.';
+  updateTalentBadge(player);
 
   const vote = state.buffVote;
   buffVote.hidden = !vote;
@@ -1964,16 +2672,27 @@ function updateHud(timestamp = performance.now()) {
     document.querySelector('#buff-vote-status').textContent = vote.endsAt > 0
       ? `${vote.voteCount}/${state.players.length} votes · ${voteRemaining}s left${voted ? ' · Your vote is recorded' : ''}`
       : `${voted ? 'Your vote is recorded' : 'Choose when ready'} · no timer in solo`;
-    const signature = `${vote.wave}:${voted}:${JSON.stringify(vote.votes)}:${vote.cards.map((card) => card.id).join(',')}`;
+    const signature = `${vote.wave}:${voted}:${JSON.stringify(vote.votes)}:${vote.cards.map((card) => card.id).join(',')}:${towerLevel}`;
     if (signature !== lastBuffRender) {
       lastBuffRender = signature;
       buffCards.replaceChildren(...vote.cards.map((card) => {
         const button = document.createElement('button'); button.className = `buff-card${card.rare ? ' rare' : ''}${voted === card.id ? ' selected' : ''}`;
         button.type = 'button'; button.disabled = Boolean(voted);
+        const icon = document.createElement('img'); icon.className = 'buff-card-icon'; icon.src = buffIconUrl(card.id); icon.alt = ''; icon.setAttribute('aria-hidden', 'true');
         const title = document.createElement('strong'); title.textContent = `${card.rare ? '✨ ' : ''}${card.label}`;
-        const description = document.createElement('span'); description.textContent = card.description;
+        // The four scaled cards show the LOCAL player's own resulting value.
+        const description = document.createElement('span'); description.textContent = scaledCardText(card);
+        const nodes = [title, description];
+        if (scaledCards.includes(card.id) && towerLevel > 0) {
+          const towerLine = document.createElement('small');
+          towerLine.className = 'buff-tower-line';
+          towerLine.textContent = `(Tower +${towerPercent}%)`;
+          towerLine.style.color = '#c9962f'; towerLine.style.fontWeight = '600';
+          nodes.push(towerLine);
+        }
         const tally = document.createElement('small'); tally.textContent = `${Object.values(vote.votes || {}).filter((id) => id === card.id).length} votes`;
-        button.append(title, description, tally); button.addEventListener('click', () => socket.emit('buff_vote', card.id)); return button;
+        nodes.push(tally);
+        button.append(icon, ...nodes); button.addEventListener('click', () => socket.emit('buff_vote', card.id)); return button;
       }));
     }
   } else lastBuffRender = '';
@@ -2005,12 +2724,11 @@ function onPointerDown(event) {
     // strike location (same emit as the right-click confirm) instead of
     // firing the weapon.
     if (player?.targeting) { fireWeapon('secondary'); return; }
-    setPrimaryHeld(true);
+    // Send the first shot before the hold flag: if the server tick lands
+    // between the two events it fires from the hold, and the explicit shot
+    // that follows would be refused by the cooldown - one shot, one sound.
     fireWeapon('primary');
-    if (activeHeroId === 'bubbles') {
-      stopPrimaryFire();
-      primaryFireTimer = setInterval(() => fireWeapon('primary'), GAME_CONFIG.heroes.bubbles.weaponCooldownMs);
-    }
+    setPrimaryHeld(true);
   }
 }
 
@@ -2062,6 +2780,58 @@ function sampleAdaptiveQuality(drawMs) {
       applyEffectsQuality();
     }
   }
+}
+
+function getHeroVisualState(player, now) {
+  const heroId = player.heroId;
+  if (!heroOffsets.has(player.id)) heroOffsets.set(player.id, Math.random() * 1000);
+  const downed = Boolean(player.downed || (heroDebugDowned && player.id === me));
+  const runEnded = !runResultPanel.hidden || Boolean(state.gameEnded) || state.room?.phase === 'ended';
+  const ultActive = Boolean(!downed && !runEnded && (heroDebugUltimate && player.id === me
+    || (heroId === 'sheriff' && player.ultimateFlash)
+    || (heroId === 'guardian' && player.guardianCharging)
+    || (heroId === 'pilot' && player.mech)));
+  const priorUltimate = heroUltimateLook.get(player.id) || false;
+  if (priorUltimate !== ultActive) {
+    heroTransformStarts.set(player.id, now);
+    heroUltimateLook.set(player.id, ultActive);
+  }
+
+  let facingLeft = heroFacing.get(player.id) || false;
+  const aimX = Number(player.aim?.x) || 0;
+  const facingThreshold = heroSpriteCache?.config
+    ? heroSpriteCache.config.SPRITE_FLIP_DEADZONE_PX / heroSpriteCache.config.FACING_AIM_DISTANCE_PX : Infinity;
+  if (aimX < -facingThreshold) facingLeft = true;
+  else if (aimX > facingThreshold) facingLeft = false;
+  heroFacing.set(player.id, facingLeft);
+
+  const previous = heroPreviousPositions.get(player.id);
+  const moving = Boolean(heroSpriteCache?.config && previous
+    && Math.hypot(player.x - previous.x, player.y - previous.y) > heroSpriteCache.config.MOVEMENT_EPSILON_PX);
+  heroPreviousPositions.set(player.id, { x: player.x, y: player.y });
+  if (player.hitFlash && now - (heroHitFlashLast.get(player.id) ?? Number.NEGATIVE_INFINITY) >= HIT_FLASH_MIN_INTERVAL_MS) {
+    heroHitFlashStarts.set(player.id, now);
+    heroHitFlashLast.set(player.id, now);
+  }
+  const hitFlash = now - (heroHitFlashStarts.get(player.id) ?? Number.NEGATIVE_INFINITY) < ARENA_TUNING.hitFlashMs;
+  const squash = guardianDashSquash.get(player.id);
+  let scaleX = 1, scaleY = 1;
+  if (squash) {
+    const age = now - squash.startedAt;
+    const progress = heroSpriteCache?.config ? 1 - age / heroSpriteCache.config.GUARDIAN_DASH_SQUASH_MS : 0;
+    if (progress <= 0) guardianDashSquash.delete(player.id);
+    else { scaleX = 1 + 0.45 * progress; scaleY = 1 - 0.3 * progress; }
+  }
+  return {
+    moving, facingLeft, ultActive, downed,
+    invulnerable: Boolean(player.invulnerable), hitFlash,
+    guardianCharging: Boolean(heroId === 'guardian' && ultActive),
+    chargeDirection: player.aim,
+    ultimateStartedAt: heroTransformStarts.get(player.id) || now,
+    transformStartedAt: heroTransformStarts.get(player.id),
+    heroOffset: heroOffsets.get(player.id), time: now, scaleX, scaleY,
+    disableSprites: heroSpritesDisabled,
+  };
 }
 
 function drawScene(timestamp) {
@@ -2168,27 +2938,7 @@ function drawScene(timestamp) {
       }
     }
 
-    // Base ring of stones
-    context.beginPath();
-    context.arc(cf.x, cf.y, cf.radius, 0, Math.PI * 2);
-    context.fillStyle = cf.hp > 0 ? '#3e2723' : '#2b2b2b';
-    context.fill();
-    context.strokeStyle = cf.hp > 0 ? '#ff7043' : '#555';
-    context.lineWidth = 2;
-    context.stroke();
-
-    // Campfire flame or smoke
-    context.textAlign = 'center';
-    context.textBaseline = 'middle';
-    if (cf.hp > 0) {
-      const flameSize = 36 + Math.sin(currentTime * 0.009) * 3;
-      context.font = `${flameSize}px sans-serif`;
-      context.fillText('🔥', cf.x, cf.y - 2);
-    } else {
-      context.font = '32px sans-serif';
-      context.fillText('💨', cf.x, cf.y - 2);
-    }
-
+    drawCampfire(context, cf, currentTime);
   }
 
   // 2. Draw Zombie Monsters
@@ -2214,15 +2964,27 @@ function drawScene(timestamp) {
       const pulse = monster.type === 'exploder' ? 1 + Math.sin(currentTime * 0.012) * 0.09 : 1;
       const scale = (monster.scale || 1) * pulse;
       const visualRadius = 20 * scale;
+      if (monster.type === 'dummy') {
+        drawTrainingDummy(context, mx, my, scale, hitFlash);
+        context.restore();
+        if (!fading) {
+          const barW = 28 * scale;
+          context.fillStyle = 'rgba(35, 56, 47, 0.75)';
+          context.fillRect(mx - barW / 2 - 1, my - 34 * scale - 1, barW + 2, 6);
+          context.fillStyle = '#7FAE58';
+          context.fillRect(mx - barW / 2, my - 34 * scale, barW * Math.max(0, monster.hp / monster.maxHp), 4);
+        }
+        continue;
+      }
       const tint = monster.type === 'brute-king' ? '#7e222c' : monster.type === 'brute' ? '#514638'
-        : monster.type === 'exploder' ? '#b86b28' : monster.type === 'dummy' ? '#b39058' : '#426b36';
+        : monster.type === 'exploder' ? '#b86b28' : '#4B3D58';
       context.beginPath();
       context.arc(mx, my, visualRadius, 0, Math.PI * 2);
       context.fillStyle = hitFlash ? '#fff' : tint;
       context.fill();
-      context.strokeStyle = monster.isBoss ? '#ff5f69' : monster.type === 'exploder' ? '#ffb34f'
-        : monster.type === 'dummy' ? '#8a6a35' : '#294a24';
-      context.lineWidth = monster.isBoss ? 4 : 2;
+      // Dusk-purple bodies with an ink rim stand apart from the green floor.
+      context.strokeStyle = monster.isBoss ? '#ff5f69' : monster.type === 'exploder' ? '#ffb34f' : '#1D2A22';
+      context.lineWidth = monster.isBoss ? 4 : 3;
       context.stroke();
       context.font = `${32 * scale}px sans-serif`;
       context.textAlign = 'center';
@@ -2306,20 +3068,49 @@ function drawScene(timestamp) {
     if (progress >= 1) { areaEffects.splice(i, 1); continue; }
     // Color rules (config AREA_COLORS): enemy danger zones are strong red,
     // player area effects are bright yellow-orange, and the Electromancer's
-    // stun burst keeps its own blue FX color so its identity survives.
+    // stun burst keeps its own purple FX color so its identity survives.
     const electroStun = effect.sourceHeroId === 'electromancer' && effect.sourceAbility === 'skill';
     const danger = effect.kind === 'enemy';
     const stroke = electroStun ? HERO_FX_COLORS.electromancer.primary : danger ? AREA_COLORS.enemyStroke : AREA_COLORS.playerStroke;
     const fillColor = electroStun ? HERO_FX_COLORS.electromancer.primary : danger ? AREA_COLORS.enemyFill : AREA_COLORS.playerFill;
     context.save();
     if (effect.phase === 'telegraph') {
-      // Inner fill rises 20% -> 45% (danger zones slightly stronger) while the
-      // OUTLINE stays at full brightness for the whole telegraph.
-      const endAlpha = danger ? AREA_ENEMY_FILL_END_ALPHA : AREA_TELEGRAPH_FILL_END_ALPHA;
-      const fillAlpha = AREA_TELEGRAPH_FILL_START_ALPHA + (endAlpha - AREA_TELEGRAPH_FILL_START_ALPHA) * progress;
-      context.globalAlpha = fillAlpha;
-      context.fillStyle = fillColor;
-      context.beginPath(); context.arc(effect.x, effect.y, effect.radius, 0, Math.PI * 2); context.fill();
+      // The Bombardier's ultimate marker fills like a clock hand sweeping
+      // clockwise from 12 o'clock (the same read as the ability cooldown
+      // ring) instead of ramping opacity, so the time left before impact is
+      // visible at a glance. Every other telegraph keeps the alpha ramp.
+      const sweepMarker = effect.sourceHeroId === 'bombardier' && effect.sourceAbility === 'ultimate';
+      if (sweepMarker) {
+        // Faint base disc: the danger area reads immediately, and the wedge
+        // fills the inner circle on top of it.
+        context.globalAlpha = AREA_TELEGRAPH_SWEEP_BASE_ALPHA;
+        context.fillStyle = fillColor;
+        context.beginPath(); context.arc(effect.x, effect.y, effect.radius, 0, Math.PI * 2); context.fill();
+        const sweepStart = -Math.PI / 2;
+        const sweepEnd = sweepStart + Math.PI * 2 * progress;
+        context.globalAlpha = AREA_TELEGRAPH_SWEEP_FILL_ALPHA;
+        context.beginPath();
+        context.moveTo(effect.x, effect.y);
+        context.arc(effect.x, effect.y, effect.radius, sweepStart, sweepEnd);
+        context.closePath(); context.fill();
+        // Solid leading edge, otherwise the wedge boundary is hard to read
+        // against the base disc on the bright green floor.
+        context.globalAlpha = AREA_TELEGRAPH_SWEEP_HAND_ALPHA;
+        context.strokeStyle = stroke;
+        context.lineWidth = AREA_TELEGRAPH_SWEEP_HAND_WIDTH;
+        context.beginPath();
+        context.moveTo(effect.x, effect.y);
+        context.lineTo(effect.x + Math.cos(sweepEnd) * effect.radius, effect.y + Math.sin(sweepEnd) * effect.radius);
+        context.stroke();
+      } else {
+        // Inner fill rises 20% -> 45% (danger zones slightly stronger) while
+        // the OUTLINE stays at full brightness for the whole telegraph.
+        const endAlpha = danger ? AREA_ENEMY_FILL_END_ALPHA : AREA_TELEGRAPH_FILL_END_ALPHA;
+        const fillAlpha = AREA_TELEGRAPH_FILL_START_ALPHA + (endAlpha - AREA_TELEGRAPH_FILL_START_ALPHA) * progress;
+        context.globalAlpha = fillAlpha;
+        context.fillStyle = fillColor;
+        context.beginPath(); context.arc(effect.x, effect.y, effect.radius, 0, Math.PI * 2); context.fill();
+      }
       // Dark under-stroke keeps the bright outline readable on the green floor.
       context.globalAlpha = AREA_UNDERSTROKE_ALPHA;
       context.strokeStyle = AREA_COLORS.understroke;
@@ -2338,6 +3129,47 @@ function drawScene(timestamp) {
         const marker = emojiGlyph('💀', 26);
         context.globalAlpha = 0.9;
         context.drawImage(marker.canvas, effect.x - marker.w / 2, effect.y - marker.h / 2, marker.w, marker.h);
+      }
+    } else if (effect.cone) {
+      // Guardian Shield Rush fan: a bright wedge at the TRUE radius and angle,
+      // with the usual dark under-stroke plus a bright main stroke on the two
+      // edges and the arc (no shadowBlur / filters, matching the other markers),
+      // and a few arcs sweeping outward across the wedge as it fades.
+      const half = (effect.angleDeg * Math.PI / 180) / 2;
+      const a0 = effect.angleRad - half, a1 = effect.angleRad + half;
+      const fx = HERO_FX_COLORS.guardian.primary;
+      const trace = () => {
+        context.beginPath();
+        context.moveTo(effect.x, effect.y);
+        context.lineTo(effect.x + Math.cos(a0) * effect.radius, effect.y + Math.sin(a0) * effect.radius);
+        context.arc(effect.x, effect.y, effect.radius, a0, a1);
+        context.lineTo(effect.x, effect.y);
+        context.closePath();
+      };
+      // Fill
+      context.globalAlpha = AREA_TELEGRAPH_FILL_END_ALPHA * (1 - progress * 0.6);
+      context.fillStyle = fx;
+      trace(); context.fill();
+      // Dark under-stroke (keeps the bright wedge readable on the floor)
+      context.globalAlpha = AREA_UNDERSTROKE_ALPHA * (1 - progress * 0.5);
+      context.strokeStyle = AREA_COLORS.understroke;
+      context.lineWidth = AREA_TELEGRAPH_WIDTH + AREA_UNDERSTROKE_EXTRA_PX;
+      trace(); context.stroke();
+      // Bright main stroke
+      context.globalAlpha = 1 - progress * 0.5;
+      context.strokeStyle = fx;
+      context.lineWidth = AREA_TELEGRAPH_WIDTH;
+      context.setLineDash([]);
+      trace(); context.stroke();
+      // 3-4 expanding arc lines moving outward across the wedge
+      const arcs = 4;
+      for (let k = 1; k <= arcs; k += 1) {
+        const t = progress * arcs - (k - 1);
+        if (t <= 0 || t > 1) continue;
+        context.globalAlpha = (1 - t) * 0.55;
+        context.strokeStyle = fx;
+        context.lineWidth = 2;
+        context.beginPath(); context.arc(effect.x, effect.y, effect.radius * t, a0, a1); context.stroke();
       }
     } else {
       // Detonation: the flash stays bright, then the ring expands and fades.
@@ -2365,11 +3197,15 @@ function drawScene(timestamp) {
 
   // 3. Draw players
   for (const player of state.players) {
-    if (player.downed) {
+    const visualState = getHeroVisualState(player, currentTime);
+    if (visualState.downed) {
       const remainingRatio = Math.max(0, Math.min(1, player.respawnRemainingMs / Math.max(1, player.respawnDurationMs)));
-      context.save(); context.globalAlpha = 0.42;
-      context.font = '32px sans-serif'; context.textAlign = 'center'; context.textBaseline = 'middle';
-      context.fillText('👻', player.x, player.y);
+      context.save(); context.globalAlpha = 1;
+      if (!drawCachedHero(context, heroSpriteCache, player, player.x, player.y, visualState)) {
+        context.globalAlpha = 0.42;
+        context.font = '32px sans-serif'; context.textAlign = 'center'; context.textBaseline = 'middle';
+        context.fillText('👻', player.x, player.y);
+      }
       context.globalAlpha = 0.9; context.strokeStyle = '#b9f5ff'; context.lineWidth = 4;
       context.beginPath(); context.arc(player.x, player.y, 30, -Math.PI / 2, -Math.PI / 2 + Math.PI * 2 * (1 - remainingRatio)); context.stroke();
       context.fillStyle = '#fff'; context.font = 'bold 12px sans-serif';
@@ -2427,6 +3263,10 @@ function drawScene(timestamp) {
       context.arc(center.x, center.y, 23, 0, Math.PI * 2);
       context.stroke();
     }
+    if (heroDebugHitboxes) {
+      context.save(); context.strokeStyle = '#ff2d55'; context.lineWidth = 2; context.setLineDash([5, 4]);
+      context.beginPath(); context.arc(player.x, player.y, GAME_CONFIG.arena.playerRadius, 0, Math.PI * 2); context.stroke(); context.restore();
+    }
     if (player.bubbleRush) {
       const pulse = 0.5 + Math.sin(currentTime * 0.018) * 0.08;
       context.save();
@@ -2447,7 +3287,18 @@ function drawScene(timestamp) {
     context.textAlign = 'center';
     context.textBaseline = 'middle';
     context.fillStyle = '#222';
-    context.fillText(player.emoji, center.x - player.aim.x * recoil, center.y - player.aim.y * recoil);
+    // Shield Rush's i-frames hold the sprite solid with no blink and no halo.
+    // The respawn strobe is tuned for a 2 s shield; across a 0.25 s hop the hero
+    // already reads as invulnerable from the movement, and the strobe just made
+    // the sprite flicker on and off.
+    const rushInvuln = Boolean(player.rushIFrames);
+    const invulnBlink = !rushInvuln && Math.floor(currentTime / ARENA_TUNING.respawn.flashIntervalMs) % 2 === 0;
+    context.save();
+    if (player.invulnerable && invulnBlink) context.globalAlpha = 0.35;
+    if (!drawCachedHero(context, heroSpriteCache, player, center.x - player.aim.x * recoil, center.y - player.aim.y * recoil, visualState)) {
+      context.fillText(player.emoji, center.x - player.aim.x * recoil, center.y - player.aim.y * recoil);
+    }
+    context.restore();
     if (player.guardianCharging && player.guardianDamageRamp > 0) {
       const label = `+${Math.round(player.guardianDamageRamp * 100)}%`;
       context.save();
@@ -2470,14 +3321,42 @@ function drawScene(timestamp) {
         context.strokeText(`CHAIN x${chainCounter.count}`, 0, 0); context.fillText(`CHAIN x${chainCounter.count}`, 0, 0); context.restore();
       }
     }
-    const readyBounceAt = dynamiteReadyBounces.get(player.id);
-    if (readyBounceAt !== undefined) {
-      const age = currentTime - readyBounceAt;
-      if (age >= ARENA_TUNING.heroTweaks.sheriffReadyBounceMs) dynamiteReadyBounces.delete(player.id);
+    const readyBounce = readyBounces.get(player.id);
+    if (readyBounce !== undefined) {
+      const age = currentTime - readyBounce.at;
+      if (age >= ARENA_TUNING.heroTweaks.sheriffReadyBounceMs) readyBounces.delete(player.id);
       else {
         const bounce = Math.sin(Math.PI * age / ARENA_TUNING.heroTweaks.sheriffReadyBounceMs) * 18;
         context.save(); context.font = '20px sans-serif'; context.textAlign = 'center'; context.textBaseline = 'middle';
-        context.fillText('🧨', center.x, center.y - 49 - bounce); context.restore();
+        context.fillText(readyBounce.emoji, center.x, center.y - 49 - bounce); context.restore();
+      }
+    }
+    // Talent refund popup (Quick Draw / Adrenaline): clock emoji + merged
+    // refund, drifting up and fading out above the hero.
+    const refundPopup = refundPopups.get(player.id);
+    if (refundPopup) {
+      const popupMs = ARENA_TUNING.heroTweaks.sheriffRefundPopupMs;
+      const age = currentTime - refundPopup.startedAt;
+      if (age >= popupMs) refundPopups.delete(player.id);
+      else {
+        const progress = age / popupMs;
+        const rise = progress * 26;
+        const fade = progress < 0.6 ? 1 : 1 - (progress - 0.6) / 0.4;
+        const label = `-${(refundPopup.totalMs / 1000).toFixed(1)}s`;
+        context.save();
+        context.globalAlpha = Math.max(0, fade);
+        context.textAlign = 'center'; context.textBaseline = 'middle';
+        const y = center.y - 70 - rise;
+        // Sized to match the 🧨 Dynamite-ready bounce so both popups read at
+        // the same visual weight (the arena is authored at 1920×1080 and shown
+        // scaled down, so small fonts become illegible).
+        context.font = '19px sans-serif';
+        context.fillText('⏰', center.x - 30, y);
+        context.font = 'bold 18px sans-serif';
+        context.lineWidth = 4; context.strokeStyle = '#10283b';
+        context.fillStyle = (HERO_FX_COLORS[player.heroId] || HERO_FX_COLORS.sheriff).highlight;
+        context.strokeText(label, center.x + 12, y); context.fillText(label, center.x + 12, y);
+        context.restore();
       }
     }
     if (muzzle && muzzleAge < ARENA_TUNING.muzzleFlash.durationMs) {
@@ -2491,7 +3370,9 @@ function drawScene(timestamp) {
     }
     context.font = '12px sans-serif';
     context.fillText(player.name, center.x, center.y + 30);
-    if ((player.invulnerable || player.ultimateFlash) && Math.floor(currentTime / ARENA_TUNING.respawn.flashIntervalMs) % 2 === 0) {
+    // No i-frame halo during Shield Rush either: the hop itself is the cue, and
+    // `invulnBlink` is already false for it. Every other source still blinks.
+    if ((player.invulnerable || player.ultimateFlash) && invulnBlink) {
       context.save(); context.globalAlpha = 0.25; context.fillStyle = '#fff';
       context.beginPath(); context.arc(center.x, center.y, 25, 0, Math.PI * 2); context.fill(); context.restore();
     }
@@ -2515,6 +3396,10 @@ function drawScene(timestamp) {
   }
 
   for (const monster of state.monsters || []) {
+    if (heroDebugHitboxes) {
+      context.save(); context.strokeStyle = '#ff2d55'; context.lineWidth = 2; context.setLineDash([5, 4]);
+      context.beginPath(); context.arc(monster.x, monster.y, monster.radius || 20, 0, Math.PI * 2); context.stroke(); context.restore();
+    }
     if (monster.stunned) {
       context.font = '16px sans-serif'; context.textAlign = 'center'; context.textBaseline = 'middle';
       context.fillText('⚡', monster.x, monster.y - 30);
@@ -2599,7 +3484,7 @@ function drawScene(timestamp) {
     if (p.heroId === 'electromancer' && p.shape === 'orb') {
       // Cached glow sprite (rendered once per color) blitted with drawImage,
       // instead of building a radial gradient per orb per frame.
-      const sprite = glowSprite(HERO_FX_COLORS.electromancer.primary, '#f4fdff', HERO_FX_COLORS.electromancer.highlight);
+      const sprite = glowSprite(HERO_FX_COLORS.electromancer.primary, HERO_FX_COLORS.electromancer.core || '#f4fdff', HERO_FX_COLORS.electromancer.highlight);
       const glowRadius = p.radius * 2.1;
       context.save(); context.globalAlpha = 0.82;
       context.drawImage(sprite.canvas, p.x - glowRadius, p.y - glowRadius, glowRadius * 2, glowRadius * 2);
@@ -2673,6 +3558,9 @@ function drawScene(timestamp) {
   context.filter = 'none';
   context.shadowBlur = 0;
   context.setLineDash([]);
+  // Screen-space celebration: unaffected by shake and the boss zoom.
+  updateConfetti(currentTime, dt);
+  drawConfetti(currentTime);
 }
 
 function spawnDashTrail(player) {
@@ -2699,7 +3587,7 @@ window.addEventListener('keydown', warmAudioOnFirstInput);
 canvas.addEventListener('contextmenu', (event) => event.preventDefault());
 addEventListener('keydown', onKeyDown);
 addEventListener('keyup', onKeyUp);
-addEventListener('blur', () => { releaseKeys(); stopPrimaryFire(); setPrimaryHeld(false); });
-addEventListener('pointerup', () => { stopPrimaryFire(); setPrimaryHeld(false); });
-addEventListener('pointercancel', () => { stopPrimaryFire(); setPrimaryHeld(false); });
+addEventListener('blur', () => { releaseKeys(); setPrimaryHeld(false); });
+addEventListener('pointerup', () => setPrimaryHeld(false));
+addEventListener('pointercancel', () => setPrimaryHeld(false));
 requestAnimationFrame(draw);

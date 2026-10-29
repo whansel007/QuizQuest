@@ -18,6 +18,8 @@ const debugDialog = ref(null);
 const rooms = ref([]);
 const maxRooms = ref(0);
 const roomsError = ref('');
+const summonScenario = ref('epic-and-duplicates');
+const summonQueued = ref('');
 const appVersion = packageJson.version;
 const resources = () => Object.entries(store.home?.catalog.resources || {});
 const code = ['ArrowUp', 'ArrowUp', 'ArrowDown', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'ArrowLeft', 'ArrowRight', 'b', 'a', 'Enter'];
@@ -81,6 +83,13 @@ async function setResourceBalance(resource, nextBalance = resourceBalances.value
     saved.value = true;
   } catch (err) { error.value = err.message; }
 }
+async function queueSummonPreview() {
+  error.value = ''; summonQueued.value = '';
+  try {
+    const result = await api('POST', '/api/student/debug/force-next-summon', { scenario: summonScenario.value });
+    summonQueued.value = `Queued ${result.scenario.replaceAll('-', ' ')} preview for the next ×10 summon.`;
+  } catch (err) { error.value = err.message; }
+}
 
 function adjustWallet(amount) { return setWalletBalance(Math.max(DEBUG_TUNING.minimumBalance, Math.min(DEBUG_TUNING.maximumBalance, balance.value + amount))); }
 function adjustResource(resource, amount) { return setResourceBalance(resource, Math.max(DEBUG_TUNING.minimumBalance, Math.min(DEBUG_TUNING.maximumBalance, Number(resourceBalances.value[resource]) + amount))); }
@@ -122,14 +131,15 @@ onUnmounted(() => window.removeEventListener('keydown', konami, true));
 <template>
   <span v-if="enabled" id="debug-menu-enabled" hidden></span>
   <button class="btn small debug-trigger" type="button" aria-label="Tools and version" title="Tools and version" @click="openVersion">🔧</button>
-  <section v-if="versionOpen" ref="versionDialog" class="debug-backdrop" role="dialog" aria-modal="true" aria-labelledby="version-title" tabindex="-1" @click.self="versionOpen = false">
+  <Teleport to="body">
+  <section v-if="versionOpen" ref="versionDialog" class="debug-backdrop" role="dialog" aria-modal="true" aria-labelledby="version-title" tabindex="-1" @click.self="versionOpen = false" @keydown.esc="versionOpen = false; position = 0">
     <div class="panel debug-panel version-panel">
       <button class="btn small debug-close" type="button" aria-label="Close version" @click="versionOpen = false; position = 0">×</button>
       <h2 id="version-title">QuizQuest v{{ appVersion }}</h2>
       <p v-if="versionNotice" class="muted small">{{ versionNotice }}</p>
     </div>
   </section>
-  <section v-if="enabled && open" class="debug-backdrop" role="dialog" aria-modal="true" aria-labelledby="debug-title" @click.self="open = false">
+  <section v-if="enabled && open" class="debug-backdrop" role="dialog" aria-modal="true" aria-labelledby="debug-title" @click.self="open = false" @keydown.esc="open = false">
     <div ref="debugDialog" class="panel debug-panel" tabindex="-1">
       <button class="btn small debug-close" type="button" aria-label="Close debug menu" @click="open = false">×</button>
       <h2 id="debug-title">Demo debug menu</h2>
@@ -157,6 +167,17 @@ onUnmounted(() => window.removeEventListener('keydown', konami, true));
       <p v-if="saved" class="small">Balance updated.</p>
       <p v-if="error" class="note bad small">{{ error }}</p>
       <section class="debug-rooms">
+        <strong>Summon visual previews</strong>
+        <label for="debug-summon-scenario">Next ×10 result set</label>
+        <select id="debug-summon-scenario" v-model="summonScenario">
+          <option value="epic-and-duplicates">5-star and duplicates</option>
+          <option value="all-resources">All resources</option>
+          <option value="three-new-heroes">Three new heroes</option>
+        </select>
+        <button class="btn" type="button" @click="queueSummonPreview">Queue preview</button>
+        <p v-if="summonQueued" class="muted small">{{ summonQueued }}</p>
+      </section>
+      <section class="debug-rooms">
         <div class="debug-rooms-head">
           <strong>Live rooms <span class="muted small">{{ rooms.length }}/{{ maxRooms }}</span></strong>
           <button class="btn small" type="button" @click="loadRooms">Refresh</button>
@@ -180,11 +201,12 @@ onUnmounted(() => window.removeEventListener('keydown', konami, true));
       </section>
     </div>
   </section>
+  </Teleport>
 </template>
 
 <style scoped>
-.debug-backdrop { position:fixed;z-index:50;inset:0;background:#101322bb;display:grid;place-items:center;padding:16px; }
-.debug-panel { position:relative;width:min(520px,100%);max-height:min(90vh,760px);overflow:auto;display:grid;gap:12px; }
+.debug-backdrop { position:fixed;z-index:150;inset:0;background:#101322bb;display:grid;place-items:center;overflow:auto;padding:16px; }
+.debug-panel { position:relative;width:min(520px,100%);max-height:min(calc(100dvh - 32px),760px);overflow:auto;overscroll-behavior:contain;scrollbar-gutter:stable;display:grid;gap:12px; }
 .debug-panel h2,.debug-panel p { margin:0; }
 .debug-panel form { display:grid;gap:8px; }
 .debug-actions { display:flex;flex-wrap:wrap;gap:6px; }

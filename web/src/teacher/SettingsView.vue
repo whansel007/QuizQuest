@@ -63,7 +63,6 @@ const toggle = (cl, key) => action(async (e) => {
 });
 const toggles = (cl) => [
   ['Allow resource trading between classmates', 'tradingEnabled', cl.settings.tradingEnabled, 'Students post offers to the whole class (no private targeting), with limits on open offers, size and daily trades. Turning this off refunds every open offer.'],
-  ['Award participation points', 'participationEnabled', !!cl.settings.participation?.enabled, 'Needs team decision (proposal §5). One point per completed session of 5+ questions, max 3/week, regardless of score. Points are visible to students and exportable as CSV. Off by default.'],
 ];
 // Time zone for the Analytics dashboard's days and weeks (default Singapore)
 const DEFAULT_TZ = 'Asia/Singapore';

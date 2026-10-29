@@ -1,18 +1,22 @@
 <script setup>
-// Summon reveal: the egg wobbles, cracks open in a burst of confetti,
-// and the hero or resource appears in a slowly turning 3D collector's box.
-import { ref, computed, nextTick, onMounted, onUnmounted } from 'vue';
+// Summon reveal: a shooting star falls from the sky (gold for 5-star,
+// purple for 4-star, a fainter silver for the rest), lands in a burst of
+// starlight and becomes a slowly turning constellation card.
+import { ref, computed, nextTick, onMounted, onUnmounted, watch } from 'vue';
 import { RARITY } from './rarity.js';
 import { formatHeroType } from '../hero-type.js';
+import HeroIcon from '../HeroIcon.vue';
 
 const props = defineProps({
   result: { type: Object, required: true }, // server summon result plus eggColour
   resources: { type: Object, required: true },
+  skipToSummary: Boolean,
+  clickToContinue: Boolean,
 });
-const emit = defineEmits(['close']);
+const emit = defineEmits(['close', 'skip']);
 
 const reduced = typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches;
-const stage = ref(reduced ? 'open' : 'egg');
+const stage = ref(reduced ? 'open' : 'star');
 const isHero = computed(() => props.result.prize.kind === 'hero');
 const item = computed(() => isHero.value ? props.result.prize.hero : props.resources[props.result.prize.resource]);
 const itemName = computed(() => item.value.name);
@@ -21,10 +25,12 @@ const rarity = computed(() => isHero.value ? props.result.prize.rarity : 'common
 const rarityStars = computed(() => rarity.value === 'epic' ? '5★ Epic' : rarity.value === 'rare' ? '4★ Rare' : '3★ Common');
 const duplicate = computed(() => isHero.value && props.result.duplicateHero);
 const colors = {
-  common: ['#ffffff', '#c9d3e0', '#86efac', '#7dd3fc'],
-  rare: ['#8cc4ff', '#4f8df7', '#ffffff', '#c4b5fd'],
-  epic: ['#f5c84c', '#fff1b8', '#c77dff', '#ff8fab', '#ffffff'],
+  common: ['#ffffff', '#dfe7f1', '#bcd2ea', '#fff4c9'],
+  rare: ['#c9a8ff', '#a77bf3', '#ffffff', '#e6d6ff'],
+  epic: ['#f5c84c', '#fff1b8', '#ffd98a', '#ffffff', '#f2ba55'],
 };
+// in a ten-pull, which star this is
+const counter = computed(() => (props.result.batchSize ? `Star ${props.result.batchIndex + 1} of ${props.result.batchSize}` : ''));
 const announcement = computed(() => {
   if (stage.value !== 'open') return '';
   if (!isHero.value) return `You got ${props.result.prize.amount} ${itemName.value} for your kingdom.`;
@@ -41,23 +47,31 @@ const pieces = computed(() => {
   });
 });
 
+const STAR_FALL_MS = 1500; // the star lands, then the card appears
 const root = ref(null);
 const collectBtn = ref(null);
+const revealKey = ref(0);
 let timer = null;
 let returnFocus = null;
 function crack() {
-  if (stage.value !== 'egg') return;
+  if (stage.value !== 'star') return;
   clearTimeout(timer);
   stage.value = 'open';
   nextTick(() => collectBtn.value?.focus());
 }
+function onSurfaceClick() {
+  if (props.skipToSummary) { emit('skip'); return; }
+  if (stage.value === 'star') { crack(); return; }
+  if (props.clickToContinue) emit('close');
+}
 function onKey(e) {
-  if (stage.value === 'egg') {
+  if (stage.value === 'star') {
+    if (props.skipToSummary && e.key === 'Escape') { e.preventDefault(); emit('skip'); return; }
     if (e.key !== 'Tab') crack();
     e.preventDefault();
     return;
   }
-  if (e.key === 'Escape') emit('close');
+  if (e.key === 'Escape') { if (props.skipToSummary) emit('skip'); else emit('close'); }
   if (e.key === 'Tab') {
     const els = [...root.value.querySelectorAll('button')];
     const i = els.indexOf(document.activeElement);
@@ -66,12 +80,22 @@ function onKey(e) {
     e.preventDefault();
   }
 }
+watch(() => props.result, () => {
+  clearTimeout(timer);
+  revealKey.value += 1;
+  stage.value = reduced ? 'open' : 'star';
+  if (stage.value === 'star') {
+    timer = setTimeout(crack, STAR_FALL_MS);
+    nextTick(() => root.value?.focus());
+  }
+  else nextTick(() => collectBtn.value?.focus());
+}, { flush: 'sync' });
 onMounted(() => {
   returnFocus = document.activeElement;
   document.body.style.overflow = 'hidden';
-  if (stage.value === 'egg') {
+  if (stage.value === 'star') {
     root.value.focus();
-    timer = setTimeout(crack, 1700);
+    timer = setTimeout(crack, STAR_FALL_MS);
   } else nextTick(() => collectBtn.value?.focus());
 });
 onUnmounted(() => {
@@ -83,12 +107,12 @@ onUnmounted(() => {
 
 <template>
   <Teleport to="body">
-    <div ref="root" class="prize" :class="['is-' + stage, rarity]" role="dialog" aria-modal="true" aria-labelledby="prize-title" tabindex="-1" @click="crack" @keydown="onKey">
+    <div ref="root" class="prize" :class="['is-' + stage, rarity]" role="dialog" aria-modal="true" aria-labelledby="prize-title" tabindex="-1" @click="onSurfaceClick" @keydown="onKey">
       <div class="prize-rays" aria-hidden="true"></div>
-      <div class="prize-stage">
-        <div class="prize-egg" :class="{ cracked: stage === 'open' }" :style="{ '--c': result.eggColour || '#c4b5fd' }" aria-hidden="true">
-          <span class="egg shell top"></span>
-          <span class="egg shell bottom"></span>
+      <div :key="revealKey" class="prize-stage">
+        <div v-if="stage === 'star'" class="prize-falling-star" aria-hidden="true">
+          <span class="star-trail"></span>
+          <svg class="star-head" viewBox="0 0 40 40"><path d="M20 2l4.6 12.4L38 20l-13.4 5.6L20 38l-4.6-12.4L2 20l13.4-5.6Z" /></svg>
         </div>
         <template v-if="stage === 'open'">
           <div class="prize-flash" aria-hidden="true"></div>
@@ -99,8 +123,9 @@ onUnmounted(() => {
             <div class="prize-spin">
               <div class="prize-box">
                 <div class="face front">
+                  <svg class="pb-constellation" viewBox="0 0 100 140" aria-hidden="true"><path d="M12 22 34 12 52 28 78 16 88 40M18 118 40 104 62 122 86 108" /><g><circle cx="12" cy="22" r="2" /><circle cx="34" cy="12" r="2.4" /><circle cx="52" cy="28" r="1.8" /><circle cx="78" cy="16" r="2.6" /><circle cx="88" cy="40" r="2" /><circle cx="18" cy="118" r="2" /><circle cx="40" cy="104" r="2.4" /><circle cx="62" cy="122" r="1.8" /><circle cx="86" cy="108" r="2.2" /></g></svg>
                   <div class="pb-head"><span>QUIZQUEST</span><span>{{ rarity }}</span></div>
-                  <div class="pb-window"><span class="pb-pet">{{ itemEmoji }}</span></div>
+                  <div class="pb-window"><HeroIcon v-if="isHero" :hero="item" :size="64" animated /><span v-else class="pb-pet">{{ itemEmoji }}</span></div>
                   <div class="pb-name">{{ itemName }}</div>
                 </div>
                 <div class="face back"><span>QUIZQUEST</span></div>
@@ -113,9 +138,10 @@ onUnmounted(() => {
           </div>
         </template>
       </div>
-      <div class="prize-info">
+      <div :key="revealKey" class="prize-info">
         <template v-if="stage === 'open'">
-          <h2 id="prize-title">{{ itemEmoji }} {{ itemName }}</h2>
+          <p v-if="counter" class="prize-counter">{{ counter }}</p>
+          <h2 id="prize-title"><HeroIcon v-if="isHero" :hero="item" :size="28" />{{ isHero ? '' : `${itemEmoji} ` }}{{ itemName }}</h2>
           <div class="prize-tags">
             <span class="prize-tag rarity-tag">{{ rarityStars }}</span>
             <span v-if="duplicate" class="prize-tag">Duplicate · +{{ result.refund }} 🪙 back</span>
@@ -125,13 +151,15 @@ onUnmounted(() => {
           <p v-if="isHero" class="prize-move">{{ formatHeroType(item.type) }} hero · {{ item.weapon }}</p>
           <p v-else class="prize-move">Added to your kingdom resources</p>
           <p class="prize-move pity-line">{{ result.pity.totalPulls }} total pulls · pity {{ result.pity.sinceHero }} / {{ result.pity.sinceEpic }}</p>
-          <div class="prize-actions" @click.stop>
-            <button ref="collectBtn" type="button" class="btn primary" @click="emit('close')">Continue</button>
+      <div class="prize-actions" @click.stop>
+            <button ref="collectBtn" type="button" class="btn primary" @click="emit('close')">{{ skipToSummary ? 'View all results' : 'Continue' }}</button>
           </div>
         </template>
         <template v-else>
-          <h2 id="prize-title">A summon is on its way…</h2>
-          <p class="prize-move">Click or press any key to open the egg now</p>
+          <p v-if="counter" class="prize-counter">{{ counter }}</p>
+          <h2 id="prize-title">A star is falling…</h2>
+          <p class="prize-move">Click or press any key to catch it now</p>
+          <button v-if="skipToSummary" type="button" class="btn" @click.stop="emit('skip')">Skip to results</button>
         </template>
       </div>
       <p class="sr-only" aria-live="assertive">{{ announcement }}</p>

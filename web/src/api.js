@@ -69,6 +69,7 @@ export const S = reactive({
   courseId: null,
   classId: null,
   qFilter: 'draft',
+  qReviewMode: 'list', // Question bank: 'list' or 'cards' (kept across the remount after a save)
   // Weekly topic shared by Source material, AI drafting, Question bank and
   // Analytics, so moving between them keeps the same week ('' = all topics)
   topicId: '',
@@ -175,7 +176,7 @@ function clearSession() {
   } catch {
     // storage blocked: the token only lived in memory anyway
   }
-  Object.assign(S, { token: null, me: null, tab: null, courseId: null, classId: null, qFilter: 'draft', topicId: '', ...savedPeriod(), focusQuestionId: null, draftTarget: null });
+  Object.assign(S, { token: null, me: null, tab: null, courseId: null, classId: null, qFilter: 'draft', qReviewMode: 'list', topicId: '', ...savedPeriod(), focusQuestionId: null, draftTarget: null });
   rerender();
 }
 
@@ -197,6 +198,9 @@ function startSession(r) {
     // fine: this tab stays signed in until it is closed
   }
   S.me = r.user;
+  // Signing in, students land in their Kingdom (their home hub). A reload
+  // restores the session without this, so an open practice can be resumed.
+  if (r.user?.role === 'student') S.tab = 'kingdom';
   rerender();
 }
 

@@ -5,9 +5,9 @@
 import { ref, computed, onMounted, nextTick, watch } from 'vue';
 import { S, api, setTab } from '../api.js';
 import { toast } from '../ui.js';
-import Heading from '../components/Heading.vue';
 import CoursePicker from './CoursePicker.vue';
 import QuestionCard from './QuestionCard.vue';
+import CardReview from './CardReview.vue';
 import QuestionEditor from './QuestionEditor.vue';
 import Pager from '../components/Pager.vue';
 import AsyncButton from '../components/AsyncButton.vue';
@@ -79,6 +79,25 @@ function goPage(p) {
   listTop.value?.scrollIntoView({ block: 'start' });
 }
 
+// ---------------------------------------------------------------
+// Card mode: AI drafts awaiting review, one at a time. It reuses the
+// same status API; a decision updates the question in place, so the
+// next card appears without reloading the bank.
+// ---------------------------------------------------------------
+const isAiDraft = (q) => q.status === 'draft' && q.origin && q.origin !== 'manual';
+const cardQueue = computed(() => inTopic.value.filter(isAiDraft).sort((a, b) => created(b) - created(a)));
+function setMode(mode) {
+  S.qReviewMode = mode;
+  if (mode === 'list') S.qFilter = 'draft';
+  nextTick(() => document.querySelector(mode === 'cards' ? '.cr-card, .cr-empty .btn' : '.bank-results')?.focus?.({ preventScroll: true }));
+}
+function onDecided({ id, status }) {
+  const q = questions.value.find((x) => x.id === id);
+  if (!q) return;
+  q.status = status;
+  if (status === 'published') q.publishedVersion = q.latest.v;
+}
+
 // "+ New question" again opens a fresh editor
 const newKey = ref(0);
 const creating = ref(false);
@@ -129,61 +148,111 @@ async function rewriteSelected() {
   <template v-else-if="loaded">
     <p v-if="!course">You have no assigned courses.</p>
     <template v-else>
-      <Heading title="Question bank">
+      <div class="t-toolbar">
+        <h2>Question bank</h2>
         <CoursePicker :courses="courses" />
+        <div class="bank-modes" role="group" aria-label="Review mode">
+          <button class="btn" type="button" :aria-pressed="S.qReviewMode !== 'cards' ? 'true' : 'false'" @click="setMode('list')">List</button>
+          <button class="btn" type="button" :aria-pressed="S.qReviewMode === 'cards' ? 'true' : 'false'" @click="setMode('cards')">Review as cards ({{ cardQueue.length }})</button>
+        </div>
         <button class="btn primary" @click="openNew">+ New question</button>
-      </Heading>
+      </div>
       <p class="muted small">AI-drafted questions stay drafts until you approve them. Editing a published question creates a new version, so earlier attempts still point at the wording students actually saw.</p>
       <div>
         <QuestionEditor v-if="creating" :key="newKey" :course="course" :passages="passages" @close="creating = false" />
       </div>
-      <div class="row" style="align-items: flex-end; margin-bottom: 12px">
-        <label class="field" style="margin: 0; max-width: 360px">Topic
+
+      <div v-if="S.qReviewMode === 'cards'" class="bank-cards">
+        <label class="field bank-topic" style="max-width: 360px">Topic
           <select v-model="S.topicId" aria-label="Filter by topic">
             <option value="">All topics ({{ questions.length }})</option>
             <option v-for="t in topics" :key="t.id" :value="t.id">{{ topicLabel(t) }} ({{ t.count }})</option>
           </select>
         </label>
+        <CardReview :queue="cardQueue" :course="course" :passages="passages" :scoped="!!S.topicId" @decided="onDecided" @exit="setMode('list')" />
       </div>
-      <div ref="listTop" class="chips">
-        <button v-for="[id, label, fn] in filters" :key="id" :aria-pressed="S.qFilter === id ? 'true' : 'false'" @click="S.qFilter = id">{{ `${label} (${inTopic.filter(fn).length})` }}</button>
+
+      <div v-else class="bank-layout">
+        <!-- filters on the left, results on the right -->
+        <aside class="bank-filters panel" aria-label="Filter questions">
+          <h4>Filter</h4>
+          <label class="field" style="margin: 0 0 12px">Topic
+            <select v-model="S.topicId" aria-label="Filter by topic">
+              <option value="">All topics ({{ questions.length }})</option>
+              <option v-for="t in topics" :key="t.id" :value="t.id">{{ topicLabel(t) }} ({{ t.count }})</option>
+            </select>
+          </label>
+          <div class="bank-status" role="group" aria-label="Status">
+            <span class="bank-status-label">Status</span>
+            <button v-for="[id, label, fn] in filters" :key="id" type="button" :aria-pressed="S.qFilter === id ? 'true' : 'false'" :aria-label="`${label} (${inTopic.filter(fn).length})`" @click="S.qFilter = id">
+              <span>{{ label }}</span><b>{{ inTopic.filter(fn).length }}</b>
+            </button>
+          </div>
+          <div v-if="rewritable.length" class="rewrite-bar">
+            <h4>Rewrite AI drafts</h4>
+            <label class="qsel">
+              <input type="checkbox" :checked="allOnPage" aria-label="Select every rewritable question on this page" @change="togglePage" />
+              <span>Select page</span>
+            </label>
+            <span v-if="selected.length" class="small"><strong>{{ selected.length }}</strong> selected</span>
+            <label class="field" for="rewrite-style">Rewrite as
+              <select id="rewrite-style" v-model="rewriteStyle">
+                <option value="application">Application</option>
+                <option value="conceptual">Conceptual</option>
+                <option value="both">Both</option>
+              </select>
+            </label>
+            <div class="row">
+              <AsyncButton class="btn primary" :run="rewriteSelected" :disabled="!selected.length || !oneTopic">Rewrite selected</AsyncButton>
+              <button v-if="selected.length" class="btn" @click="selected = []">Clear</button>
+            </div>
+            <p v-if="selected.length && !oneTopic" class="note warn small" style="margin: 0">Select questions from one topic and learning outcome - they are rewritten together.</p>
+          </div>
+        </aside>
+
+        <div ref="listTop" class="bank-results" tabindex="-1" aria-label="Questions">
+          <Pager :paged="{ ...paged, go: goPage }" label="Question pages (top)" noun="questions" />
+          <template v-if="shown.length">
+            <QuestionCard v-for="q in paged.items" :key="q.id" :q="q" :course="course" :passages="passages" :selectable="canRewrite(q)" :selected="selected.includes(q.id)" @toggle="toggle" />
+          </template>
+          <div v-else class="t-empty">
+            Nothing here{{ S.topicId ? ' for this topic' : '' }}.
+            <template v-for="[id, label, fn] in filters" :key="id"><button v-if="id !== S.qFilter && inTopic.filter(fn).length" class="btn small" style="margin-left: 8px" @click="S.qFilter = id">{{ label }} ({{ inTopic.filter(fn).length }})</button></template>
+            <button v-if="S.topicId" class="btn small" style="margin-left: 8px" @click="S.topicId = ''">Show all topics</button>
+          </div>
+          <Pager :paged="{ ...paged, go: goPage }" label="Question pages" noun="questions" />
+        </div>
       </div>
-      <div v-if="rewritable.length" class="panel rewrite-bar">
-        <label class="qsel">
-          <input type="checkbox" :checked="allOnPage" aria-label="Select every rewritable question on this page" @change="togglePage" />
-          <span>Select page</span>
-        </label>
-        <span v-if="selected.length" class="small"><strong>{{ selected.length }}</strong> selected</span>
-        <label class="field" for="rewrite-style">Rewrite as
-          <select id="rewrite-style" v-model="rewriteStyle">
-            <option value="application">Application</option>
-            <option value="conceptual">Conceptual</option>
-            <option value="both">Both</option>
-          </select>
-        </label>
-        <AsyncButton class="btn primary" :run="rewriteSelected" :disabled="!selected.length || !oneTopic">Rewrite selected</AsyncButton>
-        <button v-if="selected.length" class="btn" @click="selected = []">Clear</button>
-      </div>
-      <p v-if="selected.length && !oneTopic" class="note warn small">Select questions from one topic and learning outcome - they are rewritten together.</p>
-      <Pager :paged="{ ...paged, go: goPage }" label="Question pages (top)" noun="questions" />
-      <div>
-        <template v-if="shown.length">
-          <QuestionCard v-for="q in paged.items" :key="q.id" :q="q" :course="course" :passages="passages" :selectable="canRewrite(q)" :selected="selected.includes(q.id)" @toggle="toggle" />
-        </template>
-        <p v-else class="muted">
-          Nothing here{{ S.topicId ? ' for this topic' : '' }}.
-          <template v-for="[id, label, fn] in filters" :key="id"><button v-if="id !== S.qFilter && inTopic.filter(fn).length" class="btn small" style="margin-left: 8px" @click="S.qFilter = id">{{ label }} ({{ inTopic.filter(fn).length }})</button></template>
-          <button v-if="S.topicId" class="btn small" style="margin-left: 8px" @click="S.topicId = ''">Show all topics</button>
-        </p>
-      </div>
-      <Pager :paged="{ ...paged, go: goPage }" label="Question pages" noun="questions" />
     </template>
   </template>
 </template>
 
 <style scoped>
-.rewrite-bar { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 14px; margin: 12px 0; }
-.rewrite-bar .field { margin: 0; display: flex; align-items: center; gap: 8px; }
+.bank-modes { display: inline-flex; }
+.bank-modes .btn { border-radius: 0; }
+.bank-modes .btn:first-child { border-radius: 8px 0 0 8px; }
+.bank-modes .btn:last-child { border-radius: 0 8px 8px 0; margin-left: -1px; }
+.bank-modes .btn[aria-pressed="true"] { color: var(--accent); background: var(--accent-soft); border-color: var(--accent); position: relative; }
+.bank-layout { display: grid; grid-template-columns: 270px minmax(0, 1fr); gap: 20px; align-items: start; }
+.bank-filters { position: sticky; top: 16px; margin: 0; }
+.bank-filters h4 { margin: 0 0 10px; }
+.bank-status { display: grid; gap: 2px; }
+.bank-status-label { margin-bottom: 4px; color: var(--muted); font-size: 13px; font-weight: 600; }
+.bank-status button { display: flex; justify-content: space-between; gap: 8px; padding: 8px 10px; color: var(--ink); background: none; border: 1px solid transparent; border-radius: 8px; font: inherit; font-size: 14px; text-align: left; cursor: pointer; }
+.bank-status button:hover { background: var(--bg); }
+.bank-status button[aria-pressed="true"] { color: var(--accent); background: var(--accent-soft); border-color: var(--accent); font-weight: 700; }
+.bank-status b { font-variant-numeric: tabular-nums; }
+.bank-results { min-width: 0; outline: none; }
+.rewrite-bar { display: grid; gap: 10px; margin-top: 16px; padding-top: 14px; border-top: 1px solid var(--line); }
+.rewrite-bar h4 { margin: 0; }
+.rewrite-bar .field { margin: 0; }
+.bank-cards { display: grid; gap: 12px; }
+.bank-topic { margin: 0; }
+@media (max-width: 1000px) {
+  .bank-layout { grid-template-columns: minmax(0, 1fr); }
+  .bank-filters { position: static; }
+  .bank-status { grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); }
+}
 .qsel { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; cursor: pointer; }
 .qsel input { width: 18px; height: 18px; accent-color: var(--accent); cursor: pointer; }
 </style>

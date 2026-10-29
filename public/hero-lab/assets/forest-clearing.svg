@@ -1,0 +1,51 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="850" viewBox="0 0 1600 850" fill="none">
+  <defs>
+    <linearGradient id="sky" x1="800" y1="0" x2="800" y2="850" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#21443c"/>
+      <stop offset=".52" stop-color="#476848"/>
+      <stop offset="1" stop-color="#263f31"/>
+    </linearGradient>
+    <radialGradient id="glade" cx="0" cy="0" r="1" gradientTransform="matrix(480 340 -370 523 807 300)" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#e7cf80" stop-opacity=".82"/>
+      <stop offset=".48" stop-color="#a9ae62" stop-opacity=".42"/>
+      <stop offset="1" stop-color="#546d43" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="beam" x1="800" y1="36" x2="800" y2="645" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#f5e7a6" stop-opacity=".35"/>
+      <stop offset="1" stop-color="#f5e7a6" stop-opacity="0"/>
+    </linearGradient>
+    <linearGradient id="trunk" x1="0" y1="0" x2="1" y2="1">
+      <stop stop-color="#132e2b"/>
+      <stop offset="1" stop-color="#24453a"/>
+    </linearGradient>
+    <linearGradient id="ground" x1="800" y1="480" x2="800" y2="850" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#657b3e"/>
+      <stop offset="1" stop-color="#294735"/>
+    </linearGradient>
+  </defs>
+  <path fill="url(#sky)" d="M0 0h1600v850H0z"/>
+  <path fill="url(#glade)" d="M0 0h1600v850H0z"/>
+  <path fill="url(#beam)" d="m588 0 167 0 188 624H743L588 0Zm331 0h78L855 624h-98L919 0Z"/>
+  <g fill="#33583f" opacity=".85">
+    <path d="M0 74 65 0h85l69 111v391H0zM239 0h108l81 130v344H239zM419 0h64l64 108v392H419zM1135 0h77l-46 116v390h-95V134zM1300 0h100l64 90v430h-164zM1485 0h115v475h-188z"/>
+    <path d="M0 386c46-92 106-96 153-8 41-74 107-75 149 2 48-95 127-88 163 16v170H0V386Zm1146-1c46-94 107-94 151-7 42-74 106-74 150 0 42-80 106-83 153 3v178h-454z"/>
+  </g>
+  <g fill="url(#trunk)">
+    <path d="M-52 0h182l-19 176 49 186-24 488H-77L-44 421-83 183zM250 0h105l-12 147 33 178-10 525H224l-5-478 42-198zM448 0h105l-11 120 33 201-20 529H410l2-471 44-192z"/>
+    <path d="M1134 0h117l-20 152 46 198-14 500h-171l-1-492 46-207zM1350 0h143l-8 190 45 210-21 450h-191l-3-494 45-175zM1542 0h118v850h-189l12-494 45-182z"/>
+  </g>
+  <g fill="#234536">
+    <path d="M0 515c43-72 94-74 131-7 42-95 98-99 147-6 45-62 97-56 130 15v151H0zM1180 513c44-79 96-76 137 1 42-90 102-96 146-1 46-62 99-52 137 23v132h-420z"/>
+  </g>
+  <path fill="url(#ground)" d="M0 572c180-82 346-75 498-22 191 68 399 59 584-9 213-78 391-65 518 2v307H0V572Z"/>
+  <path fill="#87924a" fill-opacity=".48" d="M0 650c160-54 307-44 468 8 175 56 343 58 520 4 235-72 443-71 612-7v195H0V650Z"/>
+  <g fill="#d1bd70" fill-opacity=".55">
+    <ellipse cx="798" cy="692" rx="482" ry="46"/>
+    <ellipse cx="800" cy="747" rx="320" ry="25"/>
+  </g>
+  <g fill="#e4d58b" opacity=".8">
+    <circle cx="272" cy="351" r="3"/><circle cx="402" cy="278" r="2"/><circle cx="1198" cy="330" r="3"/>
+    <circle cx="1323" cy="422" r="2"/><circle cx="554" cy="408" r="2"/><circle cx="1064" cy="213" r="2"/>
+    <circle cx="352" cy="557" r="2"/><circle cx="1272" cy="574" r="3"/><circle cx="956" cy="521" r="2"/>
+  </g>
+</svg>

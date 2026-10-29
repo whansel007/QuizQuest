@@ -9,33 +9,39 @@
 <body>
   <canvas id="world" width="1920" height="1080" aria-label="Hero Lab World game arena"></canvas>
   <div id="overload-flash" aria-hidden="true"></div>
-  <aside id="hero-hud" aria-live="polite">
-    <strong id="hero-name">Joining the world…</strong>
-    <div class="health-row">
-      <div class="health-track" role="meter" aria-label="Hero health" aria-valuemin="0" aria-valuemax="100" aria-valuenow="100"><span id="health-fill"></span></div>
-      <span id="health-value">-- / --</span>
+  <aside id="hero-hud" aria-label="Party">
+    <div class="party-head"><span class="hud-kicker">PARTY</span><span id="party-count"></span></div>
+    <!-- The local hero's health also lives in its party row; this copy is for
+         screen readers only, so it is never shown twice on screen. -->
+    <div class="sr-only" aria-live="polite">
+      <strong id="hero-name">Joining the world…</strong>
+      <div class="health-row">
+        <div class="health-track" role="meter" aria-label="Your hero's health" aria-valuemin="0" aria-valuemax="100" aria-valuenow="100"><span id="health-fill"></span></div>
+        <span id="health-value">-- / --</span>
+      </div>
     </div>
-    <div id="room-row">
-      <button id="room-code" type="button" hidden title="Copy room code" aria-label="Copy room code">
-        <span class="room-code-label">ROOM</span><b id="room-code-value">----</b>
-      </button>
-      <span id="room-code-copied" role="status" hidden>Copied!</span>
-    </div>
-    <div id="team-health" aria-label="Teammate health" hidden></div>
-    <div id="downed-list" aria-label="Downed teammates" hidden></div>
+    <div id="player-roster" aria-label="Players in this room" hidden></div>
   </aside>
-  <aside id="wave-hud" aria-live="polite">
-    <strong id="wave-number">Wave 1</strong>
-    <span id="wave-details">Enemies left: --</span>
-  </aside>
-  <aside id="campfire-hud" aria-label="Campfire health">
-    <span>Campfire</span><span id="campfire-value">-- / --</span>
-    <div class="campfire-track"><span id="campfire-fill"></span></div>
-  </aside>
+  <section id="combat-hud" aria-label="Wave and campfire status">
+    <aside id="wave-hud" aria-live="polite">
+      <strong id="enemy-count" aria-label="Enemies remaining">--</strong>
+      <span class="enemy-count-label">ENEMIES LEFT</span>
+      <strong id="wave-number">Lobby</strong>
+      <span id="wave-details"></span>
+      <div id="break-pill" hidden></div>
+    </aside>
+    <aside id="campfire-hud" aria-label="Campfire health">
+      <div class="campfire-heading"><strong>Campfire</strong><span id="campfire-value">-- / --</span></div>
+      <div class="campfire-track"><span id="campfire-fill"></span></div>
+    </aside>
+  </section>
   <aside id="boss-hud" aria-label="Boss health" hidden><strong id="boss-name">Brute King</strong><div class="boss-track"><span id="boss-health-fill"></span></div><span id="boss-health-value"></span></aside>
-  <aside id="player-list" aria-label="Players in this room" hidden>
-    <div id="player-list-rows"></div>
-  </aside>
+  <div id="room-code-corner" hidden aria-label="Room code">
+    <button id="room-code" type="button" title="Copy room code" aria-label="Copy room code">
+      <span class="room-code-label">ROOM</span><b id="room-code-value">----</b><svg class="room-copy-icon" viewBox="0 0 16 16" aria-hidden="true"><rect x="5" y="5" width="8.5" height="9" rx="1.5" /><path d="M3 10.5V3.5A1.5 1.5 0 0 1 4.5 2H10" /></svg>
+    </button>
+    <span id="room-code-copied" role="status" hidden>Copied!</span>
+  </div>
   <div id="moment-banner" aria-live="assertive" hidden></div>
   <section id="waiting-banner" aria-live="polite" hidden>
     <strong>Joining after this wave…</strong>
@@ -45,6 +51,7 @@
   <div id="countdown" hidden aria-live="assertive"><span id="countdown-value">3</span></div>
   <section id="lobby-bar" hidden aria-label="Lobby controls">
     <label id="lobby-hero-label" for="lobby-hero">Hero</label>
+    <span id="lobby-hero-icon" aria-hidden="true"></span>
     <select id="lobby-hero" aria-label="Choose the hero you play this run"></select>
     <button id="start-run" type="button" hidden>START RUN</button>
     <span id="lobby-hint" hidden>Waiting for the host to start…</span>
@@ -55,13 +62,12 @@
     <div class="briefing-tip"><span aria-hidden="true">🟢</span><span>Stand in the green ring to heal.</span></div>
     <div class="briefing-tip"><span aria-hidden="true">🏃</span><span>Keep moving: +20% damage while you move.</span></div>
     <div class="briefing-tip"><span aria-hidden="true">🎮</span><span>Click fire | E skill | Q ultimate | WASD move</span></div>
-    <small>Press any key or click to close</small>
+    <small>Press any key or click to close · Press I any time to see this again.</small>
   </section>
   <aside id="bottom-left-hud">
     <div id="bottom-left-tools">
-      <button id="briefing-button" type="button" aria-label="Show the game briefing" title="Show the game briefing">?</button>
       <aside id="settings-hud">
-        <button id="settings-button" type="button" aria-expanded="false" aria-controls="settings-panel" aria-label="Arena settings" title="Settings">⚙</button>
+        <button id="settings-button" type="button" aria-expanded="false" aria-controls="settings-panel" aria-label="Arena settings" title="Settings"><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M8.6 2h2.8l.4 2.2 1.6.9 2.1-.8 1.4 2.4-1.7 1.5v1.6l1.7 1.5-1.4 2.4-2.1-.8-1.6.9-.4 2.2H8.6l-.4-2.2-1.6-.9-2.1.8-1.4-2.4 1.7-1.5V8.2L3.1 6.7l1.4-2.4 2.1.8 1.6-.9Z" /><circle cx="10" cy="10" r="2.6" /></svg></button>
         <section id="settings-panel" hidden aria-label="Arena settings">
           <strong>Settings</strong>
           <label><input id="shake-setting" type="checkbox" checked> Screen shake</label>
@@ -92,29 +98,48 @@
     <button id="info-button" type="button" aria-expanded="false" aria-controls="stats-panel">
       <span class="ability-circle info-circle">I</span><span>Information</span>
     </button>
-    <section id="stats-panel" hidden aria-label="Current hero stats">
-      <strong>Current stats</strong>
-      <span>Health <b id="stat-health">--</b></span>
-      <span>Attack <b id="stat-attack">--</b></span>
-      <span>Defense <b id="stat-defense">--</b></span>
-      <span>Speed <b id="stat-speed">--</b></span>
-      <span id="building-bonus-stat" title="Kingdom upgrades applied to this hero">🏰 Upgrades <b id="building-bonus-value">None</b></span>
-      <span id="momentum-stat" title="Moving: +20% damage" aria-label="Moving: plus 20 percent damage">🏃 Momentum <b id="momentum-status">Inactive</b></span>
-      <span class="talent-info"><em id="stat-talent-name">Talent</em><b id="stat-talent-description">--</b></span>
+    <section id="stats-panel" hidden aria-label="Hero information">
+      <section id="howto-card" class="info-card" aria-label="How to play">
+        <div class="info-card-head">
+          <strong>How to play</strong>
+          <button id="info-close" type="button" aria-label="Close information" title="Close (I or Esc)">✕</button>
+        </div>
+        <p id="howto-lead">Defend the campfire!</p>
+        <div class="briefing-tip"><span aria-hidden="true">🟢</span><span>Stand in the green ring to heal.</span></div>
+        <div class="briefing-tip"><span aria-hidden="true">🏃</span><span>Keep moving: +20% damage while you move.</span></div>
+        <div class="briefing-tip"><span aria-hidden="true">🎮</span><span>Click fire | E skill | Q ultimate | WASD move</span></div>
+      </section>
+      <section id="stats-card" class="info-card" aria-label="Current hero stats">
+        <strong>Current stats</strong>
+        <span>Health <b id="stat-health">--</b></span>
+        <span>Attack <b id="stat-attack">--</b></span>
+        <span>Defense <b id="stat-defense">--</b></span>
+        <span>Speed <b id="stat-speed">--</b></span>
+        <span id="building-bonus-stat" title="Kingdom upgrades applied to this hero">🏰 Upgrades</span>
+        <ul id="building-bonus-list" class="stat-list"><li>None</li></ul>
+        <span id="momentum-stat" title="Moving: +20% damage" aria-label="Moving: plus 20 percent damage">🏃 Momentum <b id="momentum-status">Inactive</b></span>
+        <span title="Live link to the arena server">🔌 Connection <b id="connection-status" role="status">Connecting…</b></span>
+        <span class="talent-info">
+          <span id="stat-talent-badge" class="talent-badge-host"></span>
+          <span class="talent-info-text"><em id="stat-talent-name">Talent</em><b id="stat-talent-description">--</b></span>
+          <span id="stat-talent-key" class="talent-key">--</span>
+        </span>
+      </section>
     </section>
     <strong id="kill-streak" hidden aria-live="polite"></strong>
-    <span id="connection-status" role="status">Connecting…</span>
   </aside>
   <section id="buff-vote" hidden aria-label="Choose a team wave buff">
-    <strong id="buff-vote-title">Choose a team buff</strong>
-    <span id="buff-vote-status">Every player votes once. Ties are random.</span>
-    <div id="buff-cards"></div>
+    <div id="buff-vote-panel">
+      <strong id="buff-vote-title">Choose a team buff</strong>
+      <span id="buff-vote-status">Every player votes once. Ties are random.</span>
+      <div id="buff-cards"></div>
+    </div>
   </section>
   <div id="targeting-hint" hidden>Left-click to confirm bombing location · Esc to cancel</div>
   <div id="hud-debug-clusters" hidden aria-hidden="true"></div>
   <aside id="ability-hud" aria-label="Hero abilities">
     <div class="ability" data-ability="weapon"><span class="ability-circle"><span class="ability-icon"></span></span><span class="ability-key">M1</span></div>
-    <div class="ability" data-ability="skill"><span class="ability-circle"><span class="ability-icon"></span></span><span class="ability-key">E</span><small class="cooldown-refund-label" hidden></small></div>
+    <div class="ability" data-ability="skill"><span class="ability-circle"><span class="ability-icon"></span></span><span class="ability-key">E</span></div>
     <div class="ability" data-ability="ultimate"><span class="ability-circle"><span class="ability-icon"></span><small class="ability-lockout"></small></span><span class="ability-key">Q</span></div>
   </aside>
   <section id="milestone-dawn" hidden aria-label="Wave milestone choice">
@@ -126,23 +151,42 @@
     </div>
   </section>
   <section id="run-result" hidden aria-label="Run results">
-    <h1 id="run-result-title">Run complete</h1>
-    <p id="run-result-message"></p>
-    <div id="run-result-stats"></div>
-    <p id="run-result-teaser"></p>
-    <label for="run-again-hero">Hero for the next run</label>
-    <select id="run-again-hero"></select>
-    <div class="run-result-actions">
-      <button id="run-again" type="button">RUN AGAIN</button>
-      <button id="return-kingdom" type="button">RETURN TO KINGDOM</button>
+    <div class="run-result-layout">
+    <div class="run-result-card">
+      <span id="run-result-emblem" class="run-result-emblem" aria-hidden="true"></span>
+      <span class="run-result-kicker">FIELD REPORT · CAMPFIRE CHRONICLES</span>
+      <h1 id="run-result-title">Run complete</h1>
+      <p id="run-result-message"></p>
+      <div id="run-result-stats" class="run-result-stat-grid"></div>
+      <section class="run-result-bonuses" aria-label="Kingdom contributions">
+        <h2>Kingdom contributions</h2>
+        <ul id="run-result-upgrades"></ul>
+      </section>
+      <p id="run-result-teaser"><span aria-hidden="true">👑</span><span id="run-result-teaser-text"></span></p>
+      <div class="run-result-picker">
+        <label for="run-again-hero"><span id="run-again-hero-icon" aria-hidden="true"></span><span>Choose your next hero</span></label>
+        <select id="run-again-hero"></select>
+      </div>
+      <div class="run-result-actions">
+        <button id="run-again" type="button"><span aria-hidden="true">↻</span> RUN AGAIN</button>
+        <button id="return-kingdom" type="button"><span aria-hidden="true">⌂</span> RETURN TO KINGDOM</button>
+      </div>
+    </div>
+    <aside class="run-result-party" aria-labelledby="run-result-party-title">
+      <span class="run-result-kicker" id="run-result-party-title">THE PARTY</span>
+      <div id="run-result-party"></div>
+    </aside>
     </div>
   </section>
   <section id="session-summary" hidden aria-label="Session summary">
-    <strong>Nice session! Here is what you did</strong>
-    <p id="session-summary-text"></p>
-    <div class="run-result-actions">
-      <button id="session-stop" type="button">STOP</button>
-      <button id="session-keep-going" type="button">KEEP GOING</button>
+    <div class="session-summary-card">
+      <span class="session-summary-icon" aria-hidden="true">🔥</span>
+      <strong>Nice session! Here is what you did</strong>
+      <p id="session-summary-text"></p>
+      <div class="run-result-actions">
+        <button id="session-stop" type="button">STOP</button>
+        <button id="session-keep-going" type="button">KEEP GOING</button>
+      </div>
     </div>
   </section>
   <script src="/socket.io/socket.io.js"></script>

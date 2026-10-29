@@ -1,6 +1,6 @@
 <script setup>
 // ============================================================
-// Analytics dashboard (+ free-response marking, participation)
+// Analytics dashboard (+ free-response marking)
 // ------------------------------------------------------------
 // One filter row (class, weekly topic, period) scopes everything below
 // it; the Weekly topics table always lists every topic of the course. While new
@@ -11,12 +11,11 @@
 // refresh says so instead of quietly going stale. Charts draw in when a
 // period loads, but not on background refreshes. The period and
 // auto-refresh choices are remembered in this browser. Nothing on this
-// page names individual students (opt-in participation points aside).
+// page names individual students.
 // ============================================================
 import { ref, computed, nextTick, watch, onMounted, onUnmounted } from 'vue';
-import { S, api, download, setTab, rerender, periodQuery, dashQuery, dashPrefs, saveDashPrefs, customPeriodError } from '../api.js';
+import { S, api, setTab, rerender, periodQuery, dashQuery, dashPrefs, saveDashPrefs, customPeriodError } from '../api.js';
 import { pct, secs, toast, when, clockTime } from '../ui.js';
-import Heading from '../components/Heading.vue';
 import Meter from '../components/Meter.vue';
 import AsyncButton from '../components/AsyncButton.vue';
 import Pager from '../components/Pager.vue';
@@ -53,7 +52,6 @@ const updatedAt = ref(null);
 const stamp = ref(0); // bumps on every load, so side panels reload too
 const auto = ref(dashPrefs().auto !== false);
 const insight = ref(null);
-const printNames = ref(false); // participation points on paper: opt-in, never remembered
 const refreshFailedAt = ref(null); // a background refresh failed: the numbers are stale
 const drawKey = ref(0); // bumps on foreground loads only: charts remount and draw in
 const pulse = ref({}); // tile key -> count, bumps when a background refresh changes that tile
@@ -150,9 +148,14 @@ onUnmounted(() => clearInterval(timer));
 
 // ---- the section bar sticks under the top bar and marks the section in view
 const navEl = ref(null);
-const barHeight = ref(0); // the sticky top bar's height (it wraps on phones)
+const toolbarEl = ref(null); // the sticky page toolbar (pickers + section bar)
+const barHeight = ref(0); // the sticky mobile top bar's height (0 beside the sidebar)
 const currentSection = ref('dash-overview');
-const topOffset = () => barHeight.value + (navEl.value?.offsetHeight || 0);
+// beside the sidebar the whole toolbar sticks; on phones only the section bar does
+const stickyHeight = () => (toolbarEl.value && getComputedStyle(toolbarEl.value).display === 'contents'
+  ? navEl.value?.offsetHeight || 0
+  : toolbarEl.value?.offsetHeight || 0);
+const topOffset = () => barHeight.value + stickyHeight();
 let spyFrame = 0;
 function spy() {
   cancelAnimationFrame(spyFrame);
@@ -160,8 +163,10 @@ function spy() {
     const line = topOffset() + 24;
     let current = sections.value[0][0];
     for (const [id] of sections.value) {
+      // measure from the section's own heading, so a section counts as soon as it starts
       const el = document.getElementById(id);
-      if (el && el.getBoundingClientRect().top <= line) current = id;
+      const box = el && (el.closest('.t-section') || el);
+      if (box && box.getBoundingClientRect().top <= line) current = id;
     }
     // scrolled to the bottom: a short last section can't reach the top
     if (window.innerHeight + window.scrollY >= document.documentElement.scrollHeight - 2) current = sections.value.at(-1)[0];
@@ -252,7 +257,6 @@ const mark = (m, correct) => async () => {
   document.querySelector(marking.value.length ? '#dash-marking h3' : '#dash-overview h3')?.focus({ preventScroll: true });
   load({ quiet: true });
 };
-const participationCsv = () => download(`/api/teacher/classes/${S.classId}/participation.csv`, `participation-${S.classId}.csv`);
 // ---- the weekly topic the dashboard is narrowed to ('' = all)
 const course = computed(() => courses.value.find((c) => c.id === courseOfClass.get(S.classId)));
 const topic = computed(() => course.value?.topics.find((t) => t.id === a.value?.topicId) || null);
@@ -295,26 +299,71 @@ function goTo(id) {
   if (!el) return;
   // land below the sticky top bar and section bar
   window.scrollTo({ top: el.getBoundingClientRect().top + window.scrollY - topOffset() - 8, behavior: 'smooth' });
-  el.querySelector('h3')?.focus({ preventScroll: true });
+  el.querySelector('h3, h4')?.focus({ preventScroll: true });
   // a brief outline shows where the jump landed (restarted if clicked again)
   el.classList.remove('jumped');
   void el.offsetWidth;
   el.classList.add('jumped');
   setTimeout(() => el.classList.remove('jumped'), 1600);
 }
+// ---- Trends: the answers chart grows to match the "When students practise"
+// panel beside it, so the two end level instead of leaving a gap. Stacked
+// (narrow screens) or when the charts already run taller, it keeps 220px.
+const trendPanel = ref(null);
+const whenPanel = ref(null);
+const trendChartH = ref(220);
+let trendRo = null;
+let trendFrame = 0;
+function fitTrendChart() {
+  cancelAnimationFrame(trendFrame);
+  trendFrame = requestAnimationFrame(() => {
+    const left = trendPanel.value;
+    const right = whenPanel.value;
+    if (!left || !right) return;
+    const l = left.getBoundingClientRect();
+    const r = right.getBoundingClientRect();
+    if (Math.abs(l.top - r.top) > 2) { trendChartH.value = 220; return; } // stacked
+    const chart = left.querySelector('.trend-answers svg');
+    const overhead = l.height - (chart?.getBoundingClientRect().height || trendChartH.value);
+    const next = Math.round(Math.max(220, Math.min(440, r.height - overhead)));
+    if (Math.abs(next - trendChartH.value) > 2) trendChartH.value = next;
+  });
+}
+watch([trendPanel, whenPanel], ([left, right]) => {
+  trendRo?.disconnect();
+  if (!left || !right || typeof ResizeObserver === 'undefined') return;
+  trendRo = new ResizeObserver(fitTrendChart);
+  trendRo.observe(right);
+  trendRo.observe(left);
+  fitTrendChart();
+});
+onUnmounted(() => { trendRo?.disconnect(); cancelAnimationFrame(trendFrame); });
+
+// ---- Overview: first-attempt accuracy per topic, weakest first. Topics on
+// fewer than minN confirmed first attempts are drawn lighter and say so.
+const topicBars = computed(() => {
+  if (!a.value) return [];
+  const minN = a.value.minN || 1;
+  const rows = a.value.byTopic.map((t) => ({
+    id: t.topicId, name: t.name, n: t.first.n || 0, correct: t.first.correct || 0,
+    accuracy: t.first.n ? t.first.accuracy : null, lowN: t.first.n > 0 && t.first.n < minN,
+  }));
+  return rows.filter((r) => r.accuracy !== null).sort((x, y) => x.accuracy - y.accuracy || y.n - x.n);
+});
+// topics nobody has answered yet: one line of chips instead of empty bars
+const unansweredTopics = computed(() => (a.value?.byTopic || []).filter((t) => !t.first.n).map((t) => ({ id: t.topicId, name: t.name })));
+const barLabel = (r) => `${r.name}: ${pct(r.accuracy)} correct on first attempts (${r.correct} of ${r.n})${r.lowN ? ', few answers so far' : ''}. Show only this topic.`;
+
 // in page order (the section bar marks the last one scrolled past)
 const sections = computed(() => [
   ['dash-overview', 'Overview'],
   ...(markingTotal.value ? [['dash-marking', 'To mark']] : []),
   ['dash-weeks', 'Weekly topics'],
   ['dash-trends', 'Trends'],
-  ['dash-topics', 'Topics'],
-  ['dash-time', 'Questions'],
+  ['dash-topics', 'Topics and questions'],
   ['dash-missed', 'Commonly missed'],
-  ['dash-activity', 'Activity'],
-  ['dash-quality', 'Quality'],
+  ['dash-quality', 'Question quality'],
   ...(sameCourseClasses.value >= 2 ? [['dash-compare', 'Compare classes']] : []),
-  ...(a.value?.points ? [['dash-points', 'Participation']] : []),
 ]);
 
 // ---- "needs attention": the few things worth acting on, each linked
@@ -368,7 +417,11 @@ const attention = computed(() => {
   const weakest = !a.value.topicId && a.value.byTopic.filter((t) => t.first.n >= a.value.trend.lowN).sort((x, y) => x.first.accuracy - y.first.accuracy)[0];
   if (weakest && weakest.first.accuracy < 0.7) out.push({ icon: '↓', text: `Weakest topic: ${weakest.name}, ${pct(weakest.first.accuracy)} correct on first attempts (${weakest.first.n} answers)`, go: () => goTo('dash-topics') });
   const uncovered = a.value.byTopic.flatMap((t) => t.outcomes).filter((o) => !o.published).length;
-  if (uncovered) out.push({ icon: '○', text: `${plural(uncovered, 'learning outcome')} with no published questions`, go: () => goTo('dash-topics') });
+  // open the topics that have them, so the "Draft questions" buttons are right there
+  if (uncovered) out.push({ icon: '○', text: `${plural(uncovered, 'learning outcome')} with no published questions`, go: () => {
+    openTopics.value = new Set([...openTopics.value, ...a.value.byTopic.filter((t) => t.outcomes.some((o) => !o.published)).map((t) => t.topicId)]);
+    goTo('dash-topics');
+  } });
   const idle = a.value.participation.enrolled - a.value.participation.active7d;
   if (idle > 0) out.push({ icon: '○', text: `${idle} of ${a.value.participation.enrolled} students haven't practised${scope.value} in the last 7 days` });
   if (!a.value.topicId && a.value.overview.unsortedFiles) out.push({ icon: '⇢', text: `${plural(a.value.overview.unsortedFiles, 'uploaded file')} not in a weekly topic yet`, go: () => goTopic({ topicId: '', tab: 'generate' }) });
@@ -442,6 +495,10 @@ const partialNote = computed(() => (per.value === 'day' ? 'today, so far' : 'par
 
 // ---- by topic: expandable learning outcomes
 const openTopics = ref(new Set());
+// By topic: published questions per topic (summed over its outcomes) and how
+// many of its outcomes have none yet
+const topicPublished = (t) => t.outcomes.reduce((n, o) => n + (o.published || 0), 0);
+const topicGaps = (t) => t.outcomes.filter((o) => !o.published).length;
 function toggleTopic(id) {
   const next = new Set(openTopics.value);
   if (next.has(id)) next.delete(id);
@@ -453,20 +510,6 @@ function toggleTopic(id) {
 const markingPages = usePaged(() => marking.value, 5);
 
 
-// ---- participation points: sortable by name or points, paged
-const pointsSort = ref({ key: 'name', dir: 1 });
-const sortedPoints = computed(() => {
-  const { key, dir } = pointsSort.value;
-  const byName = (x, y) => x.name.localeCompare(y.name);
-  return [...(a.value?.points || [])].sort((x, y) => (key === 'name' ? byName(x, y) * dir : (x.points - y.points) * dir || byName(x, y)));
-});
-function sortPoints(key) {
-  const now = pointsSort.value;
-  // a new column starts in its natural order: names A-Z, points highest first
-  pointsSort.value = { key, dir: now.key === key ? -now.dir : key === 'points' ? -1 : 1 };
-}
-const ariaSort = (key) => (pointsSort.value.key !== key ? 'none' : pointsSort.value.dir > 0 ? 'ascending' : 'descending');
-const pointsPages = usePaged(() => sortedPoints.value, 10);
 // "commonly missed": under the same line as "often wrong", worst first
 const missed = computed(() => (a.value?.commonlyMissed || []).filter((q) => q.first.accuracy < a.value.time.maxAccuracy));
 const missedPages = usePaged(() => missed.value, 5);
@@ -506,7 +549,7 @@ function topicsCsv() {
   const rows = [['topic', 'learning_outcome', 'first_attempt_accuracy_pct', 'first_attempts', 'retry_accuracy_pct', 'retries', 'awaiting_marking', 'published_questions', 'students', 'median_time_s', 'timeouts']];
   for (const t of a.value.byTopic) {
     rows.push([t.name, '(all)', pctCell(t.first.accuracy), t.first.n, pctCell(t.retry.accuracy), t.retry.n, t.awaitingMarking, t.outcomes.reduce((n, o) => n + o.published, 0), t.students, secCell(t.medianMs), t.timeouts]);
-    for (const o of t.outcomes) rows.push([t.name, o.text, pctCell(o.first.accuracy), o.first.n, pctCell(o.retry.accuracy), o.retry.n, o.awaitingMarking, o.published, '', '', '']);
+    for (const o of t.outcomes) rows.push([t.name, o.text, pctCell(o.first.accuracy), o.first.n, pctCell(o.retry.accuracy), o.retry.n, o.awaitingMarking, o.published, o.students, secCell(o.medianMs), o.timeouts]);
   }
   downloadCsv(file('topics'), rows);
 }
@@ -546,14 +589,21 @@ function missedCsv() {
         <p>{{ className }}<template v-if="topic"> · {{ topicLabel(topic) }}</template> · {{ period }} · {{ a.timezone.replace('_', ' ') }} time · generated {{ printedAt }}</p>
       </div>
 
-      <Heading title="Analytics">
-        <ClassPicker :courses="courses" />
-        <TopicPicker v-if="course?.topics.length" :topics="course.topics" allow-all @change="load()" />
-        <select v-model="choice" style="width: auto" aria-label="Period" @change="pickPeriod">
-          <option v-for="[id, name] in PERIODS" :key="id" :value="id">{{ name }}</option>
-        </select>
-        <button class="btn no-print" @click="printReport">Print report</button>
-      </Heading>
+      <!-- page toolbar: stays in reach while scrolling, with the class, topic and period -->
+      <div ref="toolbarEl" class="dash-toolbar no-print" :style="{ top: barHeight + 'px' }">
+        <div class="t-toolbar">
+          <h2>Analytics</h2>
+          <ClassPicker :courses="courses" />
+          <TopicPicker v-if="course?.topics.length" :topics="course.topics" allow-all @change="load()" />
+          <select v-model="choice" style="width: auto" aria-label="Period" @change="pickPeriod">
+            <option v-for="[id, name] in PERIODS" :key="id" :value="id">{{ name }}</option>
+          </select>
+          <button class="btn" @click="printReport">Print report</button>
+        </div>
+        <nav ref="navEl" class="dash-nav" aria-label="Dashboard sections" :style="{ top: barHeight + 'px' }">
+          <button v-for="[id, label] in sections" :key="id" class="btn small" :data-section="id" :aria-current="currentSection === id ? 'location' : null" @click="goTo(id)">{{ label }}</button>
+        </nav>
+      </div>
       <p v-if="noSemester" class="note small no-print">
         This course has no semester dates yet.
         <button class="linklike" @click="setTab('settings')">Set when the semester starts in Settings</button>, then choose This semester again.
@@ -567,7 +617,7 @@ function missedCsv() {
         Showing <b>{{ topicLabel(topic) }}</b> only: its questions and this class's answers to them.
         <button class="linklike no-print" @click="focusTopic('')">Show all topics</button>
       </p>
-      <div class="row small muted no-print" style="margin: -6px 0 10px">
+      <div class="row small muted no-print dash-status" style="margin: -6px 0 10px">
         <span class="grow">Updated {{ clock(updatedAt) }} · days and weeks in {{ a.timezone.replaceAll('_', ' ') }} time (change in Settings)</span>
         <span role="status" class="stale">
           <template v-if="refreshFailedAt">
@@ -577,9 +627,6 @@ function missedCsv() {
         </span>
         <label style="margin: 0; font-weight: 400; color: inherit"><input v-model="auto" type="checkbox" @change="setAuto" /> Auto-refresh every 30 seconds</label>
       </div>
-      <nav ref="navEl" class="dash-nav no-print" aria-label="Dashboard sections" :style="{ top: barHeight + 'px' }">
-        <button v-for="[id, label] in sections" :key="id" class="btn small" :data-section="id" :aria-current="currentSection === id ? 'location' : null" @click="goTo(id)">{{ label }}</button>
-      </nav>
       <div v-if="error" class="note bad">{{ error }}</div>
 
       <div :class="{ refetching }">
@@ -598,31 +645,59 @@ function missedCsv() {
           <button class="linklike" @click="choice = 'all'; pickPeriod()">Show all time</button>
         </div>
 
-        <!-- needs attention -->
-        <div id="dash-overview" class="panel attention">
-          <h3 tabindex="-1">Needs attention</h3>
-          <ul v-if="attention.length">
-            <li v-for="(item, i) in attention" :key="i">
-              <span class="icon" aria-hidden="true">{{ item.icon }}</span>
-              <button v-if="item.go" class="linklike" @click="item.go">{{ item.text }}</button>
-              <span v-else>{{ item.text }}</span>
-            </li>
-          </ul>
-          <p v-else class="small" style="margin: 0">✓ Nothing needs attention right now.</p>
-        </div>
-
-        <div class="tiles">
-          <!-- the key changes when a background refresh changes the value, so the glow replays -->
-          <div v-for="t in tiles" :key="`${t.key}:${pulse[t.key] || 0}`" class="tile" :class="{ pulse: pulse[t.key] }">
-            <div class="v">{{ t.value }}</div><div class="l">{{ t.label }}</div>
-            <div v-if="t.delta" :class="'delta ' + t.delta.cls">
-              {{ t.delta.text }}
-              <button type="button" class="info-btn no-print" :aria-expanded="hintOpen === t.key ? 'true' : 'false'" :aria-label="`How the ${t.label} comparison works`" @click="hintOpen = hintOpen === t.key ? null : t.key">ⓘ</button>
+        <!-- OVERVIEW: headline numbers beside what needs attention -->
+        <section id="dash-overview" class="t-section">
+          <div class="t-section-head"><h3 tabindex="-1">Overview</h3><span class="t-desc">How the class is doing</span></div>
+          <div class="tiles overview-tiles" :style="{ '--tiles': tiles.length }">
+            <!-- the key changes when a background refresh changes the value, so the glow replays -->
+            <div v-for="t in tiles" :key="`${t.key}:${pulse[t.key] || 0}`" class="tile" :class="{ pulse: pulse[t.key] }">
+              <div class="v">{{ t.value }}</div><div class="l">{{ t.label }}</div>
+              <!-- the last word and the ⓘ stay together, so the icon never wraps alone -->
+              <div v-if="t.delta" :class="'delta ' + t.delta.cls">
+                {{ t.delta.text.replace(/\s*\S+$/, '') }}
+                <span class="keep-together">{{ t.delta.text.match(/\S+$/)?.[0] }}&nbsp;<button type="button" class="info-btn no-print" :aria-expanded="hintOpen === t.key ? 'true' : 'false'" :aria-label="`How the ${t.label} comparison works`" @click="hintOpen = hintOpen === t.key ? null : t.key">ⓘ</button></span>
+              </div>
+              <p v-if="hintOpen === t.key" class="delta-hint small muted">{{ t.delta.hint }}</p>
+              <Sparkline v-if="t.spark" :key="drawKey" :points="t.spark.points" :label="t.spark.label" />
             </div>
-            <p v-if="hintOpen === t.key" class="delta-hint small muted">{{ t.delta.hint }}</p>
-            <Sparkline v-if="t.spark" :key="drawKey" :points="t.spark.points" :label="t.spark.label" />
           </div>
-        </div>
+          <div class="t-grid overview-detail">
+            <div class="span-7 panel topic-bars">
+              <div class="topic-bars-head">
+                <h4>First-attempt accuracy by topic</h4>
+                <span class="small muted">{{ period }} · weakest first<span class="no-print"> · click a topic to focus on it</span></span>
+              </div>
+              <p v-if="!topicBars.length" class="small muted" style="margin: 0">No first attempts in {{ period }} yet.</p>
+              <ol v-else class="tb-list">
+                <li v-for="r in topicBars" :key="r.id">
+                  <button type="button" class="tb-row" :class="{ 'low-n': r.lowN }" :aria-label="barLabel(r)" :title="barLabel(r)" @click="focusTopic(r.id)">
+                    <span class="tb-name">{{ r.name }}</span>
+                    <span class="tb-track" aria-hidden="true">
+                      <span class="tb-fill" :style="{ width: Math.max(2, r.accuracy * 100) + '%' }"></span>
+                    </span>
+                    <span class="tb-value"><b>{{ pct(r.accuracy) }}</b> <span class="muted">{{ r.correct }}/{{ r.n }}</span></span>
+                  </button>
+                </li>
+              </ol>
+              <div v-if="unansweredTopics.length" class="tb-unanswered">
+                <span class="small muted">No first attempts yet:</span>
+                <button v-for="t in unansweredTopics" :key="t.id" type="button" class="tb-chip" :aria-label="`${t.name}: no first attempts yet. Show only this topic.`" @click="focusTopic(t.id)">{{ t.name }}</button>
+              </div>
+              <p v-if="topicBars.some((r) => r.lowN)" class="small muted tb-note">Lighter bars rest on fewer than {{ a.minN }} first attempts, so read them with care.</p>
+            </div>
+            <div class="span-5 panel attention">
+              <h4>Needs attention</h4>
+              <ul v-if="attention.length">
+                <li v-for="(item, i) in attention" :key="i">
+                  <span class="icon" aria-hidden="true">{{ item.icon }}</span>
+                  <button v-if="item.go" class="linklike" @click="item.go">{{ item.text }}</button>
+                  <span v-else>{{ item.text }}</span>
+                </li>
+              </ul>
+              <p v-else class="small" style="margin: 0">✓ Nothing needs attention right now.</p>
+            </div>
+          </div>
+        </section>
 
         <div v-if="marking.length" id="dash-marking" class="panel no-print" style="border-color: var(--warn)">
           <h3 tabindex="-1">Answers to mark ({{ markingTotal }})</h3>
@@ -643,223 +718,228 @@ function missedCsv() {
           <Pager :paged="markingPages" label="Answers to mark pages" noun="answers" />
         </div>
 
-        <div id="dash-weeks" class="panel">
-          <h3 tabindex="-1">Weekly topics</h3>
-          <TopicsOverview :overview="a.overview" :current="a.topicId || ''" :enrolled="a.participation.enrolled" :period="period" @focus="focusTopic" @go="goTopic" />
-        </div>
-
-        <div id="dash-trends" class="panel">
-          <h3 tabindex="-1">Trends</h3>
-          <p class="small muted">Per {{ per }}, {{ a.trend.capped ? `the last ${a.trend.maxWeeks} weeks (tiles and tables below cover all time)` : period }}. Accuracy counts every confirmed answer (first attempts and retries); hollow points rest on fewer than {{ a.trend.lowN }} answers, so read them with care.</p>
-          <div class="charts">
-            <div v-if="combined">
-              <div class="chart-title">Accuracy by topic</div>
-              <LineChart :key="drawKey" :series="series" :rows="accuracyRows" :low-n="a.trend.lowN" :label="`Accuracy by topic per ${per}`" />
-            </div>
-            <div>
-              <div class="chart-title">Answers submitted</div>
-              <ColumnChart :key="drawKey" :rows="activityRows" unit="answers" :partial-note="partialNote" :label="`Answers submitted per ${per}`" />
-            </div>
+        <!-- WEEKLY TOPICS -->
+        <section id="dash-weeks" class="t-section">
+          <div class="t-section-head"><h3 tabindex="-1">Weekly topics</h3><span class="t-desc">Material, questions and practice by week</span></div>
+          <div class="panel">
+            <TopicsOverview :overview="a.overview" :current="a.topicId || ''" :enrolled="a.participation.enrolled" :period="period" @focus="focusTopic" @go="goTopic" />
           </div>
-          <template v-if="!combined">
-            <div class="chart-title" style="margin-top: 14px">Accuracy by topic <span class="muted">(one chart per topic, same scale)</span></div>
-            <div class="multiples">
-              <div v-for="s in series" :key="s.id">
-                <LineChart :key="drawKey" :series="[{ ...s, slot: 1 }]" :rows="accuracyRows" :low-n="a.trend.lowN" :height="150" :label="`${s.name}: accuracy per ${per}`" />
+        </section>
+
+        <!-- TRENDS: the big charts on the left, when students practise on the right -->
+        <section id="dash-trends" class="t-section">
+          <div class="t-section-head"><h3 tabindex="-1">Trends</h3><span class="t-desc">Accuracy and activity over time</span></div>
+          <div class="t-grid">
+            <div ref="trendPanel" class="span-8 panel">
+              <p class="small muted">Per {{ per }}, {{ a.trend.capped ? `the last ${a.trend.maxWeeks} weeks (tiles and tables below cover all time)` : period }}. Accuracy counts every confirmed answer (first attempts and retries); hollow points rest on fewer than {{ a.trend.lowN }} answers, so read them with care.</p>
+              <div class="charts">
+                <div v-if="combined">
+                  <div class="chart-title">Accuracy by topic</div>
+                  <LineChart :key="drawKey" :series="series" :rows="accuracyRows" :low-n="a.trend.lowN" :label="`Accuracy by topic per ${per}`" />
+                </div>
+                <div class="trend-answers">
+                  <div class="chart-title">Answers submitted</div>
+                  <ColumnChart :key="drawKey" :rows="activityRows" unit="answers" :partial-note="partialNote" :height="combined ? 220 : trendChartH" :label="`Answers submitted per ${per}`" />
+                </div>
               </div>
             </div>
-          </template>
-          <details class="viz-table">
-            <summary>Show the chart data as a table</summary>
+            <div id="dash-activity" ref="whenPanel" class="span-4 panel">
+              <h4>When students practise</h4>
+              <WhenPanel :when="a.when" :timezone="a.timezone" />
+              <template v-if="a.contexts.world.n">
+                <h4 style="margin-top: 18px">Practice vs World</h4>
+                <ContextsPanel :contexts="a.contexts" />
+              </template>
+            </div>
+          </div>
+          <!-- per-topic accuracy gets the full width, so the small multiples sit three or four across -->
+          <div class="panel trend-multiples">
+            <template v-if="!combined">
+              <h4>Accuracy by topic <span class="small muted">(one chart per topic, same scale)</span></h4>
+              <div class="multiples">
+                <div v-for="s in series" :key="s.id">
+                  <LineChart :key="drawKey" :series="[{ ...s, slot: 1 }]" :rows="accuracyRows" :low-n="a.trend.lowN" :height="150" :label="`${s.name}: accuracy per ${per}`" />
+                </div>
+              </div>
+            </template>
+            <details class="viz-table">
+              <summary>Show the chart data as a table</summary>
+              <div class="table-wrap">
+                <table class="dash-table">
+                  <thead>
+                    <tr>
+                      <th>{{ per === 'week' ? 'Week' : 'Day' }}</th>
+                      <th>Answers</th>
+                      <th>Students</th>
+                      <th v-for="s in series" :key="s.id">{{ s.name }}</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr v-for="(p, i) in a.trend.points" :key="p.start">
+                      <td>{{ accuracyRows[i].label }}<span v-if="p.partial" class="muted"> ({{ per === 'day' ? 'so far' : 'part-week' }})</span></td>
+                      <td class="num">{{ p.answers }}</td>
+                      <td class="num">{{ p.students }}</td>
+                      <td v-for="s in series" :key="s.id" class="num">{{ frac(p.topics[s.id]) }}</td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+            </details>
+          </div>
+        </section>
+
+        <!-- TOPICS AND QUESTIONS: the detailed tables -->
+        <section class="t-section">
+          <div class="t-section-head"><h3 tabindex="-1">Topics and questions</h3><span class="t-desc">Where students do well and where they struggle</span></div>
+          <div id="dash-topics" class="panel">
+            <div class="row">
+              <h4 class="grow" tabindex="-1">By topic</h4>
+              <button class="btn small no-print" @click="topicsCsv">Download CSV</button>
+            </div>
+            <p class="small muted">First attempts are a student's first ever answer to a question; retries are later answers (often after seeing the explanation). Answers awaiting marking are not counted in accuracy. Open a topic to see its learning outcomes and how many published questions cover each; times based on fewer than {{ a.trend.lowN }} answers are shown lighter.</p>
             <div class="table-wrap">
-              <table class="dash-table">
-                <thead>
-                  <tr>
-                    <th>{{ per === 'week' ? 'Week' : 'Day' }}</th>
-                    <th>Answers</th>
-                    <th>Students</th>
-                    <th v-for="s in series" :key="s.id">{{ s.name }}</th>
-                  </tr>
-                </thead>
+              <!-- one Questions column for topics and outcomes, so coverage reads down a single line -->
+              <table class="dash-table by-topic-table">
+                <thead><tr><th></th><th v-for="(h, i) in ['Topic', 'Questions', 'First-attempt accuracy', 'Retry accuracy', 'Awaiting marking', 'Students', 'Median / p75 time', 'Timeouts']" :key="i">{{ h }}</th></tr></thead>
                 <tbody>
-                  <tr v-for="(p, i) in a.trend.points" :key="p.start">
-                    <td>{{ accuracyRows[i].label }}<span v-if="p.partial" class="muted"> ({{ per === 'day' ? 'so far' : 'part-week' }})</span></td>
-                    <td class="num">{{ p.answers }}</td>
-                    <td class="num">{{ p.students }}</td>
-                    <td v-for="s in series" :key="s.id" class="num">{{ frac(p.topics[s.id]) }}</td>
-                  </tr>
+                  <template v-for="t in a.byTopic" :key="t.topicId">
+                    <tr class="topic-row">
+                      <td style="width: 1%">
+                        <button class="btn small" :aria-expanded="openTopics.has(t.topicId) ? 'true' : 'false'" :aria-label="`${openTopics.has(t.topicId) ? 'Hide' : 'Show'} learning outcomes for ${t.name}`" @click="toggleTopic(t.topicId)">{{ openTopics.has(t.topicId) ? '▾' : '▸' }}</button>
+                      </td>
+                      <td class="label"><b>{{ t.name }}</b></td>
+                      <td class="q-cell">
+                        <span class="q-pill" :class="{ none: !topicPublished(t) }">{{ topicPublished(t) || 'None' }} published</span>
+                        <span v-if="topicGaps(t) && topicPublished(t)" class="q-gap" :title="`${topicGaps(t)} learning outcome${topicGaps(t) === 1 ? ' has' : 's have'} no published questions`">⚠ {{ topicGaps(t) }} {{ topicGaps(t) === 1 ? 'gap' : 'gaps' }}</span>
+                      </td>
+                      <td class="num acc-cell">{{ frac(t.first) }}<Meter v-if="t.first.n" :value="t.first.accuracy" /></td>
+                      <td class="num">{{ frac(t.retry) }}</td>
+                      <td class="num">{{ t.awaitingMarking }}</td>
+                      <td class="num">{{ t.students }}</td>
+                      <td class="num">{{ t.first.n || t.retry.n ? `${secs(t.medianMs)} / ${secs(t.p75Ms)}` : '-' }}</td>
+                      <td class="num">{{ t.timeouts }}</td>
+                    </tr>
+                    <!-- on paper every topic is open -->
+                    <tr v-for="(o, oi) in printing || openTopics.has(t.topicId) ? t.outcomes : []" :key="o.outcomeId" class="subrow" :class="{ first: oi === 0, last: oi === t.outcomes.length - 1 }">
+                      <td></td>
+                      <td class="label small">{{ o.text }}</td>
+                      <td class="q-cell">
+                        <span v-if="o.published" class="q-pill">{{ o.published }} published</span>
+                        <span v-else class="q-none">
+                          <span class="q-pill none">None yet</span>
+                          <button class="btn small q-draft no-print" :aria-label="`Draft questions for: ${o.text}`" @click="draftFor(t.topicId, o.outcomeId)">Draft</button>
+                        </span>
+                      </td>
+                      <td class="num small acc-cell">{{ frac(o.first) }}<Meter v-if="o.first.n" :value="o.first.accuracy" /></td>
+                      <td class="num small">{{ frac(o.retry) }}</td>
+                      <td class="num small">{{ o.awaitingMarking }}</td>
+                      <td class="num small">{{ o.students }}</td>
+                      <!-- times resting on only a few answers are shown lighter, as in Trends -->
+                      <td class="num small" :class="{ 'low-n': o.timedAnswers && o.timedAnswers < a.trend.lowN }" :title="o.timedAnswers && o.timedAnswers < a.trend.lowN ? `Based on only ${o.timedAnswers} answer${o.timedAnswers === 1 ? '' : 's'}, so read it with care` : null">{{ o.timedAnswers ? `${secs(o.medianMs)} / ${secs(o.p75Ms)}` : '-' }}</td>
+                      <td class="num small">{{ o.timeouts }}</td>
+                    </tr>
+                  </template>
                 </tbody>
               </table>
             </div>
-          </details>
-        </div>
-
-        <div id="dash-topics" class="panel">
-          <div class="row">
-            <h3 class="grow" tabindex="-1">By topic</h3>
-            <button class="btn small no-print" @click="topicsCsv">Download CSV</button>
           </div>
-          <p class="small muted">First attempts are a student's first ever answer to a question; retries are later answers (often after seeing the explanation). Answers awaiting marking are not counted in accuracy. Open a topic to see its learning outcomes and how many published questions cover each.</p>
-          <div class="table-wrap">
-            <table class="dash-table">
-              <thead><tr><th></th><th v-for="(h, i) in ['Topic', 'First-attempt accuracy', '', 'Retry accuracy', 'Awaiting marking', 'Students', 'Median / p75 time', 'Timeouts']" :key="i">{{ h }}</th></tr></thead>
-              <tbody>
-                <template v-for="t in a.byTopic" :key="t.topicId">
-                  <tr>
-                    <td style="width: 1%">
-                      <button class="btn small" :aria-expanded="openTopics.has(t.topicId) ? 'true' : 'false'" :aria-label="`${openTopics.has(t.topicId) ? 'Hide' : 'Show'} learning outcomes for ${t.name}`" @click="toggleTopic(t.topicId)">{{ openTopics.has(t.topicId) ? '▾' : '▸' }}</button>
-                    </td>
-                    <td class="label"><b>{{ t.name }}</b></td>
-                    <td class="num">{{ frac(t.first) }}</td>
-                    <td style="width: 120px"><Meter :value="t.first.accuracy" /></td>
-                    <td class="num">{{ frac(t.retry) }}</td>
-                    <td class="num">{{ t.awaitingMarking }}</td>
-                    <td class="num">{{ t.students }}</td>
-                    <td class="num">{{ `${secs(t.medianMs)} / ${secs(t.p75Ms)}` }}</td>
-                    <td class="num">{{ t.timeouts }}</td>
-                  </tr>
-                  <!-- on paper every topic is open -->
-                  <tr v-for="o in printing || openTopics.has(t.topicId) ? t.outcomes : []" :key="o.outcomeId" class="subrow">
-                    <td></td>
-                    <td class="label small">{{ o.text }}</td>
-                    <td class="num small">{{ frac(o.first) }}</td>
-                    <td><Meter :value="o.first.accuracy" /></td>
-                    <td class="num small">{{ frac(o.retry) }}</td>
-                    <td class="num small">{{ o.awaitingMarking }}</td>
-                    <td colspan="3" class="small">
-                      <span v-if="o.published">{{ o.published }} published question{{ o.published === 1 ? '' : 's' }}</span>
-                      <template v-else>
-                        <span class="badge draft">⚠ no published questions</span>
-                        <button class="btn small no-print" style="margin-left: 6px" @click="draftFor(t.topicId, o.outcomeId)">Draft questions</button>
-                      </template>
-                    </td>
-                  </tr>
-                </template>
-              </tbody>
-            </table>
-          </div>
-        </div>
-
-        <div id="dash-time" class="panel">
-          <div class="row">
-            <h3 class="grow" tabindex="-1">Time and accuracy per question</h3>
-            <button v-if="a.time.questions.length" class="btn small no-print" @click="timeCsv">Download CSV</button>
-          </div>
-          <p class="small">Questions are grouped by how long students took and how often they got them right, and each group says what to do. Start with the first cards; pick one to list just its questions and see why they landed there, and click a question for its answer breakdown.</p>
-          <details class="small muted how-measured">
-            <summary>How this is measured</summary>
-            <p>Average time from the question appearing to the answer arriving ({{ period }}), measured by the server. Each student counts once and timed-out answers are left out; times include reading and are not a measure of ability. <b>Slow</b> means slower than three quarters of questions ({{ a.time.slowMs === null ? `needs at least four questions with ${a.time.minN}+ answers` : secs(a.time.slowMs) + ' or more' }}); <b>often wrong</b> means under {{ pct(a.time.maxAccuracy) }} correct, counting every marked answer (first attempts and retries). Questions need at least {{ a.time.minN }} answers before they are placed in a group.</p>
-          </details>
-          <template v-if="a.time.questions.length">
-            <div class="zone-cards" role="group" aria-label="Question groups">
-              <button v-for="z in zones" :key="z.id" :class="['zone-card', { act: z.act, warn: z.id === 'reread' }]" :aria-pressed="activeZone === z.id ? 'true' : 'false'" :title="z.hint" @click="pickZone(z.id)">
-                <span class="zc-head"><span class="zc-n">{{ z.count }}</span><span class="zc-label">{{ z.id === 'reread' ? '⚠ ' : '' }}{{ z.label }}</span></span>
-                <span class="zc-action"><b>What to do:</b> {{ z.action }}</span>
-              </button>
+          <div id="dash-time" class="panel">
+            <div class="row">
+              <h4 class="grow">Time and accuracy per question</h4>
+              <button v-if="a.time.questions.length" class="btn small no-print" @click="timeCsv">Download CSV</button>
             </div>
-            <p class="small muted zone-hint">
-              <template v-if="activeZone">Showing "{{ ZONES[activeZone].label }}" only: {{ ZONES[activeZone].hint }}. · <button class="linklike" @click="timeZone = ''">Show all {{ a.time.questions.length }} questions</button></template>
-              <template v-else>Showing all {{ a.time.questions.length }} questions, the groups to act on first. Bars mark the slow line (time) and the {{ pct(a.time.maxAccuracy) }} line (correct).</template>
-            </p>
-            <div class="table-wrap">
-              <table class="dash-table">
-                <thead><tr><th>Question</th><th>Group</th><th>Topic</th><th>Students</th><th>Answers</th><th>Average time</th><th>Median</th><th>Correct (all answers)</th></tr></thead>
-                <tbody>
-                  <tr v-for="q in timePages.items" :key="q.questionId">
-                    <td class="q">
-                      <button class="linklike" @click="openQuestion(q.questionId)">{{ q.stem }}</button>
-                      <span class="badge plain">{{ q.type }}</span>
-                    </td>
-                    <td class="label small"><span v-if="q.zone === 'reread'" class="badge draft">⚠ {{ ZONES[q.zone].label }}</span><template v-else>{{ ZONES[q.zone].label }}</template></td>
-                    <td class="label">{{ q.topic }}</td>
-                    <td class="num">{{ q.students }}</td>
-                    <td class="num">{{ q.n }}</td>
-                    <td class="num">
-                      <b>{{ secs(q.meanMs) }}</b>
-                      <span class="cell-bar" aria-hidden="true"><span :style="{ width: barPct(q.meanMs, timeMaxMs) }"></span><i v-if="a.time.slowMs !== null" :style="{ left: barPct(a.time.slowMs, timeMaxMs) }"></i></span>
-                    </td>
-                    <td class="num">{{ secs(q.medianMs) }}</td>
-                    <td class="num">
-                      {{ frac(q.accuracy) }}
-                      <span v-if="q.accuracy.n" class="cell-bar" aria-hidden="true"><span :style="{ width: barPct(q.accuracy.accuracy, 1) }"></span><i :style="{ left: barPct(a.time.maxAccuracy, 1) }"></i></span>
-                    </td>
-                  </tr>
-                </tbody>
-              </table>
-            </div>
-            <Pager :paged="timePages" label="Time and accuracy pages" noun="questions" />
-          </template>
-          <p v-else class="muted small">No answers in this period.</p>
-        </div>
+            <p class="small">Questions are grouped by how long students took and how often they got them right, and each group says what to do. Start with the first cards; pick one to list just its questions and see why they landed there, and click a question for its answer breakdown.</p>
+            <details class="small muted how-measured">
+              <summary>How this is measured</summary>
+              <p>Average time from the question appearing to the answer arriving ({{ period }}), measured by the server. Each student counts once and timed-out answers are left out; times include reading and are not a measure of ability. <b>Slow</b> means slower than three quarters of questions ({{ a.time.slowMs === null ? `needs at least four questions with ${a.time.minN}+ answers` : secs(a.time.slowMs) + ' or more' }}); <b>often wrong</b> means under {{ pct(a.time.maxAccuracy) }} correct, counting every marked answer (first attempts and retries). Questions need at least {{ a.time.minN }} answers before they are placed in a group.</p>
+            </details>
+            <template v-if="a.time.questions.length">
+              <div class="zone-cards" role="group" aria-label="Question groups">
+                <button v-for="z in zones" :key="z.id" :class="['zone-card', { act: z.act, warn: z.id === 'reread' }]" :aria-pressed="activeZone === z.id ? 'true' : 'false'" :title="z.hint" @click="pickZone(z.id)">
+                  <span class="zc-head"><span class="zc-n">{{ z.count }}</span><span class="zc-label">{{ z.id === 'reread' ? '⚠ ' : '' }}{{ z.label }}</span></span>
+                  <span class="zc-action"><b>What to do:</b> {{ z.action }}</span>
+                </button>
+              </div>
+              <p class="small muted zone-hint">
+                <template v-if="activeZone">Showing "{{ ZONES[activeZone].label }}" only: {{ ZONES[activeZone].hint }}. · <button class="linklike" @click="timeZone = ''">Show all {{ a.time.questions.length }} questions</button></template>
+                <template v-else>Showing all {{ a.time.questions.length }} questions, the groups to act on first. Bars mark the slow line (time) and the {{ pct(a.time.maxAccuracy) }} line (correct).</template>
+              </p>
+              <div class="table-wrap">
+                <table class="dash-table">
+                  <thead><tr><th>Question</th><th>Group</th><th>Topic</th><th>Students</th><th>Answers</th><th>Average time</th><th>Median</th><th>Correct (all answers)</th></tr></thead>
+                  <tbody>
+                    <tr v-for="q in timePages.items" :key="q.questionId">
+                      <td class="q">
+                        <button class="linklike" @click="openQuestion(q.questionId)">{{ q.stem }}</button>
+                        <span class="badge plain">{{ q.type }}</span>
+                      </td>
+                      <td class="label small"><span v-if="q.zone === 'reread'" class="badge draft">⚠ {{ ZONES[q.zone].label }}</span><template v-else>{{ ZONES[q.zone].label }}</template></td>
+                      <td class="label">{{ q.topic }}</td>
+                      <td class="num">{{ q.students }}</td>
+                      <td class="num">{{ q.n }}</td>
+                      <td class="num">
+                        <b>{{ secs(q.meanMs) }}</b>
+                        <span class="cell-bar" aria-hidden="true"><span :style="{ width: barPct(q.meanMs, timeMaxMs) }"></span><i v-if="a.time.slowMs !== null" :style="{ left: barPct(a.time.slowMs, timeMaxMs) }"></i></span>
+                      </td>
+                      <td class="num">{{ secs(q.medianMs) }}</td>
+                      <td class="num">
+                        {{ frac(q.accuracy) }}
+                        <span v-if="q.accuracy.n" class="cell-bar" aria-hidden="true"><span :style="{ width: barPct(q.accuracy.accuracy, 1) }"></span><i :style="{ left: barPct(a.time.maxAccuracy, 1) }"></i></span>
+                      </td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+              <Pager :paged="timePages" label="Time and accuracy pages" noun="questions" />
+            </template>
+            <p v-else class="muted small">No answers in this period.</p>
+          </div>
+        </section>
 
-        <div id="dash-missed" class="panel">
-          <div class="row">
-            <h3 class="grow" tabindex="-1">Commonly missed questions</h3>
+        <!-- COMMONLY MISSED QUESTIONS -->
+        <section id="dash-missed" class="t-section">
+          <div class="t-section-head">
+            <h3 tabindex="-1">Commonly missed questions</h3>
+            <span class="t-desc grow">Questions to look at closely</span>
             <button v-if="missed.length" class="btn small no-print" @click="missedCsv">Download CSV</button>
           </div>
-          <p class="small muted">Questions under {{ pct(a.time.maxAccuracy) }} correct on first attempts (at least {{ a.minN }} confirmed), lowest first. Low accuracy is a reason to look closer: it can mean a difficult concept, an ambiguous question, or a gap in coverage. Click a question for its answer breakdown.</p>
-          <template v-if="missed.length">
-            <div v-for="q in missedPages.items" :key="q.questionId" style="padding: 10px 0; border-bottom: 1px solid var(--line)">
-              <div class="row">
-                <button class="linklike grow missed-title" style="font-weight: 600; text-align: left" @click="openQuestion(q.questionId)">{{ q.stem }}</button>
-                <span class="badge plain">{{ q.type }}</span>
-                <span :class="'badge ' + q.status">{{ q.status }}</span>
+          <div class="panel">
+            <p class="small muted">Questions under {{ pct(a.time.maxAccuracy) }} correct on first attempts (at least {{ a.minN }} confirmed), lowest first. Low accuracy is a reason to look closer: it can mean a difficult concept, an ambiguous question, or a gap in coverage. Click a question for its answer breakdown.</p>
+            <template v-if="missed.length">
+              <div v-for="q in missedPages.items" :key="q.questionId" style="padding: 10px 0; border-bottom: 1px solid var(--line)">
+                <div class="row">
+                  <button class="linklike grow missed-title" style="font-weight: 600; text-align: left" @click="openQuestion(q.questionId)">{{ q.stem }}</button>
+                  <span class="badge plain">{{ q.type }}</span>
+                  <span :class="'badge ' + q.status">{{ q.status }}</span>
+                </div>
+                <div class="small muted">{{ `${q.topic} · first attempts ${frac(q.first)} · retries ${frac(q.retry)}` }}</div>
+                <div v-if="q.topWrong" class="small">Most chosen wrong answer: <b>"{{ q.topWrong.option }}"</b> ({{ q.topWrong.count }}x)</div>
+                <div v-if="q.openReports" class="small" style="color: var(--bad)">⚑ {{ q.openReports }} open student report(s) - see Question bank → Reported</div>
               </div>
-              <div class="small muted">{{ `${q.topic} · first attempts ${frac(q.first)} · retries ${frac(q.retry)} · versions answered: ${q.versionsAttempted.map((v) => 'v' + v).join(', ')}` }}</div>
-              <div v-if="q.topWrong" class="small">Most chosen wrong answer: <b>"{{ q.topWrong.option }}"</b> ({{ q.topWrong.count }}x)</div>
-              <div v-if="q.openReports" class="small" style="color: var(--bad)">⚑ {{ q.openReports }} open student report(s) - see Question bank → Reported</div>
-            </div>
-            <Pager :paged="missedPages" label="Commonly missed questions pages" noun="questions" />
-          </template>
-          <p v-else-if="a.commonlyMissed.length" class="small">✓ No question is under {{ pct(a.time.maxAccuracy) }} correct on first attempts{{ topic ? ' in this topic' : '' }}.</p>
-          <p v-else class="muted small">Not enough data yet.</p>
-        </div>
-
-        <div id="dash-activity" class="panel">
-          <h3 tabindex="-1">When students practise</h3>
-          <WhenPanel :when="a.when" :timezone="a.timezone" />
-          <template v-if="a.contexts.world.n">
-            <h3 style="margin-top: 18px">Practice vs World</h3>
-            <ContextsPanel :contexts="a.contexts" />
-          </template>
-        </div>
-
-        <div id="dash-quality" class="panel">
-          <h3 tabindex="-1">Question quality</h3>
-          <QualityPanel :tags="a.tags" :quality="a.quality" @open-question="openQuestion" @open-in-bank="openInBank" />
-        </div>
-
-        <div v-if="sameCourseClasses >= 2" id="dash-compare" class="panel">
-          <h3 tabindex="-1">Compare your classes</h3>
-          <ComparePanel :course-id="courseId" :stamp="stamp" @loaded="compareRows = $event" />
-        </div>
-
-        <!-- names students, so it stays off paper unless asked for -->
-        <div v-if="a.points" id="dash-points" class="panel" :class="{ 'no-print': !printNames }">
-          <div class="row">
-            <h3 class="grow">Participation points<span v-if="topic" class="small muted"> (all topics)</span></h3>
-            <AsyncButton class="btn small no-print" :run="participationCsv">Download CSV</AsyncButton>
+              <Pager :paged="missedPages" label="Commonly missed questions pages" noun="questions" />
+            </template>
+            <p v-else-if="a.commonlyMissed.length" class="small">✓ No question is under {{ pct(a.time.maxAccuracy) }} correct on first attempts{{ topic ? ' in this topic' : '' }}.</p>
+            <p v-else class="muted small">Not enough data yet.</p>
           </div>
-          <p class="small muted">One point per completed practice session of 5+ questions (max 3 per week), regardless of score. Turned on in Settings.</p>
-          <label class="small no-print" style="font-weight: 400"><input v-model="printNames" type="checkbox" /> Include in printed report (shows student names)</label>
-          <div class="table-wrap">
-            <table class="dash-table compact">
-              <thead>
-                <tr>
-                  <th :aria-sort="ariaSort('name')"><button class="sort" @click="sortPoints('name')">Student <span aria-hidden="true">{{ pointsSort.key === 'name' ? (pointsSort.dir > 0 ? '▲' : '▼') : '' }}</span></button></th>
-                  <th :aria-sort="ariaSort('points')"><button class="sort" @click="sortPoints('points')">Points <span aria-hidden="true">{{ pointsSort.key === 'points' ? (pointsSort.dir > 0 ? '▲' : '▼') : '' }}</span></button></th>
-                </tr>
-              </thead>
-              <tbody>
-                <!-- no ids are sent (names only), and two students can share a name -->
-                <tr v-for="(p, i) in pointsPages.items" :key="i"><td class="label">{{ p.name }}</td><td class="num">{{ p.points }}</td></tr>
-              </tbody>
-            </table>
+        </section>
+
+        <!-- QUESTION QUALITY -->
+        <section id="dash-quality" class="t-section">
+          <div class="t-section-head"><h3 tabindex="-1">Question quality</h3><span class="t-desc">How well the questions are working</span></div>
+          <div class="panel">
+            <QualityPanel :tags="a.tags" :quality="a.quality" @open-question="openQuestion" @open-in-bank="openInBank" />
           </div>
-          <Pager :paged="pointsPages" label="Participation points pages" noun="students" />
-        </div>
+        </section>
+
+        <!-- COMPARE CLASSES -->
+        <section v-if="sameCourseClasses >= 2" id="dash-compare" class="t-section">
+          <div class="t-section-head"><h3 tabindex="-1">Compare your classes</h3><span class="t-desc">Your tutorial groups for this course, side by side</span></div>
+          <div class="panel">
+            <ComparePanel :course-id="courseId" :stamp="stamp" @loaded="compareRows = $event" />
+          </div>
+        </section>
+
       </div>
-      <p v-if="a.points && !printNames" class="print-only small">Participation points are left out of this report because they name students.</p>
       <p class="small muted">These are practice indicators to support teaching judgement. They are not grades, and the platform does not label individual students.</p>
       <QuestionInsight ref="insight" @open-in-bank="openInBank" />
     </template>

@@ -17,11 +17,15 @@ export async function signIn(page, { email, password = PASSWORD }) {
   await page.getByRole('button', { name: 'Continue' }).click();
   await page.locator('#login-password').fill(password);
   await page.getByRole('button', { name: 'Sign in' }).click();
-  await expect(page.getByRole('button', { name: 'Switch user' })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Log out' })).toBeVisible();
 }
 
 export async function openTab(page, name) {
-  await page.locator('#tabs').getByRole('button', { name, exact: true }).click();
+  // On immersive student tabs (Kingdom, World, Summon) the menu is tucked
+  // away; focusing a tab brings it down, as it does for keyboard users.
+  const tab = page.locator('#tabs').getByRole('button', { name, exact: true });
+  await tab.focus();
+  await tab.click();
 }
 
 // Answer the question on screen, whatever format it is in, and wait for the

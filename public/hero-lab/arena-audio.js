@@ -56,6 +56,8 @@ export function playSound(name, { semitones = 0, volume = 1, pitchVariance = 0 }
   const jitter = pitchVariance ? 1 + (Math.random() * 2 - 1) * pitchVariance : 1;
   osc.type = profile.type;
   osc.frequency.value = profile.frequency * jitter * (2 ** (semitones / 12));
+  // Optional pitch slide (e.g. the town hop's soft 'boing').
+  if (profile.slideTo) osc.frequency.exponentialRampToValueAtTime(profile.slideTo * jitter * (2 ** (semitones / 12)), audioNow + profile.durationMs / 1000);
   gain.gain.setValueAtTime(0, audioNow);
   gain.gain.linearRampToValueAtTime(profile.gain * masterVolume * volume, audioNow + 0.008);
   gain.gain.exponentialRampToValueAtTime(0.001, audioNow + profile.durationMs / 1000);

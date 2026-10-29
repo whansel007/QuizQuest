@@ -122,7 +122,7 @@ async function pickDemo(page, name) {
     await page.keyboard.press(key);
   await page.getByRole('heading', { name: 'Test accounts' }).waitFor();
   await page.getByRole('button', { name, exact: false }).click();
-  await page.getByRole('button', { name: 'Switch user', exact: true }).waitFor();
+  await page.getByRole('button', { name: 'Log out', exact: true }).waitFor();
 }
 
 // Creates real AI drafts through the API, so the question bank shows
