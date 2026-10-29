@@ -30,6 +30,7 @@ onMounted(async () => {
     }
     loaded.value = true;
     await focusRequested();
+    await focusRewrite();
   } catch (err) {
     error.value = err.message;
   }
@@ -53,6 +54,21 @@ async function focusRequested() {
   card.focus({ preventScroll: true });
   card.classList.add('flash');
   setTimeout(() => card.classList.remove('flash'), 2500);
+}
+
+// Opened from "Rewrite drafts" after a batch: show and highlight the rewrite
+// toolbar (once), with focus on it so keyboard users land there too
+const rewriteBar = ref(null);
+async function focusRewrite() {
+  if (!S.focusRewrite) return;
+  S.focusRewrite = false;
+  await nextTick();
+  const bar = rewriteBar.value;
+  if (!bar) return;
+  bar.scrollIntoView({ block: 'center' });
+  bar.focus({ preventScroll: true });
+  bar.classList.add('flash');
+  setTimeout(() => bar.classList.remove('flash'), 2500);
 }
 
 const filters = [
@@ -148,7 +164,8 @@ async function rewriteSelected() {
       <div ref="listTop" class="chips">
         <button v-for="[id, label, fn] in filters" :key="id" :aria-pressed="S.qFilter === id ? 'true' : 'false'" @click="S.qFilter = id">{{ `${label} (${inTopic.filter(fn).length})` }}</button>
       </div>
-      <div v-if="rewritable.length" class="panel rewrite-bar">
+      <div v-if="rewritable.length" ref="rewriteBar" class="panel rewrite-bar" tabindex="-1" role="group" aria-label="Rewrite AI drafts">
+        <p class="rewrite-help small">Tick the AI drafts to change, choose a style and rewrite them together. Your originals are kept.</p>
         <label class="qsel">
           <input type="checkbox" :checked="allOnPage" aria-label="Select every rewritable question on this page" @change="togglePage" />
           <span>Select page</span>
@@ -183,7 +200,9 @@ async function rewriteSelected() {
 
 <style scoped>
 .rewrite-bar { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 14px; margin: 12px 0; }
-.rewrite-bar .field { margin: 0; display: flex; align-items: center; gap: 8px; }
+.rewrite-bar .field { margin: 0; display: flex; align-items: center; gap: 8px; white-space: nowrap; }
+.rewrite-help { flex-basis: 100%; margin: 0; color: var(--muted); }
+.rewrite-bar.flash { outline: 3px solid var(--accent); outline-offset: 2px; transition: outline-color 0.3s; }
 .qsel { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; cursor: pointer; }
 .qsel input { width: 18px; height: 18px; accent-color: var(--accent); cursor: pointer; }
 </style>

@@ -76,6 +76,7 @@ export const S = reactive({
   // local dates; the semester's dates come from the course's settings)
   ...savedPeriod(),
   focusQuestionId: null, // Question bank scrolls to (and highlights) this question once
+  focusRewrite: false, // Question bank brings its rewrite toolbar into view once
   draftTarget: null, // AI drafting opens with this { topicId, outcomeId } once
   // bump to remount the current view (replaces the old rerender())
   viewKey: 0,
@@ -175,7 +176,7 @@ function clearSession() {
   } catch {
     // storage blocked: the token only lived in memory anyway
   }
-  Object.assign(S, { token: null, me: null, tab: null, courseId: null, classId: null, qFilter: 'draft', topicId: '', ...savedPeriod(), focusQuestionId: null, draftTarget: null });
+  Object.assign(S, { token: null, me: null, tab: null, courseId: null, classId: null, qFilter: 'draft', topicId: '', ...savedPeriod(), focusQuestionId: null, focusRewrite: false, draftTarget: null });
   rerender();
 }
 

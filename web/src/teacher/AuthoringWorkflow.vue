@@ -250,7 +250,8 @@ function generate() {
 function resume(j) { return action(async () => track((await api('POST',path+`/authoring/${j.id}/resume`)).id)); }
 // Opens the Question bank on this batch's topic, where its drafts are. The
 // bank loads its questions when it opens, so newly saved drafts are listed.
-function reviewDrafts(topicId=props.topic.id) { S.qFilter='draft'; S.topicId=topicId; setTab('review'); }
+// rewrite: also bring the bank's rewrite toolbar into view.
+function reviewDrafts(topicId=props.topic.id, rewrite=false) { S.qFilter='draft'; S.topicId=topicId; S.focusRewrite=rewrite; setTab('review'); }
 function download() {
   const url=URL.createObjectURL(new Blob([review.value],{type:'text/markdown;charset=utf-8'}));
   const a=document.createElement('a'); a.href=url; a.download=`knowledge-report${props.topic.week ? '-week-' + props.topic.week : ''}.md`; a.click(); setTimeout(()=>URL.revokeObjectURL(url),1000);
@@ -319,9 +320,10 @@ function download() {
     <h3>Review and publish</h3>
     <p>{{ generation.result.created.length }} of {{ generation.input.count }} questions saved as drafts. Review answers and explanations before approval; AI checks can miss errors.</p>
     <p>Edit, reject or regenerate individual questions in the Question Bank. Approve &amp; publish makes approved questions available to students.</p>
-    <button class="btn primary" @click="reviewDrafts()">Review drafts</button>
+    <p>Not the mix you wanted? Tick the drafts to change and rewrite them as Application or Conceptual questions. Your originals are kept.</p>
+    <div class="actions"><button class="btn primary" @click="reviewDrafts()">Review drafts</button><button class="btn" @click="reviewDrafts(topic.id, true)">Rewrite drafts</button></div>
   </div>
-  <GenerationStatus :job="floating" :topic-label="floatingTopic" :busy="running" @view="reviewDrafts(floating.input.topicId)" @resume="resume(floating)" @dismiss="dismissed = floating.id" />
+  <GenerationStatus :job="floating" :topic-label="floatingTopic" :busy="running" @view="reviewDrafts(floating.input.topicId)" @rewrite="reviewDrafts(floating.input.topicId, true)" @resume="resume(floating)" @dismiss="dismissed = floating.id" />
 </template>
 
 <style scoped>
