@@ -1,6 +1,7 @@
 // signup.spec.js
 // E2E tests for creating a student account from the login page.
 import { test, expect } from '@playwright/test';
+import { openTab } from './helpers.js';
 
 test('should create a student account and sign the student in', async ({ page }) => {
   // a new email every run, so the account never exists yet
@@ -15,8 +16,10 @@ test('should create a student account and sign the student in', async ({ page })
 
   // a brand-new student is signed in but not in any class yet
   await expect(page.getByText('New Student')).toBeVisible();
-  // the student lands on the practice tab, which says how to join a class
-  await expect(page.getByText('You are not enrolled in any class yet.')).toBeVisible();
+  // students land in their Kingdom, so open the practice tab, which says how
+  // to join a class
+  await openTab(page, 'Practice');
+  await expect(page.getByRole('heading', { name: 'Join a class to begin', exact: true })).toBeVisible();
 });
 
 test('should refuse an email that already has an account', async ({ page }) => {

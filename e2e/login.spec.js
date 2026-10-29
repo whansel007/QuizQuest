@@ -3,6 +3,7 @@
 // from the user's point of view. Uses the seeded demo accounts, which all
 // have the password "quizquest".
 import { test, expect } from '@playwright/test';
+import { openTab } from './helpers.js';
 
 test('should successfully log in a student with valid credentials', async ({ page }) => {
   // setup
@@ -14,6 +15,8 @@ test('should successfully log in a student with valid credentials', async ({ pag
   await page.getByRole('button', { name: 'Sign in' }).click();
   // assert: the student's name is shown and they can start practising
   await expect(page.getByText('Student 01')).toBeVisible();
+  // students land in their Kingdom, so open the practice tab to reach the setup
+  await openTab(page, 'Practice');
   await expect(page.getByRole('button', { name: 'Start practice' })).toBeVisible();
 });
 
