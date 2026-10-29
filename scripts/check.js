@@ -9,12 +9,16 @@ function walk(dir) {
     return e.isDirectory() ? walk(p) : /\.(js|cjs)$/.test(p) ? [p] : [];
   });
 }
-const files = ['server.js', ...['src', 'public', 'web/src', 'test', 'scripts'].flatMap(walk)];
+const files = ['server.js', ...['src', 'public', 'web/src', 'test', 'scripts', 'e2e'].flatMap(walk)];
+// The browser modules and the end-to-end specs are ES modules. node --check
+// reads a .js file as CommonJS unless it is told otherwise, so a stray
+// import would look like a syntax error instead of being a valid module.
+const esModule = (file) => file.startsWith(path.join('web', 'src') + path.sep) || file.startsWith('e2e' + path.sep);
 for (const file of files) {
-  const browserModule = file.startsWith(path.join('web', 'src') + path.sep);
+  const module = esModule(file);
   const result = spawnSync(process.execPath,
-    browserModule ? ['--input-type=module', '--check'] : ['--check', file],
-    { input: browserModule ? fs.readFileSync(file, 'utf8') : undefined, encoding: 'utf8' });
+    module ? ['--input-type=module', '--check'] : ['--check', file],
+    { input: module ? fs.readFileSync(file, 'utf8') : undefined, encoding: 'utf8' });
   if (result.status !== 0) {
     console.error(file, result.stderr || result.error);
     process.exit(1);

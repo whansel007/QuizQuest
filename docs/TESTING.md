@@ -67,6 +67,7 @@ You can also record a new test with the **Playwright Test for VS Code** extensio
 ## Writing new tests
 
 - Name test files `*.spec.js`. Vitest only picks up files inside `__tests__` folders; Playwright only looks in `e2e/`.
+- The end-to-end specs are syntax-checked along with the rest of the code (`pnpm run check`), so a typo in a spec is caught before the suite runs.
 - If a test drives **two pages at once**, bring the page you are working on to the front first (`await page.bringToFront()`). WebKit stops animating a page that is not in front, and a click waits for the page to settle before it fires, so the click waits for ever. The shared `signIn()` helper already does this.
 - Test behaviour, not implementation: check what the user sees (`wrapper.text()`, `getByText`, `getByRole`), not internal function names or exact HTML.
 - Component tests stub children only when needed; integration tests mount the real children.
