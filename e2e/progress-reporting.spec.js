@@ -1,34 +1,62 @@
 // End-to-end journeys for student progress and professor report replies.
 import { test, expect } from '@playwright/test';
-import { signIn, openTab, answerCurrentQuestion, STUDENT, TEACHER } from './helpers.js';
+import { signIn, openTab, answerCurrentQuestion, apiToken, STUDENT, TEACHER } from './helpers.js';
+
+// A student account of this test's own. A CI retry replays the test against
+// the same server and the same data, so a student who had already practised
+// would start the test with answers already counted, and the "no history yet"
+// checks below would be wrong. A brand-new account starts empty every time.
+async function newStudent(page, name) {
+  const email = `${name.toLowerCase().replace(/\s+/g, '.')}.${Date.now()}@example.com`;
+  const student = await page.context().newPage();
+  await student.goto('/');
+  await student.getByRole('button', { name: 'Create a student account' }).click();
+  await student.getByRole('textbox', { name: 'Name' }).fill(name);
+  await student.getByRole('textbox', { name: 'Email' }).fill(email);
+  await student.locator('#signup-password').fill('longenough');
+  await student.getByRole('button', { name: 'Create account' }).click();
+  return { student, email };
+}
 
 test('a student sees completed practice reflected in topic progress', async ({ page }) => {
   // It answers a whole five-question session and then checks every topic, so
   // it needs longer than the default budget on WebKit, the slowest engine.
   test.slow();
-  // Student 12 is seeded into Tutorial Group C with no attempts or sessions.
-  await signIn(page, { email: 'student12@quizquest.demo', name: 'Student 12' });
-  const baselineResponse = page.waitForResponse((response) =>
+  // The student needs a class to practise in, so the professor puts the new
+  // account in the tutorial group.
+  const { student, email } = await newStudent(page, 'Progress Student');
+  await signIn(page, TEACHER);
+  const token = await apiToken(page);
+  const enrol = await page.request.post('/api/classes/enrol', {
+    headers: { Authorization: `Bearer ${token}` },
+    data: { email, className: 'Computing - Tutorial Group C' },
+  });
+  const enrolBody = await enrol.text();
+  expect(enrol.status(), `the student joins the tutorial group: ${enrolBody}`).toBe(201);
+
+  // The student signs in again, so the new class is in the account.
+  await student.reload();
+  const baselineResponse = student.waitForResponse((response) =>
     response.url().endsWith('/api/student/classes/cl-c/progress') && response.request().method() === 'GET');
-  await openTab(page, 'My Progress');
+  await openTab(student, 'My Progress');
   const baseline = await (await baselineResponse).json();
   expect(baseline.indicator).toMatchObject({ n: 0, correct: 0, accuracy: null });
   expect(baseline.topics.every((topic) => topic.n === 0)).toBe(true);
   expect(baseline.sessions).toHaveLength(0);
 
-  await openTab(page, 'Practice');
-  await page.getByLabel('Length', { exact: true }).selectOption('5');
-  await page.getByRole('button', { name: 'Start practice', exact: true }).click();
-  await expect(page.getByText('Question 1 of 5')).toBeVisible();
+  await openTab(student, 'Practice');
+  await student.getByLabel('Length', { exact: true }).selectOption('5');
+  await student.getByRole('button', { name: 'Start practice', exact: true }).click();
+  await expect(student.getByText('Question 1 of 5')).toBeVisible();
 
   // Pair each server grade with the question topic shown on screen. Provisional
   // written answers appear in session history but do not enter accuracy yet.
   const expectedByTopic = new Map();
   for (let index = 0; index < 5; index++) {
-    const topicName = (await page.locator('.quiz-topic').innerText()).trim();
-    const answerResponse = page.waitForResponse((response) =>
+    const topicName = (await student.locator('.quiz-topic').innerText()).trim();
+    const answerResponse = student.waitForResponse((response) =>
       /\/api\/student\/sessions\/[^/]+\/answer$/.test(response.url()) && response.request().method() === 'POST');
-    await answerCurrentQuestion(page);
+    await answerCurrentQuestion(student);
     const result = await (await answerResponse).json();
     if (!result.provisional) {
       const expected = expectedByTopic.get(topicName) || { n: 0, correct: 0 };
@@ -38,16 +66,16 @@ test('a student sees completed practice reflected in topic progress', async ({ p
     }
 
     if (index < 4) {
-      await page.getByRole('button', { name: /Next question/ }).click();
-      await expect(page.getByText(`Question ${index + 2} of 5`)).toBeVisible();
+      await student.getByRole('button', { name: /Next question/ }).click();
+      await expect(student.getByText(`Question ${index + 2} of 5`)).toBeVisible();
     }
   }
 
-  await page.getByRole('button', { name: 'See results', exact: true }).click();
-  await expect(page.getByText(/Session complete|The Fog of Confusion is defeated/)).toBeVisible();
-  const progressResponse = page.waitForResponse((response) =>
+  await student.getByRole('button', { name: 'See results', exact: true }).click();
+  await expect(student.getByText(/Session complete|The Fog of Confusion is defeated/)).toBeVisible();
+  const progressResponse = student.waitForResponse((response) =>
     response.url().endsWith('/api/student/classes/cl-c/progress') && response.request().method() === 'GET');
-  await page.getByRole('button', { name: 'View my progress', exact: true }).click();
+  await student.getByRole('button', { name: 'View my progress', exact: true }).click();
   const progress = await (await progressResponse).json();
 
   const confirmed = [...expectedByTopic.values()].reduce((sum, topic) => sum + topic.n, 0);
@@ -62,7 +90,7 @@ test('a student sees completed practice reflected in topic progress', async ({ p
     expect(topic.correct, `${topic.name} correct answers`).toBe(expected.correct);
     expect(topic.accuracy, `${topic.name} accuracy`).toBe(expected.n ? expected.correct / expected.n : null);
 
-    const card = page.locator('.pg-topic').filter({ hasText: topic.name });
+    const card = student.locator('.pg-topic').filter({ hasText: topic.name });
     await expect(card.getByRole('heading', { name: topic.name, exact: true })).toBeVisible();
     if (expected.n) {
       await expect(card.getByText(`${expected.correct} / ${expected.n} counted questions correct`, { exact: true })).toBeVisible();
@@ -71,8 +99,8 @@ test('a student sees completed practice reflected in topic progress', async ({ p
       await expect(card.getByText('No confirmed answers for this topic.', { exact: true })).toBeVisible();
     }
   }
-  await expect(page.getByRole('heading', { name: 'My Progress', exact: true })).toBeVisible();
-  await expect(page.getByText('Recent sessions', { exact: true })).toBeVisible();
+  await expect(student.getByRole('heading', { name: 'My Progress', exact: true })).toBeVisible();
+  await expect(student.getByText('Recent sessions', { exact: true })).toBeVisible();
 });
 
 test('a professor resolves a student report and the student refreshes to see the reply', async ({ browser }, testInfo) => {
@@ -103,7 +131,9 @@ test('a professor resolves a student report and the student refreshes to see the
 
     await signIn(professorPage, TEACHER);
     await openTab(professorPage, 'Question bank');
-    await professorPage.getByRole('button', { name: /^Reported \(/ }).click();
+    // The status filter is in the sidebar. The empty list also offers the
+    // other statuses as buttons, so the filter is picked from its own group.
+    await professorPage.locator('.bank-status').getByRole('button', { name: /^Reported \(/ }).click();
     const report = professorPage.locator('.qcard .note').filter({ hasText: reason });
     await expect(report).toBeVisible();
     await report.getByLabel('Professor response (optional, visible to the student)').fill(response);
@@ -113,8 +143,11 @@ test('a professor resolves a student report and the student refreshes to see the
     await studentPage.bringToFront();
     await studentPage.getByRole('button', { name: 'Refresh progress', exact: true }).click();
     await studentPage.getByLabel('Report status', { exact: true }).selectOption('resolved');
-    await expect(studentPage.getByText(response, { exact: false })).toBeVisible();
-    await expect(studentPage.locator('.pg-report').filter({ hasText: reason }).getByText('Resolved', { exact: true })).toBeVisible();
+    // The reply is looked up in this student's own report, so an earlier
+    // report with the same answer (a retry of this test) cannot get in the way.
+    const mine = studentPage.locator('.pg-report').filter({ hasText: reason });
+    await expect(mine.getByText(response, { exact: false })).toBeVisible();
+    await expect(mine.getByText('Resolved', { exact: true })).toBeVisible();
   } finally {
     await Promise.all([studentContext.close(), professorContext.close()]);
   }
