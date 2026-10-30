@@ -8,7 +8,7 @@
 import { onMounted, onUnmounted, ref } from 'vue';
 import { loadOwnedHeroVisuals } from '../student/avatar.js';
 
-const ROSTER = ['guardian', 'sheriff', 'pilot', 'bombardier', 'bubbles', 'electromancer'];
+const ROSTER = ['guardian', 'sheriff', 'pilot', 'bombardier', 'bubbles', 'electromancer', 'fairy', 'engineer', 'samurai', 'ranger'];
 const frame = ref(null);
 const canvas = ref(null);
 let ctx;

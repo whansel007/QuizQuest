@@ -24,12 +24,12 @@ export class Exploder extends Enemy {
   }
 
   update(dt, campfire, now = Date.now()) {
-    if (this.dead || !campfire) return null;
+    if (this.dead || !campfire || this.heldUntil > now) return null;
     if (this.fuseUntil) {
       if (now >= this.fuseUntil) { this.dead = true; return 'explode'; }
       return null;
     }
-    if (this.moveTowards(dt, campfire)) {
+    if (this.moveTowards(dt, campfire, now)) {
       this.fuseUntil = now + GAME_CONFIG.arenaTuning.enemies.exploder.fuseMs;
       return 'telegraph';
     }

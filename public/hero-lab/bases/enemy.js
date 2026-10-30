@@ -29,14 +29,15 @@ export class Enemy {
 
   update(dt, target, now = Date.now()) {
     if (!target || this.dead) return;
-    const touching = this.moveTowards(dt, target);
+    if (this.heldUntil > now) return;
+    const touching = this.moveTowards(dt, target, now);
     if (touching && target.hp > 0 && now >= this.nextCampfireAttackAt) {
       this.nextCampfireAttackAt = now + GAME_CONFIG.arenaTuning.campfire.contactDamageCooldownMs;
       target.hp = Math.max(0, target.hp - this.damage);
     }
   }
 
-  moveTowards(dt, target) {
+  moveTowards(dt, target, now = Date.now()) {
     if (!target || this.dead) return false;
     const dx = target.x - this.x;
     const dy = target.y - this.y;
@@ -44,8 +45,10 @@ export class Enemy {
     const minContactDist = target.radius + this.radius;
 
     if (dist > minContactDist) {
-      this.x += (dx / dist) * this.speed * dt;
-      this.y += (dy / dist) * this.speed * dt;
+      const slow = this.slowUntil > now ? Math.min(1, Math.max(0, this.slowPct || 0)) : 0;
+      const speed = this.speed * (1 - slow);
+      this.x += (dx / dist) * speed * dt;
+      this.y += (dy / dist) * speed * dt;
       return false;
     }
 

@@ -1,8 +1,8 @@
-import { Sheriff, Guardian, Pilot, Bombardier, Bubbles, Electromancer,
-  sheriff, guardian, pilot, bombardier, bubbles, electromancer } from './heroes/roster.js';
+import { Sheriff, Guardian, Pilot, Bombardier, Bubbles, Electromancer, Fairy,
+  Engineer, Samurai, Ranger, sheriff, guardian, pilot, bombardier, bubbles, electromancer, fairy, engineer, samurai, ranger } from './heroes/roster.js';
 
-export { Sheriff, Guardian, Pilot, Bombardier, Bubbles, Electromancer,
-  sheriff, guardian, pilot, bombardier, bubbles, electromancer };
+export { Sheriff, Guardian, Pilot, Bombardier, Bubbles, Electromancer, Fairy, Engineer, Samurai, Ranger,
+  sheriff, guardian, pilot, bombardier, bubbles, electromancer, fairy, engineer, samurai, ranger };
 
 export const HEROES = [
   guardian,
@@ -11,6 +11,10 @@ export const HEROES = [
   bombardier,
   bubbles,
   electromancer,
+  fairy,
+  engineer,
+  samurai,
+  ranger,
 ];
 export const HERO_CLASSES = {
   guardian: Guardian,
@@ -19,5 +23,9 @@ export const HERO_CLASSES = {
   bombardier: Bombardier,
   bubbles: Bubbles,
   electromancer: Electromancer,
+  fairy: Fairy,
+  engineer: Engineer,
+  samurai: Samurai,
+  ranger: Ranger,
 };
 export default HEROES;

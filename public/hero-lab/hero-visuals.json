@@ -58,6 +58,7 @@
         "x": 0.5,
         "y": 0.5
       },
+      "partyOffsetX": -2,
       "ultimate": {
         "mode": "swap",
         "frame": "ultimate",
@@ -95,6 +96,7 @@
         "x": 0.5,
         "y": 0.5
       },
+      "partyOffsetX": 0,
       "ultimate": {
         "mode": "swap",
         "frame": "ultimate",
@@ -132,6 +134,7 @@
         "x": 0.5,
         "y": 0.5
       },
+      "partyOffsetX": 4,
       "ultimate": {
         "mode": "swap",
         "frame": "ultimate",
@@ -194,6 +197,7 @@
         "x": 0.5,
         "y": 0.5
       },
+      "partyOffsetX": -2,
       "ultimate": {
         "mode": "swap",
         "frame": "ultimate",
@@ -231,6 +235,7 @@
         "x": 0.5,
         "y": 0.5
       },
+      "partyOffsetX": 4,
       "ultimate": {
         "mode": "swap",
         "frame": "ultimate",
@@ -268,11 +273,76 @@
         "x": 0.5,
         "y": 0.5
       },
+      "partyOffsetX": 0,
       "ultimate": {
         "mode": "swap",
         "frame": "ultimate",
         "transformMs": 200
       }
+    },
+    "engineer": {
+      "frames": {
+        "open": "engineer_idle(1).png",
+        "closed": "engineer_idle(2).png",
+        "ultimate": "engineer_ultimate.png"
+      },
+      "crop": {
+        "open": [286, 307, 832, 813],
+        "closed": [286, 307, 832, 813],
+        "ultimate": [286, 307, 832, 813]
+      },
+      "scale": 1.6,
+      "anchor": { "x": 0.5, "y": 0.5 },
+      "partyOffsetX": 3,
+      "ultimate": { "mode": "swap", "frame": "ultimate", "transformMs": 200 }
+    },
+    "fairy": {
+      "frames": {
+        "open": "fairy_idle(1).png",
+        "closed": "fairy_idle(2).png",
+        "ultimate": "fairy_ultimate.png"
+      },
+      "crop": {
+        "open": [479, 344, 931, 775],
+        "closed": [479, 344, 931, 775],
+        "ultimate": [479, 344, 931, 775]
+      },
+      "scale": 1.6,
+      "anchor": { "x": 0.5, "y": 0.5 },
+      "partyOffsetX": 4,
+      "ultimate": { "mode": "swap", "frame": "ultimate", "transformMs": 200 }
+    },
+    "ranger": {
+      "frames": {
+        "open": "ranger_idle(1).png",
+        "closed": "ranger_idle(2).png",
+        "ultimate": "ranger_ultimate.png"
+      },
+      "crop": {
+        "open": [479, 360, 718, 801],
+        "closed": [479, 360, 718, 801],
+        "ultimate": [479, 360, 718, 801]
+      },
+      "scale": 1.6,
+      "anchor": { "x": 0.5, "y": 0.5 },
+      "partyOffsetX": -6,
+      "ultimate": { "mode": "swap", "frame": "ultimate", "transformMs": 200 }
+    },
+    "samurai": {
+      "frames": {
+        "open": "samurai_idle(1).png",
+        "closed": "samurai_idle(2).png",
+        "ultimate": "samurai_ultimate.png"
+      },
+      "crop": {
+        "open": [479, 387, 778, 707],
+        "closed": [479, 387, 778, 707],
+        "ultimate": [479, 228, 758, 874]
+      },
+      "scale": 1.6,
+      "anchor": { "x": 0.5, "y": 0.5 },
+      "partyOffsetX": -2,
+      "ultimate": { "mode": "swap", "frame": "ultimate", "transformMs": 200 }
     }
   },
   "assetBase": "/hero-lab/assets/cat/"

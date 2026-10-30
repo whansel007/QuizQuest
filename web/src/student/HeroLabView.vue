@@ -32,13 +32,15 @@ const roomCode = ref('');
 const activeRoomCode = ref('');
 const roomError = ref('');
 const roster = ref(null);
+const debugUnlockedHeroes = ref([]);
+try { debugUnlockedHeroes.value = JSON.parse(localStorage.getItem('hero-lab-debug-unlocked-heroes') || '[]'); } catch { /* optional local debug roster */ }
 // previewHero drives the preview panel AND the kingdom tile highlight: it
 // follows the hovered hero and snaps back to the selection on mouse leave.
 const previewHero = ref(null);
 const rosterError = ref('');
 const loadingRoster = ref(true);
 const heroes = computed(() => roster.value?.catalog.heroes || []);
-const ownsHero = (id) => roster.value?.inventory.heroes.includes(id) || false;
+const ownsHero = (id) => roster.value?.inventory.heroes.includes(id) || debugUnlockedHeroes.value.includes(id) || false;
 // Building levels live on their own endpoint (/api/student/kingdom); the home
 // payload does not carry a kingdom block, so reading levels from `roster` left
 // every tile stuck at Lv 0 forever.
@@ -143,7 +145,14 @@ function reloadIntoRoom(hero, code) {
 function returnToSelection(event) {
   if (event.origin !== window.location.origin || event.source !== gameFrame.value?.contentWindow) return;
   const data = event.data || {};
-  if (data.type === 'hero-lab-room') {
+  if (data.type === 'hero-lab-debug-unlock') {
+    if (!heroes.value.some((hero) => hero.id === data.heroId)) return;
+    if (!debugUnlockedHeroes.value.includes(data.heroId)) debugUnlockedHeroes.value = [...debugUnlockedHeroes.value, data.heroId];
+    const unlocked = heroes.value.find((hero) => hero.id === data.heroId);
+    selectedHero.value = unlocked; previewHero.value = unlocked;
+    try { sessionStorage.setItem(HERO_SESSION_KEY, data.heroId); } catch { /* optional */ }
+    inGame.value = false; gameUrl.value = ''; roomError.value = `${unlocked.name} unlocked for this browser's sandbox.`;
+  } else if (data.type === 'hero-lab-room') {
     if (data.code) { activeRoomCode.value = data.code; roomCode.value = data.code; }
   } else if (data.type === 'hero-lab-join-error') {
     inGame.value = false;
@@ -247,7 +256,7 @@ onUnmounted(() => window.removeEventListener('message', returnToSelection));
           <div class="hero-basic-stats">
             <span class="panel-kicker">BASIC HERO STATS</span>
             <strong class="hero-preview-name">{{ previewHero.name }}</strong>
-            <span class="hero-preview-type">{{ HERO_TYPE_ICON[String(previewHero.type).toLowerCase()] }} {{ previewHero.type }} · {{ previewHero.rarity }}</span>
+            <span class="hero-preview-type">{{ HERO_TYPE_ICON[String(previewHero.type).toLowerCase()] }} {{ previewHero.type }} · {{ heroStars(previewHero) }}-star</span>
             <div class="hero-stat-grid">
               <span class="stat-hp"><b>{{ previewHero.hp }}</b><small>HP</small></span>
               <span class="stat-attack"><b>{{ previewHero.attack }}</b><small>ATK</small></span>

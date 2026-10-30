@@ -240,6 +240,150 @@
       "originalFile": "power-lightning.svg",
       "originalPath": "game-icons.net.svg/icons/ffffff/000000/1x1/lorc/power-lightning.svg",
       "license": "CC BY 3.0"
+    },
+    "fairy-primary.svg": {
+      "hero": "fairy",
+      "slot": "primary",
+      "ability": "Wind Arrow",
+      "author": "lorc",
+      "originalFile": "winged-arrow.svg",
+      "originalPath": "game-icons.net.svg/icons/ffffff/000000/1x1/lorc/winged-arrow.svg",
+      "license": "CC BY 3.0"
+    },
+    "fairy-skill.svg": {
+      "hero": "fairy",
+      "slot": "skill",
+      "ability": "Gale Burst",
+      "author": "lorc",
+      "originalFile": "whirlwind.svg",
+      "originalPath": "game-icons.net.svg/icons/ffffff/000000/1x1/lorc/whirlwind.svg",
+      "license": "CC BY 3.0"
+    },
+    "fairy-ultimate.svg": {
+      "hero": "fairy",
+      "slot": "ultimate",
+      "ability": "Vortex Orb",
+      "author": "lorc",
+      "originalFile": "vortex.svg",
+      "originalPath": "game-icons.net.svg/icons/ffffff/000000/1x1/lorc/vortex.svg",
+      "license": "CC BY 3.0"
+    },
+    "fairy-talent.svg": {
+      "hero": "fairy",
+      "slot": "talent",
+      "ability": "Windswept",
+      "author": "lorc",
+      "originalFile": "falling-leaf.svg",
+      "originalPath": "game-icons.net.svg/icons/ffffff/000000/1x1/lorc/falling-leaf.svg",
+      "license": "CC BY 3.0"
+    },
+    "engineer-primary.svg": {
+      "hero": "engineer",
+      "slot": "primary",
+      "ability": "Wrench Boomerang",
+      "author": "delapouite",
+      "originalFile": "monkey-wrench.svg",
+      "originalPath": "game-icons.net.svg/icons/ffffff/000000/1x1/delapouite/monkey-wrench.svg",
+      "license": "CC BY 3.0"
+    },
+    "engineer-skill.svg": {
+      "hero": "engineer",
+      "slot": "skill",
+      "ability": "Deploy Turret",
+      "author": "sbed",
+      "originalFile": "turret.svg",
+      "originalPath": "game-icons.net.svg/icons/ffffff/000000/1x1/sbed/turret.svg",
+      "license": "CC BY 3.0"
+    },
+    "engineer-ultimate.svg": {
+      "hero": "engineer",
+      "slot": "ultimate",
+      "ability": "Overclock Laser",
+      "author": "lorc",
+      "originalFile": "ray-gun.svg",
+      "originalPath": "game-icons.net.svg/icons/ffffff/000000/1x1/lorc/ray-gun.svg",
+      "license": "CC BY 3.0"
+    },
+    "engineer-talent.svg": {
+      "hero": "engineer",
+      "slot": "talent",
+      "ability": "Salvage",
+      "author": "lorc",
+      "originalFile": "cog.svg",
+      "originalPath": "game-icons.net.svg/icons/ffffff/000000/1x1/lorc/cog.svg",
+      "license": "CC BY 3.0"
+    },
+    "samurai-primary.svg": {
+      "hero": "samurai",
+      "slot": "primary",
+      "ability": "Shuriken",
+      "author": "faithtoken",
+      "originalFile": "ninja-star.svg",
+      "originalPath": "game-icons.net.svg/icons/ffffff/000000/1x1/faithtoken/ninja-star.svg",
+      "license": "CC BY 3.0"
+    },
+    "samurai-skill.svg": {
+      "hero": "samurai",
+      "slot": "skill",
+      "ability": "Cutting Dash",
+      "author": "delapouite",
+      "originalFile": "katana.svg",
+      "originalPath": "game-icons.net.svg/icons/ffffff/000000/1x1/delapouite/katana.svg",
+      "license": "CC BY 3.0"
+    },
+    "samurai-ultimate.svg": {
+      "hero": "samurai",
+      "slot": "ultimate",
+      "ability": "Afterimage Cut",
+      "author": "lorc",
+      "originalFile": "sword-slice.svg",
+      "originalPath": "game-icons.net.svg/icons/ffffff/000000/1x1/lorc/sword-slice.svg",
+      "license": "CC BY 3.0"
+    },
+    "samurai-talent.svg": {
+      "hero": "samurai",
+      "slot": "talent",
+      "ability": "Kill Count",
+      "author": "delapouite",
+      "originalFile": "tally-mark-5.svg",
+      "originalPath": "game-icons.net.svg/icons/ffffff/000000/1x1/delapouite/tally-mark-5.svg",
+      "license": "CC BY 3.0"
+    },
+    "ranger-primary.svg": {
+      "originalFile": "bow-arrow.svg",
+      "license": "CC BY 3.0",
+      "ability": "Charge Bow",
+      "author": "delapouite",
+      "originalPath": "game-icons.net.svg/icons/ffffff/000000/1x1/delapouite/bow-arrow.svg",
+      "hero": "ranger",
+      "slot": "primary"
+    },
+    "ranger-skill.svg": {
+      "originalFile": "meat.svg",
+      "license": "CC BY 3.0",
+      "ability": "Meat and Wolf",
+      "author": "lorc",
+      "originalPath": "game-icons.net.svg/icons/ffffff/000000/1x1/lorc/meat.svg",
+      "hero": "ranger",
+      "slot": "skill"
+    },
+    "ranger-ultimate.svg": {
+      "originalFile": "charged-arrow.svg",
+      "license": "CC BY 3.0",
+      "ability": "Dead Aim",
+      "author": "lorc",
+      "originalPath": "game-icons.net.svg/icons/ffffff/000000/1x1/lorc/charged-arrow.svg",
+      "hero": "ranger",
+      "slot": "ultimate"
+    },
+    "ranger-talent.svg": {
+      "originalFile": "paw-print.svg",
+      "license": "CC BY 3.0",
+      "ability": "Pack Hunter",
+      "author": "lorc",
+      "originalPath": "game-icons.net.svg/icons/ffffff/000000/1x1/lorc/paw-print.svg",
+      "hero": "ranger",
+      "slot": "talent"
     }
   }
 }

@@ -22,7 +22,8 @@ const item = computed(() => isHero.value ? props.result.prize.hero : props.resou
 const itemName = computed(() => item.value.name);
 const itemEmoji = computed(() => item.value.emoji);
 const rarity = computed(() => isHero.value ? props.result.prize.rarity : 'common');
-const rarityStars = computed(() => rarity.value === 'epic' ? '5★ Epic' : rarity.value === 'rare' ? '4★ Rare' : '3★ Common');
+const rarityLabel = computed(() => rarity.value === 'epic' ? '5★' : rarity.value === 'rare' ? '4★' : 'Resources');
+const rarityStars = computed(() => rarityLabel.value);
 const duplicate = computed(() => isHero.value && props.result.duplicateHero);
 const colors = {
   common: ['#ffffff', '#dfe7f1', '#bcd2ea', '#fff4c9'],
@@ -34,7 +35,7 @@ const counter = computed(() => (props.result.batchSize ? `Star ${props.result.ba
 const announcement = computed(() => {
   if (stage.value !== 'open') return '';
   if (!isHero.value) return `You got ${props.result.prize.amount} ${itemName.value} for your kingdom.`;
-  return `You got ${itemName.value}, ${rarity.value}. ${duplicate.value ? `Duplicate: ${props.result.refund} coins back.` : 'New hero!'}`;
+  return `You got ${itemName.value}, ${rarityLabel.value}. ${duplicate.value ? `Duplicate: ${props.result.refund} coins back.` : 'New hero!'}`;
 });
 
 const pieces = computed(() => {
@@ -124,13 +125,13 @@ onUnmounted(() => {
               <div class="prize-box">
                 <div class="face front">
                   <svg class="pb-constellation" viewBox="0 0 100 140" aria-hidden="true"><path d="M12 22 34 12 52 28 78 16 88 40M18 118 40 104 62 122 86 108" /><g><circle cx="12" cy="22" r="2" /><circle cx="34" cy="12" r="2.4" /><circle cx="52" cy="28" r="1.8" /><circle cx="78" cy="16" r="2.6" /><circle cx="88" cy="40" r="2" /><circle cx="18" cy="118" r="2" /><circle cx="40" cy="104" r="2.4" /><circle cx="62" cy="122" r="1.8" /><circle cx="86" cy="108" r="2.2" /></g></svg>
-                  <div class="pb-head"><span>QUIZQUEST</span><span>{{ rarity }}</span></div>
+                  <div class="pb-head"><span>QUIZQUEST</span><span>{{ rarityLabel }}</span></div>
                   <div class="pb-window"><HeroIcon v-if="isHero" :hero="item" :size="64" animated /><span v-else class="pb-pet">{{ itemEmoji }}</span></div>
                   <div class="pb-name">{{ itemName }}</div>
                 </div>
                 <div class="face back"><span>QUIZQUEST</span></div>
-                <div class="face side right"><span>QUIZQUEST · {{ rarity }}</span></div>
-                <div class="face side left"><span>QUIZQUEST · {{ rarity }}</span></div>
+                <div class="face side right"><span>QUIZQUEST · {{ rarityLabel }}</span></div>
+                <div class="face side left"><span>QUIZQUEST · {{ rarityLabel }}</span></div>
                 <div class="face cap top"></div>
                 <div class="face cap bottom"></div>
               </div>

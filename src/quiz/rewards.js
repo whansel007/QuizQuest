@@ -124,10 +124,10 @@ function drawPet(rand = (n) => crypto.randomInt(n)) {
   return pool[rand(pool.length)];
 }
 
-// Pity counts reset on the corresponding prize: rare/epic resets hero pity;
-// only an epic resets 5-star pity. The 10-pull guarantee uses the normal
-// 3:1 rare-to-epic ratio among heroes.
-function drawHeroSummon(pity, rand = (n) => crypto.randomInt(n)) {
+// Pity counts reset on the corresponding prize: any hero resets hero pity;
+// only a 5-star resets 5-star pity. Fresh heroes are preferred within a
+// rarity until that pool is complete, then duplicates use rarity refunds.
+function drawHeroSummon(pity, rand = (n) => crypto.randomInt(n), ownedHeroes = []) {
   const odds = HERO_SUMMON.odds;
   const next = {
     totalPulls: pity.totalPulls + 1,
@@ -136,7 +136,7 @@ function drawHeroSummon(pity, rand = (n) => crypto.randomInt(n)) {
   };
   let rarity;
   if (next.sinceEpic >= HERO_SUMMON.epicPityPulls) rarity = 'epic';
-  else if (next.sinceHero >= HERO_SUMMON.heroPityPulls) rarity = rand(4) === 0 ? 'epic' : 'rare';
+  else if (next.sinceHero >= HERO_SUMMON.heroPityPulls) rarity = rand(odds.rare + odds.epic) < odds.epic ? 'epic' : 'rare';
   else {
     const roll = rand(Object.values(odds).reduce((sum, weight) => sum + weight, 0));
     let cursor = roll;
@@ -149,7 +149,10 @@ function drawHeroSummon(pity, rand = (n) => crypto.randomInt(n)) {
   next.sinceHero = 0;
   if (rarity === 'epic') next.sinceEpic = 0;
   const pool = HERO_CATALOG.filter((hero) => hero.rarity === rarity);
-  const hero = pool[rand(pool.length)];
+  const owned = new Set(ownedHeroes);
+  const fresh = pool.filter((hero) => !owned.has(hero.id));
+  const rollPool = fresh.length ? fresh : pool;
+  const hero = rollPool[rand(rollPool.length)];
   return { prize: { kind: 'hero', rarity, hero: { ...hero } }, pity: next };
 }
 

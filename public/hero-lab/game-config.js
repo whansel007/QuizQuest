@@ -28,6 +28,264 @@ import { ELECTRO_STUN_PROJECTILE_SCALE, ELECTRO_STUN_RADIUS_SCALE, PARTICLE_CAP,
   BASE_CAMPFIRE_HP, SUMMON_BANNER_TITLE, SUMMON_BANNER_SUBTITLE, SUMMON_BANNER_ORDER,
   SUMMON_MULTI_DISCOUNT, SUMMON_SHOW_DETAILS } from '../../config/tuning.js';
 
+// Shared crowd-control tuning. These named values are used by server-side
+// monster effects and by the client renderer for their matching indicators.
+export const HOLD_REHOLD_IMMUNITY_MS = 1500;
+export const HELD_ENEMY_TINT = '#b9a8d8';
+export const SLOWED_ENEMY_TINT = '#74d9d0';
+export const PUSH_DEFAULT_DURATION_MS = 150;
+export const DUMMY_PUSH_MULTIPLIER = 1.5;
+export const DEBUG_PUSH_DISTANCE_PX = 120;
+export const DEBUG_PUSH_DURATION_MS = 300;
+export const DEBUG_STATUS_DURATION_MS = 2000;
+export const DEBUG_SLOW_PCT = 0.3;
+export const HOLD_SWIRL_RADIUS_PX = 7;
+export const HOLD_SWIRL_Y_OFFSET_PX = 34;
+export const HOLD_SWIRL_LINE_WIDTH = 2;
+export const HOLD_SWIRL_SPRITE_SIZE = 32;
+
+// Fairy combat tuning. These values are shared by server hitboxes and effects.
+export const FAIRY_FX_PRIMARY = '#FF8AD8';
+export const FAIRY_FX_SECONDARY = '#FFB3E0';
+export const VORTEX_EYE_COLOR = '#D94A9B';
+export const VORTEX_CORE_COLOR = '#05030F';
+export const FAIRY_WEAPON_COOLDOWN_MS = 350;
+export const FAIRY_SKILL_COOLDOWN_MS = 12000;
+export const FAIRY_ULTIMATE_COOLDOWN_MS = 40000;
+export const WIND_ARROW_SPEED = 650;
+export const WIND_ARROW_RANGE = 380;
+export const WIND_ARROW_DAMAGE_MULT = 0.7;
+export const WIND_ARROW_PIERCE_COUNT = 1;
+export const WIND_ARROW_PUSH_PX = 50;
+export const WIND_ARROW_PUSH_MS = 150;
+export const GALE_SPEED = 520;
+export const GALE_RANGE = 360;
+export const GALE_RADIUS = 150;
+export const GALE_DAMAGE_MULT = 0.4;
+export const GALE_PUSH_PX = 220;
+export const GALE_PUSH_MS = 300;
+export const CAMPFIRE_PUSH_ZONE_RADIUS = 250;
+export const VORTEX_SPEED = 450;
+export const VORTEX_RANGE = 420;
+export const VORTEX_RADIUS = 180;
+export const VORTEX_DURATION_S = 4;
+export const VORTEX_PULL_S = 0.4;
+export const VORTEX_LATE_PULL_MS = 120;
+export const VORTEX_DPS_MULT = 0.35;
+export const VORTEX_DAMAGE_TICK_MS = 250;
+export const VORTEX_PULL_SPEED_PX_S = 600;
+export const VORTEX_END_PUSH_PX = 18;
+export const VORTEX_END_PUSH_MS = 140;
+export const VORTEX_END_DAMAGE_MULT = 0;
+export const FAIRY_SLOW_PCT = 0.3;
+export const FAIRY_SLOW_DURATION_S = 2;
+export const VORTEX_CORE_RADIUS_PX = 34;
+export const VORTEX_DISK_TILT = 0.55;
+export const VORTEX_ZOOM_PULSE = true;
+export const VORTEX_POP_STILL_MS = 100;
+export const VORTEX_DEBRIS_POOL_SIZE = 16;
+export const VORTEX_DEBRIS_SPAWN_MS = 100;
+export const VORTEX_RIPPLE_INTERVAL_MS = 500;
+export const VORTEX_RIPPLE_DURATION_MS = 700;
+export const FAIRY_GALE_SHAKE_MULT = 0.3;
+export const VORTEX_GROUND_FILL = '#1A0B2E';
+export const VORTEX_FORMATION_FLASH_MS = 80;
+export const VORTEX_CORE_GROW_MS = 150;
+export const VORTEX_SHOCKWAVE_MS = 250;
+export const VORTEX_CORE_PULSE_HZ = 2;
+export const VORTEX_DISK_ROTATION_HZ = 0.6;
+export const VORTEX_DISK_OUTER_RADIUS_PX = 75;
+export const VORTEX_LENS_ARC_DEG = 120;
+export const VORTEX_COLLAPSE_MS = 400;
+export const VORTEX_FLASH_POP_MS = 120;
+export const VORTEX_POP_RING_MS = 180;
+export const VORTEX_POP_SPARK_COUNT = 10;
+export const VORTEX_ZOOM_SCALE = 1.03;
+export const VORTEX_ZOOM_DURATION_MS = 250;
+export const FAIRY_GALE_WIND_LINES = 4;
+export const FAIRY_ARROW_IMPACT_LINES = 3;
+export const FAIRY_ARROW_TRAIL_COUNT = 3;
+export const FAIRY_MUZZLE_PUFF_RADIUS_PX = 7;
+export const FAIRY_GALE_VFX_DURATION_MS = 420;
+export const FAIRY_WIND_IMPACT_MS = 260;
+
+// Engineer turret targeting and durability (Stage 1 systems).
+export const TURRET_HP = 150;
+export const TURRET_LIFETIME_S = 30;
+export const TURRET_LIFETIME_DECAY_PER_SECOND = TURRET_HP / TURRET_LIFETIME_S;
+export const TURRET_EXPIRY_WARNING_MS = 2000;
+export const TURRET_EXPLOSION_RADIUS = 120;
+export const TURRET_EXPLOSION_ENEMY_DAMAGE = 24;
+export const TURRET_EXPLOSION_HERO_DAMAGE = 10;
+export const TURRET_EXPLOSION_CAMPFIRE_DAMAGE = 12;
+export const TURRET_FIRE_RATE = 2.5;
+export const TURRET_TARGET_REEVAL_MS = 100;
+export const TURRET_TARGET_REEVAL_STAGGER_MS = 100;
+export const TURRET_PROJECTILE_POOL_MAX = 64;
+export const TURRET_BULLET_RADIUS_PX = 4;
+export const TURRET_MUZZLE_OFFSET_PX = 24;
+export const TURRET_DAMAGE_MULT = 0.5;
+export const TURRET_RANGE = 260;
+export const TURRET_BULLET_SPEED = 600;
+export const TURRET_TURN_RATE_DEG_S = 540;
+export const TURRET_FIRE_CONE_DEG = 8;
+export const TURRET_DEPLOY_S = 0.4;
+export const TURRET_RADIUS = 22;
+export const ENGINEER_TURRETS_TAUNT = true;
+export const TURRET_AGGRO_RADIUS = 220;
+export const TARGET_REEVAL_MS = 500;
+export const TARGET_LOCK_MS = 1500;
+// Engineer kit tuning; shared by the authoritative room and matching client visuals.
+export const ENGINEER_WRENCH_SPEED = 1200;
+export const ENGINEER_WRENCH_RANGE = 300;
+export const ENGINEER_WRENCH_DAMAGE_MULT = 0.9;
+export const ENGINEER_WRENCH_PUSH = 30;
+export const ENGINEER_WRENCH_PULL = 90;
+export const ENGINEER_WRENCH_PULL_MS = 260;
+export const ENGINEER_WRENCH_MAX_S = 2;
+export const ENGINEER_WRENCH_COOLDOWN_S = 0.35;
+export const ENGINEER_WRENCH_SPIN_RAD_S = Math.PI * 12;
+export const ENGINEER_WRENCH_CATCH_RADIUS = 24;
+export const ENGINEER_WRENCH_MARK_DURATION_MS = 8000;
+export const ENGINEER_WRENCH_RADIUS = 13;
+export const ENGINEER_PLACE_RANGE = 220;
+export const ENGINEER_SKILL_COOLDOWN_S = 18;
+export const ENGINEER_ULTIMATE_COOLDOWN_S = 40;
+export const ENGINEER_MAX_TURRETS = 2;
+export const TURRET_MIN_CAMPFIRE_DIST = 110;
+export const TURRET_MIN_SPACING = 60;
+export const ENGINEER_TURRET_SNAP_RADIUS = 60;
+export const ENGINEER_TURRET_SNAP_STEP = 10;
+export const ENGINEER_TURRET_SNAP_SLICES = 24;
+export const ENGINEER_LASER_CHARGE_S = 0.4;
+export const ENGINEER_LASER_LOCK_LAST_S = 0.1;
+export const ENGINEER_LASER_MOVE_FACTOR = 0.3;
+export const ENGINEER_LASER_LENGTH = 900;
+export const ENGINEER_LASER_WIDTH = 70;
+export const ENGINEER_LASER_DURATION_S = 0.25;
+export const ENGINEER_LASER_DAMAGE_MULT = 6;
+// Ranger Charge Bow, Meat and Wolf, and Dead Aim tuning.
+export const RANGER_CHARGE_MIN_S = 0.15;
+export const RANGER_CHARGE_MAX_S = 0.9;
+export const RANGER_PIERCE_T = 0.6;
+export const RANGER_CHARGE_MOVE_MULT = 0.6;
+export const RANGER_CHARGE_DAMAGE_MIN = 0.5;
+export const RANGER_CHARGE_DAMAGE_MAX = 2.5;
+export const RANGER_CHARGE_RANGE_MIN = 320;
+export const RANGER_CHARGE_RANGE_MAX = 560;
+export const RANGER_CHARGE_SPEED_MIN = 600;
+export const RANGER_CHARGE_SPEED_MAX = 1000;
+export const RANGER_CHARGE_KNOCKBACK_MIN = 20;
+export const RANGER_CHARGE_KNOCKBACK_MAX = 60;
+export const RANGER_CHARGE_ARROW_RADIUS = 7;
+export const RANGER_ULT_SPEED = 1400;
+export const RANGER_ULT_RANGE = 700;
+export const RANGER_ULT_KNOCKBACK = 40;
+export const RANGER_MEAT_RANGE = 300;
+export const RANGER_MEAT_THROW_S = 0.4;
+export const RANGER_MEAT_SNAP_RADIUS = 60;
+export const RANGER_MEAT_SNAP_STEP = 10;
+export const RANGER_MEAT_SNAP_SLICES = 24;
+export const RANGER_WOLF_ARRIVE_S = 0.6;
+export const RANGER_WOLF_HP = 100;
+export const RANGER_WOLF_DURATION_S = 8;
+export const RANGER_WOLF_BITE_MULT = 0.6;
+export const RANGER_WOLF_BITE_RATE = 1.5;
+export const RANGER_WOLF_SPEED = 260;
+export const RANGER_WOLF_BITE_RANGE = 30;
+export const RANGER_WOLF_RADIUS = 18;
+export const RANGER_WOLF_EDGE_OFFSET = 20;
+export const RANGER_WOLF_SCAN = 180;
+export const RANGER_WOLF_LEASH = 220;
+export const RANGER_WOLF_TAUNT_RADIUS = 150;
+export const RANGER_WOLF_TAUNTS = true;
+export const RANGER_MARK_BONUS = 0.30;
+export const RANGER_MARK_DURATION_S = 4;
+export const RANGER_MARK_KILL_REFUND_FRACTION = 0.25;
+export const RANGER_ULT_ARROWS = 3;
+export const RANGER_ULT_WINDOW_S = 10;
+export const RANGER_ULT_FIRE_INTERVAL_S = 0.5;
+export const RANGER_ULT_MULT = 7.0;
+export const RANGER_ULT_ARROW_RADIUS = 8;
+export const RANGER_ULT_EXPLOSION_RADIUS = 78;
+export const RANGER_ULT_EXPLOSION_MULT = 2;
+export const RANGER_FX_PRIMARY = '#F0DDA0';
+export const RANGER_FX_SECONDARY = '#8BE04E';
+export const RANGER_FX_ACCENT = '#B07A4A';
+export const RANGER_FAIL_FREQUENCY = 165;
+export const RANGER_FAIL_SLIDE_TO = 115;
+export const RANGER_FAIL_DURATION_MS = 100;
+export const RANGER_FAIL_GAIN = 0.06;
+export const RANGER_FEEDBACK = Object.freeze({
+  creakIntervalMs: 260, drawBowBasePx: 12, drawBowBendPx: 20, drawBowHalfHeightPx: 22,
+  aimLineWidthMinPx: 1, aimLineWidthMaxPx: 4, chargeRingRadiusPx: 15, chargeFullFlashMs: 120,
+  meatArcHeightPx: 48, meatGroundMs: 600, wolfFadeInMs: 600, wolfTimerBarWidthPx: 40, wolfTimerBarHeightPx: 6,
+  wolfTimerRadiusPx: 24, markIconPx: 14, markDrawCap: 20, deadAimPipCount: 3,
+  deadAimStreakMs: 70, deadAimMuzzleMs: 110, deadAimImpactLeaves: 6,
+});
+export const RANGER_SOUND_PROFILES = Object.freeze({
+  rangerCreak: { frequency: 260, slideTo: 430, durationMs: 150, gain: 0.035, type: 'sawtooth', minIntervalMs: 240 },
+  rangerFullCharge: { frequency: 1120, slideTo: 1460, durationMs: 95, gain: 0.07, type: 'sine', minIntervalMs: 100 },
+  rangerTwang: { frequency: 340, slideTo: 145, durationMs: 155, gain: 0.1, type: 'triangle', minIntervalMs: 45 },
+  rangerChunk: { frequency: 190, slideTo: 520, durationMs: 150, gain: 0.11, type: 'triangle', minIntervalMs: 80 },
+  rangerThock: { frequency: 150, slideTo: 68, durationMs: 220, gain: 0.16, type: 'sawtooth', minIntervalMs: 120 },
+  rangerMeatLand: { frequency: 130, slideTo: 74, durationMs: 125, gain: 0.07, type: 'triangle', minIntervalMs: 80 },
+  rangerWolfHowl: { frequency: 290, slideTo: 120, durationMs: 360, gain: 0.045, type: 'sawtooth', minIntervalMs: 500 },
+  rangerWolfLeave: { frequency: 240, slideTo: 105, durationMs: 180, gain: 0.04, type: 'triangle', minIntervalMs: 120 },
+  rangerWolfBite: { frequency: 360, slideTo: 190, durationMs: 90, gain: 0.04, type: 'triangle', minIntervalMs: 100 },
+});
+export const ENGINEER_KILL_HEAL_PCT = 0.05;
+export const ENGINEER_KILL_TURRET_LIFETIME_BONUS_MS = 1500;
+export const ENGINEER_SALVAGE_POPUP_MS = 850;
+// Samurai combat tuning. Server hit checks and their client visuals share these values.
+export const SAMURAI_WEAPON_COOLDOWN_S = 0.3;
+export const SAMURAI_SKILL_COOLDOWN_S = 7;
+export const SAMURAI_ULTIMATE_COOLDOWN_S = 30;
+export const SAMURAI_SHURIKEN_SPEED = 750;
+export const SAMURAI_SHURIKEN_RANGE = 320;
+export const SAMURAI_SHURIKEN_DAMAGE_MULT = 0.8;
+export const SAMURAI_SHURIKEN_KNOCKBACK_PX = 15;
+export const SAMURAI_SHURIKEN_SIZE_PX = 32;
+export const SAMURAI_SHURIKEN_SPIN_RAD_S = 12;
+export const SAMURAI_DASH_DISTANCE = 260;
+export const SAMURAI_DASH_DURATION_S = 0.18;
+export const SAMURAI_DASH_WIDTH = 60;
+export const SAMURAI_DASH_MULT = 1.2;
+export const SAMURAI_EXECUTE_HP_PCT = 0.5;
+export const SAMURAI_EXECUTE_MULT = 2.4;
+export const SAMURAI_STACK_CAP = 20;
+export const SAMURAI_STACK_DECAY_DELAY_S = 4;
+export const SAMURAI_STACK_DECAY_INTERVAL_S = 2;
+export const SAMURAI_STACK_DIVISOR = 5;
+export const SAMURAI_MULT_MIN = 0.5;
+export const SAMURAI_MULT_MAX = 4.0;
+export const SAMURAI_ULT_DASH_DISTANCE = 480;
+export const SAMURAI_ULT_DASH_DURATION_S = 0.25;
+export const SAMURAI_CUT_DELAY_S = 0.3;
+export const SAMURAI_CUT_PAD = 50;
+export const SAMURAI_CUT_WIDTH = 110;
+export const SAMURAI_ULT_BASE_MULT = 5.0;
+export const SAMURAI_FX_PRIMARY = '#8F7CFF';
+export const SAMURAI_FX_SECONDARY = '#FFFFFF';
+export const SAMURAI_FX_ACCENT = '#FFD27A';
+export const SAMURAI_DASH_AFTERIMAGE_MS = 200;
+export const SAMURAI_HIT_MARK_MS = 120;
+export const SAMURAI_SLASH_GROW_MS = 80;
+export const SAMURAI_SLASH_FADE_MS = 220;
+export const SAMURAI_EXECUTE_LABEL_MS = 850;
+export const SAMURAI_CUT_OVERLAY_MS = 120;
+export const TURRET_VISUALS = Object.freeze({ body: null, barrel: null, bodySize: { w: 44, h: 32 }, barrelPivot: { x: 22, y: 14 },
+  barrelLength: 26, recoilPx: 3, recoilMs: 80, muzzleFlashMs: 60, muzzleFlashRadiusPx: 5, barWidth: 40,
+  hpBarHeight: 5, barOffsetY: 22,
+  idleSwayAmplitudeRad: 0.035, idleSwaySpeed: 0.002, deployDustCount: 5, destroyDebrisCount: 6 });
+export const VORTEX_GROUND_RING_WIDTH_PX = 4;
+export const VORTEX_GROUND_DASH_ON_PX = 14;
+export const VORTEX_GROUND_DASH_OFF_PX = 10;
+export const VORTEX_GROUND_FILL_ALPHA = 0.28;
+export const VORTEX_SUSTAIN_FADE_MS = 200;
+export const VORTEX_DEBRIS_LIFETIME_MS = 900;
+export const VORTEX_POP_STILL_CORE_PX = 12;
+
 // The only buff cards the Tower scales. Extend this list (one line) to make the
 // Tower scale another stat card later. The campfire card and all rare effect
 // cards are deliberately excluded.
@@ -43,7 +301,13 @@ export const HERO_FX_COLORS = Object.freeze({
   // toward the primary hue so the orb reads as one colour instead of a
   // purple halo around a cool white dot.
   electromancer: { primary: '#b17cff', highlight: '#e4d2ff', core: '#f7f2ff' },
+  fairy: { primary: FAIRY_FX_PRIMARY, highlight: '#fff0fa' },
+  engineer: { primary: '#FF9F1C', highlight: '#FFD27A' },
+  ranger: { primary: RANGER_FX_PRIMARY, highlight: '#FFF2CC' },
+  samurai: { primary: SAMURAI_FX_PRIMARY, highlight: SAMURAI_FX_ACCENT },
 });
+export const HERO_FX_SECONDARY = Object.freeze({ fairy: FAIRY_FX_SECONDARY, engineer: '#9AA7B8', samurai: SAMURAI_FX_SECONDARY, ranger: RANGER_FX_SECONDARY });
+export const HERO_FX_ACCENT = Object.freeze({ samurai: SAMURAI_FX_ACCENT, ranger: RANGER_FX_ACCENT });
 
 // Ability button icons: the single source of truth for the HUD ability
 // clusters, the World-page hero preview and the Settings icon-credits entry.
@@ -91,6 +355,30 @@ export const ABILITY_ICONS = Object.freeze({
     ultimate: 'assets/icons/electromancer-ultimate.svg',
     talent: 'assets/icons/electromancer-talent.svg',
   }),
+  fairy: Object.freeze({
+    primary: 'assets/icons/fairy-primary.svg',
+    skill: 'assets/icons/fairy-skill.svg',
+    ultimate: 'assets/icons/fairy-ultimate.svg',
+    talent: 'assets/icons/fairy-talent.svg',
+  }),
+  engineer: Object.freeze({
+    primary: 'assets/icons/engineer-primary.svg',
+    skill: 'assets/icons/engineer-skill.svg',
+    ultimate: 'assets/icons/engineer-ultimate.svg',
+    talent: 'assets/icons/engineer-talent.svg',
+  }),
+  samurai: Object.freeze({
+    primary: 'assets/icons/samurai-primary.svg',
+    skill: 'assets/icons/samurai-skill.svg',
+    ultimate: 'assets/icons/samurai-ultimate.svg',
+    talent: 'assets/icons/samurai-talent.svg',
+  }),
+  ranger: Object.freeze({
+    primary: 'assets/icons/ranger-primary.svg',
+    skill: 'assets/icons/ranger-skill.svg',
+    ultimate: 'assets/icons/ranger-ultimate.svg',
+    talent: 'assets/icons/ranger-talent.svg',
+  }),
 });
 
 // Slots that sit on the amber highlight colour family instead of the hero's
@@ -102,6 +390,10 @@ export const ABILITY_BTN_HIGHLIGHT = Object.freeze({
   bombardier: Object.freeze(['primary']),
   bubbles: Object.freeze(['skill']),
   electromancer: Object.freeze(['ultimate']),
+  fairy: Object.freeze(['ultimate']),
+  engineer: Object.freeze(['skill']),
+  samurai: Object.freeze(['ultimate']),
+  ranger: Object.freeze(['skill']),
 });
 
 // While Pilot's Mech Suit is up the weapon slot shows the mech punch and moves
@@ -126,10 +418,22 @@ export const ARENA_TUNING = Object.freeze({
     shotPitchVariance: 0.08, maxVoices: 6, killSemitonePerStep: 1, maxKillPitchSteps: 8, heartbeatIntervalMs: 650, defaultMasterVolume: 0.55,
     profiles: {
       shoot: { frequency: 500, durationMs: 55, gain: 0.08, type: 'square' }, hit: { frequency: 180, durationMs: 70, gain: 0.09, type: 'triangle', minIntervalMs: HIT_SOUND_MIN_INTERVAL_MS },
+      turretDeploy: { frequency: 420, slideTo: 680, durationMs: 130, gain: 0.09, type: 'triangle' },
+      turretDestroy: { frequency: 180, slideTo: 65, durationMs: 280, gain: 0.16, type: 'triangle' },
+      engineerWrenchCatch: { frequency: 980, slideTo: 360, durationMs: 110, gain: 0.12, type: 'triangle' },
+      engineerCharge: { frequency: 360, durationMs: 1, gain: 0.028, type: 'sine' },
+      engineerLaser: { frequency: 210, slideTo: 58, durationMs: 420, gain: 0.2, type: 'sawtooth' },
       kill: { frequency: 580, durationMs: 150, gain: 0.12, type: 'sine', minIntervalMs: KILL_SOUND_MIN_INTERVAL_MS }, pickup: { frequency: 900, durationMs: 180, gain: 0.1, type: 'sine' },
       abilityReady: { frequency: 760, durationMs: 110, gain: 0.08, type: 'sine' }, ultimateReady: { frequency: 990, durationMs: 220, gain: 0.1, type: 'sine' },
       dynamiteReady: SHERIFF_READY_SOUND,
       ultimateCast: { frequency: 360, durationMs: 300, gain: 0.12, type: 'sawtooth' }, explosion: { frequency: 95, durationMs: 260, gain: 0.18, type: 'triangle' },
+      fairyWhoosh: { frequency: 720, slideTo: 260, durationMs: 360, gain: 0.07, type: 'sine', minIntervalMs: 100 },
+      rangerFail: { frequency: RANGER_FAIL_FREQUENCY, slideTo: RANGER_FAIL_SLIDE_TO,
+        durationMs: RANGER_FAIL_DURATION_MS, gain: RANGER_FAIL_GAIN, type: 'triangle' },
+      ...RANGER_SOUND_PROFILES,
+      fairyTravel: { frequency: 240, durationMs: 1, gain: 0.018, type: 'sine' },
+      fairyHum: { frequency: 54, durationMs: 1, gain: 0.035, type: 'sine' },
+      fairyPoof: { frequency: 420, slideTo: 110, durationMs: 320, gain: 0.1, type: 'triangle', minIntervalMs: 160 },
       campfireDamaged: { frequency: 125, durationMs: 220, gain: 0.14, type: 'sawtooth' }, heroDowned: { frequency: 110, durationMs: 420, gain: 0.16, type: 'sawtooth' },
       heroRespawn: { frequency: 520, durationMs: 340, gain: 0.12, type: 'sine' }, waveStart: { frequency: 660, durationMs: 320, gain: 0.12, type: 'sine' },
       waveEnd: { frequency: 880, durationMs: 480, gain: 0.12, type: 'sine' }, cardPick: { frequency: 740, durationMs: 170, gain: 0.1, type: 'triangle' },
@@ -223,7 +527,29 @@ export const ARENA_TUNING = Object.freeze({
 });
 
 export const GAME_CONFIG = Object.freeze({
+  turret: Object.freeze({ hp: TURRET_HP, lifetimeMs: TURRET_LIFETIME_S * 1000,
+    decayPerSecond: TURRET_LIFETIME_DECAY_PER_SECOND, expiryWarningMs: TURRET_EXPIRY_WARNING_MS,
+    expiry: Object.freeze({ radius: TURRET_EXPLOSION_RADIUS, enemyDamage: TURRET_EXPLOSION_ENEMY_DAMAGE,
+      heroDamage: TURRET_EXPLOSION_HERO_DAMAGE, campfireDamage: TURRET_EXPLOSION_CAMPFIRE_DAMAGE }),
+    fireRate: TURRET_FIRE_RATE,
+    damageMultiplier: TURRET_DAMAGE_MULT, range: TURRET_RANGE, bulletSpeed: TURRET_BULLET_SPEED,
+    turnRateDegS: TURRET_TURN_RATE_DEG_S, fireConeDeg: TURRET_FIRE_CONE_DEG, deployMs: TURRET_DEPLOY_S * 1000,
+    radius: TURRET_RADIUS, taunt: ENGINEER_TURRETS_TAUNT, aggroRadius: TURRET_AGGRO_RADIUS,
+    targetReevalMs: TARGET_REEVAL_MS, targetReevalStaggerMs: TURRET_TARGET_REEVAL_STAGGER_MS,
+    targetLockMs: TARGET_LOCK_MS, fireTargetReevalMs: TURRET_TARGET_REEVAL_MS,
+    projectilePoolMax: TURRET_PROJECTILE_POOL_MAX, bulletRadius: TURRET_BULLET_RADIUS_PX, muzzleOffset: TURRET_MUZZLE_OFFSET_PX,
+    visuals: TURRET_VISUALS }),
   heroFxColors: HERO_FX_COLORS,
+  heroFxSecondary: HERO_FX_SECONDARY,
+  heroFxAccent: HERO_FX_ACCENT,
+  vortexColors: Object.freeze({ eye: VORTEX_EYE_COLOR, core: VORTEX_CORE_COLOR }),
+  effects: { holdReholdImmunityMs: HOLD_REHOLD_IMMUNITY_MS,
+    heldEnemyTint: HELD_ENEMY_TINT, slowedEnemyTint: SLOWED_ENEMY_TINT,
+    pushDefaultDurationMs: PUSH_DEFAULT_DURATION_MS, dummyPushMultiplier: DUMMY_PUSH_MULTIPLIER,
+    debugPushDistancePx: DEBUG_PUSH_DISTANCE_PX, debugPushDurationMs: DEBUG_PUSH_DURATION_MS,
+    debugStatusDurationMs: DEBUG_STATUS_DURATION_MS, debugSlowPct: DEBUG_SLOW_PCT,
+    holdSwirlRadiusPx: HOLD_SWIRL_RADIUS_PX, holdSwirlYOffsetPx: HOLD_SWIRL_Y_OFFSET_PX,
+    holdSwirlLineWidth: HOLD_SWIRL_LINE_WIDTH, holdSwirlSpriteSize: HOLD_SWIRL_SPRITE_SIZE },
   arenaTuning: ARENA_TUNING,
   arena: { width: 1920, height: 1080, playerRadius: 24, tickHz: 30 },
   heroDefaults: { hp: 100, attack: 10, defense: 5, speed: 220 },
@@ -274,13 +600,14 @@ export const GAME_CONFIG = Object.freeze({
   towerScaledCards: TOWER_SCALED_CARDS,
   heroSummon: {
     pullCost: 50,
-    duplicateRefundFraction: 1,
+    duplicateRefundFraction: { rare: 0.3, epic: 0.6 },
     commonResourceAmount: 5,
-    odds: { common: 600, rare: 300, epic: 100 },
-    heroPityPulls: 10,
-    epicPityPulls: 50,
+    welcomeGiftCoins: 500,
+    odds: { common: 620, rare: 300, epic: 80 },
+    heroPityPulls: 5,
+    epicPityPulls: 20,
     starterHero: 'sheriff',
-    rarities: { sheriff: 'rare', guardian: 'rare', bubbles: 'rare', electromancer: 'rare', pilot: 'epic', bombardier: 'epic' },
+    rarities: { sheriff: 'rare', guardian: 'rare', bubbles: 'rare', electromancer: 'rare', samurai: 'rare', ranger: 'rare', pilot: 'epic', bombardier: 'epic', fairy: 'epic', engineer: 'epic' },
     bannerTitle: SUMMON_BANNER_TITLE,
     bannerSubtitle: SUMMON_BANNER_SUBTITLE,
     bannerOrder: SUMMON_BANNER_ORDER,
@@ -407,6 +734,101 @@ export const GAME_CONFIG = Object.freeze({
       ball: { speed: 570, radius: 18, lifetimeMs: 2400, pierces: 2, shape: 'orb' },
       stunBall: { speed: 440, radius: 10 * ELECTRO_STUN_PROJECTILE_SCALE, lifetimeMs: 2300, areaRadius: 80 * ELECTRO_STUN_RADIUS_SCALE, damageMultiplier: 0.7, stunMs: 1900, emoji: '⚡' },
       chain: { damageMultiplier: 1.4, range: 220, jumpDelayMs: 260 },
+    },
+    fairy: {
+      type: 'magic', hp: 85, attack: 14, defense: 2, speed: 235,
+      weaponCooldownMs: FAIRY_WEAPON_COOLDOWN_MS,
+      skillCooldownMs: FAIRY_SKILL_COOLDOWN_MS,
+      ultimateCooldownMs: FAIRY_ULTIMATE_COOLDOWN_MS,
+      talent: {
+        name: 'Windswept',
+        icon: ABILITY_ICONS.fairy.talent,
+        description: `Enemies you push or pull are slowed ${Math.round(FAIRY_SLOW_PCT * 100)}% for ${FAIRY_SLOW_DURATION_S} s.`,
+        linkedSlot: ['skill', 'ultimate'],
+      },
+      campfirePushZoneRadius: CAMPFIRE_PUSH_ZONE_RADIUS,
+      windArrow: { speed: WIND_ARROW_SPEED, range: WIND_ARROW_RANGE, damageMultiplier: WIND_ARROW_DAMAGE_MULT, pierces: WIND_ARROW_PIERCE_COUNT, pushPx: WIND_ARROW_PUSH_PX, pushMs: WIND_ARROW_PUSH_MS },
+      gale: { speed: GALE_SPEED, range: GALE_RANGE, radius: GALE_RADIUS, damageMultiplier: GALE_DAMAGE_MULT, pushPx: GALE_PUSH_PX, pushMs: GALE_PUSH_MS, visualDurationMs: FAIRY_GALE_VFX_DURATION_MS },
+      vortex: { speed: VORTEX_SPEED, range: VORTEX_RANGE, radius: VORTEX_RADIUS, durationMs: VORTEX_DURATION_S * 1000, pullMs: VORTEX_PULL_S * 1000, latePullMs: VORTEX_LATE_PULL_MS, pullSpeedPxPerSecond: VORTEX_PULL_SPEED_PX_S, damageTickMs: VORTEX_DAMAGE_TICK_MS, dpsMultiplier: VORTEX_DPS_MULT, endPushPx: VORTEX_END_PUSH_PX, endPushMs: VORTEX_END_PUSH_MS, endDamageMultiplier: VORTEX_END_DAMAGE_MULT },
+      windswept: { slowPct: FAIRY_SLOW_PCT, durationMs: FAIRY_SLOW_DURATION_S * 1000 },
+    },
+    engineer: {
+      type: 'physical', hp: 120, attack: 14, defense: 6, speed: 210,
+      weaponCooldownMs: ENGINEER_WRENCH_COOLDOWN_S * 1000,
+      skillCooldownMs: ENGINEER_SKILL_COOLDOWN_S * 1000, ultimateCooldownMs: ENGINEER_ULTIMATE_COOLDOWN_S * 1000,
+      talent: {
+        name: 'Refueling', icon: ABILITY_ICONS.engineer.talent,
+        description: `Your kills refuel each living turret, restoring ${ENGINEER_KILL_HEAL_PCT * 100}% max HP and extending its life by ${ENGINEER_KILL_TURRET_LIFETIME_BONUS_MS / 1000} s. Wrench hits mark enemies for ${ENGINEER_WRENCH_MARK_DURATION_MS / 1000} s, making your turret deal double damage to them and letting it trigger Refueling when it kills them.`,
+        linkedSlot: ['skill'],
+      },
+      wrench: { speed: ENGINEER_WRENCH_SPEED, range: ENGINEER_WRENCH_RANGE, damageMultiplier: ENGINEER_WRENCH_DAMAGE_MULT,
+        push: ENGINEER_WRENCH_PUSH, pull: ENGINEER_WRENCH_PULL, pullMs: ENGINEER_WRENCH_PULL_MS,
+        maxMs: ENGINEER_WRENCH_MAX_S * 1000, catchRadius: ENGINEER_WRENCH_CATCH_RADIUS, markDurationMs: ENGINEER_WRENCH_MARK_DURATION_MS,
+        radius: ENGINEER_WRENCH_RADIUS, spinRadPerSecond: ENGINEER_WRENCH_SPIN_RAD_S },
+      turretSkill: { placeRange: ENGINEER_PLACE_RANGE, maxTurrets: ENGINEER_MAX_TURRETS,
+        minCampfireDist: TURRET_MIN_CAMPFIRE_DIST, minSpacing: TURRET_MIN_SPACING, snapRadius: ENGINEER_TURRET_SNAP_RADIUS,
+        snapStep: ENGINEER_TURRET_SNAP_STEP, snapSlices: ENGINEER_TURRET_SNAP_SLICES },
+      laser: { chargeMs: ENGINEER_LASER_CHARGE_S * 1000, length: ENGINEER_LASER_LENGTH, width: ENGINEER_LASER_WIDTH,
+        durationMs: ENGINEER_LASER_DURATION_S * 1000, damageMultiplier: ENGINEER_LASER_DAMAGE_MULT,
+        lockLastMs: ENGINEER_LASER_LOCK_LAST_S * 1000, moveFactor: ENGINEER_LASER_MOVE_FACTOR },
+      salvage: { healPct: ENGINEER_KILL_HEAL_PCT, lifetimeBonusMs: ENGINEER_KILL_TURRET_LIFETIME_BONUS_MS,
+        popupMs: ENGINEER_SALVAGE_POPUP_MS },
+    },
+    ranger: {
+      type: 'magic', hp: 90, attack: 18, defense: 3, speed: 215,
+      weaponCooldownMs: 250, skillCooldownMs: 14000, ultimateCooldownMs: 40000,
+      talent: {
+        name: 'Pack Hunter', icon: '🐾',
+        description: `Enemies the wolf bites take ${RANGER_MARK_BONUS * 100}% more damage from your arrows for ${RANGER_MARK_DURATION_S} s. Killing a marked enemy refunds ${RANGER_MARK_KILL_REFUND_FRACTION * 100}% of the wolf skill cooldown.`,
+        linkedSlot: ['skill'],
+      },
+      ranger: { chargeMinS: RANGER_CHARGE_MIN_S, chargeMaxS: RANGER_CHARGE_MAX_S,
+        damageMin: RANGER_CHARGE_DAMAGE_MIN, damageMax: RANGER_CHARGE_DAMAGE_MAX,
+        rangeMin: RANGER_CHARGE_RANGE_MIN, rangeMax: RANGER_CHARGE_RANGE_MAX,
+        speedMin: RANGER_CHARGE_SPEED_MIN, speedMax: RANGER_CHARGE_SPEED_MAX,
+        knockbackMin: RANGER_CHARGE_KNOCKBACK_MIN, knockbackMax: RANGER_CHARGE_KNOCKBACK_MAX,
+        arrowRadius: RANGER_CHARGE_ARROW_RADIUS,
+        pierceT: RANGER_PIERCE_T, chargeMoveMult: RANGER_CHARGE_MOVE_MULT,
+        meatRange: RANGER_MEAT_RANGE, wolfArriveS: RANGER_WOLF_ARRIVE_S,
+        meatThrowS: RANGER_MEAT_THROW_S, meatSnapRadius: RANGER_MEAT_SNAP_RADIUS,
+        meatSnapStep: RANGER_MEAT_SNAP_STEP, meatSnapSlices: RANGER_MEAT_SNAP_SLICES,
+        wolfHp: RANGER_WOLF_HP, wolfDurationS: RANGER_WOLF_DURATION_S,
+        wolfBiteMultiplier: RANGER_WOLF_BITE_MULT, wolfBiteRate: RANGER_WOLF_BITE_RATE,
+        wolfSpeed: RANGER_WOLF_SPEED, wolfBiteRange: RANGER_WOLF_BITE_RANGE, wolfRadius: RANGER_WOLF_RADIUS,
+        wolfEdgeOffset: RANGER_WOLF_EDGE_OFFSET,
+        wolfScan: RANGER_WOLF_SCAN,
+        wolfLeash: RANGER_WOLF_LEASH, wolfTauntRadius: RANGER_WOLF_TAUNT_RADIUS,
+        wolfTaunts: RANGER_WOLF_TAUNTS, markBonus: RANGER_MARK_BONUS,
+        markDurationS: RANGER_MARK_DURATION_S, markKillRefundFraction: RANGER_MARK_KILL_REFUND_FRACTION,
+        ultArrows: RANGER_ULT_ARROWS,
+        ultWindowS: RANGER_ULT_WINDOW_S, ultFireIntervalS: RANGER_ULT_FIRE_INTERVAL_S,
+        ultMultiplier: RANGER_ULT_MULT, ultArrowRadius: RANGER_ULT_ARROW_RADIUS,
+        ultExplosionRadius: RANGER_ULT_EXPLOSION_RADIUS, ultExplosionMultiplier: RANGER_ULT_EXPLOSION_MULT,
+        feedback: RANGER_FEEDBACK,
+        ultSpeed: RANGER_ULT_SPEED, ultRange: RANGER_ULT_RANGE, ultKnockback: RANGER_ULT_KNOCKBACK },
+    },
+    samurai: {
+      type: 'physical', hp: 100, attack: 16, defense: 4, speed: 235,
+      weaponCooldownMs: SAMURAI_WEAPON_COOLDOWN_S * 1000,
+      skillCooldownMs: SAMURAI_SKILL_COOLDOWN_S * 1000,
+      ultimateCooldownMs: SAMURAI_ULTIMATE_COOLDOWN_S * 1000,
+      talent: {
+        name: 'Kill Count', icon: ABILITY_ICONS.samurai.talent,
+        description: `Kills grant +1 stack (max ${SAMURAI_STACK_CAP}); after ${SAMURAI_STACK_DECAY_DELAY_S} s without a kill, lose 1 every ${SAMURAI_STACK_DECAY_INTERVAL_S} s. Ultimate damage multiplier scales from ${SAMURAI_MULT_MIN}x to ${SAMURAI_MULT_MAX}x.`,
+        linkedSlot: ['ultimate'],
+      },
+      shuriken: { speed: SAMURAI_SHURIKEN_SPEED, range: SAMURAI_SHURIKEN_RANGE,
+        damageMultiplier: SAMURAI_SHURIKEN_DAMAGE_MULT, knockback: SAMURAI_SHURIKEN_KNOCKBACK_PX,
+        size: SAMURAI_SHURIKEN_SIZE_PX, spinRadPerSecond: SAMURAI_SHURIKEN_SPIN_RAD_S },
+      cuttingDash: { distance: SAMURAI_DASH_DISTANCE, durationMs: SAMURAI_DASH_DURATION_S * 1000,
+        width: SAMURAI_DASH_WIDTH, damageMultiplier: SAMURAI_DASH_MULT,
+        executeHpPct: SAMURAI_EXECUTE_HP_PCT, executeMultiplier: SAMURAI_EXECUTE_MULT },
+      afterimageCut: { distance: SAMURAI_ULT_DASH_DISTANCE, durationMs: SAMURAI_ULT_DASH_DURATION_S * 1000,
+        cutDelayMs: SAMURAI_CUT_DELAY_S * 1000, pad: SAMURAI_CUT_PAD, width: SAMURAI_CUT_WIDTH,
+        baseDamageMultiplier: SAMURAI_ULT_BASE_MULT },
+      killCount: { cap: SAMURAI_STACK_CAP, decayDelayMs: SAMURAI_STACK_DECAY_DELAY_S * 1000,
+        decayIntervalMs: SAMURAI_STACK_DECAY_INTERVAL_S * 1000, divisor: SAMURAI_STACK_DIVISOR,
+        minMultiplier: SAMURAI_MULT_MIN, maxMultiplier: SAMURAI_MULT_MAX },
     },
   },
   hud: { physical: '#48a8ff', magic: '#b17cff' },

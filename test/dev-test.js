@@ -1,6 +1,6 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { availableApiPort, hasSeededDemoAccounts } = require('../scripts/dev');
+const { availableApiPort, hasSeededDemoAccounts, supportsCurrentHeroLab } = require('../scripts/dev');
 
 test('the local launcher moves the API to the next available port', async () => {
   const checked = [];
@@ -23,4 +23,9 @@ test('the local launcher only reuses an API that serves the seeded test account'
   assert.equal(hasSeededDemoAccounts([{ id: 's-01', email: 'student01@quizquest.demo' }]), true);
   assert.equal(hasSeededDemoAccounts([{ id: 's-01', email: 'real@example.org' }]), false);
   assert.equal(hasSeededDemoAccounts([]), false);
+});
+
+test('the local launcher rejects an API that cannot accept the current hero roster', () => {
+  assert.equal(supportsCurrentHeroLab({ heroLabHeroes: ['sheriff', 'fairy'] }), false);
+  assert.equal(supportsCurrentHeroLab({ heroLabHeroes: ['sheriff', 'fairy', 'engineer'] }), true);
 });
