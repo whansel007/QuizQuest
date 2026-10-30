@@ -50,7 +50,12 @@ test("clicking a student in the roster offers the professor's other classes in a
   await expect(page.getByText('Added Dropdown Pick to Computing - Tutorial Group A.')).toBeVisible();
 
   await page.getByRole('button', { name: 'Manage Roster & Codes →' }).first().click();
-  await page.getByRole('button', { name: /^Dropdown Pick/ }).click();
+  // The roster keeps the students from earlier attempts: a CI retry replays
+  // the test against the same server and the same data, so the student of the
+  // attempt before is still in Group A. The email is unique, the name is
+  // not, so the row is picked by its email.
+  const row = page.getByRole('row').filter({ hasText: email });
+  await row.getByRole('button', { name: /^Dropdown Pick/ }).click();
   const form = page.getByRole('form', { name: 'Add Dropdown Pick to another class' });
   // Group A is already theirs, so only Group C is offered
   await expect(form.getByRole('option', { name: 'Computing - Tutorial Group A' })).toHaveCount(0);

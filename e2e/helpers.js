@@ -21,7 +21,18 @@ export async function signIn(page, { email, password = PASSWORD }) {
   await page.getByRole('button', { name: 'Continue' }).click();
   await page.locator('#login-password').fill(password);
   await page.getByRole('button', { name: 'Sign in' }).click();
-  await expect(page.getByRole('button', { name: 'Log out' })).toBeVisible();
+  // Sometimes the request never reaches the server: the browser reuses a
+  // connection the server has just closed, and the sign-in comes back as
+  // "Could not reach the server". Nothing is half done at this point - no
+  // session, no data - so the sign-in is simply done again, which is what
+  // the app asks the user to do.
+  const signedIn = page.getByRole('button', { name: 'Log out' });
+  const offline = page.getByRole('alert').filter({ hasText: 'Could not reach the server' });
+  await expect(signedIn.or(offline).first()).toBeVisible();
+  if (await offline.isVisible()) {
+    await page.getByRole('button', { name: 'Sign in' }).click();
+  }
+  await expect(signedIn).toBeVisible();
 }
 
 export async function openTab(page, name) {
@@ -52,6 +63,50 @@ export async function answerCurrentQuestion(page) {
   else await options.first().click();
   if (await submit.count()) await submit.click();
   await expect(page.getByText(VERDICT)).toBeVisible();
+}
+
+// The signed-in tab's token, so a test can call the app's own API as that
+// user. The app keeps the token in sessionStorage and sends it as a bearer
+// token, so a test that only needs some data arranged (a class, a draft
+// question) does not have to drive the whole screen for it.
+export async function apiToken(page) {
+  const token = await page.evaluate(() => sessionStorage.getItem('qq-token'));
+  expect(token, 'the signed-in tab has a token').toBeTruthy();
+  return token;
+}
+
+// The question bank seeds exactly one draft question, and approving it (which
+// the publish test does) takes it out of the review list. A CI retry replays
+// a test against the same server and the same data, so a test that needs a
+// draft to review makes its own: the professor creates one through the app's
+// own API and the test then reviews that one.
+export async function createDraftQuestion(page, { courseId = 'c-comp', topicId = 'tp-net', outcomeId = 'lo-net-2' } = {}) {
+  const token = await apiToken(page);
+  // Every draft needs its own wording: the bank refuses a question that looks
+  // like one it already holds, and a retry would be turned away as a copy of
+  // the attempt before it. A short stem keeps the two well clear of each
+  // other, whatever the marker turns out to be.
+  const marker = Math.random().toString(36).slice(2, 10);
+  const stem = `CI retry marker ${marker}`;
+  const response = await page.request.post(`/api/teacher/courses/${courseId}/questions`, {
+    headers: { Authorization: `Bearer ${token}` },
+    data: {
+      type: 'mcq',
+      stem,
+      explanation: 'A draft the end-to-end tests create, so there is always one waiting for review.',
+      difficulty: 'easy',
+      options: ['Alpha', 'Beta', 'Gamma', 'Delta'],
+      answerIndex: 0,
+      topicId,
+      outcomeId,
+      publish: false,
+    },
+  });
+  const body = await response.text();
+  expect(response.ok(), `the draft question is created: ${body}`).toBe(true);
+  const question = JSON.parse(body);
+  expect(question.status, 'the new question is a draft').toBe('draft');
+  return { id: question.id, stem };
 }
 
 // Answer every question of the running session. The last answer offers
