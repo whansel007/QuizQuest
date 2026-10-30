@@ -629,7 +629,8 @@ void profiler.start().then((debugEnabled) => {
   heroUnlockTools.innerHTML = '<label>Unlock hero <select data-debug-unlock-hero></select></label><button type="button" data-debug-unlock>Unlock for this browser</button><button type="button" data-debug-preview-vortex>Preview vortex</button><label>Samurai Kill Count <input data-debug-samurai-stacks type="number" min="0" max="20" step="1" value="0"></label><button type="button" data-debug-set-samurai-stacks>Set Kill Count</button><button type="button" data-debug-preview-samurai-cut>Preview Afterimage Cut at cursor</button>';
   const heroUnlockSelect = heroUnlockTools.querySelector('[data-debug-unlock-hero]');
   heroUnlockSelect.replaceChildren(...HEROES.map((hero) => {
-    const option = document.createElement('option'); option.value = hero.id; option.textContent = `${hero.name} · ${hero.rarity}`; return option;
+    const stars = GAME_CONFIG.arenaTuning.gachaReveal.rarityStars[hero.rarity] || 0;
+    const option = document.createElement('option'); option.value = hero.id; option.textContent = `${hero.name} · ${stars}-star`; return option;
   }));
   heroUnlockTools.querySelector('[data-debug-unlock]').addEventListener('click', () => {
     const heroId = heroUnlockSelect.value;

@@ -1693,6 +1693,12 @@ attemptId: attempt.id,
   });
 
   route('GET', '/api/student/home', 'student', ({ user }) => {
+    const welcomeRef = `hero-summon-welcome:${user.id}`;
+    if (!db.ledger.some((entry) => entry.refKey === welcomeRef)) {
+      db.ledger.push({ id: newId('tx'), studentId: user.id, kind: 'gift', amount: R.HERO_SUMMON.welcomeGiftCoins,
+        reason: 'Welcome gift for Hero Summon', refKey: welcomeRef, at: now() });
+      save({ analytics: false });
+    }
     const classes = db.enrolments
       .filter((e) => e.studentId === user.id)
       .map((e) => {
@@ -2069,7 +2075,7 @@ return studentProgress(db, user.id, cl);
         prize,
         pity: inv.heroPity,
         duplicateHero: !!meta.dupe,
-        refund: meta.dupe ? Math.floor(cost * R.HERO_SUMMON.duplicateRefundFraction) : 0,
+        refund: meta.dupe ? Math.floor(cost * (R.HERO_SUMMON.duplicateRefundFraction[meta.rarity] || 0)) : 0,
         batchId: meta.batchId || null,
         inventory: inv,
         wallet: wallet(user.id),
@@ -2082,7 +2088,8 @@ return studentProgress(db, user.id, cl);
       const batchId = newId('preview');
       const heroes = R.HERO_CATALOG;
       const owned = new Set(inv.heroes);
-      const fixtureHero = (hero, rarity, isNew) => ({ type: 'hero', heroId: hero.id, hero, rarity, amount: null, isNew, refundCoins: isNew ? 0 : Math.floor(cost * R.HERO_SUMMON.duplicateRefundFraction) });
+      const refundFor = (rarity) => Math.floor(cost * (R.HERO_SUMMON.duplicateRefundFraction[rarity] || 0));
+      const fixtureHero = (hero, rarity, isNew) => ({ type: 'hero', heroId: hero.id, hero, rarity, amount: null, isNew, refundCoins: isNew ? 0 : refundFor(rarity) });
       const fixtureResource = (resource, amount) => ({ type: 'resource', resource, amount, rarity: 'common', isNew: false, refundCoins: 0 });
       let results;
       if (scenario === 'all-resources') {
@@ -2103,7 +2110,7 @@ return studentProgress(db, user.id, cl);
     const results = [];
     let legacyRoll = null;
     for (let index = 0; index < count; index++) {
-      const roll = R.drawHeroSummon(inv.heroPity);
+      const roll = R.drawHeroSummon(inv.heroPity, undefined, inv.heroes);
       legacyRoll = roll;
       inv.heroPity = roll.pity;
       const item = { type: roll.prize.kind, rarity: roll.prize.rarity, batchId, rollIndex: index + 1, pity: roll.pity, amount: null, refundCoins: 0, isNew: false };
@@ -2112,7 +2119,7 @@ return studentProgress(db, user.id, cl);
         item.hero = roll.prize.hero;
         if (inv.heroes.includes(roll.prize.hero.id)) {
           inv.heroDupes[roll.prize.hero.id] = (inv.heroDupes[roll.prize.hero.id] || 0) + 1;
-          item.refundCoins = Math.floor(cost * R.HERO_SUMMON.duplicateRefundFraction);
+          item.refundCoins = Math.floor(cost * (R.HERO_SUMMON.duplicateRefundFraction[item.rarity] || 0));
           if (item.refundCoins > 0) db.ledger.push({ id: newId('tx'), studentId: user.id, kind: 'refund', amount: item.refundCoins, reason: `Duplicate ${roll.prize.hero.name} refund`, refKey: `${refKey}:refund:${index + 1}`, at: now() });
         } else { inv.heroes.push(roll.prize.hero.id); item.isNew = true; }
       } else {
@@ -2162,7 +2169,7 @@ return studentProgress(db, user.id, cl);
         rarity: meta.rarity || null,
         isNew: kind === 'hero' && (meta.isNew ?? !meta.dupe),
         duplicate: kind === 'hero' && !(meta.isNew ?? !meta.dupe),
-        refundCoins: meta.refundCoins ?? (meta.dupe ? Math.floor(R.HERO_SUMMON.pullCost * R.HERO_SUMMON.duplicateRefundFraction) : 0),
+        refundCoins: meta.refundCoins ?? (meta.dupe ? Math.floor(R.HERO_SUMMON.pullCost * (R.HERO_SUMMON.duplicateRefundFraction[meta.rarity] || 0)) : 0),
       };
     });
     const summary = { totalPulls: total, common: 0, rare: 0, epic: 0 };

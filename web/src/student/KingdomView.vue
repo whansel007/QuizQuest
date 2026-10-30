@@ -60,6 +60,7 @@ const townHeroes = computed(() => ownedHeroes.value.slice(0, TOWN_MAX_HEROES));
 const archiveHeroes = computed(() => homeData.value?.catalog?.heroes || []);
 const archiveHero = ref(null);
 const selectedArchiveHero = computed(() => archiveHero.value || archiveHeroes.value[0] || null);
+const heroStars = (hero) => GAME_CONFIG.arenaTuning.gachaReveal.rarityStars[hero?.rarity] || 0;
 const selectedHeroLore = computed(() => selectedArchiveHero.value && HERO_LORE[selectedArchiveHero.value.id]);
 const archiveOpen = ref(false);
 const bookBackButton = ref(null);
@@ -663,7 +664,7 @@ async function upgrade(p) {
                   <div class="storybook-spread" role="dialog" aria-modal="true" :aria-label="`${selectedArchiveHero.name}'s story`" @keydown="trapBookDialog">
                   <article class="storybook-page story-left">
                     <button ref="bookBackButton" class="book-back" type="button" @click="closeArchiveBook">← Back to the shelves</button>
-                    <span class="preview-tag">{{ selectedArchiveHero.rarity }} · {{ selectedArchiveHero.type }} hero</span>
+                    <span class="preview-tag">{{ heroStars(selectedArchiveHero) }}-star · {{ selectedArchiveHero.type }} hero</span>
                     <h3>{{ selectedArchiveHero.name }}</h3>
                     <p class="hero-personality">{{ selectedHeroLore?.personality || 'A valued member of the town’s defenders.' }}</p>
                     <p class="story-copy">{{ selectedHeroLore?.story || `${selectedArchiveHero.name} brings ${selectedArchiveHero.weapon || 'their own talents'} to every adventure. Their signature skill is ${selectedArchiveHero.skill || 'always ready'}, and their ultimate is ${selectedArchiveHero.ultimate || 'a force to reckon with'}.` }}</p>
@@ -682,7 +683,7 @@ async function upgrade(p) {
             <template v-else-if="townTarget === 'workshop'">
               <div class="gym-card workshop-feature">
                 <div class="workshop-roster" role="group" aria-label="Choose a hero to preview">
-                  <button v-for="hero in workshopHeroes" :key="hero.id" class="workshop-hero" :class="{ selected: (previewWorkshopHero || workshopHeroes[0])?.id === hero.id }" type="button" :aria-pressed="(previewWorkshopHero || workshopHeroes[0])?.id === hero.id" @click="previewWorkshopHero = hero"><span>{{ hero.emoji }}</span><b>{{ hero.name }}</b><small>{{ hero.rarity }}</small></button>
+                  <button v-for="hero in workshopHeroes" :key="hero.id" class="workshop-hero" :class="{ selected: (previewWorkshopHero || workshopHeroes[0])?.id === hero.id }" type="button" :aria-pressed="(previewWorkshopHero || workshopHeroes[0])?.id === hero.id" @click="previewWorkshopHero = hero"><span>{{ hero.emoji }}</span><b>{{ hero.name }}</b><small>{{ heroStars(hero) }}-star</small></button>
                 </div>
                 <article v-if="previewWorkshopHero || workshopHeroes[0]" class="workshop-detail">
                   <div class="workshop-preview-stage" aria-label="Animated hero preview in the training yard"><span class="practice-target" aria-hidden="true" /><HeroIcon :hero="previewWorkshopHero || workshopHeroes[0]" :size="132" :label="`${(previewWorkshopHero || workshopHeroes[0]).name} training preview`" :animated="true" /></div>

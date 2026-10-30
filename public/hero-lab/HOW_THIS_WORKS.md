@@ -267,20 +267,24 @@ from wave 3, one rare effect that is not already active.
 
 ## Summon, collection, and debug menu
 
-The student **Summon** tab replaces the old collection page. A new
-student starts with Sheriff. Each summon costs 50 coins by default. A common
-pull gives 5 units of one kingdom resource; rare pulls are Sheriff, Guardian,
-Bubbles, Electromancer, or Samurai; epic pulls are Pilot, Bombardier, Fairy, or Engineer. Duplicate heroes
-refund the full pull cost by default. Cost, refund fraction, resource amount,
-rates, hero rarities, and pity thresholds are in `game-config.js`.
+The student **Summon** tab replaces the old collection page. A new student
+starts with Sheriff and Electromancer and receives a one-time 500-coin welcome
+gift. Each summon costs 50 coins. A resource result gives 5 units of one
+kingdom resource; 4-star heroes are Guardian, Sheriff, Bubbles, Electromancer,
+Samurai, and Ranger; 5-star heroes are Pilot, Bombardier, Fairy, and Engineer.
+Odds are 62% resources, 30% 4-star, and 8% 5-star. Hero pulls skip owned
+heroes while that star pool has new heroes. Duplicate 4-star and 5-star heroes
+refund 30% and 60% of a pull, respectively. Once a star pool is complete,
+pulls of that rarity refund coins. Cost, refund fractions, resource amount,
+rates, hero rarities, welcome gift, and pity thresholds are in `game-config.js`.
 
 The server owns summon RNG, coin spending/refunds, resource rewards, hero
-ownership, and pity counters. Hero pity guarantees a rare-or-epic hero after 10
-pulls without one. Epic pity guarantees a 5-star hero after 50 pulls without
-one; it wins if both guarantees are due. Getting either hero rarity resets the
-hero counter. Getting an epic resets both counters. Pull history and owned
-heroes persist with the student's inventory. World validates ownership again
-when the student joins, so the client cannot select a locked hero.
+ownership, and pity counters. A hero is guaranteed at least every 5 pulls,
+and a 5-star is guaranteed by pull 20. The 5-star guarantee takes priority
+when both are due. Any hero resets the hero counter; a 5-star resets both.
+Pull history and owned heroes persist with the student's inventory. World
+validates ownership again when the student joins, so the client cannot select
+a locked hero.
 
 The collection lists all six heroes and their owned/locked state. History at
 the bottom switches between coin and resource transactions. To adjust coins in
@@ -291,14 +295,14 @@ server. Its endpoint refuses requests when `NODE_ENV=production` or
 
 ### Playtest this phase
 
-1. Sign in as a student and open **Summon**. Confirm Sheriff is owned and
-   the other five heroes are visible but locked.
+1. Sign in as a new student and open **Summon**. Confirm Sheriff and
+   Electromancer are owned, the welcome gift is present, and six heroes remain.
 2. Enter the Konami code. Set the balance to 500 and confirm the wallet updates.
 3. Summon repeatedly. Check that common results add the shown resource amount,
    new hero results unlock a collection card, and duplicate heroes refund the
    configured amount.
-4. Confirm pity counters survive page reloads. The 10th pull since the last
-   hero must be rare or epic; the 50th pull since the last epic must be epic.
+4. Confirm pity counters survive page reloads. The 5th pull since the last
+   hero must be a hero; the 20th pull since the last 5-star must be 5-star.
    If both counters reach their threshold together, the result must be epic.
 5. Open **World**. Confirm only owned heroes can be selected and that a newly
    summoned hero becomes selectable. Check kingdom bonuses still apply.
@@ -307,11 +311,12 @@ server. Its endpoint refuses requests when `NODE_ENV=production` or
 7. In a production environment, confirm the debug menu does not open and the
    wallet adjustment endpoint returns not found.
 
-Assumptions for this phase: default summon cost is 50 coins, duplicate refund
-is 100%, a common prize is 5 units of one uniformly selected resource, and
-Sheriff is the free starter hero. Hero pity resets on any hero; epic pity
-resets only on an epic. Both pity counters are persistent and have no time or
-daily reset.
+Assumptions for this phase: default summon cost is 50 coins, duplicate refunds
+are 30% for 4-star and 60% for 5-star, a resource prize is 5 units of one
+uniformly selected resource, and Sheriff and Electromancer are starter heroes.
+Pity counters persist and have no time or daily reset. Run
+`node scripts/simulate-hero-summon.js` to report 100,000 simulated players'
+average first-5-star and full-roster pull counts, plus pity frequency.
 
 Campfire Defense is now the student **World** entry point. The old Class World
 screen is out of the student navigation; its quiz server and question-gathering
