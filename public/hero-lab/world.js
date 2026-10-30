@@ -28,10 +28,29 @@ import { preloadHeroSprites, drawCachedHero, getHeroSpriteUrl } from './hero-vis
 const canvas = document.querySelector('#world');
 const ARENA_WIDTH = GAME_CONFIG.arena.width;
 const ARENA_HEIGHT = GAME_CONFIG.arena.height;
+const touchViewport = matchMedia('(pointer: coarse)');
+const MOBILE_ZOOM_MAX = 2.8;
+let mobileZoom = 1.8;
+let pinchStart = null;
+const pinchPointers = new Map();
 // Rasterize close to the displayed viewport while keeping world coordinates fixed.
-let renderScale = Math.min(1, Math.max(0.4, Math.min(innerWidth / ARENA_WIDTH, innerHeight / ARENA_HEIGHT)));
-canvas.width = Math.round(ARENA_WIDTH * renderScale);
-canvas.height = Math.round(ARENA_HEIGHT * renderScale);
+function arenaRenderScale() {
+  const fit = touchViewport.matches
+    ? Math.max(innerWidth / ARENA_WIDTH, innerHeight / ARENA_HEIGHT)
+    : Math.min(innerWidth / ARENA_WIDTH, innerHeight / ARENA_HEIGHT);
+  return Math.min(1, Math.max(0.4, fit));
+}
+let renderScale = arenaRenderScale();
+function resizeCanvasBacking() {
+  if (touchViewport.matches) {
+    canvas.width = Math.round(innerWidth * renderScale);
+    canvas.height = Math.round(innerHeight * renderScale);
+  } else {
+    canvas.width = Math.round(ARENA_WIDTH * renderScale);
+    canvas.height = Math.round(ARENA_HEIGHT * renderScale);
+  }
+}
+resizeCanvasBacking();
 let particleBudget = Math.max(100, Math.floor(GAME_CONFIG.arenaTuning.performance.maxParticles * renderScale * renderScale));
 const context = canvas.getContext('2d', { alpha: false, desynchronized: true });
 let heroSpriteCache = null;
@@ -50,23 +69,77 @@ void preloadHeroSprites().then((cache) => {
   updateHud();
 }).catch((error) => console.warn('[Hero sprites] Config failed; using emoji.', error));
 const backgroundCanvas = document.createElement('canvas');
-backgroundCanvas.width = canvas.width;
-backgroundCanvas.height = canvas.height;
+backgroundCanvas.width = Math.round(ARENA_WIDTH * renderScale);
+backgroundCanvas.height = Math.round(ARENA_HEIGHT * renderScale);
 const backgroundContext = backgroundCanvas.getContext('2d');
 backgroundContext.scale(renderScale, renderScale);
 paintForestClearing(backgroundContext);
 
 function resizeArenaRaster() {
-  const nextScale = Math.min(1, Math.max(0.4, Math.min(innerWidth / ARENA_WIDTH, innerHeight / ARENA_HEIGHT)));
-  if (Math.abs(nextScale - renderScale) < 0.001) return;
+  const nextScale = arenaRenderScale();
+  const scaleChanged = Math.abs(nextScale - renderScale) >= 0.001;
   renderScale = nextScale;
-  canvas.width = Math.round(ARENA_WIDTH * renderScale);
-  canvas.height = Math.round(ARENA_HEIGHT * renderScale);
-  backgroundCanvas.width = canvas.width;
-  backgroundCanvas.height = canvas.height;
-  backgroundContext.scale(renderScale, renderScale);
-  paintForestClearing(backgroundContext);
+  const canvasWidth = touchViewport.matches ? Math.round(innerWidth * renderScale) : Math.round(ARENA_WIDTH * renderScale);
+  const canvasHeight = touchViewport.matches ? Math.round(innerHeight * renderScale) : Math.round(ARENA_HEIGHT * renderScale);
+  const canvasChanged = canvas.width !== canvasWidth || canvas.height !== canvasHeight;
+  if (canvasChanged) resizeCanvasBacking();
+  if (scaleChanged) {
+    backgroundCanvas.width = Math.round(ARENA_WIDTH * renderScale);
+    backgroundCanvas.height = Math.round(ARENA_HEIGHT * renderScale);
+    backgroundContext.scale(renderScale, renderScale);
+    paintForestClearing(backgroundContext);
+  }
   particleBudget = Math.max(100, Math.floor(GAME_CONFIG.arenaTuning.performance.maxParticles * renderScale * renderScale));
+}
+
+function mobileMinimumZoom() {
+  const fitScale = Math.min(innerWidth / ARENA_WIDTH, innerHeight / ARENA_HEIGHT);
+  const coverScale = Math.max(innerWidth / ARENA_WIDTH, innerHeight / ARENA_HEIGHT);
+  return fitScale / coverScale;
+}
+
+function mobileCameraView() {
+  if (!touchViewport.matches) return null;
+  const player = state.players?.find((candidate) => candidate.id === me);
+  const coverScale = Math.max(innerWidth / ARENA_WIDTH, innerHeight / ARENA_HEIGHT);
+  mobileZoom = Math.max(mobileMinimumZoom(), Math.min(MOBILE_ZOOM_MAX, mobileZoom));
+  return {
+    scale: coverScale * mobileZoom,
+    x: player?.x ?? ARENA_WIDTH / 2,
+    y: player?.y ?? ARENA_HEIGHT / 2,
+  };
+}
+
+function pinchDistance() {
+  const [a, b] = [...pinchPointers.values()];
+  return Math.hypot(a.x - b.x, a.y - b.y);
+}
+
+function beginTouchZoom(event) {
+  if (!touchViewport.matches || event.pointerType !== 'touch') return;
+  pinchPointers.set(event.pointerId, { x: event.clientX, y: event.clientY });
+  if (pinchPointers.size === 2) {
+    pinchStart = { distance: Math.max(1, pinchDistance()), zoom: mobileZoom };
+    if (primaryPointerId !== null) {
+      primaryPointerId = null;
+      setPrimaryHeld(false);
+    }
+  }
+}
+
+function moveTouchZoom(event) {
+  if (!pinchPointers.has(event.pointerId)) return;
+  pinchPointers.set(event.pointerId, { x: event.clientX, y: event.clientY });
+  if (pinchStart && pinchPointers.size >= 2) {
+    mobileZoom = Math.max(mobileMinimumZoom(), Math.min(MOBILE_ZOOM_MAX,
+      pinchStart.zoom * pinchDistance() / pinchStart.distance));
+    event.preventDefault();
+  }
+}
+
+function endTouchZoom(event) {
+  pinchPointers.delete(event.pointerId);
+  if (pinchPointers.size < 2) pinchStart = null;
 }
 
 // The arena floor: a calm woodland clearing. Everything here is low contrast
@@ -465,7 +538,7 @@ setBtnVar('--btn-label-height', `${BTN_LABEL_HEIGHT}px`);
 setBtnVar('--btn-label-size', `${BTN_LABEL_SIZE}px`);
 setBtnVar('--btn-label-clearance', `${BTN_LABEL_CLEARANCE}px`);
 setBtnVar('--btn-icon-scale', String(BTN_ICON_SCALE));
-setBtnVar('--ability-cluster-height', `${ABILITY_CLUSTER_HEIGHT_PX}px`);
+setBtnVar('--ability-cluster-height', `${touchViewport.matches ? 168 : ABILITY_CLUSTER_HEIGHT_PX}px`);
 setBtnVar('--ready-highlight-color', BTN_HIGHLIGHT_READY_COLOR);
 
 // data-ability ("weapon") -> config slot ("primary").
@@ -2106,6 +2179,13 @@ function onMovementPointerEnd(event) {
 
 function getPointerCoordinates(event) {
   const rect = canvas.getBoundingClientRect();
+  const camera = mobileCameraView();
+  if (camera) {
+    return {
+      x: camera.x + (event.clientX - rect.left - rect.width / 2) / camera.scale,
+      y: camera.y + (event.clientY - rect.top - rect.height / 2) / camera.scale,
+    };
+  }
   return {
     x: ((event.clientX - rect.left) / rect.width) * ARENA_WIDTH,
     y: ((event.clientY - rect.top) / rect.height) * ARENA_HEIGHT,
@@ -2169,6 +2249,7 @@ function setPrimaryHeld(held) {
 }
 
 function onPointerMove(event) {
+  if (pinchStart) return;
   const pointer = getPointerCoordinates(event);
   window.lastPointerWorld = pointer;
   if (!socket.connected || !me || aimSendTimer !== null) return;
@@ -2619,7 +2700,9 @@ function steadyEnemyCount(value, wave, now) {
 function updateHud(timestamp = performance.now()) {
   const player = state.players?.find((candidate) => candidate.id === me);
   const phase = state.room?.phase;
-  setHudHidden(movementStick, !player || player.downed || player.dawnWaiting || (phase && phase !== 'running'));
+  // Lobby and countdown movement is supported by the room simulation, so keep
+  // the stick available before the first wave as well as during combat.
+  setHudHidden(movementStick, !player || player.downed || player.dawnWaiting);
   setHudHidden(touchHelp, !player || player.downed || player.dawnWaiting || (phase && phase !== 'running'));
   updateRoomHud();
   if (state.room && phase === 'lobby') {
@@ -2869,7 +2952,7 @@ function onKeyUp(event) {
 }
 
 function onPointerDown(event) {
-  if (!me) return;
+  if (!me || pinchStart) return;
   const pointer = getPointerCoordinates(event);
   window.lastPointerWorld = pointer;
   const player = state.players.find((candidate) => candidate.id === me);
@@ -2908,7 +2991,8 @@ function paintTargetReticle(event, gesture = abilityGesture) {
   const radius = GAME_CONFIG.heroes.bombardier.airstrike.circleRadius;
   targetingReticle.style.left = `${event.clientX}px`;
   targetingReticle.style.top = `${event.clientY}px`;
-  targetingReticle.style.setProperty('--target-size', `${radius * 2 * rect.width / ARENA_WIDTH}px`);
+  const camera = mobileCameraView();
+  targetingReticle.style.setProperty('--target-size', `${radius * 2 * (camera?.scale ?? rect.width / ARENA_WIDTH)}px`);
   targetingReticle.hidden = false;
 }
 
@@ -3128,6 +3212,10 @@ function drawScene(timestamp) {
   context.filter = 'none';
   context.shadowBlur = 0;
   context.setLineDash([]);
+  if (touchViewport.matches) {
+    context.fillStyle = '#2F5E3E';
+    context.fillRect(0, 0, innerWidth, innerHeight);
+  }
   context.save();
   const traumaElapsed = Math.max(0, (currentTime - lastTraumaUpdateAt) / 1000);
   trauma = Math.max(0, trauma - SHAKE_DECAY * traumaElapsed);
@@ -3141,6 +3229,12 @@ function drawScene(timestamp) {
     const noiseX = smoothShakeNoise(currentTime);
     const noiseY = smoothShakeNoise(currentTime, SHAKE_NOISE_SECONDARY_PHASE);
     context.translate(noiseX * offset, noiseY * offset);
+  }
+  const mobileCamera = mobileCameraView();
+  if (mobileCamera) {
+    context.translate(innerWidth / (2 * mobileCamera.scale) - mobileCamera.x,
+      innerHeight / (2 * mobileCamera.scale) - mobileCamera.y);
+    context.scale(mobileCamera.scale, mobileCamera.scale);
   }
   if (currentTime < cameraZoom.until) {
     const centerX = ARENA_WIDTH / 2, centerY = ARENA_HEIGHT / 2;
@@ -3853,6 +3947,7 @@ function spawnDashTrail(player) {
     vx:(Math.random()-.5)*35,vy:(Math.random()-.5)*35,radius:spec.radius+Math.random()*2+ramp*2,color:ramp > 0.4 ? HERO_FX_COLORS[player.heroId]?.highlight : HERO_FX_COLORS[player.heroId]?.primary || '#d8dfc7',alpha:.65+ramp*.35,decay:spec.decay});
 }
 
+canvas.addEventListener('pointerdown', beginTouchZoom, { passive: true });
 canvas.addEventListener('pointermove', onPointerMove);
 canvas.addEventListener('pointerdown', onPointerDown);
 movementStick.addEventListener('pointerdown', onMovementPointerDown);
@@ -3865,9 +3960,13 @@ abilityElements.forEach((button) => {
 });
 targetingCancel.addEventListener('click', cancelTargeting);
 window.addEventListener('pointermove', moveAbilityGesture, { passive: false });
+window.addEventListener('pointermove', moveTouchZoom, { passive: false });
+window.addEventListener('pointerup', endTouchZoom);
+window.addEventListener('pointercancel', endTouchZoom);
 window.addEventListener('pointerup', releasePointerControls);
 window.addEventListener('pointercancel', releasePointerControls);
 window.addEventListener('resize', resizeArenaRaster, { passive: true });
+touchViewport.addEventListener?.('change', resizeArenaRaster);
 socket.on('connect', () => {
   lastSentMovement = null;
   sendMovement();
