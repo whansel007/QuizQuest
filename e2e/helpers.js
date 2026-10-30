@@ -21,7 +21,18 @@ export async function signIn(page, { email, password = PASSWORD }) {
   await page.getByRole('button', { name: 'Continue' }).click();
   await page.locator('#login-password').fill(password);
   await page.getByRole('button', { name: 'Sign in' }).click();
-  await expect(page.getByRole('button', { name: 'Log out' })).toBeVisible();
+  // Sometimes the request never reaches the server: the browser reuses a
+  // connection the server has just closed, and the sign-in comes back as
+  // "Could not reach the server". Nothing is half done at this point - no
+  // session, no data - so the sign-in is simply done again, which is what
+  // the app asks the user to do.
+  const signedIn = page.getByRole('button', { name: 'Log out' });
+  const offline = page.getByRole('alert').filter({ hasText: 'Could not reach the server' });
+  await expect(signedIn.or(offline).first()).toBeVisible();
+  if (await offline.isVisible()) {
+    await page.getByRole('button', { name: 'Sign in' }).click();
+  }
+  await expect(signedIn).toBeVisible();
 }
 
 export async function openTab(page, name) {
