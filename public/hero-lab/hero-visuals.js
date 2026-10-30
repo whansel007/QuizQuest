@@ -61,10 +61,16 @@ export async function preloadHeroSprites({ onWarning = console.warn } = {}) {
       await image.decode();
       const scale = heroConfig.scale || 1;
       const sizePx = config.SPRITE_BASE_PX * scale;
-      const record = rasterize(image, sizePx, dpr, heroConfig.crop?.[frameName]);
+      // Campfire Run historically draws each full 1600px sprite sheet into
+      // the configured viewport size. Keep that scale for world rendering;
+      // the crop is only for compact portraits and preview images.
+      const record = rasterize(image, sizePx, dpr);
+      const portrait = heroConfig.crop?.[frameName]
+        ? rasterize(image, sizePx, dpr, heroConfig.crop[frameName])
+        : record;
       let heroFrames = cache.get(heroId);
       if (!heroFrames) { heroFrames = new Map(); cache.set(heroId, heroFrames); }
-      heroFrames.set(frameName, { ...record, filename, dataUrl: record.canvas.toDataURL('image/png') });
+      heroFrames.set(frameName, { ...record, filename, dataUrl: portrait.canvas.toDataURL('image/png') });
     } catch (error) {
       warnOnce(filename, error);
     }

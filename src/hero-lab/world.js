@@ -136,7 +136,7 @@ function attachHeroLab(io, services = null) {
     socket.on('debug_turret', safe('debug_turret', ({ action, x, y } = {}) => {
       if (!isDebugSocket()) return;
       if (action === 'place') roomOf()?.debugPlaceTurret?.(socket.id, x, y);
-      else if (['fill', 'empty', 'damage'].includes(action)) roomOf()?.debugTurretAction?.(action, socket.id);
+      else if (['expire', 'damage'].includes(action)) roomOf()?.debugTurretAction?.(action, socket.id);
     }));
     socket.on('debug_spawn_at', safe('debug_spawn_at', ({ type, x, y } = {}) => {
       if (!isDebugSocket()) return;

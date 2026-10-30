@@ -15,7 +15,7 @@ Base stats are shown before kingdom upgrades and wave buffs. Attack values are b
 | Bubbles 🫧 | Magic | 110 | 12 | 4 | 220 | Bubble Spray | Bubble Trap | Bubble Rush | Finisher — Bubble Trap kills trigger a larger explosion and halve the remaining skill cooldown. |
 | Electromancer ⚡ | Magic | 100 | 16 | 4 | 225 | Lightning Orb | Stun Field | Chain Lightning | Overload — Chain Lightning refunds its cooldown; stunned targets refund twice as much. |
 | Fairy 🧚 | Magic | 85 | 14 | 2 | 235 | Wind Arrow | Gale Burst | Vortex Orb | Windswept — enemies pushed or pulled by Gale Burst or Vortex Orb are slowed 30% for 2 s. |
-| Engineer 🔧 | Physical | 120 | 14 | 6 | 210 | Wrench Boomerang | Deploy Turret | Overclock Laser | Salvage — your kills add 3 rounds and heal 5% max HP on each living turret. |
+| Engineer 🔧 | Physical | 120 | 14 | 6 | 210 | Wrench Boomerang | Deploy Turret | Overclock Laser | Salvage — each kill repairs 5% max HP and adds 1.5 s to every living turret. |
 | Samurai 🥷 | Physical | 100 | 16 | 4 | 235 | Shuriken | Cutting Dash | Afterimage Cut | Kill Count — kills grant up to 20 stacks; the ultimate multiplier scales from 0.5× to 4×. |
 | Ranger 🧝 | Magic | 90 | 18 | 3 | 215 | Charge Bow | Meat and Wolf | Dead Aim | Pack Hunter — wolf bites mark enemies for 4 s; Ranger arrows deal 30% more damage to marked targets. |
 
@@ -29,11 +29,11 @@ Base stats are shown before kingdom upgrades and wave buffs. Attack values are b
 
 ### Engineer
 
-- **Wrench Boomerang:** Throws a piercing wrench 300 px at 1,200 px/s, then returns to the Engineer's current position. It deals 0.9× attack and pushes each target 30 px once per leg. The 0.35 s weapon cooldown begins on catch or after its 2 s lifetime; only one wrench can be in flight.
-- **Deploy Turret (E):** Places a turret toward the mouse, clamped to 140 px. Invalid spots snap to a valid point within 60 px; placement fails without using the 18 s cooldown if none exists. Spots must be at least 50 px from the campfire and 60 px from other turrets. A new turret starts with 20 of its 40 rounds. Each Engineer can own two; a third destroys the oldest. The E button shows two pips for the owner's turrets.
+- **Wrench Boomerang:** Throws a piercing wrench 300 px at 1,200 px/s, then returns to the Engineer's current position. It deals 0.9× attack and pushes each target 30 px on its outbound leg. On the return leg, it pulls each target 90 px toward the Engineer over 0.26 s; bosses and Kings are immune to the pull. The 0.35 s weapon cooldown begins on catch or after its 2 s lifetime; only one wrench can be in flight.
+- **Deploy Turret (E):** Places a turret toward the mouse, clamped to 220 px. Invalid spots snap to a valid point within 60 px; placement fails without using the 18 s cooldown if none exists. Spots must be at least 110 px from the campfire and 60 px from other turrets. Each turret has unlimited shots, but loses 5 HP/s and expires after 30 s. A 2 s warning shows its 120 px blast radius; expiry deals 24 damage to enemies, 10 to nearby heroes, and 12 to the campfire if it is in range. The placement preview marks the blast radius and highlights the campfire when it could be hit. Each Engineer can own two; replacing the oldest with a third turret or losing one to enemy damage does not trigger its expiry blast. The E button shows two pips for the owner's turrets.
 - **Overclock Laser (Q):** Charges for 0.4 s while movement is slowed to 30%, then fires a single 70 px wide beam up to 900 px. It hits each enemy and lobby dummy in the beam once for 6× attack. Its 40 s cooldown starts when the beam fires, and the final 0.1 s locks its direction.
-- **Salvage:** Each Engineer-attributed kill, including kills on lobby dummies, gives 3 rounds and heals 5% of max turret HP to each living owned turret. Turret kills do not trigger Salvage.
-- **Turret targeting:** Turrets use the Stage 1 server-owned entity and targeting rules below. They persist across waves and refill at REST. Use the debug Turret testing menu when you need a turret outside of the Engineer's E skill.
+- **Salvage:** Each Engineer-attributed kill, including kills on lobby dummies, repairs each living owned turret by 5% max HP and extends its life by 1.5 s. Turret kills do not trigger Salvage.
+- **Turret targeting:** Turrets use the Stage 1 server-owned entity and targeting rules below. They pause and are repaired at REST. Use the debug Turret testing menu when you need a turret outside of the Engineer's E skill.
 
 ### Samurai
 

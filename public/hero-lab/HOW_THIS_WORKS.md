@@ -96,18 +96,23 @@ combo, rewards or the wave counter.
 
 - Zombies walk to the campfire. Devils chase the nearest hero. Skeletons pause
   periodically to fire a red bullet at the nearest hero, then resume walking.
-- Engineer turret staging: each turret is server-owned, holds 150 HP and 40
-  rounds, and selects the nearest enemy or lobby dummy within 260 px every
+- Engineer turret staging: each turret is server-owned, holds 150 HP, lasts
+  30 s under its 5 HP/s lifetime drain, and fires unlimited shots. It selects
+  the nearest enemy or lobby dummy within 260 px every
   100 ms. It turns at 540 degrees/s and fires at 2.5 shots/s inside an 8-degree
   cone for half its owner's current attack. Turrets persist across waves and
   refill at the start of REST. ZOMBIES, SKELETONS and BRUTES within 220 px
   taunt to the nearest active turret, with a 1.5 s target lock and 500 ms
-  staggered retargeting. Skeletons stop 260 px away and shoot through their
+  staggered retargeting. At expiry, it warns for 2 s, then blasts in a 120 px
+  radius for 24 enemy damage, 10 hero damage and 12 campfire damage. Replacing
+  a turret or losing it to enemy damage does not cause an expiry blast. Turrets
+  pause and repair at REST. Skeletons stop 260 px away and shoot through their
   normal wind-up. Devils still chase heroes; Exploders still run to the fire.
   Enemy explosions and King slams damage turrets, while player area attacks do
   not. The turret's server snapshot stays compact; the browser draws its
-  placeholder body, barrel, health and ammo bars. Debug-only placement and
-  enemy spawn controls are available in the existing debug menu.
+  placeholder body, barrel and a health bar that drains over its lifetime.
+  Debug-only placement and enemy spawn controls are available in the existing
+  debug menu.
 - Ranger wolf targeting reuses the turret's 500 ms staggered retarget schedule
   and 1.5 s target lock. Wolves only taunt zombies, skeletons, and Brutes in
   their configured radius; they do not change turret targeting, King behavior,
@@ -117,13 +122,17 @@ combo, rewards or the wave counter.
   wolf placement, bites, marks, and Dead Aim expiry are server-authoritative;
   the charge indicator and combat effects are presentation only.
 - Engineer play controls are server-authoritative too. E sends the last arena
-  cursor point; the server clamps it to 140 px, validates campfire/turret
+  cursor point; the server clamps it to 220 px, validates campfire/turret
   spacing, and searches for a nearby legal point before spending the cooldown.
-  Each Engineer owns at most two turrets, and a third breaks the oldest. The
-  Wrench Boomerang tracks its outbound and return legs on the server, with one
-  hit per target on each leg. Q charges for 0.4 s, locks aim for its last 0.1 s,
+  The preview shows the expiry blast radius and highlights the campfire if it
+  would be hit. Each Engineer owns at most two turrets, and a third breaks the
+  oldest without an explosion. The Wrench Boomerang tracks its outbound and
+  return legs on the server, pushing 30 px outbound and pulling targets 90 px
+  toward the Engineer on return, with one hit per target on each leg. Q charges
+  for 0.4 s, locks aim for its last 0.1 s,
   and applies one 6x attack pass through a clipped 70-by-900 px beam. Engineer
-  kills refill each living owned turret by 3 rounds and 5% of turret max HP;
+  kills repair each living owned turret by 5% max HP and extend its life by
+  1.5 s;
   dummy kills can trigger Salvage but do not change run statistics.
 - Shared crowd control is resolved by the server in `src/hero-lab/monster-effects.js`.
   Pushes ease to their destination and stop at arena bounds or the campfire;

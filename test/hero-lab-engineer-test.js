@@ -24,7 +24,9 @@ test('Engineer skill places a turret through the normal room action', (t) => {
 
   const turret = room.snapshot().turrets.find((candidate) => candidate.ownerId === socket.id);
   assert.ok(turret, 'the skill creates an owned turret in the authoritative game state');
-  assert.equal(turret.ammo, 20, 'new turrets start with half of their 40-round magazine');
+  assert.equal(turret.ammo, undefined, 'turrets have no ammunition limit');
+  assert.ok(turret.remainingMs <= 30000 && turret.remainingMs > 29800,
+    'new turrets start with a 30-second lifespan');
   assert.ok(events.some(({ event }) => event === 'turret_deployed'), 'placement broadcasts the deployed event');
   const remainingMs = room.snapshot().players.find((candidate) => candidate.id === socket.id).abilities.skill.remainingMs;
   assert.ok(remainingMs <= 18000 && remainingMs > 17900,

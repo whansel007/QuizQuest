@@ -111,8 +111,13 @@ export const FAIRY_WIND_IMPACT_MS = 260;
 
 // Engineer turret targeting and durability (Stage 1 systems).
 export const TURRET_HP = 150;
-export const TURRET_AMMO_MAX = 40;
-export const TURRET_AMMO_INITIAL = Math.floor(TURRET_AMMO_MAX / 2);
+export const TURRET_LIFETIME_S = 30;
+export const TURRET_LIFETIME_DECAY_PER_SECOND = TURRET_HP / TURRET_LIFETIME_S;
+export const TURRET_EXPIRY_WARNING_MS = 2000;
+export const TURRET_EXPLOSION_RADIUS = 120;
+export const TURRET_EXPLOSION_ENEMY_DAMAGE = 24;
+export const TURRET_EXPLOSION_HERO_DAMAGE = 10;
+export const TURRET_EXPLOSION_CAMPFIRE_DAMAGE = 12;
 export const TURRET_FIRE_RATE = 2.5;
 export const TURRET_TARGET_REEVAL_MS = 100;
 export const TURRET_TARGET_REEVAL_STAGGER_MS = 100;
@@ -135,16 +140,18 @@ export const ENGINEER_WRENCH_SPEED = 1200;
 export const ENGINEER_WRENCH_RANGE = 300;
 export const ENGINEER_WRENCH_DAMAGE_MULT = 0.9;
 export const ENGINEER_WRENCH_PUSH = 30;
+export const ENGINEER_WRENCH_PULL = 90;
+export const ENGINEER_WRENCH_PULL_MS = 260;
 export const ENGINEER_WRENCH_MAX_S = 2;
 export const ENGINEER_WRENCH_COOLDOWN_S = 0.35;
 export const ENGINEER_WRENCH_SPIN_RAD_S = Math.PI * 12;
 export const ENGINEER_WRENCH_CATCH_RADIUS = 24;
 export const ENGINEER_WRENCH_RADIUS = 13;
-export const ENGINEER_PLACE_RANGE = 140;
+export const ENGINEER_PLACE_RANGE = 220;
 export const ENGINEER_SKILL_COOLDOWN_S = 18;
 export const ENGINEER_ULTIMATE_COOLDOWN_S = 40;
 export const ENGINEER_MAX_TURRETS = 2;
-export const TURRET_MIN_CAMPFIRE_DIST = 50;
+export const TURRET_MIN_CAMPFIRE_DIST = 110;
 export const TURRET_MIN_SPACING = 60;
 export const ENGINEER_TURRET_SNAP_RADIUS = 60;
 export const ENGINEER_TURRET_SNAP_STEP = 10;
@@ -207,8 +214,8 @@ export const RANGER_FAIL_FREQUENCY = 165;
 export const RANGER_FAIL_SLIDE_TO = 115;
 export const RANGER_FAIL_DURATION_MS = 100;
 export const RANGER_FAIL_GAIN = 0.06;
-export const ENGINEER_KILL_AMMO = 3;
 export const ENGINEER_KILL_HEAL_PCT = 0.05;
+export const ENGINEER_KILL_TURRET_LIFETIME_BONUS_MS = 1500;
 export const ENGINEER_SALVAGE_FLIGHT_MS = 250;
 export const ENGINEER_SALVAGE_PULSE_MS = 100;
 export const ENGINEER_SALVAGE_POPUP_MERGE_MS = 300;
@@ -252,7 +259,7 @@ export const SAMURAI_EXECUTE_LABEL_MS = 850;
 export const SAMURAI_CUT_OVERLAY_MS = 120;
 export const TURRET_VISUALS = Object.freeze({ body: null, barrel: null, bodySize: { w: 44, h: 32 }, barrelPivot: { x: 22, y: 14 },
   barrelLength: 26, recoilPx: 3, recoilMs: 80, muzzleFlashMs: 60, muzzleFlashRadiusPx: 5, barWidth: 40,
-  hpBarHeight: 5, ammoSegments: 10, ammoPerSegment: 4, barOffsetY: 22,
+  hpBarHeight: 5, barOffsetY: 22,
   idleSwayAmplitudeRad: 0.035, idleSwaySpeed: 0.002, deployDustCount: 5, destroyDebrisCount: 6 });
 export const VORTEX_GROUND_RING_WIDTH_PX = 4;
 export const VORTEX_GROUND_DASH_ON_PX = 14;
@@ -493,7 +500,11 @@ export const ARENA_TUNING = Object.freeze({
 });
 
 export const GAME_CONFIG = Object.freeze({
-  turret: Object.freeze({ hp: TURRET_HP, ammoMax: TURRET_AMMO_MAX, initialAmmo: TURRET_AMMO_INITIAL, fireRate: TURRET_FIRE_RATE,
+  turret: Object.freeze({ hp: TURRET_HP, lifetimeMs: TURRET_LIFETIME_S * 1000,
+    decayPerSecond: TURRET_LIFETIME_DECAY_PER_SECOND, expiryWarningMs: TURRET_EXPIRY_WARNING_MS,
+    expiry: Object.freeze({ radius: TURRET_EXPLOSION_RADIUS, enemyDamage: TURRET_EXPLOSION_ENEMY_DAMAGE,
+      heroDamage: TURRET_EXPLOSION_HERO_DAMAGE, campfireDamage: TURRET_EXPLOSION_CAMPFIRE_DAMAGE }),
+    fireRate: TURRET_FIRE_RATE,
     damageMultiplier: TURRET_DAMAGE_MULT, range: TURRET_RANGE, bulletSpeed: TURRET_BULLET_SPEED,
     turnRateDegS: TURRET_TURN_RATE_DEG_S, fireConeDeg: TURRET_FIRE_CONE_DEG, deployMs: TURRET_DEPLOY_S * 1000,
     radius: TURRET_RADIUS, taunt: ENGINEER_TURRETS_TAUNT, aggroRadius: TURRET_AGGRO_RADIUS,
@@ -719,11 +730,12 @@ export const GAME_CONFIG = Object.freeze({
       skillCooldownMs: ENGINEER_SKILL_COOLDOWN_S * 1000, ultimateCooldownMs: ENGINEER_ULTIMATE_COOLDOWN_S * 1000,
       talent: {
         name: 'Salvage', icon: ABILITY_ICONS.engineer.talent,
-        description: `Your kills refill each living turret by ${ENGINEER_KILL_AMMO} rounds and heal it for ${ENGINEER_KILL_HEAL_PCT * 100}% of its max HP.`,
+        description: `Your kills repair each living turret by ${ENGINEER_KILL_HEAL_PCT * 100}% max HP and extend its life by ${ENGINEER_KILL_TURRET_LIFETIME_BONUS_MS / 1000} s.`,
         linkedSlot: ['skill'],
       },
       wrench: { speed: ENGINEER_WRENCH_SPEED, range: ENGINEER_WRENCH_RANGE, damageMultiplier: ENGINEER_WRENCH_DAMAGE_MULT,
-        push: ENGINEER_WRENCH_PUSH, maxMs: ENGINEER_WRENCH_MAX_S * 1000, catchRadius: ENGINEER_WRENCH_CATCH_RADIUS,
+        push: ENGINEER_WRENCH_PUSH, pull: ENGINEER_WRENCH_PULL, pullMs: ENGINEER_WRENCH_PULL_MS,
+        maxMs: ENGINEER_WRENCH_MAX_S * 1000, catchRadius: ENGINEER_WRENCH_CATCH_RADIUS,
         radius: ENGINEER_WRENCH_RADIUS, spinRadPerSecond: ENGINEER_WRENCH_SPIN_RAD_S },
       turretSkill: { placeRange: ENGINEER_PLACE_RANGE, maxTurrets: ENGINEER_MAX_TURRETS,
         minCampfireDist: TURRET_MIN_CAMPFIRE_DIST, minSpacing: TURRET_MIN_SPACING, snapRadius: ENGINEER_TURRET_SNAP_RADIUS,
@@ -731,7 +743,7 @@ export const GAME_CONFIG = Object.freeze({
       laser: { chargeMs: ENGINEER_LASER_CHARGE_S * 1000, length: ENGINEER_LASER_LENGTH, width: ENGINEER_LASER_WIDTH,
         durationMs: ENGINEER_LASER_DURATION_S * 1000, damageMultiplier: ENGINEER_LASER_DAMAGE_MULT,
         lockLastMs: ENGINEER_LASER_LOCK_LAST_S * 1000, moveFactor: ENGINEER_LASER_MOVE_FACTOR },
-      salvage: { ammo: ENGINEER_KILL_AMMO, healPct: ENGINEER_KILL_HEAL_PCT,
+      salvage: { healPct: ENGINEER_KILL_HEAL_PCT, lifetimeBonusMs: ENGINEER_KILL_TURRET_LIFETIME_BONUS_MS,
         flightMs: ENGINEER_SALVAGE_FLIGHT_MS, pulseMs: ENGINEER_SALVAGE_PULSE_MS,
         popupMergeMs: ENGINEER_SALVAGE_POPUP_MERGE_MS, popupMs: ENGINEER_SALVAGE_POPUP_MS },
     },

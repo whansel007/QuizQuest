@@ -575,7 +575,7 @@ void profiler.start().then((debugEnabled) => {
   controls.querySelector('[data-sprite-debug="downed"]').addEventListener('click', () => { heroDebugDowned = !heroDebugDowned; });
   controls.querySelector('[data-sprite-debug="hitboxes"]').addEventListener('change', (event) => { heroDebugHitboxes = event.target.checked; });
   const turretTools = makeDebugSection('Turret testing', 'tower-debug-tools');
-  turretTools.innerHTML = '<button type="button" data-turret-place>Place turret at last arena cursor</button><button type="button" data-turret-action="fill">Fill ammo</button><button type="button" data-turret-action="empty">Empty ammo</button><button type="button" data-turret-action="damage">Damage 50%</button><label><input type="checkbox" data-turret-ranges> Show turret ranges</label><div class="debug-effect-buttons"><button type="button" data-spawn-at="zombie">Spawn zombie at cursor</button><button type="button" data-spawn-at="skeleton">Spawn skeleton at cursor</button><button type="button" data-spawn-at="brute">Spawn Brute at cursor</button></div>';
+  turretTools.innerHTML = '<button type="button" data-turret-place>Place turret at last arena cursor</button><button type="button" data-turret-action="expire">Expire turret in 1 second</button><button type="button" data-turret-action="damage">Damage 50%</button><label><input type="checkbox" data-turret-ranges> Show turret ranges</label><div class="debug-effect-buttons"><button type="button" data-spawn-at="zombie">Spawn zombie at cursor</button><button type="button" data-spawn-at="skeleton">Spawn skeleton at cursor</button><button type="button" data-spawn-at="brute">Spawn Brute at cursor</button></div>';
   turretTools.querySelector('[data-turret-place]').addEventListener('click', () => {
     const point = window.lastPointerWorld || { x: ARENA_WIDTH / 2, y: ARENA_HEIGHT / 2 };
     socket.emit('debug_turret', { action: 'place', ...point });
@@ -1036,7 +1036,7 @@ function addParticle(particle) {
   p.travelStartedAt = particle.travelStartedAt ?? null;
   p.travelDurationMs = particle.travelDurationMs ?? null;
   p.salvageTurretId = particle.salvageTurretId ?? null;
-  p.salvageAmmo = particle.salvageAmmo ?? 0;
+  p.salvageHeal = particle.salvageHeal ?? 0;
   Object.assign(p, particle);
   particles.push(p);
 }
@@ -1915,16 +1915,16 @@ socket.on('state', (snapshot) => {
   for (const turret of snapshot.turrets || []) {
     activeTurrets.add(turret.id);
     const visual = turretVisualState.get(turret.id);
-    if (!visual) turretVisualState.set(turret.id, { bornAt: performance.now(), ammo: turret.ammo, angle: turret.angle,
+    if (!visual) turretVisualState.set(turret.id, { bornAt: performance.now(), shotsFired: turret.shotsFired, angle: turret.angle,
       angleChangedAt: performance.now(), recoilUntil: 0, flashUntil: 0 });
     else {
-      if (turret.ammo < visual.ammo) {
+      if (turret.shotsFired > visual.shotsFired) {
         visual.recoilUntil = performance.now() + GAME_CONFIG.turret.visuals.recoilMs;
         visual.flashUntil = performance.now() + GAME_CONFIG.turret.visuals.muzzleFlashMs;
       }
       if (Math.abs(turret.angle - visual.angle) > 0.001) visual.angleChangedAt = performance.now();
       visual.angle = turret.angle;
-      visual.ammo = turret.ammo;
+      visual.shotsFired = turret.shotsFired;
     }
   }
   for (const id of turretVisualState.keys()) if (!activeTurrets.has(id)) turretVisualState.delete(id);
@@ -1950,17 +1950,17 @@ function engineerFeedbackParticleCount(count) {
   return Math.min(count, Math.max(1, Math.floor(count * factor)));
 }
 
-function recordEngineerSalvageArrival(turretId, x, y, ammo, now) {
+function recordEngineerSalvageArrival(turretId, x, y, heal, now) {
   const salvage = GAME_CONFIG.heroes.engineer.salvage;
   engineerSalvagePulses.set(turretId, now + salvage.pulseMs);
   const popup = engineerSalvagePopups.get(turretId);
   engineerSalvagePopups.set(turretId, popup && now - popup.startedAt <= salvage.popupMergeMs
-    ? { startedAt: now, count: popup.count + 1, ammo, x, y }
-    : { startedAt: now, count: 1, ammo, x, y });
+    ? { startedAt: now, count: popup.count + 1, heal, x, y }
+    : { startedAt: now, count: 1, heal, x, y });
 }
 
 socket.on('turret_deployed', ({ id, x, y }) => {
-  turretVisualState.set(id, { bornAt: performance.now(), ammo: GAME_CONFIG.turret.initialAmmo, angle: 0,
+  turretVisualState.set(id, { bornAt: performance.now(), shotsFired: 0, angle: 0,
     angleChangedAt: performance.now(), recoilUntil: 0, flashUntil: 0 });
   const dustCount = engineerFeedbackParticleCount(GAME_CONFIG.turret.visuals.deployDustCount);
   for (let i = 0; i < dustCount; i++) { const a = Math.PI * 2 * i / dustCount; addParticle({ x, y: y + 8, vx: Math.cos(a) * 35, vy: Math.sin(a) * 20 - 12, radius: 2 + Math.random() * 2, color: '#c8b99a', alpha: 0.75, decay: 0.04 }); }
@@ -1981,6 +1981,17 @@ socket.on('turret_destroyed', ({ id, x, y }) => {
   const debrisCount = engineerFeedbackParticleCount(GAME_CONFIG.turret.visuals.destroyDebrisCount);
   for (let i = 0; i < debrisCount; i++) { const a = Math.PI * 2 * i / debrisCount; addParticle({ x, y, vx: Math.cos(a) * (55 + Math.random() * 30), vy: Math.sin(a) * (55 + Math.random() * 30), radius: 2 + Math.random() * 2, color: i % 2 ? '#9AA7B8' : '#FF9F1C', alpha: 1, decay: 0.035 }); }
   playSound('turretDestroy');
+});
+socket.on('turret_expired', ({ id, x, y } = {}) => {
+  turretVisualState.delete(id);
+  turretHitFlashes.delete(id); turretHitFlashLast.delete(id);
+  playSound('turretDestroy');
+  const debrisCount = engineerFeedbackParticleCount(GAME_CONFIG.turret.visuals.destroyDebrisCount);
+  for (let i = 0; i < debrisCount; i++) {
+    const angle = Math.PI * 2 * i / debrisCount;
+    addParticle({ x, y, vx: Math.cos(angle) * 70, vy: Math.sin(angle) * 70, radius: 3,
+      color: i % 2 ? '#ff8738' : '#FFD27A', alpha: 1, decay: 0.045 });
+  }
 });
 socket.on('turret_removed', ({ id }) => { turretVisualState.delete(id); turretHitFlashes.delete(id); turretHitFlashLast.delete(id); });
 socket.on('engineer_place_failed', () => { playSound('hit'); showToast("Can't place turret here", 'engineer', '🔧'); });
@@ -2018,13 +2029,12 @@ socket.on('engineer_salvage', (event) => {
   if (event.playerId !== me) return;
   if (prefersReducedMotion) return;
   const startedAt = performance.now();
-  const ammo = event.ammo || GAME_CONFIG.heroes.engineer.salvage.ammo;
   for (const turret of event.turrets || []) addParticle({
     x: event.x, y: event.y, vx: 0, vy: 0, radius: 3, color: '#fff6ae', alpha: 1,
     travelStartX: event.x, travelStartY: event.y,
     travelTargetX: turret.x, travelTargetY: turret.y, travelStartedAt: startedAt,
     travelDurationMs: GAME_CONFIG.heroes.engineer.salvage.flightMs,
-    salvageTurretId: turret.id, salvageAmmo: ammo,
+    salvageTurretId: turret.id, salvageHeal: turret.healed,
   });
 });
 socket.on('fairy_vortex_start', (vortex) => {
@@ -3999,7 +4009,7 @@ function drawRangerWolves(now) {
 
 function drawTurrets(now) {
   for (const turret of state.turrets || []) {
-    const visual = turretVisualState.get(turret.id) || { bornAt: now, ammo: turret.ammo, angleChangedAt: now, recoilUntil: 0, flashUntil: 0 };
+    const visual = turretVisualState.get(turret.id) || { bornAt: now, shotsFired: turret.shotsFired, angleChangedAt: now, recoilUntil: 0, flashUntil: 0 };
     const pop = prefersReducedMotion || effectiveQuality() === 'low'
       ? 1 : Math.min(1, Math.max(0, (now - visual.bornAt) / GAME_CONFIG.turret.deployMs));
     const scale = turret.deploying ? Math.max(0.05, pop) : 1;
@@ -4014,10 +4024,7 @@ function drawTurrets(now) {
     const bodySprite = turretSpriteImages.body;
     const bodySize = GAME_CONFIG.turret.visuals.bodySize;
     context.drawImage(bodySprite || turretBodyCanvas, -bodySize.w / 2, -bodySize.h / 2, bodySize.w, bodySize.h);
-    if (turret.ammo <= 0) {
-      context.fillStyle = 'rgba(110,115,125,.48)'; context.beginPath(); context.arc(0, 0, 20, 0, Math.PI * 2); context.fill();
-    }
-    let angle = turret.ammo <= 0 ? turret.angle + Math.PI * 70 / 180 : turret.angle;
+    let angle = turret.angle;
     const visualSpec = GAME_CONFIG.turret.visuals;
     if (now - visual.angleChangedAt > 200) angle += Math.sin(now * visualSpec.idleSwaySpeed + turret.x) * visualSpec.idleSwayAmplitudeRad;
     let recoil = visual.recoilUntil > now ? visualSpec.recoilPx * (visual.recoilUntil - now) / visualSpec.recoilMs : 0;
@@ -4041,17 +4048,11 @@ function drawTurrets(now) {
     hpGradient.addColorStop(0, '#58cc64'); hpGradient.addColorStop(.5, '#f0d84a'); hpGradient.addColorStop(1, '#e64545');
     context.fillStyle = hpGradient; context.fillRect(barX, barY, visualSpec.barWidth * ratio, visualSpec.hpBarHeight);
     if (ratio < .3 && Math.sin(now * Math.PI / 1000) > 0) { context.strokeStyle = '#ff3030'; context.lineWidth = 2; context.strokeRect(barX - 2, barY - 2, visualSpec.barWidth + 4, visualSpec.hpBarHeight + 4); }
-    const segmentWidth = visualSpec.barWidth / visualSpec.ammoSegments;
-    for (let segment = 0; segment < visualSpec.ammoSegments; segment++) {
-      const sx = barX + segment * segmentWidth;
-      const rounds = Math.max(0, Math.min(visualSpec.ammoPerSegment, turret.ammo - segment * visualSpec.ammoPerSegment));
-      const fillWidth = (segmentWidth - 1) * rounds / visualSpec.ammoPerSegment;
-      context.fillStyle = rounds > 0 ? '#ffd23f' : '#35363a'; context.fillRect(sx, barY + 8, fillWidth, 4);
-      context.strokeStyle = '#101018'; context.lineWidth = .6; context.strokeRect(sx, barY + 8, segmentWidth - 1, 4);
-    }
-    if (turret.ammo <= 0) {
-      context.globalAlpha = .6 + .4 * Math.sin(now * Math.PI / 350); context.font = 'bold 12px sans-serif';
-      context.textAlign = 'center'; context.fillStyle = '#fff'; context.fillText('▱', 0, -23);
+    const remainingMs = Math.max(0, turret.remainingMs - Math.max(0, now - stateReceivedAt));
+    if (remainingMs <= GAME_CONFIG.turret.expiryWarningMs) {
+      context.globalAlpha = 0.45 + 0.45 * Math.sin(now * Math.PI / 180);
+      context.strokeStyle = '#ff593f'; context.lineWidth = 2;
+      context.beginPath(); context.arc(0, 0, 27, 0, Math.PI * 2); context.stroke();
     }
     context.restore();
   }
@@ -4118,6 +4119,14 @@ function drawEngineerEffects(now) {
     const spot = engineerPlacementPoint(local);
     context.save(); context.globalAlpha = 0.22; context.strokeStyle = '#fff'; context.lineWidth = 1.5;
     context.beginPath(); context.arc(local.x, local.y, spec.placeRange, 0, Math.PI * 2); context.stroke();
+    context.globalAlpha = 0.24; context.strokeStyle = '#ff593f'; context.lineWidth = 1.5; context.setLineDash([7, 5]);
+    context.beginPath(); context.arc(spot.x, spot.y, GAME_CONFIG.turret.expiry.radius, 0, Math.PI * 2); context.stroke();
+    context.setLineDash([]);
+    const fire = state.campfire;
+    if (fire && Math.hypot(fire.x - spot.x, fire.y - spot.y) <= GAME_CONFIG.turret.expiry.radius + fire.radius) {
+      context.globalAlpha = 0.35; context.strokeStyle = '#ff593f';
+      context.beginPath(); context.arc(fire.x, fire.y, fire.radius + 6, 0, Math.PI * 2); context.stroke();
+    }
     context.globalAlpha = 0.4; context.fillStyle = spot.valid ? '#fff' : '#ff5151';
     context.beginPath(); context.arc(spot.x, spot.y, GAME_CONFIG.turret.radius, 0, Math.PI * 2); context.fill();
     context.globalAlpha = 0.28; context.drawImage(turretBodyCanvas, spot.x - 22, spot.y - 16);
@@ -4147,7 +4156,7 @@ function drawEngineerEffects(now) {
     const progress = (now - popup.startedAt) / GAME_CONFIG.heroes.engineer.salvage.popupMs;
     if (progress >= 1) { engineerSalvagePopups.delete(id); continue; }
     context.save(); context.globalAlpha = 1 - progress; context.fillStyle = '#fff6ae'; context.font = 'bold 12px sans-serif';
-    context.textAlign = 'center'; context.fillText(`+${(popup.ammo || GAME_CONFIG.heroes.engineer.salvage.ammo) * popup.count}`, popup.x, popup.y - 28 - progress * 12); context.restore();
+    context.textAlign = 'center'; context.fillText(`+${popup.heal * popup.count} HP`, popup.x, popup.y - 28 - progress * 12); context.restore();
   }
 }
 
@@ -5018,7 +5027,7 @@ function drawScene(timestamp) {
       part.y = part.travelStartY + (part.travelTargetY - part.travelStartY) * eased;
       if (progress >= 1) {
         recordEngineerSalvageArrival(part.salvageTurretId, part.travelTargetX, part.travelTargetY,
-          part.salvageAmmo || GAME_CONFIG.heroes.engineer.salvage.ammo, currentTime);
+          part.salvageHeal || 0, currentTime);
         particles.splice(i, 1); particlePool.push(part);
         continue;
       }

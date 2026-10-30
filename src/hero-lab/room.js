@@ -851,7 +851,12 @@ function createRoom({ io, services = null, id, code = null, isDefault = false, m
   }
 
   function startRestPhase(now) {
-    for (const turret of turrets.values()) { turret.hp = GAME_CONFIG.turret.hp; turret.ammo = GAME_CONFIG.turret.ammoMax; }
+    for (const turret of turrets.values()) {
+      if (turret.expiryWarned) nsp.emit('area_telegraph_cancel', { sourceAbility: `engineer-turret-expiry:${turret.id}` });
+      turret.hp = GAME_CONFIG.turret.hp;
+      turret.expiresAt = now + GAME_CONFIG.turret.lifetimeMs;
+      turret.expiryWarned = false;
+    }
     for (const wolf of [...wolves.values()]) {
       wolves.delete(wolf.id);
       nsp.emit('ranger_wolf_removed', { id: wolf.id, x: wolf.x, y: wolf.y, sourceAbility: 'rest' });
@@ -1142,6 +1147,7 @@ function createRoom({ io, services = null, id, code = null, isDefault = false, m
     turret.hp -= amount;
     nsp.emit('turret_hit', { id: turret.id, x: turret.x, y: turret.y, damage: amount });
     if (turret.hp <= 0) {
+      if (turret.expiryWarned) nsp.emit('area_telegraph_cancel', { sourceAbility: `engineer-turret-expiry:${turret.id}` });
       turrets.delete(turret.id);
       nsp.emit('turret_destroyed', { id: turret.id, x: turret.x, y: turret.y, sourceAbility });
     }
@@ -1149,6 +1155,7 @@ function createRoom({ io, services = null, id, code = null, isDefault = false, m
 
   function removeOwnerTurrets(ownerId) {
     for (const [id, turret] of turrets) if (turret.ownerId === ownerId) {
+      if (turret.expiryWarned) nsp.emit('area_telegraph_cancel', { sourceAbility: `engineer-turret-expiry:${turret.id}` });
       turrets.delete(id);
       nsp.emit('turret_removed', { id, x: turret.x, y: turret.y });
     }
@@ -1157,11 +1164,36 @@ function createRoom({ io, services = null, id, code = null, isDefault = false, m
   function makeTurret(ownerId, x, y, now = Date.now()) {
     const owner = players.get(ownerId);
     const turret = { id: `turret:${++turretCounter}`, ownerId, x, y, createdAt: now, hp: GAME_CONFIG.turret.hp,
-      ammo: GAME_CONFIG.turret.initialAmmo, radius: GAME_CONFIG.turret.radius, barrelAngle: 0, targetId: null, deployingUntil: now + GAME_CONFIG.turret.deployMs,
+      expiresAt: now + GAME_CONFIG.turret.lifetimeMs, expiryWarned: false, shotsFired: 0,
+      radius: GAME_CONFIG.turret.radius, barrelAngle: 0, targetId: null, deployingUntil: now + GAME_CONFIG.turret.deployMs,
       targetReevalAt: 0, nextFireAt: now, ownerAttack: owner?.hero.attack || GAME_CONFIG.heroDefaults.attack };
     turrets.set(turret.id, turret);
     nsp.emit('turret_deployed', { id: turret.id, x, y });
     return turret;
+  }
+
+  function expireTurret(turret, now) {
+    if (!turrets.has(turret.id)) return;
+    turrets.delete(turret.id);
+    const blast = GAME_CONFIG.turret.expiry;
+    const sourceAbility = `engineer-turret-expiry:${turret.id}`;
+    nsp.emit('turret_expired', { id: turret.id, x: turret.x, y: turret.y, radius: blast.radius });
+    for (const monster of [...monsters.values()]) {
+      if (Math.hypot(monster.x - turret.x, monster.y - turret.y) > blast.radius + monster.radius) continue;
+      damageMonster(monster, blast.enemyDamage, { ownerId: turret.ownerId, sourceAbility, turretKill: true });
+    }
+    for (const player of players.values()) {
+      if (Math.hypot(player.x - turret.x, player.y - turret.y) > blast.radius + ARENA_CONFIG.radius) continue;
+      const damage = player.hero.damage(blast.heroDamage, now);
+      if (damage > 0) nsp.emit('player_hit', { id: player.id, x: player.x, y: player.y, damage, sourceAbility });
+    }
+    if (Math.hypot(campfire.x - turret.x, campfire.y - turret.y) <= blast.radius + campfire.radius) {
+      const before = campfire.hp;
+      campfire.hp = Math.max(0, campfire.hp - blast.campfireDamage);
+      pendingCampfireDamage += before - campfire.hp;
+    }
+    nsp.emit('area_effect', { x: turret.x, y: turret.y, radius: blast.radius, kind: 'enemy', telegraphMs: 0,
+      color: '#ff8738', sourceHeroId: 'engineer', sourceAbility });
   }
 
   function createTurretProjectile(turret, now, angle) {
@@ -1191,6 +1223,22 @@ function createRoom({ io, services = null, id, code = null, isDefault = false, m
     for (const turret of turrets.values()) {
       const owner = players.get(turret.ownerId);
       if (owner) turret.ownerAttack = owner.hero.attack;
+      if (breakPhase === 'rest' || breakPhase === 'vote') {
+        turret.expiresAt += dt * 1000;
+        if (turret.expiryWarned) {
+          turret.expiryWarned = false;
+          nsp.emit('area_telegraph_cancel', { sourceAbility: `engineer-turret-expiry:${turret.id}` });
+        }
+        continue;
+      }
+      if (now >= turret.expiresAt) { expireTurret(turret, now); continue; }
+      if (!turret.expiryWarned && turret.expiresAt - now <= GAME_CONFIG.turret.expiryWarningMs) {
+        turret.expiryWarned = true;
+        nsp.emit('area_telegraph', { x: turret.x, y: turret.y, radius: GAME_CONFIG.turret.expiry.radius,
+          kind: 'enemy', telegraphMs: Math.max(1, turret.expiresAt - now),
+          sourceAbility: `engineer-turret-expiry:${turret.id}`, sourceHeroId: 'engineer' });
+      }
+      turret.hp = Math.max(1, turret.hp - GAME_CONFIG.turret.decayPerSecond * dt);
       if (turret.deployingUntil > now) continue;
       let target = turret.targetId ? monsters.get(turret.targetId) : null;
       if (!target || target.dead || target.fadeStartedAt || Math.hypot(target.x - turret.x, target.y - turret.y) > GAME_CONFIG.turret.range
@@ -1211,8 +1259,8 @@ function createRoom({ io, services = null, id, code = null, isDefault = false, m
       const maxStep = GAME_CONFIG.turret.turnRateDegS * Math.PI / 180 * dt;
       delta = clamp(delta, -maxStep, maxStep);
       turret.barrelAngle += delta;
-      if (turret.ammo <= 0 || Math.abs(((wanted - turret.barrelAngle + Math.PI * 3) % (Math.PI * 2)) - Math.PI) > GAME_CONFIG.turret.fireConeDeg * Math.PI / 180 || now < turret.nextFireAt) continue;
-      turret.ammo -= 1;
+      if (Math.abs(((wanted - turret.barrelAngle + Math.PI * 3) % (Math.PI * 2)) - Math.PI) > GAME_CONFIG.turret.fireConeDeg * Math.PI / 180 || now < turret.nextFireAt) continue;
+      turret.shotsFired += 1;
       turret.nextFireAt = now + 1000 / GAME_CONFIG.turret.fireRate;
       const angle = turret.barrelAngle;
       const projectile = createTurretProjectile(turret, now, angle);
@@ -2339,12 +2387,16 @@ function createRoom({ io, services = null, id, code = null, isDefault = false, m
       const restored = [];
       for (const turret of turrets.values()) {
         if (turret.ownerId !== killer.id || turret.hp <= 0) continue;
-        turret.ammo = Math.min(GAME_CONFIG.turret.ammoMax, turret.ammo + spec.ammo);
+        const previousHp = turret.hp;
         turret.hp = Math.min(GAME_CONFIG.turret.hp, turret.hp + GAME_CONFIG.turret.hp * spec.healPct);
-        restored.push({ id: turret.id, x: turret.x, y: turret.y, ammo: turret.ammo, hp: Math.round(turret.hp) });
+        if (turret.expiryWarned) nsp.emit('area_telegraph_cancel', { sourceAbility: `engineer-turret-expiry:${turret.id}` });
+        turret.expiryWarned = false;
+        turret.expiresAt += spec.lifetimeBonusMs;
+        restored.push({ id: turret.id, x: turret.x, y: turret.y,
+          healed: Math.round(turret.hp - previousHp), extendedMs: spec.lifetimeBonusMs, hp: Math.round(turret.hp) });
       }
       if (restored.length) nsp.emit('engineer_salvage', { playerId: killer.id, x: killer.x, y: killer.y,
-        ammo: spec.ammo, turrets: restored });
+        turrets: restored });
     }
     if (killer.heroId === 'sheriff' && (source.sourceAbility !== 'skill' || killer.hero.spec.kills.countDynamiteKills)) {
       const cd = killer.hero.cooldowns.skill;
@@ -2717,7 +2769,8 @@ function createRoom({ io, services = null, id, code = null, isDefault = false, m
       traps: [...traps.values()],
       turrets: [...turrets.values()].map((turret) => ({
         id: turret.id, ownerId: turret.ownerId, x: turret.x, y: turret.y, hp: Math.max(0, Math.round(turret.hp)),
-        ammo: turret.ammo, angle: turret.barrelAngle, deploying: Boolean(turret.deployingUntil > now),
+        shotsFired: turret.shotsFired, remainingMs: Math.max(0, turret.expiresAt - now),
+        angle: turret.barrelAngle, deploying: Boolean(turret.deployingUntil > now),
       })),
       wolves: [...wolves.values()].map((wolf) => ({ id: wolf.id, ownerId: wolf.ownerId,
         x: Math.round(wolf.x * 10) / 10, y: Math.round(wolf.y * 10) / 10,
@@ -3158,8 +3211,13 @@ function createRoom({ io, services = null, id, code = null, isDefault = false, m
           if (proj.hitTargets.has(monster.id) || !proj.collidesWith(monster)) continue;
           proj.hitTargets.add(monster.id);
           damageMonster(monster, proj.damage, { ownerId: owner.id, sourceAbility: 'weapon' });
-          roomApplyPush(monster, { dirX: proj.vx, dirY: proj.vy }, owner.hero.spec.wrench.push,
-            GAME_CONFIG.effects.pushDefaultDurationMs, { now });
+          if (proj.wrenchLeg === 'returning') {
+            roomApplyPush(monster, { dirX: owner.x - monster.x, dirY: owner.y - monster.y }, owner.hero.spec.wrench.pull,
+              owner.hero.spec.wrench.pullMs, { now });
+          } else {
+            roomApplyPush(monster, { dirX: proj.vx, dirY: proj.vy }, owner.hero.spec.wrench.push,
+              GAME_CONFIG.effects.pushDefaultDurationMs, { now });
+          }
         }
         continue;
       }
@@ -3579,8 +3637,12 @@ function createRoom({ io, services = null, id, code = null, isDefault = false, m
 
   function debugTurretAction(action, ownerId) {
     const owned = [...turrets.values()].filter((turret) => turret.ownerId === ownerId);
-    if (action === 'fill' || action === 'empty') {
-      for (const turret of owned) turret.ammo = action === 'fill' ? GAME_CONFIG.turret.ammoMax : 0;
+    if (action === 'expire') {
+      for (const turret of owned) {
+        if (turret.expiryWarned) nsp.emit('area_telegraph_cancel', { sourceAbility: `engineer-turret-expiry:${turret.id}` });
+        turret.expiryWarned = false;
+        turret.expiresAt = Date.now() + 1000;
+      }
     } else if (action === 'damage') {
       for (const turret of owned) damageTurret(turret, GAME_CONFIG.turret.hp * 0.5, 'debug');
     }
