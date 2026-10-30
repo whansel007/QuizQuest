@@ -65,8 +65,10 @@ export async function preloadHeroSprites({ onWarning = console.warn } = {}) {
       // the configured viewport size. Keep that scale for world rendering;
       // the crop is only for compact portraits and preview images.
       const record = rasterize(image, sizePx, dpr);
+      const portraitSize = Math.max(sizePx, config.SPRITE_PORTRAIT_MIN_PX || 176);
+      const portraitDpr = Math.max(dpr, config.SPRITE_PORTRAIT_DPR_MIN || 2);
       const portrait = heroConfig.crop?.[frameName]
-        ? rasterize(image, sizePx, dpr, heroConfig.crop[frameName])
+        ? rasterize(image, portraitSize, portraitDpr, heroConfig.crop[frameName])
         : record;
       let heroFrames = cache.get(heroId);
       if (!heroFrames) { heroFrames = new Map(); cache.set(heroId, heroFrames); }

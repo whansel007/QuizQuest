@@ -146,6 +146,7 @@ export const ENGINEER_WRENCH_MAX_S = 2;
 export const ENGINEER_WRENCH_COOLDOWN_S = 0.35;
 export const ENGINEER_WRENCH_SPIN_RAD_S = Math.PI * 12;
 export const ENGINEER_WRENCH_CATCH_RADIUS = 24;
+export const ENGINEER_WRENCH_MARK_DURATION_MS = 8000;
 export const ENGINEER_WRENCH_RADIUS = 13;
 export const ENGINEER_PLACE_RANGE = 220;
 export const ENGINEER_SKILL_COOLDOWN_S = 18;
@@ -200,6 +201,7 @@ export const RANGER_WOLF_TAUNT_RADIUS = 150;
 export const RANGER_WOLF_TAUNTS = true;
 export const RANGER_MARK_BONUS = 0.30;
 export const RANGER_MARK_DURATION_S = 4;
+export const RANGER_MARK_KILL_REFUND_FRACTION = 0.25;
 export const RANGER_ULT_ARROWS = 3;
 export const RANGER_ULT_WINDOW_S = 10;
 export const RANGER_ULT_FIRE_INTERVAL_S = 0.5;
@@ -214,12 +216,27 @@ export const RANGER_FAIL_FREQUENCY = 165;
 export const RANGER_FAIL_SLIDE_TO = 115;
 export const RANGER_FAIL_DURATION_MS = 100;
 export const RANGER_FAIL_GAIN = 0.06;
+export const RANGER_FEEDBACK = Object.freeze({
+  creakIntervalMs: 260, drawBowBasePx: 12, drawBowBendPx: 20, drawBowHalfHeightPx: 22,
+  aimLineWidthMinPx: 1, aimLineWidthMaxPx: 4, chargeRingRadiusPx: 15, chargeFullFlashMs: 120,
+  meatArcHeightPx: 48, meatGroundMs: 600, wolfFadeInMs: 600, wolfTimerBarWidthPx: 40, wolfTimerBarHeightPx: 6,
+  wolfTimerRadiusPx: 24, markIconPx: 14, markDrawCap: 20, deadAimPipCount: 3,
+  deadAimStreakMs: 70, deadAimMuzzleMs: 110, deadAimImpactLeaves: 6,
+});
+export const RANGER_SOUND_PROFILES = Object.freeze({
+  rangerCreak: { frequency: 260, slideTo: 430, durationMs: 150, gain: 0.035, type: 'sawtooth', minIntervalMs: 240 },
+  rangerFullCharge: { frequency: 1120, slideTo: 1460, durationMs: 95, gain: 0.07, type: 'sine', minIntervalMs: 100 },
+  rangerTwang: { frequency: 340, slideTo: 145, durationMs: 155, gain: 0.1, type: 'triangle', minIntervalMs: 45 },
+  rangerChunk: { frequency: 190, slideTo: 520, durationMs: 150, gain: 0.11, type: 'triangle', minIntervalMs: 80 },
+  rangerThock: { frequency: 150, slideTo: 68, durationMs: 220, gain: 0.16, type: 'sawtooth', minIntervalMs: 120 },
+  rangerMeatLand: { frequency: 130, slideTo: 74, durationMs: 125, gain: 0.07, type: 'triangle', minIntervalMs: 80 },
+  rangerWolfHowl: { frequency: 290, slideTo: 120, durationMs: 360, gain: 0.045, type: 'sawtooth', minIntervalMs: 500 },
+  rangerWolfLeave: { frequency: 240, slideTo: 105, durationMs: 180, gain: 0.04, type: 'triangle', minIntervalMs: 120 },
+  rangerWolfBite: { frequency: 360, slideTo: 190, durationMs: 90, gain: 0.04, type: 'triangle', minIntervalMs: 100 },
+});
 export const ENGINEER_KILL_HEAL_PCT = 0.05;
 export const ENGINEER_KILL_TURRET_LIFETIME_BONUS_MS = 1500;
-export const ENGINEER_SALVAGE_FLIGHT_MS = 250;
-export const ENGINEER_SALVAGE_PULSE_MS = 100;
-export const ENGINEER_SALVAGE_POPUP_MERGE_MS = 300;
-export const ENGINEER_SALVAGE_POPUP_MS = 500;
+export const ENGINEER_SALVAGE_POPUP_MS = 850;
 // Samurai combat tuning. Server hit checks and their client visuals share these values.
 export const SAMURAI_WEAPON_COOLDOWN_S = 0.3;
 export const SAMURAI_SKILL_COOLDOWN_S = 7;
@@ -356,6 +373,12 @@ export const ABILITY_ICONS = Object.freeze({
     ultimate: 'assets/icons/samurai-ultimate.svg',
     talent: 'assets/icons/samurai-talent.svg',
   }),
+  ranger: Object.freeze({
+    primary: 'assets/icons/ranger-primary.svg',
+    skill: 'assets/icons/ranger-skill.svg',
+    ultimate: 'assets/icons/ranger-ultimate.svg',
+    talent: 'assets/icons/ranger-talent.svg',
+  }),
 });
 
 // Slots that sit on the amber highlight colour family instead of the hero's
@@ -367,7 +390,10 @@ export const ABILITY_BTN_HIGHLIGHT = Object.freeze({
   bombardier: Object.freeze(['primary']),
   bubbles: Object.freeze(['skill']),
   electromancer: Object.freeze(['ultimate']),
-  fairy: Object.freeze([]),
+  fairy: Object.freeze(['ultimate']),
+  engineer: Object.freeze(['skill']),
+  samurai: Object.freeze(['ultimate']),
+  ranger: Object.freeze(['skill']),
 });
 
 // While Pilot's Mech Suit is up the weapon slot shows the mech punch and moves
@@ -404,6 +430,7 @@ export const ARENA_TUNING = Object.freeze({
       fairyWhoosh: { frequency: 720, slideTo: 260, durationMs: 360, gain: 0.07, type: 'sine', minIntervalMs: 100 },
       rangerFail: { frequency: RANGER_FAIL_FREQUENCY, slideTo: RANGER_FAIL_SLIDE_TO,
         durationMs: RANGER_FAIL_DURATION_MS, gain: RANGER_FAIL_GAIN, type: 'triangle' },
+      ...RANGER_SOUND_PROFILES,
       fairyTravel: { frequency: 240, durationMs: 1, gain: 0.018, type: 'sine' },
       fairyHum: { frequency: 54, durationMs: 1, gain: 0.035, type: 'sine' },
       fairyPoof: { frequency: 420, slideTo: 110, durationMs: 320, gain: 0.1, type: 'triangle', minIntervalMs: 160 },
@@ -729,13 +756,13 @@ export const GAME_CONFIG = Object.freeze({
       weaponCooldownMs: ENGINEER_WRENCH_COOLDOWN_S * 1000,
       skillCooldownMs: ENGINEER_SKILL_COOLDOWN_S * 1000, ultimateCooldownMs: ENGINEER_ULTIMATE_COOLDOWN_S * 1000,
       talent: {
-        name: 'Salvage', icon: ABILITY_ICONS.engineer.talent,
-        description: `Your kills repair each living turret by ${ENGINEER_KILL_HEAL_PCT * 100}% max HP and extend its life by ${ENGINEER_KILL_TURRET_LIFETIME_BONUS_MS / 1000} s.`,
+        name: 'Refueling', icon: ABILITY_ICONS.engineer.talent,
+        description: `Your kills refuel each living turret, restoring ${ENGINEER_KILL_HEAL_PCT * 100}% max HP and extending its life by ${ENGINEER_KILL_TURRET_LIFETIME_BONUS_MS / 1000} s. Wrench hits mark enemies for ${ENGINEER_WRENCH_MARK_DURATION_MS / 1000} s, making your turret deal double damage to them and letting it trigger Refueling when it kills them.`,
         linkedSlot: ['skill'],
       },
       wrench: { speed: ENGINEER_WRENCH_SPEED, range: ENGINEER_WRENCH_RANGE, damageMultiplier: ENGINEER_WRENCH_DAMAGE_MULT,
         push: ENGINEER_WRENCH_PUSH, pull: ENGINEER_WRENCH_PULL, pullMs: ENGINEER_WRENCH_PULL_MS,
-        maxMs: ENGINEER_WRENCH_MAX_S * 1000, catchRadius: ENGINEER_WRENCH_CATCH_RADIUS,
+        maxMs: ENGINEER_WRENCH_MAX_S * 1000, catchRadius: ENGINEER_WRENCH_CATCH_RADIUS, markDurationMs: ENGINEER_WRENCH_MARK_DURATION_MS,
         radius: ENGINEER_WRENCH_RADIUS, spinRadPerSecond: ENGINEER_WRENCH_SPIN_RAD_S },
       turretSkill: { placeRange: ENGINEER_PLACE_RANGE, maxTurrets: ENGINEER_MAX_TURRETS,
         minCampfireDist: TURRET_MIN_CAMPFIRE_DIST, minSpacing: TURRET_MIN_SPACING, snapRadius: ENGINEER_TURRET_SNAP_RADIUS,
@@ -744,15 +771,14 @@ export const GAME_CONFIG = Object.freeze({
         durationMs: ENGINEER_LASER_DURATION_S * 1000, damageMultiplier: ENGINEER_LASER_DAMAGE_MULT,
         lockLastMs: ENGINEER_LASER_LOCK_LAST_S * 1000, moveFactor: ENGINEER_LASER_MOVE_FACTOR },
       salvage: { healPct: ENGINEER_KILL_HEAL_PCT, lifetimeBonusMs: ENGINEER_KILL_TURRET_LIFETIME_BONUS_MS,
-        flightMs: ENGINEER_SALVAGE_FLIGHT_MS, pulseMs: ENGINEER_SALVAGE_PULSE_MS,
-        popupMergeMs: ENGINEER_SALVAGE_POPUP_MERGE_MS, popupMs: ENGINEER_SALVAGE_POPUP_MS },
+        popupMs: ENGINEER_SALVAGE_POPUP_MS },
     },
     ranger: {
       type: 'magic', hp: 90, attack: 18, defense: 3, speed: 215,
       weaponCooldownMs: 250, skillCooldownMs: 14000, ultimateCooldownMs: 40000,
       talent: {
         name: 'Pack Hunter', icon: '🐾',
-        description: `Enemies the wolf bites take ${RANGER_MARK_BONUS * 100}% more damage from your arrows for ${RANGER_MARK_DURATION_S} s.`,
+        description: `Enemies the wolf bites take ${RANGER_MARK_BONUS * 100}% more damage from your arrows for ${RANGER_MARK_DURATION_S} s. Killing a marked enemy refunds ${RANGER_MARK_KILL_REFUND_FRACTION * 100}% of the wolf skill cooldown.`,
         linkedSlot: ['skill'],
       },
       ranger: { chargeMinS: RANGER_CHARGE_MIN_S, chargeMaxS: RANGER_CHARGE_MAX_S,
@@ -772,10 +798,12 @@ export const GAME_CONFIG = Object.freeze({
         wolfScan: RANGER_WOLF_SCAN,
         wolfLeash: RANGER_WOLF_LEASH, wolfTauntRadius: RANGER_WOLF_TAUNT_RADIUS,
         wolfTaunts: RANGER_WOLF_TAUNTS, markBonus: RANGER_MARK_BONUS,
-        markDurationS: RANGER_MARK_DURATION_S, ultArrows: RANGER_ULT_ARROWS,
+        markDurationS: RANGER_MARK_DURATION_S, markKillRefundFraction: RANGER_MARK_KILL_REFUND_FRACTION,
+        ultArrows: RANGER_ULT_ARROWS,
         ultWindowS: RANGER_ULT_WINDOW_S, ultFireIntervalS: RANGER_ULT_FIRE_INTERVAL_S,
         ultMultiplier: RANGER_ULT_MULT, ultArrowRadius: RANGER_ULT_ARROW_RADIUS,
         ultExplosionRadius: RANGER_ULT_EXPLOSION_RADIUS, ultExplosionMultiplier: RANGER_ULT_EXPLOSION_MULT,
+        feedback: RANGER_FEEDBACK,
         ultSpeed: RANGER_ULT_SPEED, ultRange: RANGER_ULT_RANGE, ultKnockback: RANGER_ULT_KNOCKBACK },
     },
     samurai: {

@@ -51,6 +51,9 @@ export class Projectile {
     flashIntervalMs = 100,
     fadeLastFraction = 0,
     rangerDeadAim = false,
+    rangerChargeT = 0,
+    maxDistance = 0,
+    distanceTravelled = 0,
     sourceAbility = 'weapon',
     trap = null,
     lifetimeMs = GAME_CONFIG.combat.projectileMaxAgeMs,
@@ -83,6 +86,9 @@ export class Projectile {
     this.flashIntervalMs = flashIntervalMs;
     this.fadeLastFraction = fadeLastFraction;
     this.rangerDeadAim = rangerDeadAim;
+    this.rangerChargeT = rangerChargeT;
+    this.maxDistance = Number.isFinite(maxDistance) ? Math.max(0, maxDistance) : 0;
+    this.distanceTravelled = Number.isFinite(distanceTravelled) ? Math.max(0, distanceTravelled) : 0;
     this.sourceAbility = sourceAbility;
     this.trap = trap;
     this.kind = kind;
@@ -102,15 +108,26 @@ export class Projectile {
   }
 
   update(dt, arena = { width: 1920, height: 1080 }) {
-    this.x += this.vx * dt;
-    this.y += this.vy * dt;
+    const stepX = this.vx * dt, stepY = this.vy * dt;
+    if (this.maxDistance > 0) {
+      const step = Math.hypot(stepX, stepY);
+      const remaining = Math.max(0, this.maxDistance - this.distanceTravelled);
+      const fraction = step > remaining && step > 0 ? remaining / step : 1;
+      this.x += stepX * fraction;
+      this.y += stepY * fraction;
+      this.distanceTravelled += step * fraction;
+      if (this.distanceTravelled >= this.maxDistance) this.dead = true;
+    } else {
+      this.x += stepX;
+      this.y += stepY;
+    }
 
     if (
       this.x < -40 ||
       this.x > arena.width + 40 ||
       this.y < -40 ||
       this.y > arena.height + 40 ||
-      Date.now() - this.createdAt > this.lifetimeMs
+      (this.maxDistance <= 0 && Date.now() - this.createdAt > this.lifetimeMs)
     ) {
       this.dead = true;
     }
@@ -126,7 +143,9 @@ export class Projectile {
 
   draw(context) {
     const age = Date.now() - this.createdAt;
-    const progress = Math.max(0, Math.min(1, age / Math.max(1, this.lifetimeMs)));
+    const progress = this.maxDistance > 0
+      ? Math.max(0, Math.min(1, this.distanceTravelled / Math.max(1, this.maxDistance)))
+      : Math.max(0, Math.min(1, age / Math.max(1, this.lifetimeMs)));
     const alpha = this.fadeLastFraction > 0 && progress > 1 - this.fadeLastFraction
       ? Math.max(0, (1 - progress) / this.fadeLastFraction) : 1;
     context.save();
@@ -139,8 +158,12 @@ export class Projectile {
       context.lineCap = 'round';
       context.lineJoin = 'round';
       if (deadAim) {
-        context.shadowColor = '#ffd75e';
-        context.shadowBlur = 22;
+        context.strokeStyle = '#543923';
+        context.lineWidth = 17;
+        context.beginPath();
+        context.moveTo(-57, 0);
+        context.lineTo(-12, 0);
+        context.stroke();
         context.strokeStyle = 'rgba(255, 205, 75, 0.92)';
         context.lineWidth = 11;
         context.beginPath();
@@ -148,14 +171,23 @@ export class Projectile {
         context.lineTo(-12, 0);
         context.stroke();
       } else {
-        context.strokeStyle = 'rgba(240, 221, 160, 0.8)';
-        context.lineWidth = 3;
+        const charge = Math.max(0, Math.min(1, this.rangerChargeT || 0));
+        const tailLength = 8 + charge * 16;
+        context.strokeStyle = '#303728';
+        context.lineWidth = 6;
         context.beginPath();
-        context.moveTo(-19, 0);
-        context.lineTo(-8, 0);
+        context.moveTo(-tailLength - 4, 0);
+        context.lineTo(-5, 0);
+        context.stroke();
+        context.strokeStyle = 'rgba(240, 221, 160, 0.9)';
+        context.lineWidth = 3 + charge * 2;
+        context.beginPath();
+        context.moveTo(-tailLength - 3, 0);
+        context.lineTo(-5, 0);
         context.stroke();
       }
-      context.font = `${deadAim ? 56 : 28}px "Segoe UI Emoji", sans-serif`;
+      const charge = Math.max(0, Math.min(1, this.rangerChargeT || 0));
+      context.font = `${deadAim ? 56 : 22 + 22 * charge}px "Segoe UI Emoji", sans-serif`;
       context.textAlign = 'center';
       context.textBaseline = 'middle';
       context.fillText('➡️', deadAim ? 10 : 2, 0);

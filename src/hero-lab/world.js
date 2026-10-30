@@ -133,6 +133,10 @@ function attachHeroLab(io, services = null) {
       if (!isDebugSocket()) return;
       roomOf()?.debugSetSamuraiStacks?.(stacks, socket.id);
     }));
+    socket.on('debug_ranger', safe('debug_ranger', ({ action, x, y } = {}) => {
+      if (!isDebugSocket()) return;
+      roomOf()?.debugRangerAction?.(action, socket.id, x, y);
+    }));
     socket.on('debug_turret', safe('debug_turret', ({ action, x, y } = {}) => {
       if (!isDebugSocket()) return;
       if (action === 'place') roomOf()?.debugPlaceTurret?.(socket.id, x, y);

@@ -348,6 +348,42 @@
       "originalFile": "tally-mark-5.svg",
       "originalPath": "game-icons.net.svg/icons/ffffff/000000/1x1/delapouite/tally-mark-5.svg",
       "license": "CC BY 3.0"
+    },
+    "ranger-primary.svg": {
+      "originalFile": "bow-arrow.svg",
+      "license": "CC BY 3.0",
+      "ability": "Charge Bow",
+      "author": "delapouite",
+      "originalPath": "game-icons.net.svg/icons/ffffff/000000/1x1/delapouite/bow-arrow.svg",
+      "hero": "ranger",
+      "slot": "primary"
+    },
+    "ranger-skill.svg": {
+      "originalFile": "meat.svg",
+      "license": "CC BY 3.0",
+      "ability": "Meat and Wolf",
+      "author": "lorc",
+      "originalPath": "game-icons.net.svg/icons/ffffff/000000/1x1/lorc/meat.svg",
+      "hero": "ranger",
+      "slot": "skill"
+    },
+    "ranger-ultimate.svg": {
+      "originalFile": "charged-arrow.svg",
+      "license": "CC BY 3.0",
+      "ability": "Dead Aim",
+      "author": "lorc",
+      "originalPath": "game-icons.net.svg/icons/ffffff/000000/1x1/lorc/charged-arrow.svg",
+      "hero": "ranger",
+      "slot": "ultimate"
+    },
+    "ranger-talent.svg": {
+      "originalFile": "paw-print.svg",
+      "license": "CC BY 3.0",
+      "ability": "Pack Hunter",
+      "author": "lorc",
+      "originalPath": "game-icons.net.svg/icons/ffffff/000000/1x1/lorc/paw-print.svg",
+      "hero": "ranger",
+      "slot": "talent"
     }
   }
 }

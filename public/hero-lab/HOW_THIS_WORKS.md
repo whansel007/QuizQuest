@@ -128,12 +128,17 @@ combo, rewards or the wave counter.
   would be hit. Each Engineer owns at most two turrets, and a third breaks the
   oldest without an explosion. The Wrench Boomerang tracks its outbound and
   return legs on the server, pushing 30 px outbound and pulling targets 90 px
-  toward the Engineer on return, with one hit per target on each leg. Q charges
+  toward the Engineer on return, with one hit per target on each leg. Wrench
+  hits mark enemies for 8 s; the Engineer's turret deals double damage to
+  marked enemies, and a marked enemy killed by its Engineer's turret triggers
+  Refueling. Q charges
   for 0.4 s, locks aim for its last 0.1 s,
   and applies one 6x attack pass through a clipped 70-by-900 px beam. Engineer
-  kills repair each living owned turret by 5% max HP and extend its life by
-  1.5 s;
-  dummy kills can trigger Salvage but do not change run statistics.
+  kills and wrench-marked turret kills refuel each living owned turret by
+  restoring 5% max HP and extending its life by 1.5 s;
+  direct lobby mannequin kills trigger Refueling but do not change run
+  statistics; a wrench-marked mannequin killed by its Engineer's turret also
+  triggers it.
 - Shared crowd control is resolved by the server in `src/hero-lab/monster-effects.js`.
   Pushes ease to their destination and stop at arena bounds or the campfire;
   Brutes take half distance, dummies take 1.5×, and Kings/bosses are immune.

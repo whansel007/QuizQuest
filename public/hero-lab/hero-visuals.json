@@ -58,6 +58,7 @@
         "x": 0.5,
         "y": 0.5
       },
+      "partyOffsetX": -2,
       "ultimate": {
         "mode": "swap",
         "frame": "ultimate",
@@ -95,6 +96,7 @@
         "x": 0.5,
         "y": 0.5
       },
+      "partyOffsetX": 0,
       "ultimate": {
         "mode": "swap",
         "frame": "ultimate",
@@ -132,6 +134,7 @@
         "x": 0.5,
         "y": 0.5
       },
+      "partyOffsetX": 4,
       "ultimate": {
         "mode": "swap",
         "frame": "ultimate",
@@ -194,6 +197,7 @@
         "x": 0.5,
         "y": 0.5
       },
+      "partyOffsetX": -2,
       "ultimate": {
         "mode": "swap",
         "frame": "ultimate",
@@ -231,6 +235,7 @@
         "x": 0.5,
         "y": 0.5
       },
+      "partyOffsetX": 4,
       "ultimate": {
         "mode": "swap",
         "frame": "ultimate",
@@ -268,6 +273,7 @@
         "x": 0.5,
         "y": 0.5
       },
+      "partyOffsetX": 0,
       "ultimate": {
         "mode": "swap",
         "frame": "ultimate",
@@ -287,6 +293,7 @@
       },
       "scale": 1.6,
       "anchor": { "x": 0.5, "y": 0.5 },
+      "partyOffsetX": 3,
       "ultimate": { "mode": "swap", "frame": "ultimate", "transformMs": 200 }
     },
     "fairy": {
@@ -302,6 +309,7 @@
       },
       "scale": 1.6,
       "anchor": { "x": 0.5, "y": 0.5 },
+      "partyOffsetX": 4,
       "ultimate": { "mode": "swap", "frame": "ultimate", "transformMs": 200 }
     },
     "ranger": {
@@ -317,6 +325,7 @@
       },
       "scale": 1.6,
       "anchor": { "x": 0.5, "y": 0.5 },
+      "partyOffsetX": -6,
       "ultimate": { "mode": "swap", "frame": "ultimate", "transformMs": 200 }
     },
     "samurai": {
@@ -332,6 +341,7 @@
       },
       "scale": 1.6,
       "anchor": { "x": 0.5, "y": 0.5 },
+      "partyOffsetX": -2,
       "ultimate": { "mode": "swap", "frame": "ultimate", "transformMs": 200 }
     }
   },
