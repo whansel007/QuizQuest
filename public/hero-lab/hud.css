@@ -392,9 +392,9 @@ body[data-mode="workshop-trial"] #waiting-banner { display: none !important; }
 
 /* ---- Narrow screens ------------------------------------------------------- */
 @media (max-width: 1100px) {
-  #combat-hud { width: min(460px, calc(100vw - 560px)); min-width: 320px; }
+  #combat-hud { width: min(460px, calc(100vw - 620px)); min-width: 320px; }
 }
-@media (max-width: 850px) {
+@media (max-width: 900px) {
   /* objective panel takes the top row; party and room code sit below it */
   #combat-hud { top: .55rem; width: min(520px, calc(100vw - 1.1rem)); min-width: 0; }
   #hero-hud, #room-code-corner { top: 6.1rem; }
@@ -444,7 +444,7 @@ body[data-mode="workshop-trial"] #waiting-banner { display: none !important; }
   .virtual-stick-base { position: relative; display: grid; width: 88px; height: 88px; place-items: center; background: rgb(29 51 41 / 58%); border: 2px solid rgb(240 234 210 / 72%); border-radius: 50%; box-shadow: inset 0 0 0 6px rgb(29 51 41 / 24%); }
   .virtual-stick-knob { width: 40px; height: 40px; border: 2px solid var(--hud-ink); border-radius: 50%; background: rgb(242 186 85 / 90%); box-shadow: 0 3px 0 var(--hud-ink); transform: translate(var(--stick-x, 0px), var(--stick-y, 0px)); }
   .virtual-stick-label { padding: 2px 7px; color: var(--hud-text); background: rgb(29 51 41 / 82%); border-radius: 99px; }
-  #touch-help { position: fixed; z-index: 3; top: max(.5rem, env(safe-area-inset-top)); left: 50%; display: block; max-width: calc(100vw - 260px); padding: .3rem .55rem; color: var(--hud-text); background: rgb(29 51 41 / 84%); border: 1px solid var(--hud-line); border-radius: 7px; font-size: .7rem; text-align: center; transform: translateX(-50%); pointer-events: none; }
+  #touch-help { position: fixed; z-index: 3; top: auto; bottom: calc(168px + 1rem + env(safe-area-inset-bottom)); left: 50%; display: block; width: max-content; max-width: min(430px, calc(100vw - 1rem)); padding: .3rem .55rem; color: var(--hud-text); background: rgb(29 51 41 / 84%); border: 1px solid var(--hud-line); border-radius: 7px; font-size: .7rem; text-align: center; transform: translateX(-50%); pointer-events: none; }
   #ability-hud { right: max(.55rem, env(safe-area-inset-right)); bottom: max(.55rem, env(safe-area-inset-bottom)); grid-template-columns: 48px 62px; column-gap: 8px; row-gap: 8px; }
   .ability[data-ability="weapon"] { --btn-size: 48px; }
   .ability[data-ability="skill"] { --btn-size: 54px; }
