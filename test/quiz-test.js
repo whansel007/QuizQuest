@@ -43,6 +43,18 @@ async function call(token, method, path, body) {
 }
 const login = async (userId) => (await call(null, 'POST', '/api/login', { userId })).body.token;
 
+// Class trading opens once the student has a level 1 Tower in their kingdom,
+// so the students who trade need one. (Building it is the kingdom test's job.)
+async function giveTower(studentId, token) {
+  const k = db().kingdoms.find((x) => x.studentId === studentId);
+  if (k && k.buildings.tower >= 1) return k;
+  const crystals = await call(token, 'POST', '/api/student/debug/resources', { resource: 'crystal', balance: 8 });
+  assert.equal(crystals.status, 200, 'the demo resource editor sets the crystals');
+  const built = await call(token, 'POST', '/api/student/kingdom/build', { building: 'tower', requestId: `tower-${studentId}` });
+  assert.equal(built.status, 200, `the tower for ${studentId}`);
+  return db().kingdoms.find((x) => x.studentId === studentId);
+}
+
 // The right answer for a served session item, looked up server-side
 function correctSubmission(item) {
   const q = db().questions.find((x) => x.id === item.qid);
@@ -499,30 +511,33 @@ test('trading: escrow, swap, limits, class isolation, and the professor off swit
   const s4 = await login('s-04');
   const s5 = await login('s-05');
   const s7 = await login('s-07');
+  await giveTower('s-04', s4);
+  await giveTower('s-05', s5);
   const res = (id) => db().inventory.find((i) => i.studentId === id).resources;
   const before4 = { ...res('s-04') };
   const before5 = { ...res('s-05') };
-  const offer = await call(s4, 'POST', '/api/student/classes/cl-a/trades', { give: { wood: 2 }, want: { herb: 1 } });
-  assert.equal(offer.status, 201);
+  // every trade needs a request id, so a lost reply can be retried safely
+  const offer = await call(s4, 'POST', '/api/student/classes/cl-a/trades', { give: { wood: 2 }, want: { herb: 1 }, requestId: 'trade-offer-001' });
+  assert.equal(offer.status, 201, JSON.stringify(offer.body));
   assert.equal(res('s-04').wood, before4.wood - 2, 'offered wood is held in escrow');
-  assert.equal((await call(s4, 'POST', `/api/student/trades/${offer.body.id}/accept`)).status, 409, 'cannot accept own offer');
-  assert.equal((await call(s7, 'POST', `/api/student/trades/${offer.body.id}/accept`)).status, 404, 'other class cannot see it');
-  const ok = await call(s5, 'POST', `/api/student/trades/${offer.body.id}/accept`);
+  assert.equal((await call(s4, 'POST', `/api/student/trades/${offer.body.id}/accept`, { requestId: 'trade-accept-001' })).status, 409, 'cannot accept own offer');
+  assert.equal((await call(s7, 'POST', `/api/student/trades/${offer.body.id}/accept`, { requestId: 'trade-accept-002' })).status, 404, 'other class cannot see it');
+  const ok = await call(s5, 'POST', `/api/student/trades/${offer.body.id}/accept`, { requestId: 'trade-accept-003' });
   assert.equal(ok.status, 200);
   assert.equal(res('s-05').wood, before5.wood + 2);
   assert.equal(res('s-05').herb, before5.herb - 1);
   assert.equal(res('s-04').herb, before4.herb + 1);
-  assert.equal((await call(s5, 'POST', `/api/student/trades/${offer.body.id}/accept`)).status, 409, 'cannot accept twice');
-  assert.equal((await call(s4, 'POST', '/api/student/classes/cl-a/trades', { give: { wood: 999 }, want: { herb: 1 } })).status, 400);
-  assert.equal((await call(s4, 'POST', '/api/student/classes/cl-a/trades', { give: { gold: 1 }, want: { herb: 1 } })).status, 400);
+  assert.equal((await call(s5, 'POST', `/api/student/trades/${offer.body.id}/accept`, { requestId: 'trade-accept-004' })).status, 409, 'cannot accept twice');
+  assert.equal((await call(s4, 'POST', '/api/student/classes/cl-a/trades', { give: { wood: 999 }, want: { herb: 1 }, requestId: 'trade-offer-002' })).status, 400);
+  assert.equal((await call(s4, 'POST', '/api/student/classes/cl-a/trades', { give: { gold: 1 }, want: { herb: 1 }, requestId: 'trade-offer-003' })).status, 400);
   // professor turns trading off -> open offers are refunded
-  const open = await call(s4, 'POST', '/api/student/classes/cl-a/trades', { give: { wood: 1 }, want: { herb: 1 } });
+  const open = await call(s4, 'POST', '/api/student/classes/cl-a/trades', { give: { wood: 1 }, want: { herb: 1 }, requestId: 'trade-offer-004' });
   const woodBefore = res('s-04').wood;
   const prof = await login('t-a');
   await call(prof, 'PUT', '/api/teacher/classes/cl-a/settings', { tradingEnabled: false });
   assert.equal(db().trades.find((t) => t.id === open.body.id).status, 'cancelled');
   assert.equal(res('s-04').wood, woodBefore + 1);
-  assert.equal((await call(s4, 'POST', '/api/student/classes/cl-a/trades', { give: { wood: 1 }, want: { herb: 1 } })).status, 400);
+  assert.equal((await call(s4, 'POST', '/api/student/classes/cl-a/trades', { give: { wood: 1 }, want: { herb: 1 }, requestId: 'trade-offer-005' })).status, 400);
   await call(prof, 'PUT', '/api/teacher/classes/cl-a/settings', { tradingEnabled: true });
 });
 
@@ -600,8 +615,9 @@ test('malformed request URLs get an error response instead of crashing the serve
 
 test('inherited object keys are rejected (__proto__, constructor)', async () => {
   const t = await login('s-05');
+  await giveTower('s-05', t);
   for (const give of [{ __proto__: null, ['__proto__']: 20 }, { constructor: 5 }]) {
-    const raw = JSON.stringify({ give, want: { herb: 1 } }).replace('"give":{}', '"give":{"__proto__":20}');
+    const raw = JSON.stringify({ give, want: { herb: 1 }, requestId: 'trade-proto-0001' }).replace('"give":{}', '"give":{"__proto__":20}');
     const res = await fetch(base + '/api/student/classes/cl-a/trades', { method: 'POST', headers: { 'content-type': 'application/json', authorization: 'Bearer ' + t }, body: raw });
     assert.equal(res.status, 400, raw);
   }

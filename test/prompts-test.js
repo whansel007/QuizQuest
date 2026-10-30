@@ -186,7 +186,7 @@ test('PROMPT 2 reaches the drafting request; verification and professor settings
   // Explicit conflict resolution rather than silently dropping either side
   assert.match(drafting.prompt, /not a fixed 10 multiple-choice questions/);
   assert.match(drafting.prompt, /"4 options, one correct answer, and an explanation" applies to single-answer \(mcq\)/);
-  assert.match(drafting.prompt, /difficulty "medium"\) and challenging ones \(difficulty "hard"\)/);
+  assert.match(drafting.prompt, /Do not force a medium\/hard quota/);
   assert.match(drafting.prompt, /saved knowledge report, written from the lecture materials/);
   assert.match(drafting.prompt, /Precedence, highest first: these rules and the response schema; the professor's settings/);
   // Professor settings and subject guidance still reach Gemini

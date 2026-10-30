@@ -31,7 +31,12 @@ The older server tests in `test/` still run with `pnpm test` (Node's built-in te
 **End-to-end tests** (whole app in Chromium, Firefox and WebKit)
 - `e2e/login.spec.js`: student and professor login, wrong password, invalid email, signing out.
 - `e2e/signup.spec.js`: creating a student account, an email that is taken, a short password.
+- `e2e/join-class.spec.js`: a professor generates a join code and a new student enrols with it; a wrong join code is refused.
+- `e2e/practice.spec.js`: starting a practice session, answering a question, the session summary, and a student who is in no class yet.
 - `e2e/question-bank.spec.js`: a professor sees drafts needing review and publishes one.
+- `e2e/student-views.spec.js`: the World lobby picks a hero and opens a room; the Kingdom town and its buildings; the Summon banner and its drop rates.
+- `e2e/teacher-views.spec.js`: the Analytics, Evaluation, Settings and AI drafting tabs open for a professor.
+- `e2e/raid-boss.spec.js`: two students share one raid boss; a correct answer damages it for the class and the reward is split.
 - `e2e/progress-reporting.spec.js`: practice changes the topic's correct/count figures; a student report reaches the professor and the student sees the resolution response.
 - `e2e/team-room.spec.js`: two students create and join the same Campfire Defense room and see its membership.
 
@@ -51,6 +56,8 @@ Omit `--project=chromium` to check all three configured browsers. You do not nee
 
 Tests follow setup, actions and assertions, as in Week 10c. The comments explain why accounts use separate browser contexts and what each assertion proves. Playwright waits for locators and assertions automatically; fixed sleeps would make these journeys unreliable.
 
+Three timeouts are set in `playwright.config.js`, because WebKit is much slower than Chromium on the same machine: **60 s per test** (Playwright's default is 30 s), **10 s per assertion**, and **30 s per click** — so a click that never finds its element fails in half a minute and names the selector, instead of waiting for the whole test and reporting only "test timed out". The journeys that are genuinely long (a whole five-question session, two browsers at once, a shared socket room) also call `test.slow()`, which triples their budget to 180 s. On CI each test is retried once: a slow redraw can lose a single run on a busy runner, and a test that fails twice still fails the job.
+
 After a failure, run `pnpm exec playwright show-report` to inspect the failed step. To watch a specific test locally, add `--headed`; to step through it, add `--debug`. A failing assertion should be investigated rather than removed just to make the run pass.
 
 CI keeps first-attempt failure traces and screenshots in the **playwright-test-results** artifact for seven days. Download and unzip it from the GitHub Actions run, then open a trace with `pnpm exec playwright show-trace path/to/trace.zip`. The report journey has named steps for student submission, professor resolution and student refresh; a separate fixture owns the professor browser's cleanup so a teardown error can be distinguished from a journey failure.
@@ -62,5 +69,7 @@ You can also record a new test with the **Playwright Test for VS Code** extensio
 ## Writing new tests
 
 - Name test files `*.spec.js`. Vitest only picks up files inside `__tests__` folders; Playwright only looks in `e2e/`.
+- The end-to-end specs are syntax-checked along with the rest of the code (`pnpm run check`), so a typo in a spec is caught before the suite runs.
+- If a test drives **two pages at once**, bring the page you are working on to the front first (`await page.bringToFront()`). WebKit stops animating a page that is not in front, and a click waits for the page to settle before it fires, so the click waits for ever. The shared `signIn()` helper already does this.
 - Test behaviour, not implementation: check what the user sees (`wrapper.text()`, `getByText`, `getByRole`), not internal function names or exact HTML.
 - Component tests stub children only when needed; integration tests mount the real children.

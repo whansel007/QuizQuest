@@ -22,6 +22,9 @@ test('a student starts a practice session and answers a question', async ({ page
 });
 
 test('the summary offers the way back to practice and to the progress page', async ({ page }) => {
+  // This one answers a whole five-question session, so it needs longer than
+  // the default budget on WebKit, the slowest engine.
+  test.slow();
   await signIn(page, STUDENT);
   await openTab(page, 'Practice');
   await page.getByLabel('Length').selectOption('5');

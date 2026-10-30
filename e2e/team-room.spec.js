@@ -6,6 +6,8 @@ const HOST = { email: 'student01@quizquest.demo', name: 'Student 01' };
 const GUEST = { email: 'student02@quizquest.demo', name: 'Student 02' };
 
 test('two students share a Campfire Defense lobby through its room code', async ({ browser, page, baseURL }) => {
+  // Two browsers and a shared socket room: give it room.
+  test.slow();
   // A separate browser context keeps each student's login session independent.
   const guestContext = await browser.newContext({ baseURL });
   const guest = await guestContext.newPage();

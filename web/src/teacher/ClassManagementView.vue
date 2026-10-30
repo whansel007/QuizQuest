@@ -129,6 +129,44 @@ const handleRemoveMember = (member) => action(async () => {
   await loadData();
 });
 
+// Enrol a student: by email, into a class named as listed here. The roster's
+// form fills in the open class's name.
+const enrolEmail = ref('');
+const enrolClassName = ref('');
+const activeClassNames = computed(() => classes.value.filter((c) => !c.archivedAt).map((c) => c.name));
+
+const enrolStudent = (className) => action(async () => {
+  if (!enrolEmail.value.trim()) throw new Error("Enter the student's email.");
+  if (!className.trim()) throw new Error('Enter the class name.');
+  const res = await api('POST', '/api/classes/enrol', { email: enrolEmail.value.trim(), className });
+  toast(`Added ${res.student.name} to ${res.class.name}.`);
+  enrolEmail.value = '';
+  enrolClassName.value = '';
+  if (selectedClass.value) await loadClassDetails(selectedClass.value);
+  await loadData();
+});
+
+// Clicking a student's name opens their profile row: their classes with
+// you, and a dropdown of your other active classes to add them to.
+const openStudentId = ref(null);
+const addToClassId = ref('');
+function toggleStudent(m) {
+  openStudentId.value = openStudentId.value === m.id ? null : m.id;
+  addToClassId.value = '';
+}
+const classNameOf = (id) => classes.value.find((c) => c.id === id)?.name || id;
+const otherClasses = (m) => classes.value.filter((c) => !c.archivedAt && !m.classIds?.includes(c.id));
+
+const addToClass = (m) => action(async () => {
+  const target = classes.value.find((c) => c.id === addToClassId.value);
+  if (!target) throw new Error('Choose a class.');
+  const res = await api('POST', '/api/classes/enrol', { email: m.email, className: target.name });
+  toast(`Added ${res.student.name} to ${res.class.name}.`);
+  addToClassId.value = '';
+  await loadClassDetails(selectedClass.value);
+  await loadData();
+});
+
 const handleGenerateCode = action(async () => {
   const res = await api('POST', `/api/classes/${selectedClass.value.id}/join-codes`, {
     usageLimit: Number(codeUsageLimit.value) || null,
@@ -178,6 +216,23 @@ function copyToClipboard(text) {
           Show archived classes
         </label>
       </div>
+
+      <form class="panel" aria-label="Enrol a student" @submit.prevent="enrolStudent(enrolClassName)($event)">
+        <h3 style="margin-bottom: 2px;">Enrol a student</h3>
+        <p class="muted small">Adds an existing student account to one of your classes. They stay in their other classes.</p>
+        <div class="row top">
+          <Field class="grow" label="Student email" v-slot="{ id }">
+            <input :id="id" v-model="enrolEmail" type="email" placeholder="student01@quizquest.demo" autocomplete="off" />
+          </Field>
+          <Field class="grow" label="Class name" v-slot="{ id }">
+            <input :id="id" v-model="enrolClassName" type="text" list="enrol-class-names" autocomplete="off" />
+          </Field>
+        </div>
+        <datalist id="enrol-class-names">
+          <option v-for="name in activeClassNames" :key="name" :value="name" />
+        </datalist>
+        <button type="submit" class="btn primary">Enrol student</button>
+      </form>
 
       <div class="classes-grid">
         <div
@@ -283,11 +338,24 @@ function copyToClipboard(text) {
           <span class="small muted">Total: {{ roster.length }}</span>
         </div>
 
+        <form
+          v-if="!selectedClass.archivedAt"
+          class="row"
+          aria-label="Add a student to this class"
+          style="margin-bottom: 14px;"
+          @submit.prevent="enrolStudent(selectedClass.name)($event)"
+        >
+          <Field class="grow" label="Add a student by email" v-slot="{ id }">
+            <input :id="id" v-model="enrolEmail" type="email" placeholder="student01@quizquest.demo" autocomplete="off" />
+          </Field>
+          <button type="submit" class="btn primary">Add student</button>
+        </form>
+
         <div v-if="rosterLoading" class="muted small">Loading roster…</div>
         <div v-else-if="!roster.length" class="empty-state">
-          <p class="muted">No students are currently enrolled in this class.</p>
-          <button class="btn primary small" @click="activeTab = 'codes'; showGenerateCodeModal = true;">
-            + Generate a Join Code to Invite Students
+          <p class="muted">No students are currently enrolled in this class. Add one by email above, or share a join code.</p>
+          <button class="btn small" @click="activeTab = 'codes'; showGenerateCodeModal = true;">
+            + Generate a Join Code
           </button>
         </div>
         <div v-else class="table-wrap teacher-roster-table">
@@ -302,17 +370,49 @@ function copyToClipboard(text) {
               </tr>
             </thead>
             <tbody>
-              <tr v-for="m in roster" :key="m.id">
-                <td><b>{{ m.name }}</b></td>
-                <td class="muted small">{{ m.email }}</td>
-                <td>{{ m.attemptsCount }}</td>
-                <td class="muted small">{{ m.lastActive ? new Date(m.lastActive).toLocaleDateString() : 'Never' }}</td>
-                <td style="text-align: right;">
-                  <button class="btn small bad" @click="handleRemoveMember(m)($event)">
-                    Remove
-                  </button>
-                </td>
-              </tr>
+              <template v-for="m in roster" :key="m.id">
+                <tr>
+                  <td>
+                    <button
+                      type="button"
+                      class="link-btn student-name"
+                      :aria-expanded="openStudentId === m.id ? 'true' : 'false'"
+                      @click="toggleStudent(m)"
+                    >
+                      {{ m.name }} <span aria-hidden="true">{{ openStudentId === m.id ? '▴' : '▾' }}</span>
+                    </button>
+                  </td>
+                  <td class="muted small">{{ m.email }}</td>
+                  <td>{{ m.attemptsCount }}</td>
+                  <td class="muted small">{{ m.lastActive ? new Date(m.lastActive).toLocaleDateString() : 'Never' }}</td>
+                  <td style="text-align: right;">
+                    <button class="btn small bad" @click="handleRemoveMember(m)($event)">
+                      Remove
+                    </button>
+                  </td>
+                </tr>
+                <tr v-if="openStudentId === m.id" class="student-profile">
+                  <td colspan="5">
+                    <p class="small" style="margin: 0 0 8px;">
+                      <span class="muted">Classes with you:</span>
+                      <span v-for="id in m.classIds" :key="id" class="badge plain" style="margin-left: 6px;">{{ classNameOf(id) }}</span>
+                    </p>
+                    <form
+                      v-if="otherClasses(m).length"
+                      class="row"
+                      :aria-label="`Add ${m.name} to another class`"
+                      @submit.prevent="addToClass(m)($event)"
+                    >
+                      <select v-model="addToClassId" aria-label="Add to class" style="width: auto;">
+                        <option value="" disabled>Add to class…</option>
+                        <option v-for="c in otherClasses(m)" :key="c.id" :value="c.id">{{ c.name }}</option>
+                      </select>
+                      <button type="submit" class="btn small primary" :disabled="!addToClassId">Add</button>
+                    </form>
+                    <p v-else class="small muted" style="margin: 0;">Already in all of your active classes.</p>
+                  </td>
+                </tr>
+              </template>
             </tbody>
           </table>
         </div>
@@ -605,5 +705,11 @@ function copyToClipboard(text) {
   font-weight: 600;
   cursor: pointer;
   padding: 0;
+}
+.student-name {
+  color: var(--ink, inherit);
+}
+.student-profile td {
+  background: var(--accent-soft);
 }
 </style>

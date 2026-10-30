@@ -32,6 +32,10 @@ const stems = [
   'Offices in different cities join their networks. Which device sits at the boundary between them?',
   'A router joins two networks. What does it use to decide where each packet goes next?',
   'Throughput on a link improves, yet a remote file still arrives slowly. Which other property should be measured?',
+  'A printer and a scanner share one office network. Which device lets them reach each other?',
+  'A branch office link is saturated at noon and calls lag. What should be checked first?',
+  'Two hosts on separate networks cannot reach each other. Which device is missing between them?',
+  'A queue at a busy link keeps growing every minute. What does that say about arrival and service rates?',
 ];
 
 const ai = async ({ prompt }) => {
@@ -98,8 +102,10 @@ test.before(async () => {
               modelAnswer: 'Latency measures travel delay, while bandwidth describes capacity.',
               keyPoints: ['Latency measures travel delay', 'Bandwidth describes capacity'],
             });
-          // The drafter is asked for a style; the mock drafts in that style.
-          classifications.set(stem, n % 2 ? 'conceptual' : 'application');
+          // The drafter is asked for a style; the mock drafts in that style
+          // (alternating for Both).
+          const style = ctx.assessment?.style;
+          classifications.set(stem, ['conceptual', 'application'].includes(style) ? style : n % 2 ? 'conceptual' : 'application');
           items.push(item);
         }
       }
@@ -251,4 +257,93 @@ test('a rewrite is refused when the ticked questions come from different topics'
   await page.getByRole('checkbox', { name: /^Rewrite this / }).first().uncheck();
   await page.getByText('Select questions from one topic and learning outcome').waitFor({ state: 'detached' });
   assert.equal(await button.isEnabled(), true, 'a single topic can be rewritten');
+});
+
+// After a batch, "Rewrite drafts" leads straight to the rewrite toolbar, and a
+// real rewrite (no stubbed request) adds replacements in the chosen style.
+test('after a batch, Rewrite drafts opens the toolbar and a real rewrite adds replacements in the chosen style', async (t) => {
+  const login = await (
+    await fetch(base + '/api/login', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ userId: 't-a' }) })
+  ).json();
+  const auth = { 'content-type': 'application/json', authorization: 'Bearer ' + login.token };
+  const course = () => srv.quiz.db.courses.find((c) => c.id === 'c-comp');
+  const settled = async (find, what) => {
+    for (let i = 0; i < 300; i += 1) {
+      const job = find();
+      if (job && !['queued', 'running'].includes(job.status)) return job;
+      await new Promise((r) => setTimeout(r, 50));
+    }
+    throw new Error(what + ' did not finish');
+  };
+  // A saved knowledge report for the default weekly topic (Week 1).
+  const report = await (
+    await fetch(base + '/api/teacher/courses/c-comp/authoring', { method: 'POST', headers: auth, body: JSON.stringify({ kind: 'report', topicId: 'tp-data' }) })
+  ).json();
+  await settled(() => course().authoringJobs.find((j) => j.id === report.id), 'The report');
+  await fetch(base + `/api/teacher/courses/c-comp/authoring/${report.id}/review`, { method: 'PUT', headers: auth, body: JSON.stringify({ markdown: REPORT, reportRevision: 0 }) });
+
+  const page = await browser.newPage({ viewport: { width: 1280, height: 900 }, locale: 'en-SG' });
+  const errors = [];
+  page.on('pageerror', (e) => errors.push(e.message));
+  t.after(async () => {
+    await page.close();
+    assert.deepEqual(errors, [], 'no unhandled browser errors');
+  });
+  await page.goto(base);
+  await pickDemo(page, 'Prof. Demo A');
+  await page.locator('#tabs').getByRole('button', { name: 'AI drafting', exact: true }).click();
+  await page.getByText('Report saved', { exact: true }).waitFor();
+
+  // Generate a batch of two in the UI, as the professor would.
+  await page.getByRole('spinbutton', { name: 'MCQ quantity', exact: true }).fill('2');
+  await page.getByLabel('Assessment Style', { exact: true }).selectOption('both');
+  await page.getByRole('button', { name: 'Generate questions', exact: true }).click();
+  const status = page.locator('.gen-status');
+  await status.getByText('2 questions saved to the Question Bank').waitFor({ timeout: 20000 });
+  const panel = page.locator('.panel').filter({ has: page.getByRole('heading', { name: 'Review and publish' }) });
+  await panel.getByText('Not the mix you wanted?').waitFor();
+  assert.equal(await panel.getByRole('button', { name: 'Rewrite drafts', exact: true }).count(), 1, 'the results panel offers the rewrite');
+  await page.screenshot({ path: 'tmp/rewrite-after-batch.png', fullPage: true });
+  const batch = course().authoringJobs.filter((j) => j.kind === 'generation' && j.input.topicId === 'tp-data').at(-1);
+  const originals = [...batch.result.created];
+  assert.equal(originals.length, 2);
+
+  // The floating status's Rewrite drafts opens the bank on the toolbar.
+  await status.getByRole('button', { name: 'Rewrite drafts', exact: true }).click();
+  await page.getByRole('heading', { name: 'Question bank' }).waitFor();
+  await page.waitForFunction(() => document.activeElement?.getAttribute('aria-label') === 'Rewrite AI drafts');
+  assert.ok(await page.getByRole('group', { name: 'Rewrite AI drafts' }).evaluate((el) => el.classList.contains('flash')), 'the toolbar is highlighted');
+  await page.getByText('Tick the AI drafts to change, choose a style and rewrite them together.').waitFor();
+  assert.equal(await page.getByLabel('Filter by topic').inputValue(), 'tp-data', 'the bank opens on the batch topic');
+  await page.screenshot({ path: 'tmp/rewrite-bar-focus.png' });
+
+  // Tick both drafts, ask for Application and send the real request.
+  const boxes = page.getByRole('checkbox', { name: /^Rewrite this / });
+  assert.equal(await boxes.count(), 2);
+  await boxes.first().check();
+  await boxes.nth(1).check();
+  await page.getByLabel('Rewrite as').selectOption('application');
+  await page.getByRole('button', { name: 'Rewrite selected' }).click();
+  await page.getByText('2 replacements queued. Your original drafts are kept.').waitFor();
+  const rewrite = await settled(
+    () => course().authoringJobs.find((j) => Array.isArray(j.replaces) && originals.every((id) => j.replaces.includes(id))),
+    'The rewrite',
+  );
+  assert.equal(rewrite.status, 'complete', rewrite.message);
+  assert.equal(rewrite.input.assessmentStyle, 'application');
+  const replacements = rewrite.result.created.map((id) => srv.quiz.db.questions.find((q) => q.id === id));
+  assert.equal(replacements.length, 2, 'one replacement per ticked draft');
+  for (const q of replacements) {
+    assert.equal(q.status, 'draft');
+    assert.equal(q.assessment.cognitiveStyle, 'application', 'replacements are in the chosen style');
+    assert.equal(q.topicId, 'tp-data', 'replacements stay in the same topic');
+  }
+  for (const id of originals) assert.equal(srv.quiz.db.questions.find((q) => q.id === id).status, 'draft', 'originals are kept');
+
+  // The bank lists the replacements, labelled Application, beside the originals.
+  await page.locator('#tabs').getByRole('button', { name: 'Question bank', exact: true }).click();
+  await page.getByRole('heading', { name: 'Question bank' }).waitFor();
+  for (const q of replacements) assert.match(await page.locator('#qcard-' + q.id).innerText(), /Application/);
+  for (const id of originals) await page.locator('#qcard-' + id).waitFor();
+  await page.screenshot({ path: 'tmp/rewrite-result.png', fullPage: true });
 });

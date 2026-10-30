@@ -199,11 +199,13 @@ test('PDF/PPTX upload, saved Markdown editing, preview/download, generation and 
   assert.equal(await page.locator('.saved-toggle').getAttribute('aria-expanded'), 'false');
   assert.equal(reportPosts,1,'same-tick clicks start one job');
   assert.ok(activePolls >= 2,'an authorized active job is polled through completion');
-  const beforeReuse=inferenceCalls;
-  await page.getByRole('button', {name:'Generate report',exact:true}).click();
-  await page.getByRole('button', {name:'Generate report',exact:true}).isEnabled();
-  await page.waitForTimeout(200);
-  assert.equal(inferenceCalls,beforeReuse,'unchanged materials reuse the completed report');
+  // Once the topic has a report the button offers a fresh one: it is renamed
+  // "Regenerate Report" and every click makes a new report, so the old
+  // "unchanged materials reuse the completed report" contract is gone.
+  const regenerate=page.getByRole('button',{name:'Regenerate Report',exact:true});
+  await regenerate.waitFor();
+  assert.equal(await page.getByRole('button',{name:'Generate report',exact:true}).count(),0,'the button is renamed once the topic has a report');
+  assert.ok(await regenerate.isEnabled());
   await page.waitForTimeout(200);
   idleRequests = 0;
   page.on('request', trackAuthoring);
@@ -495,7 +497,9 @@ test('remove and replace uploads survive recovery, preserve reports, and require
   await page.getByLabel('Replacement lecture file',{exact:true}).setInputFiles({name:'replacement.pdf',mimeType:'application/pdf',buffer:pdf()});
   await page.getByText('Files read. Not uploaded yet: tick the confirmation below and click Upload files.',{exact:true}).waitFor();
   assert.equal(await page.getByRole('button',{name:'Remove replace-me.pptx',exact:true}).count(),1);
-  assert.equal(await page.getByRole('button',{name:'Generate report',exact:true}).isDisabled(),true);
+  // The topic already has a report, so the button is the renamed one.
+  const reportButton=page.getByRole('button',{name:/^(generate|regenerate) report$/i});
+  assert.equal(await reportButton.isDisabled(),true);
   await page.getByRole('checkbox',{name:/This is authorised course material/}).check();
   await page.getByRole('button',{name:'Upload files',exact:true}).click();
   await page.getByText('Upload complete. You do not need to upload these files again.',{exact:true}).waitFor();
@@ -507,11 +511,11 @@ test('remove and replace uploads survive recovery, preserve reports, and require
   assert.equal(JSON.stringify(course.authoringJobs),reports);assert.equal(JSON.stringify(srv.quiz.db.passages.filter(p=>p.origin==='report')),versions);assert.equal(JSON.stringify(srv.quiz.db.questions),questions);
   let confirmed=false;
   page.once('dialog',async d=>{assert.match(d.message(),/Attached files have changed/);confirmed=true;await d.dismiss();});
-  await page.getByRole('button',{name:'Generate report',exact:true}).click();
+  await reportButton.click();
   assert.equal(confirmed,true);assert.equal(inferenceCalls,before);assert.equal(JSON.stringify(course.authoringJobs),reports);
   page.once('dialog',d=>d.accept());
   const response=page.waitForResponse(r=>r.url().endsWith('/authoring') && r.request().method()==='POST');
-  await page.getByRole('button',{name:'Generate report',exact:true}).click();
+  await reportButton.click();
   const result=await (await response).json();
   const job=course.authoringJobs.find(j=>j.id===result.id);
   while(['queued','running'].includes(job.status)) await new Promise(r=>setTimeout(r,10));
@@ -531,7 +535,7 @@ test('remove and replace uploads survive recovery, preserve reports, and require
   }
   // The topic still has its own notes, and notes are report material too.
   await page.getByText(/note\(s\) in this topic are part of the report/).waitFor();
-  assert.equal(await page.getByRole('button',{name:'Generate report',exact:true}).count(),1);
+  assert.equal(await reportButton.count(),1);
   assert.equal(inferenceCalls,afterGeneration);
   assert.equal(JSON.stringify(srv.quiz.db.passages.filter(p=>p.origin==='report')),versions);
   assert.equal(await page.getByRole('combobox',{name:'Knowledge report',exact:true}).count(),1);

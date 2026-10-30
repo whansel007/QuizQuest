@@ -5,7 +5,7 @@
 // Fixed to the bottom corner so progress stays visible while the professor
 // scrolls the report and configuration. It never moves focus, scrolls or
 // navigates by itself; "View Question Bank" only runs when clicked.
-//   <GenerationStatus :job="job" @view="..." @resume="..." @dismiss="..." />
+//   <GenerationStatus :job="job" @view="..." @rewrite="..." @resume="..." @dismiss="..." />
 // ============================================================
 import { computed, ref, watch, onUnmounted } from 'vue';
 import Meter from '../components/Meter.vue';
@@ -15,7 +15,7 @@ import { generationStatus } from './generation-status.js';
 // job: the generation job to show (null hides it); topicLabel: set when the
 // job belongs to another weekly topic than the one on screen
 const props = defineProps({ job: Object, topicLabel: String, busy: Boolean });
-const emit = defineEmits(['view', 'resume', 'dismiss']);
+const emit = defineEmits(['view', 'rewrite', 'resume', 'dismiss']);
 const status = computed(() => props.job && generationStatus(props.job));
 
 // Dismissing removes the panel, so give focus back to where it came from
@@ -79,6 +79,8 @@ onUnmounted(() => reserve(null));
     <p v-if="status.warnings" class="small">{{ status.warnings === 1 ? '1 warning is' : status.warnings + ' warnings are' }} shown with the generation results.</p>
     <div v-if="status.saved || status.canResume" class="gen-status-actions">
       <button v-if="status.saved" type="button" class="btn small primary" @click="emit('view')">View Question Bank</button>
+      <!-- once the batch is done, its drafts can be rewritten in another style -->
+      <button v-if="status.saved && !status.active" type="button" class="btn small" @click="emit('rewrite')">Rewrite drafts</button>
       <button v-if="status.canResume" type="button" class="btn small" :disabled="busy" @click="emit('resume')">Resume saved work</button>
     </div>
   </section>

@@ -56,7 +56,9 @@ function topicSummary(db, course) {
   const topics = sortTopics(db.topics.filter((t) => t.courseId === course.id)).map((t) => {
     const mine = questions.filter((q) => q.topicId === t.id);
     const count = (status) => mine.filter((q) => q.status === status).length;
-    const latest = reports.filter((j) => j.input.topicId === t.id).at(-1);
+    const topicReports = reports.filter((j) => j.input.topicId === t.id);
+    // Regeneration is a review candidate until the professor saves it.
+    const latest = topicReports.findLast(j => !j.input.regenerate || j.reportSourceId) || topicReports.at(-1);
     return {
       topicId: t.id,
       name: t.name,

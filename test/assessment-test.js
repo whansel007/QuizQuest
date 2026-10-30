@@ -142,9 +142,33 @@ test('novel grounded application scenarios and all four drafting formats remain 
   assert.equal(replacement.status,'complete',replacement.message);
   assert.equal(replacement.input.assessmentStyle,oldMetadata.cognitiveStyle,'selective regeneration preserves the original task style');
 });
-test('Application never falls back to conceptual recall and stops on unsupported material',async()=>{
+test('regeneration propagates semantic and concept drift failures, keeps original and reports exhaustion',async()=>{
+  let regenerating=false;
+  const f=await fixture({style:'conceptual',quantities:{short:1},draft:({make})=>[make('short','conceptual',0,
+    regenerating?{stem:'Assess a different relationship for the guild archive.'}:{})],
+    decision:(v)=>regenerating?{...v,fitsConfiguration:false,duplicate:true,reason:'This changes the original concept and repeats an existing cascade decision across formats.'}:v});
+  const original=f.db.questions.find(q=>q.id===f.job.result.created[0]);
+  const saved=structuredClone(original);
+  regenerating=true;
+  const job=f.queue.regenerate(f.course,original,'t-a');
+  await settled(job);
+  assert.equal(job.status,'failed');
+  assert.deepEqual(job.result.created,[]);
+  assert.match(job.message,/within three attempts.*original question is kept/);
+  assert.equal(f.db.generationLog.find(g=>g.id===job.result.generationId).calls,3);
+  assert.deepEqual(original,saved);
+  assert.match(job.result.rejected[0].errors.join(' '),/cascade decision across formats/);
+  const prompt=f.requests.filter(r=>r.requestContext.stage==='verification').at(-1).prompt;
+  assert.match(prompt,/REGENERATION VALIDATION/);
+  const config=JSON.parse(prompt.slice(prompt.indexOf('\n')+1)).configuration;
+  assert.ok(config.includes(JSON.stringify(job.regeneration)));
+  assert.equal(job.regeneration.original.id,original.id);
+  assert.ok(Array.isArray(job.regeneration.otherQuestions));
+});
+
+test('Application retains valid conceptual work with an explicit limitation when material is insufficient',async()=>{
   const f=await fixture({style:'application',support:false,draft:({make})=>[make('short','conceptual')]});
-  assert.equal(f.job.status,'failed');assert.equal(f.job.result.created.length,0);assert.equal(f.job.calls,2);
+  assert.equal(f.job.status,'failed');assert.equal(f.job.result.created.length,1);assert.equal(f.job.calls,2);
   assert.match(f.job.result.warnings.join(' '),/Add relevant methods/);
   assert.throws(()=>f.queue.resume(f.course,f.job.id),/Improve the saved report/);
   assert.deepEqual(f.stages,['analysis','drafting','verification']);
@@ -170,49 +194,52 @@ test('Conceptual does not warn about application limitations; free-text tags val
   assert.equal(f.db.topics.filter(t=>t.id===tags.topic.id).length,1);
   assert.equal(f.db.topics.find(t=>t.id===tags.topic.id).outcomes.length,1);
 });
-test('Both repairs only the missing cognitive style when application is feasible',async()=>{
+test('Both reports a missing cognitive style without replacing valid questions',async()=>{
   const f=await fixture({draft:({make,batch})=>batch===1?[make('short','conceptual',0),make('short','conceptual',1)]:[make('short','application',0)]});
-  assert.equal(f.job.status,'complete',f.job.message);assert.equal(f.job.calls,4);assert.equal(f.job.result.rejected.length,1);
-  assert.ok(f.job._validation.some(v=>v.failedChecks.includes('styleBalance')));
+  assert.equal(f.job.status,'complete',f.job.message);assert.equal(f.job.calls,2);assert.equal(f.job.result.rejected.length,0);
+  assert.match(f.job.result.warnings.join(' '), /do not cover both/);
   assert.equal(f.job.result.created.length,2);
 });
-test('Both rejects decorative application labels across subjects and replaces only the missing task style',async t=>{
+test('Both corrects decorative application labels across subjects without replacement calls',async t=>{
   for(const subject of subjects) await t.test(subject.name,async()=>{
     const f=await fixture({subject,draft:({make,batch})=>batch===1
       ? [make('short','conceptual',0),make('short','conceptual',1,{cognitiveStyle:'application'})]
       : [make('short','application',0)]});
     assert.equal(f.job.status,'complete',f.job.message);
-    assert.equal(f.job.calls,4,'one drafting/verification pair plus one missing-slot pair');
+    assert.equal(f.job.calls,2,'one drafting/verification pair');
     const qs=f.db.questions.filter(q=>q.generationId===f.job.result.generationId);
     assert.equal(qs.length,2);assert.ok(qs.some(q=>q.versions[0].stem===subject.concepts[0]),'valid conceptual survivor retained');
-    assert.deepEqual(qs.map(q=>q.assessment.cognitiveStyle).sort(),['application','conceptual']);
-    assert.ok(f.job._validation.some(v=>v.failedChecks.includes('styleBalance')));
+    assert.deepEqual(qs.map(q=>q.assessment.cognitiveStyle),['conceptual','conceptual']);
+    assert.match(f.job.result.warnings.join(' '), /do not cover both/);
     assert.match(f.requests.find(r=>r.requestContext.stage==='verification').prompt,/definition matching, naming or sentence retrieval is conceptual/);
   });
 });
-test('unsupported scenarios, superficial recall, outcome drift and inappropriate difficulty are rejected',async t=>{
-  for(const field of ['scenarioGrounded','outcomeAligned','difficultyAppropriate'])await t.test(field,async()=>{
+test('unsupported scenarios and outcome drift fail while moderate difficulty/style issues are retained',async t=>{
+  for(const field of ['scenarioGrounded','outcomeAligned'])await t.test(field,async()=>{
     const f=await fixture({style:'application',quantities:{short:1},decision:v=>({...v,[field]:false})});
     assert.equal(f.job.status,'failed');assert.equal(f.job.result.created.length,0);assert.ok(f.job.calls<=18);
   });
   const recall=await fixture({style:'application',draft:({make})=>[make('short','conceptual')]});
-  assert.equal(recall.job.result.created.length,0,'decorative application labels cannot bypass independent task classification');
+  assert.equal(recall.job.result.created.length,1);
+  assert.equal(recall.db.questions.find(q=>q.id===recall.job.result.created[0]).assessment.cognitiveStyle,'conceptual');
+  const moderate=await fixture({style:'application',quantities:{short:1},decision:v=>({...v,difficultyAppropriate:false})});
+  assert.equal(moderate.job.result.created.length,1);assert.equal(moderate.job.calls,2);
 });
 test('application needs scenario-dependent, multi-step reasoning from the verifier',async t=>{
   for(const [name,override] of [['answerable without the scenario',{answerableWithoutScenario:true}],['a single reasoning step',{reasoningSteps:['Multiply rate by duration.']}],['missing reasoning steps',{reasoningSteps:undefined}]])
     await t.test(name,async()=>{
       const f=await fixture({style:'application',quantities:{short:1},decision:v=>v.cognitiveStyle==='application'?{...v,...override}:v});
-      assert.equal(f.job.result.created.length,0);
-      assert.ok(f.job.result.rejected.some(r=>r.errors.some(e=>/conceptual recall inside a scenario/.test(e))),'repair feedback names the shallow task');
+      assert.equal(f.job.result.created.length,1);
+      assert.equal(f.job.calls,2);
       assert.ok(f.job._validation.every(v=>v.verification.styleDowngraded && v.verification.cognitiveStyle==='conceptual'));
     });
-  await t.test('Both counts a shallow application as conceptual and asks for a real one',async()=>{
+  await t.test('Both counts a shallow application as conceptual and warns about coverage',async()=>{
     let first=true;
     const f=await fixture({decision:v=>{if(v.cognitiveStyle==='application' && first){first=false;return {...v,answerableWithoutScenario:true};}return v;}});
     assert.equal(f.job.status,'complete',f.job.message);
     const qs=f.db.questions.filter(q=>q.generationId===f.job.result.generationId);
-    assert.deepEqual(qs.map(q=>q.assessment.cognitiveStyle).sort(),['application','conceptual']);
-    assert.ok(f.job._validation.some(v=>v.failedChecks.includes('styleBalance')));
+    assert.deepEqual(qs.map(q=>q.assessment.cognitiveStyle),['conceptual','conceptual']);
+    assert.match(f.job.result.warnings.join(' '), /do not cover both/);
   });
 });
 test('drafter plans each question with a blueprint and gets the application method when application is possible',async t=>{
