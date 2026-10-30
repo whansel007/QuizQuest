@@ -57,19 +57,27 @@ export async function openTab(page, name) {
 export async function answerCurrentQuestion(page) {
   const written = page.getByLabel('Written answer');
   const numeric = page.getByLabel('Numeric answer');
-  const options = page.locator('.options button');
+  const choice = page.locator('.options button').first();
   const submit = page.getByRole('button', { name: 'Submit answer' });
-
+  let answerKind;
   // The question arrives after the session starts, and its format decides how
   // it is answered: a choice question shows options, a numeric one a number
   // box, a written one a text area. Wait for one of them to be on screen
-  // before choosing, or the wrong branch waits for ever — a numeric question
-  // never grows an options list.
-  await expect(written.or(numeric).or(options).first()).toBeVisible({ timeout: 30 * 1000 });
+  // before choosing, or the wrong branch waits for ever - a numeric question
+  // never grows an options list. The question counter can appear before the
+  // answer control, so this waits for the control itself rather than for the
+  // page to settle. WebKit is the slowest engine here, so the wait is 30s.
+  await expect.poll(async () => {
+    if (await written.isVisible()) answerKind = 'written';
+    else if (await numeric.isVisible()) answerKind = 'numeric';
+    else if (await choice.isVisible()) answerKind = 'choice';
+    else answerKind = null;
+    return answerKind;
+  }, { message: 'A supported answer control should appear before answering', timeout: 30_000 }).toBeTruthy();
 
-  if (await written.count()) await written.fill('Latency measures travel delay, while bandwidth describes transfer capacity.');
-  else if (await numeric.count()) await numeric.fill('13');
-  else await options.first().click();
+  if (answerKind === 'written') await written.fill('Latency measures travel delay, while bandwidth describes transfer capacity.');
+  else if (answerKind === 'numeric') await numeric.fill('13');
+  else await choice.click();
   if (await submit.count()) await submit.click();
   await expect(page.getByText(VERDICT)).toBeVisible();
 }

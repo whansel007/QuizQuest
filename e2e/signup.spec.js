@@ -14,8 +14,10 @@ test('should create a student account and sign the student in', async ({ page })
   await page.locator('#signup-password').fill('longenough');
   await page.getByRole('button', { name: 'Create account' }).click();
 
-  // a brand-new student is signed in but not in any class yet
+  // A brand-new student is signed in and lands in the classless Kingdom home hub.
   await expect(page.getByText('New Student')).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Find your party', exact: true })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Join a class in Practice', exact: true })).toBeVisible();
   // students land in their Kingdom, so open the practice tab, which says how
   // to join a class
   await openTab(page, 'Practice');

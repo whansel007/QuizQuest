@@ -121,38 +121,47 @@ test('a professor resolves a student report and the student refreshes to see the
     const reason = `Progress journey ${Date.now()}: please clarify this question.`;
     const response = 'I checked the source notes and clarified the wording.';
 
-    await signIn(studentPage, STUDENT);
-    await openTab(studentPage, 'Practice');
-    await studentPage.getByLabel('Length', { exact: true }).selectOption('5');
-    await studentPage.getByRole('button', { name: 'Start practice', exact: true }).click();
-    await answerCurrentQuestion(studentPage);
-    await studentPage.getByRole('button', { name: 'Report a problem', exact: true }).click();
-    await studentPage.getByLabel('Problem category', { exact: true }).selectOption('ambiguous');
-    await studentPage.getByLabel('Report this question to your professor').fill(reason);
-    await studentPage.getByRole('button', { name: 'Send report', exact: true }).click();
-    await expect(studentPage.getByText('Report sent. You can follow its status in My Progress.')).toBeVisible();
-    await openTab(studentPage, 'My Progress');
-    await expect(studentPage.getByText(reason, { exact: false })).toBeVisible();
+    // The three steps are named so a red job says which half of the round
+    // trip broke: the student's report, the professor's reply, or the
+    // student's refresh.
+    await test.step('student submits a report', async () => {
+      await signIn(studentPage, STUDENT);
+      await openTab(studentPage, 'Practice');
+      await studentPage.getByLabel('Length', { exact: true }).selectOption('5');
+      await studentPage.getByRole('button', { name: 'Start practice', exact: true }).click();
+      await answerCurrentQuestion(studentPage);
+      await studentPage.getByRole('button', { name: 'Report a problem', exact: true }).click();
+      await studentPage.getByLabel('Problem category', { exact: true }).selectOption('ambiguous');
+      await studentPage.getByLabel('Report this question to your professor').fill(reason);
+      await studentPage.getByRole('button', { name: 'Send report', exact: true }).click();
+      await expect(studentPage.getByText('Report sent. You can follow its status in My Progress.')).toBeVisible();
+      await openTab(studentPage, 'My Progress');
+      await expect(studentPage.getByText(reason, { exact: false })).toBeVisible();
+    });
 
-    await signIn(professorPage, TEACHER);
-    await openTab(professorPage, 'Question bank');
-    // The status filter is in the sidebar. The empty list also offers the
-    // other statuses as buttons, so the filter is picked from its own group.
-    await professorPage.locator('.bank-status').getByRole('button', { name: /^Reported \(/ }).click();
-    const report = professorPage.locator('.qcard .note').filter({ hasText: reason });
-    await expect(report).toBeVisible();
-    await report.getByLabel('Professor response (optional, visible to the student)').fill(response);
-    await report.getByRole('button', { name: 'Mark resolved', exact: true }).click();
-    await expect(professorPage.getByText('Report resolved. The student can see the status in My Progress.', { exact: true })).toBeVisible();
+    await test.step('professor resolves the report', async () => {
+      await signIn(professorPage, TEACHER);
+      await openTab(professorPage, 'Question bank');
+      // The status filter is in the sidebar. The empty list also offers the
+      // other statuses as buttons, so the filter is picked from its own group.
+      await professorPage.locator('.bank-status').getByRole('button', { name: /^Reported \(/ }).click();
+      const report = professorPage.locator('.qcard .note').filter({ hasText: reason });
+      await expect(report).toBeVisible();
+      await report.getByLabel('Professor response (optional, visible to the student)').fill(response);
+      await report.getByRole('button', { name: 'Mark resolved', exact: true }).click();
+      await expect(professorPage.getByText('Report resolved. The student can see the status in My Progress.', { exact: true })).toBeVisible();
+    });
 
-    await studentPage.bringToFront();
-    await studentPage.getByRole('button', { name: 'Refresh progress', exact: true }).click();
-    await studentPage.getByLabel('Report status', { exact: true }).selectOption('resolved');
-    // The reply is looked up in this student's own report, so an earlier
-    // report with the same answer (a retry of this test) cannot get in the way.
-    const mine = studentPage.locator('.pg-report').filter({ hasText: reason });
-    await expect(mine.getByText(response, { exact: false })).toBeVisible();
-    await expect(mine.getByText('Resolved', { exact: true })).toBeVisible();
+    await test.step('student refreshes progress to see the reply', async () => {
+      await studentPage.bringToFront();
+      await studentPage.getByRole('button', { name: 'Refresh progress', exact: true }).click();
+      await studentPage.getByLabel('Report status', { exact: true }).selectOption('resolved');
+      // The reply is looked up in this student's own report, so an earlier
+      // report with the same answer (a retry of this test) cannot get in the way.
+      const mine = studentPage.locator('.pg-report').filter({ hasText: reason });
+      await expect(mine.getByText(response, { exact: false })).toBeVisible();
+      await expect(mine.getByText('Resolved', { exact: true })).toBeVisible();
+    });
   } finally {
     await Promise.all([studentContext.close(), professorContext.close()]);
   }

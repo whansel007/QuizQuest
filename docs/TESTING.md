@@ -72,6 +72,8 @@ pnpm test:e2e:retry
 
 A test that passes the first time and fails the second is not flaky — it depends on the data the run before it left behind. Fix it by making the test own its data (a fresh account, a marker in the question text), not by removing the assertion.
 
+CI keeps first-attempt failure traces and screenshots in the **playwright-test-results** artifact for seven days. Download and unzip it from the GitHub Actions run, then open a trace with `pnpm exec playwright show-trace path/to/trace.zip`. The report journey has named steps for student submission, professor resolution and student refresh; a separate fixture owns the professor browser's cleanup so a teardown error can be distinguished from a journey failure.
+
 These checks cover selected journeys, not every possible game action. They exercise the local Node backend and temporary data store; they do not certify a live Supabase connection, external AI services, or a complete multiplayer battle.
 
 You can also record a new test with the **Playwright Test for VS Code** extension ("Record new"), as in the Week 10c lab. Start a server first with `pnpm build` and then `pnpm start`, record against http://localhost:3000, and replace the last recorded click with an `expect(...)` assertion.
