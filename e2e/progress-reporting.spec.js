@@ -15,6 +15,11 @@ async function newStudent(page, name) {
   await student.getByRole('textbox', { name: 'Email' }).fill(email);
   await student.locator('#signup-password').fill('longenough');
   await student.getByRole('button', { name: 'Create account' }).click();
+  // The account has to exist before the test uses it. Creating one is a
+  // request of its own, and reloading the tab while it is still in flight
+  // would cancel it - the professor's enrolment would then find no such
+  // account, and the reload would land on the sign-in screen.
+  await expect(student.getByRole('button', { name: 'Log out' })).toBeVisible();
   return { student, email };
 }
 
