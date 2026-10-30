@@ -183,3 +183,38 @@ Teacher and admin pages keep their ordinary, visible navigation and task-focused
 - **Make motion communicate the action.** In a battle, animate the acting character toward the other character, show impact and damage, and keep the feedback visible at desktop and mobile sizes. Reduced-motion settings may shorten active feedback but must not silently remove an essential action cue.
 - **Check the whole view after edits.** Review the page at its intended viewport and at a narrow viewport, including loading, selected, correct, incorrect, disabled, and dialog states where relevant. Avoid piling late overrides on top of earlier palette experiments; keep scoped page styles understandable and remove stale rules when practical.
 - **Keep controls purposeful.** Size buttons to their labels, align action groups, give inputs the available width, and use icons only when they are legible and meaningfully distinguish the control or content.
+
+## 12. Kingdom spaces and character stories (31 Oct 2026)
+
+The Kingdom is a place the student visits, not a dashboard skinned with forest colors. Building windows should feel like entering a room or handling an object from that world. Their background, set dressing, controls, and feature content should tell the same story. Use the full feature area well, keep the surrounding town visible, and make room-specific props clearly decorative unless they have a real action.
+
+### Make each building feel inhabited
+
+- **Library:** Design shelves as furniture, with consistent spine sizes, visible dividers, and purposeful gaps. Fill gaps with magical archive curiosities such as firefly jars, wands, glowing stones, tarot decks, potions, creature or skeleton relics, and haunted portraits. Books open into a separate, readable book-page overlay only after selection. Keep selection and keyboard focus visually distinct; do not wash the heroes or shelves in unexplained yellow.
+- **Tower:** Treat class exchange as a timber noticeboard and radio station. Pinned notes and current information own most of the board; the offer desk takes the smaller right-hand section. Radio refresh should feel like tuning for a response, with concise animation and optional sound, while keeping loading and failure states clear.
+- **Garden:** Let the lower scene become a deep, living night sky. Reuse Summon's star rendering where possible. Stars may glimmer; constellations need connected paths and visible stars in varied, intentional shapes; meteors should have a tail that trails behind their direction of travel. Keep the telescope and upgrade information integrated into the garden scene.
+- **Workshop:** Treat the training feature as a gym that records its members: clipped roster sheets, registration forms, stamped fields, and a training yard or target-practice illustration. The roster, selected member, stats, and test action should keep their natural proportions and reflow instead of stretching or leaving dead space.
+- **Castle:** Make the mirror part of an illustrated dressing room, with a wall and surrounding details. The live reflection is the reference for avatar shape and cosmetic placement in other views.
+
+### Keep the avatar consistent
+
+Render the saved color, hat, and pin from the same player sprite and shared cosmetic definitions in the Castle mirror, town, World, Duel, and Campfire Run. Cosmetics should remain opaque, preserve the sprite's outline and facial detail, and use proportional anchors so they do not drift or change size relative to the character between scenes. Preview, saved loadout, and gameplay appearance must agree. Add catalog items through the established ownership and render-data path rather than one-off UI overlays.
+
+### Characterization for the magical archive
+
+Keep new hero stories playful, concise, and consistent wherever they appear:
+
+- **Ranger:** An ordinary outdoors-loving backpacker accidentally drops a hot dog. A wolf eats it; they become friends and defend the town together.
+- **Fairy:** Tired of being mistaken for tooth-trading or ballroom-granting fairies, this wind-powered Fairy answers those requests with a mighty gust that sends people sailing toward Neverland.
+- **Samurai:** Has never been to Japan and has no formal samurai training. The sword and shuriken are plastic cosplay props, made dangerous through sheer practice and willpower.
+- **Engineer:** Builds because building is fun. Short-lived turrets and constant repairs are not a problem; they are an excuse to build again.
+
+The humor should come from each character's perspective and choices, not from mocking the player. Do not give a hero powers that contradict the established gameplay identity.
+
+### Motion, sound, and scene integrity
+
+Use short screen wipes to connect Kingdom rooms and related game screens. The motion should communicate entering, leaving, or receiving a response, and must not show a blank frame or trap controls. Add only a few intentional sound cues—such as a soft whoosh, radio tuning, a quiz impact, or a Summon reveal—behind a shared mute control. Sound and motion remain optional and honor reduced-motion preferences.
+
+Keep upgraded building artwork inside its camera and canvas bounds at every supported size. Remove unexplained yellow scene borders and clipping marks while preserving purposeful selection accents and keyboard focus. Login and sign-up previews should showcase the complete, fully upgraded sample Kingdom with heroes walking through it; pan the view to reveal the place without letting buildings or characters crop. Balance the composition around the form with a restrained detail, such as a small campfire, rather than adding visual noise.
+
+For the complete implementation brief and acceptance criteria, see [KINGDOM_UI_UPGRADE_PROMPT.xml](docs/KINGDOM_UI_UPGRADE_PROMPT.xml).

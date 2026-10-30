@@ -1,0 +1,141 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<uiUpgradePrompt project="QuizQuest" formatVersion="1.0" date="2026-10-31">
+  <role>
+    You are a senior product designer and front-end game UI engineer working in the existing QuizQuest codebase. Treat this as an implementation brief for a cohesive, reviewable UI upgrade, not permission to replace working game, API, persistence, economy, or authentication systems.
+  </role>
+
+  <objective>
+    Upgrade the Kingdom, its building windows, avatar presentation, transitions, sound feedback, battle effects, and the login/sign-up showcase so they feel like polished, whimsical parts of the same storybook world. Prioritize diegetic building spaces, correct clipping and layout, and consistent avatar cosmetics. Follow BRANDBOOK.md and preserve the product's readable, welcoming tone.
+  </objective>
+
+  <sourceOfTruth>
+    <document>BRANDBOOK.md</document>
+    <document>KINGDOM_BUILDING_FEATURE_WIRING_PLAN.md</document>
+    <document>docs/UI_OVERHAUL_HANDOFF.md</document>
+    <instruction>Inspect the current implementation before changing it. Treat this prompt as the requested direction; treat referenced documents as design and implementation context.</instruction>
+    <instruction>Prefer existing sprites, illustrations, sound assets, APIs, state, and transitions where they meet the requested result. Extend shared systems instead of making one-off copies.</instruction>
+  </sourceOfTruth>
+
+  <priorityWork>
+    <priority level="P0" name="Diegetic building windows">
+      <sharedRequirements>
+        <requirement>Every Kingdom building window must read as a place or object in the world, not a stack of generic application cards. Use illustrated backgrounds, room-specific props, signs, materials, and meaningful controls.</requirement>
+        <requirement>Keep the town visible around the window, use the established near-full-screen building-window footprint, and make each feature fill its available area without awkward gaps, clipping, stretched artwork, or overlapping controls.</requirement>
+        <requirement>Use the storybook palette, typography, linework, and textures from BRANDBOOK.md. Keep decorative objects clearly non-interactive and visually distinct from actionable controls.</requirement>
+        <requirement>Make every window readable and operable on desktop, narrow screens, keyboard, and reduced-motion settings.</requirement>
+      </sharedRequirements>
+
+      <library>
+        <visualDirection>A magical working archive: shelves with consistent book-spine sizes, visible shelf dividers, and deliberate empty spaces filled with whimsical library objects such as a jar of fireflies, wands, glowing stones, tarot cards, potion bottles, small skeleton or creature relics, or a haunted portrait.</visualDirection>
+        <interaction>Books and props that are decorative must not behave like controls. Selecting a book opens a readable book-styled story overlay above the shelves; no story page should cover the shelf until a book is selected.</interaction>
+        <polish>Remove the unexplained yellow overlay or circle that currently appears over hero/book selections. Preserve accessible focus indication and intentional selected states.</polish>
+        <lore>Use the hero stories in the heroLore section as the library's source text. Give each story a clear title, illustration or emblem, concise readable copy, and a consistent book-page layout.</lore>
+      </library>
+
+      <tower>
+        <visualDirection>Make the class exchange and buff feature feel like a timber noticeboard with pinned notes and a radio communication station.</visualDirection>
+        <layout>Dedicate about 75 percent of the board to pinned notices and current information on the left. Put the make-an-offer form in the remaining right-hand area. Reflow cleanly on small screens.</layout>
+        <radioRefresh>Provide a dedicated refresh control styled as a radio control or familiar arrow button. On activation, animate the radio being picked up or tuned, play a short static/tuning cue if sound is enabled, then clearly show that a fresh response arrived. Prevent duplicate requests and keep loading, success, and error states understandable.</radioRefresh>
+      </tower>
+
+      <garden>
+        <visualDirection>The whole lower feature window is a deep night sky over a small garden horizon. Give the telescope and upgrade information a deliberate, balanced placement based on the supplied Garden reference.</visualDirection>
+        <sky>Reuse the Summon page sky/star rendering where practical. Add many stars with subtle glimmer, varied connected constellations with visible star nodes, and occasional meteor showers. Keep meteor tails behind the moving head and orient the trail consistently with its direction. Avoid distorted constellation shapes and static zigzag-only patterns.</sky>
+        <interaction>Keep the telescope as the diegetic route into Summon. Finish the transition before changing pages, with no blank frame. Never summon or charge the user merely for opening the telescope.</interaction>
+      </garden>
+
+      <workshop>
+        <visualDirection>Make the Workshop feel like a friendly training gym with registration paperwork, membership sheets, paper clips, stamps, and a training-yard or target-practice illustration behind the preview.</visualDirection>
+        <layout>Keep the roster as a legible member list and the selected hero information as a properly scaled training form. Remove awkward empty space and stretched panels. Use parchment, sage, forest ink, and muted wood colors that fit the Kingdom.</layout>
+        <behavior>Preserve the existing private, no-reward training semantics and ensure the responsive layout does not obscure the hero, target, stats, or action.</behavior>
+      </workshop>
+
+      <castle>
+        <visualDirection>Improve the wardrobe's mirror and wall background so the avatar appears in a believable, storybook castle dressing space rather than floating in a plain panel.</visualDirection>
+        <behavior>Keep the live mirror useful while previewing colors, hats, and pins. Match avatar proportions, cosmetic scale, placement, and opacity across the mirror, Kingdom town, World, Duel, and other hero views.</behavior>
+      </castle>
+    </priority>
+
+    <priority level="P0" name="Kingdom building clipping and unexplained borders">
+      <requirement>Fix fully upgraded buildings and castle artwork that are cropped by their canvas, scene frame, or viewport. Check the largest upgrades and all window sizes; preserve the intended camera and town composition.</requirement>
+      <requirement>Remove recurring unexplained yellow lines or outlines on the castle and Kingdom page. Keep focus rings for keyboard accessibility and accent outlines for a clearly selected or meaningful state; do not use a whole-scene yellow border as decoration.</requirement>
+    </priority>
+
+    <priority level="P0" name="Avatar cosmetics and catalog">
+      <rendering>Fix intermittent transparency or opacity on worn cosmetics, including ribbons. Use the intended local sprite or asset at full opacity, with stable alpha, sizing, and anchors across every renderer. Keep cosmetics composited over the existing animated cat sprite.</rendering>
+      <catalog>Add more cosmetics systematically through the existing catalog and ownership/loadout flow. Give each item a stable ID, slot, render asset or approved glyph, anchor/scale metadata, description, and adjustable provisional price. Prices may be tuned later; ownership, purchase, and equipped state must still be server-authoritative.</catalog>
+      <consistency>Check equipped and unequipped states, preview and saved looks, original/default colors, every supported hero/avatar view, and animation frames. A saved look must be reflected in the Kingdom, World, Duel, and mirror.</consistency>
+    </priority>
+
+    <priority level="P1" name="Transitions and navigation">
+      <transition>Use a clean, brief storybook screen wipe when moving between Kingdom building windows, from Kingdom into a quiz, between Kingdom and the Campfire Run hero selector, and back from the selector to Kingdom.</transition>
+      <transition>Polish the Garden-to-Summon transition and ensure it covers the viewport before navigation, then reveals the destination without a flash.</transition>
+      <transition>Give the quiz a clear action to return to Kingdom and animate the return. Preserve quiz/session state and avoid unintended session completion or loss.</transition>
+      <accessibility>Respect reduced motion by using a short fade or immediate navigation. Do not block controls after an interrupted transition.</accessibility>
+    </priority>
+
+    <priority level="P1" name="Sound controls and restrained feedback">
+      <globalControl>Add a sound toggle in the navigation beside the wrench/tool control. Apply the preference consistently to the relevant game UI and persist it using the existing settings pattern if available.</globalControl>
+      <feedback>Add restrained, short effects for quiz hits and enemy hits, Summon arrival/reveal/pop, and Tower radio tuning/response. Add a soft whoosh for screen wipes when enabled.</feedback>
+      <constraints>Do not add continuous music or excessive overlapping sounds. Sound must be optional, never required to understand state, and must honor mute and reduced-motion/accessibility expectations.</constraints>
+    </priority>
+
+    <priority level="P1" name="Map placement and login showcase">
+      <kingdomMap>Move the forest hole/clearing entrance to the side near the Duel destination. Keep it visually and spatially separate from the Campfire Run area.</kingdomMap>
+      <loginPreview>Replace the forest-floor/blob preview on login and sign-up with a flat, illustrated 2D showcase of a fully upgraded sample Kingdom. Show the buildings and a representative set of unlocked heroes walking around them. Pan the camera through the town in varied horizontal and diagonal passes while keeping characters and buildings inside the scene bounds.</loginPreview>
+      <loginLayout>The left side of the login/sign-up composition is currently too empty. Add a restrained complementary illustration or a small campfire near the lower area without making the form busy or reducing its readability.</loginLayout>
+    </priority>
+
+    <priority level="P2" name="Battle effect polish">
+      <requirement>Polish hero abilities and enemy feedback to match the brand book: make effects more expressive and less blocky while preserving gameplay readability and hit timing.</requirement>
+      <examples>Refine the Engineer's laser, slash/cut effects, and other rough placeholder effects. Add a light dust or motion trail when characters dash or roll. Use each hero's personality and established palette without obscuring targets, warnings, health, or area boundaries.</examples>
+    </priority>
+  </priorityWork>
+
+  <heroLore>
+    <hero id="ranger" displayName="Ranger">
+      <story>The Ranger was an ordinary outdoors-loving backpacker camping in the forest. After accidentally dropping a hot dog, a hungry wolf wandered over and ate it. The two became best friends, and now they defend the town together. The wolf's loyal rush is the Ranger's signature skill.</story>
+      <tone>Warm, outdoorsy, accidental friendship, and a little silly. Keep the Ranger a regular nature-loving camper rather than a grand chosen one.</tone>
+    </hero>
+    <hero id="fairy" displayName="Fairy">
+      <story>The Fairy is tired of being mistaken for every other kind of fairy. People bring teeth or ask for a Cinderella-style trip to the ball. The Fairy does neither. It answers with a tremendous gust of wind that sends the wish-maker sailing toward Neverland.</story>
+      <tone>Dryly exasperated but whimsical. Make the wind power the Fairy's clear identity; do not give it tooth-trading or ballroom-wish powers.</tone>
+    </hero>
+    <hero id="samurai" displayName="Samurai">
+      <story>The Samurai has never been to Japan and has no formal samurai training. Their katana and shuriken are plastic cosplay props. Against all odds, sheer practice and willpower have made those toys genuinely dangerous in combat.</story>
+      <tone>Earnest, funny, and unexpectedly impressive. Present the plastic props as part of the joke, not as realistic historical equipment.</tone>
+    </hero>
+    <hero id="engineer" displayName="Engineer">
+      <story>The Engineer builds things because building things is fun. Their turrets may last only a few seconds and need constant repairs. When asked if that is a problem, the Engineer points out that a broken turret is simply another chance to build one.</story>
+      <tone>Cheerfully practical about rebuilding, with a playful disregard for the short lifespan of their inventions.</tone>
+    </hero>
+  </heroLore>
+
+  <implementationGuardrails>
+    <guardrail>Preserve existing API contracts, server-side validation, database ownership, resource prices, trade rules, summon rules, and no-reward Workshop trial behavior unless a narrowly scoped change is required and documented.</guardrail>
+    <guardrail>Do not duplicate economy or ownership rules in the browser. Cosmetic IDs and render metadata must be allowlisted and use the current authoritative catalog/data path.</guardrail>
+    <guardrail>Reuse shared avatar and sky rendering systems. Avoid separate cosmetic placement rules that cause different looks between Castle mirror, Kingdom, World, Duel, and Campfire Run.</guardrail>
+    <guardrail>Keep decorative set dressing non-interactive, lightweight, and subordinate to the feature. Make interactive affordances obvious and keyboard-accessible.</guardrail>
+    <guardrail>Keep the interface calm enough for learning: prioritize legibility, short feedback, consistent hierarchy, and reliable responsive sizing over extra decoration.</guardrail>
+  </implementationGuardrails>
+
+  <acceptanceCriteria>
+    <criterion>All five building windows feel like their named in-world location, use the intended feature area, and pass wide and narrow layout review without clipping, stretched content, or dead space.</criterion>
+    <criterion>Library shelves have consistent geometry, dividers, whimsical filler props, and a book overlay that opens only after a volume is selected. Hero stories match the lore in this prompt.</criterion>
+    <criterion>Tower notices occupy roughly three quarters of the wide board, the offer form occupies the right side, and radio refresh provides clear animated, loading, success, and failure feedback without duplicate submissions.</criterion>
+    <criterion>Garden's night sky fills its lower scene, constellations have coherent connected paths and distinct stars, stars glimmer, and meteor trails follow their movement direction.</criterion>
+    <criterion>Workshop paperwork, roster, training illustration, and hero details remain correctly proportioned and readable at supported screen sizes.</criterion>
+    <criterion>Fully upgraded buildings and castle art are not cropped. No unexplained yellow scene border remains, while keyboard focus is still visible on controls.</criterion>
+    <criterion>Cosmetics render opaque and at consistent size/anchors in preview and gameplay; new catalog entries can be purchased/equipped through existing server-authoritative flows.</criterion>
+    <criterion>Transitions work forward and back, do not flash blank, preserve state, and have accessible reduced-motion behavior. The quiz has a clear route back to Kingdom.</criterion>
+    <criterion>Sound can be muted from the shared navigation control, is restrained, and covers only the requested feedback moments.</criterion>
+    <criterion>The login/sign-up showcase is a camera-panned, fully upgraded sample Kingdom with walking heroes, and its left-side composition is visually balanced without competing with authentication.</criterion>
+    <criterion>Run the relevant build and existing verification checks; inspect representative desktop, mobile, selected, loading, and reduced-motion states. Report the files changed, checks run, and any remaining limitations.</criterion>
+  </acceptanceCriteria>
+
+  <deliverables>
+    <item>Implement the prioritized UI and rendering changes in the existing codebase.</item>
+    <item>Update BRANDBOOK.md with enduring Kingdom diegetic design and hero characterization guidance.</item>
+    <item>Keep this XML prompt as the full traceable scope and report completed items and any remaining work clearly.</item>
+  </deliverables>
+</uiUpgradePrompt>
