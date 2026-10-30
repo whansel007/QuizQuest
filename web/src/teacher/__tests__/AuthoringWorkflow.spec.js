@@ -57,7 +57,7 @@ describe('report regeneration confirmation', () => {
     backend();
     await ready();
     const before = structuredClone(server);
-    await button('Generate report').trigger('click'); await flushPromises();
+    await button('Regenerate Report').trigger('click'); await flushPromises();
     expect(confirm).toHaveBeenCalledOnce();
     expect(posts()).toHaveLength(accept ? 1 : 0);
     if (accept) expect(posts()[0][2].confirmMaterialChange).toBe(true);
@@ -68,7 +68,7 @@ describe('report regeneration confirmation', () => {
     const confirm = vi.spyOn(window, 'confirm').mockReturnValue(accept);
     backend(); await ready();
     const before = structuredClone(server);
-    await button('Generate report').trigger('click'); await flushPromises();
+    await button('Regenerate Report').trigger('click'); await flushPromises();
     expect(confirm).toHaveBeenCalledWith(warning);
     expect(posts().map(call => call[2].confirmMaterialChange)).toEqual(accept ? [false, true] : [false]);
     expect(server[0]).toEqual(before[0]);
@@ -86,10 +86,27 @@ describe('report regeneration confirmation', () => {
     const confirm = vi.spyOn(window, 'confirm').mockReturnValue(true);
     backend('Attached files changed. Refresh the upload list before generating a report.');
     await ready();
-    await button('Generate report').trigger('click'); await flushPromises();
+    await button('Regenerate Report').trigger('click'); await flushPromises();
     expect(confirm).not.toHaveBeenCalled();
     expect(posts()).toHaveLength(1);
     expect(wrapper.get('[role="alert"]').text()).toContain('Refresh the upload list');
+  });
+  it('retries the same regeneration payload after a lost response and remount', async () => {
+    server[0].input.passageIds = ['source'];
+    api.mockImplementation(async method => {
+      if (method === 'GET') return structuredClone(server);
+      throw new Error('Network unavailable');
+    });
+    await ready();
+    await button('Regenerate Report').trigger('click'); await flushPromises();
+    const payload = structuredClone(posts()[0][2]);
+    expect(payload).toMatchObject({ regenerate: true, materialIds: ['source'], attemptId: 'attempt-abcdefgh' });
+    expect(wrapper.findComponent({ name: 'MarkdownEditor' }).props('modelValue')).toBe(report.reviewedText);
+    wrapper.unmount();
+    await ready();
+    await button('Regenerate Report').trigger('click'); await flushPromises();
+    expect(posts()[1][2]).toEqual(payload);
+    expect(server).toHaveLength(1);
   });
 });
 

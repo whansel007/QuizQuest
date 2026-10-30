@@ -14,6 +14,7 @@ const error = ref('');
 const saved = ref(false);
 const versionNotice = ref('');
 const versionDialog = ref(null);
+const versionTaps = ref(0);
 const debugDialog = ref(null);
 const rooms = ref([]);
 const maxRooms = ref(0);
@@ -56,10 +57,21 @@ function konami(e) {
 
 async function openVersion() {
   position = 0;
+  versionTaps.value = 0;
   versionNotice.value = '';
   versionOpen.value = true;
   await nextTick();
   versionDialog.value?.focus();
+}
+
+function tapVersion() {
+  versionTaps.value++;
+  if (versionTaps.value < 3) return;
+  versionTaps.value = 0;
+  if (enabled.value) {
+    versionOpen.value = false;
+    void openMenu();
+  } else versionNotice.value = 'Debug tools are unavailable in this build.';
 }
 
 async function setWalletBalance(nextBalance = balance.value) {
@@ -133,9 +145,10 @@ onUnmounted(() => window.removeEventListener('keydown', konami, true));
   <button class="btn small debug-trigger" type="button" aria-label="Tools and version" title="Tools and version" @click="openVersion">🔧</button>
   <Teleport to="body">
   <section v-if="versionOpen" ref="versionDialog" class="debug-backdrop" role="dialog" aria-modal="true" aria-labelledby="version-title" tabindex="-1" @click.self="versionOpen = false" @keydown.esc="versionOpen = false; position = 0">
-    <div class="panel debug-panel version-panel">
-      <button class="btn small debug-close" type="button" aria-label="Close version" @click="versionOpen = false; position = 0">×</button>
+    <div class="panel debug-panel version-panel" @click="tapVersion">
+      <button class="btn small debug-close" type="button" aria-label="Close version" @click.stop="versionOpen = false; position = 0; versionTaps = 0">×</button>
       <h2 id="version-title">QuizQuest v{{ appVersion }}</h2>
+      <p class="muted small">Tap 3 times to open debug tools.</p>
       <p v-if="versionNotice" class="muted small">{{ versionNotice }}</p>
     </div>
   </section>

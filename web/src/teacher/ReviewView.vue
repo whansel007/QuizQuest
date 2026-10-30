@@ -30,6 +30,7 @@ onMounted(async () => {
     }
     loaded.value = true;
     await focusRequested();
+    await focusRewrite();
   } catch (err) {
     error.value = err.message;
   }
@@ -53,6 +54,22 @@ async function focusRequested() {
   card.focus({ preventScroll: true });
   card.classList.add('flash');
   setTimeout(() => card.classList.remove('flash'), 2500);
+}
+
+// Opened from "Rewrite drafts" after a batch: show and highlight the rewrite
+// toolbar (once), with focus on it so keyboard users land there too
+const rewriteBar = ref(null);
+async function focusRewrite() {
+  if (!S.focusRewrite) return;
+  S.focusRewrite = false;
+  S.qReviewMode = 'list';
+  await nextTick();
+  const bar = rewriteBar.value;
+  if (!bar) return;
+  bar.scrollIntoView({ block: 'center' });
+  bar.focus({ preventScroll: true });
+  bar.classList.add('flash');
+  setTimeout(() => bar.classList.remove('flash'), 2500);
 }
 
 const filters = [
@@ -188,8 +205,9 @@ async function rewriteSelected() {
               <span>{{ label }}</span><b>{{ inTopic.filter(fn).length }}</b>
             </button>
           </div>
-          <div v-if="rewritable.length" class="rewrite-bar">
+          <div v-if="rewritable.length" ref="rewriteBar" class="rewrite-bar" tabindex="-1" role="group" aria-label="Rewrite AI drafts">
             <h4>Rewrite AI drafts</h4>
+            <p class="rewrite-help small">Tick the AI drafts to change, choose a style and rewrite them together. Your originals are kept.</p>
             <label class="qsel">
               <input type="checkbox" :checked="allOnPage" aria-label="Select every rewritable question on this page" @change="togglePage" />
               <span>Select page</span>
@@ -245,6 +263,8 @@ async function rewriteSelected() {
 .bank-results { min-width: 0; outline: none; }
 .rewrite-bar { display: grid; gap: 10px; margin-top: 16px; padding-top: 14px; border-top: 1px solid var(--line); }
 .rewrite-bar h4 { margin: 0; }
+.rewrite-help { margin: 0; color: var(--muted); }
+.rewrite-bar.flash { outline: 3px solid var(--accent); outline-offset: 2px; transition: outline-color 0.3s; }
 .rewrite-bar .field { margin: 0; }
 .bank-cards { display: grid; gap: 12px; }
 .bank-topic { margin: 0; }

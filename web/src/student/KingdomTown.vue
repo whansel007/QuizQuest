@@ -1049,6 +1049,9 @@ onMounted(async () => {
     playerAnimationOffset = Math.random() * playerVisuals.config.TIME_MS_PER_SECOND;
   } catch (error) { console.warn('[Town player sprite] Could not load player visuals.', error); }
   await initializeWanderers(performance.now());
+  // The student can leave the town while it is still loading, and then the
+  // frame is gone: there is nothing left to observe, listen to or draw.
+  if (!frame.value) return;
   resize();
   makeObjectCanvases();
   observer = new ResizeObserver(resize);

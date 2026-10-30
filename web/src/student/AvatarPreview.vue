@@ -64,6 +64,9 @@ watch(() => [props.color, props.hatId, props.accessoryId], () => draw(performanc
 onMounted(async () => {
   try {
     visuals = await loadPlayerVisuals();
+    // The view can be left while the avatar is still loading, and then the
+    // canvas is gone: there is nothing left to observe or animate.
+    if (!canvas.value) return;
     resizeObserver = new ResizeObserver(() => draw(performance.now(), true));
     resizeObserver.observe(canvas.value);
     tick();

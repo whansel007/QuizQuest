@@ -120,8 +120,9 @@ test('sign-up creates a student account that can sign in', async (t) => {
   const r = await call('POST', '/api/register', { name: ' New Student ', email: 'New@School.edu ', password: 'longenough', role: 'teacher' });
   assert.equal(r.status, 200);
   assert.ok(r.body.token);
-  // a new student starts with the default town avatar colour
-  assert.deepEqual({ ...r.body.user, id: undefined }, { id: undefined, name: 'New Student', role: 'student', email: 'new@school.edu', avatarColor: TOWN_AVATAR_DEFAULT_COLOR });
+  // a new student starts with the default town avatar colour and no hat or
+  // accessory, so the avatar visual is the colour alone
+  assert.deepEqual({ ...r.body.user, id: undefined }, { id: undefined, name: 'New Student', role: 'student', email: 'new@school.edu', avatarColor: TOWN_AVATAR_DEFAULT_COLOR, avatarVisual: { color: TOWN_AVATAR_DEFAULT_COLOR, hat: null, accessory: null } });
   const stored = quiz.services.db.users.find((u) => u.email === 'new@school.edu');
   assert.ok(stored.passwordHash.startsWith('scrypt$'));
   assert.notEqual(stored.passwordHash, 'longenough');

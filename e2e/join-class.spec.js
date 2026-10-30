@@ -5,6 +5,8 @@ import { test, expect } from '@playwright/test';
 import { signIn, openTab, TEACHER } from './helpers.js';
 
 test('a professor generates a join code and a new student enrols with it', async ({ page }) => {
+  // Two sign-ins and a code round trip: give it room on WebKit.
+  test.slow();
   // --- the professor makes a code ---
   await signIn(page, TEACHER);
   await openTab(page, 'Classes & Roster');

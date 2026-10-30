@@ -753,6 +753,9 @@ attemptId: attempt.id,
   route('GET', '/api/classes/:classId/members', 'teacher', ({ user, params }) => {
     const cls = teacherClass(user, params.classId);
     const studentIds = db.enrolments.filter((e) => e.classId === cls.id).map((e) => e.studentId);
+    // classIds: which of this professor's classes the student is in (never
+    // another professor's), for the roster's "Add to class" dropdown
+    const mine = new Set(db.classes.filter((c) => c.teacherIds.includes(user.id)).map((c) => c.id));
     return studentIds.map((sid) => {
       const u = db.users.find((x) => x.id === sid);
       const attempts = db.attempts.filter((a) => a.studentId === sid && a.classId === cls.id);
@@ -762,6 +765,7 @@ attemptId: attempt.id,
         email: u?.email || `${sid}@quizquest.edu`,
         attemptsCount: attempts.length,
         lastActive: attempts.length ? Math.max(...attempts.map((a) => a.at)) : null,
+        classIds: db.enrolments.filter((e) => e.studentId === sid && mine.has(e.classId)).map((e) => e.classId),
       };
     });
   });
@@ -773,6 +777,26 @@ attemptId: attempt.id,
     db.enrolments.splice(idx, 1);
     save();
     return { ok: true, removedUserId: params.userId };
+  });
+
+  // A professor enrols one existing student account, by email, into one of
+  // their own active classes, named as it appears in Classes & Roster. Adding
+  // never removes the student from their other classes.
+  route('POST', '/api/classes/enrol', 'teacher', ({ user, body }) => {
+    const email = P.normEmail(body?.email);
+    if (!email || !EMAIL_RE.test(email)) fail(400, 'Enter a valid email address.');
+    const className = String(body?.className || '').trim().toLowerCase();
+    if (!className) fail(400, 'Enter the class name.');
+    const matches = db.classes.filter((c) => c.teacherIds.includes(user.id) && !c.archivedAt && c.name.trim().toLowerCase() === className);
+    if (!matches.length) fail(404, `None of your active classes is named "${String(body.className).trim()}".`);
+    if (matches.length > 1) fail(409, `More than one of your classes is named "${matches[0].name}". Rename one first.`);
+    const cls = matches[0];
+    const student = db.users.find((u) => u.email === email) || fail(404, 'No account uses this email. The student needs to sign up first.');
+    if (student.role !== 'student') fail(400, 'Only student accounts can be enrolled in a class.');
+    if (isEnrolled(student.id, cls.id)) fail(409, `${student.name} is already in ${cls.name}.`);
+    db.enrolments.push({ classId: cls.id, studentId: student.id });
+    save();
+    return [201, { ok: true, class: { id: cls.id, name: cls.name }, student: { id: student.id, name: student.name, email: student.email } }];
   });
 
   route('POST', '/api/classes/:classId/join-codes', 'teacher', ({ user, params, body }) => {

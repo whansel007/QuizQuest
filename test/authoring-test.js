@@ -76,6 +76,59 @@ const ai = async ({ prompt }) => ({
     : { markdown: analysisText, insufficient: false },
 });
 
+test('explicit report regeneration is fresh, idempotent, reviewable and durable without changing questions', async () => {
+  const f = fixture();
+  let calls = 0, fail = false;
+  const provider = async () => {
+    calls++;
+    if (fail === 'incomplete') return { json: { markdown: 'truncated' } };
+    if (fail) throw Object.assign(new Error(fail), fail === 'quota' ? { status: 429, retryAt: Date.now() + 60000 } : {});
+    return { json: { markdown: analysisText + '\nFresh revision ' + calls, insufficient: false } };
+  };
+  let run = createAuthoring({ db: f.db, persist: async () => {}, ai: provider });
+  const input = { topicId: f.topic.id, materialIds: f.pp.map(p => p.id) };
+  const original = run.start(f.course, 'report', input, 't-a');
+  await settled(original);
+  await run.review(f.course, original.id, original.result.markdown, 0);
+  const questions = fromTables(toTables(f.db, () => 1)).questions, originalText = original.reviewedText;
+  const request = { ...input, regenerate: true, attemptId: 'report-attempt-1', confirmMaterialChange: true };
+  const fresh = run.start(f.course, 'report', request, 't-a');
+  assert.equal(run.start(f.course, 'report', request, 't-a'), fresh);
+  assert.throws(() => run.start(f.course, 'report', { ...request, attemptId: 'report-attempt-2' }, 't-a'), /progress/);
+  await settled(fresh);
+  assert.equal(calls, 2, 'unchanged materials still invoke the provider');
+  assert.notEqual(fresh.result.markdown, originalText);
+  assert.equal(fresh.reportSourceId, undefined, 'candidate requires professor review');
+  const currentReport = (db, course) => require('../src/quiz/topics').topicSummary(db, course).topics.find(t => t.topicId === f.topic.id).report;
+  assert.equal(currentReport(f.db, f.course).id, original.id, 'unreviewed candidate does not replace the current report');
+  const restored = fromTables(toTables(f.db, () => 1));
+  const course = restored.courses.find(c => c.id === f.course.id);
+  run = createAuthoring({ db: restored, persist: async () => {}, ai: provider });
+  assert.equal(run.start(course, 'report', request, 't-a').id, fresh.id, 'refresh/restart retry recovers the same candidate');
+  await run.review(course, fresh.id, fresh.result.markdown, 0);
+  assert.equal(currentReport(restored, course).id, fresh.id, 'saving confirms the replacement');
+  assert.equal(course.authoringJobs.find(j => j.id === original.id).reviewedText, originalText);
+  assert.deepEqual(restored.questions, questions);
+  assert.ok(restored.passages.some(p => p.id === original.reportSourceId));
+  const beforeFailure = structuredClone(restored.passages.filter(p => p.origin === 'report'));
+  for (const failure of ['network', 'quota', 'incomplete']) {
+    fail = failure;
+    const failed = run.start(course, 'report', { ...request, attemptId: 'report-' + failure }, 't-a');
+    await settled(failed);
+    assert.equal(failed.status, 'failed');
+    assert.equal(currentReport(restored, course).id, fresh.id);
+    assert.deepEqual(restored.passages.filter(p => p.origin === 'report'), beforeFailure);
+    assert.deepEqual(restored.questions, questions);
+  }
+  fail = false;
+  restored.passages.find(p => p.id === input.materialIds[0]).text += '\nA new supported relationship.';
+  const changed = run.start(course, 'report', { ...request, attemptId: 'report-changed' }, 't-a');
+  await settled(changed);
+  assert.equal(changed.status, 'complete');
+  assert.notEqual(changed.sourceDigest, fresh.sourceDigest);
+  assert.deepEqual(restored.questions, questions);
+});
+
 test('report content changes require confirmation and regeneration preserves existing data', async () => {
   const f = fixture();
   let calls = 0;
@@ -234,6 +287,7 @@ test('semantic verification rejects unsupported answers and retains supported dr
             index,
             correct: !question.stem.includes('Unsupported'),
             oneCorrect: true,
+            explanationSupported: true,
             aligned: true,
             duplicate: false,
             fitsConfiguration: true,
@@ -444,6 +498,7 @@ test('quota failure during batch validation preserves candidates across restart 
             index,
             correct: true,
             oneCorrect: true,
+            explanationSupported: true,
             aligned: true,
             duplicate: false,
             fitsConfiguration: true,

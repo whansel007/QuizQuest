@@ -330,6 +330,7 @@ test('refreshing a timed quiz offers resume without resetting the server deadlin
   const s = srv.quiz.db.sessions.find((s) => s.id === sid);
   const served = s.items[0].servedAt;
   await page.reload();
+  await openStudentTab(page, 'Practice'); // students land in their Kingdom
   await page.getByRole('button', { name: 'Resume practice' }).click();
   await page.locator('.quiz-head').waitFor();
   assert.equal(s.items[0].servedAt, served);

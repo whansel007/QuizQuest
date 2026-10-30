@@ -95,6 +95,19 @@ describe('GenerationStatus', () => {
     await wrapper.setProps({ busy: true });
     expect(button('Resume saved work').attributes('disabled')).toBeDefined();
   });
+  it('offers Rewrite drafts only once a batch with saved drafts has finished', async () => {
+    open({ job: job('running', 2) });
+    expect(button('View Question Bank')).toBeDefined();
+    expect(button('Rewrite drafts')).toBeUndefined();
+    await wrapper.setProps({ job: job('complete', 0, { input: { count: 0 } }) });
+    expect(button('Rewrite drafts')).toBeUndefined();
+    await wrapper.setProps({ job: job('complete', 5) });
+    await button('Rewrite drafts').trigger('click');
+    expect(wrapper.emitted('rewrite')).toHaveLength(1);
+    expect(wrapper.emitted('view')).toBeUndefined();
+    await wrapper.setProps({ job: job('failed', 3) });
+    expect(button('Rewrite drafts')).toBeDefined();
+  });
   it('shows when the batch will retry, including while it is still waiting for capacity', async () => {
     const retryAt = Date.now() + 60 * 60 * 1000;
     open({ job: job('running', 2, { message: 'Waiting for AI capacity. Your progress is saved.', retryAt }) });
