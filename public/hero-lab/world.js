@@ -3221,7 +3221,7 @@ const hudTextCache = new Map();
 function createHeroImage(heroId, emoji, sizePx = 24) {
   if (!heroSpriteConfig?.HERO_VISUALS?.[heroId] || heroSpritesDisabled) return null;
   const img = document.createElement('img');
-  img.src = getHeroSpriteUrl(heroSpriteConfig, heroId, 'open');
+  img.src = getHeroSpriteUrl(heroSpriteCache, heroId, 'open');
   img.alt = '';
   img.width = sizePx;
   img.height = sizePx;

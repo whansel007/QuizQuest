@@ -18,15 +18,19 @@ function makeCanvas(width, height) {
   return canvas;
 }
 
-function rasterize(image, sizePx, dpr) {
-  const ratio = image.naturalWidth / image.naturalHeight || 1;
+function rasterize(image, sizePx, dpr, crop) {
+  const sourceX = Array.isArray(crop) ? crop[0] : 0;
+  const sourceY = Array.isArray(crop) ? crop[1] : 0;
+  const sourceWidth = Array.isArray(crop) ? crop[2] : image.naturalWidth;
+  const sourceHeight = Array.isArray(crop) ? crop[3] : image.naturalHeight;
+  const ratio = sourceWidth / sourceHeight || 1;
   const width = Math.max(1, Math.round(sizePx * ratio * dpr));
   const height = Math.max(1, Math.round(sizePx * dpr));
   const canvas = makeCanvas(width, height);
   const context = canvas.getContext('2d');
   context.imageSmoothingEnabled = true;
   context.imageSmoothingQuality = 'high';
-  context.drawImage(image, 0, 0, width, height);
+  context.drawImage(image, sourceX, sourceY, sourceWidth, sourceHeight, 0, 0, width, height);
 
   const silhouette = makeCanvas(width, height);
   const silhouetteContext = silhouette.getContext('2d');
@@ -57,10 +61,10 @@ export async function preloadHeroSprites({ onWarning = console.warn } = {}) {
       await image.decode();
       const scale = heroConfig.scale || 1;
       const sizePx = config.SPRITE_BASE_PX * scale;
-      const record = rasterize(image, sizePx, dpr);
+      const record = rasterize(image, sizePx, dpr, heroConfig.crop?.[frameName]);
       let heroFrames = cache.get(heroId);
       if (!heroFrames) { heroFrames = new Map(); cache.set(heroId, heroFrames); }
-      heroFrames.set(frameName, { ...record, filename });
+      heroFrames.set(frameName, { ...record, filename, dataUrl: record.canvas.toDataURL('image/png') });
     } catch (error) {
       warnOnce(filename, error);
     }
@@ -142,9 +146,7 @@ export function drawCachedHero(context, spriteCache, hero, x, y, visualState = {
   return true;
 }
 
-export function getHeroSpriteUrl(config, heroId, frameName = 'open') {
-  const hero = config?.HERO_VISUALS?.[heroId];
-  if (!hero) return null;
-  const filename = hero.frames[frameName] || (frameName === 'closed' ? hero.frames.open : null);
-  return filename ? imageUrl(config.assetBase, filename) : null;
+export function getHeroSpriteUrl(spriteCache, heroId, frameName = 'open') {
+  const frame = spriteCache?.get?.(heroId, frameName);
+  return frame?.dataUrl || null;
 }
