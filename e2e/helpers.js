@@ -26,11 +26,20 @@ export async function signIn(page, { email, password = PASSWORD }) {
   // "Could not reach the server". Nothing is half done at this point - no
   // session, no data - so the sign-in is simply done again, which is what
   // the app asks the user to do.
+  //
+  // Two things have to be right for that retry to work. The app empties the
+  // password field when a sign-in fails, so the password has to be typed
+  // again - a retry with an empty field only earns "Enter your password."
+  // And typing in the field clears the error message, so the alert read
+  // after the retry always belongs to the retry and never to the attempt
+  // before it.
   const signedIn = page.getByRole('button', { name: 'Log out' });
   const offline = page.getByRole('alert').filter({ hasText: 'Could not reach the server' });
   await expect(signedIn.or(offline).first()).toBeVisible();
-  if (await offline.isVisible()) {
+  for (let attempt = 0; attempt < 3 && await offline.first().isVisible(); attempt++) {
+    await page.locator('#login-password').fill(password);
     await page.getByRole('button', { name: 'Sign in' }).click();
+    await expect(signedIn.or(offline).first()).toBeVisible();
   }
   await expect(signedIn).toBeVisible();
 }
