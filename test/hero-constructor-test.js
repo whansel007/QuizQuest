@@ -76,18 +76,17 @@ test('selected hero constructors create independent state and own their attacks'
   assert.equal(first.fire().speed, 980);
 });
 
-test('the selectable roster contains exactly the eight configured heroes', async () => {
+test('the selectable roster contains the configured heroes, including Ranger', async () => {
   const { HEROES, HERO_CLASSES } = await import('../public/hero-lab/hero-list.js');
   const ids = HEROES.map((hero) => hero.id);
-  assert.deepEqual(new Set(ids), new Set(['sheriff', 'guardian', 'pilot', 'bombardier', 'bubbles', 'electromancer', 'fairy', 'engineer']));
+  assert.deepEqual(new Set(ids), new Set(['sheriff', 'guardian', 'pilot', 'bombardier', 'bubbles', 'electromancer', 'fairy', 'engineer', 'samurai', 'ranger']));
   for (const id of ids) {
     assert.ok(ids.includes(id), `${id} is selectable in Hero Lab`);
     assert.equal(typeof HERO_CLASSES[id], 'function');
   }
   assert.equal(HERO_CLASSES.flamekeeper, undefined);
-  assert.equal(HERO_CLASSES.ranger, undefined);
-  const { Sheriff, Guardian, Pilot, Bombardier, Bubbles, Electromancer, Fairy, Engineer } = await import('../public/hero-lab/heroes/roster.js');
-  for (const HeroClass of [Sheriff, Guardian, Pilot, Bombardier, Bubbles, Electromancer, Fairy, Engineer]) {
+  const { Sheriff, Guardian, Pilot, Bombardier, Bubbles, Electromancer, Fairy, Engineer, Ranger, Samurai } = await import('../public/hero-lab/heroes/roster.js');
+  for (const HeroClass of [Sheriff, Guardian, Pilot, Bombardier, Bubbles, Electromancer, Fairy, Engineer, Samurai, Ranger]) {
     const hero = new HeroClass();
     assert.ok(hero.hp > 0);
     assert.ok(hero.cooldowns.weapon.durationMs > 0);
@@ -99,6 +98,13 @@ test('the selectable roster contains exactly the eight configured heroes', async
   assert.equal(new Pilot().fire().length, 7);
   assert.equal(new Bombardier().cooldowns.weapon.durationMs, 1050, 'Bombardier keeps its primary cooldown');
   assert.equal(new Bubbles().talent.name, 'Finisher');
+  const ranger = new Ranger();
+  assert.equal(ranger.type, 'magic');
+  assert.equal(ranger.rarity, 'rare');
+  assert.equal(ranger.emoji, '🧝');
+  assert.equal(ranger.cooldowns.weapon.durationMs, 250);
+  assert.equal(ranger.skill().type, 'ranger-wolf');
+  assert.equal(ranger.ultimate().type, 'ranger-dead-aim');
 });
 
 test('Skeleton pauses to fire at a hero, then resumes walking toward the campfire', async () => {

@@ -1,5 +1,26 @@
 import { GAME_CONFIG } from '../game-config.js';
 
+let shurikenSprite = null;
+
+function getShurikenSprite() {
+  if (shurikenSprite) return shurikenSprite;
+  const size = 32;
+  const canvas = document.createElement('canvas');
+  canvas.width = size;
+  canvas.height = size;
+  const context = canvas.getContext('2d');
+  context.translate(size / 2, size / 2);
+  context.fillStyle = GAME_CONFIG.heroFxColors.samurai.primary;
+  context.beginPath();
+  context.moveTo(0, -15); context.lineTo(3, -3); context.lineTo(15, 0);
+  context.lineTo(3, 3); context.lineTo(0, 15); context.lineTo(-3, 3);
+  context.lineTo(-15, 0); context.lineTo(-3, -3); context.closePath(); context.fill();
+  context.fillStyle = GAME_CONFIG.heroFxSecondary.samurai;
+  context.beginPath(); context.arc(0, 0, 2, 0, Math.PI * 2); context.fill();
+  shurikenSprite = canvas;
+  return shurikenSprite;
+}
+
 export class Projectile {
   constructor({
     id,
@@ -13,6 +34,7 @@ export class Projectile {
     radius = 10,
     color = '#ff2d20',
     damage = 10,
+    explosionDamage = null,
     speed = 0,
     piercing = false,
     pierces = 0,
@@ -28,6 +50,7 @@ export class Projectile {
     flashColors = null,
     flashIntervalMs = 100,
     fadeLastFraction = 0,
+    rangerDeadAim = false,
     sourceAbility = 'weapon',
     trap = null,
     lifetimeMs = GAME_CONFIG.combat.projectileMaxAgeMs,
@@ -44,6 +67,7 @@ export class Projectile {
     this.radius = radius;
     this.color = color;
     this.damage = damage;
+    this.explosionDamage = Number.isFinite(explosionDamage) ? explosionDamage : damage;
     this.piercing = piercing === true;
     this.piercesRemaining = Math.max(0, pierces | 0);
     this.targetTeam = targetTeam;
@@ -58,6 +82,7 @@ export class Projectile {
     this.flashColors = flashColors;
     this.flashIntervalMs = flashIntervalMs;
     this.fadeLastFraction = fadeLastFraction;
+    this.rangerDeadAim = rangerDeadAim;
     this.sourceAbility = sourceAbility;
     this.trap = trap;
     this.kind = kind;
@@ -106,9 +131,50 @@ export class Projectile {
       ? Math.max(0, (1 - progress) / this.fadeLastFraction) : 1;
     context.save();
     context.globalAlpha *= alpha;
+    if (this.heroId === 'ranger' && this.shape === 'arrow') {
+      const deadAim = this.rangerDeadAim;
+      context.save();
+      context.translate(this.x, this.y);
+      context.rotate(Math.atan2(this.vy, this.vx));
+      context.lineCap = 'round';
+      context.lineJoin = 'round';
+      if (deadAim) {
+        context.shadowColor = '#ffd75e';
+        context.shadowBlur = 22;
+        context.strokeStyle = 'rgba(255, 205, 75, 0.92)';
+        context.lineWidth = 11;
+        context.beginPath();
+        context.moveTo(-57, 0);
+        context.lineTo(-12, 0);
+        context.stroke();
+      } else {
+        context.strokeStyle = 'rgba(240, 221, 160, 0.8)';
+        context.lineWidth = 3;
+        context.beginPath();
+        context.moveTo(-19, 0);
+        context.lineTo(-8, 0);
+        context.stroke();
+      }
+      context.font = `${deadAim ? 56 : 28}px "Segoe UI Emoji", sans-serif`;
+      context.textAlign = 'center';
+      context.textBaseline = 'middle';
+      context.fillText('➡️', deadAim ? 10 : 2, 0);
+      context.restore();
+      context.restore();
+      return;
+    }
     if (this.flashColors?.length) {
       context.beginPath(); context.arc(this.x, this.y, this.radius, 0, Math.PI * 2);
       context.fillStyle = this.flashColors[Math.floor(Date.now() / this.flashIntervalMs) % this.flashColors.length]; context.fill();
+    }
+    if (this.heroId === 'samurai' && this.shape === 'shuriken') {
+      const sprite = getShurikenSprite();
+      const size = GAME_CONFIG.heroes.samurai.shuriken.size || 32;
+      context.translate(this.x, this.y);
+      context.rotate(age / 1000 * GAME_CONFIG.heroes.samurai.shuriken.spinRadPerSecond);
+      context.drawImage(sprite, -size / 2, -size / 2, size, size);
+      context.restore();
+      return;
     }
     if (this.heroId === 'fairy' && this.shape === 'arrow') {
       const pinkAccent = GAME_CONFIG.heroFxSecondary.fairy;

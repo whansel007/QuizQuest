@@ -235,8 +235,17 @@ body[data-mode="workshop-trial"] #waiting-banner { display: none !important; }
 #ability-hud[hidden] { display: none; }
 .ability { position: relative; display: grid; justify-items: center; gap: var(--btn-label-gap, 4px); padding: 0; color: inherit; background: transparent; border: 0; font: inherit; text-align: center; cursor: pointer; touch-action: none; appearance: none; -webkit-appearance: none; -webkit-tap-highlight-color: transparent; }
 .engineer-turret-pips { position: absolute; top: -10px; left: 50%; z-index: 2; display: flex; gap: 2px; transform: translateX(-50%); color: #b9c2ce; font: 900 10px/1 system-ui; text-shadow: 0 1px 2px #101018; pointer-events: none; }
+.engineer-turret-pips[hidden] { display: none; }
 .engineer-turret-pip.active { color: #FF9F1C; }
 .engineer-turret-pip.low { color: #ff4b4b; }
+.samurai-multiplier-pill { position: absolute; z-index: 4; top: 3px; left: 50%; display: flex; align-items: center; gap: 4px; min-height: 19px; padding: 2px 7px; color: #f5f2e8; background: #17202bf2; border: 1.5px solid #7b8795; border-radius: 99px; box-shadow: 0 2px 4px #101018aa; font: 900 9px/1 system-ui, sans-serif; white-space: nowrap; transform: translateX(-50%); pointer-events: none; }
+.samurai-multiplier-pill[hidden] { display: none; }
+.samurai-multiplier-pill[data-tier="violet"] { color: #e5ddff; border-color: #9d89ff; }
+.samurai-multiplier-pill[data-tier="gold"], .samurai-multiplier-pill[data-tier="max"] { color: #ffe2a0; border-color: #ffd27a; }
+.samurai-multiplier-pill[data-tier="max"] { animation: samurai-max-pulse 1.1s ease-in-out infinite; }
+.samurai-threshold-tick { width: 5px; height: 5px; border-radius: 50%; background: #7b8795; }
+.samurai-threshold-tick.active { background: #dcd5ff; box-shadow: 0 0 5px #a28aff; }
+@keyframes samurai-max-pulse { 50% { box-shadow: 0 0 9px #ffd27a99; } }
 .ability:focus-visible { outline: 3px solid var(--hud-gold); outline-offset: 5px; border-radius: 50%; }
 .ability.aiming .ability-circle { outline: 3px solid var(--hud-text); outline-offset: 4px; }
 .ability.aiming::before { position: absolute; z-index: 2; top: 50%; left: 50%; width: 104px; height: 104px; content: ''; border: 2px solid rgb(255 248 228 / 88%); border-radius: 50%; background: rgb(29 51 41 / 18%); pointer-events: none; transform: translate(-50%, -50%); }
@@ -476,5 +485,6 @@ body[data-mode="workshop-trial"] #waiting-banner { display: none !important; }
 @media (prefers-reduced-motion: reduce) {
   .buff-card { transition: none; }
   .buff-card:hover:not(:disabled), .buff-card:focus-visible { transform: none; }
+  .samurai-multiplier-pill[data-tier="max"] { animation: none; }
 }
 .run-result-party .run-result-kicker { justify-self: start; padding: 3px 9px; background: rgb(22 40 31 / 85%); border-radius: 99px; }

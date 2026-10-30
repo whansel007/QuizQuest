@@ -8,6 +8,8 @@ export { Bubbles, bubbles } from './bubbles.js';
 export { Electromancer, electromancer } from './electromancer.js';
 export { Fairy, fairy } from './fairy.js';
 export { Engineer, engineer } from './engineer.js';
+export { Ranger, ranger } from './ranger.js';
+export { Samurai, samurai } from './samurai.js';
 
 import { sheriff } from './sheriff.js';
 import { guardian } from './guardian.js';
@@ -17,6 +19,8 @@ import { bubbles } from './bubbles.js';
 import { electromancer } from './electromancer.js';
 import { fairy } from './fairy.js';
 import { engineer } from './engineer.js';
+import { ranger } from './ranger.js';
+import { samurai } from './samurai.js';
 
-export const HERO_ROSTER = Object.freeze({ sheriff, guardian, pilot, bombardier, bubbles, electromancer, fairy, engineer });
+export const HERO_ROSTER = Object.freeze({ sheriff, guardian, pilot, bombardier, bubbles, electromancer, fairy, engineer, samurai, ranger });
 export default HERO_ROSTER;

@@ -520,6 +520,7 @@ export const TALENT_FALLBACK_EMOJI = Object.freeze({
   electromancer: '⚡',
   fairy: '🍃',
   engineer: '⚙️',
+  samurai: '💀',
 });
 
 // Performance profiler. Debug builds only (same gate as the debug menu): the

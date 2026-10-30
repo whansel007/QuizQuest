@@ -11,6 +11,8 @@ import { GAME_CONFIG, HERO_FX_COLORS, HERO_FX_SECONDARY, ABILITY_ICONS, ABILITY_
   FAIRY_ARROW_TRAIL_COUNT, FAIRY_MUZZLE_PUFF_RADIUS_PX, FAIRY_GALE_VFX_DURATION_MS, FAIRY_WIND_IMPACT_MS,
   VORTEX_GROUND_RING_WIDTH_PX, VORTEX_GROUND_DASH_ON_PX, VORTEX_GROUND_DASH_OFF_PX,
   VORTEX_GROUND_FILL_ALPHA, VORTEX_SUSTAIN_FADE_MS, VORTEX_DEBRIS_LIFETIME_MS,
+  SAMURAI_DASH_AFTERIMAGE_MS, SAMURAI_HIT_MARK_MS, SAMURAI_SLASH_GROW_MS,
+  SAMURAI_SLASH_FADE_MS, SAMURAI_EXECUTE_LABEL_MS, SAMURAI_CUT_OVERLAY_MS,
   VORTEX_POP_STILL_CORE_PX } from './game-config.js';
 import { SHAKE_PLAYER_HIT_TRAUMA, SHAKE_ULTIMATE_TRAUMA, SHAKE_BOSS_SLAM_TRAUMA, SHAKE_EXPLOSION_BASE_TRAUMA,
   SHAKE_EXPLOSION_RADIUS_SCALE, SHAKE_MAX_TRAUMA, SHAKE_DECAY, SHAKE_MAX_OFFSET, SHAKE_EXPLOSION_COOLDOWN_MS,
@@ -320,6 +322,15 @@ const engineerTurretPipLabels = Array.from({ length: 2 }, () => {
   engineerTurretPips.append(pip); return pip;
 });
 document.querySelector('.ability[data-ability="skill"]')?.append(engineerTurretPips);
+const samuraiMultiplierPill = document.createElement('span');
+samuraiMultiplierPill.className = 'samurai-multiplier-pill';
+samuraiMultiplierPill.hidden = true;
+const samuraiMultiplierValue = document.createElement('b');
+const samuraiThresholdTick = document.createElement('i');
+samuraiThresholdTick.className = 'samurai-threshold-tick';
+samuraiThresholdTick.setAttribute('aria-hidden', 'true');
+samuraiMultiplierPill.append(samuraiMultiplierValue, samuraiThresholdTick);
+document.querySelector('.ability[data-ability="ultimate"]')?.append(samuraiMultiplierPill);
 let token = null;
 const query = new URLSearchParams(location.search);
 const embedded = query.has('embedded') && window.parent !== window;
@@ -361,6 +372,7 @@ let me = null;
 let state = { players: [], projectiles: [], monsters: [], campfire: null, wave: null };
 let debugTurretRanges = false;
 const turretVisualState = new Map();
+const rangerMeatThrows = new Map();
 const turretHitFlashes = new Map();
 const turretHitFlashLast = new Map();
 const engineerLaserBeams = [];
@@ -435,6 +447,13 @@ const refundPopups = new Map();
 // instant the dash fires. playerId -> { dir: {x,y}, startedAt }. Drawn while the
 // dash trail is also live, but the squash is purely cosmetic and decays fast.
 const guardianDashSquash = new Map();
+const samuraiDashTrails = new Map();
+const samuraiSlashEffects = [];
+const samuraiHitMarks = [];
+const samuraiExecuteLabels = [];
+const samuraiCutNumberLabels = [];
+const samuraiStackFeedback = new Map();
+let samuraiScreenFlash = null;
 let refundPopupState = null;
 let lastLocalPosition = null;
 let localIdleSince = performance.now();
@@ -496,7 +515,7 @@ void profiler.start().then((debugEnabled) => {
   }));
 
   const heroUnlockTools = makeDebugSection('Hero testing');
-  heroUnlockTools.innerHTML = '<label>Unlock hero <select data-debug-unlock-hero></select></label><button type="button" data-debug-unlock>Unlock for this browser</button><button type="button" data-debug-preview-vortex>Preview vortex</button>';
+  heroUnlockTools.innerHTML = '<label>Unlock hero <select data-debug-unlock-hero></select></label><button type="button" data-debug-unlock>Unlock for this browser</button><button type="button" data-debug-preview-vortex>Preview vortex</button><label>Samurai Kill Count <input data-debug-samurai-stacks type="number" min="0" max="20" step="1" value="0"></label><button type="button" data-debug-set-samurai-stacks>Set Kill Count</button><button type="button" data-debug-preview-samurai-cut>Preview Afterimage Cut at cursor</button>';
   const heroUnlockSelect = heroUnlockTools.querySelector('[data-debug-unlock-hero]');
   heroUnlockSelect.replaceChildren(...HEROES.map((hero) => {
     const option = document.createElement('option'); option.value = hero.id; option.textContent = `${hero.name} · ${hero.rarity}`; return option;
@@ -516,6 +535,11 @@ void profiler.start().then((debugEnabled) => {
     const cursor = window.lastPointerWorld || { x: ARENA_WIDTH / 2, y: ARENA_HEIGHT / 2 };
     previewFairyVortex(cursor.x, cursor.y);
   });
+  heroUnlockTools.querySelector('[data-debug-set-samurai-stacks]').addEventListener('click', () => {
+    const input = heroUnlockTools.querySelector('[data-debug-samurai-stacks]');
+    socket.emit('debug_set_samurai_stacks', Math.max(0, Math.min(20, Math.floor(Number(input.value) || 0))));
+  });
+  heroUnlockTools.querySelector('[data-debug-preview-samurai-cut]').addEventListener('click', () => previewSamuraiCut());
 
   // Tower debug: set this player's Tower level 0..max and force-add a stat card,
   // with a live readout of the derived stats. Same debug gate as above.
@@ -637,6 +661,7 @@ async function loadAbilityIcon(path) {
 
 const FAIRY_ABILITY_FALLBACK = Object.freeze({ primary: '🏹', skill: '💨', ultimate: '🌪️' });
 const ENGINEER_ABILITY_FALLBACK = Object.freeze({ primary: '🔧', skill: '🛠️', ultimate: '⚡' });
+const SAMURAI_ABILITY_FALLBACK = Object.freeze({ primary: '🌟', skill: '🗡️', ultimate: '🌙' });
 function setAbilityIcon(host, path, fallbackEmoji = '') {
   const cached = iconSvgCache.get(path);
   if (cached) {
@@ -668,7 +693,8 @@ function applyClusterIcons(heroId, mechActive, elements) {
       if (slot === 'skill' && map.mechSkill) path = map.mechSkill;
     }
     if (path) setAbilityIcon(host, path, heroId === 'fairy' ? FAIRY_ABILITY_FALLBACK[slot]
-      : heroId === 'engineer' ? ENGINEER_ABILITY_FALLBACK[slot] : '');
+      : heroId === 'engineer' ? ENGINEER_ABILITY_FALLBACK[slot]
+        : heroId === 'samurai' ? SAMURAI_ABILITY_FALLBACK[slot] : '');
     else if (heroId === 'engineer') host.replaceChildren(document.createTextNode(ENGINEER_ABILITY_FALLBACK[slot] || ''));
   }
 }
@@ -1313,6 +1339,7 @@ function showAreaEffect({ x, y, radius, kind = 'player', telegraphMs = 0, source
     else if (sourceHeroId === 'guardian' && sourceAbility === 'ultimate') shakeCamera(SHAKE_ULTIMATE_TRAUMA, 'major');
     else if (sourceHeroId === 'fairy' && sourceAbility === 'skill') shakeCamera((SHAKE_EXPLOSION_BASE_TRAUMA + radius / SHAKE_EXPLOSION_RADIUS_SCALE) * FAIRY_GALE_SHAKE_MULT, 'explosion');
     else if (sourceHeroId === 'fairy' && sourceAbility === 'ultimate') shakeCamera(SHAKE_ULTIMATE_TRAUMA * 0.6, 'major');
+    else if (sourceHeroId === 'ranger' && sourceAbility === 'ultimate') shakeCamera(SHAKE_ULTIMATE_TRAUMA * 0.5, 'major');
     else shakeCamera(SHAKE_EXPLOSION_BASE_TRAUMA + radius / SHAKE_EXPLOSION_RADIUS_SCALE, 'explosion');
   }
 }
@@ -1434,6 +1461,24 @@ function previewFairyVortex(x, y) {
   fairyVortexVisuals.set(id, visual);
   shakeCamera(SHAKE_ULTIMATE_TRAUMA, 'major');
   if (VORTEX_ZOOM_PULSE && effectiveQuality() !== 'low' && !prefersReducedMotion) cameraZoom = { startedAt: performance.now(), until: performance.now() + VORTEX_ZOOM_DURATION_MS, scale: VORTEX_ZOOM_SCALE };
+}
+
+function previewSamuraiCut() {
+  const player = state.players?.find((candidate) => candidate.id === me);
+  const cursor = window.lastPointerWorld || { x: ARENA_WIDTH / 2, y: ARENA_HEIGHT / 2 };
+  const origin = player || cursor;
+  const dx = cursor.x - origin.x, dy = cursor.y - origin.y;
+  const distance = Math.hypot(dx, dy);
+  const direction = distance > 1 ? { x: dx / distance, y: dy / distance } : (player?.aim || { x: 1, y: 0 });
+  const spec = GAME_CONFIG.heroes.samurai.afterimageCut;
+  const startAlong = -spec.pad;
+  const endAlong = spec.distance + spec.pad;
+  samuraiSlashEffects.push({
+    startX: origin.x + direction.x * startAlong, startY: origin.y + direction.y * startAlong,
+    endX: origin.x + direction.x * endAlong, endY: origin.y + direction.y * endAlong,
+    width: spec.width, startedAt: performance.now(),
+  });
+  if (samuraiSlashEffects.length > 16) samuraiSlashEffects.shift();
 }
 
 function updateVortexDecorations(visual, now) {
@@ -1822,6 +1867,10 @@ socket.on('state', (snapshot) => {
   }
 });
 
+socket.on('ranger_meat_thrown', ({ ownerId, fromX, fromY, x, y, durationMs }) => {
+  rangerMeatThrows.set(ownerId, { fromX, fromY, x, y, startedAt: performance.now(), durationMs: Math.max(1, durationMs || 400) });
+});
+
 function engineerFeedbackParticleCount(count) {
   if (prefersReducedMotion || count <= 0) return 0;
   const factor = QUALITY_PARTICLE_FACTOR[effectiveQuality()] ?? 1;
@@ -1862,6 +1911,7 @@ socket.on('turret_destroyed', ({ id, x, y }) => {
 });
 socket.on('turret_removed', ({ id }) => { turretVisualState.delete(id); turretHitFlashes.delete(id); turretHitFlashLast.delete(id); });
 socket.on('engineer_place_failed', () => { playSound('hit'); showToast("Can't place turret here", 'engineer', '🔧'); });
+socket.on('ranger_skill_failed', () => playSound('rangerFail'));
 socket.on('engineer_wrench_caught', ({ playerId, x, y } = {}) => {
   if (playerId !== me) return;
   playSound('engineerWrenchCatch');
@@ -2001,6 +2051,65 @@ socket.on('ability_used', (event) => {
     }
   }
 });
+socket.on('samurai_dash_started', (event = {}) => {
+  const startedAt = performance.now();
+  const trail = { ...event, startedAt };
+  samuraiDashTrails.set(event.playerId, trail);
+  if (effectToggles.sound) playSound(event.kind === 'afterimage-cut' ? 'ultimateCast' : 'fairyWhoosh',
+    { volume: event.playerId === me ? 0.9 : 0.55 });
+  if (!prefersReducedMotion && effectiveQuality() !== 'low') {
+    for (let i = 0; i < 5; i++) {
+      const angle = Math.random() * Math.PI * 2, speed = 24 + Math.random() * 46;
+      addParticle({ x: event.startX, y: event.startY, vx: Math.cos(angle) * speed, vy: Math.sin(angle) * speed,
+        radius: 2 + Math.random() * 2, color: i % 2 ? HERO_FX_COLORS.samurai.primary : '#fff',
+        alpha: 0.9, expiresAt: startedAt + 300 });
+    }
+  }
+  if (event.kind === 'afterimage-cut') {
+    setTimeout(() => { if (effectToggles.sound) playSound('uiClick', { volume: event.playerId === me ? 0.75 : 0.4 }); }, event.durationMs || 250);
+  }
+});
+socket.on('samurai_dash_hit', (event = {}) => {
+  const trail = samuraiDashTrails.get(event.playerId);
+  const angle = trail ? Math.atan2(trail.endY - trail.startY, trail.endX - trail.startX) - Math.PI / 4 : -Math.PI / 4;
+  if (samuraiHitMarks.length >= 80) samuraiHitMarks.shift();
+  samuraiHitMarks.push({ x: event.x, y: event.y, angle, execute: Boolean(event.execute), startedAt: performance.now() });
+  if (event.execute) {
+    if (samuraiExecuteLabels.length >= 32) samuraiExecuteLabels.shift();
+    samuraiExecuteLabels.push({ x: event.x, y: event.y, startedAt: performance.now() });
+    if (effectToggles.sound) playSound('hit', { semitones: 5, volume: event.playerId === me ? 0.9 : 0.6 });
+    if (!prefersReducedMotion && effectiveQuality() !== 'low') {
+      for (let i = 0; i < 3; i++) {
+        const a = angle + (Math.random() - 0.5) * 1.5, speed = 35 + Math.random() * 45;
+        addParticle({ x: event.x, y: event.y, vx: Math.cos(a) * speed, vy: Math.sin(a) * speed,
+          radius: 2, color: i === 0 ? '#FFD27A' : '#fff', alpha: 1, expiresAt: performance.now() + 260 });
+      }
+    }
+  }
+});
+socket.on('samurai_cut_resolved', (event = {}) => {
+  const now = performance.now();
+  samuraiSlashEffects.push({ startX: event.startX, startY: event.startY, endX: event.endX, endY: event.endY,
+    width: event.width || GAME_CONFIG.heroes.samurai.afterimageCut.width, startedAt: now });
+  if (samuraiSlashEffects.length > 16) samuraiSlashEffects.shift();
+  for (const hit of event.hits || []) {
+    if (samuraiHitMarks.length >= 80) samuraiHitMarks.shift();
+    samuraiHitMarks.push({ x: hit.x, y: hit.y, angle: Math.atan2(event.endY - event.startY, event.endX - event.startX) - Math.PI / 4,
+      execute: false, startedAt: now });
+    if (samuraiCutNumberLabels.length >= 48) samuraiCutNumberLabels.shift();
+    samuraiCutNumberLabels.push({ x: hit.x, y: hit.y, multiplier: event.stackMultiplier || 0.5, startedAt: now });
+    if (!prefersReducedMotion && effectiveQuality() !== 'low' && effectToggles.sparks) {
+      for (let i = 0; i < 3; i++) {
+        const a = Math.random() * Math.PI * 2, speed = 28 + Math.random() * 48;
+        addParticle({ x: hit.x, y: hit.y, vx: Math.cos(a) * speed, vy: Math.sin(a) * speed,
+          radius: 2, color: i === 0 ? '#FFD27A' : '#fff', alpha: 1, expiresAt: now + 280 });
+      }
+    }
+  }
+  if (!prefersReducedMotion && effectiveQuality() !== 'low') samuraiScreenFlash = { startedAt: now };
+  if (effectToggles.sound) playSound('ultimateCast', { volume: event.playerId === me ? 1 : 0.6 });
+  shakeCamera(SHAKE_ULTIMATE_TRAUMA, 'major');
+});
 socket.on('weapon_fired', (event) => {
   if (event.playerId !== me) {
     playSound(event.heroId === 'fairy' || event.heroId === 'engineer' ? 'fairyWhoosh' : 'shoot', { pitchVariance: ARENA_TUNING.sound.shotPitchVariance, volume: 0.6 });
@@ -2132,11 +2241,13 @@ function handleMonsterKilled(data) {
   const fx = HERO_FX_COLORS[data.heroId] || {};
   const now = performance.now();
   const turretKill = data.sourceAbility === 'turret';
+  const wolfKill = data.sourceAbility === 'wolf';
   // Kill-path budget: crossing KILL_BURST_THRESHOLD within the window makes
   // this kill the window's single big puff + sound + shake.
-  const announceMass = turretKill ? false : registerKill(now);
-  const massWindow = turretKill ? false : isMassKillWindow(now);
-  if (!turretKill) updateKillStreak(data.sourceId, announceMass);
+  const noCombo = turretKill || wolfKill;
+  const announceMass = noCombo ? false : registerKill(now);
+  const massWindow = noCombo ? false : isMassKillWindow(now);
+  if (!noCombo) updateKillStreak(data.sourceId, announceMass);
   // A boss kill is the one moment that earns the banner + fanfare + confetti.
   if (data.boss) celebrateBossDefeat();
   if (effectToggles.burst) {
@@ -2176,7 +2287,9 @@ function handleMonsterKilled(data) {
         alpha: 1, startedAt: now, durationMs: 240, expiresAt: now + 240 });
     }
   }
-  if (!turretKill && effectToggles.sound && data.sourceId !== me) {
+  if ((wolfKill || !turretKill) && effectToggles.sound && (data.sourceId !== me || wolfKill)) {
+    if (wolfKill) { playSound('kill', { volume: 0.5 }); }
+    else
     // One louder sound for the whole mass-kill window, normal sound otherwise.
     if (announceMass) playSound('kill', { volume: 0.9 });
     else if (!massWindow) playSound('kill', { volume: 0.5 });
@@ -2437,12 +2550,16 @@ socket.on('area_effect', (effect) => {
     for (const hit of effect.hits || []) fairyPushStreaks.push({ ...hit, startedAt: performance.now() });
     return;
   }
-  playSound(effect.sourceAbility === 'ultimate' ? 'ultimateCast' : 'explosion');
-  for (let i = 0; i < 20; i++) {
+  const rangerDeadAimBlast = effect.sourceHeroId === 'ranger' && effect.sourceAbility === 'ultimate';
+  playSound(rangerDeadAimBlast ? 'explosion' : effect.sourceAbility === 'ultimate' ? 'ultimateCast' : 'explosion');
+  const burstColors = rangerDeadAimBlast ? ['#FFF8D8', '#FFD75E', '#F0DDA0', '#8BE04E'] : null;
+  for (let i = 0; i < (rangerDeadAimBlast ? 32 : 20); i++) {
     const angle = Math.random() * Math.PI * 2;
-    const speed = 30 + Math.random() * 130;
+    const speed = rangerDeadAimBlast ? 70 + Math.random() * 190 : 30 + Math.random() * 130;
     addParticle({ x: effect.x, y: effect.y, vx: Math.cos(angle) * speed, vy: Math.sin(angle) * speed,
-      radius: 2 + Math.random() * 3, color: effect.color || '#ff9c45', alpha: 1, expiresAt: performance.now() + ARENA_TUNING.areaEffects.detonationMs });
+      radius: rangerDeadAimBlast ? 3 + Math.random() * 4 : 2 + Math.random() * 3,
+      color: burstColors?.[Math.floor(Math.random() * burstColors.length)] || effect.color || '#ff9c45', alpha: 1,
+      expiresAt: performance.now() + ARENA_TUNING.areaEffects.detonationMs });
   }
   // Guardian fan: a small push-impact spark at each enemy the shockwave shoved.
   if (Array.isArray(effect.hits)) {
@@ -2557,6 +2674,7 @@ function addOrUpdateProjectile(data) {
     rotateToAim: data.rotateToAim,
     flashColors: data.flashColors,
     flashIntervalMs: data.flashIntervalMs,
+    rangerDeadAim: data.rangerDeadAim,
     shape: data.shape,
     sourceAbility: data.sourceAbility,
     lifetimeMs: data.lifetimeMs,
@@ -2709,7 +2827,7 @@ function activateAbility(slot) {
     return;
   }
   sendCurrentAim();
-  if (slot === 'skill') socket.emit('skill', local?.heroId === 'engineer' ? window.lastPointerWorld : undefined);
+  if (slot === 'skill') socket.emit('skill', ['engineer', 'ranger'].includes(local?.heroId) ? window.lastPointerWorld : undefined);
   else socket.emit('ultimate');
 }
 
@@ -3323,6 +3441,21 @@ function updateHud(timestamp = performance.now()) {
   }
 
   const mechActive = MECH_ICON_SWAP && Boolean(player.mech);
+  const samuraiStacks = player.heroId === 'samurai' ? Math.max(0, player.samuraiStacks || 0) : 0;
+  const stackSpec = GAME_CONFIG.heroes.samurai.killCount;
+  const samuraiMult = Math.max(stackSpec.minMultiplier, Math.min(stackSpec.maxMultiplier, samuraiStacks / stackSpec.divisor));
+  const samuraiTier = samuraiStacks >= stackSpec.cap ? 'max' : samuraiStacks >= 10 ? 'gold' : samuraiStacks >= 5 ? 'violet' : 'muted';
+  samuraiMultiplierPill.hidden = player.heroId !== 'samurai';
+  samuraiMultiplierPill.dataset.tier = samuraiTier;
+  samuraiMultiplierValue.textContent = samuraiStacks >= stackSpec.cap
+    ? `${samuraiStacks} stacks · MAX`
+    : `${samuraiStacks} stacks · x${samuraiMult.toFixed(1)}`;
+  samuraiThresholdTick.classList.toggle('active', samuraiStacks >= 5);
+  const previousSamuraiStacks = samuraiStackFeedback.get(player.id);
+  if (previousSamuraiStacks && previousSamuraiStacks.count !== samuraiStacks) {
+    samuraiStackFeedback.set(player.id, { count: samuraiStacks,
+      kind: samuraiStacks > previousSamuraiStacks.count ? 'gain' : 'decay', at: timestamp });
+  } else if (!previousSamuraiStacks) samuraiStackFeedback.set(player.id, { count: samuraiStacks, kind: '', at: timestamp });
   const engineerTurrets = (state.turrets || []).filter((turret) => turret.ownerId === me);
   setHudHidden(engineerTurretPips, player.heroId !== 'engineer');
   engineerTurretPipLabels.forEach((pip, index) => {
@@ -3582,7 +3715,7 @@ function finishAbilityGesture(event, cancelled = false) {
   else sendCurrentAim();
   const local = state.players?.find((player) => player.id === me);
   if (gesture.slot === 'skill' && local?.heroId === 'engineer') toggleEngineerPlacementTargeting();
-  else if (gesture.slot === 'skill') socket.emit('skill');
+  else if (gesture.slot === 'skill') socket.emit('skill', ['engineer', 'ranger'].includes(state.players?.find((player) => player.id === me)?.heroId) ? window.lastPointerWorld : undefined);
   else socket.emit('ultimate');
 }
 
@@ -3712,6 +3845,72 @@ function getHeroVisualState(player, now) {
     heroOffset: heroOffsets.get(player.id), time: now, scaleX, scaleY,
     disableSprites: heroSpritesDisabled,
   };
+}
+
+function drawRangerMeatThrows(now) {
+  for (const [ownerId, meat] of rangerMeatThrows) {
+    const progress = Math.max(0, Math.min(1, (now - meat.startedAt) / meat.durationMs));
+    if (progress >= 1) { rangerMeatThrows.delete(ownerId); continue; }
+    const x = meat.fromX + (meat.x - meat.fromX) * progress;
+    const groundY = meat.fromY + (meat.y - meat.fromY) * progress;
+    const arc = Math.sin(Math.PI * progress) * 48;
+    const y = groundY - arc;
+    context.save();
+    context.globalAlpha = 0.72 + 0.28 * Math.sin(Math.PI * progress);
+    context.beginPath();
+    context.ellipse(x, groundY + 8, 8 + progress * 5, 3, 0, 0, Math.PI * 2);
+    context.fillStyle = 'rgba(29, 28, 20, 0.35)';
+    context.fill();
+    context.translate(x, y);
+    context.rotate(progress * Math.PI * 3);
+    context.font = '27px "Segoe UI Emoji", sans-serif';
+    context.textAlign = 'center';
+    context.textBaseline = 'middle';
+    context.shadowColor = '#fff1b8';
+    context.shadowBlur = 8;
+    context.fillText('🥩', 0, 0);
+    context.restore();
+  }
+}
+
+function drawRangerWolves(now) {
+  for (const wolf of state.wolves || []) {
+    if (wolf.waitingForMeat) continue;
+    const arriving = Boolean(wolf.arriving);
+    const fade = arriving ? Math.max(0, Math.min(1, wolf.arrivalProgress || 0)) : 1;
+    const pulse = 1 + Math.sin(now * 0.008) * 0.045;
+    context.save();
+    context.globalAlpha = arriving ? 0.08 + fade * 0.92 : 1;
+    context.translate(wolf.x, wolf.y);
+    context.scale(pulse * (arriving ? 0.72 + fade * 0.28 : 1), pulse * (arriving ? 0.72 + fade * 0.28 : 1));
+
+    context.beginPath();
+    context.ellipse(0, 13, 16, 6, 0, 0, Math.PI * 2);
+    context.fillStyle = 'rgba(10, 22, 15, 0.48)';
+    context.fill();
+    context.beginPath();
+    context.arc(0, 0, 17, 0, Math.PI * 2);
+    context.fillStyle = '#263b2b';
+    context.fill();
+    context.strokeStyle = arriving ? '#fff2cc' : '#8be04e';
+    context.lineWidth = 2;
+    context.stroke();
+    context.font = '25px sans-serif';
+    context.textAlign = 'center';
+    context.textBaseline = 'middle';
+    context.fillText('🐺', 0, 0);
+
+    context.font = '900 10px system-ui, sans-serif';
+    context.fillStyle = '#fff';
+    context.textAlign = 'center';
+    context.fillText(arriving ? 'ARRIVING' : 'WOLF', 0, -25);
+    const hpRatio = Math.max(0, Math.min(1, wolf.hp / GAME_CONFIG.heroes.ranger.ranger.wolfHp));
+    context.fillStyle = 'rgba(0, 0, 0, 0.82)';
+    context.fillRect(-14, 19, 28, 4);
+    context.fillStyle = hpRatio > 0.4 ? '#8be04e' : '#ff625f';
+    context.fillRect(-13, 20, 26 * hpRatio, 2);
+    context.restore();
+  }
 }
 
 function drawTurrets(now) {
@@ -3865,6 +4064,93 @@ function drawEngineerEffects(now) {
     if (progress >= 1) { engineerSalvagePopups.delete(id); continue; }
     context.save(); context.globalAlpha = 1 - progress; context.fillStyle = '#fff6ae'; context.font = 'bold 12px sans-serif';
     context.textAlign = 'center'; context.fillText(`+${(popup.ammo || GAME_CONFIG.heroes.engineer.salvage.ammo) * popup.count}`, popup.x, popup.y - 28 - progress * 12); context.restore();
+  }
+}
+
+function drawSamuraiWorldEffects(now) {
+  const fx = HERO_FX_COLORS.samurai.primary;
+  const slashMs = SAMURAI_SLASH_FADE_MS;
+  const drawBlade = (startX, startY, endX, endY, width, alpha, accent = true) => {
+    const dx = endX - startX, dy = endY - startY;
+    context.save(); context.translate(startX, startY); context.rotate(Math.atan2(dy, dx));
+    context.globalAlpha = Math.max(0, alpha);
+    context.lineCap = 'round';
+    context.strokeStyle = fx; context.lineWidth = width; context.beginPath(); context.moveTo(0, 0); context.lineTo(Math.hypot(dx, dy), 0); context.stroke();
+    context.globalAlpha *= 0.95; context.strokeStyle = accent ? '#fff' : '#E6DFFF'; context.lineWidth = Math.max(2, width * 0.24);
+    context.beginPath(); context.moveTo(0, 0); context.lineTo(Math.hypot(dx, dy), 0); context.stroke();
+    context.restore();
+  };
+  for (const [playerId, trail] of samuraiDashTrails) {
+    const age = now - trail.startedAt;
+    const progress = Math.max(0, Math.min(1, age / Math.max(1, trail.durationMs)));
+    const fromX = trail.startX, fromY = trail.startY;
+    const toX = trail.startX + (trail.endX - trail.startX) * progress;
+    const toY = trail.startY + (trail.endY - trail.startY) * progress;
+    const fade = age <= trail.durationMs ? 0.95 : Math.max(0, 1 - (age - trail.durationMs) / SAMURAI_DASH_AFTERIMAGE_MS);
+    if (fade > 0) drawBlade(fromX, fromY, toX, toY, trail.kind === 'afterimage-cut' ? 11 : 8, fade, true);
+    if (age > trail.durationMs + SAMURAI_DASH_AFTERIMAGE_MS) samuraiDashTrails.delete(playerId);
+  }
+  const serverNow = (state.serverTime || Date.now()) + (now - stateReceivedAt);
+  for (const player of state.players || []) {
+    const action = player.samuraiAction;
+    if (player.heroId !== 'samurai' || action?.phase !== 'sheathe') continue;
+    const delayStart = action.startedAt + action.durationMs;
+    const progress = Math.max(0, Math.min(1, (serverNow - delayStart) / Math.max(1, action.cutAt - delayStart)));
+    const begin = -action.cutPad;
+    const finish = action.distance + action.cutPad;
+    const sx = action.startX + action.direction.x * begin;
+    const sy = action.startY + action.direction.y * begin;
+    const ex = action.startX + action.direction.x * finish;
+    const ey = action.startY + action.direction.y * finish;
+    const alpha = (0.15 + 0.25 * progress) * (player.id === me ? 1 : 0.5);
+    context.save(); context.setLineDash([12, 9]); context.lineCap = 'butt';
+    context.globalAlpha = alpha; context.strokeStyle = '#17202B'; context.lineWidth = action.width + 5;
+    context.beginPath(); context.moveTo(sx, sy); context.lineTo(ex, ey); context.stroke();
+    context.globalAlpha = alpha; context.strokeStyle = fx; context.lineWidth = action.width;
+    context.beginPath(); context.moveTo(sx, sy); context.lineTo(ex, ey); context.stroke();
+    context.setLineDash([]); context.globalAlpha = alpha * 0.9; context.strokeStyle = '#E6DFFF'; context.lineWidth = 2;
+    context.beginPath(); context.moveTo(sx, sy); context.lineTo(ex, ey); context.stroke(); context.restore();
+  }
+  for (let i = samuraiSlashEffects.length - 1; i >= 0; i--) {
+    const slash = samuraiSlashEffects[i], age = now - slash.startedAt;
+    if (age >= slashMs) { samuraiSlashEffects.splice(i, 1); continue; }
+    const grow = Math.min(1, age / SAMURAI_SLASH_GROW_MS);
+    const fade = age <= SAMURAI_SLASH_GROW_MS ? 1 : 1 - (age - SAMURAI_SLASH_GROW_MS) / (slashMs - SAMURAI_SLASH_GROW_MS);
+    const width = 2 + (slash.width - 2) * grow;
+    const dx = slash.endX - slash.startX, dy = slash.endY - slash.startY;
+    context.save(); context.translate(slash.startX, slash.startY); context.rotate(Math.atan2(dy, dx));
+    context.globalAlpha = 0.55 * fade; context.fillStyle = fx; context.fillRect(0, -width / 2, Math.hypot(dx, dy), width);
+    context.globalAlpha = 0.6 * fade; context.fillStyle = '#DCD5FF'; context.fillRect(0, -width * 0.3, Math.hypot(dx, dy), width * 0.6);
+    context.globalAlpha = 0.95 * fade; context.fillStyle = '#fff'; context.fillRect(0, -Math.max(1, width * 0.14), Math.hypot(dx, dy), Math.max(2, width * 0.28));
+    context.restore();
+  }
+  for (let i = samuraiHitMarks.length - 1; i >= 0; i--) {
+    const mark = samuraiHitMarks[i], progress = (now - mark.startedAt) / SAMURAI_HIT_MARK_MS;
+    if (progress >= 1) { samuraiHitMarks.splice(i, 1); continue; }
+    context.save(); context.translate(mark.x, mark.y); context.rotate(mark.angle); context.globalAlpha = 1 - progress;
+    context.lineCap = 'round'; context.strokeStyle = fx; context.lineWidth = mark.execute ? 8 : 6;
+    context.beginPath(); context.moveTo(-20, 16); context.lineTo(20, -16); context.stroke();
+    context.strokeStyle = '#fff'; context.lineWidth = mark.execute ? 3.5 : 2.5;
+    context.beginPath(); context.moveTo(-20, 16); context.lineTo(20, -16); context.stroke(); context.restore();
+  }
+  for (let i = samuraiExecuteLabels.length - 1; i >= 0; i--) {
+    const label = samuraiExecuteLabels[i], progress = (now - label.startedAt) / SAMURAI_EXECUTE_LABEL_MS;
+    if (progress >= 1) { samuraiExecuteLabels.splice(i, 1); continue; }
+    context.save(); context.globalAlpha = Math.max(0, 1 - progress); context.textAlign = 'center'; context.textBaseline = 'middle';
+    context.font = '900 18px system-ui, sans-serif'; context.lineJoin = 'round';
+    context.lineWidth = 5; context.strokeStyle = '#18202B'; context.fillStyle = '#FFD27A';
+    const y = label.y - 28 - progress * 18;
+    context.strokeText('EXECUTED!', label.x, y); context.fillText('EXECUTED!', label.x, y); context.restore();
+  }
+  for (let i = samuraiCutNumberLabels.length - 1; i >= 0; i--) {
+    const label = samuraiCutNumberLabels[i], progress = (now - label.startedAt) / 600;
+    if (progress >= 1) { samuraiCutNumberLabels.splice(i, 1); continue; }
+    context.save(); context.globalAlpha = 1 - progress; context.textAlign = 'center'; context.textBaseline = 'middle';
+    context.font = 'bold 14px system-ui, sans-serif'; context.lineJoin = 'round';
+    context.lineWidth = 4; context.strokeStyle = '#18202B'; context.fillStyle = '#E6DFFF';
+    context.strokeText(`x${label.multiplier.toFixed(1)}`, label.x, label.y - 30 - progress * 18);
+    context.fillText(`x${label.multiplier.toFixed(1)}`, label.x, label.y - 30 - progress * 18);
+    context.restore();
   }
 }
 
@@ -4056,6 +4342,8 @@ function drawScene(timestamp) {
     }
   }
 
+  drawRangerMeatThrows(currentTime);
+  drawRangerWolves(currentTime);
   drawTurrets(currentTime);
   drawEngineerEffects(currentTime);
   drawFairyWindFeedback(currentTime);
@@ -4113,9 +4401,10 @@ function drawScene(timestamp) {
     const electroStun = effect.sourceHeroId === 'electromancer' && effect.sourceAbility === 'skill';
     const fairyFx = effect.sourceHeroId === 'fairy';
     const fairyGale = effect.sourceHeroId === 'fairy' && effect.sourceAbility === 'skill';
+    const rangerDeadAimFx = effect.sourceHeroId === 'ranger' && effect.sourceAbility === 'ultimate';
     const danger = effect.kind === 'enemy';
-    const stroke = fairyFx ? HERO_FX_COLORS.fairy.primary : electroStun ? HERO_FX_COLORS.electromancer.primary : danger ? AREA_COLORS.enemyStroke : AREA_COLORS.playerStroke;
-    const fillColor = fairyFx ? HERO_FX_COLORS.fairy.primary : electroStun ? HERO_FX_COLORS.electromancer.primary : danger ? AREA_COLORS.enemyFill : AREA_COLORS.playerFill;
+    const stroke = rangerDeadAimFx ? '#FFF2CC' : fairyFx ? HERO_FX_COLORS.fairy.primary : electroStun ? HERO_FX_COLORS.electromancer.primary : danger ? AREA_COLORS.enemyStroke : AREA_COLORS.playerStroke;
+    const fillColor = rangerDeadAimFx ? '#F0DDA0' : fairyFx ? HERO_FX_COLORS.fairy.primary : electroStun ? HERO_FX_COLORS.electromancer.primary : danger ? AREA_COLORS.enemyFill : AREA_COLORS.playerFill;
     context.save();
     if (effect.phase === 'telegraph') {
       // The Bombardier's ultimate marker fills like a clock hand sweeping
@@ -4168,6 +4457,20 @@ function drawScene(timestamp) {
         context.globalAlpha = 0.9;
         context.drawImage(marker.canvas, effect.x - marker.w / 2, effect.y - marker.h / 2, marker.w, marker.h);
       }
+    } else if (rangerDeadAimFx) {
+      const ringRadius = effect.radius * (0.2 + progress * 1.15);
+      context.globalAlpha = 0.22 * (1 - progress);
+      context.fillStyle = '#FFD75E';
+      context.beginPath(); context.arc(effect.x, effect.y, effect.radius * (1 - progress * 0.45), 0, Math.PI * 2); context.fill();
+      context.globalAlpha = 1 - progress;
+      context.strokeStyle = '#FFF8D8'; context.lineWidth = 5;
+      context.beginPath(); context.arc(effect.x, effect.y, ringRadius, 0, Math.PI * 2); context.stroke();
+      context.globalAlpha = (1 - progress) * 0.85;
+      context.strokeStyle = '#8BE04E'; context.lineWidth = 2;
+      context.beginPath(); context.arc(effect.x, effect.y, ringRadius * 0.72, 0, Math.PI * 2); context.stroke();
+      const burst = emojiGlyph('💥', 48 * (1 - progress * 0.45));
+      context.globalAlpha = 1 - progress;
+      context.drawImage(burst.canvas, effect.x - burst.w / 2, effect.y - burst.h / 2, burst.w, burst.h);
     } else if (fairyGale) {
       context.globalAlpha = 0.16 * (1 - progress * 0.6); context.fillStyle = fillColor;
       context.beginPath(); context.arc(effect.x, effect.y, effect.radius, 0, Math.PI * 2); context.fill();
@@ -4339,12 +4642,75 @@ function drawScene(timestamp) {
     // the sprite flicker on and off.
     const rushInvuln = Boolean(player.rushIFrames);
     const invulnBlink = !rushInvuln && Math.floor(currentTime / ARENA_TUNING.respawn.flashIntervalMs) % 2 === 0;
+    const samuraiTrail = samuraiDashTrails.get(player.id);
+    if (player.heroId === 'samurai' && samuraiTrail && !prefersReducedMotion && effectiveQuality() !== 'low') {
+      const trailAge = currentTime - samuraiTrail.startedAt;
+      for (let echo = 0; echo < 3; echo++) {
+        const fraction = [0.28, 0.54, 0.8][echo];
+        const echoAge = trailAge - samuraiTrail.durationMs * fraction;
+        if (echoAge < 0 || echoAge >= SAMURAI_DASH_AFTERIMAGE_MS) continue;
+        const x = samuraiTrail.startX + (samuraiTrail.endX - samuraiTrail.startX) * fraction;
+        const y = samuraiTrail.startY + (samuraiTrail.endY - samuraiTrail.startY) * fraction;
+        context.save(); context.globalAlpha = [0.4, 0.25, 0.12][echo] * (1 - echoAge / SAMURAI_DASH_AFTERIMAGE_MS);
+        drawCachedHero(context, heroSpriteCache, player, x, y, { ...visualState, hitFlash: false });
+        context.restore();
+      }
+    }
     context.save();
     if (player.invulnerable && invulnBlink) context.globalAlpha = 0.35;
     if (!drawCachedHero(context, heroSpriteCache, player, center.x - player.aim.x * recoil, center.y - player.aim.y * recoil, visualState)) {
       context.fillText(player.emoji, center.x - player.aim.x * recoil, center.y - player.aim.y * recoil);
     }
     context.restore();
+    if (player.id === me && player.heroId === 'samurai') {
+      const stacks = Math.max(0, player.samuraiStacks || 0);
+      const spec = GAME_CONFIG.heroes.samurai.killCount;
+      const multiplier = Math.max(spec.minMultiplier, Math.min(spec.maxMultiplier, stacks / spec.divisor));
+      const tier = stacks >= spec.cap ? 'max' : stacks >= 10 ? 'gold' : stacks >= 5 ? 'violet' : 'muted';
+      const feedback = samuraiStackFeedback.get(player.id);
+      const age = feedback ? currentTime - feedback.at : Infinity;
+      const pulse = feedback?.kind === 'gain' && age < 220 && !prefersReducedMotion
+        ? 1 + 0.2 * Math.sin(Math.PI * age / 220) : 1;
+      const fade = feedback?.kind === 'decay' && age < 280 ? Math.max(0.4, age / 280) : 1;
+      const label = stacks >= spec.cap ? `${stacks}  x${multiplier.toFixed(1)}  MAX` : `${stacks}  x${multiplier.toFixed(1)}`;
+      context.save(); context.translate(center.x, center.y - 58); context.scale(pulse, pulse); context.globalAlpha = fade;
+      context.font = '900 15px system-ui, sans-serif'; context.textAlign = 'center'; context.textBaseline = 'middle';
+      const width = context.measureText(label).width + 20;
+      context.fillStyle = '#17202B'; context.strokeStyle = tier === 'muted' ? '#7B8795' : tier === 'violet' ? '#8F7CFF' : '#FFD27A'; context.lineWidth = 2;
+      context.beginPath(); context.roundRect(-width / 2, -13, width, 26, 13); context.fill(); context.stroke();
+      context.fillStyle = tier === 'muted' ? '#C5CBD3' : tier === 'violet' ? '#DCD5FF' : '#FFD27A';
+      context.fillText(label, 0, 0); context.restore();
+    }
+    if (player.heroId === 'ranger' && player.rangerCharging && !player.downed) {
+      const progress = Math.max(0, Math.min(1, player.rangerChargeT || 0));
+      context.save();
+      context.translate(center.x, center.y - 66);
+      context.lineWidth = 4; context.strokeStyle = '#17251b';
+      context.beginPath(); context.arc(0, 0, 13, 0, Math.PI * 2); context.stroke();
+      context.strokeStyle = HERO_FX_COLORS.ranger.primary;
+      context.beginPath(); context.arc(0, 0, 13, -Math.PI / 2, -Math.PI / 2 + Math.PI * 2 * progress); context.stroke();
+      context.font = 'bold 11px sans-serif'; context.textAlign = 'center'; context.textBaseline = 'middle';
+      context.lineWidth = 3; context.strokeStyle = '#17251b'; context.fillStyle = '#fff7dc';
+      context.strokeText(`${Math.round(progress * 100)}%`, 0, -23); context.fillText(`${Math.round(progress * 100)}%`, 0, -23);
+      context.restore();
+    }
+    if (player.heroId === 'ranger' && player.deadAimArrows > 0 && !player.downed) {
+      context.save();
+      context.translate(center.x, center.y - 76);
+      context.fillStyle = 'rgba(44, 31, 13, 0.94)';
+      context.strokeStyle = '#ffd75e';
+      context.lineWidth = 2;
+      context.beginPath();
+      context.roundRect(-62, -13, 124, 26, 13);
+      context.fill();
+      context.stroke();
+      context.font = '900 12px system-ui, sans-serif';
+      context.textAlign = 'center';
+      context.textBaseline = 'middle';
+      context.fillStyle = '#fff4c7';
+      context.fillText(`➡️ DEAD AIM ×${player.deadAimArrows}`, 0, 0);
+      context.restore();
+    }
     if (player.guardianCharging && player.guardianDamageRamp > 0) {
       const label = `+${Math.round(player.guardianDamageRamp * 100)}%`;
       context.save();
@@ -4617,6 +4983,7 @@ function drawScene(timestamp) {
     context.globalAlpha = Math.max(0, dtObj.alpha * (dtObj.sourceId && dtObj.sourceId !== me ? ARENA_TUNING.damageNumbers.teammateOpacity : 1));
     context.drawImage(g.canvas, dtObj.x - g.w / 2, dtObj.y - g.h / 2, g.w, g.h);
   }
+  drawSamuraiWorldEffects(currentTime);
   context.globalAlpha = 1;
   context.restore();
   context.setTransform(1, 0, 0, 1, 0, 0);
@@ -4625,6 +4992,17 @@ function drawScene(timestamp) {
   context.filter = 'none';
   context.shadowBlur = 0;
   context.setLineDash([]);
+  if (samuraiScreenFlash) {
+    const age = currentTime - samuraiScreenFlash.startedAt;
+    if (age >= SAMURAI_CUT_OVERLAY_MS) samuraiScreenFlash = null;
+    else {
+      context.save();
+      context.globalAlpha = 0.18 * (1 - age / SAMURAI_CUT_OVERLAY_MS);
+      context.fillStyle = '#101018';
+      context.fillRect(0, 0, canvas.width, canvas.height);
+      context.restore();
+    }
+  }
   // Screen-space celebration: unaffected by shake and the boss zoom.
   updateConfetti(currentTime, dt);
   drawConfetti(currentTime);

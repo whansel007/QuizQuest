@@ -312,6 +312,42 @@
       "originalFile": "cog.svg",
       "originalPath": "game-icons.net.svg/icons/ffffff/000000/1x1/lorc/cog.svg",
       "license": "CC BY 3.0"
+    },
+    "samurai-primary.svg": {
+      "hero": "samurai",
+      "slot": "primary",
+      "ability": "Shuriken",
+      "author": "faithtoken",
+      "originalFile": "ninja-star.svg",
+      "originalPath": "game-icons.net.svg/icons/ffffff/000000/1x1/faithtoken/ninja-star.svg",
+      "license": "CC BY 3.0"
+    },
+    "samurai-skill.svg": {
+      "hero": "samurai",
+      "slot": "skill",
+      "ability": "Cutting Dash",
+      "author": "delapouite",
+      "originalFile": "katana.svg",
+      "originalPath": "game-icons.net.svg/icons/ffffff/000000/1x1/delapouite/katana.svg",
+      "license": "CC BY 3.0"
+    },
+    "samurai-ultimate.svg": {
+      "hero": "samurai",
+      "slot": "ultimate",
+      "ability": "Afterimage Cut",
+      "author": "lorc",
+      "originalFile": "sword-slice.svg",
+      "originalPath": "game-icons.net.svg/icons/ffffff/000000/1x1/lorc/sword-slice.svg",
+      "license": "CC BY 3.0"
+    },
+    "samurai-talent.svg": {
+      "hero": "samurai",
+      "slot": "talent",
+      "ability": "Kill Count",
+      "author": "delapouite",
+      "originalFile": "tally-mark-5.svg",
+      "originalPath": "game-icons.net.svg/icons/ffffff/000000/1x1/delapouite/tally-mark-5.svg",
+      "license": "CC BY 3.0"
     }
   }
 }

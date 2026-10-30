@@ -17,13 +17,14 @@ export class Skeleton extends Enemy {
     if (this.dead || !campfire || this.heldUntil > now) return null;
     if (this.windupUntil && now >= this.windupUntil) {
       const aim = this.windupAim || { x: 1, y: 0 };
-      const targetTurretId = this.windupTurretId;
+      const targetDecoyId = this.windupTurretId;
       this.windupUntil = 0;
       this.windupAim = null;
       this.windupTurretId = null;
       this.pauseUntil = now + this.spec.pauseMs;
       const projectile = new EnemyProjectile({ x: this.x, y: this.y, aim, speed: this.spec.bulletSpeed, damage: this.spec.bulletDamage * (this.damageScale || 1), color: '#e64045', emoji: '🔴', radius: 8 });
-      if (targetTurretId) projectile.targetTurretId = targetTurretId;
+      if (targetDecoyId?.startsWith('wolf:')) projectile.targetWolfId = targetDecoyId;
+      else if (targetDecoyId) projectile.targetTurretId = targetDecoyId;
       return projectile;
     }
     if (now >= this.nextShotAt && now >= this.pauseUntil && !this.windupUntil && target) {

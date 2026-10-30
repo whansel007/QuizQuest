@@ -13,7 +13,8 @@ route remains available for quick sandbox playtests.
 3. Move with WASD or the arrow keys, aim with the mouse, click the left mouse
    button to fire, press E for the skill, and Q for the ultimate. Hold the left
    button to keep firing: the server repeats the shot as soon as the weapon
-   cooldown allows, for every hero. Bombardier
+   cooldown allows. Ranger instead charges the bow until release; a ring and
+   overhead percentage show the server-measured charge level. Bombardier
    uses Q to aim and right-click to confirm a target. Escape cancels targeting.
 4. Press I (or click **Information**) to see current stats and the hero's
    passive talent. Teammate health appears under your own health bar.
@@ -69,6 +70,19 @@ route remains available for quick sandbox playtests.
   250 ms damage ticks. Training dummies are affected; bosses and Kings are
   immune. Its 18 px final nudge is intentionally too small to scatter the
   group. Windswept slows skill and ultimate targets after the push or release.
+- **Samurai:** 🥷 fires non-piercing Shuriken, dashes through enemies with an
+  execute against targets below half health, and spends Kill Count on a delayed
+  rectangular Afterimage Cut. Kill Count stacks decay after four seconds idle,
+  then lose one every two seconds; rest, vote and pre-wave phases pause decay.
+- **Ranger:** 🧝 is a Magic hero with a server-timed Charge Bow, Meat and Wolf
+  skill, and three instant Dead Aim arrows. Full charge deals 2.5× attack and
+  can hit two enemies; movement slows to 60% while drawing. The wolf bites
+  enemies near its anchor, marks them for 4 s, and draws eligible zombies,
+  skeletons, and Brutes within 150 px. Ranger arrows deal 30% more damage to
+  that Ranger's marked targets. Dead Aim arrows deal 7× attack and stop at the
+  first enemy. Wolf damage counts toward Ranger damage and kills but does not
+  trigger kill talents, combo, kill-pitch progression, or cooldown refunds.
+  Lobby dummies exercise the same attacks and marks.
 Every hero has a passive talent (name, icon, one-line description and the button
 it works with) defined once in `game-config.js`. The World-page hero preview and
 the in-game Info panel both read that single entry, so they can never disagree.
@@ -94,6 +108,14 @@ combo, rewards or the wave counter.
   not. The turret's server snapshot stays compact; the browser draws its
   placeholder body, barrel, health and ammo bars. Debug-only placement and
   enemy spawn controls are available in the existing debug menu.
+- Ranger wolf targeting reuses the turret's 500 ms staggered retarget schedule
+  and 1.5 s target lock. Wolves only taunt zombies, skeletons, and Brutes in
+  their configured radius; they do not change turret targeting, King behavior,
+  Devil pursuit, or Exploder behavior. Wolves are server-owned, one per Ranger,
+  take enemy damage but ignore player explosions, and are cleared at REST and
+  when their owner leaves or changes hero. Charge duration, arrow parameters,
+  wolf placement, bites, marks, and Dead Aim expiry are server-authoritative;
+  the charge indicator and combat effects are presentation only.
 - Engineer play controls are server-authoritative too. E sends the last arena
   cursor point; the server clamps it to 140 px, validates campfire/turret
   spacing, and searches for a nearby legal point before spending the cooldown.
@@ -234,7 +256,7 @@ from wave 3, one rare effect that is not already active.
 The student **Summon** tab replaces the old collection page. A new
 student starts with Sheriff. Each summon costs 50 coins by default. A common
 pull gives 5 units of one kingdom resource; rare pulls are Sheriff, Guardian,
-Bubbles, or Electromancer; epic pulls are Pilot, Bombardier, Fairy, or Engineer. Duplicate heroes
+Bubbles, Electromancer, or Samurai; epic pulls are Pilot, Bombardier, Fairy, or Engineer. Duplicate heroes
 refund the full pull cost by default. Cost, refund fraction, resource amount,
 rates, hero rarities, and pity thresholds are in `game-config.js`.
 
