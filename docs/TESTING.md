@@ -60,6 +60,18 @@ Three timeouts are set in `playwright.config.js`, because WebKit is much slower 
 
 After a failure, run `pnpm exec playwright show-report` to inspect the failed step. To watch a specific test locally, add `--headed`; to step through it, add `--debug`. A failing assertion should be investigated rather than removed just to make the run pass.
 
+## When a test passes locally but fails on CI
+
+CI runs every test with one retry, against the **same** server and the **same** data. The second attempt therefore starts with the first attempt's leftovers: a student who has already practised, a roster that already has the enrolment, a draft question that has already been published. A test that only works on a fresh data file fails there, and not on your machine, where the file is new every time.
+
+To see that for yourself, run every test twice against one server:
+
+```bash
+pnpm test:e2e:retry
+```
+
+A test that passes the first time and fails the second is not flaky — it depends on the data the run before it left behind. Fix it by making the test own its data (a fresh account, a marker in the question text), not by removing the assertion.
+
 CI keeps first-attempt failure traces and screenshots in the **playwright-test-results** artifact for seven days. Download and unzip it from the GitHub Actions run, then open a trace with `pnpm exec playwright show-trace path/to/trace.zip`. The report journey has named steps for student submission, professor resolution and student refresh; a separate fixture owns the professor browser's cleanup so a teardown error can be distinguished from a journey failure.
 
 These checks cover selected journeys, not every possible game action. They exercise the local Node backend and temporary data store; they do not certify a live Supabase connection, external AI services, or a complete multiplayer battle.
