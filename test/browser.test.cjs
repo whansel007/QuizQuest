@@ -931,7 +931,18 @@ test('weekly topics: narrow the dashboard, follow a next step, and add a topic f
   await page.locator('#tabs').getByRole('button', { name: 'Analytics', exact: true }).click();
   const weeks = page.locator('#dash-weeks');
   await weeks.getByRole('heading', { name: 'Weekly topics' }).waitFor();
-  assert.deepEqual(await weeks.locator('tbody tr td:first-child').allInnerTexts(), ['1', '2', '3']);
+  // The dashboard lists one row per topic of the professor's own courses, so
+  // the expectation comes from the server's topic table: a change to the
+  // seed must not look like a broken dashboard.
+  const teacherId = srv.quiz.db.users.find((user) => user.name === 'Prof. Demo A').id;
+  const teacherCourses = [...new Set(srv.quiz.db.classes
+    .filter((cls) => cls.teacherIds.includes(teacherId))
+    .map((cls) => cls.courseId))];
+  const teacherTopicWeeks = srv.quiz.db.topics
+    .filter((topic) => teacherCourses.includes(topic.courseId))
+    .map((topic) => String(topic.week))
+    .sort((a, b) => Number(a) - Number(b));
+  assert.deepEqual(await weeks.locator('tbody tr td:first-child').allInnerTexts(), teacherTopicWeeks);
   // a topic narrows every section, and the filter shows it
   await weeks.getByRole('button', { name: 'Show only Networking basics on the dashboard' }).click();
   await page.getByText('Showing Week 2 · Networking basics only', { exact: false }).waitFor();
@@ -950,7 +961,7 @@ test('weekly topics: narrow the dashboard, follow a next step, and add a topic f
   await page.locator('#tabs').getByRole('button', { name: 'Analytics', exact: true }).click();
   await page.getByRole('button', { name: 'Show all topics' }).click();
   await page.waitForFunction(() => document.querySelectorAll('#dash-topics tbody tr:not(.subrow)').length === 3);
-  assert.equal(await weeks.locator('tbody tr').count(), 3);
+  assert.equal(await weeks.locator('tbody tr').count(), teacherTopicWeeks.length);
   // Source material's topic table follows its topic filter too
   await page.locator('#tabs').getByRole('button', { name: 'AI drafting', exact: true }).click();
   await page.getByRole('heading',{name:'Manage topics & learning outcomes',exact:true}).waitFor(); // always open
@@ -961,9 +972,10 @@ test('weekly topics: narrow the dashboard, follow a next step, and add a topic f
   await page.locator('p', { hasText: 'Uploaded files are kept with this topic' }).waitFor();
   await page.getByRole('heading',{name:'Manage topics & learning outcomes',exact:true}).waitFor(); // always open
   await page.getByRole('button',{name:'Edit Cyber hygiene',exact:true}).waitFor();
-  assert.deepEqual(await page.locator('.topic-table tbody tr:not(.subrow) td:first-child').allInnerTexts(), ['3']);
+  const filteredWeek = String(srv.quiz.db.topics.find((topic) => topic.id === 'tp-sec').week);
+  assert.deepEqual(await page.locator('.topic-table tbody tr:not(.subrow) td:first-child').allInnerTexts(), [filteredWeek]);
   await page.getByRole('button',{name:'Show all topics',exact:true}).click();
-  await page.waitForFunction(() => document.querySelectorAll('.topic-table tbody tr:not(.subrow)').length === 3);
+  await page.waitForFunction((expected) => document.querySelectorAll('.topic-table tbody tr:not(.subrow)').length === expected, teacherTopicWeeks.length);
   // Source material: add Week 4; uploads then go into it
   await page.locator('#tabs').getByRole('button', { name: 'AI drafting', exact: true }).click();
   await page.getByRole('heading',{name:'Manage topics & learning outcomes',exact:true}).waitFor(); // always open
