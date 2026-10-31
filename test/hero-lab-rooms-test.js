@@ -345,6 +345,48 @@ test('only the host starts the run, and the countdown opens wave 1', async (t) =
   assert.ok(running.players.every((player) => player.hp === player.maxHp));
 });
 
+// The lobby dummies spawn at random spots inside a cluster, so a sibling dummy
+// can stand between the shooter and the target. The bullet then hits that one
+// instead and the target never breaks - the game is right, the shot simply hit
+// whatever stood in front of it. The test picks a target whose firing line is
+// actually clear, so it tests the break-and-respawn rule instead of the luck
+// of the spawn.
+const SHOT_DISTANCE = 90;
+const BULLET_RADIUS = 5;   // the sheriff's bullet
+const MUZZLE_OFFSET = 24;  // the bullet leaves the barrel this far out
+
+function firingLineIsClear(dummies, target, from) {
+  const dx = target.x - from.x;
+  const dy = target.y - from.y;
+  const length = Math.hypot(dx, dy) || 1;
+  const ux = dx / length;
+  const uy = dy / length;
+  const muzzle = { x: from.x + ux * MUZZLE_OFFSET, y: from.y + uy * MUZZLE_OFFSET };
+  for (const other of dummies) {
+    if (other === target) continue;
+    const ox = other.x - muzzle.x;
+    const oy = other.y - muzzle.y;
+    if (ox * ux + oy * uy <= 0) continue; // behind the shooter
+    const across = Math.abs(ox * uy - oy * ux);
+    if (across <= other.radius + BULLET_RADIUS) return false;
+  }
+  return true;
+}
+
+function pickDummyWithClearShot(dummies) {
+  for (const target of dummies) {
+    for (let step = 0; step < 16; step += 1) {
+      const angle = (step / 16) * Math.PI * 2;
+      const from = {
+        x: target.x - Math.cos(angle) * SHOT_DISTANCE,
+        y: target.y - Math.sin(angle) * SHOT_DISTANCE,
+      };
+      if (firingLineIsClear(dummies, target, from)) return { target, from };
+    }
+  }
+  return null;
+}
+
 test('the dummy takes damage and talents but never counts as a kill', async (t) => {
   const host = await connectClient();
   t.after(() => host.disconnect());
@@ -353,13 +395,16 @@ test('the dummy takes damage and talents but never counts as a kill', async (t) 
   const kills = [];
   host.on('monster_killed', (event) => kills.push(event));
 
-  const state = await waitFor(host, 'state', (snapshot) => snapshot.room?.phase === 'lobby', 4000);
-  const dummy = state.monsters.find((monster) => monster.isDummy);
+  await waitFor(host, 'state', (snapshot) => snapshot.room?.phase === 'lobby', 4000);
+  const dummies = [...room.monsters.values()].filter((monster) => monster.isDummy);
+  const shot = pickDummyWithClearShot(dummies);
+  assert.ok(shot, 'the lobby has a dummy with a clear firing line');
+  const dummy = shot.target;
   const player = room.players.get(welcome.you);
-  player.x = dummy.x - 90;
-  player.y = dummy.y;
-  player.aim = { x: 1, y: 0 };
-  player.hero.aim = { x: 1, y: 0 };
+  player.x = shot.from.x;
+  player.y = shot.from.y;
+  player.aim = { x: (dummy.x - shot.from.x) / SHOT_DISTANCE, y: (dummy.y - shot.from.y) / SHOT_DISTANCE };
+  player.hero.aim = { ...player.aim };
 
   const hit = waitFor(host, 'hit', (event) => event.enemyType === 'dummy', 4000);
   host.emit('fire', 'primary');
@@ -383,13 +428,16 @@ test('a broken dummy comes back after three seconds', async (t) => {
   await waitFor(host, 'state', (snapshot) => snapshot.room?.phase === 'lobby', 4000);
 
   const broken = waitFor(host, 'dummy_broken', () => true, 4000);
-  const dummy = [...room.monsters.values()].find((monster) => monster.isDummy);
+  const dummies = [...room.monsters.values()].filter((monster) => monster.isDummy);
+  const shot = pickDummyWithClearShot(dummies);
+  assert.ok(shot, 'the lobby has a dummy with a clear firing line');
+  const dummy = shot.target;
   dummy.hp = 1;
   const player = room.players.get(welcome.you);
-  player.x = dummy.x - 90;
-  player.y = dummy.y;
-  player.aim = { x: 1, y: 0 };
-  player.hero.aim = { x: 1, y: 0 };
+  player.x = shot.from.x;
+  player.y = shot.from.y;
+  player.aim = { x: (dummy.x - shot.from.x) / SHOT_DISTANCE, y: (dummy.y - shot.from.y) / SHOT_DISTANCE };
+  player.hero.aim = { ...player.aim };
   host.emit('fire', 'primary');
   await broken;
   assert.equal(room.dummyCount(), 3);
