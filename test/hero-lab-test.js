@@ -430,23 +430,37 @@ test('holding primary fire repeats the shot at the weapon cooldown', async (t) =
   await nextState(client, (state) => state.players.some((player) => player.id === clientId));
 
   const shots = [];
+  const player = server.heroLab.players.get(clientId);
   client.on('weapon_fired', (event) => {
-    if (event.playerId === clientId) shots.push({ ...event, at: Date.now() });
+    if (event.playerId !== clientId) return;
+    // The event carries no server timestamp, so record the SERVER's cooldown
+    // anchor instead of the client's arrival time.
+    shots.push({ ...event, readyAt: player?.hero.cooldowns.weapon.readyAt ?? 0 });
   });
   client.emit('primary_hold', true);
   await new Promise((resolve) => setTimeout(resolve, 900));
   client.emit('primary_hold', false);
+  // Wait until the server has seen the release, then let the in-flight shot
+  // land, so a shot that was already on the wire cannot land after the count.
+  const releaseDeadline = Date.now() + 1000;
+  while (player.primaryHeld && Date.now() < releaseDeadline) {
+    await new Promise((resolve) => setTimeout(resolve, 10));
+  }
+  await new Promise((resolve) => setTimeout(resolve, 60));
   const whileHeld = shots.length;
   await new Promise((resolve) => setTimeout(resolve, 400));
 
   assert.ok(whileHeld >= 2, `holding primary fire keeps shooting (got ${whileHeld} shots)`);
   assert.ok(shots.every((shot) => shot.source === 'hold'), 'held shots are tagged so the client can play their sound');
   assert.equal(shots.length, whileHeld, 'releasing the button stops the stream');
-  // Times are when the client received each shot, so one late delivery can
-  // make a single gap look short under load; the average over the burst
-  // still shows the 270ms revolver cooldown is respected.
-  const meanGap = (shots.at(-1).at - shots[0].at) / (shots.length - 1);
-  assert.ok(meanGap >= 240, `shots respect the 270ms revolver cooldown (mean gap ${Math.round(meanGap)}ms)`);
+  // The cooldown lives on the server: assert the cooldown anchor advanced a
+  // full 270ms per shot. Client arrival times only measure how promptly the
+  // event loop got to run.
+  for (let i = 1; i < shots.length; i += 1) {
+    const advance = shots[i].readyAt - shots[i - 1].readyAt;
+    assert.ok(advance >= 270,
+      `shots respect the 270ms revolver cooldown (server cooldown anchor advanced ${Math.round(advance)}ms)`);
+  }
 });
 
 test('a held primary button does not cancel Shield Rush', async (t) => {
