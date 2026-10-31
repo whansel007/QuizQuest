@@ -11,6 +11,43 @@ export const STUDENT = { email: 'student01@quizquest.demo', name: 'Student 01' }
 // clock ran out.
 const VERDICT = /Correct!|Not quite\.|Partly right|Time is up|No answer given/;
 
+// A student account of this test's own.
+//
+// A CI retry replays the test against the same server and the same data, so
+// a test that needs an account of its own makes a new one every attempt. A
+// shared account would arrive at the second attempt already holding the
+// first attempt's answers, reports and enrolments, and the "no history yet"
+// checks would be measuring the past instead of the test.
+//
+// Creating an account is a request of its own, so the wait is for the
+// "Log out" button that only appears once the account exists: reloading the
+// tab while the sign-up is still in flight would cancel it, and whatever the
+// test did next would find no such account.
+export async function signUpStudent(page, name) {
+  const email = `${name.toLowerCase().replace(/\s+/g, '.')}.${crypto.randomUUID().slice(0, 8)}@example.com`;
+  await page.goto('/');
+  await page.getByRole('button', { name: 'Create a student account' }).click();
+  await page.getByRole('textbox', { name: 'Name' }).fill(name);
+  await page.getByRole('textbox', { name: 'Email' }).fill(email);
+  await page.locator('#signup-password').fill('longenough');
+  await page.getByRole('button', { name: 'Create account' }).click();
+  await expect(page.getByRole('button', { name: 'Log out' })).toBeVisible();
+  return email;
+}
+
+// Put a student account into one of the professor's classes, through the
+// professor's own session. The account has to exist already and the class has
+// to be one the professor owns.
+export async function enrolStudent(teacherPage, email, className) {
+  const token = await apiToken(teacherPage);
+  const response = await teacherPage.request.post('/api/classes/enrol', {
+    headers: { Authorization: `Bearer ${token}` },
+    data: { email, className },
+  });
+  const body = await response.text();
+  expect(response.status(), `the student joins ${className}: ${body}`).toBe(201);
+}
+
 export async function signIn(page, { email, password = PASSWORD }) {
   // A test that opens two pages has to say which one it is driving: WebKit
   // stops animating a page that is not in front, and a click waits for the
@@ -35,11 +72,14 @@ export async function signIn(page, { email, password = PASSWORD }) {
   // before it.
   const signedIn = page.getByRole('button', { name: 'Log out' });
   const offline = page.getByRole('alert').filter({ hasText: 'Could not reach the server' });
-  await expect(signedIn.or(offline).first()).toBeVisible();
+  // The wait is generous: a sign-in that has to be tried again can take a
+  // while on a busy machine, and the default ten seconds would fail the test
+  // for a server that was about to answer.
+  await expect(signedIn.or(offline).first()).toBeVisible({ timeout: 30_000 });
   for (let attempt = 0; attempt < 3 && await offline.first().isVisible(); attempt++) {
     await page.locator('#login-password').fill(password);
     await page.getByRole('button', { name: 'Sign in' }).click();
-    await expect(signedIn.or(offline).first()).toBeVisible();
+    await expect(signedIn.or(offline).first()).toBeVisible({ timeout: 30_000 });
   }
   await expect(signedIn).toBeVisible();
 }
@@ -102,8 +142,10 @@ export async function createDraftQuestion(page, { courseId = 'c-comp', topicId =
   // Every draft needs its own wording: the bank refuses a question that looks
   // like one it already holds, and a retry would be turned away as a copy of
   // the attempt before it. A short stem keeps the two well clear of each
-  // other, whatever the marker turns out to be.
-  const marker = Math.random().toString(36).slice(2, 10);
+  // other, whatever the marker turns out to be. The marker is a UUID slice
+  // rather than a clock reading, so two drafts made in the same millisecond
+  // still differ.
+  const marker = crypto.randomUUID().slice(0, 8);
   const stem = `CI retry marker ${marker}`;
   const response = await page.request.post(`/api/teacher/courses/${courseId}/questions`, {
     headers: { Authorization: `Bearer ${token}` },

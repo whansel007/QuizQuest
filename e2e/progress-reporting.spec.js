@@ -1,43 +1,22 @@
 // End-to-end journeys for student progress and professor report replies.
 import { test, expect } from '@playwright/test';
-import { signIn, openTab, answerCurrentQuestion, apiToken, STUDENT, TEACHER } from './helpers.js';
-
-// A student account of this test's own. A CI retry replays the test against
-// the same server and the same data, so a student who had already practised
-// would start the test with answers already counted, and the "no history yet"
-// checks below would be wrong. A brand-new account starts empty every time.
-async function newStudent(page, name) {
-  const email = `${name.toLowerCase().replace(/\s+/g, '.')}.${Date.now()}@example.com`;
-  const student = await page.context().newPage();
-  await student.goto('/');
-  await student.getByRole('button', { name: 'Create a student account' }).click();
-  await student.getByRole('textbox', { name: 'Name' }).fill(name);
-  await student.getByRole('textbox', { name: 'Email' }).fill(email);
-  await student.locator('#signup-password').fill('longenough');
-  await student.getByRole('button', { name: 'Create account' }).click();
-  // The account has to exist before the test uses it. Creating one is a
-  // request of its own, and reloading the tab while it is still in flight
-  // would cancel it - the professor's enrolment would then find no such
-  // account, and the reload would land on the sign-in screen.
-  await expect(student.getByRole('button', { name: 'Log out' })).toBeVisible();
-  return { student, email };
-}
+import { signIn, signUpStudent, enrolStudent, openTab, answerCurrentQuestion, TEACHER } from './helpers.js';
 
 test('a student sees completed practice reflected in topic progress', async ({ page }) => {
   // It answers a whole five-question session and then checks every topic, so
   // it needs longer than the default budget on WebKit, the slowest engine.
   test.slow();
+  // The student is an account of this test's own: a CI retry replays the test
+  // against the same server and the same data, and a student who had already
+  // practised would start the test with answers already counted, so the "no
+  // history yet" checks below would be wrong. A brand-new account starts
+  // empty every time.
+  const student = await page.context().newPage();
+  const email = await signUpStudent(student, 'Progress Student');
   // The student needs a class to practise in, so the professor puts the new
   // account in the tutorial group.
-  const { student, email } = await newStudent(page, 'Progress Student');
   await signIn(page, TEACHER);
-  const token = await apiToken(page);
-  const enrol = await page.request.post('/api/classes/enrol', {
-    headers: { Authorization: `Bearer ${token}` },
-    data: { email, className: 'Computing - Tutorial Group C' },
-  });
-  const enrolBody = await enrol.text();
-  expect(enrol.status(), `the student joins the tutorial group: ${enrolBody}`).toBe(201);
+  await enrolStudent(page, email, 'Computing - Tutorial Group C');
 
   // The student signs in again, so the new class is in the account.
   await student.reload();
@@ -52,12 +31,18 @@ test('a student sees completed practice reflected in topic progress', async ({ p
   await openTab(student, 'Practice');
   await student.getByLabel('Length', { exact: true }).selectOption('5');
   await student.getByRole('button', { name: 'Start practice', exact: true }).click();
-  await expect(student.getByText('Question 1 of 5')).toBeVisible();
+  // The length of the session is read off the counter instead of being
+  // assumed: the server can shorten a session when it has no instance of a
+  // question to serve, and the counter is what the student is shown.
+  const counter = student.getByText(/Question \d+ of \d+/).first();
+  await expect(counter).toBeVisible();
+  const total = Number((await counter.innerText()).match(/of (\d+)/)[1]);
+  await expect(student.getByText(`Question 1 of ${total}`)).toBeVisible();
 
   // Pair each server grade with the question topic shown on screen. Provisional
   // written answers appear in session history but do not enter accuracy yet.
   const expectedByTopic = new Map();
-  for (let index = 0; index < 5; index++) {
+  for (let index = 0; index < total; index++) {
     const topicName = (await student.locator('.quiz-topic').innerText()).trim();
     const answerResponse = student.waitForResponse((response) =>
       /\/api\/student\/sessions\/[^/]+\/answer$/.test(response.url()) && response.request().method() === 'POST');
@@ -70,9 +55,9 @@ test('a student sees completed practice reflected in topic progress', async ({ p
       expectedByTopic.set(topicName, expected);
     }
 
-    if (index < 4) {
+    if (index < total - 1) {
       await student.getByRole('button', { name: /Next question/ }).click();
-      await expect(student.getByText(`Question ${index + 2} of 5`)).toBeVisible();
+      await expect(student.getByText(`Question ${index + 2} of ${total}`)).toBeVisible();
     }
   }
 
@@ -88,7 +73,7 @@ test('a student sees completed practice reflected in topic progress', async ({ p
   expect(progress.indicator.n).toBe(confirmed);
   expect(progress.indicator.correct).toBe([...expectedByTopic.values()].reduce((sum, topic) => sum + topic.correct, 0));
   expect(progress.sessions).toHaveLength(1);
-  expect(progress.sessions[0]).toMatchObject({ total: 5, marked: confirmed, awaitingMarking: 5 - confirmed });
+  expect(progress.sessions[0]).toMatchObject({ total, marked: confirmed, awaitingMarking: total - confirmed });
   for (const topic of progress.topics) {
     const expected = expectedByTopic.get(topic.name) || { n: 0, correct: 0 };
     expect(topic.n, `${topic.name} counted questions`).toBe(expected.n);
@@ -118,14 +103,29 @@ test('a professor resolves a student report and the student refreshes to see the
   try {
     const studentPage = await studentContext.newPage();
     const professorPage = await professorContext.newPage();
-    const reason = `Progress journey ${Date.now()}: please clarify this question.`;
+    const reason = `Progress journey ${crypto.randomUUID().slice(0, 8)}: please clarify this question.`;
     const response = 'I checked the source notes and clarified the wording.';
+
+    // The student is an account of this test's own. A CI retry replays the
+    // test against the same server and the same data, so a shared account
+    // would arrive at the second attempt already holding an open report on
+    // some question, and the server refuses a second report on the same
+    // question and version - which would show the student a different
+    // message than the one this test expects. An account of its own starts
+    // empty every time.
+    const email = await signUpStudent(studentPage, 'Report Student');
+    await signIn(professorPage, TEACHER);
+    // The student needs a class of this professor's to practise in. The
+    // professor's question bank is a course, not a class, so the report is
+    // in the bank whichever class of the course the student practises in.
+    await enrolStudent(professorPage, email, 'Computing - Tutorial Group A');
+    // The class is part of the account now, so the tab reloads to pick it up.
+    await studentPage.reload();
 
     // The three steps are named so a red job says which half of the round
     // trip broke: the student's report, the professor's reply, or the
     // student's refresh.
     await test.step('student submits a report', async () => {
-      await signIn(studentPage, STUDENT);
       await openTab(studentPage, 'Practice');
       await studentPage.getByLabel('Length', { exact: true }).selectOption('5');
       await studentPage.getByRole('button', { name: 'Start practice', exact: true }).click();
@@ -140,7 +140,6 @@ test('a professor resolves a student report and the student refreshes to see the
     });
 
     await test.step('professor resolves the report', async () => {
-      await signIn(professorPage, TEACHER);
       await openTab(professorPage, 'Question bank');
       // The status filter is in the sidebar. The empty list also offers the
       // other statuses as buttons, so the filter is picked from its own group.
