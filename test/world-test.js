@@ -309,11 +309,16 @@ test('a second tab takes over cleanly, even when alone in the world', async () =
   const kicked = once(tab1, 'kicked');
   // listen before joining: 'welcome' can arrive before 'kicked' is handled
   const welcome = once(tab2, 'welcome');
+  // 'state' has to be listened for before the join too. The World sends
+  // exactly ONE snapshot after a join - the game loop skips unchanged
+  // snapshots - so a listener attached after the join can only ever catch it
+  // by luck, and on a loaded runner the snapshot is already gone.
+  const state = once(tab2, 'state');
   tab2.emit('join', { classId: 'cl-a' });
   await kicked;
   const w = await welcome;
-  const state = await once(tab2, 'state');
-  assert.ok(state.players.some((p) => p.id === w.you), 'new tab is in the live world');
+  const snapshot = await state;
+  assert.ok(snapshot.players.some((p) => p.id === w.you), 'new tab is in the live world');
   assert.ok(srv.world.worlds.get('cl-a')?.players.has(w.you));
   tab1.close();
   tab2.close();
