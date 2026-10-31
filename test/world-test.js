@@ -55,6 +55,17 @@ const connected = (s) => {
 function connect(token) {
   return ioClient(base + '/world', { transports: ['websocket'], auth: { token }, reconnection: false });
 }
+// Wait for the effect instead of guessing at it: the server records the
+// cooldown when it releases the challenge (src/world/world.js:88), on its own
+// schedule - not a fixed number of milliseconds after the client closes.
+const until = async (fn, ms = 5000) => {
+  const started = Date.now();
+  for (;;) {
+    if (fn()) return true;
+    if (Date.now() - started > ms) throw new Error('until() timed out');
+    await new Promise((r) => setTimeout(r, 5));
+  }
+};
 function rightAnswer(ch) {
   const q = db().questions.find((x) => x.id === ch.q.id);
   const v = ch.v;
@@ -306,7 +317,7 @@ test('a second tab takes over cleanly, even when alone in the world', async () =
 
 test('leaving with an open question keeps the cooldown (no re-rolling)', async () => {
   const token = await login('s-06');
-  let s = connect(token);
+  const s = connect(token);
   await connected(s);
   s.emit('join', { classId: 'cl-a' });
   const w = await once(s, 'welcome');
@@ -317,18 +328,26 @@ test('leaving with an open question keeps the cooldown (no re-rolling)', async (
   world.nodes.length = 0;
   s.emit('interact');
   await once(s, 'challenge');
+
+  // Open the replacement socket BEFORE the walk-away: the handshake must not
+  // eat the 4 second cooldown window - a busy CI runner has been seen
+  // holding this process's event loop for more than 15 seconds.
+  const again = connect(token);
+  await connected(again);
+
   s.close(); // walk away without answering
-  await new Promise((r) => setTimeout(r, 100));
-  s = connect(token);
-  await connected(s);
-  s.emit('join', { classId: 'cl-a' });
-  const w2 = await once(s, 'welcome');
+  // The server records the cooldown when it processes the disconnect, so wait
+  // for that instead of assuming it already happened.
+  await until(() => (srv.world.cooldowns.get('s-06') || 0) > Date.now());
+
+  again.emit('join', { classId: 'cl-a' });
+  const w2 = await once(again, 'welcome');
   const world2 = srv.world.worlds.get('cl-a');
   Object.assign(world2.players.get(w2.you), { x: world2.boss.x + 80, y: world2.boss.y });
   world2.nodes.length = 0;
-  s.emit('interact');
-  assert.match(await once(s, 'notice'), /breath/);
-  s.close();
+  again.emit('interact');
+  assert.match(await once(again, 'notice'), /breath/);
+  again.close();
 });
 
 test('signing out ends World access on the open socket', async () => {
