@@ -106,7 +106,11 @@ test('abandoned challenges are recorded and release reserved nodes', async () =>
   const qid = p.challenge.q.id;
   const before = db().attempts.length;
   s.emit('leave');
-  await new Promise((r) => setTimeout(r, 80));
+  // Wait for the release instead of guessing at it: the server reads the
+  // leave packet on its own schedule, and a busy runner can take longer
+  // than a fixed sleep allows. The attempt is recorded in the same server
+  // turn that clears the claim, so the count is already settled by then.
+  await until(() => node.claimedBy === null);
   assert.equal(node.claimedBy, null);
   assert.equal(db().attempts.length, before + 1);
   const a = db().attempts.at(-1);
