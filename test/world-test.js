@@ -32,7 +32,26 @@ const once = (s, ev, ms = 3000) => new Promise((resolve, reject) => {
 });
 // The handshake is quick, but a busy CI runner can hold the event loop for
 // seconds, so the socket gets a longer window than the game events.
-const connected = (s) => once(s, 'connect', 15000);
+// The client starts connecting the moment the socket is created, so 'connect'
+// can fire before the caller attaches its listener - the handshake can beat
+// the next login round trip, and the event is then lost. socket.connected is
+// true once it has fired, so the wait never looks for an event that has been
+// and gone. A refused handshake now reports its reason instead of sitting on
+// a 15 second timeout for a connect that will never come.
+const connected = (s) => {
+  if (s.connected) return Promise.resolve(s);
+  return new Promise((resolve, reject) => {
+    const timer = setTimeout(() => {
+      s.off('connect', onConnect);
+      s.off('connect_error', onError);
+      reject(new Error('timeout waiting for connect'));
+    }, 15000);
+    function onConnect() { clearTimeout(timer); resolve(s); }
+    function onError(err) { clearTimeout(timer); reject(err); }
+    s.once('connect', onConnect);
+    s.once('connect_error', onError);
+  });
+};
 function connect(token) {
   return ioClient(base + '/world', { transports: ['websocket'], auth: { token }, reconnection: false });
 }
