@@ -424,13 +424,15 @@ sheriffSkillAbility?.querySelector('.ability-circle')?.append(rangerWolfTimerRin
 let token = null;
 const query = new URLSearchParams(location.search);
 const embedded = query.has('embedded') && window.parent !== window;
-try { if (embedded) token = sessionStorage.getItem('qq-token'); } catch { /* standalone Hero Lab has no app session */ }
-const socket = window.io('/hero-lab', { auth: { ...(token ? { token } : {}), debug: !embedded } });
+const trialTicket = query.get('trialTicket') || '';
+const workshopTrial = Boolean(trialTicket);
+// Workshop trials open full-page, not embedded, but the server only lets the
+// trial's owner in, so they also need the app session.
+try { if (embedded || workshopTrial) token = sessionStorage.getItem('qq-token'); } catch { /* standalone Hero Lab has no app session */ }
+const socket = window.io('/hero-lab', { auth: { ...(token ? { token } : {}), debug: !embedded && !workshopTrial } });
 const heroId = query.get('heroId');
 const requestedRoomCode = (query.get('room') || '').trim().toUpperCase();
 const createRequested = query.get('create') === '1';
-const trialTicket = query.get('trialTicket') || '';
-const workshopTrial = Boolean(trialTicket);
 if (workshopTrial) document.body.dataset.mode = 'workshop-trial';
 const selectedHero = HEROES.find((hero) => hero.id === heroId);
 if (!selectedHero) location.replace('/hero-lab');
