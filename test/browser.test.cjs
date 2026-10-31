@@ -255,9 +255,13 @@ test('hero lab picks a hero and hands off to the arena', async (t) => {
   // anchors, not buttons.
   const cards = page.locator('#hero-list a');
   await cards.first().waitFor();
-  assert.equal(await cards.count(), 8);
-  for (const hero of ['Guardian', 'Sheriff', 'Pilot', 'Bombardier', 'Bubbles', 'Electromancer', 'Fairy', 'Engineer']) {
-    assert.ok(await cards.filter({ hasText: hero }).count(), `${hero} is offered`);
+  // The roster is the source of truth: the picker must offer every hero the
+  // game ships. Reading it from the roster means a new hero cannot slip in
+  // unnoticed and a removed one cannot linger in the picker.
+  const { HEROES } = await import('../public/hero-lab/hero-list.js');
+  assert.equal(await cards.count(), HEROES.length);
+  for (const hero of HEROES) {
+    assert.ok(await cards.filter({ hasText: hero.name }).count(), `${hero.name} is offered`);
   }
   await cards.filter({ hasText: 'Sheriff' }).click();
   await page.waitForURL(/\/hero-lab\/world\?heroId=sheriff/);
