@@ -608,7 +608,10 @@ test('leaving at the dawn milestone hands the room to the next player', async (t
   assert.equal(room.hostId(), guestWelcome.you);
 
   guest.emit('milestone_choice', 'continue');
-  await new Promise((resolve) => setTimeout(resolve, 200));
+  // Wait for the milestone to actually close rather than guessing with a
+  // sleep: every 'state' frame sent while the milestone is open still
+  // carries it, so the wait cannot come back too early.
+  await waitFor(guest, 'state', (state) => state.dawn === null, 5000);
   const after = room.snapshot();
   assert.equal(after.dawn, null, 'the milestone closes');
   assert.equal(after.gameEnded, false, 'the run continues for the remaining hero');
