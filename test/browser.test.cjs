@@ -502,7 +502,10 @@ test('kingdom builds drop new blocks in place and the summon reveal hands over t
     pity: { totalPulls: pity.totalPulls + 1, sinceHero: 0, sinceEpic: 0 },
   });
   t.after(() => { R.drawHeroSummon = draw; });
-  await page.locator('#tabs').getByRole('button', { name: 'Summon' }).click();
+  // The Kingdom is immersive, so the tab bar slides out of reach a moment
+  // after the pointer leaves it. openStudentTab brings it back the way a
+  // keyboard user would, so the click cannot land off-screen.
+  await openStudentTab(page, 'Summon');
   await page.getByRole('button', { name: /^Summon ×1(?!0)/ }).click();
   const dialog = page.getByRole('dialog');
   await dialog.waitFor();
