@@ -1625,7 +1625,10 @@ attemptId: attempt.id,
   route('GET', '/api/student/debug-mode', 'student', ({ user }) => ({ enabled: isSeededDemoUser(user) }));
   // Live Hero Lab rooms for the debug menu. Same gate as the rest of the menu:
   // only synthetic demo accounts can see it.
-  route('GET', '/api/student/hero-lab/rooms', null, ({ user, query }) => {
+  // The route stays open for the profiler's room-code lookup, so the router
+  // never signs anyone in here: read the optional token ourselves.
+  route('GET', '/api/student/hero-lab/rooms', null, ({ req, query }) => {
+    const user = authenticate((req.headers.authorization || '').replace(/^Bearer\s+/i, ''));
     const rooms = services.heroLab?.rooms?.list?.() || [];
     const isDebugUser = Boolean(user && isSeededDemoUser(user));
     if (!isDebugUser) {
