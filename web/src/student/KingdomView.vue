@@ -5,8 +5,10 @@
 // hand-off to Hero Summon. The map itself lives in KingdomTown.
 // ============================================================
 import { ref, computed, nextTick, onMounted, onUnmounted } from 'vue';
-import { S, api, retryablePost, setTab } from '../api.js';
+import { S, api, retryablePost } from '../api.js';
 import { fmtBundle, toast } from '../ui.js';
+import { soundState, toggleMuted, playCue } from '../sound.js';
+import { wipe, wipeTo } from '../transitions.js';
 import AsyncButton from '../components/AsyncButton.vue';
 import { loadHome } from './home.js';
 import KingdomTown from './KingdomTown.vue';
@@ -14,6 +16,8 @@ import AvatarPreview from './AvatarPreview.vue';
 import BuildingIcon from './BuildingIcon.vue';
 import HeroIcon from './HeroIcon.vue';
 import SummonSky from './SummonSky.vue';
+import LibraryProp from './kingdom/LibraryProp.vue';
+import CosmeticIcon from './CosmeticIcon.vue';
 import { HERO_LORE } from './kingdom/hero-lore.js';
 import { BUILDING_ROLES, buildingCap, buildingEffect } from './kingdom/building-effects.js';
 import { GAME_CONFIG } from '../../../public/hero-lab/game-config.js';
@@ -46,7 +50,7 @@ onMounted(async () => {
 onUnmounted(() => {
   alive = false;
   window.removeEventListener('keydown', onTownKeydown);
-  clearTimeout(lensTimer);
+  clearTimeout(radioTimer);
 });
 
 const R = computed(() => k.value.catalog.resources);
@@ -65,13 +69,34 @@ const selectedHeroLore = computed(() => selectedArchiveHero.value && HERO_LORE[s
 const archiveOpen = ref(false);
 const bookBackButton = ref(null);
 let archiveReturnFocus = null;
-const decorativeShelves = Array.from({ length: 3 }, (_, shelf) => Array.from({ length: 13 }, (_, index) => ({
-  id: `${shelf}-${index}`,
-  title: ['Moon Atlas', 'The Moss Almanac', 'Songs for Small Storms', 'A Field Guide to Stars', 'The Clockmaker’s Fern'][((shelf * 13) + index) % 5],
-  color: ['#c77b50', '#6b88a4', '#7b8f64', '#bba36d', '#876f91', '#bd695c', '#477d78'][((shelf * 13) + index) % 7],
-})));
+// Three shelves of three bays each. Spines stay inside a narrow size range so
+// the case reads as furniture; each bay keeps a purposeful gap for a curio.
+const BOOK_COLORS = ['#c77b50', '#6b88a4', '#7b8f64', '#bba36d', '#876f91', '#bd695c', '#477d78'];
+const HERO_BOOK_COLORS = ['#8062a9', '#c4574f', '#2f6f73', '#b7792f', '#4f6fa0', '#5f7f36'];
+const SPINE_HEIGHTS = [80, 86, 82, 88, 84, 80, 86];
+const SPINE_WIDTHS = [22, 26, 24, 26];
+const BAY_PROPS = ['fireflies', 'candle', 'skull', 'portrait', 'wands', 'tarot', 'potions', 'fireflies', 'stones'];
+const libraryShelves = computed(() => {
+  const bays = BAY_PROPS.map((prop, id) => ({ id, prop, heroes: [] }));
+  archiveHeroes.value.forEach((hero, index) => bays[(index * 4) % bays.length].heroes.push({ hero, color: HERO_BOOK_COLORS[index % HERO_BOOK_COLORS.length] }));
+  const laidOut = bays.map((bay) => {
+    const books = Array.from({ length: Math.max(4, 8 - bay.heroes.length * 2) }, (_, i) => {
+      const n = bay.id * 5 + i;
+      return { kind: 'book', key: `b${bay.id}-${i}`, color: BOOK_COLORS[n % 7], height: SPINE_HEIGHTS[n % 7], width: SPINE_WIDTHS[n % 4], tilt: n % 9 === 4, extra: i >= 3 };
+    });
+    // hero volumes sit among the ordinary books, never at the very edge
+    bay.heroes.forEach((entry, i) => books.splice(Math.min(books.length, 1 + i * 3), 0, { kind: 'hero', key: entry.hero.id, ...entry }));
+    const extras = [{ kind: 'prop', key: `p${bay.id}`, prop: bay.prop }];
+    if (bay.id % 3 === 1) extras.unshift({ kind: 'stack', key: `s${bay.id}`, colors: [BOOK_COLORS[bay.id % 7], BOOK_COLORS[(bay.id + 3) % 7], BOOK_COLORS[(bay.id + 5) % 7]] });
+    return { id: bay.id, items: bay.id % 2 ? [...extras, ...books] : [...books, ...extras] };
+  });
+  return [laidOut.slice(0, 3), laidOut.slice(3, 6), laidOut.slice(6, 9)];
+});
 const workshopHeroes = computed(() => homeData.value?.catalog?.heroes || []);
 const previewWorkshopHero = ref(null);
+const workshopHero = computed(() => previewWorkshopHero.value || workshopHeroes.value[0] || null);
+const workshopConfig = computed(() => workshopHero.value && GAME_CONFIG.heroes[workshopHero.value.id]);
+const ownedHeroIds = computed(() => new Set(homeData.value?.inventory?.heroes || []));
 const trialStarting = ref(false);
 const wardrobeHat = ref(null);
 const wardrobeAccessory = ref(null);
@@ -155,22 +180,6 @@ const haveText = computed(() => {
   return Object.keys(res).length ? fmtBundle(res, R.value) : 'nothing yet';
 });
 
-// ---- sound: shares the World's saved volume/mute setting ----------------
-const SETTINGS_KEY = 'hero-lab-settings';
-function readSoundSettings() {
-  try {
-    const saved = JSON.parse(localStorage.getItem(SETTINGS_KEY) || '{}');
-    return { muted: Boolean(saved.muted), volume: Number.isFinite(Number(saved.masterVolume)) ? Number(saved.masterVolume) : GAME_CONFIG.arenaTuning.sound.defaultMasterVolume };
-  } catch { return { muted: false, volume: GAME_CONFIG.arenaTuning.sound.defaultMasterVolume }; }
-}
-const sound = ref(readSoundSettings());
-function toggleSound() {
-  sound.value = { ...sound.value, muted: !sound.value.muted };
-  try {
-    const saved = JSON.parse(localStorage.getItem(SETTINGS_KEY) || '{}');
-    localStorage.setItem(SETTINGS_KEY, JSON.stringify({ ...saved, muted: sound.value.muted }));
-  } catch { /* storage blocked: the choice lasts for this visit */ }
-}
 
 // ---- first-visit tour -----------------------------------------------------
 // Remembered per student in this browser. There is no server-side flag for
@@ -178,7 +187,7 @@ function toggleSound() {
 const INTRO_STEPS = [
   { highlight: 'castle', title: 'Welcome home!', body: 'This is your kingdom. The castle in the middle is your home, and it grows as your town does.' },
   { highlight: 'buildings', title: 'Four buildings', body: 'Garden to the north, Tower to the south, Library to the west and Workshop to the east. Upgrade them with the wood, crystal and herbs you earn to power up your heroes.' },
-  { highlight: 'north', title: 'Adventure lies north', body: 'Walk up through the gap in the trees by the sign. Out there you can start a Duel quiz battle or join a Campfire Run with friends.' },
+  { highlight: 'north', title: 'Adventure lies north', body: 'Walk up through the gap in the trees by the BATTLES sign, north-west of the castle. Out there you can start a Duel quiz battle or join a Campfire Run with friends.' },
   { highlight: null, title: 'Getting around', body: 'Use WASD or the arrow keys, or click to walk. Press E at a door or beside a hero, and Z for emotes. The Buildings button opens any building from anywhere.' },
 ];
 const introStep = ref(-1);
@@ -266,13 +275,20 @@ function trapBookDialog(event) {
   bookBackButton.value?.focus();
 }
 function onTownInteract(id) {
-  if (id === 'duel') { setTab('practice'); return; }
-  if (id === 'campfire') { setTab('world'); return; }
+  if (id === 'duel') { wipeTo('practice'); return; }
+  if (id === 'campfire') { wipeTo('world'); return; }
   customizeOpen.value = false;
   listOpen.value = false;
+  // moving from one building window to another turns the page with a wipe
+  if (townTarget.value && townTarget.value !== id) { wipe(() => openBuilding(id)); return; }
+  openBuilding(id);
+}
+function openBuilding(id) {
+  tradeConfirm.value = null;
+  castleInfoOpen.value = false;
   townTarget.value = id;
   if (id === 'library') archiveOpen.value = false;
-  if (id === 'tower') loadTradeBoard();
+  if (id === 'tower') { radioState.value = 'idle'; loadTradeBoard().then(() => { if (!tradeError.value) radioTunedAt.value = Date.now(); }); }
   if (id === 'castle') loadWardrobe();
 }
 function closePanel() {
@@ -294,8 +310,38 @@ function openCustomize() {
   customizeOpen.value = true;
 }
 
-async function loadTradeBoard() {
-  tradeBoard.value = null;
+// Radio refresh: keeps the current notes pinned while tuning, holds the tuning
+// animation briefly so a fresh response is noticeable, then reports it.
+const radioState = ref('idle');
+const radioTunedAt = ref(null);
+const radioBusy = computed(() => tradeLoading.value || radioState.value === 'tuning');
+let radioTimer;
+const radioStatusText = computed(() => {
+  if (radioBusy.value) return 'Tuning the class radio…';
+  if (radioState.value === 'static') return 'No signal yet. Try tuning again.';
+  if (!radioTunedAt.value) return 'Tune in to check for new notes.';
+  const count = filteredTowerTrades.value.length;
+  const time = new Date(radioTunedAt.value).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
+  return `${radioState.value === 'fresh' ? 'Fresh response' : 'Last tuned'} at ${time} · ${count} open ${count === 1 ? 'note' : 'notes'}`;
+});
+async function tuneRadio() {
+  if (radioBusy.value) return;
+  clearTimeout(radioTimer);
+  radioState.value = 'tuning';
+  playCue('radioTune');
+  const started = performance.now();
+  await loadTradeBoard({ keep: true });
+  const reduced = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
+  const hold = reduced ? 0 : 650 - (performance.now() - started);
+  if (hold > 0) await new Promise((resolve) => { radioTimer = setTimeout(resolve, hold); });
+  if (!alive) return;
+  radioState.value = tradeError.value ? 'static' : 'fresh';
+  if (!tradeError.value) { radioTunedAt.value = Date.now(); playCue('radioResponse'); }
+  radioTimer = setTimeout(() => { if (radioState.value === 'fresh') radioState.value = 'idle'; }, 2600);
+}
+
+async function loadTradeBoard({ keep = false } = {}) {
+  if (!keep) tradeBoard.value = null;
   tradeLoading.value = true;
   tradeError.value = '';
   try {
@@ -329,7 +375,7 @@ async function createTrade() {
     tradePage.value = 0;
     tradeGive.value = { wood: 0, crystal: 0, herb: 0 };
     tradeWant.value = { wood: 0, crystal: 0, herb: 0 };
-    await loadTradeBoard();
+    await loadTradeBoard({ keep: true });
     toast('Your offer is on the board.');
   } catch (err) { if (err.response) tradePost.value = null; tradeError.value = err.message; }
   finally { tradePending.value = false; }
@@ -349,9 +395,9 @@ async function acceptTrade(trade) {
   try {
     await tradeMutationPost('accept', trade.id);
     tradeConfirm.value = null;
-    await loadTradeBoard();
+    await loadTradeBoard({ keep: true });
     k.value = await api('GET', '/api/student/kingdom');
-  } catch (err) { await loadTradeBoard(); tradeError.value = err.message; }
+  } catch (err) { await loadTradeBoard({ keep: true }); tradeError.value = err.message; }
   finally { tradePending.value = false; }
 }
 async function cancelTrade(trade) {
@@ -360,24 +406,48 @@ async function cancelTrade(trade) {
   tradeError.value = '';
   try {
     await tradeMutationPost('cancel', trade.id);
-    await loadTradeBoard();
+    await loadTradeBoard({ keep: true });
     k.value = await api('GET', '/api/student/kingdom');
-  } catch (err) { await loadTradeBoard(); tradeError.value = err.message; }
+  } catch (err) { await loadTradeBoard({ keep: true }); tradeError.value = err.message; }
   finally { tradePending.value = false; }
 }
 
-// Telescope: a lens closes over the town, then Hero Summon opens. Looking
-// through it never pulls or spends anything.
+// Garden constellations: each shape keeps its own viewBox so it never
+// stretches, and the line runs through every star point. [x, y, radius]
+function constellation(id, name, place, viewBox, stars, edges) {
+  const path = edges.map(([a, b]) => `M${stars[a][0]} ${stars[a][1]}L${stars[b][0]} ${stars[b][1]}`).join('');
+  return { id, name, place, viewBox, stars, path };
+}
+const CONSTELLATIONS = [
+  constellation('ladle', 'The Ladle', { left: '5%', top: '7%', width: '17%' }, '0 0 190 110',
+    [[10, 40, 4], [48, 30, 5], [84, 38, 3.5], [112, 56, 4], [120, 94, 5], [172, 100, 4], [180, 60, 4.5]],
+    [[0, 1], [1, 2], [2, 3], [3, 4], [4, 5], [5, 6], [6, 3]]),
+  constellation('cat', 'The Sleeping Cat', { left: '27%', top: '24%', width: '16%' }, '0 0 190 100',
+    [[20, 62, 3.5], [28, 30, 5], [42, 48, 3], [58, 30, 5], [64, 62, 3.5], [42, 80, 4], [112, 74, 3.5], [150, 84, 4], [172, 54, 3.5], [160, 26, 5]],
+    [[0, 1], [1, 2], [2, 3], [3, 4], [4, 5], [5, 0], [4, 6], [6, 7], [7, 8], [8, 9]]),
+  constellation('crown', 'The Little Crown', { left: '48%', top: '5%', width: '14%' }, '0 0 180 84',
+    [[10, 74, 4], [20, 22, 5], [55, 54, 3], [90, 10, 5.5], [125, 54, 3], [160, 22, 5], [170, 74, 4]],
+    [[0, 1], [1, 2], [2, 3], [3, 4], [4, 5], [5, 6], [6, 0]]),
+  constellation('kite', 'The Kite', { left: '69%', top: '6%', width: '7%' }, '0 0 120 190',
+    [[60, 10, 5], [102, 52, 4], [60, 102, 4.5], [18, 52, 4], [80, 132, 3], [58, 158, 3], [84, 182, 3.5]],
+    [[0, 1], [1, 2], [2, 3], [3, 0], [0, 2], [2, 4], [4, 5], [5, 6]]),
+  constellation('arrow', 'The Ranger’s Arrow', { left: '82%', top: '12%', width: '13%' }, '0 0 150 110',
+    [[12, 92, 4], [140, 20, 5], [110, 22, 3.5], [132, 50, 3.5], [8, 70, 3], [34, 100, 3]],
+    [[0, 1], [1, 2], [1, 3], [0, 4], [0, 5]]),
+  constellation('hook', 'The Fishing Hook', { left: '45%', top: '38%', width: '8%' }, '0 0 120 140',
+    [[20, 12, 4.5], [34, 46, 3.5], [44, 82, 4], [70, 118, 5], [104, 104, 3.5], [100, 74, 4]],
+    [[0, 1], [1, 2], [2, 3], [3, 4], [4, 5]]),
+];
+
+// Telescope: a lens iris closes over the whole viewport, then Hero Summon
+// opens beneath it. Looking through it never pulls or spends anything.
 const lensOn = ref(false);
-let lensTimer;
-function lookThroughTelescope() {
+async function lookThroughTelescope() {
   if (lensOn.value) return;
-  townTarget.value = null;
   lensOn.value = true;
-  try { sessionStorage.setItem('qq-summon-from-telescope', '1'); } catch { /* the lens just won't open on arrival */ }
-  const reduced = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
-  if (reduced) { setTab('pets'); return; }
-  lensTimer = setTimeout(() => setTab('pets'), 600);
+  try {
+    await wipeTo('pets', { variant: 'telescope', onCovered: () => { townTarget.value = null; } });
+  } finally { if (alive) lensOn.value = false; }
 }
 
 async function chooseAvatarColor(color) {
@@ -444,7 +514,7 @@ async function upgrade(p) {
         <span class="scene-kicker">A LITTLE KINGDOM AWAITS</span>
         <h1>Find your party</h1>
         <p>Join a class to explore and build your town.</p>
-        <button class="btn primary note-action" type="button" @click="setTab('practice')">Join a class in Practice</button>
+        <button class="btn primary note-action" type="button" @click="wipeTo('practice')">Join a class in Practice</button>
       </div>
     </template>
     <template v-else-if="loaded">
@@ -457,8 +527,8 @@ async function upgrade(p) {
         :heroes="townHeroes"
         :highlight="introOpen ? INTRO_STEPS[introStep].highlight : null"
         :paused="introOpen || !!townTarget || lensOn"
-        :muted="sound.muted"
-        :volume="sound.volume"
+        :muted="soundState.muted"
+        :volume="soundState.volume"
         @interact="onTownInteract"
       />
 
@@ -489,12 +559,12 @@ async function upgrade(p) {
       <div class="town-hud town-actions">
         <button class="hud-btn gold" type="button" :aria-expanded="customizeOpen" @click="customizeOpen = !customizeOpen">Customize</button>
         <button class="hud-btn" type="button" title="Emotes (Z)" @click="town?.openEmotes()">Emote <kbd>Z</kbd></button>
-        <button class="hud-btn hud-icon" type="button" :aria-pressed="sound.muted" :aria-label="sound.muted ? 'Turn town sounds on' : 'Mute town sounds'" :title="sound.muted ? 'Sounds off' : 'Sounds on'" @click="toggleSound">
-          <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M3 8h3l4-4v12l-4-4H3Z" /><path v-if="!sound.muted" d="M13 7c1.4 1.6 1.4 4.4 0 6M15.5 5c2.6 2.8 2.6 7.2 0 10" fill="none" stroke-width="1.8" stroke-linecap="round" /><path v-else d="m13 7 5 6m0-6-5 6" fill="none" stroke-width="1.8" stroke-linecap="round" /></svg>
+        <button class="hud-btn hud-icon" type="button" :aria-pressed="soundState.muted" :aria-label="soundState.muted ? 'Turn sounds on' : 'Mute sounds'" :title="soundState.muted ? 'Sounds off' : 'Sounds on'" @click="toggleMuted">
+          <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M3 8h3l4-4v12l-4-4H3Z" /><path v-if="!soundState.muted" d="M13 7c1.4 1.6 1.4 4.4 0 6M15.5 5c2.6 2.8 2.6 7.2 0 10" fill="none" stroke-width="1.8" stroke-linecap="round" /><path v-else d="m13 7 5 6m0-6-5 6" fill="none" stroke-width="1.8" stroke-linecap="round" /></svg>
         </button>
       </div>
       <div class="town-hud town-controls-hud">
-        <span><kbd>WASD</kbd> walk</span><span><kbd>E</kbd> open / greet</span><span><kbd>Z</kbd> emote</span><span class="north-hint">Battles: walk north ↑</span>
+        <span><kbd>WASD</kbd> walk</span><span><kbd>E</kbd> open / greet</span><span><kbd>Z</kbd> emote</span><span class="north-hint">Battles: walk north-west ↖</span>
         <span class="touch-controls-hint">Tap the ground to walk · tap a building to open</span>
       </div>
 
@@ -574,32 +644,92 @@ async function upgrade(p) {
               <div class="sky-card">
                 <div class="garden-sky" aria-hidden="true">
                   <SummonSky class="garden-star-sky" />
-                  <svg class="sky-constellations" viewBox="0 0 1200 640" preserveAspectRatio="xMidYMid meet">
-                    <g class="constellation"><path d="M70 110 145 65 212 96 285 40 345 88"/><circle cx="70" cy="110" r="4"/><circle cx="145" cy="65" r="5"/><circle cx="212" cy="96" r="3"/><circle cx="285" cy="40" r="5"/><circle cx="345" cy="88" r="4"/></g>
-                    <g class="constellation"><path d="M460 185 520 125 600 152 650 90 725 118 765 58"/><circle cx="460" cy="185" r="4"/><circle cx="520" cy="125" r="5"/><circle cx="600" cy="152" r="3"/><circle cx="650" cy="90" r="4"/><circle cx="725" cy="118" r="5"/><circle cx="765" cy="58" r="4"/></g>
-                    <g class="constellation"><path d="M865 150 925 98 1005 120 1080 62 1150 100"/><circle cx="865" cy="150" r="4"/><circle cx="925" cy="98" r="5"/><circle cx="1005" cy="120" r="3"/><circle cx="1080" cy="62" r="5"/><circle cx="1150" cy="100" r="4"/></g>
-                    <g class="constellation"><path d="M285 330 350 285 415 314 475 250 550 280"/><circle cx="285" cy="330" r="4"/><circle cx="350" cy="285" r="5"/><circle cx="415" cy="314" r="3"/><circle cx="475" cy="250" r="5"/><circle cx="550" cy="280" r="4"/></g>
-                    <g class="constellation"><path d="M710 360 770 300 830 330 900 255 960 288 1025 235"/><circle cx="710" cy="360" r="4"/><circle cx="770" cy="300" r="5"/><circle cx="830" cy="330" r="3"/><circle cx="900" cy="255" r="5"/><circle cx="960" cy="288" r="4"/><circle cx="1025" cy="235" r="5"/></g>
+                  <figure v-for="c in CONSTELLATIONS" :key="c.id" class="constellation" :style="c.place">
+                    <svg :viewBox="c.viewBox"><path :d="c.path" /><circle v-for="(star, i) in c.stars" :key="i" :class="{ bright: star[2] > 4 }" :cx="star[0]" :cy="star[1]" :r="star[2]" :style="{ animationDelay: `${-i * 0.7}s` }" /></svg>
+                    <figcaption>{{ c.name }}</figcaption>
+                  </figure>
+                  <svg class="garden-horizon" viewBox="0 0 1200 220" preserveAspectRatio="xMidYMax slice">
+                    <path d="M0 120C140 84 260 92 380 112s230 8 330-22 250-22 330 2 120 30 160 26V220H0Z" fill="#3f5e45" />
+                    <path d="M0 150c160-30 300-22 450 4s260 12 400-14 260-8 350 18V220H0Z" fill="#567a4f" stroke="#23382f" stroke-width="3" />
+                    <g stroke="#23382f" stroke-width="3" stroke-linecap="round"><path d="M520 150v-34M560 147v-34M600 146v-34M640 147v-34M680 149v-34M510 124h180M510 140h180" stroke="#8a6541" /></g>
+                    <g><path d="M760 154v-56" stroke="#23382f" stroke-width="4" /><path d="M748 98h24l-4 18h-16Z" fill="#f2ba55" stroke="#23382f" stroke-width="3" stroke-linejoin="round" /><circle class="lantern-glow" cx="760" cy="107" r="22" fill="#f2ba55" opacity=".22" /></g>
+                    <g><path d="M436 160v-52" stroke="#23382f" stroke-width="4" /><path d="M424 108h24l-4 18h-16Z" fill="#f2ba55" stroke="#23382f" stroke-width="3" stroke-linejoin="round" /><circle class="lantern-glow" cx="436" cy="117" r="22" fill="#f2ba55" opacity=".22" /></g>
+                    <g stroke="#23382f" stroke-width="2"><circle cx="300" cy="158" r="8" fill="#d86f6b" /><circle cx="318" cy="152" r="7" fill="#f3cfd1" /><circle cx="336" cy="160" r="8" fill="#8062a9" /><circle cx="880" cy="160" r="8" fill="#f2ba55" /><circle cx="898" cy="154" r="7" fill="#d86f6b" /><circle cx="916" cy="162" r="7" fill="#f3cfd1" /><circle cx="1080" cy="168" r="8" fill="#8062a9" /><circle cx="1098" cy="162" r="7" fill="#f2ba55" /></g>
+                    <g fill="#7fae58" stroke="#23382f" stroke-width="2"><path d="M290 172c4-10 10-14 18-12-2 8-8 12-18 12ZM340 174c-2-9 2-15 10-16 1 8-3 13-10 16ZM870 176c4-10 10-14 18-12-2 8-8 12-18 12ZM1090 182c-2-9 2-15 10-16 1 8-3 13-10 16Z" /></g>
                   </svg>
-                  <div class="garden-horizon" />
-                  <svg class="telescope-art" viewBox="0 0 180 110"><path d="M62 67 38 102M104 68l24 34M82 69v34" stroke="#8a6541" stroke-width="8" stroke-linecap="round"/><path d="m54 27 75-13 8 27-75 14z" fill="#d4a95f" stroke="#1d263f" stroke-width="5" stroke-linejoin="round"/><path d="m130 14 20-4 8 29-20 2z" fill="#77bad0" stroke="#1d263f" stroke-width="5" stroke-linejoin="round"/><path d="M66 28 61 15l35-6 2 13" fill="#e7c47d" stroke="#1d263f" stroke-width="4" stroke-linejoin="round"/></svg>
                 </div>
+                <button class="telescope-button" type="button" tabindex="-1" aria-label="Look through the telescope to open Hero Summon" :disabled="lensOn" @click="lookThroughTelescope">
+                  <svg class="telescope-art" viewBox="0 0 220 200" aria-hidden="true" focusable="false">
+                    <ellipse cx="110" cy="188" rx="92" ry="10" fill="#23382f" opacity=".35" />
+                    <g stroke="#23382f" stroke-width="4" stroke-linecap="round"><path d="M110 104 54 184M110 104l58 80M110 104v80" stroke="#7a5534" stroke-width="9" /><path d="M110 104 54 184M110 104l58 80M110 104v80" fill="none" /></g>
+                    <circle cx="110" cy="102" r="10" fill="#c99c67" stroke="#23382f" stroke-width="3" />
+                    <g class="telescope-tube">
+                      <path d="m40 96 120-52 12 28-120 52Z" fill="#c8963e" stroke="#23382f" stroke-width="4" stroke-linejoin="round" />
+                      <path d="m70 83 8 28M128 58l9 28" stroke="#7a5534" stroke-width="6" />
+                      <path d="m158 40 30-13 16 36-30 13Z" fill="#e8c57c" stroke="#23382f" stroke-width="4" stroke-linejoin="round" />
+                      <path d="m190 30 10 23" stroke="#6db8cf" stroke-width="6" stroke-linecap="round" />
+                      <path d="m24 100 18-8 10 24-18 8Z" fill="#7a5534" stroke="#23382f" stroke-width="4" stroke-linejoin="round" />
+                      <path d="m62 86 70-30" stroke="#fff3d0" stroke-width="3" stroke-linecap="round" opacity=".6" />
+                    </g>
+                  </svg>
+                </button>
                 <div class="garden-caption">
-                  <span class="scene-kicker">THE STAR GARDEN</span>
+                  <span class="scene-kicker">The star garden</span>
                   <h3>The stargazing telescope</h3>
-                  <p>Settle in among the garden lights and follow a shooting star. Looking through the telescope opens Hero Summon; the visit is free, and summoning always asks you first.</p>
-                  <button class="btn primary" type="button" @click="lookThroughTelescope">Look through the telescope</button>
+                  <p>Follow a shooting star through the lens to visit Hero Summon. The visit is free, and summoning always asks you first.</p>
+                  <button class="btn primary" type="button" :disabled="lensOn" @click="lookThroughTelescope">Look through the telescope</button>
                 </div>
               </div>
             </template>
             <template v-else-if="townTarget === 'tower'">
               <div class="tower-feature">
                 <section class="tower-board" aria-label="Class exchange request board">
-                  <div class="tower-board-heading"><div class="radio-face" aria-hidden="true"><span>◖</span><i /><b>FM</b></div><div><span class="preview-tag">Class channel · {{ homeData?.classes?.find((c) => c.id === S.classId)?.name || 'Selected class' }}</span><h3>Exchange notices</h3><p v-if="tradeBoard?.enabled">Offers are visible only to this class. Posted resources stay pinned in escrow until accepted or cancelled.</p><p v-else-if="tradeBoard && !tradeBoard.enabled">Trading is turned off for this class.</p><p v-if="tradeBoard?.enabled && !tradeBoard.unlocked">Upgrade the Tower to level 1 to unlock class trading.</p></div></div>
-                  <div class="tower-filter-row"><span class="trade-state" role="status">{{ tradeLoading ? 'Tuning the class radio…' : tradeError || 'Latest requests from your classmates' }}</span><label>Show <select v-model="tradeFilter" @change="tradePage = 0"><option value="all">All open notes</option><option value="mine">My notes</option></select></label></div>
-                  <p v-if="tradeError" class="trade-error" role="alert">{{ tradeError }} <button class="text-button" type="button" @click="loadTradeBoard">Try again</button></p>
-                  <div v-if="tradeBoard?.enabled && tradeBoard?.unlocked" class="pinned-notes">
-                    <p v-if="!towerTrades.length" class="empty-board-note">No notes on the board yet. Write the first request at the offer desk.</p>
+                  <div class="tower-board-heading">
+                    <div class="board-sign"><span class="scene-kicker">Class channel · {{ homeData?.classes?.find((c) => c.id === S.classId)?.name || 'Selected class' }}</span><h3>Exchange noticeboard</h3></div>
+                    <div class="radio-station" :class="`radio-${radioState}`">
+                      <svg class="radio-set" viewBox="0 0 120 84" aria-hidden="true" focusable="false">
+                        <path class="radio-antenna" d="M86 30 104 4" stroke="#23382f" stroke-width="3" stroke-linecap="round" /><circle class="radio-antenna" cx="104" cy="4" r="3.5" fill="#d86f6b" stroke="#23382f" stroke-width="1.5" />
+                        <g class="radio-waves" fill="none" stroke="#fff3d0" stroke-width="2.5" stroke-linecap="round"><path d="M110 12a10 10 0 0 0-4-10" /><path d="M116 16a17 17 0 0 0-7-17" /></g>
+                        <rect x="6" y="28" width="108" height="52" rx="9" fill="#c99c67" stroke="#23382f" stroke-width="3" />
+                        <rect x="14" y="36" width="44" height="36" rx="5" fill="#7a5534" stroke="#23382f" stroke-width="2" />
+                        <path d="M19 44h34M19 51h34M19 58h34M19 65h34" stroke="#4a3324" stroke-width="2.5" stroke-linecap="round" />
+                        <rect x="64" y="36" width="42" height="16" rx="3" fill="#fff3d0" stroke="#23382f" stroke-width="2" />
+                        <path d="M68 44h34" stroke="#a8774a" stroke-width="1.5" stroke-dasharray="2 3" />
+                        <path class="radio-needle" d="M76 38v12" stroke="#c4574f" stroke-width="2.5" stroke-linecap="round" />
+                        <circle cx="74" cy="64" r="7" fill="#e8c57c" stroke="#23382f" stroke-width="2" /><path class="radio-knob" d="M74 64v-6" stroke="#23382f" stroke-width="2" stroke-linecap="round" />
+                        <circle cx="96" cy="64" r="7" fill="#e8c57c" stroke="#23382f" stroke-width="2" />
+                        <circle class="radio-lamp" cx="96" cy="64" r="3" fill="#7fae58" />
+                      </svg>
+                      <button class="radio-tune" type="button" :disabled="radioBusy" :aria-busy="radioBusy" @click="tuneRadio">
+                        <svg viewBox="0 0 20 20" aria-hidden="true" focusable="false"><path d="M15.5 6.5A6.5 6.5 0 1 0 16.4 12" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" /><path d="M16.8 2.8v4.6h-4.6" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" /></svg>
+                        {{ radioBusy ? 'Tuning…' : 'Tune in for new notes' }}
+                      </button>
+                      <span class="radio-status" role="status">{{ radioStatusText }}</span>
+                    </div>
+                  </div>
+                  <div class="tower-filter-row"><span class="board-hint">Pinned requests from your classmates</span><label>Show <select v-model="tradeFilter" @change="tradePage = 0"><option value="all">All open notes</option><option value="mine">My notes</option></select></label></div>
+                  <p v-if="tradeError" class="trade-error" role="alert">The radio caught only static: {{ tradeError }} <button class="text-button" type="button" :disabled="radioBusy" @click="tuneRadio">Try again</button></p>
+                  <div v-if="tradeBoard" class="pinned-notes">
+                    <article class="info-note">
+                      <span class="note-pin" aria-hidden="true" />
+                      <h4>Board rules</h4>
+                      <p v-if="!tradeBoard.enabled">Your class teacher has turned trading off for now.</p>
+                      <p v-else-if="!tradeBoard.unlocked">Upgrade the Tower to level 1 to unlock class trading.</p>
+                      <p v-else>Offers stay in this class. Pinned resources are held safely until a classmate accepts or you unpin the note.</p>
+                    </article>
+                    <article v-if="tradeBoard.enabled && tradeBoard.unlocked" class="info-note stash-note">
+                      <span class="note-pin" aria-hidden="true" />
+                      <h4>Your stash</h4>
+                      <p>{{ fmtBundle(tradeBoard.resources, R) }}</p>
+                      <small>{{ tradeBoard.mine?.length || 0 }} of {{ tradeBoard.limits.maxOpenPerStudent }} notes pinned</small>
+                    </article>
+                    <article v-if="tradeBoard.enabled && tradeBoard.unlocked" class="info-note steps-note">
+                      <span class="note-pin" aria-hidden="true" />
+                      <h4>How trading works</h4>
+                      <ol><li>Write a request at the offer desk.</li><li>Your offer waits safely on this board.</li><li>A classmate accepts, and both stashes update.</li></ol>
+                    </article>
+                    <template v-if="tradeBoard.enabled && tradeBoard.unlocked">
+                    <p v-if="!towerTrades.length" class="empty-board-note">No requests pinned yet. Write the first one at the offer desk, or tune the radio to check again.</p>
                     <article v-for="trade in towerTrades" :key="trade.id" class="trade-entry" :class="{ own: trade.mine }">
                       <span class="note-pin" aria-hidden="true" />
                       <div class="note-author"><b>{{ trade.from }}</b><span v-if="trade.mine" class="trade-state">Your note · resources held</span></div>
@@ -607,12 +737,14 @@ async function upgrade(p) {
                       <template v-if="trade.mine"><button class="btn note-action" type="button" :disabled="tradePending" @click="cancelTrade(trade)">Unpin · return resources</button></template>
                       <button v-else class="btn note-action" type="button" :disabled="tradePending" @click="tradeConfirm = trade">Read &amp; accept</button>
                     </article>
-                                      <nav v-if="filteredTowerTrades.length > TRADE_PAGE_SIZE" class="trade-pagination" aria-label="Exchange note pages">
+                    <nav v-if="filteredTowerTrades.length > TRADE_PAGE_SIZE" class="trade-pagination" aria-label="Exchange note pages">
                       <button class="text-button" type="button" :disabled="tradePage === 0" @click="tradePage--">← Newer notes</button>
                       <span>Page {{ tradePage + 1 }} of {{ tradePageCount }} · {{ filteredTowerTrades.length }} notes</span>
                       <button class="text-button" type="button" :disabled="tradePage + 1 >= tradePageCount" @click="tradePage++">Older notes →</button>
                     </nav>
-</div>
+                    </template>
+                  </div>
+                  <p v-else-if="tradeLoading" class="empty-board-note">Tuning the class radio…</p>
                   <div v-if="tradeConfirm" class="trade-confirm" role="alertdialog" aria-modal="true" aria-label="Confirm trade">
                     <p>Accept {{ tradeConfirm.from }}’s offer? You give {{ fmtBundle(tradeConfirm.want, R) }} and receive {{ fmtBundle(tradeConfirm.give, R) }}.</p>
                     <dl v-if="tradeConfirmPreview" class="trade-preview-values"><div><dt>Your resources now</dt><dd>{{ fmtBundle(tradeConfirmPreview.before, R) }}</dd></div><div v-if="tradeConfirmPreview.affordable"><dt>After the exchange</dt><dd>{{ fmtBundle(tradeConfirmPreview.after, R) }}</dd></div></dl>
@@ -649,31 +781,37 @@ async function upgrade(p) {
             </template>
             <template v-else-if="townTarget === 'library'">
               <div class="library-feature">
-                <section class="library-shelves" aria-label="Hero story archive">
-                  <div class="shelf-heading"><div><span class="preview-tag">The archive</span><h3>Choose a volume</h3></div><span class="library-magic-note">The library strengthens magic heroes. Every hero has a place on these shelves.</span></div>
-                  <div class="bookcase" aria-label="Three shelves of storybooks">
-                    <div v-for="(books, shelfIndex) in decorativeShelves" :key="shelfIndex" class="shelf-row">
-                      <div class="shelf" :aria-label="`Shelf ${shelfIndex + 1}`">
-                        <button v-if="shelfIndex === 0" v-for="hero in archiveHeroes" :key="hero.id" class="spine hero-spine" :class="{ selected: archiveOpen && archiveHero?.id === hero.id }" type="button" :aria-pressed="archiveOpen && archiveHero?.id === hero.id" :aria-label="`Open ${hero.name}'s story`" @click="openArchiveBook(hero, $event)">{{ hero.name }}</button>
-                        <span v-for="book in books" :key="book.id" class="spine decorative-spine" :style="{ '--book-color': book.color }" :title="book.title" aria-hidden="true" />
+                <section class="library-shelves" aria-labelledby="library-archive-title">
+                  <div class="shelf-heading">
+                    <div class="archive-plaque"><span class="scene-kicker">The magical archive</span><h3 id="library-archive-title">Choose a volume</h3></div>
+                    <p class="library-magic-note">Every hero has a gold-titled book on these shelves. The library strengthens magic heroes.</p>
+                  </div>
+                  <div class="bookcase">
+                    <div v-for="(bays, shelfIndex) in libraryShelves" :key="shelfIndex" class="shelf-row" role="group" :aria-label="`Shelf ${shelfIndex + 1}`">
+                      <div v-for="bay in bays" :key="bay.id" class="shelf-bay">
+                        <template v-for="item in bay.items" :key="item.key">
+                          <button v-if="item.kind === 'hero'" class="spine hero-spine" :class="{ selected: archiveOpen && archiveHero?.id === item.hero.id }" :style="{ '--book-color': item.color }" type="button" :aria-pressed="archiveOpen && archiveHero?.id === item.hero.id" :aria-label="`Read ${item.hero.name}'s story`" @click="openArchiveBook(item.hero, $event)"><span>{{ item.hero.name }}</span></button>
+                          <span v-else-if="item.kind === 'book'" class="spine decorative-spine" :class="{ tilted: item.tilt, extra: item.extra }" :style="{ '--book-color': item.color, '--spine-h': `${item.height}px`, '--spine-w': `${item.width}px` }" aria-hidden="true" />
+                          <span v-else-if="item.kind === 'stack'" class="book-stack" aria-hidden="true"><i v-for="(color, i) in item.colors" :key="i" :style="{ '--book-color': color }" /></span>
+                          <span v-else class="shelf-curio" :class="`curio-${item.prop}`" aria-hidden="true"><LibraryProp :kind="item.prop" /></span>
+                        </template>
                       </div>
                     </div>
                   </div>
                 </section>
                 <div v-if="archiveOpen && selectedArchiveHero" class="storybook-overlay" @pointerdown.self="closeArchiveBook">
-                  <div class="storybook-spread" role="dialog" aria-modal="true" :aria-label="`${selectedArchiveHero.name}'s story`" @keydown="trapBookDialog">
+                  <div class="storybook-spread" role="dialog" aria-modal="true" aria-labelledby="story-title" @keydown="trapBookDialog">
                   <article class="storybook-page story-left">
                     <button ref="bookBackButton" class="book-back" type="button" @click="closeArchiveBook">← Back to the shelves</button>
-                    <span class="preview-tag">{{ heroStars(selectedArchiveHero) }}-star · {{ selectedArchiveHero.type }} hero</span>
-                    <h3>{{ selectedArchiveHero.name }}</h3>
+                    <span class="story-kicker">{{ selectedArchiveHero.name }} · {{ heroStars(selectedArchiveHero) }}-star {{ selectedArchiveHero.type }} hero</span>
+                    <h3 id="story-title" class="story-title">{{ selectedHeroLore?.title || selectedArchiveHero.name }}</h3>
                     <p class="hero-personality">{{ selectedHeroLore?.personality || 'A valued member of the town’s defenders.' }}</p>
                     <p class="story-copy">{{ selectedHeroLore?.story || `${selectedArchiveHero.name} brings ${selectedArchiveHero.weapon || 'their own talents'} to every adventure. Their signature skill is ${selectedArchiveHero.skill || 'always ready'}, and their ultimate is ${selectedArchiveHero.ultimate || 'a force to reckon with'}.` }}</p>
                     <p v-if="selectedHeroLore?.fieldNote" class="field-note"><b>Field note</b> · {{ selectedHeroLore.fieldNote }}</p>
-                    <dl class="hero-book-stats"><div><dt>HP</dt><dd>{{ selectedArchiveHero.hp }}</dd></div><div><dt>Attack</dt><dd>{{ selectedArchiveHero.attack }}</dd></div><div><dt>Defense</dt><dd>{{ selectedArchiveHero.defense }}</dd></div><div><dt>Speed</dt><dd>{{ selectedArchiveHero.speed }}</dd></div></dl>
                   </article>
                   <div class="storybook-page story-right">
-                    <div class="portrait-stage"><div class="portrait-halo" /><HeroIcon :hero="selectedArchiveHero" :size="220" :label="`${selectedArchiveHero.name} portrait`" :animated="true" /></div>
-                    <h3>{{ selectedArchiveHero.emoji }} {{ selectedArchiveHero.name }}</h3>
+                    <figure class="story-portrait"><div class="portrait-frame"><HeroIcon :hero="selectedArchiveHero" :size="150" :label="`${selectedArchiveHero.name} portrait`" :animated="true" /></div><figcaption>{{ selectedArchiveHero.name }}</figcaption></figure>
+                    <dl class="hero-book-stats"><div><dt>HP</dt><dd>{{ selectedArchiveHero.hp }}</dd></div><div><dt>Attack</dt><dd>{{ selectedArchiveHero.attack }}</dd></div><div><dt>Defense</dt><dd>{{ selectedArchiveHero.defense }}</dd></div><div><dt>Speed</dt><dd>{{ selectedArchiveHero.speed }}</dd></div></dl>
                     <dl class="hero-abilities"><div><dt>Primary fire</dt><dd>{{ selectedArchiveHero.weapon || 'Heroic strike' }}</dd></div><div><dt>Skill</dt><dd>{{ selectedArchiveHero.skill || 'Signature skill' }}</dd></div><div><dt>Ultimate</dt><dd>{{ selectedArchiveHero.ultimate || 'Ultimate power' }}</dd></div><div v-if="GAME_CONFIG.heroes[selectedArchiveHero.id]?.talent"><dt>Talent · {{ GAME_CONFIG.heroes[selectedArchiveHero.id].talent.name }}</dt><dd>{{ GAME_CONFIG.heroes[selectedArchiveHero.id].talent.description }}</dd></div></dl>
                   </div>
                   </div>
@@ -682,19 +820,53 @@ async function upgrade(p) {
             </template>
             <template v-else-if="townTarget === 'workshop'">
               <div class="gym-card workshop-feature">
-                <div class="workshop-roster" role="group" aria-label="Choose a hero to preview">
-                  <button v-for="hero in workshopHeroes" :key="hero.id" class="workshop-hero" :class="{ selected: (previewWorkshopHero || workshopHeroes[0])?.id === hero.id }" type="button" :aria-pressed="(previewWorkshopHero || workshopHeroes[0])?.id === hero.id" @click="previewWorkshopHero = hero"><span>{{ hero.emoji }}</span><b>{{ hero.name }}</b><small>{{ heroStars(hero) }}-star</small></button>
-                </div>
-                <article v-if="previewWorkshopHero || workshopHeroes[0]" class="workshop-detail">
-                  <div class="workshop-preview-stage" aria-label="Animated hero preview in the training yard"><span class="practice-target" aria-hidden="true" /><HeroIcon :hero="previewWorkshopHero || workshopHeroes[0]" :size="132" :label="`${(previewWorkshopHero || workshopHeroes[0]).name} training preview`" :animated="true" /></div>
-                  <span class="preview-tag">Training dummy · preview</span>
-                  <h3>{{ (previewWorkshopHero || workshopHeroes[0]).emoji }} {{ (previewWorkshopHero || workshopHeroes[0]).name }}</h3>
-                  <p>{{ (previewWorkshopHero || workshopHeroes[0]).weapon || 'A practiced fighter' }} · {{ (previewWorkshopHero || workshopHeroes[0]).skill || 'Signature skill' }} · {{ (previewWorkshopHero || workshopHeroes[0]).ultimate || 'Ultimate' }}</p>
-                  <dl class="hero-book-stats"><div><dt>HP</dt><dd>{{ (previewWorkshopHero || workshopHeroes[0]).hp }}</dd></div><div><dt>Attack</dt><dd>{{ (previewWorkshopHero || workshopHeroes[0]).attack }}</dd></div><div><dt>Defense</dt><dd>{{ (previewWorkshopHero || workshopHeroes[0]).defense }}</dd></div><div><dt>Speed</dt><dd>{{ (previewWorkshopHero || workshopHeroes[0]).speed }}</dd></div></dl>
-                  <dl class="trial-cooldowns"><div><dt>Primary</dt><dd>{{ ((GAME_CONFIG.heroes[(previewWorkshopHero || workshopHeroes[0]).id]?.weaponCooldownMs || 0) / 1000).toFixed(1) }}s</dd></div><div><dt>Skill</dt><dd>{{ ((GAME_CONFIG.heroes[(previewWorkshopHero || workshopHeroes[0]).id]?.skillCooldownMs || 0) / 1000).toFixed(1) }}s</dd></div><div><dt>Ultimate</dt><dd>{{ ((GAME_CONFIG.heroes[(previewWorkshopHero || workshopHeroes[0]).id]?.ultimateCooldownMs || 0) / 1000).toFixed(1) }}s</dd></div></dl>
-                  <p v-if="GAME_CONFIG.heroes[(previewWorkshopHero || workshopHeroes[0]).id]?.talent" class="trial-talent"><b>{{ GAME_CONFIG.heroes[(previewWorkshopHero || workshopHeroes[0]).id].talent.name }}</b> · {{ GAME_CONFIG.heroes[(previewWorkshopHero || workshopHeroes[0]).id].talent.description }}</p>
-                  <p class="trial-note">Practice privately with any hero. Trials use the real combat controls and grant no rewards or progress. Workshop levels still boost physical heroes in Campfire Run.</p>
-                  <button class="btn primary trial-start" type="button" :disabled="trialStarting" @click="startWorkshopTrial(previewWorkshopHero || workshopHeroes[0])">{{ trialStarting ? 'Opening training ground…' : 'Start Test' }}</button>
+                <section class="workshop-roster" aria-labelledby="workshop-roster-title">
+                  <span class="clipboard-clip" aria-hidden="true" />
+                  <h3 id="workshop-roster-title" class="roster-title">Member roster</h3>
+                  <p class="roster-sub">Training Workshop · sign-in sheet</p>
+                  <div class="roster-list" role="group" aria-label="Choose a hero to preview">
+                    <button v-for="(hero, index) in workshopHeroes" :key="hero.id" class="workshop-hero" :class="{ selected: workshopHero?.id === hero.id }" type="button" :aria-pressed="workshopHero?.id === hero.id" @click="previewWorkshopHero = hero">
+                      <span class="member-no" aria-hidden="true">{{ String(index + 1).padStart(2, '0') }}</span>
+                      <HeroIcon :hero="hero" :size="34" />
+                      <b>{{ hero.name }}</b>
+                      <small>{{ heroStars(hero) }}-star · {{ hero.type }}</small>
+                      <em class="member-pass" :class="{ guest: !ownedHeroIds.has(hero.id) }">{{ ownedHeroIds.has(hero.id) ? 'Member' : 'Guest pass' }}</em>
+                    </button>
+                  </div>
+                </section>
+                <article v-if="workshopHero" class="workshop-detail training-form" aria-labelledby="training-form-title">
+                  <header class="form-head">
+                    <div><span class="scene-kicker">Training registration form</span><h3 id="training-form-title">{{ workshopHero.name }}</h3></div>
+                    <span class="form-stamp" aria-hidden="true">Cleared for<br>practice</span>
+                  </header>
+                  <div class="form-body">
+                    <div class="workshop-preview-stage">
+                      <svg class="training-yard" viewBox="0 0 400 260" preserveAspectRatio="xMidYMax meet" aria-hidden="true" focusable="false">
+                        <rect width="400" height="260" fill="#cfe2e8" />
+                        <path d="M0 120c60-18 120-16 180-4s130 8 220-10v154H0Z" fill="#9db98a" />
+                        <path d="M0 150h400v110H0Z" fill="#d8bf8f" />
+                        <path d="M0 150h400" stroke="#23382f" stroke-width="2.5" />
+                        <g stroke="#7a5534" stroke-width="5" stroke-linecap="round"><path d="M14 150v-44M64 150v-44M114 150v-44M286 150v-44M336 150v-44M386 150v-44" /><path d="M8 116h112M8 134h112M280 116h112M280 134h112" stroke-width="4" /></g>
+                        <g stroke="#23382f" stroke-width="2.5"><path d="M30 196h58l6 30H24Z" fill="#e8c57c" /><path d="M34 206h50M30 216h58" stroke="#b7914e" /></g>
+                        <g><path d="M312 222v-56" stroke="#7a5534" stroke-width="5" /><circle cx="312" cy="160" r="30" fill="#fff8e4" stroke="#23382f" stroke-width="3" /><circle cx="312" cy="160" r="20" fill="#d86f6b" /><circle cx="312" cy="160" r="11" fill="#fff8e4" /><circle cx="312" cy="160" r="4.5" fill="#d86f6b" /></g>
+                        <g><path d="M366 214v-46" stroke="#7a5534" stroke-width="4" /><circle cx="366" cy="166" r="18" fill="#fff8e4" stroke="#23382f" stroke-width="2.5" /><circle cx="366" cy="166" r="11" fill="#d86f6b" /><circle cx="366" cy="166" r="4" fill="#fff8e4" /></g>
+                        <ellipse cx="160" cy="226" rx="70" ry="9" fill="#7a6545" opacity=".35" />
+                      </svg>
+                      <div class="yard-hero"><HeroIcon :hero="workshopHero" :size="150" :label="`${workshopHero.name} warming up in the training yard`" :animated="true" /></div>
+                    </div>
+                    <div class="form-fields">
+                      <div class="form-line"><span>Class</span><b>{{ heroStars(workshopHero) }}-star {{ workshopHero.type }} hero</b></div>
+                      <div class="form-line"><span>Kit</span><b>{{ workshopHero.weapon || 'A practiced strike' }} · {{ workshopHero.skill || 'Signature skill' }} · {{ workshopHero.ultimate || 'Ultimate' }}</b></div>
+                      <dl class="hero-book-stats"><div class="stat-hp"><dt>HP</dt><dd>{{ workshopHero.hp }}</dd></div><div class="stat-atk"><dt>Attack</dt><dd>{{ workshopHero.attack }}</dd></div><div class="stat-def"><dt>Defense</dt><dd>{{ workshopHero.defense }}</dd></div><div class="stat-spd"><dt>Speed</dt><dd>{{ workshopHero.speed }}</dd></div></dl>
+                      <dl class="trial-cooldowns"><div><dt>Primary</dt><dd>{{ ((workshopConfig?.weaponCooldownMs || 0) / 1000).toFixed(1) }}s</dd></div><div><dt>Skill</dt><dd>{{ ((workshopConfig?.skillCooldownMs || 0) / 1000).toFixed(1) }}s</dd></div><div><dt>Ultimate</dt><dd>{{ ((workshopConfig?.ultimateCooldownMs || 0) / 1000).toFixed(1) }}s</dd></div></dl>
+                      <p v-if="workshopConfig?.talent" class="trial-talent"><b>{{ workshopConfig.talent.name }}</b> · {{ workshopConfig.talent.description }}</p>
+                      <div class="form-sign"><span>Signed by coach</span><b>Bramble</b></div>
+                    </div>
+                  </div>
+                  <footer class="form-foot">
+                    <p class="trial-note">Practice privately with any hero. Trials use the real combat controls and grant no rewards or progress. Workshop levels still boost physical heroes in Campfire Run.</p>
+                    <button class="btn primary trial-start" type="button" :disabled="trialStarting" @click="startWorkshopTrial(workshopHero)">{{ trialStarting ? 'Opening training ground…' : 'Start Test' }}</button>
+                  </footer>
                 </article>
               </div>
             </template>
@@ -713,7 +885,7 @@ async function upgrade(p) {
                     <h4 id="wardrobe-hats-title">Hat shelf</h4>
                     <div class="hat-options" role="group" aria-label="Try on a hat">
                       <article v-for="hat in wardrobeHats" :key="hat.id" class="hat-card">
-                        <button class="hat-option" type="button" :aria-label="'Try on ' + hat.name" :aria-pressed="wardrobeHat?.id === hat.id" :disabled="wardrobeLoading" @click="wardrobeHat = hat"><span aria-hidden="true">{{ hat.renderValue }}</span><small>{{ hat.name }}</small></button>
+                        <button class="hat-option" type="button" :aria-label="'Try on ' + hat.name" :aria-pressed="wardrobeHat?.id === hat.id" :disabled="wardrobeLoading" @click="wardrobeHat = hat"><CosmeticIcon :id="hat.id" :size="58" /><small>{{ hat.name }}</small></button>
                         <button v-if="!wardrobeOwnedIds.includes(hat.id) && wardrobeCanAfford(hat)" class="hat-claim" type="button" :disabled="!!wardrobeClaiming" @click="claimWardrobeCosmetic(hat)">{{ wardrobeClaiming === hat.id ? 'Adding…' : `${hat.cost ? 'Buy' : 'Add'} · ${wardrobePrice(hat)}` }}</button>
                         <small v-else-if="!wardrobeOwnedIds.includes(hat.id)" class="wardrobe-shortfall">{{ wardrobeShortfall(hat) }}</small>
                         <small v-else class="hat-owned">{{ wardrobeHat?.id === hat.id ? 'Selected' : 'In wardrobe' }}</small>
@@ -725,7 +897,7 @@ async function upgrade(p) {
                     <h4 id="wardrobe-accessories-title">Pinned keepsakes</h4>
                     <div class="hat-options" role="group" aria-label="Try on an accessory">
                       <article v-for="item in wardrobeAccessories" :key="item.id" class="hat-card">
-                        <button class="hat-option" type="button" :aria-label="'Try on ' + item.name" :aria-pressed="wardrobeAccessory?.id === item.id" :disabled="wardrobeLoading" @click="wardrobeAccessory = item"><span aria-hidden="true">{{ item.renderValue }}</span><small>{{ item.name }}</small></button>
+                        <button class="hat-option" type="button" :aria-label="'Try on ' + item.name" :aria-pressed="wardrobeAccessory?.id === item.id" :disabled="wardrobeLoading" @click="wardrobeAccessory = item"><CosmeticIcon :id="item.id" :size="58" /><small>{{ item.name }}</small></button>
                         <button v-if="!wardrobeOwnedIds.includes(item.id) && wardrobeCanAfford(item)" class="hat-claim" type="button" :disabled="!!wardrobeClaiming" @click="claimWardrobeCosmetic(item)">{{ wardrobeClaiming === item.id ? 'Adding…' : `${item.cost ? 'Buy' : 'Add'} · ${wardrobePrice(item)}` }}</button>
                         <small v-else-if="!wardrobeOwnedIds.includes(item.id)" class="wardrobe-shortfall">{{ wardrobeShortfall(item) }}</small>
                         <small v-else class="hat-owned">{{ wardrobeAccessory?.id === item.id ? 'Selected' : 'In wardrobe' }}</small>
@@ -742,11 +914,22 @@ async function upgrade(p) {
                   </section>
                   <button class="btn primary wardrobe-save" type="button" :disabled="colorSaving || wardrobeLoading || !wardrobeDirty || !wardrobeCanSave" @click="saveWardrobeLook">{{ colorSaving ? 'Saving…' : 'Save this look' }}</button>
                 </section>
-                <aside class="wardrobe-preview" aria-label="Live avatar preview">
-                  <div class="castle-window"><span>✦</span><i /><i /></div>
-                  <span class="preview-tag">Castle mirror</span>
-                  <div class="wardrobe-avatar"><AvatarPreview :color="wardrobeColor" :hat-id="wardrobeHat?.id" :accessory-id="wardrobeAccessory?.id" /></div>
-                  <b>Your look · preview</b>
+                <aside class="wardrobe-preview dressing-room" aria-labelledby="castle-mirror-title">
+                  <div class="room-wall" aria-hidden="true">
+                    <span class="sconce sconce-left"><i /></span><span class="sconce sconce-right"><i /></span>
+                    <span class="hat-stand"><i /><i /><i /></span>
+                  </div>
+                  <div class="room-floor" aria-hidden="true"><span class="rug" /></div>
+                  <figure class="castle-mirror">
+                    <div class="mirror-frame">
+                      <div class="mirror-glass">
+                        <div class="wardrobe-avatar"><AvatarPreview :color="wardrobeColor" :hat-id="wardrobeHat?.id" :accessory-id="wardrobeAccessory?.id" /></div>
+                        <span class="mirror-sheen" aria-hidden="true" />
+                      </div>
+                    </div>
+                    <span class="mirror-feet" aria-hidden="true" />
+                    <figcaption id="castle-mirror-title">Castle mirror<small>{{ wardrobeDirty ? 'Previewing · not saved yet' : 'Your saved look' }}</small></figcaption>
+                  </figure>
                 </aside>
               </div>
             </template>
@@ -754,8 +937,7 @@ async function upgrade(p) {
         </section>
       </div>
 
-      <div v-if="lensOn" class="lens-transition" aria-hidden="true"><div class="lens" /></div>
-    </template>
+   </template>
   </div>
 </template>
 
@@ -850,24 +1032,65 @@ async function upgrade(p) {
 .garden-sky { position: absolute; inset: 0; overflow: hidden; background: linear-gradient(180deg,#1b3154 0%,#2c4d7c 68%,#4d6e9e 100%); }
 .garden-star-sky { position: absolute; z-index: 0; inset: 0; }
 .garden-star-sky :deep(.summon-sky) { position: absolute; inset: 0; }
-.sky-constellations { position: absolute; z-index: 1; inset: 0 0 20%; width: 100%; height: 80%; overflow: visible; pointer-events: none; }
-.constellation path { fill: none; stroke: #d5c8ef; stroke-width: 2.5; stroke-linecap: round; stroke-linejoin: round; opacity: .84; }
-.constellation circle { fill: #f2ba55; stroke: #fff1b8; stroke-width: 1; filter: drop-shadow(0 0 4px #f2ba55); }
-.garden-horizon { position: absolute; z-index: 2; right: -2%; bottom: -10%; left: -2%; height: 28%; background: radial-gradient(ellipse at 16% 100%,#88a772 0 37%,transparent 38%),radial-gradient(ellipse at 48% 112%,#708d5b 0 43%,transparent 44%),radial-gradient(ellipse at 85% 110%,#829e68 0 37%,transparent 38%),linear-gradient(#667f58,#5a764d); }
-.telescope-art { position: absolute; z-index: 3; bottom: 5%; left: 5%; width: clamp(140px,18vw,275px); height: auto; filter: drop-shadow(0 5px 2px #111a28aa); }
-.garden-caption { position: absolute; z-index: 4; right: 2%; bottom: 3%; width: min(46%,620px); padding: clamp(12px,1.4vw,24px); color: #fff8e4; background: rgb(48 37 89 / 92%); border: 2px solid #23382f; box-shadow: 0 4px 0 #7a6545; }
-.garden-caption .scene-kicker { color: #f2ba55; }
-.garden-caption h3 { margin: 5px 0; color: #fff1b8; }
-.garden-caption p { margin-bottom: 9px; color: #ece6ff; }
+.constellation { position: absolute; z-index: 1; margin: 0; pointer-events: none; }
+.constellation svg { display: block; width: 100%; height: auto; overflow: visible; }
+.constellation path { fill: none; stroke: #c9d6f2; stroke-width: 1.6; stroke-linecap: round; opacity: .62; vector-effect: non-scaling-stroke; }
+.constellation circle { fill: #fff3d0; filter: drop-shadow(0 0 3px #fff1b8); animation: star-glimmer 3.6s ease-in-out infinite; }
+.constellation circle.bright { fill: #fff8e4; filter: drop-shadow(0 0 5px #f2ba55); }
+.constellation figcaption { margin-top: 2px; color: #c9d6f2; font: italic 600 .7rem Georgia,serif; letter-spacing: .03em; opacity: .7; text-align: center; }
+@keyframes star-glimmer { 0%,100% { opacity: 1; } 50% { opacity: .55; } }
+.garden-horizon { position: absolute; z-index: 2; right: 0; bottom: 0; left: 0; width: 100%; height: 30%; }
+.lantern-glow { animation: lantern-glow 2.8s ease-in-out infinite; }
+@keyframes lantern-glow { 0%,100% { opacity: .16; } 50% { opacity: .3; } }
+.telescope-button { position: absolute; z-index: 3; bottom: 6%; left: clamp(8px,8%,140px); width: clamp(150px,19vw,280px); padding: 0; background: none; border: 0; cursor: pointer; }
+.telescope-art { display: block; width: 100%; height: auto; overflow: visible; filter: drop-shadow(0 4px 2px #111a28aa); }
+.telescope-tube { transform-origin: 110px 102px; transition: transform .25s ease; }
+.telescope-button:hover .telescope-tube { transform: rotate(-4deg); }
+.telescope-button:disabled { cursor: default; }
+.garden-caption { position: absolute; z-index: 4; right: clamp(8px,3%,48px); bottom: clamp(10px,5%,40px); width: min(40%,520px); padding: clamp(14px,1.4vw,24px); color: #23382f; background: #fff8e4 url('/hero-lab/assets/storybook-paper.svg'); background-size: 144px; border: 3px solid #23382f; border-radius: 6px 9px 5px 8px; box-shadow: 0 5px 0 #4a3324, 0 10px 26px rgb(8 14 30 / 45%); }
+.garden-caption .scene-kicker { color: #6b5847; }
+.garden-caption h3 { margin: 5px 0; color: #254937; }
+.garden-caption p { margin-bottom: 10px; color: #23382f; }
 .theme-tower .panel-content, .theme-workshop .panel-content, .theme-castle .panel-content { display: flex; }
 .tower-feature { display: grid; flex: 1; min-height: 0; grid-template-columns: minmax(0, 3fr) minmax(250px, 1fr); gap: 14px; padding: 14px; overflow: hidden; background: repeating-linear-gradient(7deg,#835b38 0 16px,#8e6741 17px 34px,#7b5332 35px 38px); border: 3px solid #503c2a; border-radius: 7px; box-shadow: inset 0 0 0 4px #aa8153, 0 4px 0 #503c2a; }
 .tower-board { position: relative; display: flex; flex-direction: column; min-width: 0; min-height: 0; overflow: hidden; padding: 16px; background: repeating-linear-gradient(0deg,#a47548 0 30px,#986d43 31px 33px); border: 8px solid #66462e; border-radius: 5px; box-shadow: inset 0 0 0 2px #c29965; }
-.tower-board-heading { display: flex; align-items: center; gap: 12px; padding-bottom: 12px; border-bottom: 2px dashed #edd4a8; }
-.tower-board-heading h3 { color: #fff3d0; font-size: 24px; text-shadow: 1px 2px #4b3425; }
-.tower-board-heading p { margin: 4px 0 0; color: #fff3d0; font-size: .84rem; }
-.radio-face { position: relative; display: grid; flex: 0 0 64px; height: 56px; place-items: center; color: #314236; background: #d6b779; border: 3px solid #49382b; border-radius: 8px; box-shadow: 0 3px #49382b; }
-.radio-face span { font-size: 25px; }.radio-face i { position: absolute; right: 7px; top: 9px; width: 6px; height: 6px; background: #b34d3a; border-radius: 50%; }.radio-face b { position: absolute; right: 6px; bottom: 4px; font: 800 9px ui-monospace,monospace; }
+.tower-board-heading { display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: 12px; padding-bottom: 12px; border-bottom: 2px dashed #edd4a8; }
+.board-sign { padding: 7px 16px 9px; color: #23382f; background: #fff3d0; border: 2px solid #4b3425; box-shadow: 3px 4px 0 #4b3425; transform: rotate(-1deg); }
+.board-sign .scene-kicker { color: #6b5847; }
+.board-sign h3 { margin: 2px 0 0; color: #254937; font-size: 24px; }
+.radio-station { display: grid; grid-template-columns: auto auto; grid-template-rows: auto auto; align-items: center; gap: 4px 10px; }
+.radio-set { grid-row: span 2; width: 104px; height: auto; overflow: visible; filter: drop-shadow(2px 3px 0 #4b3425); }
+.radio-waves { opacity: 0; }
+.radio-tune { display: inline-flex; align-items: center; gap: 7px; min-height: 40px; padding: 6px 13px; color: #23382f; background: #f2ba55; border: 2px solid #23382f; border-radius: 8px 10px 7px 9px; box-shadow: 0 3px 0 #4b3425; font: 800 .86rem Nunito,Trebuchet MS,sans-serif; cursor: pointer; }
+.radio-tune svg { width: 18px; height: 18px; }
+.radio-tune:hover:not(:disabled), .radio-tune:focus-visible { outline: 3px solid #fff3d0; outline-offset: 2px; }
+.radio-tune:active:not(:disabled) { transform: translateY(2px); box-shadow: 0 1px 0 #4b3425; }
+.radio-tune:disabled { cursor: wait; background: #e8d3a3; }
+.radio-tuning .radio-tune svg { animation: radio-spin .8s linear infinite; }
+.radio-status { max-width: 30ch; color: #fff3d0; font-size: .8rem; font-weight: 700; }
+.radio-tuning .radio-set { animation: radio-lift .65s ease-in-out infinite alternate; }
+.radio-tuning .radio-needle { animation: radio-sweep .65s ease-in-out infinite alternate; }
+.radio-tuning .radio-knob { transform-origin: 74px 64px; animation: radio-spin .65s linear infinite; }
+.radio-tuning .radio-waves, .radio-fresh .radio-waves { animation: radio-waves .55s ease-out infinite; }
+.radio-tuning .radio-lamp { fill: #f2ba55; animation: radio-blink .3s steps(2) infinite; }
+.radio-fresh .radio-lamp { fill: #9be07a; filter: drop-shadow(0 0 3px #9be07a); }
+.radio-static .radio-lamp { fill: #c4574f; }
+.radio-fresh .radio-status { color: #dff5c8; }
+@keyframes radio-lift { from { transform: translateY(0) rotate(0); } to { transform: translateY(-5px) rotate(-3deg); } }
+@keyframes radio-sweep { from { transform: translateX(0); } to { transform: translateX(26px); } }
+@keyframes radio-spin { to { transform: rotate(360deg); } }
+@keyframes radio-waves { from { opacity: .9; } to { opacity: 0; } }
+@keyframes radio-blink { 50% { opacity: .3; } }
 .tower-filter-row { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 8px; padding: 10px 0; color: #fff3d0; }
+.board-hint { font-size: .86rem; font-weight: 700; }
+.info-note { position: relative; padding: 20px 14px 12px; color: #23382f; background: #e6eed6; border: 1px solid #5f6d58; box-shadow: 3px 4px 0 #493827; transform: rotate(.8deg); }
+.info-note h4 { margin: 0 0 5px; color: #254937; font: 800 .74rem ui-monospace,monospace; letter-spacing: .07em; text-transform: uppercase; }
+.info-note p { margin: 0 0 4px !important; font-size: .86rem; font-weight: 700; }
+.info-note small { color: #5f6d58; font-weight: 800; }
+.stash-note { background: #fff3d0; transform: rotate(-1.1deg); }
+.steps-note { background: #e9e1f3; transform: rotate(-.4deg); }
+.steps-note ol { margin: 0; padding-left: 18px; font-size: .84rem; font-weight: 700; line-height: 1.45; }
+.tower-filter-row label { color: #fff3d0; }
 .tower-filter-row label { display: flex; align-items: center; gap: 6px; font-weight: 800; }.tower-filter-row select { min-height: 34px; padding: 4px 7px; color: #23382f; background: #fff8e4; border: 2px solid #503c2a; border-radius: 5px; font: inherit; }
 .pinned-notes { display: grid; flex: 1; min-height: 0; grid-template-columns: repeat(auto-fit,minmax(min(100%,260px),1fr)); align-content: start; gap: 12px; overflow: auto; padding: 7px 7px 14px; }
 .empty-board-note { grid-column: 1/-1; align-self: center; max-width: 440px; margin: auto; padding: 24px; color: #493829; background: #fff4d5; border: 2px dashed #795738; box-shadow: 3px 4px #513b29; text-align: center; transform: rotate(-1deg); }
@@ -900,32 +1123,50 @@ async function upgrade(p) {
 .trade-create-confirm h4 { margin:0 0 8px; color:#315b45; font:800 .82rem ui-monospace,monospace; text-transform:uppercase; }
 .trade-create-confirm p { max-width:none; margin:0 0 8px; font-size:.82rem; }
 
-.library-feature { position: relative; display: flex; flex: 1; min-width: 0; min-height: 0; padding: 12px; overflow: hidden; background: linear-gradient(145deg,#ead9b2,#d8c49b); border: 3px solid #57412f; border-radius: 7px; box-shadow: inset 0 0 0 4px #a98256; }
-.library-shelves { display: flex; flex: 1; flex-direction: column; min-width: 0; min-height: 0; padding: 12px; background: linear-gradient(120deg,#6e5138,#8c6744 48%,#624833); border: 7px solid #503b2b; box-shadow: inset 0 0 0 2px #c19b67; }
+/* Library: a magical working archive. Furniture first, books as the controls. */
+.library-feature { position: relative; display: flex; flex: 1; min-width: 0; min-height: 0; overflow: hidden; background: #3f2c1f; border: 3px solid #23382f; border-radius: 7px; }
+.library-shelves { position: relative; display: flex; flex: 1; flex-direction: column; min-width: 0; min-height: 0; padding: 12px clamp(10px,1.4vw,22px) 16px; background: radial-gradient(ellipse at 50% 0%,rgb(242 186 85 / 16%),transparent 60%), linear-gradient(90deg,#4a3324,#5d412d 12%,#5d412d 88%,#4a3324); border: 10px solid #6b4a31; border-top-width: 14px; box-shadow: inset 0 0 0 2px #2e2016, inset 0 10px 18px rgb(0 0 0 / 30%); }
 .shelf-heading { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 6px 18px; margin-bottom: 10px; }
-.shelf-heading h3 { margin: 4px 0 0; }
-.library-magic-note { color: #4a3d63; font-size: .85rem; font-weight: 800; }
-.bookcase { display: grid; flex: 1; min-height: 0; grid-template-rows: repeat(3,minmax(96px,1fr)); gap: 7px; }
-.shelf-row { display: flex; min-width: 0; min-height: 0; align-items: flex-end; padding: 0 6px; border-bottom: 9px solid #553a27; box-shadow: 0 3px 0 #bd925b; }
-.shelf { display: flex; width: 100%; height: 100%; min-width: 0; align-items: flex-end; gap: 3px; padding: 4px 4px 0; overflow: hidden; }
-.spine { display: grid; flex: 1 1 30px; min-width: 0; max-width: 42px; place-items: center; height: 82px; overflow: hidden; padding: 3px 0; color: #fff8e4; background: #f2ba55; border: 2px solid #493827; border-bottom: 0; border-radius: 3px 3px 0 0; box-shadow: inset 3px 0 rgb(255 255 255 / 18%), inset -3px 0 rgb(0 0 0 / 15%); font: 800 .59rem/1 Nunito,sans-serif; text-overflow: ellipsis; white-space: nowrap; writing-mode: vertical-rl; transform: rotate(180deg); }
-.hero-spine { flex-basis: 38px; max-width: 48px; cursor: pointer; }
-.decorative-spine { flex: 1 1 25px; max-width: 34px; background: var(--book-color); }
-.spine.selected { outline: 3px solid #fff8e4; outline-offset: 1px; }
-.hero-spine:nth-child(3n+2) { background: #6db8cf; }.hero-spine:nth-child(3n) { background: #d86f6b; }
-.hero-spine.selected { outline: 3px solid #fff8e4; outline-offset: 1px; }
-.storybook-overlay { position: absolute; z-index: 8; inset: 0; display: grid; place-items: center; padding: clamp(10px,2vw,28px); overflow: auto; background: rgb(20 28 38 / 76%); backdrop-filter: blur(3px); }
-.storybook-spread { display: grid; width: min(1120px,100%); max-height: 100%; grid-template-columns: minmax(0,1fr) minmax(0,.82fr); overflow: auto; background: #af9467; border: 4px solid #57412f; border-radius: 8px; box-shadow: 0 8px 0 #7a6545,0 16px 40px rgb(0 0 0 / 45%); }
-.storybook-page { padding: clamp(16px, 2vw, 30px); background: #fff8e4; border: 2px solid #c5b58e; border-radius: 8px 12px 8px 12px; box-shadow: inset 5px 0 #ead9b2; }
-.story-left { border-radius: 6px 2px 2px 6px; }
-.story-right { display: flex; flex-direction: column; border-left: 2px solid #c5b58e; border-radius: 2px 6px 6px 2px; }
+.archive-plaque { padding: 6px 16px 8px; color: #23382f; background: linear-gradient(#e8c57c,#c99a4c); border: 2px solid #2e2016; border-radius: 4px 4px 10px 10px; box-shadow: 0 3px 0 #2e2016, inset 0 0 0 2px #f6dd9f; }
+.archive-plaque .scene-kicker { color: #5a3d27; }
+.archive-plaque h3 { margin: 2px 0 0; color: #23382f; }
+.library-magic-note { max-width: 46ch; margin: 0 !important; color: #f6e7c4; font-size: .85rem; font-weight: 700; }
+.bookcase { display: grid; flex: 1; min-height: 0; grid-template-rows: repeat(3,minmax(112px,1fr)); gap: 0; }
+.shelf-row { display: grid; grid-template-columns: repeat(3,minmax(0,1fr)); min-width: 0; min-height: 0; background: linear-gradient(180deg,#2e2016 0,#3c2a1d 22%,#3c2a1d 100%); border-bottom: 12px solid #7a5534; box-shadow: inset 0 -3px 0 #2e2016, 0 3px 0 #a8774a; }
+.shelf-bay { display: flex; min-width: 0; align-items: flex-end; justify-content: center; gap: 2px; padding: 8px 10px 0; overflow: hidden; }
+.shelf-bay + .shelf-bay { border-left: 10px solid #6b4a31; box-shadow: inset 2px 0 0 #2e2016; }
+.spine { display: block; flex: 0 0 auto; padding: 0; border: 2px solid #23382f; border-bottom: 0; border-radius: 3px 3px 0 0; }
+.decorative-spine { width: var(--spine-w); height: var(--spine-h); background: linear-gradient(180deg,transparent 0 12%,rgb(35 56 47 / 35%) 12% 15%,transparent 15% 82%,rgb(35 56 47 / 35%) 82% 85%,transparent 85%), var(--book-color); box-shadow: inset 3px 0 rgb(255 255 255 / 14%), inset -3px 0 rgb(0 0 0 / 22%); filter: saturate(.72) brightness(.88); }
+.decorative-spine.tilted { margin: 0 6px 0 4px; transform: rotate(-8deg); transform-origin: bottom right; }
+.book-stack { display: flex; flex: 0 0 auto; flex-direction: column-reverse; align-items: center; margin: 0 8px; }
+.book-stack i { display: block; width: 74px; height: 15px; margin-top: -2px; background: linear-gradient(90deg,transparent 0 8%,rgb(35 56 47 / 35%) 8% 11%,transparent 11%), var(--book-color); border: 2px solid #23382f; border-radius: 2px 4px 4px 2px; filter: saturate(.72) brightness(.88); }
+.book-stack i:nth-child(2) { width: 66px; transform: translateX(4px); }
+.book-stack i:nth-child(3) { width: 70px; transform: translateX(-3px); }
+.hero-spine { position: relative; width: 36px; height: 100px; color: #fff3cf; background: linear-gradient(180deg,transparent 0 9%,#e8c57c 9% 12%,transparent 12% 88%,#e8c57c 88% 91%,transparent 91%), var(--book-color); box-shadow: inset 4px 0 rgb(255 255 255 / 20%), inset -4px 0 rgb(0 0 0 / 22%); cursor: pointer; transition: transform .14s ease; }
+.hero-spine > span { display: block; max-height: 84px; margin: auto; overflow: hidden; font: 800 .64rem/1 Georgia,"Palatino Linotype",serif; letter-spacing: .02em; text-overflow: ellipsis; text-shadow: 0 1px #23382f; white-space: nowrap; writing-mode: vertical-rl; transform: rotate(180deg); }
+.hero-spine::after { position: absolute; bottom: -9px; left: 9px; width: 6px; height: 14px; background: #d86f6b; border: 1px solid #23382f; clip-path: polygon(0 0,100% 0,100% 100%,50% 75%,0 100%); content: ''; }
+.hero-spine:hover { transform: translateY(-6px); }
+.hero-spine:focus-visible { outline: 3px solid #b9a3e3; outline-offset: 2px; transform: translateY(-6px); }
+.hero-spine.selected { transform: translateY(-10px); }
+.shelf-curio { flex: 0 0 auto; width: 74px; height: 90px; margin: 0 14px; }
+.curio-portrait { width: 74px; height: 100px; align-self: center; }
+.curio-skull, .curio-stones { width: 80px; height: 82px; }
+.storybook-overlay { position: absolute; z-index: 8; inset: 0; display: grid; place-items: center; padding: clamp(10px,2vw,28px); overflow: auto; background: rgb(28 20 14 / 74%); }
+.storybook-spread { position: relative; display: grid; width: min(1080px,100%); max-height: 100%; grid-template-columns: minmax(0,1fr) minmax(0,.86fr); overflow: auto; padding: 12px; background: #6b3f2a; border: 3px solid #23382f; border-radius: 10px 12px 10px 12px; box-shadow: 0 8px 0 #2e2016,0 18px 44px rgb(0 0 0 / 50%); }
+.storybook-page { padding: clamp(16px,2.2vw,34px); background: #fff8e4 url('/hero-lab/assets/storybook-paper.svg'); background-size: 144px; }
+.story-left { border-radius: 6px 0 0 6px; box-shadow: inset -22px 0 24px -18px rgb(80 55 30 / 55%); }
+.story-right { display: flex; flex-direction: column; gap: 12px; border-radius: 0 6px 6px 0; box-shadow: inset 22px 0 24px -18px rgb(80 55 30 / 55%); }
 .book-back { display: block; margin: 0 0 14px; padding: 4px 0; color: #254937; background: none; border: 0; font: 800 .85rem Nunito, sans-serif; text-decoration: underline; cursor: pointer; }
-.hero-personality { color: #4a3d63; font: italic 800 1.02rem Georgia,serif; }
-.storybook-page h3 { margin-top: 10px; font-size: 24px; }
-.storybook-page .story-copy { line-height: 1.6; }
+.book-back:focus-visible { outline: 3px solid #8062a9; outline-offset: 2px; }
+.story-kicker { display: block; color: #6b5847; font: 800 .68rem ui-monospace,monospace; letter-spacing: .08em; text-transform: uppercase; }
+.storybook-page .story-title { margin: 6px 0 4px; color: #254937; font-size: clamp(24px,2.4vw,32px); }
+.hero-personality { color: #4a3d63; font: italic 700 1.02rem Georgia,serif; }
+.storybook-page .story-copy { max-width: 60ch; font-size: 1.02rem; line-height: 1.65; }
+.story-copy::first-letter { float: left; margin: 4px 8px 0 0; color: #8062a9; font: 700 3.1em/.8 Georgia,serif; }
 .field-note { margin: 12px 0; padding: 8px 10px; background: #f3e4c4; border-left: 3px solid #8062a9; font-size: .88rem; }
-.portrait-stage { position: relative; display: grid; flex: 1; min-height: 230px; place-items: center; overflow: hidden; background: radial-gradient(ellipse at 50% 84%,#a9bc86 0 4%,transparent 5%), linear-gradient(#b7d4df 0 58%,#e5eef6 59%); border: 2px solid #c5b58e; border-radius: 8px; }
-.portrait-halo { position: absolute; width: 190px; height: 190px; background: #f2ba5577; border: 2px dashed #9a7546; border-radius: 50%; }
+.story-portrait { display: grid; justify-items: center; gap: 6px; margin: 0; }
+.portrait-frame { display: grid; width: min(170px,100%); aspect-ratio: 5 / 6; place-items: center; overflow: hidden; background: radial-gradient(ellipse at 50% 88%,#8fa86f 0 18%,transparent 19%), linear-gradient(#cfe2e8,#eef3e6 70%); border: 8px solid #b98a3e; border-radius: 50% 50% 46% 46% / 40% 40% 36% 36%; box-shadow: 0 0 0 2px #23382f, inset 0 0 0 2px #23382f, 0 4px 0 #7a6545; }
+.story-portrait figcaption { color: #57412f; font: 700 .95rem Georgia,serif; }
 .hero-abilities { display: grid; gap: 6px; margin: 10px 0 0; }
 .hero-abilities div { display: grid; grid-template-columns: 105px 1fr; gap: 8px; padding: 5px 8px; background: #f3e4c4; border-radius: 5px; }
 .hero-abilities dt { color: #5f6d58; font-size: .76rem; font-weight: 900; }
@@ -934,23 +1175,44 @@ async function upgrade(p) {
 .hero-book-stats div { padding: 7px; background: #e8f0de; border-radius: 5px; }
 .hero-book-stats dt { color: #5f6d58; font: 800 .62rem ui-monospace, monospace; text-transform: uppercase; }
 .hero-book-stats dd { margin: 2px 0 0; font-weight: 900; }
-.workshop-feature { display: grid; flex: 1; min-height: 0; grid-template-columns: minmax(220px,.72fr) minmax(0,1.28fr); gap: 12px; padding: 12px; overflow: hidden; background: linear-gradient(135deg,#e8f0de,#fbf2d8 54%,#dce7d1); border: 3px solid #23382f; box-shadow: inset 0 0 0 4px #f3e7c8; }
-.workshop-roster { position: relative; display: flex; flex-direction: column; align-content: start; gap: 7px; min-height: 0; overflow: auto; padding: 28px 10px 10px; background: #d8e3cf; border: 2px solid #687553; }
-.workshop-roster::before { position: absolute; top: 6px; left: 50%; color: #53654f; content: 'MEMBERS · SIGN IN'; font: 800 .68rem ui-monospace,monospace; letter-spacing: .08em; transform: translateX(-50%); }
-.workshop-hero { position: relative; display: grid; flex: 0 0 auto; grid-template-columns: 32px 1fr auto; align-items: center; gap: 3px 8px; min-height: 55px; padding: 8px 12px; color: #23382f; background: repeating-linear-gradient(0deg,#fff9e7 0 24px,#eee8d3 25px 26px); border: 1px solid #9d8962; border-left: 5px solid #c8d4ba; box-shadow: 1px 2px #687553; text-align: left; cursor: pointer; }
-.workshop-hero::before { position: absolute; top: -5px; left: 15px; width: 25px; height: 8px; border: 2px solid #77766d; border-bottom: 0; border-radius: 12px 12px 0 0; content: ''; }
-.workshop-hero > span { grid-row: span 2; font-size: 24px; }
-.workshop-hero b { font: 800 .86rem Nunito,sans-serif; }
-.workshop-hero small { color: #5f6d58; font: 800 .6rem ui-monospace, monospace; text-transform: uppercase; }
-.workshop-hero.selected { border-color: #254937; box-shadow: inset 0 0 0 2px #f2ba55, 2px 3px #687553; transform: translateX(3px); }
-.workshop-detail { position: relative; display: flex; flex-direction: column; min-height: 0; overflow: auto; padding: 18px; background: repeating-linear-gradient(0deg,#fff9e7 0 30px,#eee8d3 31px 32px); border: 2px solid #9d8962; box-shadow: 2px 3px #687553; }
-.workshop-detail::before { position: absolute; top: 6px; left: 50%; width: 34px; height: 12px; border: 2px solid #77766d; border-bottom: 0; border-radius: 16px 16px 0 0; content: ''; transform: translateX(-50%); }
-.workshop-preview-stage { position: relative; display: grid; flex: 1 1 175px; min-height: 150px; max-height: 220px; place-items: center; overflow: hidden; margin: 0 0 12px; background: linear-gradient(#b7d4df 0 56%,#d2ba8b 57% 67%,#b88559 68%); border: 2px solid #6b5847; }
-.workshop-preview-stage::before { position: absolute; right: 7%; bottom: 13%; left: 7%; height: 9px; background: #6c4d38; border-radius: 50%; content: ''; }
-.practice-target { position: absolute; right: 15%; bottom: 18%; width: 60px; height: 70px; background: repeating-radial-gradient(circle,#f8e3e1 0 7px,#d86f6b 8px 13px); border: 3px solid #57412f; border-radius: 50%; box-shadow: 2px 3px 0 #57412f; }
-.practice-target::after { position: absolute; top: 100%; left: 50%; width: 5px; height: 28px; background: #57412f; content: ''; }
-.workshop-detail h3 { margin-top: 9px; font-size: 24px; }
-.trial-note { margin: auto 0 0 !important; padding-top: 9px; border-top: 1px dashed #9d8962; color: #5f4a2e; font-size: .88rem; }
+/* Workshop: a friendly training gym that keeps its members' paperwork. */
+.workshop-feature { display: grid; flex: 1; min-height: 0; grid-template-columns: minmax(240px,.62fr) minmax(0,1.38fr); gap: 16px; padding: 14px; overflow: hidden; background: repeating-linear-gradient(90deg,#9a7550 0 46px,#8d6a47 47px 48px); border: 3px solid #23382f; border-radius: 7px; box-shadow: inset 0 0 0 4px #b48c5f; }
+.workshop-roster { position: relative; display: flex; flex-direction: column; min-height: 0; padding: 30px 12px 12px; background: #fbf2d8 url('/hero-lab/assets/storybook-paper.svg'); background-size: 144px; border: 2px solid #5a4632; border-top: 14px solid #7a5534; border-radius: 6px; box-shadow: 3px 4px 0 #4a3324; }
+.clipboard-clip { position: absolute; top: -20px; left: 50%; width: 76px; height: 24px; background: linear-gradient(#d9dbd2,#a8aa9f); border: 2px solid #23382f; border-radius: 6px 6px 3px 3px; transform: translateX(-50%); }
+.roster-title { margin: 0; color: #254937; font-size: 21px; text-align: center; }
+.roster-sub { margin: 0 0 8px !important; color: #5f6d58; font: 800 .64rem ui-monospace,monospace; letter-spacing: .08em; text-align: center; text-transform: uppercase; }
+.roster-list { display: flex; flex-direction: column; min-height: 0; overflow: auto; border-top: 2px solid #23382f; }
+.workshop-hero { display: grid; flex: 0 0 auto; grid-template-columns: 24px 38px 1fr auto; grid-template-rows: auto auto; align-items: center; gap: 0 8px; min-height: 52px; padding: 5px 6px; color: #23382f; background: transparent; border: 0; border-bottom: 1px solid #c5b58e; text-align: left; cursor: pointer; }
+.workshop-hero .member-no { grid-row: span 2; color: #8a7a5c; font: 800 .7rem ui-monospace,monospace; }
+.workshop-hero .hero-icon { grid-row: span 2; justify-self: center; }
+.workshop-hero b { grid-column: 3; grid-row: 1; align-self: end; font: 800 .9rem Nunito,sans-serif; }
+.workshop-hero small { grid-column: 3; grid-row: 2; align-self: start; color: #5f6d58; font: 800 .6rem ui-monospace,monospace; text-transform: uppercase; }
+.member-pass { grid-column: 4; grid-row: 1 / 3; padding: 2px 6px; color: #254937; border: 1.5px solid #254937; border-radius: 3px; font: 800 .58rem ui-monospace,monospace; font-style: normal; letter-spacing: .05em; text-transform: uppercase; transform: rotate(-4deg); }
+.member-pass.guest { color: #7a6545; border-style: dashed; border-color: #7a6545; }
+.workshop-hero:hover { background: rgb(220 235 200 / 45%); }
+.workshop-hero.selected { background: #dcebc8; box-shadow: inset 4px 0 0 #254937; }
+.workshop-hero:focus-visible { outline: 3px solid #8062a9; outline-offset: -3px; }
+.workshop-detail { position: relative; display: flex; flex-direction: column; gap: 12px; min-height: 0; overflow: auto; padding: 18px 20px; background: #fbf2d8 url('/hero-lab/assets/storybook-paper.svg'); background-size: 144px; border: 2px solid #5a4632; border-radius: 4px; box-shadow: 3px 4px 0 #4a3324; }
+.workshop-detail::before { position: absolute; top: -8px; left: 26px; width: 14px; height: 38px; border: 3px solid #8a8c82; border-radius: 8px; content: ''; }
+.form-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding-bottom: 8px; border-bottom: 2px solid #23382f; }
+.form-head h3 { margin: 2px 0 0; color: #254937; font-size: 26px; }
+.form-stamp { display: grid; place-items: center; padding: 6px 10px; color: #4f7a3c; border: 3px double #4f7a3c; border-radius: 6px; font: 800 .62rem/1.15 ui-monospace,monospace; letter-spacing: .06em; text-align: center; text-transform: uppercase; opacity: .85; transform: rotate(-7deg); }
+.form-body { display: grid; flex: 1; grid-template-columns: minmax(240px,1fr) minmax(260px,1.05fr); gap: 16px; align-items: stretch; }
+.workshop-preview-stage { position: relative; min-height: 220px; background: #cfe2e8; overflow: hidden; border: 2px solid #23382f; border-radius: 4px; box-shadow: 2px 3px 0 #7a6545; }
+.training-yard { position: absolute; inset: 0; width: 100%; height: 100%; }
+.yard-hero { position: absolute; left: 40%; bottom: 10%; display: grid; place-items: end center; width: 45%; height: 72%; transform: translateX(-50%); }
+.yard-hero .hero-icon { max-width: 100%; max-height: 100%; }
+.form-fields { display: flex; flex-direction: column; gap: 8px; }
+.form-sign { display: flex; align-items: flex-end; gap: 10px; margin-top: auto; padding-top: 10px; }
+.form-sign span { color: #5f6d58; font: 800 .62rem ui-monospace,monospace; letter-spacing: .06em; text-transform: uppercase; }
+.form-sign b { flex: 1; padding: 0 4px 2px; color: #315b45; border-bottom: 1.5px solid #23382f; font: italic 700 1.15rem Georgia,serif; transform: rotate(-2deg); }
+.form-line { display: grid; grid-template-columns: 52px 1fr; gap: 8px; align-items: baseline; padding-bottom: 4px; border-bottom: 1px dashed #b9a57c; }
+.form-line span { color: #5f6d58; font: 800 .62rem ui-monospace,monospace; letter-spacing: .06em; text-transform: uppercase; }
+.form-line b { font-size: .9rem; }
+.stat-hp { background: #e3efd6 !important; }.stat-atk { background: #f8e2d2 !important; }.stat-def { background: #dbeaf0 !important; }.stat-spd { background: #e9e1f3 !important; }
+.form-foot { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 16px; margin-top: auto; padding-top: 10px; border-top: 1px dashed #9d8962; }
+.form-foot .trial-start { margin-left: auto; }
+.trial-note { flex: 1 1 320px; margin: 0 !important; color: #5f4a2e; font-size: .86rem; }
 .trial-cooldowns { display: flex; flex-wrap: wrap; gap: 7px; margin: 8px 0; }
 .trial-cooldowns div { display: flex; gap: 5px; padding: 4px 8px; background: #f3e4c4; border-radius: 99px; }
 .trial-cooldowns dt { color: #5f6d58; font-size: .7rem; font-weight: 900; }
@@ -972,9 +1234,28 @@ async function upgrade(p) {
 .wardrobe-catalog p { max-width: 640px; }
 .wardrobe-swatches { justify-content: flex-start; max-width: 480px; margin: 20px 0; }
 .wardrobe-current { color: #5f6d58; font-size: .85rem; }
-.wardrobe-preview { position: relative; display: flex; flex-direction: column; align-items: center; justify-content: end; gap: 8px; overflow: hidden; padding: 14px; background: linear-gradient(#b7d4df 0 35%,#e7ddb9 36% 100%); border: 2px solid #6b5847; border-radius: 8px; }
-.wardrobe-avatar { position: relative; z-index: 1; flex: 0 0 144px; width: 144px; height: 144px; }
-.wardrobe-avatar :deep(.avatar-preview) { width: 144px; height: 144px; }
+/* Castle dressing room: wallpaper, wainscot, sconces and a standing mirror. */
+.dressing-room { position: relative; display: flex; flex-direction: column; align-items: center; justify-content: flex-end; min-height: 0; overflow: hidden; padding: 18px 14px 22px; border: 2px solid #23382f; border-radius: 6px; }
+.room-wall { position: absolute; inset: 0 0 18%; background: linear-gradient(180deg,transparent 0 70%,#7a5534 70% 71.5%,#a8774a 71.5% 100%), repeating-linear-gradient(90deg,transparent 0 22px,rgb(255 248 228 / 16%) 22px 24px), radial-gradient(circle at 50% 50%,rgb(242 186 85 / 22%) 0 3px,transparent 4px) 0 0 / 34px 34px, #6c4f7e; }
+.room-wall::after { position: absolute; right: 0; bottom: 0; left: 0; height: 28.5%; background: repeating-linear-gradient(90deg,transparent 0 46px,#7a5534 46px 48px); content: ''; }
+.room-floor { position: absolute; right: 0; bottom: 0; left: 0; height: 18%; background: repeating-linear-gradient(90deg,#8d6a47 0 38px,#7a5534 38px 40px); border-top: 3px solid #4a3324; }
+.rug { position: absolute; bottom: 18%; left: 50%; width: 74%; height: 46%; background: #b9534c; border: 2px solid #23382f; border-radius: 50%; box-shadow: inset 0 0 0 5px #e8c57c, inset 0 0 0 7px #23382f; transform: translateX(-50%); }
+.sconce { position: absolute; top: 20%; width: 14px; height: 34px; background: #c8963e; border: 2px solid #23382f; border-radius: 3px 3px 8px 8px; }
+.sconce i { position: absolute; top: -18px; left: 50%; width: 12px; height: 18px; background: #f2ba55; border-radius: 50% 50% 40% 40%; box-shadow: 0 0 18px 8px rgb(242 186 85 / 35%); transform: translateX(-50%); animation: flame-glow 2.4s ease-in-out infinite; }
+.sconce-left { left: 9%; }.sconce-right { right: 9%; }
+.hat-stand { position: absolute; right: 6%; bottom: -48%; width: 6px; height: 86%; background: #5a3d27; border: 1.5px solid #23382f; }
+.hat-stand i { position: absolute; top: 4%; width: 22px; height: 4px; background: #5a3d27; border: 1.5px solid #23382f; border-radius: 3px; }
+.hat-stand i:nth-child(1) { left: -20px; transform: rotate(-20deg); }.hat-stand i:nth-child(2) { left: 2px; transform: rotate(20deg); }.hat-stand i:nth-child(3) { top: -2px; left: -9px; width: 24px; height: 12px; background: #3f4b5a; border-radius: 10px 10px 2px 2px; }
+@keyframes flame-glow { 0%,100% { opacity: .85; } 50% { opacity: 1; } }
+.castle-mirror { position: relative; z-index: 1; display: flex; flex-direction: column; align-items: center; margin: 0; }
+.mirror-frame { padding: 10px; background: linear-gradient(135deg,#e8c57c,#b98a3e 45%,#e8c57c 70%,#9a7030); border: 3px solid #23382f; border-radius: 50% 50% 10px 10px / 34% 34% 10px 10px; box-shadow: 0 6px 0 #4a3324, 0 12px 24px rgb(0 0 0 / 30%); }
+.mirror-glass { position: relative; display: grid; width: clamp(150px,15vw,210px); aspect-ratio: 3 / 4.2; place-items: end center; overflow: hidden; padding-bottom: 10%; background: radial-gradient(ellipse at 50% 92%,rgb(35 56 47 / 25%) 0 22%,transparent 23%), linear-gradient(170deg,#e6eef0,#bfd2d8 55%,#a9bfc7); border: 2px solid #23382f; border-radius: 50% 50% 6px 6px / 30% 30% 6px 6px; box-shadow: inset 0 0 18px rgb(35 56 47 / 25%); }
+.mirror-sheen { position: absolute; top: -10%; left: 16%; width: 18%; height: 130%; background: linear-gradient(90deg,transparent,rgb(255 255 255 / 45%),transparent); pointer-events: none; transform: rotate(18deg); }
+.mirror-feet { width: 64%; height: 14px; background: #b98a3e; border: 3px solid #23382f; border-top: 0; border-radius: 0 0 10px 10px; }
+.castle-mirror figcaption { display: grid; justify-items: center; gap: 2px; margin-top: 10px; padding: 5px 14px; color: #23382f; background: #fbf2d8; border: 2px solid #23382f; border-radius: 4px; box-shadow: 0 3px 0 #4a3324; font: 700 1rem Georgia,serif; }
+.castle-mirror figcaption small { color: #5f6d58; font: 800 .62rem ui-monospace,monospace; letter-spacing: .05em; text-transform: uppercase; }
+.wardrobe-avatar { position: relative; z-index: 1; width: 80%; aspect-ratio: 1; }
+.wardrobe-avatar :deep(.avatar-preview) { width: 100%; height: 100%; }
 .wardrobe-tabs { display:flex; flex-wrap:wrap; gap:7px; margin:14px 0 12px; padding-bottom:9px; border-bottom:2px dashed #c5b58e; }
 .wardrobe-tab { min-height:34px; padding:5px 13px; color:#493827; background:#f3e4c4; border:1.5px solid #9b8157; border-radius:5px 8px 5px 7px; font:800 .78rem Nunito,sans-serif; cursor:pointer; }
 .wardrobe-tab[aria-pressed="true"] { color:#fff8e4; background:#315b45; border-color:#23382f; box-shadow:0 2px #23382f; }
@@ -985,36 +1266,35 @@ async function upgrade(p) {
 .wardrobe-title-row { display:flex; align-items:center; justify-content:space-between; gap:12px; }.wardrobe-stamp { display:grid; width:56px; height:56px; place-items:center; color:#8062a9; border:2px double #8062a9; border-radius:50%; font:800 .53rem/1.1 ui-monospace,monospace; text-align:center; transform:rotate(9deg); }
 .wardrobe-selection-grid { display:grid; grid-template-columns:minmax(0,1fr) minmax(200px,.8fr); gap:20px; margin:18px 0; }
 .wardrobe-selection-grid h4 { margin:0 0 9px; color:#57412f; font:800 .78rem ui-monospace,monospace; letter-spacing:.06em; text-transform:uppercase; }
-.hat-options { display:grid; grid-template-columns:repeat(auto-fit,minmax(92px,1fr)); align-items:stretch; gap:8px; }
+.hat-options { display:grid; grid-template-columns:repeat(auto-fill,minmax(112px,1fr)); align-items:stretch; gap:14px 10px; }
 .hat-card { display:grid; min-width:0; grid-template-rows:1fr auto; gap:4px; }
-.hat-option { display:grid; width:100%; min-width:0; min-height:78px; place-items:center; gap:3px; padding:7px 4px; color:#493827; background:#f3e4c4; border:1px solid #9b8157; box-shadow:0 2px #9b8157; cursor:pointer; }
-.hat-option > span { font-size:25px; }.hat-option small { max-width:100%; font-size:.62rem; font-weight:800; text-align:center; }.hat-option[aria-pressed="true"] { background:#dcebc8; outline:2px solid #254937; }
+.hat-option { display:grid; width:100%; min-width:0; min-height:108px; place-items:center; gap:4px; padding:10px 4px 7px; color:#493827; background:linear-gradient(#e9d6ad,#f3e4c4 40%); border:1px solid #9b8157; border-bottom:7px solid #7a5534; border-radius:6px 6px 2px 2px; box-shadow:inset 0 6px 10px rgb(90 61 39 / 18%); cursor:pointer; }
+.hat-option:hover:not(:disabled) { background:linear-gradient(#efdfba,#fbf2d8 40%); }.hat-option:focus-visible { outline:3px solid #8062a9; outline-offset:2px; }
+.hat-option small { max-width:100%; font-size:.62rem; font-weight:800; text-align:center; }.hat-option[aria-pressed="true"] { background:#dcebc8; outline:2px solid #254937; }
 .hat-claim { min-height:29px; padding:3px; color:#254937; background:#e8f0de; border:1px solid #687553; border-radius:4px; font:800 .62rem Nunito,sans-serif; cursor:pointer; }
 .hat-claim:disabled,.hat-option:disabled { cursor:wait; opacity:.65; }.hat-owned { min-height:29px; display:grid; place-items:center; color:#53654f; font:800 .6rem ui-monospace,monospace; text-align:center; }
 .wardrobe-status { color:#53654f; font-size:.82rem; }.wardrobe-error { padding:8px 10px; color:#812e2d; background:#f8e3e1; border-left:3px solid #812e2d; font-size:.85rem; }
 .wardrobe-purse { width:fit-content; padding:5px 9px; color:#254937; background:#e8f0de; border:1px solid #687553; font-size:.8rem; font-weight:900; }
 .wardrobe-shortfall { display:grid; min-height:29px; align-content:center; color:#812e2d; font:800 .58rem/1.2 Nunito,sans-serif; text-align:center; }
 .wardrobe-swatches { grid-template-columns:repeat(6,minmax(30px,38px)); gap:10px; margin:10px 0; }
-.castle-window { position: absolute; top: 16px; left: 50%; width: 96px; height: 130px; overflow: hidden; transform: translateX(-50%); background: linear-gradient(#5796b7 0 65%,#7b9d68 66%); border: 8px solid #ead9b2; border-bottom-width: 12px; border-radius: 48px 48px 4px 4px; box-shadow: 0 0 0 3px #57412f; }
-.castle-window > span { display: block; padding: 12px; color: #fff1b8; text-align: center; }
-.castle-window i { position: absolute; right: -14px; bottom: -12px; width: 60px; height: 40px; background: #557b4b; border-radius: 50%; }
-.castle-window i:last-child { right: auto; left: -16px; bottom: -16px; background: #71955d; }
-.wardrobe-preview b { position: relative; z-index: 1; }
 .theme-garden .panel-head { border-bottom-color: #8062a9; }
 .theme-tower .panel-level { color: #4a3d63; }
 
-.lens-transition { position: fixed; z-index: 2000; inset: 0; overflow: hidden; pointer-events: auto; background: transparent; animation: lens-scene-dim .6s ease both; }
-.lens-transition .lens { position: absolute; left: 50%; top: 50%; width: 160vmax; height: 160vmax; border: 12px solid #c8963e; border-radius: 50%; box-shadow: 0 0 0 4px #23382f, inset 0 0 0 5px #f2ba55, 0 0 0 200vmax #101d42; transform: translate(-50%,-50%) scale(1); animation: lens-close .6s cubic-bezier(.65,0,.4,1) forwards; }
-@keyframes lens-scene-dim { 0% { background:transparent; } 42%,100% { background:#101d42; } }
-@keyframes lens-close { 0% { transform:translate(-50%,-50%) scale(1); } 60% { transform:translate(-50%,-50%) scale(.02); } 82%,100% { transform:translate(-50%,-50%) scale(0); } }
-@media (prefers-reduced-motion: reduce) { .lens-transition { animation:none; background:#101d42; }.lens-transition .lens { animation:none; transform:translate(-50%,-50%) scale(0); } }
+@media (prefers-reduced-motion: reduce) {
+  .constellation circle, .lantern-glow, .sconce i, .radio-set, .radio-needle, .radio-knob, .radio-waves, .radio-lamp, .radio-tune svg { animation: none !important; }
+  .hero-spine, .telescope-tube { transition: none; }
+}
 
 @media (max-width: 760px) {
   .town-controls-hud { display: none; }
   .tower-feature { grid-template-columns: minmax(0,2fr) minmax(230px,1fr); gap: 9px; padding: 9px; }
   .tower-board { padding: 11px; border-width: 6px; }
   .tower-offer-desk { padding: 12px 10px; }
-  .workshop-feature { grid-template-columns: minmax(180px,.72fr) minmax(0,1.28fr); }
+  .workshop-feature { grid-template-columns: minmax(200px,.7fr) minmax(0,1.3fr); }
+}
+@media (max-width: 1180px) {
+  .form-body { grid-template-columns: 1fr; }
+  .workshop-preview-stage { max-width: 440px; min-height: 0; aspect-ratio: 400 / 260; }
 }
 @media (max-width: 600px) {
   .town-title-hud { top: 10px; left: 10px; right: auto; padding: 8px 10px; }
@@ -1035,10 +1315,16 @@ async function upgrade(p) {
   .pinned-notes { grid-template-columns: 1fr; }
   .tower-offer-desk { min-height: 310px; }
   .trade-columns { grid-template-columns: 1fr; }
-  .library-feature { flex: 1 0 520px; min-height: 520px; overflow: hidden; }
-  .library-shelves { min-height: 0; }
-  .shelf { gap: 2px; }
-  .spine { flex-basis: 0; min-width: 10px; font-size: .49rem; }
+  .theme-library .panel-content, .theme-tower .panel-content, .theme-workshop .panel-content, .theme-castle .panel-content { display: block; }
+  .constellation figcaption { display: none; }
+  .library-feature { overflow: visible; }
+  .library-shelves { min-height: 0; border-width: 7px; }
+  .bookcase { grid-template-rows: none; }
+  .shelf-row { grid-template-columns: minmax(0,1fr); }
+  .decorative-spine.extra, .book-stack { display: none; }
+  .shelf-bay { min-height: 116px; }
+  .shelf-bay + .shelf-bay { border-top: 8px solid #6b4a31; border-left: 0; box-shadow: none; }
+  .shelf-curio { width: 60px; height: 74px; margin: 0 8px; }
   .storybook-spread { grid-template-columns: 1fr; }
   .storybook-overlay { padding: 7px; }
   .storybook-page { min-height: 300px; }
@@ -1049,11 +1335,11 @@ async function upgrade(p) {
   .castle-info-card { top: 105px; right: 12px; }
   .theme-garden .garden-caption { right: 8px; bottom: 8px; left: 34%; width: auto; padding: 12px; }
   .theme-garden .garden-caption p { max-width: 56ch; }
-  .theme-garden .telescope-art { bottom: 3%; left: 1%; width: 125px; }
   .workshop-feature { flex: 0 0 auto; grid-template-columns: 1fr; overflow: visible; }
-  .workshop-roster { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); max-height: 240px; }
-  .workshop-detail { min-height: 520px; }
-  .workshop-preview-stage { flex: 0 0 155px; }
+  .workshop-roster { max-height: 300px; }
+  .workshop-detail { overflow: visible; padding: 14px; }
+  .theme-garden .telescope-button { left: 2%; width: 120px; }
+  .dressing-room { min-height: 340px; }
   .hero-book-stats { grid-template-columns: repeat(2, 1fr); }
 }
 @media (pointer: coarse) {
