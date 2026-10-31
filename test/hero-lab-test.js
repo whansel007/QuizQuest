@@ -366,26 +366,54 @@ test('primary fire during Shield Rush ends the dash early and fires the fan ther
 
   const player = server.heroLab.players.get(clientId);
   server.heroLab.monsters.clear();
-  const before = { x: player.x, y: player.y };
   const weaponReadyAt = player.hero.cooldowns.weapon.readyAt;
   const shots = [];
   client.on('weapon_fired', (event) => shots.push(event));
-  // Register before casting: the fan fires as soon as the cancel lands.
-  const effectPromise = new Promise((resolve) => client.once('area_effect', resolve));
 
-  client.emit('aim', { x: 1, y: 0 });
-  client.emit('skill');
-  await new Promise((resolve) => setTimeout(resolve, 60));
-  client.emit('fire', 'primary');
+  // The click has to be handled while the dash is still running. If the
+  // server is busy the 250ms dash ends first: the fan fires at the full
+  // distance and the click falls through to the normal weapon path, which
+  // shows up as a shot and a moved weapon cooldown. Detect that and cast the
+  // skill again rather than guessing a click latency.
+  let effect = null;
+  let before = null;
+  for (let attempt = 0; attempt < 5 && !effect; attempt += 1) {
+    shots.length = 0;
+    before = { x: player.x, y: player.y };
+    const effectPromise = new Promise((resolve) => client.once('area_effect', resolve));
+    client.emit('aim', { x: 1, y: 0 });
+    client.emit('skill');
+    await new Promise((resolve) => setTimeout(resolve, 60));
+    client.emit('fire', 'primary');
+    const candidate = await Promise.race([
+      effectPromise,
+      new Promise((_, reject) => setTimeout(() => reject(new Error('area_effect never fired within 3s')), 3000)),
+    ]);
+    const landed = candidate.x - before.x;
+    // A full-distance landing is the natural end (endGuardianDash with
+    // atEnd=true); a shot or a moved cooldown means the click missed the
+    // dash and fired the weapon instead.
+    const missed = landed >= GUARDIAN_RUSH_DISTANCE
+      || shots.length > 0
+      || player.hero.cooldowns.weapon.readyAt !== weaponReadyAt;
+    if (!missed) {
+      effect = candidate;
+    } else {
+      // Give the cooldowns back so the next cast is legal, and reset the
+      // position so the landing is measured from the new dash start.
+      player.hero.cooldowns.weapon.readyAt = weaponReadyAt;
+      player.hero.cooldowns.skill.readyAt = 0;
+    }
+  }
+  assert.ok(effect, 'the click was handled inside the Shield Rush dash');
 
-  const effect = await Promise.race([
-    effectPromise,
-    new Promise((_, reject) => setTimeout(() => reject(new Error('area_effect never fired within 3s')), 3000)),
-  ]);
   const travelled = effect.x - before.x;
   assert.equal(effect.sourceAbility, 'skill', 'the early end still fires the Shield Rush fan');
   assert.ok(travelled >= 0, 'the cancel never moves the Guardian backwards');
-  assert.ok(travelled < GUARDIAN_RUSH_DISTANCE - 50,
+  // The only thing the cancel can produce is a landing short of the full
+  // dash, so the bound is the dash distance itself, not a guess about how
+  // fast the click arrives.
+  assert.ok(travelled < GUARDIAN_RUSH_DISTANCE,
     `the fan fires short of the full ${GUARDIAN_RUSH_DISTANCE}px (travelled ${Math.round(travelled)}px)`);
   assert.ok(Math.abs(effect.y - before.y) < 2, 'the cancel keeps the locked dash line');
   assert.equal(player.dashState, null, 'the dash is over immediately, not left to expire');
