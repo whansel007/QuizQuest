@@ -551,7 +551,7 @@ function towerStage3(g, W, H) {
 
 // ---- Castle (centre) -----------------------------------------------------
 
-const CASTLE = { wall: '#EBDDB8', shade: '#D6C394', roof: ROSE, trim: GOLD };
+const CASTLE = { wall: '#EBDDB8', shade: '#D6C394', roof: ROSE };
 
 function turret(g, x, gy, h, roofed) {
   rect(g, x - 15, gy - h, 30, h, CASTLE.wall, 3);
@@ -574,7 +574,6 @@ export function drawCastle(g, stage, W, H) {
   if (stage >= 3) {
     rect(g, cx - 20, gy - 200, 40, 52, CASTLE.wall, 3);
     cone(g, cx, gy - 200, 40, 36, CASTLE.roof);
-    stroke(g, [[cx - 18, gy - 152], [cx + 18, gy - 152]], CASTLE.trim, 3);
     archWindow(g, cx, gy - 190, 12, 18, '#FFE7A3');
     flag(g, cx, gy - 236, GOLD, 30);
   }
@@ -596,7 +595,6 @@ export function drawCastle(g, stage, W, H) {
   }
   if (stage >= 3) {
     banner(g, cx - 10, gy - 80, 20, 24, LAVENDER);
-    stroke(g, [[cx - 77, gy - 70], [cx + 77, gy - 70]], CASTLE.trim, 3);
   } else {
     squareWindow(g, cx - 8, gy - 74, 16, 14, '#FFE7A3');
   }

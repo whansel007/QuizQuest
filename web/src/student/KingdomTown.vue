@@ -2,26 +2,27 @@
 // ============================================================
 // STUDENT: the walkable kingdom town canvas
 // Castle plaza in the centre, one building at each compass point, a
-// forest edge with a gap in the north tree line, and beyond it the
+// forest edge with a gap in the north-west tree line, and beyond it the
 // clearing where the Duel and Campfire Run camps wait. The camera
 // stays on the town until the player walks through the gap, then
 // pans smoothly north (and back).
 // ============================================================
 import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue';
 import { drawAvatarCosmetics, loadOwnedHeroVisuals, loadPlayerVisuals, tintedPlayerFrames } from './avatar.js';
+import { INK, drawFlame } from './kingdom/town-art.js';
 import {
-  INK, drawBarterCorner, drawBuilding, drawCampfireCamp, drawCastle, drawDuelCamp, drawFlame, drawFlowers,
-  drawHouse, drawRock, drawTrailSign, drawTree, drawWell,
-} from './kingdom/town-art.js';
+  PALETTE, TOWN_BUILDINGS, TOWN_CAMPS, TOWN_MAP_PROPS, TOWN_SIGN_SPOT, TOWN_TRAILS, TOWN_VIEW_TOP, TOWN_WALK_ZONES,
+  WORLD_HEIGHT, WORLD_TOP, buildTownObjects, createForestPattern, createGroundLayer, makeEdgeTrees,
+} from './kingdom/town-scene.js';
 import { EMOTES, heroLine } from './kingdom/town-voices.js';
 import { playSound, setAudioOptions, warmUpAudio } from '../../../public/hero-lab/arena-audio.js';
 import {
-  BUILDING_LAYOUT, TOWN_AVATAR_RADIUS, TOWN_DESTINATIONS, TOWN_DOOR_RADIUS, TOWN_GRASS_COLOR, TOWN_GREET_RADIUS,
+  BUILDING_LAYOUT, TOWN_AVATAR_RADIUS, TOWN_DESTINATIONS, TOWN_DOOR_RADIUS, TOWN_GREET_RADIUS,
   TOWN_HEIGHT, TOWN_HERO_AVATAR_RADIUS, TOWN_HERO_HOP_HEIGHT, TOWN_HERO_HOPS_PER_SECOND,
   TOWN_HERO_REDUCED_MOTION_HOP_HEIGHT, TOWN_HERO_REDUCED_MOTION_PAUSE_MAX_MS, TOWN_HERO_REDUCED_MOTION_PAUSE_MIN_MS,
   TOWN_HERO_WANDER_PAUSE_MAX_MS, TOWN_HERO_WANDER_PAUSE_MIN_MS, TOWN_HERO_WALK_SPEED, TOWN_MAX_HEROES,
-  TOWN_NORTH_HEIGHT, TOWN_PATH_WIDTH, TOWN_PLAZA, TOWN_PROP_LAYOUT, TOWN_ROADS, TOWN_TILE_SIZE, TOWN_TRAILS,
-  TOWN_TRAIL_WIDTH, TOWN_WALK_SPEED, TOWN_WALK_ZONES, TOWN_WIDTH,
+  TOWN_NORTH_HEIGHT, TOWN_PATH_WIDTH, TOWN_PLAZA, TOWN_ROADS, TOWN_TILE_SIZE,
+  TOWN_TRAIL_WIDTH, TOWN_WALK_SPEED, TOWN_WIDTH,
 } from '../../../config/tuning.js';
 
 const props = defineProps({
@@ -41,58 +42,20 @@ const emit = defineEmits(['interact']);
 const frame = ref(null);
 const canvas = ref(null);
 
-const WORLD_TOP = -TOWN_NORTH_HEIGHT;
-const WORLD_HEIGHT = TOWN_HEIGHT + TOWN_NORTH_HEIGHT;
+// The town camera frames TOWN_VIEW_TOP above the tree line, so the tallest
+// upgrades on the northern row stay inside the view.
 const ZONES = {
-  town: { x: 0, y: 0, w: TOWN_WIDTH, h: TOWN_HEIGHT },
+  town: { x: 0, y: TOWN_VIEW_TOP, w: TOWN_WIDTH, h: TOWN_HEIGHT - TOWN_VIEW_TOP },
   north: { x: 0, y: WORLD_TOP, w: TOWN_WIDTH, h: TOWN_NORTH_HEIGHT },
-};
-const ART_RES = 2; // object art is drawn at 2x so it stays crisp when scaled up
-const PALETTE = {
-  grass: TOWN_GRASS_COLOR, clearing: '#76A853', road: '#D8C392', roadEdge: '#9A8052',
-  plaza: '#E2D1A4', plazaEdge: '#9A8052', trail: '#C9A66B', trailEdge: '#94743F',
-  paper: '#FBF2D8', gold: '#F2BA55', forest: '#2F5E3E',
 };
 const NAMES = { castle: 'Castle', duel: 'Duel', campfire: 'Campfire Run' };
 
 // ---- map data --------------------------------------------------------------
 
-const buildings = Object.entries(BUILDING_LAYOUT).map(([id, layout]) => ({ id, kind: 'building', ...layout }));
-const destinations = Object.entries(TOWN_DESTINATIONS).map(([id, layout]) => ({ id, kind: 'destination', ...layout }));
+const buildings = TOWN_BUILDINGS;
+const destinations = TOWN_CAMPS;
 const targets = [...buildings, ...destinations];
-const mapProps = TOWN_PROP_LAYOUT.map((p, index) => ({ ...p, id: `prop-${index}` }));
-
-let seed = 0x2f61;
-const random = () => { seed = (seed * 1664525 + 1013904223) >>> 0; return seed / 0x100000000; };
-
-// A decorative ring of trees frames the town and the clearing; they sit
-// outside the walk zones, so they need no hitbox.
-function makeEdgeTrees() {
-  const trees = [];
-  const add = (cx, baseY, kind) => {
-    // a few fixed sizes, so the trees share a handful of cached drawings
-    const size = Math.floor(random() * 3);
-    const w = (kind === 'pine' ? 56 : 62) + size * 7;
-    const h = (kind === 'pine' ? 96 : 92) + size * 8;
-    trees.push({ id: `edge-${trees.length}`, type: 'tree', kind, x: cx - w / 2, y: baseY - h, w, h, decorative: true });
-  };
-  for (let x = -20; x <= TOWN_WIDTH + 20; x += 52) {
-    if (x > 690 && x < 800) continue; // the gap in the north tree line
-    add(x + random() * 10, 36 + random() * 4, random() < 0.5 ? 'pine' : 'round');
-    add(x + 20 + random() * 10, TOWN_HEIGHT + 34 + random() * 6, random() < 0.4 ? 'pine' : 'round');
-    add(x + random() * 10, WORLD_TOP + 118 + random() * 6, 'pine');
-  }
-  for (let y = WORLD_TOP + 150; y <= TOWN_HEIGHT + 20; y += 48) {
-    const inClearing = y < 0;
-    add(inClearing ? 120 + random() * 10 : 4 + random() * 8, y, random() < 0.6 ? 'pine' : 'round');
-    add(inClearing ? 1160 - random() * 10 : 1276 - random() * 8, y + 20, random() < 0.6 ? 'pine' : 'round');
-    if (inClearing) {
-      add(40 + random() * 20, y + 10, 'pine');
-      add(1240 - random() * 20, y + 30, 'pine');
-    }
-  }
-  return trees;
-}
+const mapProps = TOWN_MAP_PROPS.map((p, index) => ({ ...p, id: `prop-${index}` }));
 const edgeTrees = makeEdgeTrees();
 
 const footprintRect = (o) => ({ type: 'rect', x: o.x, y: o.y, w: o.w, h: o.h });
@@ -138,6 +101,8 @@ let groundLayer;
 let forestPattern;
 let objectCanvases = [];
 const artCache = new Map();
+// world y of each building's drawn top, refreshed whenever its art changes
+const buildingTops = {};
 let promptHit = null;
 let zone = 'town';
 const camera = { x: 0, y: 0, ready: false };
@@ -150,6 +115,11 @@ let walkGrid;
 let wanderGrid;
 
 const wheelOpen = ref(false);
+// The scene's focus ring shows only when the student tabs onto the canvas,
+// and fades once they start playing; clicks and programmatic focus never
+// draw a frame round the town.
+const focusRing = ref(false);
+let tabbedAt = -Infinity;
 const wheelIndex = ref(0);
 const wheelPos = ref({ x: 0, y: 0 });
 const wheelButtons = ref([]);
@@ -169,182 +139,11 @@ function levelOf(id) {
 
 // ---- drawing setup ---------------------------------------------------------
 
-function offscreen(width, height) {
-  const result = document.createElement('canvas');
-  result.width = Math.ceil(width);
-  result.height = Math.ceil(height);
-  return result;
-}
-
-function strokeLine(g, points, width, color) {
-  g.strokeStyle = color;
-  g.lineWidth = width;
-  g.lineCap = 'round';
-  g.lineJoin = 'round';
-  g.beginPath();
-  points.forEach(([x, y], i) => (i ? g.lineTo(x, y) : g.moveTo(x, y)));
-  g.stroke();
-}
-
-function createForestPattern() {
-  const tile = offscreen(180, 180);
-  const g = tile.getContext('2d');
-  g.fillStyle = PALETTE.forest;
-  g.fillRect(0, 0, 180, 180);
-  const greens = ['#284F35', '#356640', '#3E7349'];
-  let s = 7;
-  const r = () => { s = (s * 16807) % 2147483647; return s / 2147483647; };
-  for (let i = 0; i < 26; i += 1) {
-    const x = r() * 180; const y = r() * 180; const rad = 16 + r() * 18;
-    g.fillStyle = greens[i % greens.length];
-    for (const [ox, oy] of [[0, 0], [180, 0], [-180, 0], [0, 180], [0, -180]]) {
-      g.beginPath(); g.arc(x + ox, y + oy, rad, 0, Math.PI * 2); g.fill();
-    }
-  }
-  return ctx.createPattern(tile, 'repeat');
-}
-
-function createGroundLayer() {
-  const layer = offscreen(TOWN_WIDTH, WORLD_HEIGHT);
-  const g = layer.getContext('2d');
-  g.translate(0, -WORLD_TOP);
-  g.fillStyle = PALETTE.grass;
-  g.fillRect(0, 0, TOWN_WIDTH, TOWN_HEIGHT);
-  g.fillStyle = PALETTE.clearing;
-  g.fillRect(0, WORLD_TOP, TOWN_WIDTH, TOWN_NORTH_HEIGHT);
-  // A light scattering of tiny grass tufts gives the lawn texture without
-  // making the walkable paths busy. The fixed seed keeps the map calm.
-  let grassSeed = 0x51a7;
-  const grassRandom = () => { grassSeed = (grassSeed * 1664525 + 1013904223) >>> 0; return grassSeed / 0x100000000; };
-  const bladeColors = ['#5F984C', '#6EA451', '#A2C66B', '#B4CC70'];
-  for (let tuft = 0; tuft < 620; tuft += 1) {
-    const x = 8 + grassRandom() * (TOWN_WIDTH - 16);
-    const y = WORLD_TOP + 8 + grassRandom() * (WORLD_HEIGHT - 16);
-    const bladeCount = 2 + Math.floor(grassRandom() * 3);
-    g.globalAlpha = 0.28 + grassRandom() * 0.26;
-    for (let blade = 0; blade < bladeCount; blade += 1) {
-      const bx = x + (blade - (bladeCount - 1) / 2) * 3.1;
-      const lean = (grassRandom() - 0.5) * 4;
-      const height = 3 + grassRandom() * 4;
-      g.fillStyle = bladeColors[Math.floor(grassRandom() * bladeColors.length)];
-      g.beginPath();
-      g.moveTo(bx - 1.7, y + 1.5);
-      g.lineTo(bx + lean, y - height);
-      g.lineTo(bx + 1.7, y + 1.5);
-      g.closePath();
-      g.fill();
-    }
-  }
-  g.globalAlpha = 1;
-
-  // Packed-earth trail north, then stone roads, then the castle plaza on top
-  // so every road meets the plaza cleanly.
-  for (const line of TOWN_TRAILS) strokeLine(g, line, TOWN_TRAIL_WIDTH + 6, PALETTE.trailEdge);
-  for (const line of TOWN_TRAILS) strokeLine(g, line, TOWN_TRAIL_WIDTH, PALETTE.trail);
-  g.setLineDash([3, 14]);
-  for (const line of TOWN_TRAILS) strokeLine(g, line, 3, 'rgba(111,82,45,.35)');
-  g.setLineDash([]);
-  for (const line of TOWN_ROADS) strokeLine(g, line, TOWN_PATH_WIDTH + 8, PALETTE.roadEdge);
-  for (const line of TOWN_ROADS) strokeLine(g, line, TOWN_PATH_WIDTH, PALETTE.road);
-  const p = TOWN_PLAZA;
-  g.fillStyle = PALETTE.plazaEdge;
-  g.beginPath(); g.roundRect(p.x - 4, p.y - 4, p.w + 8, p.h + 8, 22); g.fill();
-  g.fillStyle = PALETTE.plaza;
-  g.beginPath(); g.roundRect(p.x, p.y, p.w, p.h, 18); g.fill();
-  // quiet cobbles on the plaza and roads
-  g.strokeStyle = 'rgba(111,91,59,.18)';
-  g.lineWidth = 2;
-  for (let y = p.y + 16; y < p.y + p.h - 8; y += 22) {
-    for (let x = p.x + 12 + ((y / 22) % 2) * 14; x < p.x + p.w - 16; x += 28) {
-      g.beginPath(); g.roundRect(x, y, 20, 13, 5); g.stroke();
-    }
-  }
-  for (const line of TOWN_ROADS) {
-    line.slice(1).forEach((point, i) => {
-      const [ax, ay] = line[i];
-      const length = Math.hypot(point[0] - ax, point[1] - ay);
-      const nx = -(point[1] - ay) / length; const ny = (point[0] - ax) / length;
-      for (let d = 18; d < length - 6; d += 30) {
-        const cx = ax + (point[0] - ax) * d / length; const cy = ay + (point[1] - ay) * d / length;
-        g.beginPath(); g.moveTo(cx - nx * TOWN_PATH_WIDTH / 2, cy - ny * TOWN_PATH_WIDTH / 2); g.lineTo(cx + nx * TOWN_PATH_WIDTH / 2, cy + ny * TOWN_PATH_WIDTH / 2); g.stroke();
-      }
-    });
-  }
-  return layer;
-}
-
-function artFor(key, w, h, draw) {
-  if (artCache.has(key)) return artCache.get(key);
-  const layer = offscreen(w * ART_RES, h * ART_RES);
-  const g = layer.getContext('2d');
-  g.scale(ART_RES, ART_RES);
-  draw(g);
-  artCache.set(key, layer);
-  return layer;
-}
-
-// How far down the canvas the drawing actually starts (its first solid row),
-// so prompts and upgrade arrows sit just above the building, not above the
-// empty top of a tall canvas. The faint plan under level-0 scaffolding is
-// ignored, so there they sit on the scaffolding. Measured once per drawing.
-const artTops = new WeakMap();
-function drawnTop(art) {
-  if (artTops.has(art)) return artTops.get(art);
-  let top = 0;
-  try {
-    const { data, width, height } = art.getContext('2d').getImageData(0, 0, art.width, art.height);
-    top = height;
-    for (let y = 0; y < height && top === height; y += 1) {
-      for (let x = 3; x < width * 4; x += 16) if (data[y * width * 4 + x] > 160) { top = y; break; }
-    }
-  } catch { top = 0; }
-  const result = top / ART_RES;
-  artTops.set(art, result);
-  return result;
-}
-// world y of each building's drawn top, refreshed whenever its art changes
-const buildingTops = {};
-
-function placeArt(object, art, aw, ah) {
-  // the drawing's ground line (8px above its bottom) sits on the footprint's front edge
-  const x = object.x + object.w / 2 - aw / 2;
-  const y = object.y + object.h + 8 - ah;
-  buildingTops[object.id] = y + drawnTop(art);
-  return { id: object.id, canvas: art, x, y, w: aw, h: ah, sortY: object.y + object.h };
-}
-
+// The static town drawings are shared with the sign-in showcase
+// (kingdom/town-scene.js); only the levels come from this student.
 function makeObjectCanvases() {
-  const list = [];
-  for (const b of buildings) {
-    const level = levelOf(b.id);
-    const { w, h } = b.art;
-    const art = artFor(`${b.id}:${level}`, w, h, (g) => (b.id === 'castle' ? drawCastle(g, level, w, h) : drawBuilding(g, b.id, level, w, h, b.w)));
-    list.push(placeArt(b, art, w, h));
-  }
-  for (const d of destinations) {
-    const { w, h } = d.art;
-    const art = artFor(`camp:${d.id}`, w, h, (g) => (d.id === 'duel' ? drawDuelCamp(g, w, h) : drawCampfireCamp(g, w, h)));
-    list.push(placeArt(d, art, w, h));
-  }
-  for (const p of mapProps) {
-    let item;
-    if (p.type === 'house') item = placeArt(p, artFor(`house:${p.variant}`, 84, 92, (g) => drawHouse(g, p.variant, 84, 92)), 84, 92);
-    else if (p.type === 'well') item = placeArt(p, artFor('well', 60, 70, (g) => drawWell(g, 60, 70)), 60, 70);
-    else if (p.type === 'barter') item = placeArt(p, artFor('barter', 96, 80, (g) => drawBarterCorner(g, 96, 80)), 96, 80);
-    else if (p.type === 'sign') item = placeArt(p, artFor('sign', 70, 90, (g) => drawTrailSign(g, 70, 90)), 70, 90);
-    else {
-      const draw = p.type === 'tree' ? (g) => drawTree(g, p.w, p.h) : p.type === 'rock' ? (g) => drawRock(g, p.w, p.h) : (g) => drawFlowers(g, p.w, p.h);
-      const art = artFor(`${p.type}:${p.w}x${p.h}`, p.w, p.h, draw);
-      item = { id: p.id, canvas: art, x: p.x, y: p.y, w: p.w, h: p.h, sortY: p.type === 'flowers' ? p.y : p.y + p.h };
-    }
-    list.push(item);
-  }
-  for (const t of edgeTrees) {
-    const w = Math.round(t.w); const h = Math.round(t.h);
-    const art = artFor(`edge:${t.kind}:${w}x${h}`, w, h, (g) => drawTree(g, w, h, t.kind));
-    list.push({ id: t.id, canvas: art, x: t.x, y: t.y, w, h, sortY: t.y + t.h });
-  }
-  objectCanvases = list;
+  objectCanvases = buildTownObjects(levelOf, artCache, edgeTrees);
+  for (const item of objectCanvases) if (item.top !== undefined) buildingTops[item.id] = item.top;
 }
 
 // ---- collision and paths ---------------------------------------------------
@@ -497,6 +296,7 @@ function worldPoint(event) {
 
 function onPointerDown(event) {
   warmUpAudio();
+  focusRing.value = false;
   canvas.value?.focus({ preventScroll: true });
   if (props.paused) return;
   closeWheel();
@@ -513,6 +313,7 @@ const MOVE_KEYS = ['w', 'a', 's', 'd', 'arrowup', 'arrowdown', 'arrowleft', 'arr
 
 function onKeyDown(event) {
   const el = event.target;
+  if (event.key === 'Tab') tabbedAt = performance.now();
   if (el instanceof HTMLElement && (['INPUT', 'TEXTAREA', 'SELECT'].includes(el.tagName) || el.isContentEditable)) return;
   if (props.paused) return;
   const key = event.key.toLowerCase();
@@ -520,6 +321,7 @@ function onKeyDown(event) {
   // let a focused button keep Enter/Space for itself
   if (el instanceof HTMLElement && el.tagName === 'BUTTON' && (key === 'enter' || key === ' ')) return;
   warmUpAudio();
+  focusRing.value = false;
   if (MOVE_KEYS.includes(key)) {
     event.preventDefault();
     keys.add(key);
@@ -531,6 +333,7 @@ function onKeyDown(event) {
     openWheel();
   }
 }
+function onCanvasFocus() { focusRing.value = performance.now() - tabbedAt < 400; }
 function onKeyUp(event) { keys.delete(event.key.toLowerCase()); }
 function onBlur() { keys.clear(); }
 
@@ -803,6 +606,7 @@ function drawAvatar(g, time) {
       top: player.y - hop - spriteHeight,
       width: spriteWidth,
       height: spriteHeight,
+      facing: player.facing,
       hatId: props.avatarVisual?.hat,
       accessoryId: props.avatarVisual?.accessory,
     });
@@ -820,11 +624,16 @@ function drawAvatar(g, time) {
   g.beginPath(); g.ellipse(-r * .34, -r * .2, 2.3, 3.2, 0, 0, Math.PI * 2); g.fill();
   g.beginPath(); g.ellipse(r * .34, -r * .2, 2.3, 3.2, 0, 0, Math.PI * 2); g.fill();
   g.restore();
+  // Bounds that match the sprite's proportions around the fallback head
+  // (head circle about 94% of the crop width), so cosmetics sit the same way.
+  const fallbackWidth = (r * 2) / 0.94;
+  const fallbackHeight = fallbackWidth * playerCrop[3] / playerCrop[2];
   drawAvatarCosmetics(g, {
-    left: player.x - r * .8,
-    top: player.y - hop - r * 1.54,
-    width: r * 1.6,
-    height: r * 2.36,
+    left: player.x - fallbackWidth / 2,
+    top: player.y - hop + r * .82 - fallbackHeight,
+    width: fallbackWidth,
+    height: fallbackHeight,
+    facing: player.facing,
     hatId: props.avatarVisual?.hat,
     accessoryId: props.avatarVisual?.accessory,
   });
@@ -919,7 +728,8 @@ function drawHighlight(g, time) {
     const b = BUILDING_LAYOUT[id];
     rings.push([b.x + b.w / 2, b.y + b.h / 2, b.w / 2 + 26, b.h / 2 + 26]);
   }
-  if (props.highlight === 'north') rings.push([772, 72, 72, 52]);
+  // the gap in the north-west tree line, with the BATTLES sign beside it
+  if (props.highlight === 'north') rings.push([TOWN_SIGN_SPOT.x - 30, TOWN_SIGN_SPOT.y - 74, 74, 54]);
   g.save();
   g.setLineDash([10, 8]);
   g.lineDashOffset = reducedMotion ? 0 : -time / 40;
@@ -1028,10 +838,10 @@ function resize() {
   canvas.value.width = Math.round(rect.width * dpr);
   canvas.value.height = Math.round(rect.height * dpr);
   ctx = canvas.value.getContext('2d', { alpha: false });
-  const fit = Math.min(rect.width / TOWN_WIDTH, rect.height / TOWN_HEIGHT);
-  const readable = Math.min(rect.height / TOWN_HEIGHT, rect.width / 520);
+  const fit = Math.min(rect.width / TOWN_WIDTH, rect.height / ZONES.town.h);
+  const readable = Math.min(rect.height / ZONES.town.h, rect.width / 520);
   Object.assign(view, { dpr, scale: Math.max(fit, readable) * dpr, width: canvas.value.width, height: canvas.value.height });
-  forestPattern = createForestPattern();
+  forestPattern = createForestPattern(ctx);
   camera.ready = false;
 }
 
@@ -1080,8 +890,11 @@ defineExpose({ openEmotes: openWheel, focus: () => canvas.value?.focus({ prevent
         ref="canvas"
         class="town-canvas"
         tabindex="0"
-        aria-label="Walk around your kingdom town. Use WASD or arrow keys, or click the ground to move. Press E near a door or a hero, Z for emotes. Walk north through the gap in the trees to reach the battle camps."
+        aria-label="Walk around your kingdom town. Use WASD or arrow keys, or click the ground to move. Press E near a door or a hero, Z for emotes. Walk north-west through the gap in the trees by the sign to reach the battle camps."
+        :class="{ 'focus-ring': focusRing }"
         @pointerdown="onPointerDown"
+        @focus="onCanvasFocus"
+        @blur="focusRing = false"
       />
       <div v-if="wheelOpen" class="emote-wheel" :style="{ left: `${wheelPos.x}px`, top: `${wheelPos.y}px` }" role="menu" aria-label="Choose an emote">
         <button
@@ -1108,6 +921,9 @@ defineExpose({ openEmotes: openWheel, focus: () => canvas.value?.focus({ prevent
 .town-shell { position: absolute; inset: 0; width: 100%; height: 100%; overflow: hidden; background: #2f5e3e; }
 .town-frame { position: relative; width: 100%; height: 100%; overflow: hidden; background: #2f5e3e; }
 .town-canvas { display: block; width: 100%; height: 100%; outline: none; cursor: crosshair; touch-action: none; }
+/* Focus arriving by Tab gets a quiet parchment ring inset from the edge;
+   mouse, touch and programmatic focus draw no frame round the scene. */
+.town-canvas.focus-ring { outline: 3px dashed rgb(255 248 228 / 80%); outline-offset: -8px; }
 .emote-wheel { position: absolute; z-index: 3; width: 0; height: 0; }
 .emote-wheel::before { content: ""; position: absolute; left: -78px; top: -78px; width: 156px; height: 156px; border-radius: 50%; background: rgb(35 56 47 / 72%); border: 3px solid #23382f; box-shadow: 0 5px 0 rgb(35 56 47 / 40%); }
 .emote-choice { position: absolute; left: -22px; top: -22px; display: grid; place-items: center; width: 44px; height: 44px; padding: 0; color: #23382f; background: #fbf2d8; border: 2px solid #23382f; border-radius: 50%; box-shadow: 0 3px 0 #7a6545; font-size: 22px; cursor: pointer; transform: rotate(var(--angle)) translate(56px) rotate(calc(-1 * var(--angle))); }
