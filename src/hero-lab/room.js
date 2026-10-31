@@ -1,6 +1,7 @@
 const { HERO_CLASSES } = require('../../public/hero-lab/hero-list.js');
 const { avatarVisual } = require('../quiz/avatar');
-const { GAME_CONFIG } = require('../../public/hero-lab/game-config.js');
+const { GAME_CONFIG, DEBUG_PUSH_DISTANCE_PX, DEBUG_PUSH_DURATION_MS,
+  DEBUG_STATUS_DURATION_MS, DEBUG_SLOW_PCT } = require('../../public/hero-lab/game-config.js');
 const {
   RESPAWN_RING_MIN, RESPAWN_RING_MAX, RESPAWN_MIN_SEPARATION, RESPAWN_CANDIDATE_ATTEMPTS,
   ROOM_MAX_PLAYERS, RECONNECT_GRACE_S, LOBBY_LATE_JOIN, LATE_JOIN_MAX_WAVE, LATE_JOIN_INVULNERABILITY_S,
@@ -15,6 +16,7 @@ const { Devil } = require('../../public/hero-lab/enemies/devil.js');
 const { Skeleton } = require('../../public/hero-lab/enemies/skeleton.js');
 const { EnemyProjectile } = require('../../public/hero-lab/projectiles/enemy-projectile.js');
 const { Brute, Exploder, BruteKing } = require('../../public/hero-lab/enemies/special.js');
+const { applyPush, applyHold, applySlow, stepMonsterEffects } = require('./monster-effects.js');
 
 const ARENA_CONFIG = {
   width: GAME_CONFIG.arena.width,
@@ -24,6 +26,14 @@ const ARENA_CONFIG = {
 };
 const MOVEMENT_KEYS = ['up', 'down', 'left', 'right'];
 const clamp = (value, min, max) => Math.min(max, Math.max(min, value));
+
+function pointSegmentDistanceSquared(pointX, pointY, startX, startY, endX, endY) {
+  const dx = endX - startX, dy = endY - startY;
+  const lengthSquared = dx * dx + dy * dy;
+  const t = lengthSquared > 0 ? clamp(((pointX - startX) * dx + (pointY - startY) * dy) / lengthSquared, 0, 1) : 0;
+  const offsetX = pointX - (startX + dx * t), offsetY = pointY - (startY + dy * t);
+  return offsetX * offsetX + offsetY * offsetY;
+}
 
 function createRoom({ io, services = null, id, code = null, isDefault = false, mode = 'campfire', ownerId = null, trialTicket = null, expiresAt = null, heroId = null, log = console.log }) {
   const workshopTrial = mode === 'workshop_trial';
@@ -38,9 +48,13 @@ function createRoom({ io, services = null, id, code = null, isDefault = false, m
 
   const players = new Map();
   const projectiles = new Map();
+  const turretProjectilePool = [];
   const monsters = new Map();
+  const turrets = new Map();
+  const wolves = new Map();
   const pickups = new Map();
   const traps = new Map();
+  const fairyVortices = new Map();
   const timedEffects = [];
   const spawnTelegraphs = [];
   const pendingChains = [];
@@ -59,6 +73,9 @@ function createRoom({ io, services = null, id, code = null, isDefault = false, m
   let liveDummyCount = 0;
 
   let projectileCounter = 0;
+  let turretCounter = 0;
+  let wolfCounter = 0;
+  let vortexCounter = 0;
   let monsterSeq = 0;
   let lastTrialSpawnAt = 0;
   const TRIAL_ENEMY_CAP = 12;
@@ -128,6 +145,9 @@ function createRoom({ io, services = null, id, code = null, isDefault = false, m
 
   function resetGame() {
     projectiles.clear();
+    turrets.clear();
+    wolves.clear();
+    fairyVortices.clear();
     monsters.clear(); liveDummyCount = 0;
     pickups.clear();
     traps.clear();
@@ -185,7 +205,9 @@ function createRoom({ io, services = null, id, code = null, isDefault = false, m
     for (const player of players.values()) {
       player.keys = {};
       player.primaryHeld = false;
+      player.rangerChargeStartedAt = 0;
       player.dawnWaiting = false;
+      resetSamuraiState(player, now);
     }
     nsp.emit('countdown', { seconds: COUNTDOWN_S, endsAt: countdownEndsAt });
     broadcastState(now);
@@ -196,7 +218,11 @@ function createRoom({ io, services = null, id, code = null, isDefault = false, m
     setPhase('running');
     countdownEndsAt = 0;
     monsters.clear(); liveDummyCount = 0;
+    for (const wolf of wolves.values()) nsp.emit('ranger_wolf_removed', { id: wolf.id, x: wolf.x, y: wolf.y, sourceAbility: 'run-start' });
+    wolves.clear();
+    fairyVortices.clear();
     for (const player of players.values()) {
+      resetSamuraiState(player, now);
       player.hero.hp = player.hero.maxHp;
       player.hero.invulnerableUntil = 0;
       for (const cooldown of Object.values(player.hero.cooldowns)) cooldown.readyAt = now;
@@ -205,6 +231,8 @@ function createRoom({ io, services = null, id, code = null, isDefault = false, m
       player.respawnRemainingMs = 0;
       player.keys = {};
       player.primaryHeld = false;
+      player.rangerChargeStartedAt = 0;
+      player.hero.deadAimArrows = 0;
       player.bubbleRush = null;
       player.dashState = null;
       player.controlledBurst = null;
@@ -221,6 +249,8 @@ function createRoom({ io, services = null, id, code = null, isDefault = false, m
   function resetRunToLobby(now) {
     resetGame();
     for (const player of players.values()) {
+      resetSamuraiState(player, now);
+      player.engineerLaserCharge = null;
       player.hero = buildHero(player.heroId, player.user);
       player.name = player.user?.name || player.hero.name;
       player.emoji = player.hero.emoji;
@@ -397,20 +427,61 @@ function createRoom({ io, services = null, id, code = null, isDefault = false, m
   function chooseDummySpawnPoint() { return null; }
 
   // Dummy damage: same hit feedback as an enemy, no kills, no combo, no stats.
+  function recordEngineerWrenchMark(monster, source, owner, damage, now) {
+    if (damage <= 0 || owner?.heroId !== 'engineer' || source.sourceAbility !== 'weapon') return;
+    if (!monster.engineerWrenchMarks) monster.engineerWrenchMarks = new Map();
+    monster.engineerWrenchMarks.set(owner.id, now + GAME_CONFIG.heroes.engineer.wrench.markDurationMs);
+  }
+
+  function activeEngineerWrenchMarks(monster, now) {
+    const marks = monster.engineerWrenchMarks;
+    if (!marks) return null;
+    for (const [markedOwnerId, expiresAt] of marks) if (expiresAt <= now) marks.delete(markedOwnerId);
+    return marks.size ? marks : null;
+  }
+
+  function hasActiveEngineerWrenchMark(monster, ownerId, now) {
+    return (activeEngineerWrenchMarks(monster, now)?.get(ownerId) || 0) > now;
+  }
+
+  function refundMarkedRangerSkills(monster, now, source) {
+    for (const [ownerId, expiresAt] of monster.rangerMarks || []) {
+      if (expiresAt <= now) continue;
+      const ranger = players.get(ownerId);
+      if (!ranger || ranger.heroId !== 'ranger') continue;
+      const cooldown = ranger.hero.cooldowns.skill;
+      const refundMs = Math.min(
+        Math.max(0, cooldown.readyAt - now),
+        cooldown.durationMs * ranger.hero.spec.ranger.markKillRefundFraction,
+      );
+      if (refundMs <= 0) continue;
+      cooldown.readyAt = Math.max(now, cooldown.readyAt - refundMs);
+      nsp.emit('ranger_cooldown_refund', { playerId: ranger.id, x: ranger.x, y: ranger.y,
+        refundMs, sourceAbility: source?.sourceAbility || 'weapon' });
+    }
+  }
+
   function damageDummy(dummy, amount, source) {
-    const damage = dummy.takeDamage(amount);
+    const now = Date.now();
+    const markMultiplier = source.turretKill && source.sourceAbility === 'turret' && activeEngineerWrenchMarks(dummy, now) ? 2 : 1;
+    const damage = dummy.takeDamage(amount * markMultiplier);
     const owner = players.get(source.ownerId);
+    recordEngineerWrenchMark(dummy, source, owner, damage, now);
     if (damage > 0) {
       nsp.emit('hit', { type: 'dummy', id: dummy.id, x: dummy.x, y: dummy.y, damage,
         sourceId: source.ownerId, heroId: owner?.heroId || null, sourceAbility: source.sourceAbility || 'weapon',
         bonus: false, sourceX: owner?.x, sourceY: owner?.y, enemyType: 'dummy', boss: false, elite: false });
     }
     if (dummy.dead) {
+      refundMarkedRangerSkills(dummy, now, source);
       monsters.delete(dummy.id);
       liveDummyCount -= 1;
       // A broken dummy counts as a kill for kill-triggered TALENTS only: no
       // kill count, combo, reward or wave progress.
-      applyKillTalents(owner, source);
+      const refueledByWrench = source.turretKill && source.sourceAbility === 'turret' && owner?.heroId === 'engineer'
+        && hasActiveEngineerWrenchMark(dummy, owner.id, now);
+      if (!source.turretKill || refueledByWrench)
+        applyKillTalents(owner, refueledByWrench ? { ...source, refueledByWrench: true } : source);
       nsp.emit('dummy_broken', { id: dummy.id, x: dummy.x, y: dummy.y, emoji: DUMMY_EMOJI });
       nextDummySpawnAt = Date.now() + DUMMY_RESPAWN_S * 1000;
     }
@@ -423,6 +494,11 @@ function createRoom({ io, services = null, id, code = null, isDefault = false, m
     for (const dummy of [...monsters.values()]) {
       if (!dummy.isDummy) continue;
       if (dummy.fadeStartedAt && now - dummy.fadeStartedAt >= DUMMY_FADE_MS) { monsters.delete(dummy.id); liveDummyCount -= 1; continue; }
+      stepMonsterEffects(dummy, now);
+      if (dummy.heldUntil > now) continue;
+      // Keep the vortex authoritative over the lobby's separate player-shove
+      // physics so a nearby hero cannot cancel or reverse the inward pull.
+      if (dummy.fairyVortexId) continue;
       for (const player of players.values()) {
         if (player.downed || player.disconnected) continue;
         const dx = dummy.x - player.x, dy = dummy.y - player.y;
@@ -445,6 +521,137 @@ function createRoom({ io, services = null, id, code = null, isDefault = false, m
       }
       dummy.x = clamp(dummy.x, dummy.radius, ARENA_CONFIG.width - dummy.radius);
       dummy.y = clamp(dummy.y, dummy.radius, ARENA_CONFIG.height - dummy.radius);
+    }
+  }
+
+  function roomApplyPush(entity, direction, distancePx, durationMs, opts = {}) {
+    return applyPush(entity, direction, distancePx, durationMs, {
+      ...opts, now: opts.now ?? Date.now(),
+      bounds: { minX: 0, minY: 0, maxX: ARENA_CONFIG.width, maxY: ARENA_CONFIG.height },
+      obstacles: opts.obstacles || [{ x: campfire.x, y: campfire.y, radius: campfire.radius }],
+    });
+  }
+
+  function roomApplyHold(entity, durationMs, sourceId, now = Date.now()) {
+    const wasFusing = Boolean(entity?.fuseUntil > now);
+    const held = applyHold(entity, durationMs, sourceId, now);
+    if (held && wasFusing) nsp.emit('area_telegraph_cancel', { sourceAbility: `exploder:${entity.id}` });
+    return held;
+  }
+
+  function fairySlow(entity, now) {
+    const slow = GAME_CONFIG.heroes.fairy.windswept;
+    applySlow(entity, slow.slowPct, slow.durationMs, 'fairy-windswept', now);
+  }
+
+  function resolveFairyGale(x, y, ownerId, now) {
+    const spec = GAME_CONFIG.heroes.fairy;
+    const radius = spec.gale.radius;
+    const hits = [];
+    for (const monster of monsters.values()) {
+      if (Math.hypot(monster.x - x, monster.y - y) > radius + monster.radius) continue;
+      damageMonster(monster, (players.get(ownerId)?.hero.attack || spec.attack) * spec.gale.damageMultiplier,
+        { ownerId, sourceAbility: 'skill' });
+      const fireDistance = Math.hypot(monster.x - campfire.x, monster.y - campfire.y);
+      const origin = fireDistance <= GAME_CONFIG.heroes.fairy.campfirePushZoneRadius
+        ? { fromX: campfire.x, fromY: campfire.y }
+        : { fromX: x, fromY: y };
+      if (roomApplyPush(monster, origin, spec.gale.pushPx, spec.gale.pushMs,
+        { ignoreHalfKnockback: true, now })) {
+        fairySlow(monster, now);
+        const dx = origin.fromX - monster.x, dy = origin.fromY - monster.y;
+        const length = Math.hypot(dx, dy) || 1;
+        hits.push({ id: monster.id, x: monster.x, y: monster.y, dirX: -dx / length, dirY: -dy / length });
+      }
+    }
+    nsp.emit('area_effect', { x, y, radius, kind: 'player', telegraphMs: 0,
+      color: GAME_CONFIG.heroFxColors.fairy.primary, sourceHeroId: 'fairy', sourceAbility: 'skill',
+      hits, durationMs: GAME_CONFIG.heroes.fairy.gale.visualDurationMs });
+  }
+
+  function createFairyVortex(x, y, ownerId, now) {
+    const spec = GAME_CONFIG.heroes.fairy.vortex;
+    const id = `fairy-vortex:${++vortexCounter}`;
+    fairyVortices.set(id, { id, x, y, ownerId, startedAt: now, endsAt: now + spec.durationMs,
+      pullEndsAt: now + spec.pullMs, targets: new Map() });
+  }
+
+  function processFairyVortices(now) {
+    const spec = GAME_CONFIG.heroes.fairy;
+    for (const [id, vortex] of fairyVortices) {
+      if (now >= vortex.endsAt) {
+        for (const [monsterId, targetState] of vortex.targets) {
+          const monster = monsters.get(monsterId);
+          if (!monster || monster.fairyVortexId !== id) continue;
+          monster.fairyVortexId = null;
+          monster.heldUntil = now;
+          const fireDistance = Math.hypot(monster.x - campfire.x, monster.y - campfire.y);
+          const origin = fireDistance <= GAME_CONFIG.heroes.fairy.campfirePushZoneRadius
+            ? { fromX: campfire.x, fromY: campfire.y } : { fromX: vortex.x, fromY: vortex.y };
+          if (roomApplyPush(monster, origin, spec.vortex.endPushPx, spec.vortex.endPushMs,
+            { ignoreHalfKnockback: true, now })) fairySlow(monster, now);
+        }
+        fairyVortices.delete(id);
+        nsp.emit('fairy_vortex_end', { id, x: vortex.x, y: vortex.y, radius: spec.vortex.radius });
+        continue;
+      }
+
+      for (const monster of monsters.values()) {
+        if (monster.isBoss || monster.type === 'brute-king') continue;
+        const distance = Math.hypot(monster.x - vortex.x, monster.y - vortex.y);
+        if (distance > spec.vortex.radius + monster.radius) {
+          if (vortex.targets.get(monster.id)?.stage === 'pulling') {
+            vortex.targets.delete(monster.id);
+            if (monster.fairyVortexId === id) monster.fairyVortexId = null;
+          }
+          continue;
+        }
+        if (monster.fairyVortexId && monster.fairyVortexId !== id) continue;
+        let target = vortex.targets.get(monster.id);
+        if (!target) {
+          if ((monster.heldUntil || 0) > now || (monster.holdImmuneUntil || 0) > now) continue;
+          const pullDuration = now < vortex.pullEndsAt
+            ? vortex.pullEndsAt - now : spec.vortex.latePullMs;
+          target = { stage: 'pulling', holdAt: Math.min(vortex.endsAt, now + pullDuration), lastDamageAt: now };
+          vortex.targets.set(monster.id, target);
+          monster.fairyVortexId = id;
+        }
+
+        // Pull every tick, including while held. This acts like a gravity well:
+        // outside nudges may move the target briefly, then the vortex draws it
+        // back toward the core on the next tick. Direct correction also avoids
+        // the campfire obstacle used by ordinary knockback.
+        const pullX = vortex.x - monster.x, pullY = vortex.y - monster.y;
+        const pullStopRadius = Math.max(12, (monster.radius || 20) * 0.5);
+        const pullDistance = Math.max(0, distance - pullStopRadius);
+        if (pullDistance > 0) {
+          const stepPx = Math.min(pullDistance, spec.vortex.pullSpeedPxPerSecond / ARENA_CONFIG.tickHz);
+          monster.x = clamp(monster.x + pullX / distance * stepPx, monster.radius, ARENA_CONFIG.width - monster.radius);
+          monster.y = clamp(monster.y + pullY / distance * stepPx, monster.radius, ARENA_CONFIG.height - monster.radius);
+          monster.knockbackX = 0; monster.knockbackY = 0;
+        }
+
+        const damageElapsedMs = Math.max(0, now - target.lastDamageAt);
+        if (damageElapsedMs >= spec.vortex.damageTickMs) {
+          const attack = players.get(vortex.ownerId)?.hero.attack || spec.attack;
+          const damage = attack * spec.vortex.dpsMultiplier * damageElapsedMs / 1000;
+          target.lastDamageAt = now;
+          damageMonster(monster, damage, { ownerId: vortex.ownerId, sourceAbility: 'ultimate' });
+          if (monster.dead) continue;
+        }
+
+        if (target.stage === 'pulling' && now >= target.holdAt) {
+          if (roomApplyHold(monster, vortex.endsAt - now, id, now)) {
+            monster.fairyVortexId = id;
+            target.stage = 'held';
+          } else {
+            vortex.targets.delete(monster.id);
+            if (monster.fairyVortexId === id) monster.fairyVortexId = null;
+          }
+        } else if (target.stage === 'held') {
+          monster.heldUntil = Math.max(monster.heldUntil || 0, vortex.endsAt);
+        }
+      }
     }
   }
 
@@ -645,6 +852,7 @@ function createRoom({ io, services = null, id, code = null, isDefault = false, m
   // waiting for every enemy to spawn. Used by tests and the debug menu.
   function clearWave() {
     monsters.clear(); liveDummyCount = 0;
+    fairyVortices.clear();
     spawnTelegraphs.length = 0;
     spawnQueue = [];
     enemiesLeftToSpawn = 0;
@@ -684,6 +892,16 @@ function createRoom({ io, services = null, id, code = null, isDefault = false, m
   }
 
   function startRestPhase(now) {
+    for (const turret of turrets.values()) {
+      if (turret.expiryWarned) nsp.emit('area_telegraph_cancel', { sourceAbility: `engineer-turret-expiry:${turret.id}` });
+      turret.hp = GAME_CONFIG.turret.hp;
+      turret.expiresAt = now + GAME_CONFIG.turret.lifetimeMs;
+      turret.expiryWarned = false;
+    }
+    for (const wolf of [...wolves.values()]) {
+      wolves.delete(wolf.id);
+      nsp.emit('ranger_wolf_removed', { id: wolf.id, x: wolf.x, y: wolf.y, sourceAbility: 'rest' });
+    }
     const clearedBoss = waveNumber > 0 && waveNumber % GAME_CONFIG.arenaTuning.enemies.bruteKing.everyWaves === 0;
     setBreakPhase('rest', now + (clearedBoss ? BREAK.bossRestMs : BREAK.restMs));
     nextWaveAt = 0;
@@ -827,14 +1045,287 @@ function createRoom({ io, services = null, id, code = null, isDefault = false, m
     return closest;
   }
 
+  function activeTurretTarget(monster, now) {
+    if (!GAME_CONFIG.turret.taunt || !['zombie', 'skeleton', 'brute', 'brute-king'].includes(monster.type)) return null;
+    if (monster.targetId && monster.targetId.startsWith('turret:') && now < (monster.targetLockUntil || 0)) {
+      const locked = turrets.get(monster.targetId);
+      if (locked && locked.deployingUntil <= now && locked.hp > 0) return locked;
+    }
+    // Spread distance checks across enemies over each reevaluation window.
+    if (now < (monster.nextTargetEvalAt || 0)) {
+      const current = turrets.get(monster.targetId);
+      return current && current.deployingUntil <= now && current.hp > 0 ? current : null;
+    }
+    monster.nextTargetEvalAt = now + GAME_CONFIG.turret.targetReevalMs
+      + ((Number(String(monster.id).replace(/\D/g, '').slice(-2)) || 0) % GAME_CONFIG.turret.targetReevalStaggerMs);
+    let nearest = null;
+    let nearestDistance = GAME_CONFIG.turret.aggroRadius;
+    for (const turret of turrets.values()) {
+      if (turret.hp <= 0 || turret.deployingUntil > now) continue;
+      const distance = Math.hypot(turret.x - monster.x, turret.y - monster.y);
+      if (distance <= nearestDistance) { nearest = turret; nearestDistance = distance; }
+    }
+    monster.targetId = nearest?.id || null;
+    monster.targetLockUntil = nearest ? now + GAME_CONFIG.turret.targetLockMs : 0;
+    return nearest;
+  }
+
+  // Ranger wolves share the turret's decoy lock fields and reevaluation
+  // cadence. Turret rules remain byte-for-byte unchanged when no wolf exists.
+  function activeWolfTarget(monster, now) {
+    if (!GAME_CONFIG.heroes.ranger.ranger.wolfTaunts || !['zombie', 'skeleton', 'brute'].includes(monster.type)) return null;
+    if (monster.targetId?.startsWith('wolf:') && now < (monster.targetLockUntil || 0)) {
+      const locked = wolves.get(monster.targetId);
+      if (locked && !locked.arriving && locked.hp > 0 && locked.expiresAt > now) return locked;
+    }
+    if (now < (monster.nextTargetEvalAt || 0)) {
+      const current = wolves.get(monster.targetId);
+      return current && !current.arriving && current.hp > 0 && current.expiresAt > now ? current : null;
+    }
+    let nearest = null;
+    let distanceLimit = GAME_CONFIG.heroes.ranger.ranger.wolfTauntRadius;
+    for (const wolf of wolves.values()) {
+      if (wolf.arriving || wolf.hp <= 0 || wolf.expiresAt <= now) continue;
+      const distance = Math.hypot(wolf.x - monster.x, wolf.y - monster.y);
+      if (distance <= distanceLimit) { nearest = wolf; distanceLimit = distance; }
+    }
+    if (nearest) {
+      monster.nextTargetEvalAt = now + GAME_CONFIG.turret.targetReevalMs
+        + ((Number(String(monster.id).replace(/\D/g, '').slice(-2)) || 0) % GAME_CONFIG.turret.targetReevalStaggerMs);
+      monster.targetId = nearest.id;
+      monster.targetLockUntil = now + GAME_CONFIG.turret.targetLockMs;
+    } else if (monster.targetId?.startsWith('wolf:')) {
+      monster.targetId = null;
+      monster.targetLockUntil = 0;
+      monster.nextTargetEvalAt = 0;
+    }
+    return nearest;
+  }
+
+  function damageWolf(wolf, amount, sourceAbility = 'enemy') {
+    if (!wolf || wolf.hp <= 0 || amount <= 0) return;
+    wolf.hp = Math.max(0, wolf.hp - amount);
+    if (wolf.hp <= 0) {
+      wolves.delete(wolf.id);
+      nsp.emit('ranger_wolf_removed', { id: wolf.id, x: wolf.x, y: wolf.y, sourceAbility });
+    }
+  }
+
+  function removeOwnerWolf(ownerId) {
+    for (const [id, wolf] of wolves) if (wolf.ownerId === ownerId) {
+      wolves.delete(id);
+      nsp.emit('ranger_wolf_removed', { id, x: wolf.x, y: wolf.y, sourceAbility: 'owner-left' });
+    }
+  }
+
+  function makeWolf(owner, anchor, now = Date.now()) {
+    removeOwnerWolf(owner.id);
+    const id = `wolf:${++wolfCounter}`;
+    const wolf = { id, ownerId: owner.id, x: anchor.x, y: anchor.y,
+      hp: GAME_CONFIG.heroes.ranger.ranger.wolfHp, radius: GAME_CONFIG.heroes.ranger.ranger.wolfRadius,
+      anchorX: anchor.x, anchorY: anchor.y,
+      createdAt: now, arriveAt: now + (GAME_CONFIG.heroes.ranger.ranger.meatThrowS + GAME_CONFIG.heroes.ranger.ranger.wolfArriveS) * 1000,
+      arriveStartAt: now + GAME_CONFIG.heroes.ranger.ranger.meatThrowS * 1000,
+      expiresAt: 0, arriving: true, nextBiteAt: 0, targetId: null };
+    wolves.set(id, wolf);
+    nsp.emit('ranger_wolf_spawned', { id, ownerId: owner.id, x: wolf.x, y: wolf.y, anchorX: wolf.anchorX, anchorY: wolf.anchorY });
+    return wolf;
+  }
+
+  function updateWolves(dt, now) {
+    const spec = GAME_CONFIG.heroes.ranger.ranger;
+    for (const wolf of [...wolves.values()]) {
+      if (now < wolf.arriveStartAt) continue;
+      if (wolf.arriving) {
+        if (now >= wolf.arriveAt) {
+          wolf.arriving = false;
+          wolf.x = wolf.anchorX; wolf.y = wolf.anchorY;
+          wolf.expiresAt = now + spec.wolfDurationS * 1000;
+          wolf.nextBiteAt = now;
+          nsp.emit('ranger_wolf_arrived', { id: wolf.id, ownerId: wolf.ownerId, x: wolf.x, y: wolf.y });
+        }
+        continue;
+      }
+      if (wolf.hp <= 0 || now >= wolf.expiresAt) {
+        wolves.delete(wolf.id);
+        nsp.emit('ranger_wolf_removed', { id: wolf.id, x: wolf.x, y: wolf.y, sourceAbility: 'expired' });
+        continue;
+      }
+      const owner = players.get(wolf.ownerId);
+      let target = null, targetDistance = spec.wolfScan;
+      if (owner) for (const monster of monsters.values()) {
+        if (monster.dead || monster.fadeStartedAt) continue;
+        const distanceFromWolf = Math.hypot(monster.x - wolf.x, monster.y - wolf.y);
+        const distanceFromMeat = Math.hypot(monster.x - wolf.anchorX, monster.y - wolf.anchorY);
+        if (distanceFromWolf <= targetDistance && distanceFromMeat <= spec.wolfLeash) {
+          target = monster;
+          targetDistance = distanceFromWolf;
+        }
+      }
+      const destination = target;
+      const dx = (destination?.x ?? wolf.anchorX) - wolf.x;
+      const dy = (destination?.y ?? wolf.anchorY) - wolf.y;
+      const distance = Math.hypot(dx, dy) || 1;
+      const step = Math.min(distance, spec.wolfSpeed * dt);
+      let nx = wolf.x + dx / distance * step, ny = wolf.y + dy / distance * step;
+      if (Math.hypot(nx - wolf.anchorX, ny - wolf.anchorY) > spec.wolfLeash) {
+        const ax = wolf.anchorX - wolf.x, ay = wolf.anchorY - wolf.y, al = Math.hypot(ax, ay) || 1;
+        nx = wolf.x + ax / al * Math.min(al, spec.wolfSpeed * dt);
+        ny = wolf.y + ay / al * Math.min(al, spec.wolfSpeed * dt);
+      }
+      wolf.x = nx; wolf.y = ny;
+      if (target && owner && Math.hypot(target.x - wolf.x, target.y - wolf.y) <= spec.wolfBiteRange && now >= wolf.nextBiteAt) {
+        wolf.nextBiteAt = now + 1000 / spec.wolfBiteRate;
+        if (!target.rangerMarks) target.rangerMarks = new Map();
+        target.rangerMarks.set(owner.id, now + spec.markDurationS * 1000);
+        const damage = owner.hero.attack * spec.wolfBiteMultiplier;
+        damageMonster(target, damage, { ownerId: owner.id, sourceAbility: 'wolf', wolfAttack: true });
+        nsp.emit('ranger_wolf_bite', { id: wolf.id, ownerId: owner.id, targetId: target.id, x: target.x, y: target.y });
+      }
+    }
+  }
+
+  function damageTurret(turret, damage, sourceAbility = 'enemy') {
+    if (!turret || turret.hp <= 0 || damage <= 0) return;
+    const amount = Math.min(turret.hp, damage);
+    turret.hp -= amount;
+    nsp.emit('turret_hit', { id: turret.id, x: turret.x, y: turret.y, damage: amount });
+    if (turret.hp <= 0) {
+      if (turret.expiryWarned) nsp.emit('area_telegraph_cancel', { sourceAbility: `engineer-turret-expiry:${turret.id}` });
+      turrets.delete(turret.id);
+      nsp.emit('turret_destroyed', { id: turret.id, x: turret.x, y: turret.y, sourceAbility });
+    }
+  }
+
+  function removeOwnerTurrets(ownerId) {
+    for (const [id, turret] of turrets) if (turret.ownerId === ownerId) {
+      if (turret.expiryWarned) nsp.emit('area_telegraph_cancel', { sourceAbility: `engineer-turret-expiry:${turret.id}` });
+      turrets.delete(id);
+      nsp.emit('turret_removed', { id, x: turret.x, y: turret.y });
+    }
+  }
+
+  function makeTurret(ownerId, x, y, now = Date.now()) {
+    const owner = players.get(ownerId);
+    const turret = { id: `turret:${++turretCounter}`, ownerId, x, y, createdAt: now, hp: GAME_CONFIG.turret.hp,
+      expiresAt: now + GAME_CONFIG.turret.lifetimeMs, expiryWarned: false, shotsFired: 0,
+      radius: GAME_CONFIG.turret.radius, barrelAngle: 0, targetId: null, deployingUntil: now + GAME_CONFIG.turret.deployMs,
+      targetReevalAt: 0, nextFireAt: now, ownerAttack: owner?.hero.attack || GAME_CONFIG.heroDefaults.attack };
+    turrets.set(turret.id, turret);
+    nsp.emit('turret_deployed', { id: turret.id, x, y });
+    return turret;
+  }
+
+  function expireTurret(turret, now) {
+    if (!turrets.has(turret.id)) return;
+    turrets.delete(turret.id);
+    const blast = GAME_CONFIG.turret.expiry;
+    const sourceAbility = `engineer-turret-expiry:${turret.id}`;
+    nsp.emit('turret_expired', { id: turret.id, x: turret.x, y: turret.y, radius: blast.radius });
+    for (const monster of [...monsters.values()]) {
+      if (Math.hypot(monster.x - turret.x, monster.y - turret.y) > blast.radius + monster.radius) continue;
+      damageMonster(monster, blast.enemyDamage, { ownerId: turret.ownerId, sourceAbility, turretKill: true });
+    }
+    for (const player of players.values()) {
+      if (Math.hypot(player.x - turret.x, player.y - turret.y) > blast.radius + ARENA_CONFIG.radius) continue;
+      const damage = player.hero.damage(blast.heroDamage, now);
+      if (damage > 0) nsp.emit('player_hit', { id: player.id, x: player.x, y: player.y, damage, sourceAbility });
+    }
+    if (Math.hypot(campfire.x - turret.x, campfire.y - turret.y) <= blast.radius + campfire.radius) {
+      const before = campfire.hp;
+      campfire.hp = Math.max(0, campfire.hp - blast.campfireDamage);
+      pendingCampfireDamage += before - campfire.hp;
+    }
+    nsp.emit('area_effect', { x: turret.x, y: turret.y, radius: blast.radius, kind: 'enemy', telegraphMs: 0,
+      color: '#ff8738', sourceHeroId: 'engineer', sourceAbility });
+  }
+
+  function createTurretProjectile(turret, now, angle, target = null) {
+    const id = `turret-shot:${++projectileCounter}`;
+    let projectile = turretProjectilePool.pop();
+    if (!projectile) projectile = new Projectile();
+    projectile.id = id; projectile.ownerId = turret.ownerId; projectile.heroId = 'engineer';
+    const targetDistance = target ? Math.hypot(target.x - turret.x, target.y - turret.y) : Infinity;
+    const muzzleOffset = target && targetDistance <= GAME_CONFIG.turret.muzzleOffset + target.radius + GAME_CONFIG.turret.bulletRadius
+      ? 0 : GAME_CONFIG.turret.muzzleOffset;
+    projectile.x = turret.x + Math.cos(angle) * muzzleOffset; projectile.y = turret.y + Math.sin(angle) * muzzleOffset;
+    projectile.vx = Math.cos(angle) * GAME_CONFIG.turret.bulletSpeed; projectile.vy = Math.sin(angle) * GAME_CONFIG.turret.bulletSpeed;
+    projectile.radius = GAME_CONFIG.turret.bulletRadius; projectile.color = '#FF9F1C'; projectile.damage = turret.ownerAttack * GAME_CONFIG.turret.damageMultiplier;
+    projectile.piercing = false; projectile.piercesRemaining = 0; projectile.targetTeam = 'monsters'; projectile.heal = 0;
+    projectile.explosionRadius = 0; projectile.knockback = 0; projectile.stunMs = 0; projectile.detonateOnExpire = false;
+    projectile.shape = 'circle'; projectile.emoji = ''; projectile.rotateToAim = false; projectile.flashColors = null;
+    projectile.flashIntervalMs = 100; projectile.fadeLastFraction = 0; projectile.sourceAbility = 'turret'; projectile.trap = null;
+    projectile.trapTargetId = null; projectile.trapOrigin = null; projectile.lifetimeMs = GAME_CONFIG.turret.range / GAME_CONFIG.turret.bulletSpeed * 1000;
+    projectile.kind = 'player'; projectile.speed = GAME_CONFIG.turret.bulletSpeed; projectile.createdAt = now;
+    projectile.dead = false; projectile.hitTargets.clear(); projectile.turretKill = true;
+    return projectile;
+  }
+
+  function recycleTurretProjectile(projectile) {
+    if (projectile?.sourceAbility === 'turret' && turretProjectilePool.length < GAME_CONFIG.turret.projectilePoolMax)
+      turretProjectilePool.push(projectile);
+  }
+
+  function updateTurrets(dt, now) {
+    for (const turret of turrets.values()) {
+      const owner = players.get(turret.ownerId);
+      if (owner) turret.ownerAttack = owner.hero.attack;
+      if (breakPhase === 'rest' || breakPhase === 'vote') {
+        turret.expiresAt += dt * 1000;
+        if (turret.expiryWarned) {
+          turret.expiryWarned = false;
+          nsp.emit('area_telegraph_cancel', { sourceAbility: `engineer-turret-expiry:${turret.id}` });
+        }
+        continue;
+      }
+      if (now >= turret.expiresAt) { expireTurret(turret, now); continue; }
+      if (!turret.expiryWarned && turret.expiresAt - now <= GAME_CONFIG.turret.expiryWarningMs) {
+        turret.expiryWarned = true;
+        nsp.emit('area_telegraph', { x: turret.x, y: turret.y, radius: GAME_CONFIG.turret.expiry.radius,
+          kind: 'enemy', telegraphMs: Math.max(1, turret.expiresAt - now),
+          sourceAbility: `engineer-turret-expiry:${turret.id}`, sourceHeroId: 'engineer' });
+      }
+      turret.hp = Math.max(1, turret.hp - GAME_CONFIG.turret.decayPerSecond * dt);
+      if (turret.deployingUntil > now) continue;
+      let target = turret.targetId ? monsters.get(turret.targetId) : null;
+      if (!target || target.dead || target.fadeStartedAt || Math.hypot(target.x - turret.x, target.y - turret.y) > GAME_CONFIG.turret.range
+        || now >= turret.targetReevalAt) {
+        target = null;
+        let nearestSquared = GAME_CONFIG.turret.range ** 2;
+        for (const monster of monsters.values()) {
+          if (monster.dead || monster.fadeStartedAt) continue;
+          const dx = monster.x - turret.x, dy = monster.y - turret.y, d2 = dx * dx + dy * dy;
+          if (d2 <= nearestSquared) { target = monster; nearestSquared = d2; }
+        }
+        turret.targetReevalAt = now + GAME_CONFIG.turret.fireTargetReevalMs;
+      }
+      if (!target) { turret.targetId = null; continue; }
+      turret.targetId = target.id;
+      const wanted = Math.atan2(target.y - turret.y, target.x - turret.x);
+      let delta = ((wanted - turret.barrelAngle + Math.PI * 3) % (Math.PI * 2)) - Math.PI;
+      const maxStep = GAME_CONFIG.turret.turnRateDegS * Math.PI / 180 * dt;
+      delta = clamp(delta, -maxStep, maxStep);
+      turret.barrelAngle += delta;
+      if (Math.abs(((wanted - turret.barrelAngle + Math.PI * 3) % (Math.PI * 2)) - Math.PI) > GAME_CONFIG.turret.fireConeDeg * Math.PI / 180 || now < turret.nextFireAt) continue;
+      turret.shotsFired += 1;
+      turret.nextFireAt = now + 1000 / GAME_CONFIG.turret.fireRate;
+      const angle = turret.barrelAngle;
+      const projectile = createTurretProjectile(turret, now, angle, target);
+      projectiles.set(projectile.id, projectile);
+    }
+  }
+
   function downPlayer(player, now) {
     if (player.downed || player.hero.hp > 0) return;
     if (hasRunEffect('volatile')) explode({ x: player.x, y: player.y, radius: GAME_CONFIG.arenaTuning.cards.effects.volatileRadius,
       damage: GAME_CONFIG.arenaTuning.cards.effects.volatileDamage, knockback: GAME_CONFIG.arenaTuning.cards.effects.secondWindKnockback,
       ownerId: player.id, sourceAbility: 'volatile' }, now);
     player.downed = true;
+    resetSamuraiState(player, now);
     player.keys = {};
     player.primaryHeld = false;
+    player.rangerChargeStartedAt = 0;
+    if (player.heroId === 'ranger') player.hero.deadAimArrows = 0;
     if (player.heroId === 'sheriff') {
       player.hero.barrageUntil = now;
       player.hero.ultimateFlashUntil = now;
@@ -1054,6 +1545,8 @@ function createRoom({ io, services = null, id, code = null, isDefault = false, m
       aim: { x: 1, y: 0 },
       keys: {},
       primaryHeld: false,
+      rangerChargeStartedAt: 0,
+      engineerLaserCharge: null,
       kills: 0,
       damageDealt: 0,
       bonusDamage: 0,
@@ -1071,7 +1564,156 @@ function createRoom({ io, services = null, id, code = null, isDefault = false, m
       wavesReached: waveNumber,
       momentumSamples: [],
       momentumReadySent: false,
+      samuraiStacks: 0,
+      samuraiLastKillAt: 0,
+      samuraiNextDecayAt: 0,
+      samuraiDecayPausedAt: 0,
+      samuraiAction: null,
     };
+  }
+
+  function resetSamuraiState(player, now = Date.now()) {
+    if (!player) return;
+    player.samuraiStacks = 0;
+    player.samuraiLastKillAt = now;
+    player.samuraiNextDecayAt = 0;
+    player.samuraiDecayPausedAt = 0;
+    player.samuraiAction = null;
+  }
+
+  function addSamuraiKillStack(player, now) {
+    if (!player || player.heroId !== 'samurai') return;
+    const spec = GAME_CONFIG.heroes.samurai.killCount;
+    player.samuraiStacks = Math.min(spec.cap, (player.samuraiStacks || 0) + 1);
+    player.samuraiLastKillAt = now;
+    player.samuraiNextDecayAt = now + spec.decayDelayMs + spec.decayIntervalMs;
+  }
+
+  function updateSamuraiKillCount(player, now) {
+    if (player.heroId !== 'samurai' || player.samuraiStacks <= 0) return;
+    const paused = phase === 'running' && breakPhase !== null;
+    if (paused) {
+      if (!player.samuraiDecayPausedAt) player.samuraiDecayPausedAt = now;
+      return;
+    }
+    if (player.samuraiDecayPausedAt) {
+      const pausedMs = Math.max(0, now - Math.max(player.samuraiDecayPausedAt, player.samuraiLastKillAt));
+      player.samuraiLastKillAt += pausedMs;
+      player.samuraiNextDecayAt += pausedMs;
+      player.samuraiDecayPausedAt = 0;
+    }
+    if (now < player.samuraiNextDecayAt) return;
+    player.samuraiStacks = Math.max(0, player.samuraiStacks - 1);
+    if (player.samuraiStacks > 0) player.samuraiNextDecayAt = now + GAME_CONFIG.heroes.samurai.killCount.decayIntervalMs;
+    else player.samuraiNextDecayAt = 0;
+  }
+
+  function samuraiDashEnd(player, direction, distance) {
+    let allowed = distance;
+    const margin = ARENA_CONFIG.radius;
+    if (direction.x > 0) allowed = Math.min(allowed, (ARENA_CONFIG.width - margin - player.x) / direction.x);
+    else if (direction.x < 0) allowed = Math.min(allowed, (margin - player.x) / direction.x);
+    if (direction.y > 0) allowed = Math.min(allowed, (ARENA_CONFIG.height - margin - player.y) / direction.y);
+    else if (direction.y < 0) allowed = Math.min(allowed, (margin - player.y) / direction.y);
+
+    // The campfire is the arena's existing solid obstacle. Stop before its
+    // collision radius, matching the push helper's obstruction rule.
+    const obstacleRadius = campfire.radius + margin;
+    const ox = player.x - campfire.x, oy = player.y - campfire.y;
+    const c = ox * ox + oy * oy - obstacleRadius * obstacleRadius;
+    const b = 2 * (ox * direction.x + oy * direction.y);
+    const discriminant = b * b - 4 * c;
+    if (c > 0 && discriminant >= 0) {
+      const entry = (-b - Math.sqrt(discriminant)) / 2;
+      if (entry >= 0) allowed = Math.min(allowed, Math.max(0, entry - 0.5));
+    }
+    return Math.max(0, allowed);
+  }
+
+  function startSamuraiDash(player, spec, now, ultimate = false) {
+    const length = Math.hypot(spec.direction?.x || 0, spec.direction?.y || 0);
+    const direction = length > 1e-4
+      ? { x: spec.direction.x / length, y: spec.direction.y / length }
+      : { x: 1, y: 0 };
+    const distance = samuraiDashEnd(player, direction, spec.distance);
+    const endX = player.x + direction.x * distance;
+    const endY = player.y + direction.y * distance;
+    const cutAt = ultimate ? now + spec.durationMs + spec.cutDelayMs : now + spec.durationMs;
+    player.samuraiAction = {
+      kind: ultimate ? 'afterimage-cut' : 'cutting-dash',
+      phase: 'dash', direction, distance, durationMs: spec.durationMs,
+      startedAt: now, startX: player.x, startY: player.y, endX, endY,
+      width: spec.width || GAME_CONFIG.heroes.samurai.cuttingDash.width,
+      cutAt, cutPad: spec.pad || 0, stackMultiplier: spec.stackMultiplier || 0,
+      baseDamageMultiplier: spec.baseDamageMultiplier || 0,
+      hit: new Set(),
+    };
+    player.hero.makeInvulnerable(cutAt - now, now);
+    nsp.emit('samurai_dash_started', {
+      playerId: player.id, heroId: player.heroId, kind: player.samuraiAction.kind,
+      startX: player.x, startY: player.y, endX, endY, direction,
+      durationMs: spec.durationMs, cutAt, width: player.samuraiAction.width,
+    });
+  }
+
+  function tickSamuraiAction(player, now) {
+    const action = player.samuraiAction;
+    if (!action) return;
+    if (action.phase === 'dash') {
+      const progress = clamp((now - action.startedAt) / Math.max(1, action.durationMs), 0, 1);
+      player.x = action.startX + (action.endX - action.startX) * progress;
+      player.y = action.startY + (action.endY - action.startY) * progress;
+      for (const monster of monsters.values()) {
+        if (action.hit.has(monster.id)) continue;
+        const hitRadius = action.width / 2 + monster.radius;
+        if (pointSegmentDistanceSquared(monster.x, monster.y, action.startX, action.startY, player.x, player.y) > hitRadius * hitRadius) continue;
+        action.hit.add(monster.id);
+        if (action.kind === 'cutting-dash') {
+          const execute = monster.hp < monster.maxHp * GAME_CONFIG.heroes.samurai.cuttingDash.executeHpPct;
+          const mult = execute ? GAME_CONFIG.heroes.samurai.cuttingDash.executeMultiplier
+            : GAME_CONFIG.heroes.samurai.cuttingDash.damageMultiplier;
+          damageMonster(monster, player.hero.attack * mult, { ownerId: player.id, sourceAbility: 'skill' });
+          nsp.emit('samurai_dash_hit', { playerId: player.id, monsterId: monster.id, x: monster.x, y: monster.y, execute });
+        }
+      }
+      if (progress < 1) return;
+      player.x = action.endX;
+      player.y = action.endY;
+      if (action.kind === 'cutting-dash') {
+        player.samuraiAction = null;
+        return;
+      }
+      action.phase = 'sheathe';
+    }
+    if (action.phase === 'sheathe' && now >= action.cutAt) {
+      const startAlong = -action.cutPad;
+      const endAlong = action.distance + action.cutPad;
+      const length = endAlong - startAlong;
+      const centerX = action.startX + action.direction.x * (startAlong + length / 2);
+      const centerY = action.startY + action.direction.y * (startAlong + length / 2);
+      const hits = [];
+      for (const monster of monsters.values()) {
+        const dx = monster.x - action.startX, dy = monster.y - action.startY;
+        const along = dx * action.direction.x + dy * action.direction.y;
+        const across = Math.abs(dx * action.direction.y - dy * action.direction.x);
+        if (along < startAlong || along > endAlong || across > action.width / 2) continue;
+        const damage = player.hero.attack * action.baseDamageMultiplier * action.stackMultiplier;
+        hits.push({ id: monster.id, x: monster.x, y: monster.y, damage });
+        damageMonster(monster, damage,
+          { ownerId: player.id, sourceAbility: 'ultimate' });
+      }
+      nsp.emit('samurai_cut_resolved', {
+        playerId: player.id, heroId: player.heroId,
+        startX: centerX - action.direction.x * length / 2,
+        startY: centerY - action.direction.y * length / 2,
+        endX: centerX + action.direction.x * length / 2,
+        endY: centerY + action.direction.y * length / 2,
+        centerX, centerY, direction: action.direction, width: action.width,
+        stackMultiplier: action.stackMultiplier, damageMultiplier: action.baseDamageMultiplier * action.stackMultiplier,
+        hits,
+      });
+      player.samuraiAction = null;
+    }
   }
 
   function spawnPlayer(socketId, heroId, user, now, { lateJoin = false } = {}) {
@@ -1144,6 +1786,11 @@ function createRoom({ io, services = null, id, code = null, isDefault = false, m
   function removePlayer(player, now) {
     const wasHost = hostId === player.id;
     players.delete(player.id);
+    removeOwnerTurrets(player.id);
+    removeOwnerWolf(player.id);
+    for (const [projectileId, projectile] of projectiles) if (projectile.ownerId === player.id && projectile.engineerWrench) projectiles.delete(projectileId);
+    player.engineerLaserCharge = null;
+    player.hero.wrenchInFlight = false;
     dawnPending.delete(player.id);
     buffVotes.delete(player.id);
     traps.delete(player.id);
@@ -1291,6 +1938,11 @@ function createRoom({ io, services = null, id, code = null, isDefault = false, m
     const player = players.get(socket.id);
     if (!player) return { ok: false, code: 'not_in_room' };
     if (player.heroId === heroId) return { ok: true };
+    resetSamuraiState(player, now);
+    removeOwnerWolf(player.id);
+    removeOwnerTurrets(player.id);
+    for (const [projectileId, projectile] of projectiles) if (projectile.ownerId === player.id && projectile.engineerWrench) projectiles.delete(projectileId);
+    player.engineerLaserCharge = null;
     const hero = buildHero(heroId, player.user);
     hero.position = { x: player.x, y: player.y };
     player.hero = hero;
@@ -1328,7 +1980,24 @@ function createRoom({ io, services = null, id, code = null, isDefault = false, m
 
   function primaryHold(socket, held) {
     const player = players.get(socket.id);
-    if (player) player.primaryHeld = held === true;
+    if (!player) return;
+    const isHeld = held === true;
+    player.primaryHeld = isHeld;
+    if (player.heroId !== 'ranger') return;
+    if (isHeld) {
+      if (!player.hero.deadAimArrows && !player.rangerChargeStartedAt && !player.downed) player.rangerChargeStartedAt = Date.now();
+      return;
+    }
+    const startedAt = player.rangerChargeStartedAt;
+    player.rangerChargeStartedAt = 0;
+    if (player.downed || player.dawnWaiting || gameEnded) return;
+    // The release event is the only moment that turns a charged hold into an
+    // arrow. Dead Aim has priority and consumes exactly one arrow per release.
+    if (player.hero.deadAimArrows > 0) {
+      firePlayer(player, 'primary', null, 'release');
+    } else if (startedAt) {
+      firePlayer(player, 'primary', null, 'release', Math.max(0, Date.now() - startedAt) / 1000);
+    }
   }
 
   function milestoneChoice(socket, choice) {
@@ -1339,6 +2008,7 @@ function createRoom({ io, services = null, id, code = null, isDefault = false, m
     if (choice === 'leave') {
       nsp.emit('player_leave', { playerId: player.id, x: player.x, y: player.y, emoji: player.emoji });
       socket.emit('run_result', makeRunResult(player, true, 'milestone'));
+      removeOwnerTurrets(player.id);
       players.delete(socket.id);
       buffVotes.delete(socket.id);
       if (hostId === player.id) migrateHost();
@@ -1373,8 +2043,8 @@ function createRoom({ io, services = null, id, code = null, isDefault = false, m
   // The one shot path, shared by an explicit fire event ('click') and the
   // held-primary repeat the tick drives ('hold'). The weapon cooldown check
   // below is what paces the hold, so no extra timer is needed anywhere.
-  function firePlayer(player, mode, target, source) {
-    if (!player || player.downed || player.dawnWaiting || gameEnded) return;
+  function firePlayer(player, mode, target, source, chargeSeconds = 0) {
+    if (!player || player.downed || player.dawnWaiting || gameEnded || player.samuraiAction) return;
 
     syncHeroAimAndPosition(player);
     const now = Date.now();
@@ -1395,6 +2065,13 @@ function createRoom({ io, services = null, id, code = null, isDefault = false, m
       return;
     }
     if (mode !== 'primary') return;
+    // Ranger's click event is only the input edge. Charge duration is measured
+    // by primaryHold on the server and the release creates the projectile.
+    if (player.heroId === 'ranger') {
+      if (source !== 'release') return;
+      fireRangerArrow(player, now, chargeSeconds);
+      return;
+    }
     // Holding the button is a repeat, not a decision: it must never end a
     // Shield Rush dash or pop a Bubble Rush, and it stays quiet during the
     // Bombardier's aim window. Otherwise a player who was already holding M1
@@ -1424,13 +2101,14 @@ function createRoom({ io, services = null, id, code = null, isDefault = false, m
         nsp.emit('overcharge', { playerId: player.id, count: player.overchargeShots });
       }
     }
-    player.hero.useAbility('weapon', now);
+    const engineerWrench = player.heroId === 'engineer' && Boolean(result.engineerWrench);
+    if (!engineerWrench) player.hero.useAbility('weapon', now);
     // A held shot lands on the first tick at or after readyAt, so the rate
     // would otherwise round up to a whole tick (Bubbles would fire every 133 ms
     // instead of 105 ms). Anchor the next shot to the moment the weapon was
     // actually ready. The overshoot is capped at one tick so a player who was
     // idle before pressing the button does not get a burst of catch-up shots.
-    if (source === 'hold') {
+    if (source === 'hold' && !engineerWrench) {
       const overshoot = Math.min(Math.max(0, now - weaponReadyAt), 1000 / ARENA_CONFIG.tickHz);
       player.hero.cooldowns.weapon.readyAt -= overshoot;
     }
@@ -1438,14 +2116,87 @@ function createRoom({ io, services = null, id, code = null, isDefault = false, m
     for (const projectile of Array.isArray(result) ? result : [result]) addProjectile(player, projectile);
   }
 
-  function skill(socket) {
+  function fireRangerArrow(player, now, chargeSeconds = 0) {
+    const hero = player.hero;
+    const spec = hero.spec.ranger;
+    if (!hero.canUseAbility('weapon', now)) return false;
+    let damageMultiplier, speed, range, knockback, radius, chargeT = 0, deadAim = false;
+    if (hero.deadAimArrows > 0) {
+      if (now >= hero.deadAimUntil) { hero.deadAimArrows = 0; return false; }
+      if (now < hero.deadAimNextAt) return false;
+      deadAim = true;
+      damageMultiplier = spec.ultMultiplier;
+      speed = spec.ultSpeed; range = spec.ultRange; knockback = spec.ultKnockback; radius = spec.ultArrowRadius;
+      hero.deadAimArrows -= 1;
+      hero.deadAimNextAt = now + spec.ultFireIntervalS * 1000;
+    } else {
+      chargeT = clamp((chargeSeconds - spec.chargeMinS) / (spec.chargeMaxS - spec.chargeMinS), 0, 1);
+      damageMultiplier = spec.damageMin + (spec.damageMax - spec.damageMin) * chargeT;
+      speed = spec.speedMin + (spec.speedMax - spec.speedMin) * chargeT;
+      range = spec.rangeMin + (spec.rangeMax - spec.rangeMin) * chargeT;
+      knockback = spec.knockbackMin + (spec.knockbackMax - spec.knockbackMin) * chargeT;
+      radius = spec.arrowRadius;
+    }
+    const projectile = new Projectile({
+      ownerId: player.id, heroId: 'ranger', x: player.x + player.aim.x * GAME_CONFIG.weaponMuzzleOffset,
+      y: player.y + player.aim.y * GAME_CONFIG.weaponMuzzleOffset,
+      vx: player.aim.x * speed, vy: player.aim.y * speed, speed, radius,
+      explosionRadius: deadAim ? spec.ultExplosionRadius : 0,
+      explosionDamage: deadAim ? hero.attack * spec.ultExplosionMultiplier : undefined,
+      damage: hero.attack * damageMultiplier, lifetimeMs: range / speed * 1000,
+      // The displayed range is measured from the hero's centre, while the
+      // projectile begins at the muzzle. Track its remaining world distance so
+      // slow room ticks cannot time-expire the arrow short of the aim marker.
+      maxDistance: Math.max(1, range - GAME_CONFIG.weaponMuzzleOffset),
+      piercing: false, pierces: deadAim ? 0 : (clamp((chargeSeconds - spec.chargeMinS) / (spec.chargeMaxS - spec.chargeMinS), 0, 1) >= spec.pierceT ? 1 : 0),
+      knockback, color: GAME_CONFIG.heroFxColors.ranger.primary, shape: 'arrow', rotateToAim: true,
+      sourceAbility: 'weapon',
+    });
+    projectile.rangerArrow = true;
+    projectile.rangerDeadAim = deadAim;
+    projectile.rangerChargeT = chargeT;
+    hero.useAbility('weapon', now);
+    if (hasRunEffect('overcharge')) {
+      player.overchargeShots = (player.overchargeShots || 0) + 1;
+      if (player.overchargeShots % GAME_CONFIG.arenaTuning.cards.effects.overchargeEveryShots === 0) {
+        projectile.damage *= GAME_CONFIG.arenaTuning.cards.effects.overchargeMultiplier;
+        nsp.emit('overcharge', { playerId: player.id, count: player.overchargeShots });
+      }
+    }
+    nsp.emit('weapon_fired', { playerId: player.id, heroId: 'ranger', source: deadAim ? 'dead-aim' : 'release', charge: deadAim ? 1 : clamp(chargeSeconds / spec.chargeMaxS, 0, 1) });
+    addProjectile(player, projectile);
+    broadcastState(now);
+    return true;
+  }
+
+  function skill(socket, target = null) {
     const player = players.get(socket.id);
-    if (!player || player.downed || player.dawnWaiting || gameEnded) return;
+    if (!player || player.downed || player.dawnWaiting || gameEnded || player.samuraiAction) return;
 
     syncHeroAimAndPosition(player);
     const now = Date.now();
     if (player.bubbleRush) endBubbleRush(player, now);
     if (!player.hero.canUseAbility('skill', now)) return;
+    if (player.heroId === 'engineer') {
+      const placed = placeEngineerTurret(player, target, now);
+      if (!placed) { direct.to(player.id).emit('engineer_place_failed'); return; }
+      player.hero.useAbility('skill', now);
+      nsp.emit('ability_used', { playerId: player.id, heroId: player.heroId, ability: 'skill' });
+      broadcastState(now);
+      return;
+    }
+    if (player.heroId === 'ranger') {
+      const placed = rangerMeatPoint(player, target);
+      if (!placed) { direct.to(player.id).emit('ranger_skill_failed'); return; }
+      player.hero.useAbility('skill', now);
+      makeWolf(player, placed, now);
+      nsp.emit('ranger_meat_thrown', { ownerId: player.id,
+        fromX: player.x, fromY: player.y - 8, x: placed.x, y: placed.y,
+        durationMs: player.hero.spec.ranger.meatThrowS * 1000 });
+      nsp.emit('ability_used', { playerId: player.id, heroId: player.heroId, ability: 'skill' });
+      broadcastState(now);
+      return;
+    }
     const skill = player.hero.skill(now);
     if (!skill) return;
 
@@ -1466,6 +2217,8 @@ function createRoom({ io, services = null, id, code = null, isDefault = false, m
         player.y = clamp(player.y + skill.direction.y * skill.distance, ARENA_CONFIG.radius, ARENA_CONFIG.height - ARENA_CONFIG.radius);
         if (skill.damageMultiplier) damageNearby(player, skill, now);
       }
+    } else if (skill.type === 'samurai-dash') {
+      startSamuraiDash(player, skill, now, false);
     } else if (skill.type === 'projectile' && skill.projectile) addProjectile(player, skill.projectile);
     else if (skill instanceof Projectile) addProjectile(player, skill);
     else if (skill.type === 'trap') {
@@ -1475,9 +2228,114 @@ function createRoom({ io, services = null, id, code = null, isDefault = false, m
     syncHeroAimAndPosition(player);
   }
 
+  function rangerMeatPoint(player, target) {
+    const spec = player.hero.spec.ranger;
+    const tx = Number.isFinite(target?.x) ? target.x : player.x + player.aim.x * spec.meatRange;
+    const ty = Number.isFinite(target?.y) ? target.y : player.y + player.aim.y * spec.meatRange;
+    const dx = tx - player.x, dy = ty - player.y;
+    const distance = Math.hypot(dx, dy);
+    const scale = distance > spec.meatRange ? spec.meatRange / distance : 1;
+    const x = clamp(player.x + dx * scale, 0, ARENA_CONFIG.width);
+    const y = clamp(player.y + dy * scale, 0, ARENA_CONFIG.height);
+    const valid = (px, py) => px >= 0 && py >= 0 && px <= ARENA_CONFIG.width && py <= ARENA_CONFIG.height
+      && Math.hypot(px - campfire.x, py - campfire.y) >= campfire.radius;
+    if (valid(x, y)) return { x, y };
+    let best = null, bestDistance = spec.meatSnapRadius + 1;
+    for (let radius = spec.meatSnapStep; radius <= spec.meatSnapRadius; radius += spec.meatSnapStep) {
+      for (let step = 0; step < spec.meatSnapSlices; step += 1) {
+        const angle = step * Math.PI * 2 / spec.meatSnapSlices;
+        const px = clamp(x + Math.cos(angle) * radius, 0, ARENA_CONFIG.width);
+        const py = clamp(y + Math.sin(angle) * radius, 0, ARENA_CONFIG.height);
+        const actual = Math.hypot(px - x, py - y);
+        if (actual < bestDistance && valid(px, py)) { best = { x: px, y: py }; bestDistance = actual; }
+      }
+      if (best) break;
+    }
+    return best;
+  }
+
+  function placeEngineerTurret(player, target, now) {
+    const spec = player.hero.spec.turretSkill;
+    const wantedX = Number.isFinite(target?.x) ? target.x : player.x + player.aim.x * spec.placeRange;
+    const wantedY = Number.isFinite(target?.y) ? target.y : player.y + player.aim.y * spec.placeRange;
+    const dx = wantedX - player.x, dy = wantedY - player.y;
+    const distance = Math.hypot(dx, dy);
+    const scale = distance > spec.placeRange ? spec.placeRange / distance : 1;
+    const x = clamp(player.x + dx * scale, GAME_CONFIG.turret.radius, ARENA_CONFIG.width - GAME_CONFIG.turret.radius);
+    const y = clamp(player.y + dy * scale, GAME_CONFIG.turret.radius, ARENA_CONFIG.height - GAME_CONFIG.turret.radius);
+    const valid = (px, py) => {
+      if (px < GAME_CONFIG.turret.radius || py < GAME_CONFIG.turret.radius
+        || px > ARENA_CONFIG.width - GAME_CONFIG.turret.radius || py > ARENA_CONFIG.height - GAME_CONFIG.turret.radius) return false;
+      if (Math.hypot(px - campfire.x, py - campfire.y) < spec.minCampfireDist) return false;
+      for (const turret of turrets.values()) if (Math.hypot(px - turret.x, py - turret.y) < spec.minSpacing) return false;
+      return true;
+    };
+    let spot = valid(x, y) ? { x, y } : null;
+    if (!spot) {
+      // Search outward from the clamped point in deterministic rings; choosing
+      // the closest valid candidate keeps the preview and server outcome stable.
+      let bestDistance = spec.snapRadius + 1;
+      for (let radius = spec.snapStep; radius <= spec.snapRadius; radius += spec.snapStep) {
+        for (let step = 0; step < spec.snapSlices; step += 1) {
+          const angle = step * Math.PI * 2 / spec.snapSlices;
+          const px = clamp(x + Math.cos(angle) * radius, GAME_CONFIG.turret.radius, ARENA_CONFIG.width - GAME_CONFIG.turret.radius);
+          const py = clamp(y + Math.sin(angle) * radius, GAME_CONFIG.turret.radius, ARENA_CONFIG.height - GAME_CONFIG.turret.radius);
+          const actualDistance = Math.hypot(px - x, py - y);
+          if (actualDistance < bestDistance && valid(px, py)) { bestDistance = actualDistance; spot = { x: px, y: py }; }
+        }
+        if (spot) break;
+      }
+    }
+    if (!spot) return false;
+    const owned = [...turrets.values()].filter((turret) => turret.ownerId === player.id).sort((a, b) => a.createdAt - b.createdAt);
+    if (owned.length >= spec.maxTurrets) damageTurret(owned[0], owned[0].hp, 'owner-replaced');
+    makeTurret(player.id, spot.x, spot.y, now);
+    return true;
+  }
+
+  function startEngineerLaser(player, now) {
+    if (player.engineerLaserCharge) return false;
+    const spec = player.hero.spec.laser;
+    player.engineerLaserCharge = { startedAt: now, endsAt: now + spec.chargeMs,
+      lockAt: now + spec.chargeMs - spec.lockLastMs, aim: { ...player.aim } };
+    nsp.emit('engineer_laser_charge', { playerId: player.id, startedAt: now, chargeMs: spec.chargeMs });
+    broadcastState(now);
+    return true;
+  }
+
+  function fireEngineerLaser(player, now) {
+    const charge = player.engineerLaserCharge;
+    if (!charge || player.downed) return false;
+    player.engineerLaserCharge = null;
+    player.hero.useAbility('ultimate', now);
+    const spec = player.hero.spec.laser;
+    const direction = charge.aim;
+    const dx = direction.x, dy = direction.y;
+    let length = spec.length;
+    if (dx > 0) length = Math.min(length, (ARENA_CONFIG.width - player.x) / dx);
+    else if (dx < 0) length = Math.min(length, -player.x / dx);
+    if (dy > 0) length = Math.min(length, (ARENA_CONFIG.height - player.y) / dy);
+    else if (dy < 0) length = Math.min(length, -player.y / dy);
+    length = Math.max(0, length);
+    const hits = [];
+    for (const monster of monsters.values()) {
+      const mx = monster.x - player.x, my = monster.y - player.y;
+      const along = mx * dx + my * dy;
+      const across = Math.abs(mx * dy - my * dx);
+      if (along < 0 || along > length || across > spec.width / 2 + monster.radius) continue;
+      damageMonster(monster, player.hero.attack * spec.damageMultiplier,
+        { ownerId: player.id, sourceAbility: 'ultimate' });
+      hits.push({ id: monster.id, x: monster.x, y: monster.y });
+    }
+    nsp.emit('ability_used', { playerId: player.id, heroId: player.heroId, ability: 'ultimate' });
+    nsp.emit('engineer_laser_fired', { playerId: player.id, x: player.x, y: player.y,
+      dx, dy, length, width: spec.width, durationMs: spec.durationMs, hits });
+    return true;
+  }
+
   function ultimate(socket) {
     const player = players.get(socket.id);
-    if (!player || player.downed || player.dawnWaiting || gameEnded) return;
+    if (!player || player.downed || player.dawnWaiting || gameEnded || player.samuraiAction) return;
     syncHeroAimAndPosition(player);
     const now = Date.now();
     if (player.heroId === 'guardian' && GAME_CONFIG.arenaTuning.heroTweaks.guardianUltimateEarlyEnd
@@ -1487,10 +2345,22 @@ function createRoom({ io, services = null, id, code = null, isDefault = false, m
       return;
     }
     if (!player.hero.canUseAbility('ultimate', now)) return;
-    const result = player.hero.ultimate(now);
+    if (player.heroId === 'engineer') {
+      startEngineerLaser(player, now);
+      return;
+    }
+    const result = player.heroId === 'samurai'
+      ? player.hero.ultimate(now, player.samuraiStacks)
+      : player.hero.ultimate(now);
     if (!result || (typeof result !== 'object' && result !== true)) return;
     if (result.type === 'targeting') { broadcastState(now); return; }
     player.hero.useAbility('ultimate', now);
+    if (player.heroId === 'ranger' && result.type === 'ranger-dead-aim') {
+      player.rangerChargeStartedAt = 0;
+      player.hero.deadAimArrows = player.hero.spec.ranger.ultArrows;
+      player.hero.deadAimUntil = now + player.hero.spec.ranger.ultWindowS * 1000;
+      player.hero.deadAimNextAt = now;
+    }
     if (player.heroId === 'electromancer') player.hero.ultimateLockoutUntil = now + GAME_CONFIG.arenaTuning.heroTweaks.electroUltimateMinLockoutMs;
     if (player.heroId === 'guardian') player.hero.chargeDamageBonus = 0;
     if (player.heroId === 'pilot') player.pilotMechReady = false;
@@ -1499,6 +2369,12 @@ function createRoom({ io, services = null, id, code = null, isDefault = false, m
     else if (result.type === 'bubble_rush') {
       player.bubbleRush = { endsAt: now + result.durationMs, durationMs: result.durationMs,
         speedMultiplier: result.speedMultiplier, radius: result.popRadius, damage: result.damage };
+    }
+    else if (result.type === 'samurai-afterimage-cut') {
+      player.samuraiStacks = 0;
+      player.samuraiLastKillAt = 0;
+      player.samuraiNextDecayAt = 0;
+      startSamuraiDash(player, result, now, true);
     }
     else if (result.type === 'chain') chainAttack(player, result, now);
   }
@@ -1525,6 +2401,7 @@ function createRoom({ io, services = null, id, code = null, isDefault = false, m
       // In a running room the hero stays behind, idle and invulnerable, so the
       // same account can resume it. In the lobby the hero leaves at once.
       if (player.accountId && phase === 'running') {
+        removeOwnerWolf(player.id);
         player.disconnected = true;
         player.disconnectAt = now;
         player.keys = {};
@@ -1556,6 +2433,23 @@ function createRoom({ io, services = null, id, code = null, isDefault = false, m
   // wave counter - only the talent fires.
   function applyKillTalents(killer, source) {
     if (!killer) return;
+    if (killer.heroId === 'samurai' && !source.turretKill) addSamuraiKillStack(killer, Date.now());
+    if (killer.heroId === 'engineer' && (!source.turretKill || source.refueledByWrench)) {
+      const spec = killer.hero.spec.salvage;
+      const restored = [];
+      for (const turret of turrets.values()) {
+        if (turret.ownerId !== killer.id || turret.hp <= 0) continue;
+        const previousHp = turret.hp;
+        turret.hp = Math.min(GAME_CONFIG.turret.hp, turret.hp + GAME_CONFIG.turret.hp * spec.healPct);
+        if (turret.expiryWarned) nsp.emit('area_telegraph_cancel', { sourceAbility: `engineer-turret-expiry:${turret.id}` });
+        turret.expiryWarned = false;
+        turret.expiresAt += spec.lifetimeBonusMs;
+        restored.push({ id: turret.id, x: turret.x, y: turret.y,
+          healed: Math.round(turret.hp - previousHp), extendedMs: spec.lifetimeBonusMs, hp: Math.round(turret.hp) });
+      }
+      if (restored.length) nsp.emit('engineer_salvage', { playerId: killer.id, x: killer.x, y: killer.y,
+        turrets: restored });
+    }
     if (killer.heroId === 'sheriff' && (source.sourceAbility !== 'skill' || killer.hero.spec.kills.countDynamiteKills)) {
       const cd = killer.hero.cooldowns.skill;
       const now = Date.now();
@@ -1612,14 +2506,17 @@ function createRoom({ io, services = null, id, code = null, isDefault = false, m
     const source = typeof sourceId === 'object' ? sourceId : { ownerId: sourceId, sourceAbility: 'weapon' };
     if (monster.isDummy) {
       const dummyOwner = players.get(source.ownerId);
-      const dummyMomentum = dummyOwner?.momentumActive ? 1 + GAME_CONFIG.arenaTuning.momentum.bonus : 1;
+      const dummyMomentum = !source.turretKill && !source.wolfAttack && dummyOwner?.momentumActive ? 1 + GAME_CONFIG.arenaTuning.momentum.bonus : 1;
       return damageDummy(monster, amount * dummyMomentum, source);
     }
     const killer = players.get(source.ownerId);
-    const momentumMultiplier = killer?.momentumActive ? 1 + GAME_CONFIG.arenaTuning.momentum.bonus : 1;
-    const appliedAmount = amount * momentumMultiplier;
+    const momentumMultiplier = !source.turretKill && !source.wolfAttack && killer?.momentumActive ? 1 + GAME_CONFIG.arenaTuning.momentum.bonus : 1;
+    const now = Date.now();
+    const markMultiplier = source.turretKill && source.sourceAbility === 'turret' && activeEngineerWrenchMarks(monster, now) ? 2 : 1;
+    const appliedAmount = amount * momentumMultiplier * markMultiplier;
     const hpBefore = monster.hp;
     const damage = monster.takeDamage(appliedAmount);
+    recordEngineerWrenchMark(monster, source, killer, damage, now);
     if (killer && damage > 0) {
       killer.damageDealt = (killer.damageDealt || 0) + damage;
       const buildingMultiplier = killer.hero.buildingBonuses?.attackMultiplier || 1;
@@ -1635,22 +2532,27 @@ function createRoom({ io, services = null, id, code = null, isDefault = false, m
     }
     if (damage > 0) queueHit({ type: 'monster', id: monster.id, x: monster.x, y: monster.y, damage,
       sourceId: source.ownerId, heroId: killer?.heroId || null, sourceAbility: source.sourceAbility || 'weapon', bonus: false,
+      rangerDeadAim: Boolean(source.rangerDeadAim), rangerChargeT: source.rangerChargeT || 0,
       sourceX: killer?.x, sourceY: killer?.y,
       enemyType: monster.type, boss: Boolean(monster.isBoss), elite: Boolean(monster.isElite) });
     if (monster.dead) {
+      refundMarkedRangerSkills(monster, now, source);
       monsters.delete(monster.id);
-      partyKillCount += 1;
+      if (!source.turretKill && !source.wolfAttack) partyKillCount += 1;
       if (killer) killer.kills = (killer.kills || 0) + 1;
       queueKill({ id: monster.id, x: monster.x, y: monster.y, sourceId: source.ownerId,
         heroId: killer?.heroId || null, sourceX: killer?.x, sourceY: killer?.y, emoji: monster.emoji, sourceAbility: source.sourceAbility || 'weapon',
         enemyType: monster.type, boss: Boolean(monster.isBoss), elite: Boolean(monster.isElite), finisher: Boolean(source.finisher) });
-      if (hasRunEffect('scavenger') && Math.random() < GAME_CONFIG.arenaTuning.cards.effects.scavengerDropChance)
+      if (!source.turretKill && !source.wolfAttack && hasRunEffect('scavenger') && Math.random() < GAME_CONFIG.arenaTuning.cards.effects.scavengerDropChance)
         dropPickup(monster.x, monster.y, GAME_CONFIG.arenaTuning.cards.effects.scavengerHeal, GAME_CONFIG.arenaTuning.cards.effects.scavengerLifetimeMs);
-      if (activeTwist?.id === 'supply-drop' && partyKillCount % GAME_CONFIG.arenaTuning.waveTwists.supplyDropEveryKills === 0) {
+      if (!source.turretKill && !source.wolfAttack && activeTwist?.id === 'supply-drop' && partyKillCount % GAME_CONFIG.arenaTuning.waveTwists.supplyDropEveryKills === 0) {
         dropPickup(monster.x, monster.y, 0, GAME_CONFIG.arenaTuning.cards.effects.scavengerLifetimeMs, 'supply',
           GAME_CONFIG.arenaTuning.waveTwists.supplyDropHealFraction);
       }
-      applyKillTalents(killer, source);
+      const refueledByWrench = source.turretKill && source.sourceAbility === 'turret' && killer?.heroId === 'engineer'
+        && hasActiveEngineerWrenchMark(monster, killer.id, now);
+      if ((!source.turretKill && !source.wolfAttack) || refueledByWrench)
+        applyKillTalents(killer, refueledByWrench ? { ...source, refueledByWrench: true } : source);
       if (monster.type === 'exploder') {
         const spec = GAME_CONFIG.arenaTuning.enemies.exploder;
         resolveEnemyBlast({ x: monster.x, y: monster.y, radius: spec.deathRadius,
@@ -1772,7 +2674,7 @@ function createRoom({ io, services = null, id, code = null, isDefault = false, m
       if (effect.excludeId === monster.id) continue;
       if (Math.hypot(monster.x-effect.x, monster.y-effect.y) <= effect.radius + monster.radius) {
         damageMonster(monster, effect.damage, { ownerId: effect.ownerId, sourceAbility: effect.sourceAbility || 'ultimate',
-          finisher: effect.finisher, refundGroupId: effect.refundGroupId });
+          finisher: effect.finisher, refundGroupId: effect.refundGroupId, rangerDeadAim: Boolean(effect.rangerDeadAim) });
         if (effect.stunMs && !monster.isBoss) monster.stunnedUntil = now + effect.stunMs;
         const dx=monster.x-effect.x, dy=monster.y-effect.y, length=Math.hypot(dx,dy)||1;
         if (!monster.isBoss) {
@@ -1792,10 +2694,16 @@ function createRoom({ io, services = null, id, code = null, isDefault = false, m
   }
 
   function resolveEnemyBlast(effect, now) {
+    for (const turret of [...turrets.values()]) {
+      if (Math.hypot(turret.x - effect.x, turret.y - effect.y) <= effect.radius + GAME_CONFIG.turret.radius)
+        damageTurret(turret, effect.damage, 'enemy-explosion');
+    }
     for (const monster of monsters.values()) {
       if (monster.id === effect.sourceId || Math.hypot(monster.x - effect.x, monster.y - effect.y) > effect.radius + monster.radius) continue;
       damageMonster(monster, effect.damage, { ownerId: null, sourceAbility: 'enemy-explosion' });
     }
+    for (const wolf of wolves.values()) if (!wolf.arriving
+      && Math.hypot(wolf.x - effect.x, wolf.y - effect.y) <= effect.radius) damageWolf(wolf, effect.damage, 'enemy-explosion');
     for (const player of players.values()) {
       if (Math.hypot(player.x - effect.x, player.y - effect.y) > effect.radius + ARENA_CONFIG.radius) continue;
       const incoming = effect.heroDamageFraction ? player.hero.maxHp * effect.heroDamageFraction : effect.damage;
@@ -1812,6 +2720,12 @@ function createRoom({ io, services = null, id, code = null, isDefault = false, m
   }
 
   function resolveEnemySlam(effect, now) {
+    for (const turret of [...turrets.values()]) {
+      if (Math.hypot(turret.x - effect.x, turret.y - effect.y) <= effect.radius + GAME_CONFIG.turret.radius)
+        damageTurret(turret, effect.damage, 'boss-slam');
+    }
+    for (const wolf of wolves.values()) if (!wolf.arriving
+      && Math.hypot(wolf.x - effect.x, wolf.y - effect.y) <= effect.radius) damageWolf(wolf, effect.damage, 'boss-slam');
     for (const player of players.values()) {
       if (Math.hypot(player.x - effect.x, player.y - effect.y) > effect.radius + ARENA_CONFIG.radius) continue;
       const damage = player.hero.damage(effect.damage, now);
@@ -1913,6 +2827,18 @@ function createRoom({ io, services = null, id, code = null, isDefault = false, m
       },
       spawnTelegraphs: spawnTelegraphs.map(({ id, x, y, spawnAt }) => ({ id, x, y, remainingMs: Math.max(0, spawnAt - now) })),
       traps: [...traps.values()],
+      turrets: [...turrets.values()].map((turret) => ({
+        id: turret.id, ownerId: turret.ownerId, x: turret.x, y: turret.y, hp: Math.max(0, Math.round(turret.hp)),
+        shotsFired: turret.shotsFired, remainingMs: Math.max(0, turret.expiresAt - now),
+        angle: turret.barrelAngle, deploying: Boolean(turret.deployingUntil > now),
+      })),
+      wolves: [...wolves.values()].map((wolf) => ({ id: wolf.id, ownerId: wolf.ownerId,
+        x: Math.round(wolf.x * 10) / 10, y: Math.round(wolf.y * 10) / 10,
+        hp: Math.max(0, Math.round(wolf.hp)), anchorX: wolf.anchorX, anchorY: wolf.anchorY,
+        arriving: Boolean(wolf.arriving), waitingForMeat: Boolean(wolf.arriving && now < wolf.arriveStartAt),
+        arrivalProgress: wolf.arriving && now >= wolf.arriveStartAt
+          ? clamp((now - wolf.arriveStartAt) / Math.max(1, wolf.arriveAt - wolf.arriveStartAt), 0, 1) : 0,
+        expiresAt: wolf.expiresAt || 0 })),
       pickups: [...pickups.values()].map(({ id, x, y, type }) => ({ id, x, y, type })),
       effects: timedEffects.map(({ type, x, y, radius, at, startAt }) => ({ type, x, y, radius, at, startAt })),
       campfire: {
@@ -1937,16 +2863,37 @@ function createRoom({ io, services = null, id, code = null, isDefault = false, m
         scale: monster.scale || 1,
         fuseRemainingMs: Math.max(0, (monster.fuseUntil || 0) - now),
         stunned: monster.stunnedUntil > now,
+        held: monster.heldUntil > now,
+        vortexed: Boolean(monster.fairyVortexId),
+        slowed: monster.slowUntil > now,
+        engineerWrenchMarked: [...(monster.engineerWrenchMarks?.values() || [])].some((expiresAt) => expiresAt > now),
         trapped: Boolean(monster.trappedBy),
         skeletonWindupMs: Math.max(0, (monster.windupUntil || 0) - now),
+        rangerMarks: monster.rangerMarks ? [...monster.rangerMarks]
+          .filter(([, expiresAt]) => expiresAt > now)
+          .map(([ownerId, expiresAt]) => ({ ownerId, remainingMs: expiresAt - now })) : [],
       })),
-      players: [...players.values()].map(({ id, heroId, hero, name, emoji, x, y, aim, downed, disconnected, respawnRemainingMs, respawnDurationMs, respawnSpeedMultiplier, momentumActive, dawnWaiting, bubbleRush, dashState, wavesReached, wavesParticipated }) => ({
+      players: [...players.values()].map(({ id, heroId, hero, name, emoji, x, y, aim, downed, disconnected, respawnRemainingMs, respawnDurationMs, respawnSpeedMultiplier, momentumActive, dawnWaiting, bubbleRush, dashState, wavesReached, wavesParticipated, samuraiStacks, samuraiAction }) => ({
         id, heroId, name, emoji: hero.visual || emoji, type: hero.type, x: Math.round(x), y: Math.round(y), aim: { ...aim },
         disconnected: Boolean(disconnected),
         wavesReached: wavesReached || 0, wavesParticipated: wavesParticipated || 0,
+        samuraiStacks: heroId === 'samurai' ? samuraiStacks : 0,
+        samuraiAction: samuraiAction ? (({ hit, ...action }) => action)(samuraiAction) : null,
         ultimateFlash: hero.ultimateFlashUntil > now,
         talent: hero.talent, targeting: hero.targetingUntil > now,
+        engineerLaserCharge: players.get(id)?.engineerLaserCharge ? {
+          startedAt: players.get(id).engineerLaserCharge.startedAt,
+          endsAt: players.get(id).engineerLaserCharge.endsAt,
+          lockAt: players.get(id).engineerLaserCharge.lockAt,
+          aim: { ...players.get(id).engineerLaserCharge.aim },
+        } : null,
         guardianCharging: heroId === 'guardian' && hero.chargeUntil > now,
+        rangerCharging: heroId === 'ranger' && Boolean(players.get(id)?.rangerChargeStartedAt),
+        rangerChargeT: heroId === 'ranger' && players.get(id)?.rangerChargeStartedAt
+          ? clamp((now - players.get(id).rangerChargeStartedAt - hero.spec.ranger.chargeMinS * 1000)
+            / ((hero.spec.ranger.chargeMaxS - hero.spec.ranger.chargeMinS) * 1000), 0, 1) : 0,
+        deadAimArrows: heroId === 'ranger' ? hero.deadAimArrows || 0 : 0,
+        deadAimUntil: heroId === 'ranger' ? hero.deadAimUntil || 0 : 0,
         // Pilot Mech Suit state, so the client can swap the M1/E icons and
         // move the weapon slot onto the highlight colour family.
         mech: heroId === 'pilot' && hero.mechUntil > now,
@@ -1980,18 +2927,24 @@ function createRoom({ io, services = null, id, code = null, isDefault = false, m
         invulnerable: hero.invulnerableUntil > now,
         hitFlash: Boolean(hero.hitFlashUntil > now),
       })),
-      projectiles: [...projectiles.values()].map(({ id, ownerId, heroId, x, y, vx, vy, radius, color, kind, type, emoji, rotateToAim, flashColors, flashIntervalMs, shape, sourceAbility, createdAt, lifetimeMs, fadeLastFraction }) => ({
+      projectiles: [...projectiles.values()].map(({ id, ownerId, heroId, x, y, vx, vy, radius, color, kind, type, emoji, rotateToAim, flashColors, flashIntervalMs, shape, sourceAbility, createdAt, lifetimeMs, fadeLastFraction, rangerDeadAim, rangerChargeT, maxDistance, distanceTravelled }) => ({
         id,
         ownerId,
         heroId,
         kind,
-        type, emoji, rotateToAim, flashColors, flashIntervalMs, shape, sourceAbility, createdAt, lifetimeMs, fadeLastFraction,
+        type, emoji, rotateToAim, flashColors, flashIntervalMs, shape, sourceAbility, createdAt, lifetimeMs, fadeLastFraction, rangerDeadAim, rangerChargeT, maxDistance, distanceTravelled,
         x: Math.round(x * 10) / 10,
         y: Math.round(y * 10) / 10,
         vx,
         vy,
         radius,
         color,
+      })),
+      fairyVortices: [...fairyVortices.values()].map((vortex) => ({
+        id: vortex.id, x: vortex.x, y: vortex.y,
+        remainingMs: Math.max(0, vortex.endsAt - now),
+        pullRemainingMs: Math.max(0, vortex.pullEndsAt - now),
+        radius: GAME_CONFIG.heroes.fairy.vortex.radius,
       })),
     };
   }
@@ -2011,6 +2964,10 @@ function createRoom({ io, services = null, id, code = null, isDefault = false, m
         log(`[Hero Lab] ${player.name} did not return to ${id}`);
         removePlayer(player, now);
       }
+      if (player.heroId === 'ranger' && player.hero.deadAimArrows > 0 && now >= player.hero.deadAimUntil) {
+        player.hero.deadAimArrows = 0;
+        nsp.emit('ranger_dead_aim_expired', { playerId: player.id });
+      }
     }
     if (players.size === 0) return;
 
@@ -2019,18 +2976,23 @@ function createRoom({ io, services = null, id, code = null, isDefault = false, m
     if (phase === 'countdown' && now >= countdownEndsAt) startRun(now);
     if (phase === 'lobby' && nextDummySpawnAt && now >= nextDummySpawnAt) { nextDummySpawnAt = 0; spawnDummies(now); }
     updateDummies(dt, now);
+    processFairyVortices(now);
 
     // 1. Move players
     for (const player of players.values()) if (player.bubbleRush && now >= player.bubbleRush.endsAt) endBubbleRush(player, now);
     for (const player of players.values()) {
       if (player.downed || player.dawnWaiting || player.disconnected) continue;
+      updateSamuraiKillCount(player, now);
       const dx = Number(player.keys.right) - Number(player.keys.left);
       const dy = Number(player.keys.down) - Number(player.keys.up);
-      if (dx || dy) {
+      if (!player.samuraiAction && (dx || dy)) {
         const length = Math.hypot(dx, dy);
         const burst = Math.max(player.bubbleRush?.speedMultiplier || 1,
           activeTwist?.id === 'fast-night' ? 1 + GAME_CONFIG.arenaTuning.waveTwists.fastNightHeroSpeed : 1);
-        const step = player.hero.speed * burst / ARENA_CONFIG.tickHz;
+        const chargeSlow = player.heroId === 'engineer' && player.engineerLaserCharge
+          ? GAME_CONFIG.heroes.engineer.laser.moveFactor
+          : player.heroId === 'ranger' && player.rangerChargeStartedAt ? GAME_CONFIG.heroes.ranger.ranger.chargeMoveMult : 1;
+        const step = player.hero.speed * burst * chargeSlow / ARENA_CONFIG.tickHz;
         const oldX = player.x, oldY = player.y;
         const moveX = dx / length;
         const moveY = dy / length;
@@ -2060,10 +3022,26 @@ function createRoom({ io, services = null, id, code = null, isDefault = false, m
       if (spawnEnemy(spawnTelegraphs[i], now)) spawnTelegraphs.splice(i, 1);
     }
 
+    updateWolves(dt, now);
+    const wolvesActive = [...wolves.values()].some((wolf) => !wolf.arriving && wolf.hp > 0 && wolf.expiresAt > now);
+
     // 3. Zombies chase the campfire; devils chase the closest living player.
     for (const player of players.values()) {
+      if (player.engineerLaserCharge && player.downed) {
+        player.engineerLaserCharge = null;
+        direct.to(player.id).emit('engineer_laser_cancelled');
+      }
       if (player.downed || player.dawnWaiting) continue;
       syncHeroAimAndPosition(player);
+      if (player.samuraiAction) {
+        tickSamuraiAction(player, now);
+        continue;
+      }
+      if (player.engineerLaserCharge) {
+        const charge = player.engineerLaserCharge;
+        if (now < charge.lockAt) charge.aim = { ...player.aim };
+        if (now >= charge.endsAt) fireEngineerLaser(player, now);
+      }
       // Held primary fire: re-fire as soon as the weapon cooldown allows, so
       // every hero keeps shooting while the button stays down. firePlayer bails
       // out on the cooldown check, so this costs one comparison per tick.
@@ -2158,6 +3136,8 @@ function createRoom({ io, services = null, id, code = null, isDefault = false, m
     }
     for (const monster of monsters.values()) {
       if (monster.isDummy) continue;
+      stepMonsterEffects(monster, now);
+      if (monster.heldUntil > now || monster.pushMotion || monster.fairyVortexId) continue;
       if (monster.dashPush) {
         const progress = Math.min(1, (now - monster.dashPush.startedAt) / monster.dashPush.durationMs);
         const eased = 1 - (1 - progress) * (1 - progress);
@@ -2185,7 +3165,7 @@ function createRoom({ io, services = null, id, code = null, isDefault = false, m
         const result = monster.update(dt, campfire, now);
         if (result === 'telegraph') nsp.emit('area_telegraph', { x: campfire.x, y: campfire.y,
           radius: GAME_CONFIG.arenaTuning.enemies.exploder.campfireRadius, kind: 'enemy',
-          telegraphMs: GAME_CONFIG.arenaTuning.enemies.exploder.fuseMs, sourceAbility: 'exploder' });
+          telegraphMs: GAME_CONFIG.arenaTuning.enemies.exploder.fuseMs, sourceAbility: `exploder:${monster.id}` });
         if (result === 'explode') {
           monsters.delete(monster.id);
           resolveEnemyBlast({ x: campfire.x, y: campfire.y, radius: GAME_CONFIG.arenaTuning.enemies.exploder.campfireRadius,
@@ -2203,15 +3183,35 @@ function createRoom({ io, services = null, id, code = null, isDefault = false, m
           });
         }
       } else if (monster instanceof Skeleton) {
-        const target=closestPlayer(monster);
-        const projectile=monster.update(dt,campfire,target,now);
-        if(projectile) addProjectile({id:monster.id,heroId:'skeleton'},projectile);
+        const wolfTarget = wolvesActive ? activeWolfTarget(monster, now) : null;
+        const turretTarget = wolfTarget ? null : activeTurretTarget(monster, now);
+        const decoyTarget = wolfTarget || turretTarget;
+        const target = decoyTarget || closestPlayer(monster);
+        const projectile = monster.update(dt, campfire, target, now, decoyTarget);
+        if (projectile) {
+          if (projectile.targetTurretId) projectile.targetTurretOwnerId = turretTarget?.ownerId || null;
+          addProjectile({id:monster.id,heroId:'skeleton'},projectile);
+        }
       } else {
-        const hpBefore = campfire.hp;
-        monster.update(dt, campfire, now);
-        if (campfire.hp < hpBefore) pendingCampfireDamage += hpBefore - campfire.hp;
+        const wolfTarget = wolvesActive ? activeWolfTarget(monster, now) : null;
+        const turretTarget = wolfTarget ? null : activeTurretTarget(monster, now);
+        const decoyTarget = wolfTarget || turretTarget;
+        if (decoyTarget) {
+          const touching = monster.moveTowards(dt, decoyTarget, now);
+          if (touching && now >= (monster.nextTurretAttackAt || 0)) {
+            monster.nextTurretAttackAt = now + GAME_CONFIG.arenaTuning.campfire.contactDamageCooldownMs;
+            if (wolfTarget) damageWolf(wolfTarget, monster.damage, monster.type);
+            else damageTurret(turretTarget, monster.damage, monster.type);
+          }
+        } else {
+          const hpBefore = campfire.hp;
+          monster.update(dt, campfire, now);
+          if (campfire.hp < hpBefore) pendingCampfireDamage += hpBefore - campfire.hp;
+        }
       }
     }
+
+    updateTurrets(dt, now);
 
     if (pendingCampfireDamage > 0 && now - lastCampfireFeedbackAt >= GAME_CONFIG.arenaTuning.campfire.alertCooldownMs) {
       nsp.emit('campfire_hit', { x: campfire.x, y: campfire.y, damage: pendingCampfireDamage });
@@ -2232,7 +3232,73 @@ function createRoom({ io, services = null, id, code = null, isDefault = false, m
 
     // 4. Move projectiles
     for (const [id, proj] of projectiles.entries()) {
+      if (proj.engineerWrench) {
+        const owner = players.get(proj.ownerId);
+        const expired = Date.now() - proj.createdAt >= proj.lifetimeMs;
+        if (!owner || owner.downed || expired) {
+          if (owner) {
+            owner.hero.wrenchInFlight = false;
+            if (!owner.downed) owner.hero.useAbility('weapon', now);
+          }
+          projectiles.delete(id);
+          if (owner && expired && !owner.downed) nsp.emit('engineer_wrench_caught', { playerId: owner.id, x: proj.x, y: proj.y, expired: true });
+          continue;
+        }
+        const previousX = proj.x, previousY = proj.y;
+        if (proj.wrenchLeg === 'outbound') {
+          const stepX = proj.vx * dt, stepY = proj.vy * dt, step = Math.hypot(stepX, stepY);
+          const remaining = Math.max(0, owner.hero.spec.wrench.range - proj.wrenchDistance);
+          const fraction = step > remaining && step > 0 ? remaining / step : 1;
+          proj.x += stepX * fraction; proj.y += stepY * fraction;
+          proj.wrenchDistance += step * fraction;
+          if (proj.wrenchDistance >= owner.hero.spec.wrench.range) {
+            proj.wrenchLeg = 'returning'; proj.hitTargets.clear();
+          }
+        } else {
+          const toOwnerX = owner.x - proj.x, toOwnerY = owner.y - proj.y;
+          const distance = Math.hypot(toOwnerX, toOwnerY);
+          if (distance <= owner.hero.spec.wrench.catchRadius) {
+          owner.hero.wrenchInFlight = false; owner.hero.useAbility('weapon', now);
+            nsp.emit('engineer_wrench_caught', { playerId: owner.id, x: owner.x, y: owner.y });
+            projectiles.delete(id);
+            continue;
+          }
+          const step = Math.min(distance, owner.hero.spec.wrench.speed * dt);
+          proj.vx = toOwnerX / (distance || 1) * owner.hero.spec.wrench.speed;
+          proj.vy = toOwnerY / (distance || 1) * owner.hero.spec.wrench.speed;
+          proj.x += toOwnerX / (distance || 1) * step; proj.y += toOwnerY / (distance || 1) * step;
+        }
+        for (const monster of monsters.values()) {
+          if (proj.hitTargets.has(monster.id) || !proj.collidesWith(monster)) continue;
+          proj.hitTargets.add(monster.id);
+          damageMonster(monster, proj.damage, { ownerId: owner.id, sourceAbility: 'weapon' });
+          if (proj.wrenchLeg === 'returning') {
+            roomApplyPush(monster, { dirX: owner.x - monster.x, dirY: owner.y - monster.y }, owner.hero.spec.wrench.pull,
+              owner.hero.spec.wrench.pullMs, { now });
+          } else {
+            roomApplyPush(monster, { dirX: proj.vx, dirY: proj.vy }, owner.hero.spec.wrench.push,
+              GAME_CONFIG.effects.pushDefaultDurationMs, { now });
+          }
+        }
+        continue;
+      }
+      proj.previousX = proj.x; proj.previousY = proj.y;
       proj.update(dt, ARENA_CONFIG);
+      if (proj.heroId === 'fairy' && (proj.sourceAbility === 'skill' || proj.sourceAbility === 'ultimate')) {
+        const contact = [...monsters.values()].find((monster) => proj.collidesWith(monster));
+        if (proj.sourceAbility === 'skill' && (contact || proj.dead)) {
+          resolveFairyGale(proj.x, proj.y, proj.ownerId, now);
+          projectiles.delete(id);
+          continue;
+        }
+        if (proj.sourceAbility === 'ultimate' && (contact || proj.dead)) {
+          createFairyVortex(proj.x, proj.y, proj.ownerId, now);
+          nsp.emit('fairy_vortex_start', { id: `fairy-vortex:${vortexCounter}`, x: proj.x, y: proj.y,
+            radius: GAME_CONFIG.heroes.fairy.vortex.radius });
+          projectiles.delete(id);
+          continue;
+        }
+      }
       // Stun balls detonate on body contact only: the blast radius must not
       // set them off while the ball is still in flight. On contact the ball
       // applies its damage and stun to everything inside the radius, emits
@@ -2253,7 +3319,7 @@ function createRoom({ io, services = null, id, code = null, isDefault = false, m
       }
       if (proj.trapTargetId) {
         const target = monsters.get(proj.trapTargetId);
-        if (target) { target.x = proj.x; target.y = proj.y; }
+        if (target && (target.heldUntil || 0) <= now) { target.x = proj.x; target.y = proj.y; }
         const travel = Math.hypot(proj.x - proj.trapOrigin.x, proj.y - proj.trapOrigin.y);
         if (target && (travel >= proj.trap.travelDistance || proj.dead)) {
           const finisher = target.hp <= proj.trap.finisherDamage;
@@ -2264,15 +3330,16 @@ function createRoom({ io, services = null, id, code = null, isDefault = false, m
           projectiles.delete(id); continue;
         }
       }
-      if (proj.dead) {
+      if (proj.dead && !proj.rangerArrow) {
         if (proj.trap) {
           if (!proj.trapTargetId && proj.trap.missRefundFraction > 0) {
             const owner=players.get(proj.ownerId); if(owner) owner.hero.cooldowns.skill.readyAt -= owner.hero.cooldowns.skill.durationMs*proj.trap.missRefundFraction;
           }
           if (proj.trapTargetId) { const target=monsters.get(proj.trapTargetId); if(target) target.trappedBy=null; }
         }
-        if (proj.detonateOnExpire || (proj.explosionRadius > 0 && !proj.trap && !proj.stunMs)) explode({x:proj.x,y:proj.y,radius:proj.explosionRadius||proj.radius,damage:proj.damage,knockback:proj.knockback,stunMs:proj.stunMs,ownerId:proj.ownerId,sourceAbility:proj.sourceAbility,refundGroupId:proj.id,color:proj.color},now);
+        if (proj.detonateOnExpire || (proj.explosionRadius > 0 && !proj.trap && !proj.stunMs)) explode({x:proj.x,y:proj.y,radius:proj.explosionRadius||proj.radius,damage:proj.explosionDamage ?? proj.damage,knockback:proj.knockback,stunMs:proj.stunMs,ownerId:proj.ownerId,sourceAbility:proj.rangerDeadAim ? 'ultimate' : proj.sourceAbility,refundGroupId:proj.id,color:proj.color,rangerDeadAim: Boolean(proj.rangerDeadAim)},now);
         projectiles.delete(id);
+        recycleTurretProjectile(proj);
       }
     }
 
@@ -2280,6 +3347,20 @@ function createRoom({ io, services = null, id, code = null, isDefault = false, m
     // enemy shots hit heroes and still pass through the normal defense rules.
     for (const [pId, proj] of projectiles.entries()) {
       if (proj.kind === 'enemy') {
+        const targetTurret = proj.targetTurretId ? turrets.get(proj.targetTurretId) : null;
+        if (targetTurret && proj.collidesWith({ ...targetTurret, radius: GAME_CONFIG.turret.radius })) {
+          damageTurret(targetTurret, proj.damage, 'skeleton-shot');
+          projectiles.delete(pId);
+          continue;
+        }
+        for (const wolf of wolves.values()) {
+          if (wolf.arriving || proj.hitTargets.has(wolf.id) || !proj.collidesWith({ x: wolf.x, y: wolf.y, radius: GAME_CONFIG.heroes.ranger.ranger.wolfRadius })) continue;
+          proj.hitTargets.add(wolf.id);
+          damageWolf(wolf, proj.damage, 'skeleton-shot');
+          projectiles.delete(pId);
+          break;
+        }
+        if (!projectiles.has(pId)) continue;
         for (const player of players.values()) {
           if (!proj.collidesWith({ x: player.x, y: player.y, radius: ARENA_CONFIG.radius }) || proj.hitTargets.has(player.id)) continue;
           proj.hitTargets.add(player.id);
@@ -2288,6 +3369,18 @@ function createRoom({ io, services = null, id, code = null, isDefault = false, m
           if (damage > 0) nsp.emit('player_hit', { id: player.id, x: player.x, y: player.y, damage });
           break;
         }
+        continue;
+      }
+      if (proj.sourceAbility === 'turret') {
+        let hit = false;
+        for (const monster of monsters.values()) {
+          const hitRadius = proj.radius + monster.radius;
+          if (pointSegmentDistanceSquared(monster.x, monster.y, proj.previousX ?? proj.x, proj.previousY ?? proj.y, proj.x, proj.y) > hitRadius * hitRadius) continue;
+          damageMonster(monster, proj.damage, { ownerId: proj.ownerId, sourceAbility: 'turret', turretKill: true });
+          hit = true;
+          break;
+        }
+        if (hit || proj.dead) { projectiles.delete(pId); recycleTurretProjectile(proj); }
         continue;
       }
       if (proj.targetTeam === 'players') {
@@ -2306,7 +3399,26 @@ function createRoom({ io, services = null, id, code = null, isDefault = false, m
             proj.trapTargetId=mId; proj.trapOrigin={x:proj.x,y:proj.y}; monster.trappedBy=proj.id; monster.x=proj.x; monster.y=proj.y;
             break;
           }
-          const damage = damageMonster(monster,proj.damage,{ownerId:proj.ownerId,sourceAbility:proj.sourceAbility||'weapon',refundGroupId:proj.id});
+          let impactDamage = proj.damage;
+          if (proj.rangerArrow && proj.heroId === 'ranger') {
+            const markUntil = monster.rangerMarks?.get(proj.ownerId) || 0;
+            if (markUntil > now) impactDamage *= GAME_CONFIG.heroes.ranger.ranger.markBonus + 1;
+          }
+          const damage = damageMonster(monster, impactDamage, { ownerId: proj.ownerId,
+            sourceAbility: proj.sourceAbility || 'weapon', refundGroupId: proj.id,
+            rangerDeadAim: Boolean(proj.rangerDeadAim), rangerChargeT: proj.rangerChargeT || 0 });
+          if (proj.rangerArrow && proj.knockback > 0 && damage > 0) {
+            roomApplyPush(monster, { dirX: proj.vx, dirY: proj.vy }, proj.knockback,
+              GAME_CONFIG.arenaTuning.knockback.visualMs, { now });
+          }
+          if (proj.heroId === 'samurai' && proj.sourceAbility === 'weapon' && damage > 0) {
+            roomApplyPush(monster, { dirX: proj.vx, dirY: proj.vy }, proj.knockback,
+              GAME_CONFIG.arenaTuning.knockback.visualMs, { now });
+          }
+          if (proj.heroId === 'fairy' && proj.sourceAbility === 'weapon') {
+            roomApplyPush(monster, { dirX: proj.vx, dirY: proj.vy }, GAME_CONFIG.heroes.fairy.windArrow.pushPx,
+              GAME_CONFIG.heroes.fairy.windArrow.pushMs, { now });
+          }
           proj.hitTargets.add(mId);
           if (!proj.ricocheted && proj.sourceAbility === 'weapon' && hasRunEffect('ricochet')) {
             const ricochet = GAME_CONFIG.arenaTuning.cards.effects;
@@ -2327,11 +3439,15 @@ function createRoom({ io, services = null, id, code = null, isDefault = false, m
               nsp.emit('ricochet_line', { x1: monster.x, y1: monster.y, x2: target.x, y2: target.y, heroId: proj.heroId });
             }
           }
-          if (proj.explosionRadius > 0) explode({x:proj.x,y:proj.y,radius:proj.explosionRadius,damage:proj.damage,knockback:proj.knockback,stunMs:proj.stunMs,ownerId:proj.ownerId,sourceAbility:proj.sourceAbility,refundGroupId:proj.id,excludeId:mId,color:proj.color},now);
+          if (proj.explosionRadius > 0) explode({x:proj.x,y:proj.y,radius:proj.explosionRadius,damage:proj.explosionDamage ?? proj.damage,knockback:proj.knockback,stunMs:proj.stunMs,ownerId:proj.ownerId,sourceAbility:proj.rangerDeadAim ? 'ultimate' : proj.sourceAbility,refundGroupId:proj.id,excludeId:mId,color:proj.color,rangerDeadAim: Boolean(proj.rangerDeadAim)},now);
           if (proj.onHit(monster) || proj.explosionRadius > 0) projectiles.delete(pId);
           break;
         }
       }
+      // Give an arrow that reaches its exact range endpoint one final collision
+      // check before removing it; otherwise an enemy centred on the aim marker
+      // can be skipped when the last movement step also expires the projectile.
+      if (proj.rangerArrow && proj.dead && projectiles.has(pId)) projectiles.delete(pId);
     }
 
     for (const [ownerId, trap] of traps) {
@@ -2525,6 +3641,7 @@ function createRoom({ io, services = null, id, code = null, isDefault = false, m
     players.clear();
     waiting.clear();
     monsters.clear(); liveDummyCount = 0;
+    fairyVortices.clear();
     projectiles.clear();
     buffVotes.clear();
     dawnPending.clear();
@@ -2577,6 +3694,41 @@ function createRoom({ io, services = null, id, code = null, isDefault = false, m
     }
     broadcastState(now);
     return spawned;
+  }
+
+  function debugPlaceTurret(ownerId, x, y) {
+    if (!players.has(ownerId) || turrets.size >= 8 || !Number.isFinite(x) || !Number.isFinite(y)) return false;
+    makeTurret(ownerId, clamp(x, 22, ARENA_CONFIG.width - 22), clamp(y, 22, ARENA_CONFIG.height - 22));
+    broadcastState();
+    return true;
+  }
+
+  function debugTurretAction(action, ownerId) {
+    const owned = [...turrets.values()].filter((turret) => turret.ownerId === ownerId);
+    if (action === 'expire') {
+      for (const turret of owned) {
+        if (turret.expiryWarned) nsp.emit('area_telegraph_cancel', { sourceAbility: `engineer-turret-expiry:${turret.id}` });
+        turret.expiryWarned = false;
+        turret.expiresAt = Date.now() + 1000;
+      }
+    } else if (action === 'damage') {
+      for (const turret of owned) damageTurret(turret, GAME_CONFIG.turret.hp * 0.5, 'debug');
+    }
+    broadcastState();
+    return owned.length > 0;
+  }
+
+  function debugSpawnAt(type, x, y) {
+    if (!['zombie', 'skeleton', 'brute'].includes(type) || !Number.isFinite(x) || !Number.isFinite(y)) return false;
+    const id = `enemy_${++monsterSeq}`;
+    const options = { id, x: clamp(x, 30, ARENA_CONFIG.width - 30), y: clamp(y, 30, ARENA_CONFIG.height - 30) };
+    const monster = type === 'skeleton' ? new Skeleton(options) : type === 'brute' ? new Brute(options) : new Zombie(options);
+    const damageScale = 1 + GAME_CONFIG.arenaTuning.enemies.wave.damagePerWave * waveNumber;
+    monster.damage *= damageScale;
+    monster.damageScale = damageScale;
+    monsters.set(id, monster);
+    broadcastState();
+    return true;
   }
 
   // Profiler harness: kill every enemy in one tick, which is the burst the
@@ -2687,6 +3839,22 @@ function createRoom({ io, services = null, id, code = null, isDefault = false, m
     },
     spawnDummies: () => spawnDummies(Date.now()),
     debugSpawnEnemies,
+    debugPlaceTurret,
+    debugTurretAction,
+    debugSpawnAt,
+    applyDebugMonsterEffect: (effect, targetType) => {
+      if (!['push', 'hold', 'slow'].includes(effect) || !['enemy', 'dummy'].includes(targetType)) return false;
+      const target = [...monsters.values()].find((monster) => !monster.dead
+        && (targetType === 'dummy' ? monster.isDummy : !monster.isDummy));
+      if (!target) return false;
+      const now = Date.now();
+      const campfireVector = { fromX: campfire.x, fromY: campfire.y };
+      if (effect === 'push') roomApplyPush(target, campfireVector, DEBUG_PUSH_DISTANCE_PX, DEBUG_PUSH_DURATION_MS, { now });
+      else if (effect === 'hold') roomApplyHold(target, DEBUG_STATUS_DURATION_MS, 'debug', now);
+      else applySlow(target, DEBUG_SLOW_PCT, DEBUG_STATUS_DURATION_MS, 'debug', now);
+      broadcastState(now);
+      return true;
+    },
     debugKillAll,
     debugKillDummies,
     spawnTrialEnemy,
@@ -2699,6 +3867,42 @@ function createRoom({ io, services = null, id, code = null, isDefault = false, m
       player.hero.buildingLevels.tower = clamp(Math.floor(Number(level) || 0), 0, GAME_CONFIG.arenaTuning.tower.maxLevel);
       recomputeHeroStats(player, Date.now());
       broadcastState(Date.now());
+      return true;
+    },
+    debugSetSamuraiStacks: (stacks, playerId = hostId) => {
+      const player = players.get(playerId);
+      if (!player || player.heroId !== 'samurai') return false;
+      const now = Date.now();
+      const spec = GAME_CONFIG.heroes.samurai.killCount;
+      player.samuraiStacks = clamp(Math.floor(Number(stacks) || 0), 0, spec.cap);
+      player.samuraiLastKillAt = player.samuraiStacks > 0 ? now : 0;
+      player.samuraiNextDecayAt = player.samuraiStacks > 0 ? now + spec.decayDelayMs + spec.decayIntervalMs : 0;
+      player.samuraiDecayPausedAt = 0;
+      broadcastState(now);
+      return true;
+    },
+    debugRangerAction: (action, playerId = hostId, x, y) => {
+      const player = players.get(playerId);
+      if (!player || player.heroId !== 'ranger') return false;
+      const now = Date.now();
+      const spec = GAME_CONFIG.heroes.ranger.ranger;
+      if (action === 'force-full-charge') {
+        if (player.downed || player.dawnWaiting) return false;
+        player.hero.deadAimArrows = 0;
+        player.rangerChargeStartedAt = now - spec.chargeMaxS * 1000;
+      } else if (action === 'spawn-wolf') {
+        const target = { x: Number(x), y: Number(y) };
+        const anchor = rangerMeatPoint(player, target);
+        makeWolf(player, anchor, now);
+        nsp.emit('ranger_meat_thrown', { ownerId: player.id,
+          fromX: player.x, fromY: player.y - 8, x: anchor.x, y: anchor.y,
+          durationMs: spec.meatThrowS * 1000 });
+      } else if (action === 'grant-dead-aim') {
+        player.rangerChargeStartedAt = 0;
+        player.hero.deadAimArrows = spec.ultArrows;
+        player.hero.deadAimUntil = now + spec.ultWindowS * 1000;
+      } else return false;
+      broadcastState(now);
       return true;
     },
     // Debug menu: force a stat card onto the run as if it had been voted, then

@@ -51,6 +51,8 @@ const coinBalance = computed(() => home.value?.wallet?.balance || 0);
 const pullCost = computed(() => summonConfig.value?.pullCost || 0);
 const multiDiscount = computed(() => summonConfig.value?.multiDiscount ?? 0);
 const tenPullCost = computed(() => Math.floor(pullCost.value * 10 * (1 - multiDiscount.value)));
+const pullsToHero = computed(() => Math.max(1, (summonConfig.value?.heroPityPulls || 1) - (inv.value?.heroPity?.sinceHero || 0)));
+const pullsToEpic = computed(() => Math.max(1, (summonConfig.value?.epicPityPulls || 1) - (inv.value?.heroPity?.sinceEpic || 0)));
 const resources = computed(() => catalog.value?.resources || {});
 const rarityStars = (hero) => GAME_CONFIG.arenaTuning.gachaReveal.rarityStars[hero.rarity] || 3;
 const orderedHeroes = computed(() => {
@@ -67,7 +69,7 @@ const oddsRows = computed(() => {
   const total = Object.values(odds).reduce((sum, value) => sum + value, 0);
   return Object.entries(odds).map(([rarity, weight]) => ({
     rarity,
-    stars: GAME_CONFIG.arenaTuning.gachaReveal.rarityStars[rarity] || 3,
+    stars: rarity === 'common' ? 0 : (GAME_CONFIG.arenaTuning.gachaReveal.rarityStars[rarity] || 0),
     percent: Math.round(weight * 100 / total),
     heroes: catalog.value.heroes.filter((hero) => hero.rarity === rarity),
   }));
@@ -76,7 +78,7 @@ const rarityFilters = [
   { id: 'all', label: 'All' },
   { id: 'epic', label: GAME_CONFIG.arenaTuning.gachaReveal.rarityStars.epic + '-star' },
   { id: 'rare', label: GAME_CONFIG.arenaTuning.gachaReveal.rarityStars.rare + '-star' },
-  { id: 'common', label: GAME_CONFIG.arenaTuning.gachaReveal.rarityStars.common + '-star' },
+  { id: 'common', label: 'Resources' },
 ];
 const activeHistoryRows = computed(() => {
   const rows = historyData.value?.items || [];
@@ -114,7 +116,7 @@ async function beginPull() {
     machineBusy.value = false;
   }
 }
-function resultRarityStars(row) { return GAME_CONFIG.arenaTuning.gachaReveal.rarityStars[row.rarity] || 3; }
+function resultRarityStars(row) { return GAME_CONFIG.arenaTuning.gachaReveal.rarityStars[row.rarity] || 0; }
 function resultAsLegacy(row, pity) {
   return { prize: row.type === 'hero' ? { kind: 'hero', rarity: row.rarity, hero: row.hero } : { kind: 'resource', rarity: row.rarity, resource: row.resource, amount: row.amount }, pity: row.pity || pity, duplicateHero: row.type === 'hero' && !row.isNew, refund: row.refundCoins || 0 };
 }
@@ -273,6 +275,7 @@ onUnmounted(() => {
             <div class="banner-kicker">A TALE IN THE MAKING</div>
             <h2 id="banner-title">{{ summonConfig.bannerTitle }}</h2>
             <p>{{ summonConfig.bannerSubtitle }}</p>
+            <p class="pity-progress">4-star hero in {{ pullsToHero }} pull{{ pullsToHero === 1 ? '' : 's' }} guaranteed · 5-star hero in {{ pullsToEpic }} pull{{ pullsToEpic === 1 ? '' : 's' }} guaranteed</p>
           </div>
 
           <div class="featured-row" :class="{ 'featured-many': featuredHeroes.length > 3 }">
@@ -334,22 +337,22 @@ onUnmounted(() => {
           <template v-if="activeModal === 'details'">
             <div class="detail-rates">
               <article v-for="row in oddsRows" :key="row.rarity" class="detail-rate" :class="'rarity-' + row.rarity">
-                <span class="detail-stars">{{ '★'.repeat(row.stars) }}</span><strong>{{ row.percent }}%</strong>
+                <span v-if="row.stars" class="detail-stars">{{ '★'.repeat(row.stars) }}</span><strong>{{ row.percent }}%</strong>
                 <span>{{ row.rarity === 'common' ? 'Kingdom resources' : row.stars + '-star heroes' }}</span>
               </article>
             </div>
             <p class="detail-copy">Each summon costs {{ pullCost }} coins. A common result adds {{ summonConfig.commonResourceAmount }} units of one kingdom resource.</p>
             <div class="detail-rules">
-              <p>The {{ summonConfig.heroPityPulls }}th pull without a hero guarantees at least a 4-star hero. That counter resets whenever a hero appears.</p>
-              <p>The {{ summonConfig.epicPityPulls }}th pull without a 5-star guarantees a 5-star hero. A 5-star guarantee takes priority and resets both counters.</p>
-              <p>A duplicate hero converts to {{ Math.floor(pullCost * summonConfig.duplicateRefundFraction) }} coins.</p>
+              <p>A 4-star or 5-star hero is guaranteed at least every {{ summonConfig.heroPityPulls }} pulls. A 5-star hero is guaranteed by pull {{ summonConfig.epicPityPulls }}.</p>
+              <p>Hero pulls skip heroes you already own while that star pool has new heroes. A duplicate 4-star refunds {{ Math.floor(pullCost * summonConfig.duplicateRefundFraction.rare) }} coins; a duplicate 5-star refunds {{ Math.floor(pullCost * summonConfig.duplicateRefundFraction.epic) }} coins.</p>
+              <p>After you own every hero, hero results still refund coins. Your first visit includes a one-time {{ summonConfig.welcomeGiftCoins }}-coin gift.</p>
             </div>
           </template>
 
           <template v-else>
             <div v-if="historyData" class="history-summary">
               <div><strong>{{ summary.totalPulls }}</strong><span>total pulls</span></div>
-              <div><strong>{{ summary.common }}</strong><span>{{ GAME_CONFIG.arenaTuning.gachaReveal.rarityStars.common }}-star results</span></div>
+              <div><strong>{{ summary.common }}</strong><span>resource results</span></div>
               <div><strong>{{ summary.rare }}</strong><span>{{ GAME_CONFIG.arenaTuning.gachaReveal.rarityStars.rare }}-star results</span></div>
               <div><strong>{{ summary.epic }}</strong><span>{{ GAME_CONFIG.arenaTuning.gachaReveal.rarityStars.epic }}-star results</span></div>
               <p v-if="inv?.heroPity">Since your last 4-star: {{ inv.heroPity.sinceHero }} pulls · Since your last 5-star: {{ inv.heroPity.sinceEpic }} pulls</p>
@@ -434,6 +437,7 @@ onUnmounted(() => {
 .banner-heading { text-align:center; }.banner-kicker,.modal-kicker { margin:0 0 3px; color:#687553; font:700 10px/1.3 ui-monospace,'Cascadia Code',monospace; letter-spacing:.15em; }
 .banner-heading h2 { margin:0; color:#254937; font:700 clamp(27px,3vw,35px)/1.05 Georgia,'Palatino Linotype',serif; }
 .banner-heading p { margin:5px 0 0; color:#53654f; font-size:14px; }
+.banner-heading .pity-progress { margin-top:10px; color:#687553; font-size:12px; font-weight:800; }
 .featured-row { display:grid; grid-template-columns:repeat(auto-fit,minmax(min(390px,100%),1fr)); gap:12px; min-height:0; }
 .featured-row.featured-many { grid-template-columns:repeat(auto-fit,minmax(0,1fr)); }
 .featured-many .featured-hero { gap:7px; padding:7px; }.featured-many .featured-art { flex-basis:86px; }.featured-many .featured-art :deep(canvas) { width:86px!important; height:auto!important; }.featured-many .featured-info h3 { font-size:21px; }

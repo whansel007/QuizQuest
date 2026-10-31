@@ -1,8 +1,8 @@
 # Campfire Defense: Hero Guide
 
-The World is a co-op arena game in QuizQuest. Pick one of the six heroes below, survive waves of monsters, and keep the campfire alive. The run ends when the campfire reaches 0 HP.
+The World is a co-op arena game in QuizQuest. Pick one of the ten heroes below, survive waves of monsters, and keep the campfire alive. The run ends when the campfire reaches 0 HP.
 
-## The six heroes
+## The ten heroes
 
 Base stats are shown before kingdom upgrades and wave buffs. Attack values are base values; abilities can apply their own multipliers or effects.
 
@@ -14,6 +14,33 @@ Base stats are shown before kingdom upgrades and wave buffs. Attack values are b
 | Bombardier 💣 | Magic | 95 | 22 | 3 | 210 | Blast Bomb | Proximity Trap | Targeted Bombing | Demolitionist — primary fire explodes. |
 | Bubbles 🫧 | Magic | 110 | 12 | 4 | 220 | Bubble Spray | Bubble Trap | Bubble Rush | Finisher — Bubble Trap kills trigger a larger explosion and halve the remaining skill cooldown. |
 | Electromancer ⚡ | Magic | 100 | 16 | 4 | 225 | Lightning Orb | Stun Field | Chain Lightning | Overload — Chain Lightning refunds its cooldown; stunned targets refund twice as much. |
+| Fairy 🧚 | Magic | 85 | 14 | 2 | 235 | Wind Arrow | Gale Burst | Vortex Orb | Windswept — enemies pushed or pulled by Gale Burst or Vortex Orb are slowed 30% for 2 s. |
+| Engineer 🔧 | Physical | 120 | 14 | 6 | 210 | Wrench Boomerang | Deploy Turret | Overclock Laser | Refueling — Engineer kills and wrench-marked turret kills restore 5% max HP and add 1.5 s to living turrets. |
+| Samurai 🥷 | Physical | 100 | 16 | 4 | 235 | Shuriken | Cutting Dash | Afterimage Cut | Kill Count — kills grant up to 20 stacks; the ultimate multiplier scales from 0.5× to 4×. |
+| Ranger 🧝 | Magic | 90 | 18 | 3 | 215 | Charge Bow | Meat and Wolf | Dead Aim | Pack Hunter — wolf bites mark enemies for 4 s; Ranger arrows deal 30% more damage to marked targets. |
+
+### Ranger
+
+- **Charge Bow:** Hold primary to draw; the server measures the hold from press to release. A quick tap fires for 0.5× attack, while a full 0.9 s draw fires for 2.5× attack, travels 560 px at 1,000 px/s, and can hit two enemies. Draw speed is capped, never auto-fires, and movement is 60% while charging. A wheat charge ring and a percentage indicator above the Ranger show the current level to every player.
+- **Meat and Wolf (E):** Toss meat toward the mouse, within 300 px. The wolf arrives after the 0.4 s throw and a 0.6 s arrival delay, then remains for 8 s with 100 HP. It bites for 0.6× current attack at 1.5 bites/s and hunts enemies within 180 px of its anchor while staying within its 220 px leash. A new cast replaces the Ranger's previous wolf. Zombies, skeletons, and Brutes within 150 px can target the active wolf; the King, Devils, and Exploders keep their existing target rules. Enemy attacks, explosions, and the King's slam can hurt it.
+- **Pack Hunter:** Each bite marks its target for 4 s. Marks from different Rangers are independent; marks refresh rather than stack. Only that Ranger's Charge Bow and Dead Aim arrows receive the 30% bonus.
+- **Dead Aim (Q):** Grants three clicks for 10 s. Each click fires a large arrow emoji with a bright trail; on impact it bursts in a 78 px radius for 2× attack damage and 40 px knockback. The direct hit deals 7× attack, with an 8 px hit radius and 700 px range. It stops at the first enemy, can fire once every 0.5 s, and replaces the charge shot until the arrows expire or are spent. If Q is pressed during a draw, that draw is canceled so the next click uses Dead Aim.
+- Wolf damage and kills credit the Ranger, but do not trigger kill talents, combo steps, pitch changes, or cooldown refunds. Lobby dummies can be used to practise the full kit.
+
+### Engineer
+
+- **Wrench Boomerang:** Throws a piercing wrench 300 px at 1,200 px/s, then returns to the Engineer's current position. It deals 0.9× attack and pushes each target 30 px on its outbound leg. A hit marks enemies with 🔧 for 8 s; the Engineer's turrets deal double damage to marked enemies. On the return leg, it pulls each target 90 px toward the Engineer over 0.26 s; bosses and Kings are immune to the pull. The 0.35 s weapon cooldown begins on catch or after its 2 s lifetime; only one wrench can be in flight.
+- **Deploy Turret (E):** Places a turret toward the mouse, clamped to 220 px. Invalid spots snap to a valid point within 60 px; placement fails without using the 18 s cooldown if none exists. Spots must be at least 110 px from the campfire and 60 px from other turrets. Each turret has unlimited shots, but loses 5 HP/s and expires after 30 s. A 2 s warning shows its 120 px blast radius; expiry deals 24 damage to enemies, 10 to nearby heroes, and 12 to the campfire if it is in range. The placement preview marks the blast radius and highlights the campfire when it could be hit. Each Engineer can own two; replacing the oldest with a third turret or losing one to enemy damage does not trigger its expiry blast. The E button shows two pips for the owner's turrets.
+- **Overclock Laser (Q):** Charges for 0.4 s while movement is slowed to 30%, then fires a single 70 px wide beam up to 900 px. It hits each enemy and lobby dummy in the beam once for 6× attack. Its 40 s cooldown starts when the beam fires, and the final 0.1 s locks its direction.
+- **Refueling:** Each Engineer-attributed kill, including breaking a lobby mannequin, restores 5% max HP to each living owned turret and extends its life by 1.5 s. An owned turret killing an enemy or mannequin marked by the Engineer's wrench also triggers Refueling; the mark lasts 8 s. A **REFUELLED!** popup above each affected turret announces it. Other turret kills do not trigger Refueling.
+- **Turret targeting:** Turrets use the Stage 1 server-owned entity and targeting rules below. They pause and are repaired at REST. Use the debug Turret testing menu when you need a turret outside of the Engineer's E skill.
+
+### Samurai
+
+- **Shuriken:** Fires a non-piercing projectile at 750 px/s, up to 320 px. It deals 0.8× attack damage and pushes the first enemy hit by 15 px.
+- **Cutting Dash (E):** Dashes 260 px toward the mouse over 0.18 s, passing through enemies. It hits each target once within a 60 px wide path for 1.2× attack; targets below half of their current max HP take 2.4× instead. The dash is invulnerable, clips to arena bounds and stops before the campfire.
+- **Afterimage Cut (Q):** Dashes 480 px over 0.25 s, then holds position for 0.3 s before cutting a 110 px wide rectangle extending 50 px behind the start and beyond the dash endpoint. It hits each target once for 5× attack times the locked Kill Count multiplier, from 0.5× at 0–2 stacks to 4× at 20. The cast is invulnerable and spends all stacks immediately; kills from the cut build new stacks.
+- **Kill Count:** Each Samurai-attributed kill grants one stack, up to 20. After 4 s without a kill, stacks decay by one every 2 s. Decay pauses during REST, vote and pre-wave phases. Lobby dummy kills grant stacks for practice; turret kills do not. Stacks reset on down, countdown and run start.
 
 ## Ability cooldowns and mechanics
 
@@ -27,6 +54,28 @@ Cooldowns below are the base server values, before run buffs and hero talents. W
 | Bombardier | 1.05 s | 14 s | 40 s |
 | Bubbles | 0.105 s | 14 s | 35 s |
 | Electromancer | 0.525 s | 10 s | 35 s |
+| Fairy | 0.35 s | 12 s | 40 s |
+| Engineer | 0.35 s (cooldown after catch) | 18 s | 40 s |
+| Samurai | 0.3 s | 7 s | 30 s |
+| Ranger | 0.25 s after release | 14 s | 40 s |
+
+### Fairy
+
+- **Wind Arrow:** Fires a 0.7× attack arrow at 650 px/s for 380 px. It pierces one enemy and pushes each hit target 50 px along its path (Brutes receive their normal half push).
+- **Gale Burst (E):** A 520 px/s wind projectile bursts on impact or at 360 px. Its 150 px radius deals 0.4× attack and pushes enemies 220 px over 300 ms; Brutes take the full push. Enemies within 250 px of the campfire move radially away from it. Bosses and Kings are immune to pushes.
+- **Vortex Orb (Q):** A 450 px/s orb forms a 180 px radius vortex on impact or at 420 px. For 4 s, it continuously pulls nearby enemies toward the center, then holds them there while the inward force corrects small knockbacks. New arrivals are also pulled and held; Brutes and training dummies are affected, while bosses and Kings are immune. It deals 0.35× attack per second in 250 ms damage ticks. Its final release gives only a slight 18 px nudge over 140 ms so the group stays together; enemies near the campfire are nudged away from it. Status is shown with ⚡ (stun), 🌀 (Vortex pull/hold), and 🐌 (slow), without changing enemy colors.
+- **Windswept:** Gale Burst and Vortex Orb apply a 30% movement slow for 2 s to enemies they push or release. Wind Arrow does not apply the talent. Holds prevent movement and attacks, and the shared 1.5 s re-hold immunity prevents two Fairies from chaining holds.
+
+## Shared monster effects
+
+New crowd-control abilities use the server-side helpers in
+[`src/hero-lab/monster-effects.js`](../../src/hero-lab/monster-effects.js).
+Pushes ease toward their destination and stop at arena edges or the campfire;
+Brutes normally take half distance, the Brute King and bosses do not move, and
+training dummies take 1.5× distance. Holds stop enemy movement and attacks,
+cancel a skeleton wind-up or Exploder fuse, and prevent another hold for 1.5 s
+after release. Brutes can be held, while the Brute King and bosses are immune.
+Slows reduce movement speed without stacking beyond the strongest active slow.
 
 ### Sheriff
 
@@ -121,10 +170,11 @@ From the repository root, run `npm run dev`, then open `http://localhost:5173/he
 ## Code map
 
 - [`game-config.js`](./game-config.js): hero stats, combat tuning, building bonuses, waves, and HUD colors.
-- [`hero-list.js`](./hero-list.js): the six selectable hero instances and server constructor registry.
+- [`hero-list.js`](./hero-list.js): all ten selectable hero instances and the matching server constructor registry: Guardian, Sheriff, Pilot, Bombardier, Bubbles, Electromancer, Fairy, Engineer, Samurai, and Ranger.
 - [`heroes/roster.js`](./heroes/roster.js): compatibility registry that exports the hero constructors and shared instances.
-- [`heroes/sheriff.js`](./heroes/sheriff.js), [`heroes/guardian.js`](./heroes/guardian.js), [`heroes/pilot.js`](./heroes/pilot.js), [`heroes/bombardier.js`](./heroes/bombardier.js), [`heroes/bubbles.js`](./heroes/bubbles.js), and [`heroes/electromancer.js`](./heroes/electromancer.js): individual hero stats and combat behavior.
+- [`heroes/`](./heroes/): individual hero stats and combat behavior for the complete ten-hero roster.
 - [`heroes/shared.js`](./heroes/shared.js): shared configuration and projectile construction helpers.
+- [`src/hero-lab/monster-effects.js`](../../src/hero-lab/monster-effects.js): server-authoritative eased pushes, holds, and non-stacking slows.
 - [`world.js`](./world.js): browser renderer, controls, and HUD.
 - [`src/hero-lab/world.js`](../../src/hero-lab/world.js): authoritative combat server and student-session kingdom bonus application.
 - [`HOW_THIS_WORKS.md`](./HOW_THIS_WORKS.md): plain-language implementation notes and playtest guide.

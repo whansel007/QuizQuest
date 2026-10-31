@@ -78,10 +78,19 @@ Entry points:
 - Direct execution of `server.js`: connects the Supabase store when `SUPABASE_URL` is set; otherwise uses `QUIZ_DATA_FILE` or `data/db.json`.
 - [web/src/main.js](../web/src/main.js): mounts `App.vue` on `#app`.
 - [web/src/App.vue](../web/src/App.vue): restores the session and chooses role-specific views.
-- [scripts/dev.js](../scripts/dev.js): starts the API, waits for `/api/demo-users`, selects a free API port when needed, then starts Vite. Both are direct children so shutdown does not leave a nested Node watcher behind.
+- [scripts/dev.js](../scripts/dev.js): starts the API, waits for `/api/demo-users` and the current Hero Lab roster, selects a free API port when needed, then starts Vite. Both are direct children so shutdown does not leave a nested Node watcher behind.
 - [vite.config.mjs](../vite.config.mjs): builds `web/` into `dist/`; development uses port `5173` or Vite's next available port and proxies API, Socket.IO, Circle Tag, and Hero Lab requests to Node.
 
 Production-style startup serves the built frontend from Node, normally on port `3000`. `/tag` serves the original Circle Tag experiment; `/hero-lab` serves a separate static prototype. Neither is the main Vue professor authoring screen.
+
+When Hero Lab gains a hero, `/api/dev-ready` reports the server's registered hero IDs and `scripts/dev.js` only reuses a running API if that roster includes the current Fairy entry. A server can answer demo-account requests successfully while still running old Hero Lab code, so checking only `/api/demo-users` can leave the browser and server on different rosters. Restart `node scripts/dev.js` after changing server-side Hero Lab code; Vite hot reload does not restart the Node process. Node's `MODULE_TYPELESS_PACKAGE_JSON` warning is informational and is not proof that the API is ready or stuck—the launcher confirms readiness separately.
+
+Hero Lab integration notes:
+
+- The browser arena is native ES-module code served from `public/hero-lab/`; the server imports its hero registry from `public/hero-lab/hero-list.js`. That registry's `HERO_CLASSES` is the authority for joining, so adding a hero only to a client picker can produce “Choose a valid hero to join the field.”
+- Vite's production build bundles the Vue app but does not parse the static arena modules in `public/hero-lab/`. Check those files with `node --check` and verify the actual arena behavior; a successful Vue build alone does not prove the arena code works.
+- Keep browser imports browser-safe and use ES-module exports. Importing named exports from a CommonJS helper through Vite can break the page at runtime even when the server can `require()` that helper.
+- For server-authoritative crowd control, check the helper's vector convention and every later movement path. Ordinary push helpers point away from an origin and respect the campfire obstacle; a gravity pull needs an explicit inward vector and must not be canceled by the lobby dummies' separate player-shove physics.
 
 ## 3. Repository map
 

@@ -1,15 +1,27 @@
 import { HEROES } from './hero-list.js';
 import { EnemyProjectile } from './projectiles/enemy-projectile.js';
 import { Projectile } from './bases/projectile.js';
-import { GAME_CONFIG, HERO_FX_COLORS, ABILITY_ICONS, ABILITY_BTN_HIGHLIGHT, ABILITY_BTN_HIGHLIGHT_MECH } from './game-config.js';
+import { GAME_CONFIG, HERO_FX_COLORS, HERO_FX_SECONDARY, ABILITY_ICONS, ABILITY_BTN_HIGHLIGHT, ABILITY_BTN_HIGHLIGHT_MECH,
+  VORTEX_CORE_RADIUS_PX, VORTEX_DISK_TILT, VORTEX_ZOOM_PULSE, VORTEX_POP_STILL_MS, VORTEX_DEBRIS_POOL_SIZE,
+  VORTEX_DEBRIS_SPAWN_MS, VORTEX_RIPPLE_INTERVAL_MS, VORTEX_RIPPLE_DURATION_MS, FAIRY_GALE_SHAKE_MULT,
+  VORTEX_GROUND_FILL, VORTEX_FORMATION_FLASH_MS, VORTEX_CORE_GROW_MS, VORTEX_SHOCKWAVE_MS,
+  VORTEX_CORE_PULSE_HZ, VORTEX_DISK_ROTATION_HZ, VORTEX_DISK_OUTER_RADIUS_PX, VORTEX_LENS_ARC_DEG,
+  VORTEX_COLLAPSE_MS, VORTEX_FLASH_POP_MS, VORTEX_POP_RING_MS, VORTEX_POP_SPARK_COUNT,
+  VORTEX_ZOOM_SCALE, VORTEX_ZOOM_DURATION_MS, FAIRY_GALE_WIND_LINES, FAIRY_ARROW_IMPACT_LINES,
+  FAIRY_ARROW_TRAIL_COUNT, FAIRY_MUZZLE_PUFF_RADIUS_PX, FAIRY_GALE_VFX_DURATION_MS, FAIRY_WIND_IMPACT_MS,
+  VORTEX_GROUND_RING_WIDTH_PX, VORTEX_GROUND_DASH_ON_PX, VORTEX_GROUND_DASH_OFF_PX,
+  VORTEX_GROUND_FILL_ALPHA, VORTEX_SUSTAIN_FADE_MS, VORTEX_DEBRIS_LIFETIME_MS,
+  SAMURAI_DASH_AFTERIMAGE_MS, SAMURAI_HIT_MARK_MS, SAMURAI_SLASH_GROW_MS,
+  SAMURAI_SLASH_FADE_MS, SAMURAI_EXECUTE_LABEL_MS, SAMURAI_CUT_OVERLAY_MS,
+  VORTEX_POP_STILL_CORE_PX } from './game-config.js';
 import { SHAKE_PLAYER_HIT_TRAUMA, SHAKE_ULTIMATE_TRAUMA, SHAKE_BOSS_SLAM_TRAUMA, SHAKE_EXPLOSION_BASE_TRAUMA,
   SHAKE_EXPLOSION_RADIUS_SCALE, SHAKE_MAX_TRAUMA, SHAKE_DECAY, SHAKE_MAX_OFFSET, SHAKE_EXPLOSION_COOLDOWN_MS,
   SHAKE_NOISE_HZ, SHAKE_NOISE_PRIMARY_PHASE, SHAKE_NOISE_PRIMARY_FREQUENCY, SHAKE_NOISE_SECONDARY_FREQUENCY, SHAKE_NOISE_SECONDARY_PHASE, SHAKE_DEFAULT_INTENSITY,
   SHAKE_MIN_INTENSITY, SHAKE_MAX_INTENSITY, SHAKE_INTENSITY_STEP, SHAKE_SLIDER_REFERENCE, SHAKE_ABSOLUTE_CAP_PX,
   SHAKE_HIT_TRAUMA, SHAKE_HIT_DAMAGE_REFERENCE, SHAKE_HIT_MIN_INTERVAL_MS, SHAKE_KILL_TRAUMA,
   HIT_FLASH_MIN_INTERVAL_MS, THORNS_FLASH_INTERVAL_MS, THORNS_NUMBER_MERGE_MS, THORNS_NUMBER_COLOR,
-  AREA_RING_WIDTH, AREA_TELEGRAPH_WIDTH, AREA_DASH_ON, AREA_DASH_OFF, AREA_UNDERSTROKE_EXTRA_PX,
-  AREA_UNDERSTROKE_ALPHA, AREA_RING_STROKE_ALPHA, AREA_TELEGRAPH_STROKE_ALPHA, AREA_RING_FILL_ALPHA,
+  AREA_RING_WIDTH, AREA_TELEGRAPH_WIDTH, AREA_DASH_ON, AREA_DASH_OFF,
+  AREA_RING_STROKE_ALPHA, AREA_TELEGRAPH_STROKE_ALPHA, AREA_RING_FILL_ALPHA,
   AREA_TELEGRAPH_FILL_START_ALPHA, AREA_TELEGRAPH_FILL_END_ALPHA, AREA_ENEMY_FILL_END_ALPHA,
   AREA_TELEGRAPH_SWEEP_BASE_ALPHA, AREA_TELEGRAPH_SWEEP_FILL_ALPHA,
   AREA_TELEGRAPH_SWEEP_HAND_ALPHA, AREA_TELEGRAPH_SWEEP_HAND_WIDTH,
@@ -20,7 +32,7 @@ import { SHAKE_PLAYER_HIT_TRAUMA, SHAKE_ULTIMATE_TRAUMA, SHAKE_BOSS_SLAM_TRAUMA,
   BTN_GAP_X, BTN_LABEL_GAP, BTN_LABEL_HEIGHT, BTN_LABEL_SIZE, BTN_LABEL_CLEARANCE,
   BTN_ICON_SCALE, MECH_ICON_SWAP, BTN_COLORS, BTN_HIGHLIGHT_READY_COLOR, PARTICLE_CAP,
   CONFETTI_QUALITY_FACTOR } from '../../config/tuning.js';
-import { playSound, setAudioOptions, setHeartbeat, audioStats, setAudioEnabled, warmUpAudio } from './arena-audio.js';
+import { playSound, setAudioOptions, setHeartbeat, audioStats, setAudioEnabled, warmUpAudio, startSoundLoop } from './arena-audio.js';
 import { createProfiler, effectToggles } from './perf-profiler.js';
 import { createTalentBadge, talentKeyLabel, talentKeyTooltip } from './talent-badge.js';
 import { preloadHeroSprites, drawCachedHero, getHeroSpriteUrl } from './hero-visuals.js';
@@ -28,10 +40,29 @@ import { preloadHeroSprites, drawCachedHero, getHeroSpriteUrl } from './hero-vis
 const canvas = document.querySelector('#world');
 const ARENA_WIDTH = GAME_CONFIG.arena.width;
 const ARENA_HEIGHT = GAME_CONFIG.arena.height;
+const touchViewport = matchMedia('(pointer: coarse)');
+const MOBILE_ZOOM_MAX = 2.8;
+let mobileZoom = 1.8;
+let pinchStart = null;
+const pinchPointers = new Map();
 // Rasterize close to the displayed viewport while keeping world coordinates fixed.
-let renderScale = Math.min(1, Math.max(0.4, Math.min(innerWidth / ARENA_WIDTH, innerHeight / ARENA_HEIGHT)));
-canvas.width = Math.round(ARENA_WIDTH * renderScale);
-canvas.height = Math.round(ARENA_HEIGHT * renderScale);
+function arenaRenderScale() {
+  const fit = touchViewport.matches
+    ? Math.max(innerWidth / ARENA_WIDTH, innerHeight / ARENA_HEIGHT)
+    : Math.min(innerWidth / ARENA_WIDTH, innerHeight / ARENA_HEIGHT);
+  return Math.min(1, Math.max(0.4, fit));
+}
+let renderScale = arenaRenderScale();
+function resizeCanvasBacking() {
+  if (touchViewport.matches) {
+    canvas.width = Math.round(innerWidth * renderScale);
+    canvas.height = Math.round(innerHeight * renderScale);
+  } else {
+    canvas.width = Math.round(ARENA_WIDTH * renderScale);
+    canvas.height = Math.round(ARENA_HEIGHT * renderScale);
+  }
+}
+resizeCanvasBacking();
 let particleBudget = Math.max(100, Math.floor(GAME_CONFIG.arenaTuning.performance.maxParticles * renderScale * renderScale));
 const context = canvas.getContext('2d', { alpha: false, desynchronized: true });
 let heroSpriteCache = null;
@@ -50,23 +81,77 @@ void preloadHeroSprites().then((cache) => {
   updateHud();
 }).catch((error) => console.warn('[Hero sprites] Config failed; using emoji.', error));
 const backgroundCanvas = document.createElement('canvas');
-backgroundCanvas.width = canvas.width;
-backgroundCanvas.height = canvas.height;
+backgroundCanvas.width = Math.round(ARENA_WIDTH * renderScale);
+backgroundCanvas.height = Math.round(ARENA_HEIGHT * renderScale);
 const backgroundContext = backgroundCanvas.getContext('2d');
 backgroundContext.scale(renderScale, renderScale);
 paintForestClearing(backgroundContext);
 
 function resizeArenaRaster() {
-  const nextScale = Math.min(1, Math.max(0.4, Math.min(innerWidth / ARENA_WIDTH, innerHeight / ARENA_HEIGHT)));
-  if (Math.abs(nextScale - renderScale) < 0.001) return;
+  const nextScale = arenaRenderScale();
+  const scaleChanged = Math.abs(nextScale - renderScale) >= 0.001;
   renderScale = nextScale;
-  canvas.width = Math.round(ARENA_WIDTH * renderScale);
-  canvas.height = Math.round(ARENA_HEIGHT * renderScale);
-  backgroundCanvas.width = canvas.width;
-  backgroundCanvas.height = canvas.height;
-  backgroundContext.scale(renderScale, renderScale);
-  paintForestClearing(backgroundContext);
+  const canvasWidth = touchViewport.matches ? Math.round(innerWidth * renderScale) : Math.round(ARENA_WIDTH * renderScale);
+  const canvasHeight = touchViewport.matches ? Math.round(innerHeight * renderScale) : Math.round(ARENA_HEIGHT * renderScale);
+  const canvasChanged = canvas.width !== canvasWidth || canvas.height !== canvasHeight;
+  if (canvasChanged) resizeCanvasBacking();
+  if (scaleChanged) {
+    backgroundCanvas.width = Math.round(ARENA_WIDTH * renderScale);
+    backgroundCanvas.height = Math.round(ARENA_HEIGHT * renderScale);
+    backgroundContext.scale(renderScale, renderScale);
+    paintForestClearing(backgroundContext);
+  }
   particleBudget = Math.max(100, Math.floor(GAME_CONFIG.arenaTuning.performance.maxParticles * renderScale * renderScale));
+}
+
+function mobileMinimumZoom() {
+  const fitScale = Math.min(innerWidth / ARENA_WIDTH, innerHeight / ARENA_HEIGHT);
+  const coverScale = Math.max(innerWidth / ARENA_WIDTH, innerHeight / ARENA_HEIGHT);
+  return fitScale / coverScale;
+}
+
+function mobileCameraView() {
+  if (!touchViewport.matches) return null;
+  const player = state.players?.find((candidate) => candidate.id === me);
+  const coverScale = Math.max(innerWidth / ARENA_WIDTH, innerHeight / ARENA_HEIGHT);
+  mobileZoom = Math.max(mobileMinimumZoom(), Math.min(MOBILE_ZOOM_MAX, mobileZoom));
+  return {
+    scale: coverScale * mobileZoom,
+    x: player?.x ?? ARENA_WIDTH / 2,
+    y: player?.y ?? ARENA_HEIGHT / 2,
+  };
+}
+
+function pinchDistance() {
+  const [a, b] = [...pinchPointers.values()];
+  return Math.hypot(a.x - b.x, a.y - b.y);
+}
+
+function beginTouchZoom(event) {
+  if (!touchViewport.matches || event.pointerType !== 'touch') return;
+  pinchPointers.set(event.pointerId, { x: event.clientX, y: event.clientY });
+  if (pinchPointers.size === 2) {
+    pinchStart = { distance: Math.max(1, pinchDistance()), zoom: mobileZoom };
+    if (primaryPointerId !== null) {
+      primaryPointerId = null;
+      setPrimaryHeld(false);
+    }
+  }
+}
+
+function moveTouchZoom(event) {
+  if (!pinchPointers.has(event.pointerId)) return;
+  pinchPointers.set(event.pointerId, { x: event.clientX, y: event.clientY });
+  if (pinchStart && pinchPointers.size >= 2) {
+    mobileZoom = Math.max(mobileMinimumZoom(), Math.min(MOBILE_ZOOM_MAX,
+      pinchStart.zoom * pinchDistance() / pinchStart.distance));
+    event.preventDefault();
+  }
+}
+
+function endTouchZoom(event) {
+  pinchPointers.delete(event.pointerId);
+  if (pinchPointers.size < 2) pinchStart = null;
 }
 
 // The arena floor: a calm woodland clearing. Everything here is low contrast
@@ -271,6 +356,8 @@ const buffCards = document.querySelector('#buff-cards');
 const targetingHint = document.querySelector('#targeting-hint');
 const targetingCancel = document.querySelector('#targeting-cancel');
 const targetingReticle = document.querySelector('#targeting-reticle');
+const targetingHintText = targetingHint.firstChild;
+const defaultTargetingHintText = targetingHintText?.textContent || '';
 const movementStick = document.querySelector('#move-stick');
 const touchHelp = document.querySelector('#touch-help');
 const runResultPanel = document.querySelector('#run-result');
@@ -301,12 +388,44 @@ const ultimateAbility = document.querySelector('.ability[data-ability="ultimate"
 // The ability tiles are static markup; cache the list so the 10Hz HUD refresh
 // does not re-query the document every tick.
 const abilityElements = document.querySelectorAll('.ability[data-ability]');
+const engineerTurretPips = document.createElement('span');
+engineerTurretPips.className = 'engineer-turret-pips';
+const engineerTurretPipLabels = Array.from({ length: 2 }, () => {
+  const pip = document.createElement('span'); pip.className = 'engineer-turret-pip'; pip.textContent = '○';
+  engineerTurretPips.append(pip); return pip;
+});
+document.querySelector('.ability[data-ability="skill"]')?.append(engineerTurretPips);
+const samuraiMultiplierPill = document.createElement('span');
+samuraiMultiplierPill.className = 'samurai-multiplier-pill';
+samuraiMultiplierPill.hidden = true;
+const samuraiMultiplierValue = document.createElement('b');
+const samuraiThresholdTick = document.createElement('i');
+samuraiThresholdTick.className = 'samurai-threshold-tick';
+samuraiThresholdTick.setAttribute('aria-hidden', 'true');
+samuraiMultiplierPill.append(samuraiMultiplierValue, samuraiThresholdTick);
+document.querySelector('.ability[data-ability="ultimate"]')?.append(samuraiMultiplierPill);
+const rangerDeadAimPill = document.createElement('span');
+rangerDeadAimPill.className = 'ranger-ability-pill ranger-dead-aim-pill';
+rangerDeadAimPill.hidden = true;
+ultimateAbility?.append(rangerDeadAimPill);
+const rangerWolfPill = document.createElement('span');
+rangerWolfPill.className = 'ranger-ability-pill ranger-wolf-pill';
+rangerWolfPill.hidden = true;
+sheriffSkillAbility?.append(rangerWolfPill);
+const rangerDeadAimRing = document.createElement('span');
+rangerDeadAimRing.className = 'ranger-window-ring';
+rangerDeadAimRing.setAttribute('aria-hidden', 'true');
+ultimateAbility?.querySelector('.ability-circle')?.append(rangerDeadAimRing);
+const rangerWolfTimerRing = document.createElement('span');
+rangerWolfTimerRing.className = 'ranger-window-ring';
+rangerWolfTimerRing.setAttribute('aria-hidden', 'true');
+sheriffSkillAbility?.querySelector('.ability-circle')?.append(rangerWolfTimerRing);
 let token = null;
-try { token = sessionStorage.getItem('qq-token'); } catch { /* standalone Hero Lab has no app session */ }
-const socket = window.io('/hero-lab', { auth: token ? { token } : {} });
 const query = new URLSearchParams(location.search);
-const heroId = query.get('heroId');
 const embedded = query.has('embedded') && window.parent !== window;
+try { if (embedded) token = sessionStorage.getItem('qq-token'); } catch { /* standalone Hero Lab has no app session */ }
+const socket = window.io('/hero-lab', { auth: { ...(token ? { token } : {}), debug: !embedded } });
+const heroId = query.get('heroId');
 const requestedRoomCode = (query.get('room') || '').trim().toUpperCase();
 const createRequested = query.get('create') === '1';
 const trialTicket = query.get('trialTicket') || '';
@@ -329,6 +448,8 @@ const keys = { up: false, down: false, left: false, right: false };
 const stickKeys = { up: false, down: false, left: false, right: false };
 let movementPointerId = null;
 let abilityGesture = null;
+let engineerPlacementTargeting = false;
+let rangerMeatTargeting = false;
 let primaryPointerId = null;
 let lastSentMovement = { up: false, down: false, left: false, right: false };
 let abilityAimTimer = null;
@@ -339,8 +460,68 @@ const codeToKey = {
 };
 let me = null;
 let state = { players: [], projectiles: [], monsters: [], campfire: null, wave: null };
+let debugTurretRanges = false;
+const turretVisualState = new Map();
+const rangerMeatThrows = new Map();
+const rangerMeatLandings = [];
+const rangerChargeVisuals = new Map();
+const rangerDeadAimStreaks = [];
+const rangerDeadAimMuzzleUntil = new Map();
+const rangerUltimateFlashAt = new Map();
+const rangerWolfBiteFx = [];
+const turretHitFlashes = new Map();
+const turretHitFlashLast = new Map();
+const engineerLaserBeams = [];
+const engineerLaserWhineStops = new Map();
+const engineerSalvagePopups = new Map();
+const turretBodyCanvas = document.createElement('canvas');
+turretBodyCanvas.width = 44; turretBodyCanvas.height = 32;
+{
+  const g = turretBodyCanvas.getContext('2d');
+  const body = () => {
+    g.beginPath(); g.moveTo(2, 29); g.lineTo(42, 29); g.lineTo(42, 22); g.arc(22, 22, 20, 0, Math.PI, true); g.closePath();
+  };
+  const wood = g.createLinearGradient(0, 5, 0, 30);
+  wood.addColorStop(0, '#D2A06A'); wood.addColorStop(0.48, '#A87547'); wood.addColorStop(1, '#70472F');
+  g.fillStyle = wood; g.strokeStyle = '#2A1A13'; g.lineWidth = 3;
+  body(); g.fill(); g.save(); body(); g.clip();
+  g.strokeStyle = 'rgba(74, 42, 25, 0.48)'; g.lineWidth = 1;
+  g.beginPath(); g.moveTo(7, 15); g.quadraticCurveTo(22, 12, 37, 15); g.moveTo(4, 20); g.quadraticCurveTo(22, 17, 40, 20); g.moveTo(5, 24); g.quadraticCurveTo(22, 22, 39, 24); g.stroke();
+  g.strokeStyle = 'rgba(239, 190, 127, 0.55)'; g.beginPath(); g.moveTo(10, 17); g.quadraticCurveTo(22, 14, 34, 17); g.stroke();
+  g.restore(); body(); g.stroke();
+  g.fillStyle = '#EBA91F'; g.fillRect(4, 25, 36, 3);
+  g.fillStyle = '#3A2418';
+  for (const x of [8, 36]) { g.beginPath(); g.arc(x, 26.5, 1.4, 0, Math.PI * 2); g.fill(); }
+}
+const turretBarrelCanvas = document.createElement('canvas');
+turretBarrelCanvas.width = 34; turretBarrelCanvas.height = 16;
+{
+  const g = turretBarrelCanvas.getContext('2d');
+  const wood = g.createLinearGradient(0, 4, 0, 13);
+  wood.addColorStop(0, '#BD8957'); wood.addColorStop(0.5, '#8D5D3C'); wood.addColorStop(1, '#573721');
+  g.fillStyle = wood; g.strokeStyle = '#2A1A13'; g.lineWidth = 3;
+  g.fillRect(1, 4, 30, 9); g.strokeRect(1.5, 4.5, 30, 9);
+  g.strokeStyle = 'rgba(237, 187, 123, 0.62)'; g.lineWidth = 1;
+  g.beginPath(); g.moveTo(4, 7); g.lineTo(27, 7); g.moveTo(5, 10); g.lineTo(24, 10); g.stroke();
+  g.fillStyle = '#EBA91F'; g.fillRect(24, 4.5, 3, 8);
+}
+const turretSpriteImages = { body: null, barrel: null };
+for (const part of ['body', 'barrel']) {
+  const path = GAME_CONFIG.turret.visuals[part];
+  if (!path) continue;
+  const sprite = new Image();
+  sprite.onload = () => { turretSpriteImages[part] = sprite; };
+  sprite.onerror = () => console.warn(`[hero-lab] turret ${part} sprite failed to load (${path}); using placeholder shapes.`);
+  sprite.src = new URL(path, `${location.origin}/hero-lab/`).href;
+}
 let stateReceivedAt = performance.now();
 const clientProjectiles = new Map();
+const fairyVortexVisuals = new Map();
+const fairyVortexPops = [];
+const fairyTravelSoundStops = new Map();
+const fairyWindImpacts = [];
+const fairyMuzzlePuffs = [];
+const fairyPushStreaks = [];
 const particles = [];
 const damageTexts = [];
 const lightningArcs = [];
@@ -377,6 +558,13 @@ const refundPopups = new Map();
 // instant the dash fires. playerId -> { dir: {x,y}, startedAt }. Drawn while the
 // dash trail is also live, but the squash is purely cosmetic and decays fast.
 const guardianDashSquash = new Map();
+const samuraiDashTrails = new Map();
+const samuraiSlashEffects = [];
+const samuraiHitMarks = [];
+const samuraiExecuteLabels = [];
+const samuraiCutNumberLabels = [];
+const samuraiStackFeedback = new Map();
+let samuraiScreenFlash = null;
 let refundPopupState = null;
 let lastLocalPosition = null;
 let localIdleSince = performance.now();
@@ -384,7 +572,7 @@ let momentumNudge = null;
 let sessionNudgeCount = 0;
 
 // Debug-only profiler. It stays dormant unless the account passes the debug
-// gate; the effect toggles stay readable either way (all true by default).
+// gate or the user opened the explicit anonymous debug entry.
 const profiler = createProfiler({
   getStats: () => ({
     particles: particles.length,
@@ -400,10 +588,23 @@ const profiler = createProfiler({
 profiler.onSoundToggle = (on) => setAudioEnabled(on);
 void profiler.start().then((debugEnabled) => {
   if (!debugEnabled) return;
-  const controls = document.createElement('div');
-  controls.className = 'sprite-debug-tools';
+  const debugMenu = document.createElement('div');
+  debugMenu.className = 'debug-menu';
+  debugMenu.innerHTML = '<strong class="debug-menu-title">Debug tools</strong>';
+  const makeDebugSection = (title, className = '') => {
+    const section = document.createElement('details');
+    section.className = `debug-section ${className}`.trim();
+    const summary = document.createElement('summary');
+    summary.textContent = title;
+    const body = document.createElement('div');
+    body.className = 'debug-section-body';
+    section.append(summary, body);
+    debugMenu.append(section);
+    return body;
+  };
+  const controls = makeDebugSection('Hero visuals', 'sprite-debug-tools');
   controls.innerHTML = '<label><input type="checkbox" data-sprite-debug="hitboxes"> Show hitboxes</label><label><input type="checkbox" data-sprite-debug="disable"> Disable sprites</label><button type="button" data-sprite-debug="ultimate">Force ultimate look</button><button type="button" data-sprite-debug="downed">Force downed</button>';
-  settingsPanel.append(controls);
+  settingsPanel.append(debugMenu);
   controls.querySelector('[data-sprite-debug="disable"]').addEventListener('change', (event) => {
     heroSpritesDisabled = event.target.checked;
     syncHeroMenus(); updateHud();
@@ -411,22 +612,78 @@ void profiler.start().then((debugEnabled) => {
   controls.querySelector('[data-sprite-debug="ultimate"]').addEventListener('click', () => { heroDebugUltimate = !heroDebugUltimate; });
   controls.querySelector('[data-sprite-debug="downed"]').addEventListener('click', () => { heroDebugDowned = !heroDebugDowned; });
   controls.querySelector('[data-sprite-debug="hitboxes"]').addEventListener('change', (event) => { heroDebugHitboxes = event.target.checked; });
+  const turretTools = makeDebugSection('Turret testing', 'tower-debug-tools');
+  turretTools.innerHTML = '<button type="button" data-turret-place>Place turret at last arena cursor</button><button type="button" data-turret-action="expire">Expire turret in 1 second</button><button type="button" data-turret-action="damage">Damage 50%</button><label><input type="checkbox" data-turret-ranges> Show turret ranges</label><div class="debug-effect-buttons"><button type="button" data-spawn-at="zombie">Spawn zombie at cursor</button><button type="button" data-spawn-at="skeleton">Spawn skeleton at cursor</button><button type="button" data-spawn-at="brute">Spawn Brute at cursor</button></div>';
+  turretTools.querySelector('[data-turret-place]').addEventListener('click', () => {
+    const point = window.lastPointerWorld || { x: ARENA_WIDTH / 2, y: ARENA_HEIGHT / 2 };
+    socket.emit('debug_turret', { action: 'place', ...point });
+  });
+  turretTools.querySelector('[data-turret-ranges]').addEventListener('change', (event) => { debugTurretRanges = event.target.checked; });
+  turretTools.querySelectorAll('[data-turret-action]').forEach((button) => button.addEventListener('click', () => socket.emit('debug_turret', { action: button.dataset.turretAction })));
+  turretTools.querySelectorAll('[data-spawn-at]').forEach((button) => button.addEventListener('click', () => {
+    const point = window.lastPointerWorld || { x: ARENA_WIDTH / 2, y: ARENA_HEIGHT / 2 };
+    socket.emit('debug_spawn_at', { type: button.dataset.spawnAt, ...point });
+  }));
+
+  const heroUnlockTools = makeDebugSection('Hero testing');
+  heroUnlockTools.innerHTML = '<label>Unlock hero <select data-debug-unlock-hero></select></label><button type="button" data-debug-unlock>Unlock for this browser</button><button type="button" data-debug-preview-vortex>Preview vortex</button><label>Samurai Kill Count <input data-debug-samurai-stacks type="number" min="0" max="20" step="1" value="0"></label><button type="button" data-debug-set-samurai-stacks>Set Kill Count</button><button type="button" data-debug-preview-samurai-cut>Preview Afterimage Cut at cursor</button>';
+  const heroUnlockSelect = heroUnlockTools.querySelector('[data-debug-unlock-hero]');
+  heroUnlockSelect.replaceChildren(...HEROES.map((hero) => {
+    const stars = GAME_CONFIG.arenaTuning.gachaReveal.rarityStars[hero.rarity] || 0;
+    const option = document.createElement('option'); option.value = hero.id; option.textContent = `${hero.name} · ${stars}-star`; return option;
+  }));
+  heroUnlockTools.querySelector('[data-debug-unlock]').addEventListener('click', () => {
+    const heroId = heroUnlockSelect.value;
+    try {
+      const key = 'hero-lab-debug-unlocked-heroes';
+      const existing = JSON.parse(localStorage.getItem(key) || '[]');
+      if (!existing.includes(heroId)) localStorage.setItem(key, JSON.stringify([...existing, heroId]));
+    } catch { /* the parent picker still receives the unlock message */ }
+    window.parent?.postMessage({ type: 'hero-lab-debug-unlock', heroId }, window.location.origin);
+    socket.emit('swap_hero', heroId);
+    connectionStatus.textContent = `${HEROES.find((hero) => hero.id === heroId)?.name || 'Hero'} unlocked for browser testing.`;
+  });
+  heroUnlockTools.querySelector('[data-debug-preview-vortex]').addEventListener('click', () => {
+    const cursor = window.lastPointerWorld || { x: ARENA_WIDTH / 2, y: ARENA_HEIGHT / 2 };
+    previewFairyVortex(cursor.x, cursor.y);
+  });
+  heroUnlockTools.querySelector('[data-debug-set-samurai-stacks]').addEventListener('click', () => {
+    const input = heroUnlockTools.querySelector('[data-debug-samurai-stacks]');
+    socket.emit('debug_set_samurai_stacks', Math.max(0, Math.min(20, Math.floor(Number(input.value) || 0))));
+  });
+  heroUnlockTools.querySelector('[data-debug-preview-samurai-cut]').addEventListener('click', () => previewSamuraiCut());
+  const rangerTools = makeDebugSection('Ranger testing');
+  rangerTools.innerHTML = '<button type="button" data-ranger-debug="force-full-charge">Force full charge (release M1)</button><button type="button" data-ranger-debug="spawn-wolf">Throw meat and spawn pup at cursor</button><button type="button" data-ranger-debug="grant-dead-aim">Grant Dead Aim (3 arrows)</button>';
+  rangerTools.querySelectorAll('[data-ranger-debug]').forEach((button) => button.addEventListener('click', () => {
+    const cursor = window.lastPointerWorld || { x: ARENA_WIDTH / 2, y: ARENA_HEIGHT / 2 };
+    socket.emit('debug_ranger', { action: button.dataset.rangerDebug, ...cursor });
+  }));
 
   // Tower debug: set this player's Tower level 0..max and force-add a stat card,
   // with a live readout of the derived stats. Same debug gate as above.
-  const towerTools = document.createElement('div');
-  towerTools.className = 'tower-debug-tools';
+  const towerTools = makeDebugSection('Tower & stat cards', 'tower-debug-tools');
   const maxTowerLevel = GAME_CONFIG.arenaTuning.tower.maxLevel;
   const levelOptions = Array.from({ length: maxTowerLevel + 1 }, (_, i) => `<option value="${i}">${i}</option>`).join('');
   towerTools.innerHTML = `<label>Tower Lv <select data-tower-level>${levelOptions}</select></label>`
     + '<label>Add card <select data-tower-card><option value="">—</option><option value="maxHp">maxHp</option><option value="attack">attack</option><option value="defense">defense</option><option value="speed">speed</option></select></label>'
     + '<button type="button" data-tower-add>Add</button><span data-tower-readout></span>';
-  controls.append(towerTools);
   towerTools.querySelector('[data-tower-level]').addEventListener('change', (event) => socket.emit('debug_set_tower', Number(event.target.value)));
   towerTools.querySelector('[data-tower-add]').addEventListener('click', () => {
     const cardId = towerTools.querySelector('[data-tower-card]').value;
     if (cardId) socket.emit('debug_add_stat_card', cardId);
   });
+  const crowdControlTools = makeDebugSection('Monster effects', 'tower-debug-tools');
+  crowdControlTools.innerHTML = '<div class="debug-effect-buttons">'
+    + '<button type="button" data-monster-effect="push:enemy">Push enemy</button>'
+    + '<button type="button" data-monster-effect="hold:enemy">Hold enemy</button>'
+    + '<button type="button" data-monster-effect="slow:enemy">Slow enemy</button>'
+    + '<button type="button" data-monster-effect="push:dummy">Push dummy</button>'
+    + '<button type="button" data-monster-effect="hold:dummy">Hold dummy</button>'
+    + '<button type="button" data-monster-effect="slow:dummy">Slow dummy</button></div>';
+  crowdControlTools.querySelectorAll('[data-monster-effect]').forEach((button) => button.addEventListener('click', () => {
+    const [effect, target] = button.dataset.monsterEffect.split(':');
+    socket.emit('debug_monster_effect', { effect, target });
+  }));
   window.setInterval(() => {
     const local = state.players.find((candidate) => candidate.id === me);
     const out = towerTools.querySelector('[data-tower-readout]');
@@ -465,7 +722,7 @@ setBtnVar('--btn-label-height', `${BTN_LABEL_HEIGHT}px`);
 setBtnVar('--btn-label-size', `${BTN_LABEL_SIZE}px`);
 setBtnVar('--btn-label-clearance', `${BTN_LABEL_CLEARANCE}px`);
 setBtnVar('--btn-icon-scale', String(BTN_ICON_SCALE));
-setBtnVar('--ability-cluster-height', `${ABILITY_CLUSTER_HEIGHT_PX}px`);
+setBtnVar('--ability-cluster-height', `${touchViewport.matches ? 168 : ABILITY_CLUSTER_HEIGHT_PX}px`);
 setBtnVar('--ready-highlight-color', BTN_HIGHLIGHT_READY_COLOR);
 
 // data-ability ("weapon") -> config slot ("primary").
@@ -520,10 +777,18 @@ async function loadAbilityIcon(path) {
   }
 }
 
-function setAbilityIcon(host, path) {
+const FAIRY_ABILITY_FALLBACK = Object.freeze({ primary: '🏹', skill: '💨', ultimate: '🌪️' });
+const ENGINEER_ABILITY_FALLBACK = Object.freeze({ primary: '🔧', skill: '🛠️', ultimate: '⚡' });
+const SAMURAI_ABILITY_FALLBACK = Object.freeze({ primary: '🌟', skill: '🗡️', ultimate: '🌙' });
+const RANGER_ABILITY_FALLBACK = Object.freeze({ primary: '🏹', skill: '🍖', ultimate: '🎯', talent: '🐾' });
+function setAbilityIcon(host, path, fallbackEmoji = '') {
   const cached = iconSvgCache.get(path);
   if (cached) {
     host.replaceChildren(cached.cloneNode(true));
+    return;
+  }
+  if (iconLoadFailed.has(path)) {
+    host.replaceChildren(fallbackEmoji ? document.createTextNode(fallbackEmoji) : fallbackIconSvg());
     return;
   }
   // Interim ring so the button never sits empty while the file loads.
@@ -531,22 +796,26 @@ function setAbilityIcon(host, path) {
   if (iconLoadFailed.has(path)) return;
   loadAbilityIcon(path).then((svg) => {
     if (svg && host.isConnected) host.replaceChildren(svg.cloneNode(true));
+    else if (!svg && host.isConnected && fallbackEmoji) host.replaceChildren(document.createTextNode(fallbackEmoji));
   });
 }
 
 function applyClusterIcons(heroId, mechActive, elements) {
   const map = ABILITY_ICONS[heroId];
-  if (!map) return;
   for (const element of elements) {
     const slot = ABILITY_SLOT[element.dataset.ability];
     const host = element.querySelector('.ability-icon');
     if (!slot || !host) continue;
-    let path = map[slot];
+    let path = map?.[slot];
     if (MECH_ICON_SWAP && mechActive) {
       if (slot === 'primary' && map.mechPrimary) path = map.mechPrimary;
       if (slot === 'skill' && map.mechSkill) path = map.mechSkill;
     }
-    if (path) setAbilityIcon(host, path);
+    if (path) setAbilityIcon(host, path, heroId === 'ranger' ? RANGER_ABILITY_FALLBACK[slot]
+      : heroId === 'fairy' ? FAIRY_ABILITY_FALLBACK[slot]
+      : heroId === 'engineer' ? ENGINEER_ABILITY_FALLBACK[slot]
+        : heroId === 'samurai' ? SAMURAI_ABILITY_FALLBACK[slot] : '');
+    else if (heroId === 'engineer') host.replaceChildren(document.createTextNode(ENGINEER_ABILITY_FALLBACK[slot] || ''));
   }
 }
 
@@ -745,8 +1014,8 @@ function glowSprite(color, inner, outer) {
 }
 
 // Pre-rendered permanent area rings (heal ring, Thorns ring). Each sprite is
-// the full ring treatment - dark under-stroke, dashed bright main stroke and
-// the translucent inner fill - rasterized once per radius and blitted with
+// the full ring treatment - dashed colored stroke and translucent inner fill
+// - rasterized once per radius and blitted with
 // drawImage, so the two permanent rings cost one blit each per frame instead
 // of ~6 stroked arcs. Transient telegraphs still draw live: their radius and
 // fill alpha change every frame.
@@ -754,7 +1023,7 @@ const _ringSprites = new Map();
 function ringSprite(key, radius, strokeColor, fillColor, width, strokeAlpha) {
   let sprite = _ringSprites.get(key);
   if (sprite) return sprite;
-  const pad = Math.ceil(width / 2 + AREA_UNDERSTROKE_EXTRA_PX + 2);
+  const pad = Math.ceil(width / 2 + 2);
   const size = Math.ceil((radius + pad) * 2);
   const canvas = document.createElement('canvas');
   canvas.width = size;
@@ -764,12 +1033,7 @@ function ringSprite(key, radius, strokeColor, fillColor, width, strokeAlpha) {
   // Inner fill first so the strokes stay crisp on top of it.
   c.beginPath(); c.arc(center, center, radius, 0, Math.PI * 2);
   c.globalAlpha = AREA_RING_FILL_ALPHA; c.fillStyle = fillColor; c.fill();
-  // Dark under-stroke: guarantees the bright stroke reads on any floor.
-  c.globalAlpha = AREA_UNDERSTROKE_ALPHA;
-  c.strokeStyle = AREA_COLORS.understroke;
-  c.lineWidth = width + AREA_UNDERSTROKE_EXTRA_PX;
-  c.beginPath(); c.arc(center, center, radius, 0, Math.PI * 2); c.stroke();
-  // Bright dashed main stroke.
+  // Dashed colored main stroke.
   c.globalAlpha = strokeAlpha;
   c.strokeStyle = strokeColor;
   c.lineWidth = width;
@@ -812,6 +1076,12 @@ function addParticle(particle) {
   // every later property access slower. Shape stays stable across reuse.
   p.emoji = particle.emoji;
   p.text = particle.text;
+  p.travelTargetX = particle.travelTargetX ?? null;
+  p.travelTargetY = particle.travelTargetY ?? null;
+  p.travelStartX = particle.travelStartX ?? null;
+  p.travelStartY = particle.travelStartY ?? null;
+  p.travelStartedAt = particle.travelStartedAt ?? null;
+  p.travelDurationMs = particle.travelDurationMs ?? null;
   Object.assign(p, particle);
   particles.push(p);
 }
@@ -975,9 +1245,35 @@ const RESULT_EMBLEMS = {
 
 // The party panel shows everyone who was in the room for this run: their own
 // name first, the hero they played underneath. Only real roster data is used.
+let resultPartyAnimationTimer = 0;
+function stopResultPartyAnimation() {
+  if (resultPartyAnimationTimer) clearInterval(resultPartyAnimationTimer);
+  resultPartyAnimationTimer = 0;
+}
+
+function animateResultParty(host) {
+  stopResultPartyAnimation();
+  if (prefersReducedMotion || !heroSpriteCache || !host.querySelector('.hero-ui-sprite')) return;
+  const clip = heroSpriteCache.config.IDLE_CLIP || ['open'];
+  const fps = heroSpriteCache.config.IDLE_FPS || 5;
+  const startedAt = performance.now();
+  resultPartyAnimationTimer = window.setInterval(() => {
+    if (runResultPanel.hidden || document.hidden) { stopResultPartyAnimation(); return; }
+    const frameName = clip[Math.floor(((performance.now() - startedAt) / 1000) * fps) % clip.length] || 'open';
+    for (const image of host.querySelectorAll('.hero-ui-sprite')) {
+      if (image.dataset.frameName === frameName) continue;
+      const src = getHeroSpriteUrl(heroSpriteCache, image.dataset.heroId, frameName);
+      if (!src) continue;
+      image.dataset.frameName = frameName;
+      image.src = src;
+    }
+  }, 1000 / fps);
+}
+
 function renderResultParty() {
   const host = document.querySelector('#run-result-party');
   if (!host) return;
+  stopResultPartyAnimation();
   const roster = state.room?.players?.length ? state.room.players : (state.players || []);
   const members = roster.length ? roster : [{ id: me, name: 'You', heroId: activeHeroId }];
   const ordered = [...members].sort((a, b) => (a.id === me ? -1 : b.id === me ? 1 : 0));
@@ -988,7 +1284,14 @@ function renderResultParty() {
     const stage = document.createElement('span'); stage.className = 'party-stage';
     const hero = HEROES.find((candidate) => candidate.id === member.heroId);
     const sprite = createHeroImage(member.heroId, member.emoji || hero?.emoji, 140);
-    if (sprite) stage.append(sprite); else stage.textContent = member.emoji || hero?.emoji || '';
+    if (sprite) {
+      sprite.dataset.heroId = member.heroId;
+      sprite.dataset.frameName = 'open';
+      const offsetX = heroSpriteConfig?.HERO_VISUALS?.[member.heroId]?.partyOffsetX ?? 0;
+      sprite.style.setProperty('--party-offset-x', `${offsetX}%`);
+      stage.append(sprite);
+    }
+    else stage.textContent = member.emoji || hero?.emoji || '';
     const caption = document.createElement('figcaption');
     const name = document.createElement('strong'); name.textContent = truncateName(member.name);
     name.title = member.name || '';
@@ -997,6 +1300,7 @@ function renderResultParty() {
     figure.append(stage, caption);
     return figure;
   }));
+  animateResultParty(host);
 }
 
 function showRunResult(result) {
@@ -1176,16 +1480,293 @@ function smoothShakeNoise(timestamp, phase = SHAKE_NOISE_PRIMARY_PHASE) {
   return valueAt(sample) + (valueAt(sample + 1) - valueAt(sample)) * eased;
 }
 
-function showAreaEffect({ x, y, radius, kind = 'player', telegraphMs = 0, sourceAbility = 'weapon', color = null, sourceHeroId = null, angleRad = null, angleDeg = null, durationMs = null }) {
+function showAreaEffect({ x, y, radius, kind = 'player', telegraphMs = 0, sourceAbility = 'weapon', color = null, sourceHeroId = null, angleRad = null, angleDeg = null, durationMs = null, hits = null }) {
   const cone = angleRad != null && angleDeg != null;
   const now = performance.now();
-  areaEffects.push({ x, y, radius, kind, sourceAbility, color, sourceHeroId, angleRad, angleDeg, cone, phase: telegraphMs > 0 ? 'telegraph' : 'detonation', startedAt: now,
-    durationMs: durationMs != null ? durationMs : (telegraphMs > 0 ? telegraphMs : ARENA_TUNING.areaEffects.detonationMs) });
+  areaEffects.push({ x, y, radius, kind, sourceAbility, color, sourceHeroId, angleRad, angleDeg, cone, hits, phase: telegraphMs > 0 ? 'telegraph' : 'detonation', startedAt: now,
+    durationMs: durationMs != null ? durationMs : (sourceHeroId === 'fairy' && sourceAbility === 'skill' ? FAIRY_GALE_VFX_DURATION_MS : telegraphMs > 0 ? telegraphMs : ARENA_TUNING.areaEffects.detonationMs) });
   if (areaEffects.length > 24) areaEffects.shift();
   if (telegraphMs <= 0) {
     if (sourceAbility === 'boss-slam') shakeCamera(SHAKE_BOSS_SLAM_TRAUMA, 'major');
     else if (sourceHeroId === 'guardian' && sourceAbility === 'ultimate') shakeCamera(SHAKE_ULTIMATE_TRAUMA, 'major');
+    else if (sourceHeroId === 'fairy' && sourceAbility === 'skill') shakeCamera((SHAKE_EXPLOSION_BASE_TRAUMA + radius / SHAKE_EXPLOSION_RADIUS_SCALE) * FAIRY_GALE_SHAKE_MULT, 'explosion');
+    else if (sourceHeroId === 'fairy' && sourceAbility === 'ultimate') shakeCamera(SHAKE_ULTIMATE_TRAUMA * 0.6, 'major');
+    else if (sourceHeroId === 'ranger' && sourceAbility === 'ultimate') shakeCamera(SHAKE_ULTIMATE_TRAUMA * 0.5, 'major');
     else shakeCamera(SHAKE_EXPLOSION_BASE_TRAUMA + radius / SHAKE_EXPLOSION_RADIUS_SCALE, 'explosion');
+  }
+}
+
+const reducedMotionQuery = window.matchMedia?.('(prefers-reduced-motion: reduce)');
+let prefersReducedMotion = Boolean(reducedMotionQuery?.matches);
+reducedMotionQuery?.addEventListener?.('change', (event) => { prefersReducedMotion = event.matches; });
+let fairyVortexHumStop = null;
+
+function makeFairyVortexVisual({ id, x, y, remainingMs = GAME_CONFIG.heroes.fairy.vortex.durationMs,
+  pullRemainingMs = GAME_CONFIG.heroes.fairy.vortex.pullMs, preview = false }) {
+  const now = performance.now();
+  const durationMs = GAME_CONFIG.heroes.fairy.vortex.durationMs;
+  const age = Math.max(0, durationMs - remainingMs);
+  return {
+    id, x, y, preview, startedAt: now - age, endsAt: now + remainingMs,
+    pullEndsAt: now + pullRemainingMs, nextDebrisAt: now + VORTEX_DEBRIS_SPAWN_MS,
+    debrisCursor: 0, debris: Array.from({ length: VORTEX_DEBRIS_POOL_SIZE }, () => ({ at: -Infinity, angle: 0, durationMs: VORTEX_DEBRIS_LIFETIME_MS })),
+    ripples: [], nextRippleAt: now + VORTEX_RIPPLE_INTERVAL_MS, humStop: null,
+  };
+}
+
+function startFairyVortexVisual(vortex) {
+  const visual = makeFairyVortexVisual(vortex);
+  fairyVortexVisuals.set(visual.id, visual);
+  if (effectToggles.sound) {
+    playSound('fairyWhoosh');
+    if (!fairyVortexHumStop) fairyVortexHumStop = startSoundLoop('fairyHum');
+  }
+  shakeCamera(SHAKE_ULTIMATE_TRAUMA, 'major');
+  if (VORTEX_ZOOM_PULSE && effectiveQuality() !== 'low' && !prefersReducedMotion) {
+    cameraZoom = { startedAt: performance.now(), until: performance.now() + VORTEX_ZOOM_DURATION_MS, scale: VORTEX_ZOOM_SCALE };
+  }
+}
+
+function finishFairyVortexVisual(id, x, y) {
+  const visual = fairyVortexVisuals.get(id);
+  if (visual) {
+    x = visual.x; y = visual.y;
+    fairyVortexVisuals.delete(id);
+    if (fairyVortexVisuals.size === 0 && fairyVortexHumStop) {
+      fairyVortexHumStop(); fairyVortexHumStop = null;
+    }
+  }
+  if (effectToggles.sound) playSound('fairyPoof');
+  showAreaEffect({ x, y, radius: GAME_CONFIG.heroes.fairy.vortex.radius, kind: 'player', sourceAbility: 'ultimate', sourceHeroId: 'fairy',
+    color: HERO_FX_COLORS.fairy.primary, durationMs: VORTEX_POP_RING_MS });
+  fairyVortexPops.push({ x, y, startedAt: performance.now() });
+  if (!prefersReducedMotion && effectiveQuality() !== 'low') {
+    for (let i = 0; i < VORTEX_POP_SPARK_COUNT; i++) {
+      const angle = Math.PI * 2 * i / VORTEX_POP_SPARK_COUNT;
+      const speed = 95 + (i % 3) * 25;
+      addParticle({ x, y, vx: Math.cos(angle) * speed, vy: Math.sin(angle) * speed,
+        radius: 2.5, color: i % 2 ? HERO_FX_COLORS.fairy.primary : HERO_FX_SECONDARY.fairy,
+        alpha: 1, startedAt: performance.now(), durationMs: VORTEX_FLASH_POP_MS, expiresAt: performance.now() + VORTEX_FLASH_POP_MS });
+    }
+  }
+}
+
+function drawFairyWindFeedback(now) {
+  for (let i = fairyMuzzlePuffs.length - 1; i >= 0; i--) {
+    const puff = fairyMuzzlePuffs[i], age = now - puff.startedAt;
+    if (age >= FAIRY_WIND_IMPACT_MS) { fairyMuzzlePuffs.splice(i, 1); continue; }
+    context.save(); context.translate(puff.x, puff.y); context.rotate(puff.angle);
+    context.globalAlpha = 1 - age / FAIRY_WIND_IMPACT_MS;
+    for (let n = 0; n < FAIRY_ARROW_TRAIL_COUNT; n++) {
+      context.strokeStyle = n === 1 ? '#fff0fa' : HERO_FX_SECONDARY.fairy; context.lineWidth = 1.6;
+      context.beginPath(); context.moveTo(-n * 3, n * 2 - 3); context.quadraticCurveTo(3, -6 + n * 4, 8 + n * 2, 0); context.stroke();
+    }
+    context.restore();
+  }
+  for (let i = fairyWindImpacts.length - 1; i >= 0; i--) {
+    const impact = fairyWindImpacts[i], age = now - impact.startedAt;
+    if (age >= FAIRY_WIND_IMPACT_MS) { fairyWindImpacts.splice(i, 1); continue; }
+    const fade = 1 - age / FAIRY_WIND_IMPACT_MS;
+    context.save(); context.translate(impact.x, impact.y); context.rotate(impact.angle); context.globalAlpha = fade;
+    for (let n = 0; n < FAIRY_ARROW_IMPACT_LINES; n++) {
+      context.strokeStyle = n % 2 ? HERO_FX_SECONDARY.fairy : '#fff0fa'; context.lineWidth = 2;
+      const y = (n - 1) * 5;
+      context.beginPath(); context.moveTo(-4, y + 3); context.quadraticCurveTo(0, y - 5, 7, y); context.stroke();
+    }
+    context.restore();
+  }
+  for (let i = fairyPushStreaks.length - 1; i >= 0; i--) {
+    const streak = fairyPushStreaks[i], age = now - streak.startedAt;
+    if (age >= FAIRY_WIND_IMPACT_MS) { fairyPushStreaks.splice(i, 1); continue; }
+    const target = state.monsters?.find((monster) => monster.id === streak.id);
+    const x = target?.x ?? streak.x, y = target?.y ?? streak.y;
+    context.save(); context.globalAlpha = (1 - age / FAIRY_WIND_IMPACT_MS) * 0.72; context.lineCap = 'round';
+    for (let n = 0; n < 3; n++) {
+      context.strokeStyle = n === 1 ? '#fff0fa' : HERO_FX_SECONDARY.fairy; context.lineWidth = 1.7;
+      const offset = (n - 1) * 4;
+      context.beginPath(); context.moveTo(x - streak.dirX * (10 + n * 3) - streak.dirY * offset, y - streak.dirY * (10 + n * 3) + streak.dirX * offset);
+      context.quadraticCurveTo(x - streak.dirX * 6, y - streak.dirY * 6, x, y); context.stroke();
+    }
+    context.restore();
+  }
+}
+
+function syncFairyVortices(snapshot) {
+  const active = new Set();
+  for (const vortex of snapshot.fairyVortices || []) {
+    active.add(vortex.id);
+    const visual = fairyVortexVisuals.get(vortex.id);
+    if (!visual) startFairyVortexVisual(vortex);
+    else { visual.x = vortex.x; visual.y = vortex.y; visual.endsAt = performance.now() + vortex.remainingMs; visual.pullEndsAt = performance.now() + vortex.pullRemainingMs; }
+  }
+  for (const [id, visual] of fairyVortexVisuals) if (!active.has(id) && !visual.preview) finishFairyVortexVisual(id, visual.x, visual.y);
+}
+
+function previewFairyVortex(x, y) {
+  const id = `debug-fairy-vortex-${performance.now()}`;
+  const visual = makeFairyVortexVisual({ id, x, y, preview: true });
+  visual.endsAt = performance.now() + GAME_CONFIG.heroes.fairy.vortex.durationMs;
+  if (effectToggles.sound) {
+    if (!fairyVortexHumStop) fairyVortexHumStop = startSoundLoop('fairyHum');
+    playSound('fairyWhoosh');
+  }
+  fairyVortexVisuals.set(id, visual);
+  shakeCamera(SHAKE_ULTIMATE_TRAUMA, 'major');
+  if (VORTEX_ZOOM_PULSE && effectiveQuality() !== 'low' && !prefersReducedMotion) cameraZoom = { startedAt: performance.now(), until: performance.now() + VORTEX_ZOOM_DURATION_MS, scale: VORTEX_ZOOM_SCALE };
+}
+
+function previewSamuraiCut() {
+  const player = state.players?.find((candidate) => candidate.id === me);
+  const cursor = window.lastPointerWorld || { x: ARENA_WIDTH / 2, y: ARENA_HEIGHT / 2 };
+  const origin = player || cursor;
+  const dx = cursor.x - origin.x, dy = cursor.y - origin.y;
+  const distance = Math.hypot(dx, dy);
+  const direction = distance > 1 ? { x: dx / distance, y: dy / distance } : (player?.aim || { x: 1, y: 0 });
+  const spec = GAME_CONFIG.heroes.samurai.afterimageCut;
+  const startAlong = -spec.pad;
+  const endAlong = spec.distance + spec.pad;
+  samuraiSlashEffects.push({
+    startX: origin.x + direction.x * startAlong, startY: origin.y + direction.y * startAlong,
+    endX: origin.x + direction.x * endAlong, endY: origin.y + direction.y * endAlong,
+    width: spec.width, startedAt: performance.now(),
+  });
+  if (samuraiSlashEffects.length > 16) samuraiSlashEffects.shift();
+}
+
+function updateVortexDecorations(visual, now) {
+  const quality = effectiveQuality();
+  const debrisCount = quality === 'high' ? VORTEX_DEBRIS_POOL_SIZE : quality === 'medium' ? 8 : 0;
+  if (!prefersReducedMotion && debrisCount > 0 && now >= visual.nextDebrisAt) {
+    const births = Math.min(4, Math.floor((now - visual.nextDebrisAt) / VORTEX_DEBRIS_SPAWN_MS) + 1);
+    for (let i = 0; i < births; i++) {
+      const streak = visual.debris[visual.debrisCursor++ % debrisCount];
+      streak.at = now; streak.angle = Math.random() * Math.PI * 2; streak.color = visual.debrisCursor % 2 ? HERO_FX_COLORS.fairy.primary : HERO_FX_SECONDARY.fairy;
+    }
+    visual.nextDebrisAt = now + VORTEX_DEBRIS_SPAWN_MS;
+  }
+  if (!prefersReducedMotion && quality === 'high' && now >= visual.nextRippleAt) {
+    visual.ripples.push({ at: now }); visual.nextRippleAt = now + VORTEX_RIPPLE_INTERVAL_MS;
+    while (visual.ripples.length > 2) visual.ripples.shift();
+  }
+}
+
+function drawFairyVortexGround(now) {
+  for (const visual of fairyVortexVisuals.values()) {
+    const elapsed = Math.max(0, now - visual.startedAt);
+    const radius = GAME_CONFIG.heroes.fairy.vortex.radius;
+    const fadeIn = Math.max(0, Math.min(1, (elapsed - VORTEX_FORMATION_FLASH_MS) / VORTEX_SUSTAIN_FADE_MS));
+    const collapse = Math.max(0, Math.min(1, (visual.endsAt - now) / VORTEX_COLLAPSE_MS));
+    context.save(); context.globalAlpha = fadeIn * (prefersReducedMotion ? VORTEX_GROUND_FILL_ALPHA : VORTEX_GROUND_FILL_ALPHA + 0.05 * Math.sin(now * 0.005));
+    context.fillStyle = VORTEX_GROUND_FILL;
+    context.beginPath(); context.arc(visual.x, visual.y, radius * (0.9 - 0.06 * (1 - collapse)), 0, Math.PI * 2); context.fill();
+    context.globalAlpha *= fadeIn;
+    context.setLineDash([VORTEX_GROUND_DASH_ON_PX, VORTEX_GROUND_DASH_OFF_PX]);
+    context.strokeStyle = HERO_FX_COLORS.fairy.primary; context.lineWidth = VORTEX_GROUND_RING_WIDTH_PX;
+    context.beginPath(); context.arc(visual.x, visual.y, radius, 0, Math.PI * 2); context.stroke(); context.setLineDash([]);
+    for (const ripple of (effectiveQuality() === 'high' && !prefersReducedMotion ? visual.ripples : [])) {
+      const progress = (now - ripple.at) / VORTEX_RIPPLE_DURATION_MS;
+      if (progress >= 1) continue;
+      context.globalAlpha = (1 - progress) * 0.7;
+      context.strokeStyle = HERO_FX_COLORS.fairy.primary; context.lineWidth = 2;
+      context.beginPath(); context.arc(visual.x, visual.y,
+        radius * (1 - progress) + VORTEX_CORE_RADIUS_PX * progress, 0, Math.PI * 2); context.stroke();
+    }
+    context.restore();
+  }
+}
+
+function drawFairyVortexStructures(now) {
+  for (const [id, visual] of fairyVortexVisuals) {
+    const elapsed = Math.max(0, now - visual.startedAt);
+    const remaining = visual.endsAt - now;
+    if (remaining <= 0) { if (visual.preview) finishFairyVortexVisual(id, visual.x, visual.y); continue; }
+    updateVortexDecorations(visual, now);
+    const formation = Math.max(0, Math.min(1, elapsed / VORTEX_FORMATION_FLASH_MS));
+    const sustain = Math.max(0, Math.min(1, (elapsed - VORTEX_FORMATION_FLASH_MS) / VORTEX_SUSTAIN_FADE_MS));
+    const collapse = prefersReducedMotion ? 0 : Math.max(0, Math.min(1, (VORTEX_COLLAPSE_MS - remaining) / VORTEX_COLLAPSE_MS));
+    const still = remaining <= VORTEX_POP_STILL_MS;
+    const coreRadius = prefersReducedMotion ? VORTEX_CORE_RADIUS_PX : remaining <= VORTEX_POP_STILL_MS
+      ? VORTEX_POP_STILL_CORE_PX : VORTEX_CORE_RADIUS_PX * Math.max(0.35, 1 - 0.55 * collapse);
+    const diskScale = prefersReducedMotion ? 1 : Math.max(0.45, 1 - 0.5 * collapse);
+    let diskRotation = now / 1000 * Math.PI * 2 * VORTEX_DISK_ROTATION_HZ;
+    if (prefersReducedMotion) diskRotation = now / 1000 * Math.PI * 2 * 0.08;
+    else if (remaining < VORTEX_COLLAPSE_MS) diskRotation += collapse * Math.PI * 2 * VORTEX_DISK_ROTATION_HZ * 2;
+    if (still) diskRotation = Math.round(diskRotation / (Math.PI / 8)) * (Math.PI / 8);
+    const pulse = prefersReducedMotion || still ? 1 : 1 + 0.03 * Math.sin(now / 1000 * Math.PI * 2 * VORTEX_CORE_PULSE_HZ);
+
+    if (!prefersReducedMotion && effectiveQuality() !== 'low' && elapsed < VORTEX_SHOCKWAVE_MS) {
+      const progress = elapsed / VORTEX_SHOCKWAVE_MS;
+      context.save(); context.globalAlpha = 1 - progress;
+      context.strokeStyle = HERO_FX_COLORS.fairy.primary; context.lineWidth = 5;
+      context.beginPath(); context.arc(visual.x, visual.y, VORTEX_CORE_RADIUS_PX + (GAME_CONFIG.heroes.fairy.vortex.radius - VORTEX_CORE_RADIUS_PX) * progress, 0, Math.PI * 2); context.stroke(); context.restore();
+    }
+    if (!prefersReducedMotion && effectiveQuality() !== 'low' && elapsed < VORTEX_FORMATION_FLASH_MS) {
+      context.save(); context.globalAlpha = 1 - elapsed / VORTEX_FORMATION_FLASH_MS;
+      context.fillStyle = '#fff0fa'; context.beginPath(); context.arc(visual.x, visual.y, VORTEX_CORE_RADIUS_PX * 1.6, 0, Math.PI * 2); context.fill(); context.restore();
+    }
+
+    // Draw the accretion disk directly on the arena canvas. Offscreen bitmap
+    // sprites were being composited as opaque rectangles in some browsers.
+    // Vector ellipses keep every edge transparent and smooth at any scale.
+    const diskScaleX = diskScale;
+    const diskScaleY = VORTEX_DISK_TILT * diskScale;
+    context.save(); context.translate(visual.x, visual.y); context.rotate(diskRotation); context.scale(diskScaleX, diskScaleY);
+    context.globalAlpha = sustain * 0.28; context.strokeStyle = HERO_FX_COLORS.fairy.primary; context.lineWidth = 24;
+    context.beginPath(); context.arc(0, 0, VORTEX_DISK_OUTER_RADIUS_PX * 0.78, 0, Math.PI * 2); context.stroke();
+    context.globalAlpha = sustain * 0.78; context.strokeStyle = '#fff6fc'; context.lineWidth = 3;
+    context.beginPath(); context.ellipse(0, 0, VORTEX_DISK_OUTER_RADIUS_PX * 0.78, VORTEX_DISK_OUTER_RADIUS_PX * 0.78, 0, -0.16, 1.62); context.stroke();
+    context.globalAlpha = sustain * 0.72; context.strokeStyle = HERO_FX_SECONDARY.fairy; context.lineWidth = 2;
+    context.beginPath(); context.ellipse(0, 0, VORTEX_DISK_OUTER_RADIUS_PX * 0.9, VORTEX_DISK_OUTER_RADIUS_PX * 0.9, 0, Math.PI - 0.12, Math.PI * 2 - 0.7); context.stroke();
+    context.globalAlpha = sustain * 0.52; context.strokeStyle = '#fff0fa'; context.lineWidth = 1.5;
+    context.beginPath(); context.ellipse(0, 0, VORTEX_DISK_OUTER_RADIUS_PX, VORTEX_DISK_OUTER_RADIUS_PX, 0, 0.15, Math.PI * 1.18); context.stroke();
+    context.restore();
+    if (effectiveQuality() === 'high' && !prefersReducedMotion) {
+      const arcHalf = VORTEX_LENS_ARC_DEG * Math.PI / 360;
+      context.save(); context.translate(visual.x, visual.y); context.rotate(-diskRotation * 0.7);
+      context.globalAlpha = sustain * 0.9; context.lineWidth = 2; context.lineCap = 'round';
+      context.strokeStyle = '#fff0fa'; context.beginPath(); context.arc(0, 0, VORTEX_CORE_RADIUS_PX + 7, -Math.PI / 2 - arcHalf, -Math.PI / 2 + arcHalf); context.stroke();
+      context.strokeStyle = HERO_FX_SECONDARY.fairy; context.beginPath(); context.arc(0, 0, VORTEX_CORE_RADIUS_PX + 11, Math.PI / 2 - arcHalf, Math.PI / 2 + arcHalf); context.stroke();
+      context.restore();
+    }
+    if (!prefersReducedMotion && !still && effectiveQuality() !== 'low') {
+      const count = effectiveQuality() === 'high' ? VORTEX_DEBRIS_POOL_SIZE : 8;
+      for (let i = 0; i < count; i++) {
+        const streak = visual.debris[i]; const age = now - streak.at;
+        if (age < 0 || age >= streak.durationMs) continue;
+        const t = age / streak.durationMs;
+        const angle = streak.angle + t * 1.2;
+        const r = GAME_CONFIG.heroes.fairy.vortex.radius * (1 - t) + VORTEX_CORE_RADIUS_PX * t;
+        const x = visual.x + Math.cos(angle) * r, y = visual.y + Math.sin(angle) * r;
+        const length = 12 + t * 24, inward = 10 + t * 9;
+        context.save(); context.globalAlpha = sustain * (1 - t); context.strokeStyle = streak.color; context.lineWidth = 2.4 - t * 1.4; context.lineCap = 'round';
+        context.beginPath(); context.moveTo(x + Math.cos(angle) * length * 0.5, y + Math.sin(angle) * length * 0.5);
+        context.quadraticCurveTo(x, y, x - Math.cos(angle) * inward, y - Math.sin(angle) * inward); context.stroke(); context.restore();
+      }
+    }
+    context.save(); context.globalAlpha = prefersReducedMotion || effectiveQuality() === 'low' ? 1 : Math.max(formation, sustain) * (elapsed < VORTEX_CORE_GROW_MS ? elapsed / VORTEX_CORE_GROW_MS : 1);
+    context.translate(visual.x, visual.y); context.scale(pulse, pulse);
+    const coreGlow = context.createRadialGradient(0, 0, coreRadius * 0.72, 0, 0, coreRadius + 9);
+    coreGlow.addColorStop(0, `${GAME_CONFIG.vortexColors.core}00`);
+    coreGlow.addColorStop(0.72, `${GAME_CONFIG.vortexColors.core}00`);
+    coreGlow.addColorStop(0.88, `${GAME_CONFIG.vortexColors.eye}dd`);
+    coreGlow.addColorStop(1, `${HERO_FX_SECONDARY.fairy}00`);
+    context.fillStyle = coreGlow; context.beginPath(); context.arc(0, 0, coreRadius + 9, 0, Math.PI * 2); context.fill();
+    const hole = context.createRadialGradient(-coreRadius * 0.28, -coreRadius * 0.32, 0, 0, 0, coreRadius);
+    hole.addColorStop(0, '#160d20'); hole.addColorStop(0.42, GAME_CONFIG.vortexColors.core); hole.addColorStop(1, '#000000');
+    context.fillStyle = hole; context.beginPath(); context.arc(0, 0, coreRadius, 0, Math.PI * 2); context.fill();
+    context.strokeStyle = GAME_CONFIG.vortexColors.eye; context.lineWidth = 2.5;
+    context.beginPath(); context.arc(0, 0, coreRadius - 1, 0, Math.PI * 2); context.stroke();
+    context.restore();
+    if (!prefersReducedMotion && effectiveQuality() !== 'low' && elapsed < VORTEX_FORMATION_FLASH_MS) {
+      context.save(); context.globalAlpha = 0.8 * (1 - elapsed / VORTEX_FORMATION_FLASH_MS);
+      context.fillStyle = '#fff'; context.beginPath(); context.arc(visual.x, visual.y, VORTEX_CORE_RADIUS_PX, 0, Math.PI * 2); context.fill(); context.restore();
+    }
+  }
+  for (let i = fairyVortexPops.length - 1; i >= 0; i--) {
+    const pop = fairyVortexPops[i]; const age = now - pop.startedAt;
+    if (age >= VORTEX_FLASH_POP_MS) { fairyVortexPops.splice(i, 1); continue; }
+    context.save(); context.globalAlpha = 1 - age / VORTEX_FLASH_POP_MS; context.fillStyle = '#fff0fa';
+    context.beginPath(); context.arc(pop.x, pop.y, VORTEX_CORE_RADIUS_PX * (1 + age / VORTEX_FLASH_POP_MS), 0, Math.PI * 2); context.fill(); context.restore();
   }
 }
 
@@ -1328,6 +1909,11 @@ function showMuzzleFlash(player) {
   lastMuzzleAt.set(player.id, now);
   muzzleFlashes.set(player.id, { startedAt: now, aim: { ...player.aim }, heroId: player.heroId,
     recoil: ARENA_TUNING.muzzleFlash.recoilMinPx + Math.random() * (ARENA_TUNING.muzzleFlash.recoilMaxPx - ARENA_TUNING.muzzleFlash.recoilMinPx) });
+  if (player.heroId === 'fairy') fairyMuzzlePuffs.push({
+    x: player.x + player.aim.x * (GAME_CONFIG.weaponMuzzleOffset + FAIRY_MUZZLE_PUFF_RADIUS_PX),
+    y: player.y + player.aim.y * (GAME_CONFIG.weaponMuzzleOffset + FAIRY_MUZZLE_PUFF_RADIUS_PX),
+    angle: Math.atan2(player.aim.y, player.aim.x), startedAt: now,
+  });
 }
 
 function joinPayload() {
@@ -1347,8 +1933,16 @@ socket.on('connect_error', (error) => {
 });
 socket.on('disconnect', () => {
   me = null;
+  engineerPlacementTargeting = false;
+  rangerMeatTargeting = false;
+  targetingHint.hidden = true;
+  targetingReticle.hidden = true;
   state = { players: [], projectiles: [], monsters: [], campfire: null, wave: null };
   clientProjectiles.clear();
+  for (const stop of fairyTravelSoundStops.values()) stop();
+  fairyTravelSoundStops.clear();
+  fairyVortexHumStop?.(); fairyVortexHumStop = null;
+  fairyVortexVisuals.clear();
   releaseKeys();
   connectionStatus.textContent = 'Disconnected from the server. Reconnecting…';
 });
@@ -1369,6 +1963,7 @@ socket.on('welcome', (welcome) => {
 });
 socket.on('join_error', ({ code, message } = {}) => {
   joinFailed = true;
+  engineerPlacementTargeting = false;
   releaseKeys();
   connectionStatus.textContent = message || 'Could not join the room';
   if (embedded) window.parent.postMessage({ type: 'hero-lab-join-error', code, message }, location.origin);
@@ -1396,6 +1991,24 @@ document.querySelector('#trial-wave')?.addEventListener('click', () => socket.em
 socket.on('state', (snapshot) => {
   state = snapshot;
   stateReceivedAt = performance.now();
+  const activeTurrets = new Set();
+  for (const turret of snapshot.turrets || []) {
+    activeTurrets.add(turret.id);
+    const visual = turretVisualState.get(turret.id);
+    if (!visual) turretVisualState.set(turret.id, { bornAt: performance.now(), shotsFired: turret.shotsFired, angle: turret.angle,
+      angleChangedAt: performance.now(), recoilUntil: 0, flashUntil: 0 });
+    else {
+      if (turret.shotsFired > visual.shotsFired) {
+        visual.recoilUntil = performance.now() + GAME_CONFIG.turret.visuals.recoilMs;
+        visual.flashUntil = performance.now() + GAME_CONFIG.turret.visuals.muzzleFlashMs;
+      }
+      if (Math.abs(turret.angle - visual.angle) > 0.001) visual.angleChangedAt = performance.now();
+      visual.angle = turret.angle;
+      visual.shotsFired = turret.shotsFired;
+    }
+  }
+  for (const id of turretVisualState.keys()) if (!activeTurrets.has(id)) turretVisualState.delete(id);
+  syncFairyVortices(snapshot);
   if (Array.isArray(snapshot.projectiles)) {
     const active = new Set(snapshot.projectiles.map((projectile) => projectile.id));
     for (const id of clientProjectiles.keys()) {
@@ -1406,6 +2019,128 @@ socket.on('state', (snapshot) => {
     }
   }
 });
+
+socket.on('ranger_meat_thrown', ({ ownerId, fromX, fromY, x, y, durationMs }) => {
+  rangerMeatThrows.set(ownerId, { fromX, fromY, x, y, startedAt: performance.now(), durationMs: Math.max(1, durationMs || 400) });
+});
+socket.on('ranger_wolf_arrived', ({ x, y }) => {
+  const now = performance.now();
+  if (effectToggles.sound) playSound('rangerWolfHowl', { volume: 0.45 });
+  if (!prefersReducedMotion && effectiveQuality() !== 'low' && effectToggles.burst) {
+    for (let i = 0; i < engineerFeedbackParticleCount(8); i++) {
+      const angle = Math.PI * 2 * i / 8;
+      const speed = 24 + Math.random() * 46;
+      addParticle({ x, y, vx: Math.cos(angle) * speed, vy: Math.sin(angle) * speed - 24,
+        radius: 7, emoji: '🍃', color: HERO_FX_SECONDARY.ranger, alpha: 0.9, expiresAt: now + 420 });
+    }
+  }
+});
+socket.on('ranger_wolf_bite', ({ x, y }) => {
+  const now = performance.now();
+  rangerWolfBiteFx.push({ x, y, startedAt: now });
+  if (effectToggles.sound) playSound('rangerWolfBite', { volume: 0.5 });
+});
+socket.on('ranger_wolf_removed', ({ x, y }) => {
+  const now = performance.now();
+  if (effectToggles.sound) playSound('rangerWolfLeave', { volume: 0.4 });
+  if (!prefersReducedMotion && effectiveQuality() !== 'low' && effectToggles.burst) {
+    for (let i = 0; i < engineerFeedbackParticleCount(7); i++) {
+      const angle = Math.PI * 2 * i / 7;
+      const speed = 18 + Math.random() * 40;
+      addParticle({ x, y, vx: Math.cos(angle) * speed, vy: Math.sin(angle) * speed - 14,
+        radius: 6, emoji: i % 2 ? '🍃' : '💨', color: HERO_FX_SECONDARY.ranger, alpha: 0.75, expiresAt: now + 360 });
+    }
+  }
+});
+
+function engineerFeedbackParticleCount(count) {
+  if (prefersReducedMotion || count <= 0) return 0;
+  const factor = QUALITY_PARTICLE_FACTOR[effectiveQuality()] ?? 1;
+  return Math.min(count, Math.max(1, Math.floor(count * factor)));
+}
+
+function recordEngineerRefuel(turretId, x, y, now) {
+  engineerSalvagePopups.set(turretId, { startedAt: now, x, y });
+}
+
+socket.on('turret_deployed', ({ id, x, y }) => {
+  turretVisualState.set(id, { bornAt: performance.now(), shotsFired: 0, angle: 0,
+    angleChangedAt: performance.now(), recoilUntil: 0, flashUntil: 0 });
+  const dustCount = engineerFeedbackParticleCount(GAME_CONFIG.turret.visuals.deployDustCount);
+  for (let i = 0; i < dustCount; i++) { const a = Math.PI * 2 * i / dustCount; addParticle({ x, y: y + 8, vx: Math.cos(a) * 35, vy: Math.sin(a) * 20 - 12, radius: 2 + Math.random() * 2, color: '#c8b99a', alpha: 0.75, decay: 0.04 }); }
+  playSound('turretDeploy');
+});
+socket.on('turret_hit', ({ id, x, y, damage }) => {
+  const now = performance.now();
+  if (now - (turretHitFlashLast.get(id) ?? -Infinity) >= HIT_FLASH_MIN_INTERVAL_MS) {
+    turretHitFlashLast.set(id, now);
+    turretHitFlashes.set(id, now + ARENA_TUNING.hitFlashMs);
+  }
+  addDamageNumber({ x, y: y - 22, damage, sourceId: null, targetId: id, color: '#ff6161' });
+});
+socket.on('turret_destroyed', ({ id, x, y }) => {
+  turretVisualState.delete(id);
+  turretHitFlashes.delete(id); turretHitFlashLast.delete(id);
+  if (engineerFeedbackParticleCount(1)) addParticle({ x, y, vx: 0, vy: -18, radius: 7, color: '#646b72', alpha: 0.9, decay: 0.02 });
+  const debrisCount = engineerFeedbackParticleCount(GAME_CONFIG.turret.visuals.destroyDebrisCount);
+  for (let i = 0; i < debrisCount; i++) { const a = Math.PI * 2 * i / debrisCount; addParticle({ x, y, vx: Math.cos(a) * (55 + Math.random() * 30), vy: Math.sin(a) * (55 + Math.random() * 30), radius: 2 + Math.random() * 2, color: i % 2 ? '#A87547' : '#EBA91F', alpha: 1, decay: 0.035 }); }
+  playSound('turretDestroy');
+});
+socket.on('turret_expired', ({ id, x, y } = {}) => {
+  turretVisualState.delete(id);
+  turretHitFlashes.delete(id); turretHitFlashLast.delete(id);
+  playSound('turretDestroy');
+  const debrisCount = engineerFeedbackParticleCount(GAME_CONFIG.turret.visuals.destroyDebrisCount);
+  for (let i = 0; i < debrisCount; i++) {
+    const angle = Math.PI * 2 * i / debrisCount;
+    addParticle({ x, y, vx: Math.cos(angle) * 70, vy: Math.sin(angle) * 70, radius: 3,
+      color: i % 2 ? '#ff8738' : '#FFD27A', alpha: 1, decay: 0.045 });
+  }
+});
+socket.on('turret_removed', ({ id }) => { turretVisualState.delete(id); turretHitFlashes.delete(id); turretHitFlashLast.delete(id); });
+socket.on('engineer_place_failed', () => { playSound('hit'); showToast("Can't place turret here", 'engineer', '🔧'); });
+socket.on('ranger_skill_failed', () => playSound('rangerFail'));
+socket.on('engineer_wrench_caught', ({ playerId, x, y } = {}) => {
+  if (playerId !== me) return;
+  playSound('engineerWrenchCatch');
+  const sparkCount = engineerFeedbackParticleCount(4);
+  for (let i = 0; i < sparkCount; i++) {
+    const angle = Math.PI * 2 * i / sparkCount;
+    addParticle({ x, y, vx: Math.cos(angle) * 42, vy: Math.sin(angle) * 42, radius: 2.5, color: '#FFD27A', alpha: 1, decay: 0.08 });
+  }
+});
+socket.on('engineer_laser_charge', ({ playerId } = {}) => {
+  engineerLaserWhineStops.get(playerId)?.();
+  engineerLaserWhineStops.set(playerId, startSoundLoop('engineerCharge', { volume: playerId === me ? 1 : 0.5 }));
+});
+socket.on('engineer_laser_cancelled', ({ playerId } = {}) => {
+  engineerLaserWhineStops.get(playerId)?.(); engineerLaserWhineStops.delete(playerId);
+});
+socket.on('engineer_laser_fired', (beam) => {
+  engineerLaserWhineStops.get(beam.playerId)?.(); engineerLaserWhineStops.delete(beam.playerId);
+  engineerLaserBeams.push({ ...beam, startedAt: performance.now() });
+  playSound('engineerLaser', { volume: beam.playerId === me ? 1 : 0.55 });
+  const sparkCount = engineerFeedbackParticleCount(4);
+  if (sparkCount) {
+    for (const hit of beam.hits || []) for (let i = 0; i < sparkCount; i++) {
+      const angle = Math.random() * Math.PI * 2, speed = 25 + Math.random() * 40;
+      addParticle({ x: hit.x, y: hit.y, vx: Math.cos(angle) * speed, vy: Math.sin(angle) * speed,
+        radius: 1.5 + Math.random() * 1.5, color: i % 2 ? '#FFD27A' : '#fff', alpha: 1, decay: 0.08 });
+    }
+  }
+});
+socket.on('engineer_salvage', (event) => {
+  const startedAt = performance.now();
+  for (const turret of event.turrets || []) {
+    recordEngineerRefuel(turret.id, turret.x, turret.y, startedAt);
+  }
+});
+socket.on('fairy_vortex_start', (vortex) => {
+  for (const stop of fairyTravelSoundStops.values()) stop();
+  fairyTravelSoundStops.clear();
+  if (!fairyVortexVisuals.has(vortex.id)) startFairyVortexVisual(vortex);
+});
+socket.on('fairy_vortex_end', ({ id, x, y } = {}) => finishFairyVortexVisual(id, x, y));
 socket.on('notice', (message) => {
   connectionStatus.textContent = message;
 });
@@ -1462,8 +2197,24 @@ socket.on('player_leave', (player) => leavingPlayers.push({ ...player, startedAt
 socket.on('run_result', showRunResult);
 socket.on('ability_used', (event) => {
   if (event.ability === 'ultimate') {
+    if (event.heroId === 'ranger') {
+      rangerUltimateFlashAt.set(event.playerId, performance.now());
+      if (effectToggles.sound) playSound('rangerChunk', { volume: event.playerId === me ? 1 : 0.65 });
+      return;
+    }
+    if (event.heroId === 'fairy') {
+      if (effectToggles.sound) {
+        playSound('fairyWhoosh', { volume: event.playerId === me ? 1 : 0.65 });
+        fairyTravelSoundStops.set(event.playerId, startSoundLoop('fairyTravel', { volume: 0.35 }));
+      }
+      return;
+    }
     playSound('ultimateCast', { volume: event.playerId === me ? 1 : 0.65 });
     shakeCamera(SHAKE_ULTIMATE_TRAUMA, 'major');
+    return;
+  }
+  if (event.ability === 'skill' && event.heroId === 'fairy') {
+    if (effectToggles.sound) playSound('fairyWhoosh', { volume: event.playerId === me ? 1 : 0.65 });
     return;
   }
   if (event.ability === 'skill' && event.heroId === 'guardian') {
@@ -1486,8 +2237,102 @@ socket.on('ability_used', (event) => {
     }
   }
 });
+socket.on('samurai_dash_started', (event = {}) => {
+  const startedAt = performance.now();
+  const trail = { ...event, startedAt };
+  samuraiDashTrails.set(event.playerId, trail);
+  if (effectToggles.sound) playSound(event.kind === 'afterimage-cut' ? 'ultimateCast' : 'fairyWhoosh',
+    { volume: event.playerId === me ? 0.9 : 0.55 });
+  if (!prefersReducedMotion && effectiveQuality() !== 'low') {
+    for (let i = 0; i < 5; i++) {
+      const angle = Math.random() * Math.PI * 2, speed = 24 + Math.random() * 46;
+      addParticle({ x: event.startX, y: event.startY, vx: Math.cos(angle) * speed, vy: Math.sin(angle) * speed,
+        radius: 2 + Math.random() * 2, color: i % 2 ? HERO_FX_COLORS.samurai.primary : '#fff',
+        alpha: 0.9, expiresAt: startedAt + 300 });
+    }
+  }
+  if (event.kind === 'afterimage-cut') {
+    setTimeout(() => { if (effectToggles.sound) playSound('uiClick', { volume: event.playerId === me ? 0.75 : 0.4 }); }, event.durationMs || 250);
+  }
+});
+socket.on('samurai_dash_hit', (event = {}) => {
+  const trail = samuraiDashTrails.get(event.playerId);
+  const angle = trail ? Math.atan2(trail.endY - trail.startY, trail.endX - trail.startX) - Math.PI / 4 : -Math.PI / 4;
+  if (samuraiHitMarks.length >= 80) samuraiHitMarks.shift();
+  samuraiHitMarks.push({ x: event.x, y: event.y, angle, execute: Boolean(event.execute), startedAt: performance.now() });
+  if (event.execute) {
+    if (samuraiExecuteLabels.length >= 32) samuraiExecuteLabels.shift();
+    samuraiExecuteLabels.push({ x: event.x, y: event.y, startedAt: performance.now() });
+    if (effectToggles.sound) playSound('hit', { semitones: 5, volume: event.playerId === me ? 0.9 : 0.6 });
+    if (!prefersReducedMotion && effectiveQuality() !== 'low') {
+      for (let i = 0; i < 3; i++) {
+        const a = angle + (Math.random() - 0.5) * 1.5, speed = 35 + Math.random() * 45;
+        addParticle({ x: event.x, y: event.y, vx: Math.cos(a) * speed, vy: Math.sin(a) * speed,
+          radius: 2, color: i === 0 ? '#FFD27A' : '#fff', alpha: 1, expiresAt: performance.now() + 260 });
+      }
+    }
+  }
+});
+socket.on('samurai_cut_resolved', (event = {}) => {
+  const now = performance.now();
+  samuraiSlashEffects.push({ startX: event.startX, startY: event.startY, endX: event.endX, endY: event.endY,
+    width: event.width || GAME_CONFIG.heroes.samurai.afterimageCut.width, startedAt: now });
+  if (samuraiSlashEffects.length > 16) samuraiSlashEffects.shift();
+  for (const hit of event.hits || []) {
+    if (samuraiHitMarks.length >= 80) samuraiHitMarks.shift();
+    samuraiHitMarks.push({ x: hit.x, y: hit.y, angle: Math.atan2(event.endY - event.startY, event.endX - event.startX) - Math.PI / 4,
+      execute: false, startedAt: now });
+    if (samuraiCutNumberLabels.length >= 48) samuraiCutNumberLabels.shift();
+    samuraiCutNumberLabels.push({ x: hit.x, y: hit.y, multiplier: event.stackMultiplier || 0.5, startedAt: now });
+    if (!prefersReducedMotion && effectiveQuality() !== 'low' && effectToggles.sparks) {
+      for (let i = 0; i < 3; i++) {
+        const a = Math.random() * Math.PI * 2, speed = 28 + Math.random() * 48;
+        addParticle({ x: hit.x, y: hit.y, vx: Math.cos(a) * speed, vy: Math.sin(a) * speed,
+          radius: 2, color: i === 0 ? '#FFD27A' : '#fff', alpha: 1, expiresAt: now + 280 });
+      }
+    }
+  }
+  if (!prefersReducedMotion && effectiveQuality() !== 'low') samuraiScreenFlash = { startedAt: now };
+  if (effectToggles.sound) playSound('ultimateCast', { volume: event.playerId === me ? 1 : 0.6 });
+  shakeCamera(SHAKE_ULTIMATE_TRAUMA, 'major');
+});
 socket.on('weapon_fired', (event) => {
-  if (event.playerId !== me) { playSound('shoot', { pitchVariance: ARENA_TUNING.sound.shotPitchVariance, volume: 0.6 }); return; }
+  if (event.heroId === 'ranger') {
+    const shooter = state.players.find((candidate) => candidate.id === event.playerId);
+    const deadAim = event.source === 'dead-aim';
+    const charge = Math.max(0, Math.min(1, ((event.charge || 0) - 0.15 / 0.9) / (1 - 0.15 / 0.9)));
+    if (effectToggles.sound) playSound(deadAim ? 'rangerThock' : 'rangerTwang', {
+      semitones: deadAim ? 0 : Math.round(charge * 7), volume: event.playerId === me ? 1 : 0.65,
+    });
+    if (shooter) {
+      showMuzzleFlash(shooter);
+      const now = performance.now();
+      const muzzleX = shooter.x + shooter.aim.x * (GAME_CONFIG.weaponMuzzleOffset + 18);
+      const muzzleY = shooter.y + shooter.aim.y * (GAME_CONFIG.weaponMuzzleOffset + 18);
+      if (deadAim) {
+        rangerDeadAimMuzzleUntil.set(event.playerId, now + GAME_CONFIG.heroes.ranger.ranger.feedback.deadAimMuzzleMs);
+        rangerDeadAimStreaks.push({ x: muzzleX, y: muzzleY, dx: shooter.aim.x, dy: shooter.aim.y,
+          range: GAME_CONFIG.heroes.ranger.ranger.ultRange, startedAt: now,
+          durationMs: GAME_CONFIG.heroes.ranger.ranger.feedback.deadAimStreakMs });
+      }
+      if (!prefersReducedMotion && effectiveQuality() !== 'low' && effectToggles.burst) {
+        const count = engineerFeedbackParticleCount(deadAim ? 10 : 5);
+        for (let i = 0; i < count; i++) {
+          const angle = Math.atan2(shooter.aim.y, shooter.aim.x) + (Math.random() - 0.5) * 1.1;
+          const speed = (deadAim ? 100 : 34) + Math.random() * (deadAim ? 120 : 45);
+          addParticle({ x: muzzleX, y: muzzleY, vx: Math.cos(angle) * speed, vy: Math.sin(angle) * speed,
+            radius: deadAim ? 3.5 : 2.5,
+            color: deadAim ? (i % 2 ? '#FFF2CC' : '#F0DDA0') : '#F0DDA0', alpha: 0.9,
+            expiresAt: now + (deadAim ? 190 : 130) });
+        }
+      }
+    }
+    return;
+  }
+  if (event.playerId !== me) {
+    playSound(event.heroId === 'fairy' || event.heroId === 'engineer' ? 'fairyWhoosh' : 'shoot', { pitchVariance: ARENA_TUNING.sound.shotPitchVariance, volume: 0.6 });
+    return;
+  }
   // Own shots are repeated by the server while primary fire is held, so their
   // muzzle flash and sound have to come from the event. A 'click' shot already
   // played both locally, before the round trip.
@@ -1495,7 +2340,7 @@ socket.on('weapon_fired', (event) => {
   const shooter = state.players.find((candidate) => candidate.id === me);
   if (!shooter) return;
   showMuzzleFlash(shooter);
-  playSound('shoot', { pitchVariance: ARENA_TUNING.sound.shotPitchVariance });
+  playSound(shooter.heroId === 'fairy' || shooter.heroId === 'engineer' ? 'fairyWhoosh' : 'shoot', { pitchVariance: ARENA_TUNING.sound.shotPitchVariance });
 });
 socket.on('buff_applied', () => playSound('cardPick'));
 socket.on('dash_hit', (event) => {
@@ -1541,14 +2386,37 @@ socket.on('game_over', (result = {}) => {
 function handleHit(hit) {
   const fx = HERO_FX_COLORS[hit.heroId] || {};
   const now = performance.now();
+  const rangerArrowHit = hit.heroId === 'ranger' && (hit.rangerDeadAim || Number(hit.rangerChargeT) > 0);
+  const rangerImpactCount = hit.rangerDeadAim ? GAME_CONFIG.heroes.ranger.ranger.feedback.deadAimImpactLeaves : 4;
+  if (hit.heroId === 'fairy' && hit.sourceAbility === 'weapon') {
+    const angle = Math.atan2(hit.y - (hit.sourceY ?? hit.y), hit.x - (hit.sourceX ?? hit.x));
+    fairyWindImpacts.push({ x: hit.x, y: hit.y, angle, startedAt: now });
+    if (effectToggles.sparks && effectiveQuality() !== 'low') {
+      for (let i = 0; i < 2; i++) addParticle({ x: hit.x, y: hit.y, vx: Math.cos(angle + (i ? 1 : -1)) * 32,
+        vy: Math.sin(angle + (i ? 1 : -1)) * 32, radius: 2, color: i ? HERO_FX_SECONDARY.fairy : HERO_FX_COLORS.fairy.primary,
+        alpha: 1, startedAt: now, durationMs: FAIRY_WIND_IMPACT_MS, expiresAt: now + FAIRY_WIND_IMPACT_MS });
+    }
+  }
   // Thorns Fire (and any future aura/repeating source) is pure damage-over-
   // time: it gets a slower flash cadence, no knockback, no sparks and no
   // sound, so an enemy standing in the ring pulses instead of strobing.
   const auraHit = hit.sourceAbility === 'thorns';
+  const rangerGoldHit = hit.heroId === 'ranger' && (hit.rangerDeadAim || Number(hit.rangerChargeT) >= 1);
   addDamageNumber({ x: hit.x + (Math.random() - 0.5) * 10, y: hit.y - 12, damage: hit.damage,
-    sourceId: hit.sourceId, targetId: hit.id, bonus: hit.bonus,
-    color: auraHit ? THORNS_NUMBER_COLOR : '#fff',
+    sourceId: hit.sourceId, targetId: hit.id, bonus: hit.bonus || rangerGoldHit,
+    color: auraHit ? THORNS_NUMBER_COLOR : rangerGoldHit ? '#FFD75E' : '#fff',
     mergeWindowMs: auraHit ? THORNS_NUMBER_MERGE_MS : null });
+  if (rangerArrowHit && effectToggles.sparks && !prefersReducedMotion && effectiveQuality() !== 'low'
+    && !isMassKillWindow(now)) {
+    const count = engineerFeedbackParticleCount(rangerImpactCount);
+    for (let i = 0; i < count; i++) {
+      const angle = Math.PI * 2 * i / count + Math.random() * 0.25;
+      const speed = hit.rangerDeadAim ? 58 + Math.random() * 72 : 30 + Math.random() * 42;
+      addParticle({ x: hit.x, y: hit.y, vx: Math.cos(angle) * speed, vy: Math.sin(angle) * speed - 16,
+        radius: hit.rangerDeadAim ? 7 : 5, emoji: '🍃', color: HERO_FX_SECONDARY.ranger,
+        alpha: 0.95, expiresAt: now + (hit.rangerDeadAim ? 420 : 320) });
+    }
+  }
   if (hit.id) {
     if (effectToggles.flash) {
       // Per-enemy cooldown: a request inside the window is ignored entirely,
@@ -1604,11 +2472,14 @@ function handleHit(hit) {
 function handleMonsterKilled(data) {
   const fx = HERO_FX_COLORS[data.heroId] || {};
   const now = performance.now();
+  const turretKill = data.sourceAbility === 'turret';
+  const wolfKill = data.sourceAbility === 'wolf';
   // Kill-path budget: crossing KILL_BURST_THRESHOLD within the window makes
   // this kill the window's single big puff + sound + shake.
-  const announceMass = registerKill(now);
-  const massWindow = isMassKillWindow(now);
-  updateKillStreak(data.sourceId, announceMass);
+  const noCombo = turretKill || wolfKill;
+  const announceMass = noCombo ? false : registerKill(now);
+  const massWindow = noCombo ? false : isMassKillWindow(now);
+  if (!noCombo) updateKillStreak(data.sourceId, announceMass);
   // A boss kill is the one moment that earns the banner + fanfare + confetti.
   if (data.boss) celebrateBossDefeat();
   if (effectToggles.burst) {
@@ -1648,14 +2519,16 @@ function handleMonsterKilled(data) {
         alpha: 1, startedAt: now, durationMs: 240, expiresAt: now + 240 });
     }
   }
-  if (effectToggles.sound && data.sourceId !== me) {
+  if ((wolfKill || !turretKill) && effectToggles.sound && (data.sourceId !== me || wolfKill)) {
+    if (wolfKill) { playSound('kill', { volume: 0.5 }); }
+    else
     // One louder sound for the whole mass-kill window, normal sound otherwise.
     if (announceMass) playSound('kill', { volume: 0.9 });
     else if (!massWindow) playSound('kill', { volume: 0.5 });
   }
   // Extra camera kick on YOUR killing blow (stacks with the hit kick toward a
   // boss-slam-sized moment). The mass window already plays its single shake.
-  if (data.sourceId === me && !massWindow) shakeCamera(SHAKE_KILL_TRAUMA);
+  if (!turretKill && data.sourceId === me && !massWindow) shakeCamera(SHAKE_KILL_TRAUMA);
 }
 // The server batches hit and kill events into one message per tick; a payload
 // is either a single event (low volume, e.g. the training dummy) or an array
@@ -1847,7 +2720,12 @@ if (typeof window !== 'undefined' && new URLSearchParams(location.search).has('p
   const hudDebugRow = document.querySelector('#hud-debug-clusters');
   const hudDebugLabel = document.createElement('label');
   hudDebugLabel.innerHTML = '<input id="hud-debug-setting" type="checkbox"> Show all hero HUD clusters';
-  settingsPanel.append(hudDebugLabel);
+  const hudDebugTools = document.createElement('details');
+  hudDebugTools.className = 'debug-section hud-debug-tools';
+  hudDebugTools.innerHTML = '<summary>HUD preview</summary><div class="debug-section-body"></div>';
+  (settingsPanel.querySelector('.debug-menu') || settingsPanel).append(hudDebugTools);
+  const hudDebugBody = hudDebugTools.querySelector('.debug-section-body');
+  hudDebugBody.append(hudDebugLabel);
   const hudDebugInput = hudDebugLabel.querySelector('input');
   const hudDebugHeroes = HEROES.map((hero) => {
     const column = document.createElement('div');
@@ -1893,14 +2771,29 @@ if (typeof window !== 'undefined' && new URLSearchParams(location.search).has('p
   };
 }
 socket.on('area_telegraph', (effect) => showAreaEffect({ ...effect, telegraphMs: effect.telegraphMs || ARENA_TUNING.areaEffects.targetedTelegraphMs }));
+socket.on('area_telegraph_cancel', ({ sourceAbility } = {}) => {
+  const index = areaEffects.findLastIndex((effect) => effect.phase === 'telegraph' && effect.sourceAbility === sourceAbility);
+  if (index >= 0) areaEffects.splice(index, 1);
+});
 socket.on('area_effect', (effect) => {
   showAreaEffect(effect);
-  playSound(effect.sourceAbility === 'ultimate' ? 'ultimateCast' : 'explosion');
-  for (let i = 0; i < 20; i++) {
+  if (effect.sourceHeroId === 'fairy' && effect.sourceAbility === 'skill') {
+    if (effectToggles.sound) playSound('fairyWhoosh');
+    for (const hit of effect.hits || []) fairyPushStreaks.push({ ...hit, startedAt: performance.now() });
+    return;
+  }
+  const rangerDeadAimBlast = effect.sourceHeroId === 'ranger' && effect.sourceAbility === 'ultimate';
+  if (effectToggles.sound) playSound(rangerDeadAimBlast ? 'explosion' : effect.sourceAbility === 'ultimate' ? 'ultimateCast' : 'explosion');
+  const burstColors = rangerDeadAimBlast ? ['#FFF8D8', '#FFD75E', '#F0DDA0', '#8BE04E'] : null;
+  const rangerBurstCount = !rangerDeadAimBlast || prefersReducedMotion || !effectToggles.burst ? 0
+    : effectiveQuality() === 'low' ? 6 : effectiveQuality() === 'medium' ? 16 : 32;
+  for (let i = 0; i < (rangerDeadAimBlast ? rangerBurstCount : 20); i++) {
     const angle = Math.random() * Math.PI * 2;
-    const speed = 30 + Math.random() * 130;
+    const speed = rangerDeadAimBlast ? 70 + Math.random() * 190 : 30 + Math.random() * 130;
     addParticle({ x: effect.x, y: effect.y, vx: Math.cos(angle) * speed, vy: Math.sin(angle) * speed,
-      radius: 2 + Math.random() * 3, color: effect.color || '#ff9c45', alpha: 1, expiresAt: performance.now() + ARENA_TUNING.areaEffects.detonationMs });
+      radius: rangerDeadAimBlast ? 3 + Math.random() * 4 : 2 + Math.random() * 3,
+      color: burstColors?.[Math.floor(Math.random() * burstColors.length)] || effect.color || '#ff9c45', alpha: 1,
+      expiresAt: performance.now() + ARENA_TUNING.areaEffects.detonationMs });
   }
   // Guardian fan: a small push-impact spark at each enemy the shockwave shoved.
   if (Array.isArray(effect.hits)) {
@@ -1974,6 +2867,16 @@ socket.on('pilot_cooldown_refund', (event) => {
   void circle.offsetWidth;
   circle.classList.add('cooldown-refund-pulse');
 });
+socket.on('ranger_cooldown_refund', (event) => {
+  showRefundPopup(event.playerId, event.refundMs);
+  readyBounces.set(event.playerId, { at: performance.now(), emoji: '🐺' });
+  if (event.playerId !== me) return;
+  const circle = sheriffSkillAbility?.querySelector('.ability-circle');
+  if (!circle) return;
+  circle.classList.remove('cooldown-refund-pulse');
+  void circle.offsetWidth;
+  circle.classList.add('cooldown-refund-pulse');
+});
 socket.on('lightning_flash', (flash) => enemyFlashes.set(flash.id, performance.now() + GAME_CONFIG.visuals.enemyFlashMs));
 socket.on('ricochet_line', (arc) => lightningArcs.push({ ...arc, expires: performance.now() + GAME_CONFIG.arenaTuning.cards.effects.ricochetLineMs,
   color: HERO_FX_COLORS[arc.heroId]?.primary || '#fff' }));
@@ -2000,6 +2903,7 @@ function addOrUpdateProjectile(data) {
     existing.y += (data.y - existing.y) * 0.4;
     existing.vx = data.vx;
     existing.vy = data.vy;
+    if (Number.isFinite(data.distanceTravelled)) existing.distanceTravelled = Math.max(existing.distanceTravelled, data.distanceTravelled);
     return;
   }
   const ProjectileClass = data.kind === 'enemy' ? EnemyProjectile : Projectile;
@@ -2015,6 +2919,10 @@ function addOrUpdateProjectile(data) {
     rotateToAim: data.rotateToAim,
     flashColors: data.flashColors,
     flashIntervalMs: data.flashIntervalMs,
+    rangerDeadAim: data.rangerDeadAim,
+    rangerChargeT: data.rangerChargeT,
+    maxDistance: data.maxDistance,
+    distanceTravelled: data.distanceTravelled,
     shape: data.shape,
     sourceAbility: data.sourceAbility,
     lifetimeMs: data.lifetimeMs,
@@ -2106,6 +3014,13 @@ function onMovementPointerEnd(event) {
 
 function getPointerCoordinates(event) {
   const rect = canvas.getBoundingClientRect();
+  const camera = mobileCameraView();
+  if (camera) {
+    return {
+      x: camera.x + (event.clientX - rect.left - rect.width / 2) / camera.scale,
+      y: camera.y + (event.clientY - rect.top - rect.height / 2) / camera.scale,
+    };
+  }
   return {
     x: ((event.clientX - rect.left) / rect.width) * ARENA_WIDTH,
     y: ((event.clientY - rect.top) / rect.height) * ARENA_HEIGHT,
@@ -2114,16 +3029,24 @@ function getPointerCoordinates(event) {
 
 function fireWeapon(mode, target = window.lastPointerWorld) {
   if (!me || !socket.connected) return;
+  const player = state.players.find((candidate) => candidate.id === me);
+  if (mode === 'primary' && player?.heroId === 'engineer' && engineerPlacementTargeting) {
+    confirmEngineerPlacement(target);
+    return;
+  }
+  if (mode === 'primary' && player?.heroId === 'ranger' && rangerMeatTargeting) {
+    confirmRangerMeatPlacement(target);
+    return;
+  }
   if (mode === 'secondary') {
     if (target) socket.emit('fire', mode, target);
     return;
   }
-  const player = state.players.find((candidate) => candidate.id === me);
   // Shield Rush: M1 cancels the dash into the fan instead of firing Shield
   // Bash, so that click gets no muzzle flash and no shot sound.
   if (player && !player.rushDashing) {
     showMuzzleFlash(player);
-    playSound('shoot', { pitchVariance: ARENA_TUNING.sound.shotPitchVariance });
+    playSound(player.heroId === 'fairy' || player.heroId === 'engineer' ? 'fairyWhoosh' : 'shoot', { pitchVariance: ARENA_TUNING.sound.shotPitchVariance });
   }
   socket.emit('fire', mode);
 }
@@ -2157,8 +3080,58 @@ function sendCurrentAim() {
 }
 
 function activateAbility(slot) {
+  const local = state.players?.find((player) => player.id === me);
+  if (slot === 'skill' && local?.heroId === 'engineer') {
+    toggleEngineerPlacementTargeting();
+    return;
+  }
+  if (slot === 'skill' && local?.heroId === 'ranger') {
+    toggleRangerMeatTargeting();
+    return;
+  }
   sendCurrentAim();
-  socket.emit(slot === 'skill' ? 'skill' : 'ultimate');
+  if (slot === 'skill') socket.emit('skill', ['engineer', 'ranger'].includes(local?.heroId) ? window.lastPointerWorld : undefined);
+  else socket.emit('ultimate');
+}
+
+function toggleEngineerPlacementTargeting() {
+  const player = state.players?.find((candidate) => candidate.id === me);
+  if (!player || player.heroId !== 'engineer' || player.downed) return;
+  if (engineerPlacementTargeting) {
+    engineerPlacementTargeting = false;
+    targetingReticle.hidden = true;
+    return;
+  }
+  const skill = player.abilities?.skill;
+  if (Math.max(0, (skill?.remainingMs || 0) - (performance.now() - stateReceivedAt)) > 0) return;
+  engineerPlacementTargeting = true;
+}
+
+function confirmEngineerPlacement(target = window.lastPointerWorld) {
+  if (!engineerPlacementTargeting) return false;
+  engineerPlacementTargeting = false;
+  targetingReticle.hidden = true;
+  socket.emit('skill', target || null);
+  return true;
+}
+
+function toggleRangerMeatTargeting() {
+  const player = state.players?.find((candidate) => candidate.id === me);
+  if (!player || player.heroId !== 'ranger' || player.downed) return;
+  if (rangerMeatTargeting) {
+    rangerMeatTargeting = false;
+    return;
+  }
+  const skill = player.abilities?.skill;
+  if (Math.max(0, (skill?.remainingMs || 0) - (performance.now() - stateReceivedAt)) > 0) return;
+  rangerMeatTargeting = true;
+}
+
+function confirmRangerMeatPlacement(target = window.lastPointerWorld) {
+  if (!rangerMeatTargeting) return false;
+  rangerMeatTargeting = false;
+  socket.emit('skill', target || null);
+  return true;
 }
 
 // The server repeats the shot for as long as this flag is true, so every hero
@@ -2169,6 +3142,7 @@ function setPrimaryHeld(held) {
 }
 
 function onPointerMove(event) {
+  if (pinchStart) return;
   const pointer = getPointerCoordinates(event);
   window.lastPointerWorld = pointer;
   if (!socket.connected || !me || aimSendTimer !== null) return;
@@ -2449,7 +3423,7 @@ const hudTextCache = new Map();
 function createHeroImage(heroId, emoji, sizePx = 24) {
   if (!heroSpriteConfig?.HERO_VISUALS?.[heroId] || heroSpritesDisabled) return null;
   const img = document.createElement('img');
-  img.src = getHeroSpriteUrl(heroSpriteConfig, heroId, 'open');
+  img.src = getHeroSpriteUrl(heroSpriteCache, heroId, 'open');
   img.alt = '';
   img.width = sizePx;
   img.height = sizePx;
@@ -2618,8 +3592,12 @@ function steadyEnemyCount(value, wave, now) {
 
 function updateHud(timestamp = performance.now()) {
   const player = state.players?.find((candidate) => candidate.id === me);
+  if (!player || player.heroId !== 'engineer' || player.downed) engineerPlacementTargeting = false;
+  if (!player || player.heroId !== 'ranger' || player.downed) rangerMeatTargeting = false;
   const phase = state.room?.phase;
-  setHudHidden(movementStick, !player || player.downed || player.dawnWaiting || (phase && phase !== 'running'));
+  // Lobby and countdown movement is supported by the room simulation, so keep
+  // the stick available before the first wave as well as during combat.
+  setHudHidden(movementStick, !player || player.downed || player.dawnWaiting);
   setHudHidden(touchHelp, !player || player.downed || player.dawnWaiting || (phase && phase !== 'running'));
   updateRoomHud();
   if (state.room && phase === 'lobby') {
@@ -2749,6 +3727,43 @@ function updateHud(timestamp = performance.now()) {
   }
 
   const mechActive = MECH_ICON_SWAP && Boolean(player.mech);
+  const samuraiStacks = player.heroId === 'samurai' ? Math.max(0, player.samuraiStacks || 0) : 0;
+  const stackSpec = GAME_CONFIG.heroes.samurai.killCount;
+  const samuraiMult = Math.max(stackSpec.minMultiplier, Math.min(stackSpec.maxMultiplier, samuraiStacks / stackSpec.divisor));
+  const samuraiTier = samuraiStacks >= stackSpec.cap ? 'max' : samuraiStacks >= 10 ? 'gold' : samuraiStacks >= 5 ? 'violet' : 'muted';
+  const serverNow = (state.serverTime || Date.now()) + (timestamp - stateReceivedAt);
+  const deadAimRemaining = player.heroId === 'ranger' ? Math.max(0, (player.deadAimUntil || serverNow) - serverNow) : 0;
+  rangerDeadAimPill.hidden = player.heroId !== 'ranger' || !(player.deadAimArrows > 0);
+  rangerDeadAimPill.textContent = `➡️ ×${player.deadAimArrows || 0}`;
+  const deadAimRatio = deadAimRemaining / (GAME_CONFIG.heroes.ranger.ranger.ultWindowS * 1000);
+  rangerDeadAimRing.style.setProperty('--window-degrees', `${Math.max(0, Math.min(360, deadAimRatio * 360))}deg`);
+  ultimateAbility?.classList.toggle('ranger-window-active', !rangerDeadAimPill.hidden);
+  const localWolf = (state.wolves || []).find((wolf) => wolf.ownerId === me);
+  rangerWolfPill.hidden = player.heroId !== 'ranger' || !localWolf;
+  rangerWolfPill.textContent = '🐺';
+  const wolfDurationMs = GAME_CONFIG.heroes.ranger.ranger.wolfDurationS * 1000;
+  const wolfRemaining = localWolf?.expiresAt ? Math.max(0, localWolf.expiresAt - serverNow) : wolfDurationMs;
+  rangerWolfTimerRing.style.setProperty('--window-degrees', `${Math.max(0, Math.min(360, wolfRemaining / wolfDurationMs * 360))}deg`);
+  sheriffSkillAbility?.classList.toggle('ranger-window-active', !rangerWolfPill.hidden);
+  samuraiMultiplierPill.hidden = player.heroId !== 'samurai';
+  samuraiMultiplierPill.dataset.tier = samuraiTier;
+  samuraiMultiplierValue.textContent = samuraiStacks >= stackSpec.cap
+    ? `${samuraiStacks} stacks · MAX`
+    : `${samuraiStacks} stacks · x${samuraiMult.toFixed(1)}`;
+  samuraiThresholdTick.classList.toggle('active', samuraiStacks >= 5);
+  const previousSamuraiStacks = samuraiStackFeedback.get(player.id);
+  if (previousSamuraiStacks && previousSamuraiStacks.count !== samuraiStacks) {
+    samuraiStackFeedback.set(player.id, { count: samuraiStacks,
+      kind: samuraiStacks > previousSamuraiStacks.count ? 'gain' : 'decay', at: timestamp });
+  } else if (!previousSamuraiStacks) samuraiStackFeedback.set(player.id, { count: samuraiStacks, kind: '', at: timestamp });
+  const engineerTurrets = (state.turrets || []).filter((turret) => turret.ownerId === me);
+  setHudHidden(engineerTurretPips, player.heroId !== 'engineer');
+  engineerTurretPipLabels.forEach((pip, index) => {
+    const turret = engineerTurrets[index];
+    pip.textContent = turret ? (turret.hp < GAME_CONFIG.turret.hp * 0.3 ? '!' : '●') : '○';
+    pip.classList.toggle('active', Boolean(turret));
+    pip.classList.toggle('low', Boolean(turret && turret.hp < GAME_CONFIG.turret.hp * 0.3));
+  });
   if (player.heroId !== hudIconHeroId || mechActive !== hudIconMech) applyAbilityIcons(player.heroId, mechActive);
   const highlightSlots = heroHighlightSlots(player.heroId, mechActive);
   abilityElements.forEach((element) => {
@@ -2757,8 +3772,12 @@ function updateHud(timestamp = performance.now()) {
     const circle = element.querySelector('.ability-circle');
     if (!data) return;
     const controlName = data.name || (id === 'weapon' ? 'Primary fire' : id === 'skill' ? 'Skill' : 'Ultimate');
-    const label = id === 'weapon' ? `Hold and drag to aim and fire ${controlName}`
-      : `Hold and drag to aim ${controlName}; tap to activate`;
+    const label = player.heroId === 'engineer' && id === 'skill'
+      ? (engineerPlacementTargeting ? 'Cancel turret placement' : 'Choose a turret placement location')
+      : player.heroId === 'ranger' && id === 'skill'
+        ? (rangerMeatTargeting ? 'Cancel meat placement' : 'Choose a meat placement location')
+      : id === 'weapon' ? `Hold and drag to aim and fire ${controlName}`
+        : `Hold and drag to aim ${controlName}; tap to activate`;
     if (element.getAttribute('aria-label') !== label) element.setAttribute('aria-label', label);
     if (element.title !== label) element.title = label;
     const heroType = player.type || 'physical';
@@ -2856,8 +3875,14 @@ function updateHud(timestamp = performance.now()) {
       }));
     }
   } else lastBuffRender = '';
-  targetingHint.hidden = !player.targeting;
-  if (!player.targeting) targetingReticle.hidden = true;
+  const engineerTargeting = player.heroId === 'engineer' && engineerPlacementTargeting;
+  const rangerTargeting = player.heroId === 'ranger' && rangerMeatTargeting;
+  targetingHint.hidden = !player.targeting && !engineerTargeting && !rangerTargeting;
+  if (targetingHintText) targetingHintText.textContent = rangerTargeting
+    ? 'Move to a spot · Primary fire to throw meat · E to cancel'
+    : engineerTargeting ? 'Move to a spot · Primary fire to place · E to cancel '
+      : defaultTargetingHintText;
+  if (!player.targeting && !engineerTargeting) targetingReticle.hidden = true;
 }
 
 function onKeyUp(event) {
@@ -2869,7 +3894,7 @@ function onKeyUp(event) {
 }
 
 function onPointerDown(event) {
-  if (!me) return;
+  if (!me || pinchStart) return;
   const pointer = getPointerCoordinates(event);
   window.lastPointerWorld = pointer;
   const player = state.players.find((candidate) => candidate.id === me);
@@ -2881,6 +3906,14 @@ function onPointerDown(event) {
   }
   if (event.button === 2) { fireWeapon('secondary'); return; }
   if (event.button === 0) {
+    if (player?.heroId === 'engineer' && engineerPlacementTargeting) {
+      confirmEngineerPlacement(pointer);
+      return;
+    }
+    if (player?.heroId === 'ranger' && rangerMeatTargeting) {
+      confirmRangerMeatPlacement(pointer);
+      return;
+    }
     // While the Bombardier ultimate is targeting, primary fire confirms the
     // strike location (same emit as the right-click confirm) instead of
     // firing the weapon.
@@ -2908,7 +3941,8 @@ function paintTargetReticle(event, gesture = abilityGesture) {
   const radius = GAME_CONFIG.heroes.bombardier.airstrike.circleRadius;
   targetingReticle.style.left = `${event.clientX}px`;
   targetingReticle.style.top = `${event.clientY}px`;
-  targetingReticle.style.setProperty('--target-size', `${radius * 2 * rect.width / ARENA_WIDTH}px`);
+  const camera = mobileCameraView();
+  targetingReticle.style.setProperty('--target-size', `${radius * 2 * (camera?.scale ?? rect.width / ARENA_WIDTH)}px`);
   targetingReticle.hidden = false;
 }
 
@@ -2920,6 +3954,14 @@ function beginAbilityGesture(event) {
   const player = state.players.find((candidate) => candidate.id === me);
   if (!player) return;
   if (slot === 'weapon' && player.targeting) return;
+  if (slot === 'weapon' && player.heroId === 'engineer' && engineerPlacementTargeting) {
+    confirmEngineerPlacement();
+    return;
+  }
+  if (slot === 'weapon' && player.heroId === 'ranger' && rangerMeatTargeting) {
+    confirmRangerMeatPlacement();
+    return;
+  }
   const targetedBombing = slot === 'ultimate' && player.heroId === 'bombardier';
   abilityGesture = { pointerId: event.pointerId, button, slot, startX: event.clientX, startY: event.clientY,
     dragged: false, targetedBombing, targetPoint: null, cancelled: false };
@@ -2962,6 +4004,8 @@ function finishAbilityGesture(event, cancelled = false) {
   gesture.button.style.removeProperty('--aim-y');
   if (gesture.slot === 'weapon') {
     if (primaryPointerId === event.pointerId) {
+      const ranger = state.players?.find((player) => player.id === me && player.heroId === 'ranger');
+      if (ranger && gesture.dragged) sendAimVector(event.clientX - gesture.startX, event.clientY - gesture.startY, true);
       primaryPointerId = null;
       setPrimaryHeld(false);
     }
@@ -2984,7 +4028,11 @@ function finishAbilityGesture(event, cancelled = false) {
   if (cancelled) return;
   if (gesture.dragged) sendAimVector(event.clientX - gesture.startX, event.clientY - gesture.startY, true);
   else sendCurrentAim();
-  socket.emit(gesture.slot === 'skill' ? 'skill' : 'ultimate');
+  const local = state.players?.find((player) => player.id === me);
+  if (gesture.slot === 'skill' && local?.heroId === 'engineer') toggleEngineerPlacementTargeting();
+  else if (gesture.slot === 'skill' && local?.heroId === 'ranger') toggleRangerMeatTargeting();
+  else if (gesture.slot === 'skill') socket.emit('skill', local?.heroId === 'engineer' ? window.lastPointerWorld : undefined);
+  else socket.emit('ultimate');
 }
 
 function onAbilityKeyboardClick(event) {
@@ -2996,6 +4044,7 @@ function onAbilityKeyboardClick(event) {
 
 function cancelTargeting() {
   socket.emit('cancel_targeting');
+  engineerPlacementTargeting = false;
   targetingReticle.hidden = true;
   if (abilityGesture?.targetedBombing) {
     abilityGesture.button.classList.remove('aiming');
@@ -3007,6 +4056,10 @@ function releasePointerControls(event) {
   finishAbilityGesture(event, event.type === 'pointercancel');
   onMovementPointerEnd(event);
   if (primaryPointerId === event.pointerId) {
+    const ranger = state.players?.find((player) => player.id === me && player.heroId === 'ranger');
+    if (ranger && window.lastPointerWorld) {
+      sendAimVector(window.lastPointerWorld.x - ranger.x, window.lastPointerWorld.y - ranger.y, true);
+    }
     primaryPointerId = null;
     setPrimaryHeld(false);
   }
@@ -3114,6 +4167,582 @@ function getHeroVisualState(player, now) {
   };
 }
 
+function drawRangerMeatThrows(now) {
+  for (const [ownerId, meat] of rangerMeatThrows) {
+    const progress = Math.max(0, Math.min(1, (now - meat.startedAt) / meat.durationMs));
+    if (progress >= 1) {
+      rangerMeatThrows.delete(ownerId);
+      rangerMeatLandings.push({ x: meat.x, y: meat.y, startedAt: now,
+        expiresAt: now + GAME_CONFIG.heroes.ranger.ranger.feedback.meatGroundMs });
+      if (effectToggles.sound) playSound('rangerMeatLand', { volume: 0.55 });
+      if (!prefersReducedMotion && effectiveQuality() !== 'low' && effectToggles.burst) {
+        for (let i = 0; i < engineerFeedbackParticleCount(5); i++) {
+          const angle = Math.PI * 2 * i / 5;
+          addParticle({ x: meat.x, y: meat.y, vx: Math.cos(angle) * 30, vy: Math.sin(angle) * 24 - 10,
+            radius: 3, color: '#B07A4A', alpha: 0.7, expiresAt: now + 260 });
+        }
+      }
+      continue;
+    }
+    const x = meat.fromX + (meat.x - meat.fromX) * progress;
+    const groundY = meat.fromY + (meat.y - meat.fromY) * progress;
+    const arc = Math.sin(Math.PI * progress) * GAME_CONFIG.heroes.ranger.ranger.feedback.meatArcHeightPx;
+    const y = groundY - arc;
+    context.save();
+    context.globalAlpha = 0.72 + 0.28 * Math.sin(Math.PI * progress);
+    context.beginPath();
+    context.ellipse(x, groundY + 8, 8 + progress * 5, 3, 0, 0, Math.PI * 2);
+    context.fillStyle = 'rgba(29, 28, 20, 0.35)';
+    context.fill();
+    context.translate(x, y);
+    context.rotate(progress * Math.PI * 3);
+    context.font = '27px "Segoe UI Emoji", sans-serif';
+    context.textAlign = 'center';
+    context.textBaseline = 'middle';
+    context.fillText('🍖', 0, 0);
+    context.restore();
+  }
+  for (let i = rangerMeatLandings.length - 1; i >= 0; i--) {
+    const landing = rangerMeatLandings[i];
+    const remaining = landing.expiresAt - now;
+    if (remaining <= 0) { rangerMeatLandings.splice(i, 1); continue; }
+    const pulse = 0.5 + 0.5 * Math.sin(now * 0.018);
+    context.save();
+    context.globalAlpha = Math.min(0.7, remaining / 180) * (0.55 + pulse * 0.25);
+    context.strokeStyle = '#303728'; context.lineWidth = 4;
+    context.beginPath(); context.arc(landing.x, landing.y, 18 + pulse * 4, 0, Math.PI * 2); context.stroke();
+    context.strokeStyle = '#B07A4A'; context.lineWidth = 2;
+    context.beginPath(); context.arc(landing.x, landing.y, 18 + pulse * 4, 0, Math.PI * 2); context.stroke();
+    context.font = '18px "Segoe UI Emoji", sans-serif'; context.textAlign = 'center'; context.textBaseline = 'middle';
+    context.fillText('🍖', landing.x, landing.y);
+    context.restore();
+  }
+}
+
+function drawRangerWolves(now) {
+  for (const wolf of state.wolves || []) {
+    if (wolf.waitingForMeat) continue;
+    const arriving = Boolean(wolf.arriving);
+    const fade = arriving ? Math.max(0, Math.min(1, wolf.arrivalProgress || 0)) : 1;
+    const pulse = 1 + Math.sin(now * 0.008) * 0.045;
+    context.save();
+    context.globalAlpha = arriving ? 0.08 + fade * 0.92 : 1;
+    context.translate(wolf.x, wolf.y);
+    context.scale(pulse * (arriving ? 0.72 + fade * 0.28 : 1), pulse * (arriving ? 0.72 + fade * 0.28 : 1));
+
+    context.beginPath();
+    context.ellipse(0, 13, 16, 6, 0, 0, Math.PI * 2);
+    context.fillStyle = 'rgba(10, 22, 15, 0.48)';
+    context.fill();
+    context.beginPath();
+    context.arc(0, 0, 17, 0, Math.PI * 2);
+    context.fillStyle = '#263b2b';
+    context.fill();
+    context.strokeStyle = arriving ? '#fff2cc' : '#8be04e';
+    context.lineWidth = 2;
+    context.stroke();
+    context.font = '25px sans-serif';
+    context.textAlign = 'center';
+    context.textBaseline = 'middle';
+    context.fillText('🐺', 0, 0);
+
+    context.font = '900 10px system-ui, sans-serif';
+    context.fillStyle = '#fff';
+    context.textAlign = 'center';
+    if (arriving) context.fillText('ARRIVING', 0, -25);
+    const feedback = GAME_CONFIG.heroes.ranger.ranger.feedback;
+    if (!arriving && wolf.expiresAt > 0) {
+      const serverNow = (state.serverTime || Date.now()) + (now - stateReceivedAt);
+      const timer = Math.max(0, Math.min(1, (wolf.expiresAt - serverNow)
+        / (GAME_CONFIG.heroes.ranger.ranger.wolfDurationS * 1000)));
+      const barWidth = feedback.wolfTimerBarWidthPx, barHeight = feedback.wolfTimerBarHeightPx;
+      context.fillStyle = '#20271f'; context.fillRect(-barWidth / 2, 22, barWidth, barHeight);
+      context.fillStyle = '#B07A4A'; context.fillRect(-barWidth / 2 + 1, 23, (barWidth - 2) * timer, barHeight - 2);
+      context.globalAlpha = 0.5;
+      context.strokeStyle = '#303728'; context.lineWidth = 4; context.setLineDash([8, 7]);
+      context.beginPath(); context.arc(0, 0, GAME_CONFIG.heroes.ranger.ranger.wolfTauntRadius, 0, Math.PI * 2); context.stroke();
+      context.strokeStyle = 'rgba(176, 122, 74, 0.5)'; context.lineWidth = 2;
+      context.beginPath(); context.arc(0, 0, GAME_CONFIG.heroes.ranger.ranger.wolfTauntRadius, 0, Math.PI * 2); context.stroke();
+      context.setLineDash([]);
+    }
+    context.restore();
+  }
+}
+
+function drawRangerWolfBiteFx(now) {
+  for (let i = rangerWolfBiteFx.length - 1; i >= 0; i--) {
+    const fx = rangerWolfBiteFx[i];
+    const progress = (now - fx.startedAt) / 230;
+    if (progress >= 1) { rangerWolfBiteFx.splice(i, 1); continue; }
+    context.save(); context.translate(fx.x, fx.y - 12 - progress * 8); context.globalAlpha = 1 - progress;
+    context.lineCap = 'round'; context.strokeStyle = '#303728'; context.lineWidth = 5;
+    for (let claw = 0; claw < 3; claw++) {
+      context.beginPath(); context.moveTo(-10 + claw * 8, -8); context.lineTo(-14 + claw * 8, 8); context.stroke();
+    }
+    context.strokeStyle = '#fff'; context.lineWidth = 2;
+    for (let claw = 0; claw < 3; claw++) {
+      context.beginPath(); context.moveTo(-10 + claw * 8, -8); context.lineTo(-14 + claw * 8, 8); context.stroke();
+    }
+    context.restore();
+  }
+}
+
+function drawRangerDeadAimStreaks(now) {
+  for (let i = rangerDeadAimStreaks.length - 1; i >= 0; i--) {
+    const streak = rangerDeadAimStreaks[i];
+    const progress = (now - streak.startedAt) / streak.durationMs;
+    if (progress >= 1) { rangerDeadAimStreaks.splice(i, 1); continue; }
+    const length = streak.range * Math.min(1, progress * 3 + 0.08);
+    const x2 = streak.x + streak.dx * length, y2 = streak.y + streak.dy * length;
+    context.save(); context.globalAlpha = (1 - progress) * (prefersReducedMotion ? 0.55 : 0.9);
+    context.lineCap = 'round'; context.strokeStyle = '#5A3E0C'; context.lineWidth = 13;
+    context.beginPath(); context.moveTo(streak.x, streak.y); context.lineTo(x2, y2); context.stroke();
+    context.strokeStyle = '#FFF2CC'; context.lineWidth = 7;
+    context.beginPath(); context.moveTo(streak.x, streak.y); context.lineTo(x2, y2); context.stroke();
+    context.strokeStyle = '#F0DDA0'; context.lineWidth = 2;
+    context.beginPath(); context.moveTo(streak.x, streak.y); context.lineTo(x2, y2); context.stroke();
+    context.restore();
+  }
+}
+
+function rangerAimEndpoint(player, range, target = window.lastPointerWorld) {
+  const center = { x: player.x, y: player.y };
+  const pointer = target || { x: center.x + (player.aim?.x || 1) * range, y: center.y + (player.aim?.y || 0) * range };
+  const dx = pointer.x - center.x, dy = pointer.y - center.y;
+  const distance = Math.hypot(dx, dy) || 1;
+  const scale = Math.min(1, range / distance);
+  return { x: center.x + dx * scale, y: center.y + dy * scale };
+}
+
+function drawRangerAimGuides() {
+  const player = state.players?.find((candidate) => candidate.id === me);
+  if (!player || player.heroId !== 'ranger' || player.downed || !window.lastPointerWorld) return;
+  const config = GAME_CONFIG.heroes.ranger.ranger;
+  const progress = Math.max(0, Math.min(1, player.rangerChargeT || 0));
+  let range, width, color;
+  if (player.rangerCharging) {
+    range = config.rangeMin + (config.rangeMax - config.rangeMin) * progress;
+    width = config.feedback.aimLineWidthMinPx + progress * config.feedback.aimLineWidthMaxPx;
+    color = HERO_FX_COLORS.ranger.primary;
+  } else if (player.deadAimArrows > 0) {
+    range = config.ultRange;
+    width = 1.5;
+    color = HERO_FX_COLORS.ranger.primary;
+  } else return;
+  const end = rangerAimEndpoint(player, range);
+  context.save(); context.globalAlpha = player.deadAimArrows > 0 ? 0.5 : 0.48; context.lineCap = 'round';
+  context.strokeStyle = '#303728'; context.lineWidth = width + 3;
+  context.beginPath(); context.moveTo(player.x, player.y); context.lineTo(end.x, end.y); context.stroke();
+  context.strokeStyle = color; context.lineWidth = width;
+  context.beginPath(); context.moveTo(player.x, player.y); context.lineTo(end.x, end.y); context.stroke();
+  context.restore();
+}
+
+function drawRangerCombatFeedback(player, now) {
+  if (player.heroId !== 'ranger' || player.downed) return;
+  const config = GAME_CONFIG.heroes.ranger.ranger;
+  const feedback = config.feedback;
+  const center = { x: player.x, y: player.y };
+  const muzzleUntil = rangerDeadAimMuzzleUntil.get(player.id) || 0;
+  if (muzzleUntil > now) {
+    const progress = 1 - (muzzleUntil - now) / feedback.deadAimMuzzleMs;
+    const aim = player.aim || { x: 1, y: 0 };
+    const x = center.x + aim.x * 31, y = center.y + aim.y * 31;
+    context.save(); context.globalAlpha = 1 - progress; context.translate(x, y);
+    const rotation = Math.atan2(aim.y, aim.x);
+    context.rotate(rotation);
+    context.strokeStyle = '#5A3E0C'; context.lineWidth = 5; context.lineCap = 'round';
+    context.beginPath(); context.arc(0, 0, 14 + progress * 13, -0.8, 0.8); context.stroke();
+    context.strokeStyle = '#FFF2CC'; context.lineWidth = 2;
+    context.beginPath(); context.arc(0, 0, 14 + progress * 13, -0.8, 0.8); context.stroke();
+    if (!prefersReducedMotion && effectiveQuality() !== 'low') {
+      for (let ray = 0; ray < 5; ray++) {
+        const angle = -0.7 + ray * 0.35;
+        context.beginPath(); context.moveTo(Math.cos(angle) * 8, Math.sin(angle) * 8);
+        context.lineTo(Math.cos(angle) * 22, Math.sin(angle) * 22); context.stroke();
+      }
+    }
+    context.restore();
+  } else if (muzzleUntil) rangerDeadAimMuzzleUntil.delete(player.id);
+  const progress = Math.max(0, Math.min(1, player.rangerChargeT || 0));
+  if (player.rangerCharging) {
+    const visual = rangerChargeVisuals.get(player.id) || { full: false, lastCreakAt: -Infinity, fullAt: 0 };
+    if (progress >= 1 && !visual.full) {
+      visual.full = true;
+      visual.fullAt = now;
+      if (player.id === me && effectToggles.sound) playSound('rangerFullCharge');
+      if (player.id === me && !prefersReducedMotion && effectiveQuality() !== 'low') {
+        addParticle({ x: center.x, y: center.y - 28, vx: 0, vy: -20, radius: 3,
+          color: '#FFF2CC', alpha: 1, expiresAt: now + feedback.chargeFullFlashMs });
+      }
+    }
+    if (progress < 1) visual.full = false;
+    if (player.id === me && effectToggles.sound && now - visual.lastCreakAt >= feedback.creakIntervalMs) {
+      visual.lastCreakAt = now;
+      playSound('rangerCreak', { semitones: Math.round(progress * 7), volume: 0.42 });
+    }
+    rangerChargeVisuals.set(player.id, visual);
+
+    const aim = player.aim || { x: 1, y: 0 };
+    const angle = Math.atan2(aim.y, aim.x);
+    context.save();
+    context.translate(center.x + aim.x * 14, center.y + aim.y * 14);
+    context.rotate(angle);
+    const bend = feedback.drawBowBasePx + feedback.drawBowBendPx * progress;
+    context.lineCap = 'round'; context.lineJoin = 'round';
+    context.strokeStyle = '#303728'; context.lineWidth = 6;
+    context.beginPath(); context.moveTo(0, -feedback.drawBowHalfHeightPx);
+    context.quadraticCurveTo(bend, 0, 0, feedback.drawBowHalfHeightPx); context.stroke();
+    context.strokeStyle = HERO_FX_COLORS.ranger.primary; context.lineWidth = 3;
+    context.beginPath(); context.moveTo(0, -feedback.drawBowHalfHeightPx);
+    context.quadraticCurveTo(bend, 0, 0, feedback.drawBowHalfHeightPx); context.stroke();
+    context.strokeStyle = '#fff2cc'; context.lineWidth = 1.5;
+    context.beginPath(); context.moveTo(0, -feedback.drawBowHalfHeightPx); context.lineTo(0, feedback.drawBowHalfHeightPx); context.stroke();
+    context.restore();
+
+    if (player.id === me && window.lastPointerWorld) {
+      const end = rangerAimEndpoint(player, config.rangeMin + (config.rangeMax - config.rangeMin) * progress);
+      context.save();
+      const pulse = visual.full && !prefersReducedMotion ? 1 + Math.sin(now * 0.025) * 0.1 : 1;
+      const flash = visual.fullAt && now - visual.fullAt < feedback.chargeFullFlashMs ? 1 : 0;
+      context.translate(end.x, end.y); context.scale(pulse, pulse);
+      const ringRadius = feedback.chargeRingRadiusPx + 8;
+      context.lineWidth = 8; context.strokeStyle = '#17251b';
+      context.beginPath(); context.arc(0, 0, ringRadius, 0, Math.PI * 2); context.stroke();
+      context.lineWidth = 5; context.strokeStyle = '#FFF2CC';
+      context.beginPath(); context.arc(0, 0, ringRadius, 0, Math.PI * 2); context.stroke();
+      context.lineWidth = flash ? 7 : 5; context.strokeStyle = flash ? '#fff' : HERO_FX_COLORS.ranger.primary;
+      context.beginPath(); context.arc(0, 0, ringRadius, -Math.PI / 2,
+        -Math.PI / 2 + Math.PI * 2 * progress); context.stroke();
+      context.font = '900 11px system-ui, sans-serif'; context.textAlign = 'center'; context.textBaseline = 'middle';
+      context.lineWidth = 3; context.strokeStyle = '#17251b'; context.fillStyle = '#fff7dc';
+      context.strokeText(`${Math.round(progress * 100)}%`, 0, 0); context.fillText(`${Math.round(progress * 100)}%`, 0, 0);
+      context.restore();
+    }
+  } else {
+    rangerChargeVisuals.delete(player.id);
+  }
+
+  if (player.deadAimArrows > 0) {
+    const serverNow = (state.serverTime || Date.now()) + (now - stateReceivedAt);
+    const remaining = Math.max(0, (player.deadAimUntil || serverNow) - serverNow);
+    const pipAlpha = remaining < 1000 ? Math.max(0.2, remaining / 1000) : 1;
+    context.save(); context.globalAlpha = pipAlpha;
+    for (let pip = 0; pip < player.deadAimArrows; pip++) {
+      const angle = now * 0.004 + Math.PI * 2 * pip / Math.max(1, player.deadAimArrows);
+      context.beginPath(); context.arc(center.x + Math.cos(angle) * 22, center.y - 101 + Math.sin(angle) * 6, 4, 0, Math.PI * 2);
+      context.fillStyle = '#303728'; context.fill();
+      context.beginPath(); context.arc(center.x + Math.cos(angle) * 22, center.y - 101 + Math.sin(angle) * 6, 2.5, 0, Math.PI * 2);
+      context.fillStyle = HERO_FX_COLORS.ranger.primary; context.fill();
+    }
+    context.restore();
+    if (player.id === me && window.lastPointerWorld) {
+      const end = rangerAimEndpoint(player, config.ultRange);
+      context.save(); context.globalAlpha = 1; context.fillStyle = '#17202bf2'; context.strokeStyle = '#303728'; context.lineWidth = 6;
+      context.beginPath(); context.arc(end.x, end.y, 21, 0, Math.PI * 2); context.fill(); context.stroke();
+      context.strokeStyle = '#ffd75e'; context.lineWidth = 3;
+      context.beginPath(); context.arc(end.x, end.y, 21, 0, Math.PI * 2); context.stroke();
+      context.font = '900 11px system-ui, sans-serif'; context.textAlign = 'center'; context.textBaseline = 'middle';
+      context.lineWidth = 3; context.strokeStyle = '#17202b'; context.fillStyle = '#fff2cc';
+      context.strokeText(`×${player.deadAimArrows}`, end.x, end.y); context.fillText(`×${player.deadAimArrows}`, end.x, end.y);
+      context.restore();
+    }
+  }
+  const castAt = rangerUltimateFlashAt.get(player.id);
+  if (castAt) {
+    const age = now - castAt;
+    if (age >= 50) rangerUltimateFlashAt.delete(player.id);
+    else {
+      context.save(); context.globalAlpha = 1 - age / 50; context.strokeStyle = '#fff2cc'; context.lineWidth = 4;
+      context.beginPath(); context.arc(center.x, center.y, 24 + age * 0.25, 0, Math.PI * 2); context.stroke(); context.restore();
+    }
+  }
+}
+
+function drawTurrets(now) {
+  for (const turret of state.turrets || []) {
+    const visual = turretVisualState.get(turret.id) || { bornAt: now, shotsFired: turret.shotsFired, angleChangedAt: now, recoilUntil: 0, flashUntil: 0 };
+    const pop = prefersReducedMotion || effectiveQuality() === 'low'
+      ? 1 : Math.min(1, Math.max(0, (now - visual.bornAt) / GAME_CONFIG.turret.deployMs));
+    const scale = turret.deploying ? Math.max(0.05, pop) : 1;
+    if (debugTurretRanges) {
+      context.save(); context.strokeStyle = 'rgba(255,255,255,.28)'; context.lineWidth = 1; context.setLineDash([6, 5]);
+      for (const radius of [GAME_CONFIG.turret.radius, GAME_CONFIG.turret.range, GAME_CONFIG.turret.aggroRadius]) {
+        context.beginPath(); context.arc(turret.x, turret.y, radius, 0, Math.PI * 2); context.stroke();
+      }
+      context.restore();
+    }
+    context.save(); context.translate(turret.x, turret.y); context.scale(scale, scale);
+    const bodySprite = turretSpriteImages.body;
+    const bodySize = GAME_CONFIG.turret.visuals.bodySize;
+    context.drawImage(bodySprite || turretBodyCanvas, -bodySize.w / 2, -bodySize.h / 2, bodySize.w, bodySize.h);
+    let angle = turret.angle;
+    const visualSpec = GAME_CONFIG.turret.visuals;
+    if (now - visual.angleChangedAt > 200) angle += Math.sin(now * visualSpec.idleSwaySpeed + turret.x) * visualSpec.idleSwayAmplitudeRad;
+    let recoil = visual.recoilUntil > now ? visualSpec.recoilPx * (visual.recoilUntil - now) / visualSpec.recoilMs : 0;
+    const barrelX = -4 - recoil;
+    context.save();
+    const pivot = GAME_CONFIG.turret.visuals.barrelPivot;
+    context.translate(pivot.x - bodySize.w / 2, pivot.y - bodySize.h / 2);
+    context.rotate(angle);
+    const barrelSprite = turretSpriteImages.barrel;
+    context.drawImage(barrelSprite || turretBarrelCanvas, barrelX, barrelSprite ? -barrelSprite.height / 2 : -8,
+      barrelSprite ? barrelSprite.width : 34, barrelSprite ? barrelSprite.height : 16);
+    if (visual.flashUntil > now) {
+      context.fillStyle = '#fff4cf'; context.beginPath(); context.arc(27 - recoil, 0, visualSpec.muzzleFlashRadiusPx * (visual.flashUntil - now) / visualSpec.muzzleFlashMs, 0, Math.PI * 2); context.fill();
+    }
+    context.restore();
+    if (turretHitFlashes.get(turret.id) > now) { context.fillStyle = 'rgba(255,255,255,.68)'; context.beginPath(); context.arc(0, 0, 19, 0, Math.PI * 2); context.fill(); }
+    const ratio = Math.max(0, Math.min(1, turret.hp / GAME_CONFIG.turret.hp));
+    const barX = -visualSpec.barWidth / 2, barY = visualSpec.barOffsetY;
+    context.fillStyle = '#101018'; context.fillRect(barX - 1, barY - 1, visualSpec.barWidth + 2, visualSpec.hpBarHeight + 2);
+    const hpGradient = context.createLinearGradient(barX, 0, barX + visualSpec.barWidth, 0);
+    hpGradient.addColorStop(0, '#58cc64'); hpGradient.addColorStop(.5, '#f0d84a'); hpGradient.addColorStop(1, '#e64545');
+    context.fillStyle = hpGradient; context.fillRect(barX, barY, visualSpec.barWidth * ratio, visualSpec.hpBarHeight);
+    if (ratio < .3 && Math.sin(now * Math.PI / 1000) > 0) { context.strokeStyle = '#ff3030'; context.lineWidth = 2; context.strokeRect(barX - 2, barY - 2, visualSpec.barWidth + 4, visualSpec.hpBarHeight + 4); }
+    const remainingMs = Math.max(0, turret.remainingMs - Math.max(0, now - stateReceivedAt));
+    if (remainingMs <= GAME_CONFIG.turret.expiryWarningMs) {
+      context.globalAlpha = 0.45 + 0.45 * Math.sin(now * Math.PI / 180);
+      context.strokeStyle = '#ff593f'; context.lineWidth = 2;
+      context.beginPath(); context.arc(0, 0, 27, 0, Math.PI * 2); context.stroke();
+    }
+    context.restore();
+  }
+}
+
+function engineerPlacementPoint(player, target = window.lastPointerWorld) {
+  const spec = GAME_CONFIG.heroes.engineer.turretSkill;
+  const aim = player.aim || { x: 1, y: 0 };
+  const wanted = target || { x: player.x + aim.x * spec.placeRange, y: player.y + aim.y * spec.placeRange };
+  const dx = wanted.x - player.x, dy = wanted.y - player.y, distance = Math.hypot(dx, dy);
+  const scale = distance > spec.placeRange ? spec.placeRange / distance : 1;
+  const x = Math.max(GAME_CONFIG.turret.radius, Math.min(ARENA_WIDTH - GAME_CONFIG.turret.radius, player.x + dx * scale));
+  const y = Math.max(GAME_CONFIG.turret.radius, Math.min(ARENA_HEIGHT - GAME_CONFIG.turret.radius, player.y + dy * scale));
+  const valid = (px, py) => {
+    const campfire = state.campfire || { x: ARENA_WIDTH / 2, y: ARENA_HEIGHT / 2 };
+    if (Math.hypot(px - campfire.x, py - campfire.y) < spec.minCampfireDist) return false;
+    return !(state.turrets || []).some((turret) => Math.hypot(px - turret.x, py - turret.y) < spec.minSpacing);
+  };
+  if (valid(x, y)) return { x, y, valid: true };
+  for (let radius = spec.snapStep; radius <= spec.snapRadius; radius += spec.snapStep) {
+    let bestSpot = null;
+    let bestDistance = spec.snapRadius + 1;
+    for (let step = 0; step < spec.snapSlices; step += 1) {
+      const angle = step * Math.PI * 2 / spec.snapSlices;
+      const px = Math.max(GAME_CONFIG.turret.radius, Math.min(ARENA_WIDTH - GAME_CONFIG.turret.radius, x + Math.cos(angle) * radius));
+      const py = Math.max(GAME_CONFIG.turret.radius, Math.min(ARENA_HEIGHT - GAME_CONFIG.turret.radius, y + Math.sin(angle) * radius));
+      const actualDistance = Math.hypot(px - x, py - y);
+      if (actualDistance < bestDistance && valid(px, py)) {
+        bestDistance = actualDistance;
+        bestSpot = { x: px, y: py, valid: true };
+      }
+    }
+    if (bestSpot) return bestSpot;
+  }
+  return { x, y, valid: false };
+}
+
+function rangerMeatPlacementPoint(player, target = window.lastPointerWorld) {
+  const spec = GAME_CONFIG.heroes.ranger.ranger;
+  const aim = player.aim || { x: 1, y: 0 };
+  const wanted = target || { x: player.x + aim.x * spec.meatRange, y: player.y + aim.y * spec.meatRange };
+  const dx = wanted.x - player.x, dy = wanted.y - player.y;
+  const distance = Math.hypot(dx, dy);
+  const scale = distance > spec.meatRange ? spec.meatRange / distance : 1;
+  const x = Math.max(0, Math.min(ARENA_WIDTH, player.x + dx * scale));
+  const y = Math.max(0, Math.min(ARENA_HEIGHT, player.y + dy * scale));
+  const valid = (px, py) => {
+    const campfire = state.campfire || { x: ARENA_WIDTH / 2, y: ARENA_HEIGHT / 2, radius: GAME_CONFIG.campfire.radius };
+    return px >= 0 && py >= 0 && px <= ARENA_WIDTH && py <= ARENA_HEIGHT
+      && Math.hypot(px - campfire.x, py - campfire.y) >= campfire.radius;
+  };
+  if (valid(x, y)) return { x, y, valid: true };
+  for (let radius = spec.meatSnapStep; radius <= spec.meatSnapRadius; radius += spec.meatSnapStep) {
+    let best = null, bestDistance = spec.meatSnapRadius + 1;
+    for (let step = 0; step < spec.meatSnapSlices; step += 1) {
+      const angle = step * Math.PI * 2 / spec.meatSnapSlices;
+      const px = Math.max(0, Math.min(ARENA_WIDTH, x + Math.cos(angle) * radius));
+      const py = Math.max(0, Math.min(ARENA_HEIGHT, y + Math.sin(angle) * radius));
+      const actual = Math.hypot(px - x, py - y);
+      if (actual < bestDistance && valid(px, py)) { best = { x: px, y: py, valid: true }; bestDistance = actual; }
+    }
+    if (best) return best;
+  }
+  return { x, y, valid: false };
+}
+
+function drawRangerMeatPlacementGhost() {
+  const player = state.players?.find((candidate) => candidate.id === me);
+  if (!player || player.heroId !== 'ranger' || player.downed || !rangerMeatTargeting) return;
+  const spec = GAME_CONFIG.heroes.ranger.ranger;
+  const spot = rangerMeatPlacementPoint(player);
+  const accent = spot.valid ? '#B07A4A' : '#ff5151';
+  context.save(); context.globalAlpha = 0.36; context.setLineDash([7, 6]);
+  context.strokeStyle = '#fff2cc'; context.lineWidth = 2;
+  context.beginPath(); context.arc(player.x, player.y, spec.meatRange, 0, Math.PI * 2); context.stroke();
+  context.setLineDash([]); context.globalAlpha = 0.72; context.strokeStyle = '#303728'; context.lineWidth = 4;
+  context.beginPath(); context.arc(spot.x, spot.y, 22, 0, Math.PI * 2); context.stroke();
+  context.globalAlpha = 0.84; context.strokeStyle = accent; context.lineWidth = 2;
+  context.beginPath(); context.arc(spot.x, spot.y, 22, 0, Math.PI * 2); context.stroke();
+  context.globalAlpha = 0.58; context.font = '28px "Segoe UI Emoji", sans-serif';
+  context.textAlign = 'center'; context.textBaseline = 'middle'; context.fillText('🍖', spot.x, spot.y);
+  context.restore();
+}
+
+function drawEngineerEffects(now) {
+  for (const player of state.players || []) {
+    if (player.heroId !== 'engineer') continue;
+    const charge = player.engineerLaserCharge;
+    if (charge) {
+      const spec = GAME_CONFIG.heroes.engineer.laser;
+      const chargeProgress = Math.max(0, Math.min(1, 1 - (charge.endsAt - Date.now()) / spec.chargeMs));
+      const direction = Date.now() < charge.lockAt ? player.aim : charge.aim;
+      const angle = Math.atan2(direction.y, direction.x);
+      let length = spec.length;
+      if (direction.x > 0) length = Math.min(length, (ARENA_WIDTH - player.x) / direction.x);
+      else if (direction.x < 0) length = Math.min(length, -player.x / direction.x);
+      if (direction.y > 0) length = Math.min(length, (ARENA_HEIGHT - player.y) / direction.y);
+      else if (direction.y < 0) length = Math.min(length, -player.y / direction.y);
+      context.save(); context.translate(player.x, player.y); context.rotate(angle);
+      context.globalAlpha = player.id === me ? 1 : 0.5;
+      context.fillStyle = `rgba(255,201,60,${0.15 + 0.2 * chargeProgress})`; context.fillRect(0, -spec.width / 2, length, spec.width);
+      context.setLineDash([14, 10]); context.lineCap = 'butt';
+      context.strokeStyle = 'rgba(12,12,18,.8)'; context.lineWidth = 7; context.strokeRect(0, -spec.width / 2, length, spec.width);
+      context.strokeStyle = '#FFC93C'; context.lineWidth = 4; context.strokeRect(0, -spec.width / 2, length, spec.width);
+      context.restore();
+    }
+  }
+  const local = state.players?.find((player) => player.id === me);
+  if (local?.heroId === 'engineer' && !local.downed && engineerPlacementTargeting) {
+    const spec = GAME_CONFIG.heroes.engineer.turretSkill;
+    const spot = engineerPlacementPoint(local);
+    context.save(); context.globalAlpha = 0.22; context.strokeStyle = '#fff'; context.lineWidth = 1.5;
+    context.beginPath(); context.arc(local.x, local.y, spec.placeRange, 0, Math.PI * 2); context.stroke();
+    context.globalAlpha = 0.24; context.strokeStyle = '#ff593f'; context.lineWidth = 1.5; context.setLineDash([7, 5]);
+    context.beginPath(); context.arc(spot.x, spot.y, GAME_CONFIG.turret.expiry.radius, 0, Math.PI * 2); context.stroke();
+    context.setLineDash([]);
+    const fire = state.campfire;
+    if (fire && Math.hypot(fire.x - spot.x, fire.y - spot.y) <= GAME_CONFIG.turret.expiry.radius + fire.radius) {
+      context.globalAlpha = 0.35; context.strokeStyle = '#ff593f';
+      context.beginPath(); context.arc(fire.x, fire.y, fire.radius + 6, 0, Math.PI * 2); context.stroke();
+    }
+    context.globalAlpha = 0.4; context.fillStyle = spot.valid ? '#fff' : '#ff5151';
+    context.beginPath(); context.arc(spot.x, spot.y, GAME_CONFIG.turret.radius, 0, Math.PI * 2); context.fill();
+    context.globalAlpha = 0.28; context.drawImage(turretBodyCanvas, spot.x - 22, spot.y - 16);
+    context.restore();
+  }
+  for (let i = engineerLaserBeams.length - 1; i >= 0; i -= 1) {
+    const beam = engineerLaserBeams[i], progress = (now - beam.startedAt) / beam.durationMs;
+    if (progress >= 1) { engineerLaserBeams.splice(i, 1); continue; }
+    const fade = progress > 0.68 ? (1 - progress) / 0.32 : 1;
+    const reduced = prefersReducedMotion || effectiveQuality() === 'low';
+    const jitter = reduced ? 0 : (Math.random() - 0.5) * beam.width * 0.02;
+    context.save(); context.translate(beam.x, beam.y); context.rotate(Math.atan2(beam.dy, beam.dx)); context.globalAlpha = Math.max(0, fade);
+    context.fillStyle = '#FF8A1F'; context.globalAlpha *= 0.55; context.fillRect(0, -beam.width / 2, beam.length, beam.width);
+    context.globalAlpha = Math.max(0, fade) * 0.85; context.fillStyle = '#FFD27A'; context.fillRect(0, -beam.width * 0.3, beam.length, beam.width * 0.6);
+    context.globalAlpha = Math.max(0, fade); context.fillStyle = '#fff'; context.fillRect(0, -beam.width * 0.14 + jitter, beam.length, beam.width * 0.28);
+    context.fillStyle = '#fff6d0'; context.beginPath(); context.arc(0, 0, 18 * fade, 0, Math.PI * 2); context.fill();
+    context.restore();
+  }
+  for (const [id, popup] of engineerSalvagePopups) {
+    const progress = (now - popup.startedAt) / GAME_CONFIG.heroes.engineer.salvage.popupMs;
+    if (progress >= 1) { engineerSalvagePopups.delete(id); continue; }
+    context.save(); context.globalAlpha = Math.max(0, 1 - progress); context.textAlign = 'center'; context.textBaseline = 'middle';
+    context.font = '900 18px system-ui, sans-serif'; context.textLineJoin = 'round';
+    context.lineWidth = 5; context.strokeStyle = '#18202B'; context.fillStyle = '#FFD27A';
+    const y = popup.y - 28 - progress * 18;
+    context.strokeText('REFUELLED!', popup.x, y); context.fillText('REFUELLED!', popup.x, y);
+    context.restore();
+  }
+}
+
+function drawSamuraiWorldEffects(now) {
+  const fx = HERO_FX_COLORS.samurai.primary;
+  const slashMs = SAMURAI_SLASH_FADE_MS;
+  const drawBlade = (startX, startY, endX, endY, width, alpha, accent = true) => {
+    const dx = endX - startX, dy = endY - startY;
+    context.save(); context.translate(startX, startY); context.rotate(Math.atan2(dy, dx));
+    context.globalAlpha = Math.max(0, alpha);
+    context.lineCap = 'round';
+    context.strokeStyle = fx; context.lineWidth = width; context.beginPath(); context.moveTo(0, 0); context.lineTo(Math.hypot(dx, dy), 0); context.stroke();
+    context.globalAlpha *= 0.95; context.strokeStyle = accent ? '#fff' : '#E6DFFF'; context.lineWidth = Math.max(2, width * 0.24);
+    context.beginPath(); context.moveTo(0, 0); context.lineTo(Math.hypot(dx, dy), 0); context.stroke();
+    context.restore();
+  };
+  for (const [playerId, trail] of samuraiDashTrails) {
+    const age = now - trail.startedAt;
+    const progress = Math.max(0, Math.min(1, age / Math.max(1, trail.durationMs)));
+    const fromX = trail.startX, fromY = trail.startY;
+    const toX = trail.startX + (trail.endX - trail.startX) * progress;
+    const toY = trail.startY + (trail.endY - trail.startY) * progress;
+    const fade = age <= trail.durationMs ? 0.95 : Math.max(0, 1 - (age - trail.durationMs) / SAMURAI_DASH_AFTERIMAGE_MS);
+    if (fade > 0) drawBlade(fromX, fromY, toX, toY, trail.kind === 'afterimage-cut' ? 11 : 8, fade, true);
+    if (age > trail.durationMs + SAMURAI_DASH_AFTERIMAGE_MS) samuraiDashTrails.delete(playerId);
+  }
+  const serverNow = (state.serverTime || Date.now()) + (now - stateReceivedAt);
+  for (const player of state.players || []) {
+    const action = player.samuraiAction;
+    if (player.heroId !== 'samurai' || action?.phase !== 'sheathe') continue;
+    const delayStart = action.startedAt + action.durationMs;
+    const progress = Math.max(0, Math.min(1, (serverNow - delayStart) / Math.max(1, action.cutAt - delayStart)));
+    const begin = -action.cutPad;
+    const finish = action.distance + action.cutPad;
+    const sx = action.startX + action.direction.x * begin;
+    const sy = action.startY + action.direction.y * begin;
+    const ex = action.startX + action.direction.x * finish;
+    const ey = action.startY + action.direction.y * finish;
+    const alpha = (0.15 + 0.25 * progress) * (player.id === me ? 1 : 0.5);
+    context.save(); context.setLineDash([12, 9]); context.lineCap = 'butt';
+    context.globalAlpha = alpha; context.strokeStyle = '#17202B'; context.lineWidth = action.width + 5;
+    context.beginPath(); context.moveTo(sx, sy); context.lineTo(ex, ey); context.stroke();
+    context.globalAlpha = alpha; context.strokeStyle = fx; context.lineWidth = action.width;
+    context.beginPath(); context.moveTo(sx, sy); context.lineTo(ex, ey); context.stroke();
+    context.setLineDash([]); context.globalAlpha = alpha * 0.9; context.strokeStyle = '#E6DFFF'; context.lineWidth = 2;
+    context.beginPath(); context.moveTo(sx, sy); context.lineTo(ex, ey); context.stroke(); context.restore();
+  }
+  for (let i = samuraiSlashEffects.length - 1; i >= 0; i--) {
+    const slash = samuraiSlashEffects[i], age = now - slash.startedAt;
+    if (age >= slashMs) { samuraiSlashEffects.splice(i, 1); continue; }
+    const grow = Math.min(1, age / SAMURAI_SLASH_GROW_MS);
+    const fade = age <= SAMURAI_SLASH_GROW_MS ? 1 : 1 - (age - SAMURAI_SLASH_GROW_MS) / (slashMs - SAMURAI_SLASH_GROW_MS);
+    const width = 2 + (slash.width - 2) * grow;
+    const dx = slash.endX - slash.startX, dy = slash.endY - slash.startY;
+    context.save(); context.translate(slash.startX, slash.startY); context.rotate(Math.atan2(dy, dx));
+    context.globalAlpha = 0.55 * fade; context.fillStyle = fx; context.fillRect(0, -width / 2, Math.hypot(dx, dy), width);
+    context.globalAlpha = 0.6 * fade; context.fillStyle = '#DCD5FF'; context.fillRect(0, -width * 0.3, Math.hypot(dx, dy), width * 0.6);
+    context.globalAlpha = 0.95 * fade; context.fillStyle = '#fff'; context.fillRect(0, -Math.max(1, width * 0.14), Math.hypot(dx, dy), Math.max(2, width * 0.28));
+    context.restore();
+  }
+  for (let i = samuraiHitMarks.length - 1; i >= 0; i--) {
+    const mark = samuraiHitMarks[i], progress = (now - mark.startedAt) / SAMURAI_HIT_MARK_MS;
+    if (progress >= 1) { samuraiHitMarks.splice(i, 1); continue; }
+    context.save(); context.translate(mark.x, mark.y); context.rotate(mark.angle); context.globalAlpha = 1 - progress;
+    context.lineCap = 'round'; context.strokeStyle = fx; context.lineWidth = mark.execute ? 8 : 6;
+    context.beginPath(); context.moveTo(-20, 16); context.lineTo(20, -16); context.stroke();
+    context.strokeStyle = '#fff'; context.lineWidth = mark.execute ? 3.5 : 2.5;
+    context.beginPath(); context.moveTo(-20, 16); context.lineTo(20, -16); context.stroke(); context.restore();
+  }
+  for (let i = samuraiExecuteLabels.length - 1; i >= 0; i--) {
+    const label = samuraiExecuteLabels[i], progress = (now - label.startedAt) / SAMURAI_EXECUTE_LABEL_MS;
+    if (progress >= 1) { samuraiExecuteLabels.splice(i, 1); continue; }
+    context.save(); context.globalAlpha = Math.max(0, 1 - progress); context.textAlign = 'center'; context.textBaseline = 'middle';
+    context.font = '900 18px system-ui, sans-serif'; context.lineJoin = 'round';
+    context.lineWidth = 5; context.strokeStyle = '#18202B'; context.fillStyle = '#FFD27A';
+    const y = label.y - 28 - progress * 18;
+    context.strokeText('EXECUTED!', label.x, y); context.fillText('EXECUTED!', label.x, y); context.restore();
+  }
+  for (let i = samuraiCutNumberLabels.length - 1; i >= 0; i--) {
+    const label = samuraiCutNumberLabels[i], progress = (now - label.startedAt) / 600;
+    if (progress >= 1) { samuraiCutNumberLabels.splice(i, 1); continue; }
+    context.save(); context.globalAlpha = 1 - progress; context.textAlign = 'center'; context.textBaseline = 'middle';
+    context.font = 'bold 14px system-ui, sans-serif'; context.lineJoin = 'round';
+    context.lineWidth = 4; context.strokeStyle = '#18202B'; context.fillStyle = '#E6DFFF';
+    context.strokeText(`x${label.multiplier.toFixed(1)}`, label.x, label.y - 30 - progress * 18);
+    context.fillText(`x${label.multiplier.toFixed(1)}`, label.x, label.y - 30 - progress * 18);
+    context.restore();
+  }
+}
+
 function drawScene(timestamp) {
   const currentTime = timestamp || performance.now();
   if (currentTime - lastHudUpdateAt >= ARENA_TUNING.performance.hudUpdateMs) {
@@ -3128,6 +4757,10 @@ function drawScene(timestamp) {
   context.filter = 'none';
   context.shadowBlur = 0;
   context.setLineDash([]);
+  if (touchViewport.matches) {
+    context.fillStyle = '#2F5E3E';
+    context.fillRect(0, 0, innerWidth, innerHeight);
+  }
   context.save();
   const traumaElapsed = Math.max(0, (currentTime - lastTraumaUpdateAt) / 1000);
   trauma = Math.max(0, trauma - SHAKE_DECAY * traumaElapsed);
@@ -3141,6 +4774,12 @@ function drawScene(timestamp) {
     const noiseX = smoothShakeNoise(currentTime);
     const noiseY = smoothShakeNoise(currentTime, SHAKE_NOISE_SECONDARY_PHASE);
     context.translate(noiseX * offset, noiseY * offset);
+  }
+  const mobileCamera = mobileCameraView();
+  if (mobileCamera) {
+    context.translate(innerWidth / (2 * mobileCamera.scale) - mobileCamera.x,
+      innerHeight / (2 * mobileCamera.scale) - mobileCamera.y);
+    context.scale(mobileCamera.scale, mobileCamera.scale);
   }
   if (currentTime < cameraZoom.until) {
     const centerX = ARENA_WIDTH / 2, centerY = ARENA_HEIGHT / 2;
@@ -3156,6 +4795,7 @@ function drawScene(timestamp) {
   const shakeOverscan = SHAKE_MAX_OFFSET;
   context.drawImage(backgroundCanvas, -shakeOverscan, -shakeOverscan,
     ARENA_WIDTH + shakeOverscan * 2, ARENA_HEIGHT + shakeOverscan * 2);
+  drawFairyVortexGround(currentTime);
 
   // 1. Draw Campfire in the middle
   const cf = state.campfire || {
@@ -3166,7 +4806,7 @@ function drawScene(timestamp) {
     maxHp: GAME_CONFIG.campfire.hp,
   };
   if (cf) {
-    // Permanent rings: pre-rendered sprites (under-stroke + dashed main stroke
+    // Permanent rings: pre-rendered sprites (dashed colored stroke
     // + fill), blitted once each. The sprite stroke is baked at full alpha so
     // the heal ring's gentle pulse keeps the stroke at or above the
     // AREA_RING_STROKE_ALPHA floor; the Thorns ring stays steady.
@@ -3221,6 +4861,9 @@ function drawScene(timestamp) {
     drawCampfire(context, cf, currentTime);
   }
 
+  drawFairyVortexStructures(currentTime);
+  drawRangerAimGuides();
+
   // 2. Draw Zombie Monsters
   if (Array.isArray(state.monsters)) {
     for (const monster of state.monsters) {
@@ -3242,7 +4885,7 @@ function drawScene(timestamp) {
       context.globalAlpha = fading ? Math.max(0, monster.fadeRemainingMs / 400) : 1;
       context.globalCompositeOperation = 'source-over';
       const pulse = monster.type === 'exploder' ? 1 + Math.sin(currentTime * 0.012) * 0.09 : 1;
-      const scale = (monster.scale || 1) * pulse;
+      const scale = (monster.scale || 1) * pulse * (monster.held ? 0.85 : 1);
       const visualRadius = 20 * scale;
       if (monster.type === 'dummy') {
         drawTrainingDummy(context, mx, my, scale, hitFlash);
@@ -3299,6 +4942,25 @@ function drawScene(timestamp) {
     }
   }
 
+  for (const monster of state.monsters || []) {
+    const mark = (monster.rangerMarks || []).find((entry) => entry.ownerId === me);
+    if (!mark) continue;
+    context.save(); context.globalAlpha = mark.remainingMs < 1000 ? Math.max(0.25, mark.remainingMs / 1000) : 1;
+    context.font = '19px "Segoe UI Emoji", sans-serif'; context.textAlign = 'center'; context.textBaseline = 'middle';
+    context.lineWidth = 3; context.strokeStyle = '#303728';
+    context.strokeText('🐾', monster.x, monster.y - (monster.radius || 18) - 16);
+    context.fillText('🐾', monster.x, monster.y - (monster.radius || 18) - 16);
+    context.restore();
+  }
+  drawRangerMeatThrows(currentTime);
+  drawRangerWolves(currentTime);
+  drawRangerWolfBiteFx(currentTime);
+  drawRangerDeadAimStreaks(currentTime);
+  drawRangerMeatPlacementGhost();
+  drawTurrets(currentTime);
+  drawEngineerEffects(currentTime);
+  drawFairyWindFeedback(currentTime);
+
   for (const pickup of state.pickups || []) {
     context.save(); context.globalAlpha = 0.85 + Math.sin(currentTime * 0.01) * 0.15;
     context.font = '24px sans-serif'; context.textAlign = 'center'; context.textBaseline = 'middle';
@@ -3350,9 +5012,12 @@ function drawScene(timestamp) {
     // player area effects are bright yellow-orange, and the Electromancer's
     // stun burst keeps its own purple FX color so its identity survives.
     const electroStun = effect.sourceHeroId === 'electromancer' && effect.sourceAbility === 'skill';
+    const fairyFx = effect.sourceHeroId === 'fairy';
+    const fairyGale = effect.sourceHeroId === 'fairy' && effect.sourceAbility === 'skill';
+    const rangerDeadAimFx = effect.sourceHeroId === 'ranger' && effect.sourceAbility === 'ultimate';
     const danger = effect.kind === 'enemy';
-    const stroke = electroStun ? HERO_FX_COLORS.electromancer.primary : danger ? AREA_COLORS.enemyStroke : AREA_COLORS.playerStroke;
-    const fillColor = electroStun ? HERO_FX_COLORS.electromancer.primary : danger ? AREA_COLORS.enemyFill : AREA_COLORS.playerFill;
+    const stroke = rangerDeadAimFx ? '#FFF2CC' : fairyFx ? HERO_FX_COLORS.fairy.primary : electroStun ? HERO_FX_COLORS.electromancer.primary : danger ? AREA_COLORS.enemyStroke : AREA_COLORS.playerStroke;
+    const fillColor = rangerDeadAimFx ? '#F0DDA0' : fairyFx ? HERO_FX_COLORS.fairy.primary : electroStun ? HERO_FX_COLORS.electromancer.primary : danger ? AREA_COLORS.enemyFill : AREA_COLORS.playerFill;
     context.save();
     if (effect.phase === 'telegraph') {
       // The Bombardier's ultimate marker fills like a clock hand sweeping
@@ -3391,12 +5056,7 @@ function drawScene(timestamp) {
         context.fillStyle = fillColor;
         context.beginPath(); context.arc(effect.x, effect.y, effect.radius, 0, Math.PI * 2); context.fill();
       }
-      // Dark under-stroke keeps the bright outline readable on the green floor.
-      context.globalAlpha = AREA_UNDERSTROKE_ALPHA;
-      context.strokeStyle = AREA_COLORS.understroke;
-      context.lineWidth = AREA_TELEGRAPH_WIDTH + AREA_UNDERSTROKE_EXTRA_PX;
-      context.beginPath(); context.arc(effect.x, effect.y, effect.radius, 0, Math.PI * 2); context.stroke();
-      // Bright dashed main stroke (never fades).
+      // Dashed colored main stroke (never fades).
       context.globalAlpha = AREA_TELEGRAPH_STROKE_ALPHA;
       context.strokeStyle = stroke;
       context.lineWidth = AREA_TELEGRAPH_WIDTH;
@@ -3410,10 +5070,45 @@ function drawScene(timestamp) {
         context.globalAlpha = 0.9;
         context.drawImage(marker.canvas, effect.x - marker.w / 2, effect.y - marker.h / 2, marker.w, marker.h);
       }
+    } else if (rangerDeadAimFx) {
+      const ringRadius = effect.radius * (0.2 + progress * 1.15);
+      context.globalAlpha = 0.22 * (1 - progress);
+      context.fillStyle = '#FFD75E';
+      context.beginPath(); context.arc(effect.x, effect.y, effect.radius * (1 - progress * 0.45), 0, Math.PI * 2); context.fill();
+      context.globalAlpha = 1 - progress;
+      context.strokeStyle = '#FFF8D8'; context.lineWidth = 5;
+      context.beginPath(); context.arc(effect.x, effect.y, ringRadius, 0, Math.PI * 2); context.stroke();
+      context.globalAlpha = (1 - progress) * 0.85;
+      context.strokeStyle = '#8BE04E'; context.lineWidth = 2;
+      context.beginPath(); context.arc(effect.x, effect.y, ringRadius * 0.72, 0, Math.PI * 2); context.stroke();
+      const burst = emojiGlyph('💥', 48 * (1 - progress * 0.45));
+      context.globalAlpha = 1 - progress;
+      context.drawImage(burst.canvas, effect.x - burst.w / 2, effect.y - burst.h / 2, burst.w, burst.h);
+    } else if (fairyGale) {
+      context.globalAlpha = 0.16 * (1 - progress * 0.6); context.fillStyle = fillColor;
+      context.beginPath(); context.arc(effect.x, effect.y, effect.radius, 0, Math.PI * 2); context.fill();
+      context.globalAlpha = 1 - progress * 0.35; context.strokeStyle = fillColor; context.lineWidth = AREA_TELEGRAPH_WIDTH;
+      context.setLineDash([AREA_DASH_ON, AREA_DASH_OFF]);
+      context.beginPath(); context.arc(effect.x, effect.y, effect.radius, 0, Math.PI * 2); context.stroke(); context.setLineDash([]);
+      const wave = progress * FAIRY_GALE_WIND_LINES;
+      for (let k = 0; k < FAIRY_GALE_WIND_LINES; k++) {
+        const t = wave - k;
+        if (t <= 0 || t > 1) continue;
+        const r = effect.radius * t;
+      context.globalAlpha = (1 - t) * (1 - progress * 0.25); context.strokeStyle = k % 2 ? HERO_FX_SECONDARY.fairy : '#fff0fa';
+      context.lineWidth = 2;
+        context.beginPath(); context.arc(effect.x, effect.y, r, -Math.PI * 0.82 + k * 0.45, Math.PI * 0.78 + k * 0.45); context.stroke();
+      }
+    } else if (fairyFx && effect.sourceAbility === 'ultimate') {
+      const radius = effect.radius * (0.4 + 0.6 * progress);
+      context.globalAlpha = 0.12 * (1 - progress); context.fillStyle = fillColor;
+      context.beginPath(); context.arc(effect.x, effect.y, effect.radius, 0, Math.PI * 2); context.fill();
+      context.globalAlpha = 1 - progress; context.strokeStyle = fillColor; context.lineWidth = AREA_TELEGRAPH_WIDTH;
+      context.beginPath(); context.arc(effect.x, effect.y, radius, 0, Math.PI * 2); context.stroke();
     } else if (effect.cone) {
       // Guardian Shield Rush fan: a bright wedge at the TRUE radius and angle,
-      // with the usual dark under-stroke plus a bright main stroke on the two
-      // edges and the arc (no shadowBlur / filters, matching the other markers),
+      // with a colored stroke on the two edges and the arc (no shadowBlur /
+      // filters, matching the other markers),
       // and a few arcs sweeping outward across the wedge as it fades.
       const half = (effect.angleDeg * Math.PI / 180) / 2;
       const a0 = effect.angleRad - half, a1 = effect.angleRad + half;
@@ -3430,11 +5125,6 @@ function drawScene(timestamp) {
       context.globalAlpha = AREA_TELEGRAPH_FILL_END_ALPHA * (1 - progress * 0.6);
       context.fillStyle = fx;
       trace(); context.fill();
-      // Dark under-stroke (keeps the bright wedge readable on the floor)
-      context.globalAlpha = AREA_UNDERSTROKE_ALPHA * (1 - progress * 0.5);
-      context.strokeStyle = AREA_COLORS.understroke;
-      context.lineWidth = AREA_TELEGRAPH_WIDTH + AREA_UNDERSTROKE_EXTRA_PX;
-      trace(); context.stroke();
       // Bright main stroke
       context.globalAlpha = 1 - progress * 0.5;
       context.strokeStyle = fx;
@@ -3458,14 +5148,6 @@ function drawScene(timestamp) {
       context.globalAlpha = endAlpha * (1 - progress * 0.6);
       context.fillStyle = fillColor;
       context.beginPath(); context.arc(effect.x, effect.y, effect.radius, 0, Math.PI * 2); context.fill();
-      // The dark under-stroke rides the expanding ring so the bright stroke
-      // keeps a readable edge on the floor. Drawn at the full radius instead,
-      // it stayed put while the ring expanded past it and read as a black
-      // border around the explosion.
-      context.globalAlpha = AREA_UNDERSTROKE_ALPHA * (1 - progress * 0.5);
-      context.strokeStyle = AREA_COLORS.understroke;
-      context.lineWidth = AREA_TELEGRAPH_WIDTH + AREA_UNDERSTROKE_EXTRA_PX;
-      context.beginPath(); context.arc(effect.x, effect.y, ringRadius, 0, Math.PI * 2); context.stroke();
       context.globalAlpha = 1 - progress * 0.5;
       context.strokeStyle = stroke;
       context.lineWidth = AREA_TELEGRAPH_WIDTH;
@@ -3524,17 +5206,18 @@ function drawScene(timestamp) {
       context.beginPath(); context.arc(center.x, center.y, 31, 0, Math.PI * 2); context.stroke();
       context.restore();
     }
-    const tip = { x: center.x + player.aim.x * 48, y: center.y + player.aim.y * 48 };
-    context.strokeStyle = player.id === me ? '#222' : '#777';
-    context.fillStyle = context.strokeStyle;
-
-    const angle = Math.atan2(player.aim.y, player.aim.x);
-    context.beginPath();
-    context.moveTo(tip.x, tip.y);
-    context.lineTo(tip.x - 12 * Math.cos(angle - Math.PI / 6), tip.y - 12 * Math.sin(angle - Math.PI / 6));
-    context.lineTo(tip.x - 12 * Math.cos(angle + Math.PI / 6), tip.y - 12 * Math.sin(angle + Math.PI / 6));
-    context.closePath();
-    context.fill();
+    if (player.heroId !== 'ranger') {
+      const tip = { x: center.x + player.aim.x * 48, y: center.y + player.aim.y * 48 };
+      context.strokeStyle = player.id === me ? '#222' : '#777';
+      context.fillStyle = context.strokeStyle;
+      const angle = Math.atan2(player.aim.y, player.aim.x);
+      context.beginPath();
+      context.moveTo(tip.x, tip.y);
+      context.lineTo(tip.x - 12 * Math.cos(angle - Math.PI / 6), tip.y - 12 * Math.sin(angle - Math.PI / 6));
+      context.lineTo(tip.x - 12 * Math.cos(angle + Math.PI / 6), tip.y - 12 * Math.sin(angle + Math.PI / 6));
+      context.closePath();
+      context.fill();
+    }
 
     if (player.id === me) {
       context.strokeStyle = '#1683ff';
@@ -3573,12 +5256,63 @@ function drawScene(timestamp) {
     // the sprite flicker on and off.
     const rushInvuln = Boolean(player.rushIFrames);
     const invulnBlink = !rushInvuln && Math.floor(currentTime / ARENA_TUNING.respawn.flashIntervalMs) % 2 === 0;
+    const samuraiTrail = samuraiDashTrails.get(player.id);
+    if (player.heroId === 'samurai' && samuraiTrail && !prefersReducedMotion && effectiveQuality() !== 'low') {
+      const trailAge = currentTime - samuraiTrail.startedAt;
+      for (let echo = 0; echo < 3; echo++) {
+        const fraction = [0.28, 0.54, 0.8][echo];
+        const echoAge = trailAge - samuraiTrail.durationMs * fraction;
+        if (echoAge < 0 || echoAge >= SAMURAI_DASH_AFTERIMAGE_MS) continue;
+        const x = samuraiTrail.startX + (samuraiTrail.endX - samuraiTrail.startX) * fraction;
+        const y = samuraiTrail.startY + (samuraiTrail.endY - samuraiTrail.startY) * fraction;
+        context.save(); context.globalAlpha = [0.4, 0.25, 0.12][echo] * (1 - echoAge / SAMURAI_DASH_AFTERIMAGE_MS);
+        drawCachedHero(context, heroSpriteCache, player, x, y, { ...visualState, hitFlash: false });
+        context.restore();
+      }
+    }
     context.save();
     if (player.invulnerable && invulnBlink) context.globalAlpha = 0.35;
     if (!drawCachedHero(context, heroSpriteCache, player, center.x - player.aim.x * recoil, center.y - player.aim.y * recoil, visualState)) {
       context.fillText(player.emoji, center.x - player.aim.x * recoil, center.y - player.aim.y * recoil);
     }
     context.restore();
+    drawRangerCombatFeedback(player, currentTime);
+    if (player.id === me && player.heroId === 'samurai') {
+      const stacks = Math.max(0, player.samuraiStacks || 0);
+      const spec = GAME_CONFIG.heroes.samurai.killCount;
+      const multiplier = Math.max(spec.minMultiplier, Math.min(spec.maxMultiplier, stacks / spec.divisor));
+      const tier = stacks >= spec.cap ? 'max' : stacks >= 10 ? 'gold' : stacks >= 5 ? 'violet' : 'muted';
+      const feedback = samuraiStackFeedback.get(player.id);
+      const age = feedback ? currentTime - feedback.at : Infinity;
+      const pulse = feedback?.kind === 'gain' && age < 220 && !prefersReducedMotion
+        ? 1 + 0.2 * Math.sin(Math.PI * age / 220) : 1;
+      const fade = feedback?.kind === 'decay' && age < 280 ? Math.max(0.4, age / 280) : 1;
+      const label = stacks >= spec.cap ? `${stacks}  x${multiplier.toFixed(1)}  MAX` : `${stacks}  x${multiplier.toFixed(1)}`;
+      context.save(); context.translate(center.x, center.y - 58); context.scale(pulse, pulse); context.globalAlpha = fade;
+      context.font = '900 15px system-ui, sans-serif'; context.textAlign = 'center'; context.textBaseline = 'middle';
+      const width = context.measureText(label).width + 20;
+      context.fillStyle = '#17202B'; context.strokeStyle = tier === 'muted' ? '#7B8795' : tier === 'violet' ? '#8F7CFF' : '#FFD27A'; context.lineWidth = 2;
+      context.beginPath(); context.roundRect(-width / 2, -13, width, 26, 13); context.fill(); context.stroke();
+      context.fillStyle = tier === 'muted' ? '#C5CBD3' : tier === 'violet' ? '#DCD5FF' : '#FFD27A';
+      context.fillText(label, 0, 0); context.restore();
+    }
+    if (player.heroId === 'ranger' && player.deadAimArrows > 0 && !player.downed) {
+      context.save();
+      context.translate(center.x, center.y - 76);
+      context.fillStyle = 'rgba(44, 31, 13, 0.94)';
+      context.strokeStyle = '#ffd75e';
+      context.lineWidth = 2;
+      context.beginPath();
+      context.roundRect(-62, -13, 124, 26, 13);
+      context.fill();
+      context.stroke();
+      context.font = '900 12px system-ui, sans-serif';
+      context.textAlign = 'center';
+      context.textBaseline = 'middle';
+      context.fillStyle = '#fff4c7';
+      context.fillText(`➡️ DEAD AIM ×${player.deadAimArrows}`, 0, 0);
+      context.restore();
+    }
     if (player.guardianCharging && player.guardianDamageRamp > 0) {
       const label = `+${Math.round(player.guardianDamageRamp * 100)}%`;
       context.save();
@@ -3680,9 +5414,18 @@ function drawScene(timestamp) {
       context.save(); context.strokeStyle = '#ff2d55'; context.lineWidth = 2; context.setLineDash([5, 4]);
       context.beginPath(); context.arc(monster.x, monster.y, monster.radius || 20, 0, Math.PI * 2); context.stroke(); context.restore();
     }
-    if (monster.stunned) {
-      context.font = '16px sans-serif'; context.textAlign = 'center'; context.textBaseline = 'middle';
-      context.fillText('⚡', monster.x, monster.y - 30);
+    if (monster.stunned || monster.vortexed || monster.slowed || monster.engineerWrenchMarked) {
+      const statusMarks = [
+        ...(monster.stunned ? ['⚡'] : []),
+        ...(monster.vortexed ? ['🌀'] : []),
+        ...(monster.slowed ? ['🐌'] : []),
+        ...(monster.engineerWrenchMarked ? ['🔧'] : []),
+      ];
+      context.save(); context.font = '16px sans-serif'; context.textAlign = 'center'; context.textBaseline = 'middle';
+      statusMarks.forEach((mark, index) => context.fillText(mark,
+        monster.x + (index - (statusMarks.length - 1) / 2) * 18,
+        monster.y - (monster.isDummy || monster.type === 'dummy' ? 50 : 30)));
+      context.restore();
     }
     if ((enemyFlashes.get(monster.id) || 0) > currentTime) {
       context.beginPath(); context.arc(monster.x, monster.y, 25, 0, Math.PI * 2); context.strokeStyle = HERO_FX_COLORS.electromancer.highlight; context.lineWidth = 4; context.stroke();
@@ -3777,12 +5520,23 @@ function drawScene(timestamp) {
   for (let i = particles.length - 1; i >= 0; i--) {
     const part = particles[i];
     if (part.startedAt && currentTime < part.startedAt) continue;
-    part.x += part.vx * dt;
-    part.y += part.vy * dt;
+    if (part.travelStartedAt !== null && part.travelTargetX !== null && part.travelTargetY !== null) {
+      const progress = Math.max(0, Math.min(1, (currentTime - part.travelStartedAt) / Math.max(1, part.travelDurationMs || 1)));
+      const eased = progress * progress * (3 - 2 * progress);
+      part.x = part.travelStartX + (part.travelTargetX - part.travelStartX) * eased;
+      part.y = part.travelStartY + (part.travelTargetY - part.travelStartY) * eased;
+      if (progress >= 1) {
+        particles.splice(i, 1); particlePool.push(part);
+        continue;
+      }
+    } else {
+      part.x += part.vx * dt;
+      part.y += part.vy * dt;
+    }
     if (part.expiresAt) {
       const duration = part.durationMs || ARENA_TUNING.impactSparks.durationMs;
       part.alpha = Math.max(0, (part.expiresAt - currentTime) / duration);
-    } else part.alpha -= part.decay || 0.04;
+    } else if (part.travelStartedAt == null) part.alpha -= part.decay || 0.04;
     if (part.alpha <= 0) {
       particles.splice(i, 1);
       particlePool.push(part);
@@ -3830,6 +5584,7 @@ function drawScene(timestamp) {
     context.globalAlpha = Math.max(0, dtObj.alpha * (dtObj.sourceId && dtObj.sourceId !== me ? ARENA_TUNING.damageNumbers.teammateOpacity : 1));
     context.drawImage(g.canvas, dtObj.x - g.w / 2, dtObj.y - g.h / 2, g.w, g.h);
   }
+  drawSamuraiWorldEffects(currentTime);
   context.globalAlpha = 1;
   context.restore();
   context.setTransform(1, 0, 0, 1, 0, 0);
@@ -3838,6 +5593,17 @@ function drawScene(timestamp) {
   context.filter = 'none';
   context.shadowBlur = 0;
   context.setLineDash([]);
+  if (samuraiScreenFlash) {
+    const age = currentTime - samuraiScreenFlash.startedAt;
+    if (age >= SAMURAI_CUT_OVERLAY_MS) samuraiScreenFlash = null;
+    else {
+      context.save();
+      context.globalAlpha = 0.18 * (1 - age / SAMURAI_CUT_OVERLAY_MS);
+      context.fillStyle = '#101018';
+      context.fillRect(0, 0, canvas.width, canvas.height);
+      context.restore();
+    }
+  }
   // Screen-space celebration: unaffected by shake and the boss zoom.
   updateConfetti(currentTime, dt);
   drawConfetti(currentTime);
@@ -3853,6 +5619,7 @@ function spawnDashTrail(player) {
     vx:(Math.random()-.5)*35,vy:(Math.random()-.5)*35,radius:spec.radius+Math.random()*2+ramp*2,color:ramp > 0.4 ? HERO_FX_COLORS[player.heroId]?.highlight : HERO_FX_COLORS[player.heroId]?.primary || '#d8dfc7',alpha:.65+ramp*.35,decay:spec.decay});
 }
 
+canvas.addEventListener('pointerdown', beginTouchZoom, { passive: true });
 canvas.addEventListener('pointermove', onPointerMove);
 canvas.addEventListener('pointerdown', onPointerDown);
 movementStick.addEventListener('pointerdown', onMovementPointerDown);
@@ -3865,9 +5632,13 @@ abilityElements.forEach((button) => {
 });
 targetingCancel.addEventListener('click', cancelTargeting);
 window.addEventListener('pointermove', moveAbilityGesture, { passive: false });
+window.addEventListener('pointermove', moveTouchZoom, { passive: false });
+window.addEventListener('pointerup', endTouchZoom);
+window.addEventListener('pointercancel', endTouchZoom);
 window.addEventListener('pointerup', releasePointerControls);
 window.addEventListener('pointercancel', releasePointerControls);
 window.addEventListener('resize', resizeArenaRaster, { passive: true });
+touchViewport.addEventListener?.('change', resizeArenaRaster);
 socket.on('connect', () => {
   lastSentMovement = null;
   sendMovement();
@@ -3886,7 +5657,9 @@ addEventListener('keydown', onKeyDown);
 addEventListener('keyup', onKeyUp);
 addEventListener('blur', () => {
   if (abilityGesture) finishAbilityGesture({ pointerId: abilityGesture.pointerId }, true);
+  engineerPlacementTargeting = false;
   releaseKeys();
+  targetingHint.hidden = true;
   targetingReticle.hidden = true;
 });
 requestAnimationFrame(draw);

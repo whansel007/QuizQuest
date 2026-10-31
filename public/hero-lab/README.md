@@ -18,6 +18,10 @@ Open <http://localhost:5173/hero-lab>. To try the production server instead,
 build the app with `pnpm build`, run `pnpm start`, and open
 <http://localhost:3000/hero-lab>.
 
+The standalone Hero Lab is available without a QuizQuest login. Its visual,
+turret, Tower, and monster-effect debug tools are in Settings; debug actions
+affect the live Hero Lab room you join.
+
 ## What's in this folder
 
 Two pages, one per step:
