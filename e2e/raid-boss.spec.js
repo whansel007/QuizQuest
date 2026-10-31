@@ -231,106 +231,110 @@ test('two students share one raid boss: a correct answer damages it for the clas
   const contextA = await browser.newContext({ baseURL });
   const contextB = await browser.newContext({ baseURL });
   const contextT = await browser.newContext({ baseURL }); // the professor, for the answer key
-  const pageA = await contextA.newPage();
-  const pageB = await contextB.newPage();
+  try {
+    const pageA = await contextA.newPage();
+    const pageB = await contextB.newPage();
 
-  await signIn(pageA, STUDENT_A);
-  await signIn(pageB, STUDENT_B);
+    await signIn(pageA, STUDENT_A);
+    await signIn(pageB, STUDENT_B);
 
-  // Take the answer key from the live question bank, so the test can answer
-  // every question the server is willing to serve - including one another
-  // spec published in this same run.
-  for (const q of await readLiveBank(contextT)) {
-    if (q.status !== 'published' || !q.publishedVersion || !q.latest) continue;
-    if (q.latest.v !== q.publishedVersion) continue; // an edit that was never published
-    bank.set(q.id, q.latest);
-  }
-  await contextT.close();
+    // Take the answer key from the live question bank, so the test can answer
+    // every question the server is willing to serve - including one another
+    // spec published in this same run.
+    for (const q of await readLiveBank(contextT)) {
+      if (q.status !== 'published' || !q.publishedVersion || !q.latest) continue;
+      if (q.latest.v !== q.publishedVersion) continue; // an edit that was never published
+      bank.set(q.id, q.latest);
+    }
+    await contextT.close();
 
-  await openWorldSocket(pageA, CLASS_ID);
-  await openWorldSocket(pageB, CLASS_ID);
+    await openWorldSocket(pageA, CLASS_ID);
+    await openWorldSocket(pageB, CLASS_ID);
 
-  // Both students are in the same class world, and the world knows both.
-  await pageA.evaluate(() => window.__raid.next(['welcome'], 20000));
-  await pageB.evaluate(() => window.__raid.next(['welcome'], 20000));
-  await expect
-    .poll(async () => {
-      const players = await pageA.evaluate(() => (window.__raid.state?.players || []).map((p) => p.name));
-      return players.length;
-    }, { timeout: 20000 })
-    .toBe(2);
+    // Both students are in the same class world, and the world knows both.
+    await pageA.evaluate(() => window.__raid.next(['welcome'], 20000));
+    await pageB.evaluate(() => window.__raid.next(['welcome'], 20000));
+    await expect
+      .poll(async () => {
+        const players = await pageA.evaluate(() => (window.__raid.state?.players || []).map((p) => p.name));
+        return players.length;
+      }, { timeout: 20000 })
+      .toBe(2);
 
-  // The boss is shared: one boss, 60 health, for both of them.
-  const bossAtStart = await pageA.evaluate(() => window.__raid.state.boss);
-  expect(bossAtStart.alive).toBe(true);
-  expect(bossAtStart.maxHp).toBe(60);
+    // The boss is shared: one boss, 60 health, for both of them.
+    const bossAtStart = await pageA.evaluate(() => window.__raid.state.boss);
+    expect(bossAtStart.alive).toBe(true);
+    expect(bossAtStart.maxHp).toBe(60);
 
-  // Answer until it falls. The students take turns, so both of them land a
-  // hit and both of them are owed a share of the reward. A resource node
-  // can be in reach as well: that gathers supplies instead, and the boss
-  // waits.
-  const players = [pageA, pageB];
-  const hits = [];
+    // Answer until it falls. The students take turns, so both of them land a
+    // hit and both of them are owed a share of the reward. A resource node
+    // can be in reach as well: that gathers supplies instead, and the boss
+    // waits.
+    const players = [pageA, pageB];
+    const hits = [];
 
-  // The boss has sixty health and every hit takes ten off it, so six hits
-  // finish it. Count the hits instead of watching the health bar: the state
-  // snapshot can lag a frame behind the kill, and the boss comes back after
-  // thirty seconds, so a flag that is read too late sees the next boss.
-  for (let round = 0; round < 16 && hits.length < 6; round++) {
-    for (const page of players) {
-      if (hits.length >= 6) break;
-      await walkToBoss(page);
-      const asked = await askForChallenge(page);
-      if (asked.ev === 'notice') {
-        // Too soon after a wrong answer, or nothing in reach: wait it out.
-        const why = String(asked.data || '');
-        await page.waitForTimeout(/breath/i.test(why) ? 4200 : 500);
-        continue;
-      }
-      const challenge = asked.data;
-      const submission = submissionFor(challenge);
-      expect(submission, `no answer known for ${challenge.question.questionId}`).not.toBeNull();
+    // The boss has sixty health and every hit takes ten off it, so six hits
+    // finish it. Count the hits instead of watching the health bar: the state
+    // snapshot can lag a frame behind the kill, and the boss comes back after
+    // thirty seconds, so a flag that is read too late sees the next boss.
+    for (let round = 0; round < 16 && hits.length < 6; round++) {
+      for (const page of players) {
+        if (hits.length >= 6) break;
+        await walkToBoss(page);
+        const asked = await askForChallenge(page);
+        if (asked.ev === 'notice') {
+          // Too soon after a wrong answer, or nothing in reach: wait it out.
+          const why = String(asked.data || '');
+          await page.waitForTimeout(/breath/i.test(why) ? 4200 : 500);
+          continue;
+        }
+        const challenge = asked.data;
+        const submission = submissionFor(challenge);
+        expect(submission, `no answer known for ${challenge.question.questionId}`).not.toBeNull();
 
-      const answered = await sendAnswer(page, challenge.id, submission);
-      expect(answered.ev, `the question was not graded: ${JSON.stringify(answered.data)}`).toBe('result');
-      expect(answered.data.id, 'the server graded a different question').toBe(challenge.id);
-      expect(answered.data.correct, 'the seeded answer was rejected').toBe(true);
-      if (challenge.kind !== 'attack') continue; // a gather, not a hit
+        const answered = await sendAnswer(page, challenge.id, submission);
+        expect(answered.ev, `the question was not graded: ${JSON.stringify(answered.data)}`).toBe('result');
+        expect(answered.data.id, 'the server graded a different question').toBe(challenge.id);
+        expect(answered.data.correct, 'the seeded answer was rejected').toBe(true);
+        if (challenge.kind !== 'attack') continue; // a gather, not a hit
 
-      hits.push({ damage: answered.data.effect?.damage });
+        hits.push({ damage: answered.data.effect?.damage });
 
-      // The hit is broadcast to the whole class: the other student sees it.
-      const others = players.filter((p) => p !== page);
-      for (const other of others) {
-        try {
-          await expect.poll(async () => (await seenEvents(other, 'hit')).length, { timeout: 10000 }).toBe(hits.length);
-        } catch (err) {
-          console.log('RAID attacker events', JSON.stringify(await allEvents(page), null, 1));
-          console.log('RAID other events', JSON.stringify(await allEvents(other), null, 1));
-          throw err;
+        // The hit is broadcast to the whole class: the other student sees it.
+        const others = players.filter((p) => p !== page);
+        for (const other of others) {
+          try {
+            await expect.poll(async () => (await seenEvents(other, 'hit')).length, { timeout: 10000 }).toBe(hits.length);
+          } catch (err) {
+            console.log('RAID attacker events', JSON.stringify(await allEvents(page), null, 1));
+            console.log('RAID other events', JSON.stringify(await allEvents(other), null, 1));
+            throw err;
+          }
         }
       }
     }
+
+    // Six hits of ten damage each brought the sixty health boss down.
+    expect(hits.length).toBe(6);
+    expect(hits.every((h) => h.damage === 10)).toBe(true);
+
+    // When the last health goes, the whole class is told who won it.
+    for (const p of players) {
+      await expect.poll(async () => (await seenEvents(p, 'raidWon')).length, { timeout: 15000 }).toBeGreaterThan(0);
+    }
+    const victory = (await seenEvents(pageA, 'raidWon'))[0];
+    expect(victory).not.toBeNull();
+    expect(victory.heroes.sort()).toEqual(['Student 01', 'Student 02']);
+    expect(victory.coins).toBe(25);
+
+    // Both of them were paid, and both were told their new totals.
+    for (const page of players) {
+      await expect.poll(async () => (await seenEvents(page, 'balances')).length, { timeout: 10000 }).toBeGreaterThan(0);
+    }
+  } finally {
+    // The contexts are closed even when an assertion fails. A student that
+    // stays connected stays in the class world, so leaving them open would
+    // hand the next attempt one player too many.
+    await Promise.all([contextA.close(), contextB.close(), contextT.close()]);
   }
-
-  // Six hits of ten damage each brought the sixty health boss down.
-  expect(hits.length).toBe(6);
-  expect(hits.every((h) => h.damage === 10)).toBe(true);
-
-  // When the last health goes, the whole class is told who won it.
-  for (const p of players) {
-    await expect.poll(async () => (await seenEvents(p, 'raidWon')).length, { timeout: 15000 }).toBeGreaterThan(0);
-  }
-  const victory = (await seenEvents(pageA, 'raidWon'))[0];
-  expect(victory).not.toBeNull();
-  expect(victory.heroes.sort()).toEqual(['Student 01', 'Student 02']);
-  expect(victory.coins).toBe(25);
-
-  // Both of them were paid, and both were told their new totals.
-  for (const page of players) {
-    await expect.poll(async () => (await seenEvents(page, 'balances')).length, { timeout: 10000 }).toBeGreaterThan(0);
-  }
-
-  await contextA.close();
-  await contextB.close();
 });

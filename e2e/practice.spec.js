@@ -2,7 +2,7 @@
 // E2E tests for the student's practice loop: start a session, answer a
 // question, see the verdict and the explanation, and reach the summary.
 import { test, expect } from '@playwright/test';
-import { signIn, openTab, answerCurrentQuestion, answerWholeSession, STUDENT } from './helpers.js';
+import { signIn, signUpStudent, openTab, answerCurrentQuestion, answerWholeSession, STUDENT } from './helpers.js';
 
 test('a student starts a practice session and answers a question', async ({ page }) => {
   await signIn(page, STUDENT);
@@ -41,13 +41,7 @@ test('the summary offers the way back to practice and to the progress page', asy
 
 test('a student who is not enrolled in any class is told how to join one', async ({ page }) => {
   // A brand-new account has no class yet.
-  const email = `no.class.${Date.now()}@example.com`;
-  await page.goto('/');
-  await page.getByRole('button', { name: 'Create a student account' }).click();
-  await page.getByRole('textbox', { name: 'Name' }).fill('No Class Yet');
-  await page.getByRole('textbox', { name: 'Email' }).fill(email);
-  await page.locator('#signup-password').fill('longenough');
-  await page.getByRole('button', { name: 'Create account' }).click();
+  await signUpStudent(page, 'No Class Yet');
 
   await openTab(page, 'Practice');
   await expect(page.getByRole('heading', { name: 'Join a class to begin', exact: true })).toBeVisible();

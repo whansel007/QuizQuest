@@ -2,24 +2,12 @@
 // E2E tests for professor-led enrolment: the professor adds a student to a
 // class by email and class name, and the student then has that class.
 import { test, expect } from '@playwright/test';
-import { signIn, openTab, TEACHER } from './helpers.js';
-
-// A fresh account, so the seeded rosters other tests rely on stay as they are.
-async function newStudent(page, name) {
-  const email = `${name.toLowerCase().replace(/\s+/g, '.')}.${Date.now()}@example.com`;
-  await page.goto('/');
-  await page.getByRole('button', { name: 'Create a student account' }).click();
-  await page.getByRole('textbox', { name: 'Name' }).fill(name);
-  await page.getByRole('textbox', { name: 'Email' }).fill(email);
-  await page.locator('#signup-password').fill('longenough');
-  await page.getByRole('button', { name: 'Create account' }).click();
-  return email;
-}
+import { signIn, signUpStudent, openTab, TEACHER } from './helpers.js';
 
 test('a professor enrols a student by email and class name', async ({ page }) => {
   test.slow(); // two sign-ins
   const student = await page.context().newPage();
-  const email = await newStudent(student, 'Added By Prof');
+  const email = await signUpStudent(student, 'Added By Prof');
 
   await signIn(page, TEACHER);
   await openTab(page, 'Classes & Roster');
@@ -38,7 +26,7 @@ test('a professor enrols a student by email and class name', async ({ page }) =>
 test("clicking a student in the roster offers the professor's other classes in a dropdown", async ({ page }) => {
   test.slow();
   const student = await page.context().newPage();
-  const email = await newStudent(student, 'Dropdown Pick');
+  const email = await signUpStudent(student, 'Dropdown Pick');
   await student.close();
 
   await signIn(page, TEACHER);
@@ -69,7 +57,7 @@ test("clicking a student in the roster offers the professor's other classes in a
 test("a class's roster adds a student by email, and refuses an unknown one", async ({ page }) => {
   test.slow();
   const student = await page.context().newPage();
-  const email = await newStudent(student, 'Roster Add');
+  const email = await signUpStudent(student, 'Roster Add');
   await student.close();
 
   await signIn(page, TEACHER);

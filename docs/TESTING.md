@@ -72,6 +72,14 @@ pnpm test:e2e:retry
 
 A test that passes the first time and fails the second is not flaky — it depends on the data the run before it left behind. Fix it by making the test own its data (a fresh account, a marker in the question text), not by removing the assertion.
 
+The rules that keep a test safe to retry:
+
+- **Own your account.** Use `signUpStudent(page, name)` from `e2e/helpers.js` for a student of the test's own, and reach for the seeded `STUDENT` only when the seeded account is the point of the test. A shared account arrives at the second attempt already carrying the first attempt's answers and reports, and the server refuses a second report on a question it already has an open one for — so the student is told a different message than the test expects.
+- **Own what you create.** Every question a test creates needs wording of its own, so the retry is not turned away as a copy of the attempt before it.
+- **Read the numbers off the page.** The length of a session is what the counter says, not what the test asked for: the server can shorten a session when it has no instance of a question to serve.
+- **Wait for the account to exist.** Creating an account is a request of its own, and reloading the tab while it is still in flight cancels it. `signUpStudent` waits for the "Log out" button that only appears once the account exists.
+- **Close what you open.** A browser context that stays open leaves its student connected to the class world, so the next attempt finds one player too many. Close the contexts in a `finally`, not at the end of the happy path.
+
 CI keeps first-attempt failure traces and screenshots in the **playwright-test-results** artifact for seven days. Download and unzip it from the GitHub Actions run, then open a trace with `pnpm exec playwright show-trace path/to/trace.zip`. The report journey has named steps for student submission, professor resolution and student refresh; a separate fixture owns the professor browser's cleanup so a teardown error can be distinguished from a journey failure.
 
 These checks cover selected journeys, not every possible game action. They exercise the local Node backend and temporary data store; they do not certify a live Supabase connection, external AI services, or a complete multiplayer battle.
