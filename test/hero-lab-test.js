@@ -479,13 +479,37 @@ test('a held primary button does not cancel Shield Rush', async (t) => {
   client.emit('primary_hold', true);
   await new Promise((resolve) => setTimeout(resolve, 120));
   assert.ok(shots > 0, 'the hold is live before the dash starts');
-  shots = 0;
 
+  // The fan is emitted exactly once, when the dash ends - naturally at the
+  // 250ms deadline, or early if something cancelled it. Waiting for that
+  // event removes the fixed sleep, so the check no longer depends on the wall
+  // clock: the landing point says whether the dash was cut short.
+  // Register the listener BEFORE casting: the fan fires ~250ms after the skill.
+  const effectPromise = new Promise((resolve) => client.once('area_effect', resolve));
+  const before = { x: player.x, y: player.y };
+  client.emit('aim', { x: 1, y: 0 });
   client.emit('skill');
-  await nextState(client, (state) => state.players.find((candidate) => candidate.id === clientId)?.rushDashing);
-  await new Promise((resolve) => setTimeout(resolve, 120));
+  // The counter is reset once the dash is known to be running: a hold shot the
+  // server fires between the skill being emitted and the server handling it
+  // belongs to the gap, not to the dash. The 'rushDashing' frame can be
+  // missed when the dash starts and ends inside one tick on a stalled runner,
+  // so the fan - which always arrives - is the fallback.
+  await Promise.race([
+    nextState(client, (state) => state.players.find((candidate) => candidate.id === clientId)?.rushDashing).catch(() => null),
+    effectPromise,
+  ]);
+  shots = 0; // the dash is running now, so the hold must be silent from here on
+  const effect = await Promise.race([
+    effectPromise,
+    new Promise((_, reject) => setTimeout(() => reject(new Error('area_effect never fired within 3s')), 3000)),
+  ]);
 
-  assert.ok(player.dashState, 'the dash is still running while the button is held');
+  assert.equal(effect.sourceHeroId, 'guardian');
+  assert.equal(effect.sourceAbility, 'skill');
+  assert.ok(effect.x - before.x >= GUARDIAN_RUSH_DISTANCE - 1,
+    `the held button did not cut the dash short (travelled ${Math.round(effect.x - before.x)}px)`);
+  assert.ok(Math.abs(effect.y - before.y) < 2, 'the dash kept its locked line');
+  assert.equal(player.dashState, null, 'the dash is over once the fan has fired');
   assert.equal(shots, 0, 'holding fires nothing during the dash');
   client.emit('primary_hold', false);
 });
