@@ -123,7 +123,10 @@ http.interceptors.response.use(
   async (err) => {
     if (axios.isCancel(err)) throw Object.assign(new Error('Cancelled.'), { name: 'AbortError' });
     if (['ECONNABORTED', 'ETIMEDOUT'].includes(err.code)) throw new Error('The request timed out. Refresh progress before retrying; the server may still be processing it.');
-    if (!err.response) throw new Error('Could not reach the server. Check your connection and try again.');
+    // No answer at all: the request never reached the server, or its answer
+    // was lost on the way back. Tagged so the sign-in can tell this apart
+    // from the server saying "wrong password" and try again by itself.
+    if (!err.response) throw Object.assign(new Error('Could not reach the server. Check your connection and try again.'), { code: 'ERR_NETWORK' });
     const { config, status } = err.response;
     if (config.qqToken !== S.token) throw new Error('The active user changed.');
     if (status === 401 && config.qqToken) {
@@ -182,8 +185,31 @@ function clearSession() {
 }
 
 // credentials: { email, password }, or { userId } for the demo picker
+//
+// A sign-in is safe to repeat. If the request never reached the server then
+// nothing happened at all; if it did and the answer was lost on the way back
+// then the server made a token nobody holds. Either way the second attempt
+// is harmless - it just makes another token - so a dropped connection is
+// tried again before the user is told the server is unreachable.
+//
+// This matters because the sign-in form empties the password field whenever
+// a sign-in fails (web/src/LoginView.vue): without the retry the user reads
+// "Could not reach the server" and has to type the password a second time.
+// A wrong password (401) or a broken server (500) is the server's answer
+// and is shown as it is, never repeated.
+const LOGIN_ATTEMPTS = 3;
+const wait = (ms) => new Promise((r) => setTimeout(r, ms));
+
 export async function signIn(credentials) {
-  startSession(await api('POST', '/api/login', credentials));
+  for (let attempt = 1; attempt <= LOGIN_ATTEMPTS; attempt++) {
+    try {
+      startSession(await api('POST', '/api/login', credentials));
+      return;
+    } catch (err) {
+      if (err.code !== 'ERR_NETWORK' || attempt === LOGIN_ATTEMPTS) throw err;
+      await wait(300 * attempt);
+    }
+  }
 }
 
 // { name, email, password } -> a new student account, signed in
