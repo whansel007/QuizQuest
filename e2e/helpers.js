@@ -11,6 +11,39 @@ export const STUDENT = { email: 'student01@quizquest.demo', name: 'Student 01' }
 // clock ran out.
 const VERDICT = /Correct!|Not quite\.|Partly right|Time is up|No answer given/;
 
+// Create a student account.
+//
+// The registration is one request, and it can come back with no answer at
+// all: the browser reuses a connection the server has just closed (the
+// server's keep-alive timeout is five seconds) and the POST never lands. The
+// app then says "Could not reach the server" instead, so the request is made
+// again, exactly as the sign-in helper does. The form keeps its values -
+// LoginView only clears the message - so the retry sends the same email.
+//
+// A retry can also come back with "that email already exists": the first
+// request DID land and only its answer was lost, so the account is there.
+//
+// `done` is the locator that means the request was answered - the "Log out"
+// button for a new account, or the "already exists" message for a duplicate.
+// Returns true when the account was already there, so the caller can sign in
+// instead of expecting a fresh session.
+export async function registerStudent(page, { name, email, password = 'longenough', done }) {
+  const offline = page.getByRole('alert').filter({ hasText: 'Could not reach the server' });
+  const already = page.getByText('An account with this email already exists. Sign in instead.');
+  const answered = done.or(already).or(offline);
+  await page.getByRole('button', { name: 'Create a student account' }).click();
+  await page.getByRole('textbox', { name: 'Name' }).fill(name);
+  await page.getByRole('textbox', { name: 'Email' }).fill(email);
+  await page.locator('#signup-password').fill(password);
+  await page.getByRole('button', { name: 'Create account' }).click();
+  await expect(answered.first()).toBeVisible({ timeout: 30_000 });
+  for (let attempt = 0; attempt < 3 && await offline.first().isVisible(); attempt++) {
+    await page.getByRole('button', { name: 'Create account' }).click();
+    await expect(answered.first()).toBeVisible({ timeout: 30_000 });
+  }
+  return already.first().isVisible();
+}
+
 // A student account of this test's own.
 //
 // A CI retry replays the test against the same server and the same data, so
@@ -26,12 +59,12 @@ const VERDICT = /Correct!|Not quite\.|Partly right|Time is up|No answer given/;
 export async function signUpStudent(page, name) {
   const email = `${name.toLowerCase().replace(/\s+/g, '.')}.${crypto.randomUUID().slice(0, 8)}@example.com`;
   await page.goto('/');
-  await page.getByRole('button', { name: 'Create a student account' }).click();
-  await page.getByRole('textbox', { name: 'Name' }).fill(name);
-  await page.getByRole('textbox', { name: 'Email' }).fill(email);
-  await page.locator('#signup-password').fill('longenough');
-  await page.getByRole('button', { name: 'Create account' }).click();
-  await expect(page.getByRole('button', { name: 'Log out' })).toBeVisible();
+  const existed = await registerStudent(page, {
+    name,
+    email,
+    done: page.getByRole('button', { name: 'Log out' }),
+  });
+  if (existed) await signIn(page, { email, password: 'longenough' });
   return email;
 }
 
