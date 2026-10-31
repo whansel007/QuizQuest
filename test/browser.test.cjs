@@ -103,7 +103,15 @@ test('My Progress handles empty history, a failed load and narrow screens', asyn
   await page.getByRole('button', { name: 'Refresh progress', exact: true }).click();
   await page.getByText('No completed practice sessions yet.', { exact: true }).waitFor();
   await page.getByText('You have not reported any questions in this class.', { exact: true }).waitFor();
-  assert.equal(await page.getByText('Not practised yet', { exact: true }).count(), 3);
+  // The topics a student can practise are the ones of the courses their
+  // classes belong to, so the count comes from the server's own tables
+  // rather than from a number that only matches today's seed.
+  const studentId = srv.quiz.db.users.find((user) => user.name === 'Student 12').id;
+  const studentCourses = [...new Set(srv.quiz.db.enrolments
+    .filter((enrolment) => enrolment.studentId === studentId)
+    .map((enrolment) => srv.quiz.db.classes.find((cls) => cls.id === enrolment.classId)?.courseId))];
+  const studentTopics = srv.quiz.db.topics.filter((topic) => studentCourses.includes(topic.courseId)).length;
+  assert.equal(await page.getByText('Not practised yet', { exact: true }).count(), studentTopics);
   assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth), true);
   if (process.env.QA_SCREENSHOTS) await page.screenshot({ path: require('node:path').join(process.env.QA_SCREENSHOTS, 'Progress-empty-mobile.png'), fullPage: true });
 });
