@@ -6,6 +6,7 @@ import { ref, computed, nextTick, onMounted, onUnmounted, watch } from 'vue';
 import { RARITY } from './rarity.js';
 import { formatHeroType } from '../hero-type.js';
 import HeroIcon from '../HeroIcon.vue';
+import { playCue } from '../../sound.js';
 
 const props = defineProps({
   result: { type: Object, required: true }, // server summon result plus eggColour
@@ -54,10 +55,13 @@ const collectBtn = ref(null);
 const revealKey = ref(0);
 let timer = null;
 let returnFocus = null;
+// a short chime as the card appears (richer for 4- and 5-star heroes)
+const chime = () => playCue('summonReveal', { rarity: rarity.value });
 function crack() {
   if (stage.value !== 'star') return;
   clearTimeout(timer);
   stage.value = 'open';
+  chime();
   nextTick(() => collectBtn.value?.focus());
 }
 function onSurfaceClick() {
@@ -89,7 +93,7 @@ watch(() => props.result, () => {
     timer = setTimeout(crack, STAR_FALL_MS);
     nextTick(() => root.value?.focus());
   }
-  else nextTick(() => collectBtn.value?.focus());
+  else { chime(); nextTick(() => collectBtn.value?.focus()); }
 }, { flush: 'sync' });
 onMounted(() => {
   returnFocus = document.activeElement;
@@ -97,7 +101,7 @@ onMounted(() => {
   if (stage.value === 'star') {
     root.value.focus();
     timer = setTimeout(crack, STAR_FALL_MS);
-  } else nextTick(() => collectBtn.value?.focus());
+  } else { chime(); nextTick(() => collectBtn.value?.focus()); }
 });
 onUnmounted(() => {
   clearTimeout(timer);

@@ -11,6 +11,8 @@ import ResultBlock from './ResultBlock.vue';
 import ReportForm from './ReportForm.vue';
 import AvatarPreview from './AvatarPreview.vue';
 import { TOWN_AVATAR_DEFAULT_COLOR } from '../../../config/tuning.js';
+import { playCue } from '../sound.js';
+import { wipeTo } from '../transitions.js';
 
 const props = defineProps({ sid: { type: String, required: true }, initial: { type: Object, required: true } });
 const sid = props.sid;
@@ -49,6 +51,7 @@ async function animateTurn(result) {
     await delay(280);
     if (!alive) return;
     replay(npcSprite.value, 'battle-impact');
+    playCue('quizHit');
     enemyDamage.value.push({ id: damageId++, text: `−${result.attack.damage}` });
     npc.value = { ...result.npc };
     if (npc.value.hp <= 0) npcSprite.value?.classList.add('defeated');
@@ -58,6 +61,7 @@ async function animateTurn(result) {
     await delay(280);
     if (!alive) return;
     replay(petSprite.value, 'battle-impact');
+    playCue('enemyHit');
     playerHp.value = Math.max(0, playerHp.value - 12);
     playerDamage.value.push({ id: damageId++, text: '−12' });
   }
@@ -159,6 +163,31 @@ function retryAnswer() {
 }
 
 const onNext = action(showQuestion);
+
+// --- return to the Kingdom -----------------------------------------------
+// Leaving never completes or forfeits the session: every answer is already
+// saved on the server, and the unfinished session shows up as "Resume
+// practice" next time (exactly like switching tabs). The one thing that does
+// not pause is a timed question's deadline, so the student is asked first.
+const leaveConfirm = ref(false);
+const stayBtn = ref(null);
+const leaveBtn = ref(null);
+const timedQuestionOpen = computed(() => phase.value === 'question' && question.value?.remainingMs != null && !feedback.value);
+function goToKingdom() {
+  leaveConfirm.value = false;
+  wipeTo('kingdom');
+}
+async function requestKingdom() {
+  if (!timedQuestionOpen.value) { goToKingdom(); return; }
+  leaveConfirm.value = true;
+  await nextTick();
+  stayBtn.value?.focus();
+}
+async function stayInQuiz() {
+  leaveConfirm.value = false;
+  await nextTick();
+  leaveBtn.value?.focus();
+}
 const onRetryQuestion = action(showQuestion);
 
 async function showSummary() {
@@ -202,7 +231,10 @@ onUnmounted(() => {
         <section class="panel quiz-details-card">
           <div class="quiz-section-kicker">PRACTICE DETAILS</div>
           <div class="note bad">{{ loadError }}</div>
-          <button class="btn primary" @click="onRetryQuestion">Retry question</button>
+          <div class="quiz-action-row">
+            <button class="btn primary" @click="onRetryQuestion">Retry question</button>
+            <button class="btn" type="button" @click="goToKingdom">Return to Kingdom</button>
+          </div>
         </section>
       </template>
 
@@ -234,7 +266,7 @@ onUnmounted(() => {
           <div class="quiz-action-row">
             <button class="btn primary" @click="rerender">Back to practice</button>
             <button class="btn" @click="setTab('progress')">View my progress</button>
-            <button class="btn" @click="setTab('kingdom')">Build your kingdom</button>
+            <button class="btn" @click="wipeTo('kingdom')">Return to Kingdom</button>
             <button class="btn" @click="setTab('world')">Enter the World</button>
           </div>
         </section>
@@ -246,6 +278,16 @@ onUnmounted(() => {
             <span class="quiz-question-number">Question {{ (question?.index ?? 0) + 1 }} <span>of {{ state.total }}</span></span>
             <span v-if="question" class="badge plain quiz-topic">{{ question.topic }}</span>
             <span class="timer" :class="{ low: timerLow }">{{ timerText }}</span>
+            <button ref="leaveBtn" class="btn small quiz-leave" type="button" :aria-expanded="leaveConfirm ? 'true' : 'false'" @click="requestKingdom">
+              <span aria-hidden="true">&#8592;</span> Return to Kingdom
+            </button>
+          </div>
+          <div v-if="leaveConfirm && timedQuestionOpen" class="quiz-leave-confirm" role="group" aria-labelledby="quiz-leave-title" @keydown.esc.stop="stayInQuiz">
+            <p id="quiz-leave-title"><b>Leave this battle for now?</b> Your answers so far are saved and you can resume from Practice, but this question's timer keeps running while you are away.</p>
+            <div class="quiz-leave-actions">
+              <button ref="stayBtn" class="btn primary small" type="button" @click="stayInQuiz">Stay and answer</button>
+              <button class="btn small" type="button" @click="goToKingdom">Return to Kingdom</button>
+            </div>
           </div>
           <div class="stem">{{ question?.stem || 'Preparing your next question…' }}</div>
         </section>
@@ -309,3 +351,12 @@ onUnmounted(() => {
     </aside>
   </div>
 </template>
+
+<style scoped>
+/* Return to Kingdom: sits at the end of the question header row */
+.quiz-leave { flex: none; }
+.quiz-leave-confirm { display: grid; gap: 8px; margin: 2px 0 0; padding: 10px 12px; color: #20382c; background: #fbf2d8; border: 2px solid #c8963e; border-radius: 10px; }
+.quiz-leave-confirm p { margin: 0; font-size: 14px; line-height: 1.4; }
+.quiz-leave-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+.quiz-leave:focus-visible, .quiz-leave-confirm .btn:focus-visible { outline: 3px solid #c8963e; outline-offset: 2px; }
+</style>

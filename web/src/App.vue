@@ -19,6 +19,9 @@ import HeroLabView from './student/HeroLabView.vue';
 import KingdomView from './student/KingdomView.vue';
 import PetsView from './student/PetsView.vue';
 import DebugMenu from './components/DebugMenu.vue';
+import SoundToggle from './components/SoundToggle.vue';
+import ScreenWipe from './components/ScreenWipe.vue';
+import { wipeTo } from './transitions.js';
 import AccountMenu from './components/AccountMenu.vue';
 import QuizQuestLogo from './components/QuizQuestLogo.vue';
 import TeacherNavIcon from './teacher/TeacherNavIcon.vue';
@@ -82,6 +85,17 @@ function onTopFocusOut(event) {
   if (event.currentTarget.contains(event.relatedTarget)) return;
   pointerInsideTop = false;
   showStudentNav();
+}
+
+// Moving between the Kingdom and its game screens (Practice/Duel, the World's
+// hero selector, Summon) uses the storybook screen wipe; other tabs switch
+// at once.
+const WIPE_FROM_KINGDOM = new Set(['practice', 'world', 'pets']);
+function openStudentTab(id) {
+  const from = current.value?.[0];
+  const linked = from !== id && ((from === 'kingdom' && WIPE_FROM_KINGDOM.has(id)) || (id === 'kingdom' && WIPE_FROM_KINGDOM.has(from)));
+  if (linked) wipeTo(id);
+  else setTab(id);
 }
 
 watch(immersiveStudentTab, (active) => {
@@ -180,13 +194,14 @@ onUnmounted(() => {
       <QuizQuestLogo :size="30" />
     </div>
     <nav id="tabs" :class="{ crowded: tabs.length > 5 }">
-      <button v-for="[id, label] in tabs" :key="id" :aria-current="current && current[0] === id ? 'page' : null" @click="setTab(id)">{{ label }}</button>
+      <button v-for="[id, label] in tabs" :key="id" :aria-current="current && current[0] === id ? 'page' : null" @click="openStudentTab(id)">{{ label }}</button>
     </nav>
     <div id="who">
       <template v-if="S.me">
         <span>{{ S.me.name }}</span>
         <AccountMenu />
         <DebugMenu v-if="S.me.role === 'student'" :key="S.token" />
+        <SoundToggle v-if="S.me.role === 'student'" />
       </template>
     </div>
   </header>
@@ -215,5 +230,6 @@ onUnmounted(() => {
     · <a href="/tag">Circle Tag (the original multiplayer experiment)</a>
   </footer>
   </template>
+  <ScreenWipe />
   <div id="toast" role="status" aria-live="polite" :class="{ show: toastState.show, bad: toastState.bad }">{{ toastState.msg }}</div>
 </template>

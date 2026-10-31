@@ -8,8 +8,9 @@ import { HERO_TYPE_ICON, heroTypeLabel } from './hero-type.js';
 import HeroIcon from './HeroIcon.vue';
 import SummonSky from './SummonSky.vue';
 import { GAME_CONFIG } from '../../../public/hero-lab/game-config.js';
-import { playSound } from '../../../public/hero-lab/arena-audio.js';
-import { SUMMON_SUMMARY_COLUMNS, SUMMON_SUMMARY_SLANT_DEG, SUMMON_SUMMARY_SOUND_INTERVAL_MS } from '../../../config/tuning.js';
+import { SUMMON_SUMMARY_COLUMNS, SUMMON_SUMMARY_SLANT_DEG } from '../../../config/tuning.js';
+import { playCue } from '../sound.js';
+import { wipeState } from '../transitions.js';
 
 const error = ref('');
 const loading = ref(true);
@@ -89,7 +90,6 @@ const summon = retryablePost('/api/student/hero-summon');
 const summonTen = retryablePost('/api/student/hero-summon', { count: 10 });
 const summaryColumns = SUMMON_SUMMARY_COLUMNS;
 const summarySlant = SUMMON_SUMMARY_SLANT_DEG;
-let lastRareSoundAt = 0;
 
 async function pull() {
   const result = await summon();
@@ -141,13 +141,14 @@ function openSummary() {
   prize.value = null; activeSummaryEggIndex.value = null;
   summaryOpen.value = true;
   revealedCards.value = batchResults.value.map((_, index) => index);
+  playCue('summonPop');
   nextTick(() => summaryRoot.value?.focus());
 }
 function isCardRevealed(index) { return revealedCards.value.includes(index); }
 function startBatchReveal(index) {
   if (index >= batchResults.value.length) { openSummary(); return; }
-  const row = batchResults.value[index]; const time = performance.now();
-  if (row?.type === 'hero' && resultRarityStars(row) >= 4 && time - lastRareSoundAt >= SUMMON_SUMMARY_SOUND_INTERVAL_MS) { lastRareSoundAt = time; try { playSound('cardPick'); } catch { /* optional audio */ } }
+  // each star's landing chime is played by PrizeReveal
+  const row = batchResults.value[index];
   activeSummaryEggIndex.value = index;
   prize.value = { ...resultAsLegacy(row, batchPity.value), batchIndex: index, batchSize: batchResults.value.length };
 }
@@ -235,12 +236,16 @@ function resultName(row) {
 }
 function timeLabel(at) { return when(at); }
 
-// the Kingdom's telescope leaves a note so the lens can open here
+// the Kingdom's telescope leaves a note so the lens can open here. When the
+// shared telescope screen wipe brought us here, its lens already opens onto
+// this sky, so only the note is cleared. Arriving never summons or spends.
 const lensOpening = ref(false);
 let lensOpeningTimer;
 try {
-  if (sessionStorage.getItem('qq-summon-from-telescope') === '1') {
-    sessionStorage.removeItem('qq-summon-from-telescope');
+  const fromTelescope = sessionStorage.getItem('qq-summon-from-telescope') === '1';
+  if (fromTelescope) sessionStorage.removeItem('qq-summon-from-telescope');
+  const telescopeWipe = wipeState.variant === 'telescope' && wipeState.phase !== 'idle';
+  if (fromTelescope && !telescopeWipe) {
     lensOpening.value = true;
     const reducedMotion = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
     lensOpeningTimer = setTimeout(() => { lensOpening.value = false; }, reducedMotion ? 220 : 800);

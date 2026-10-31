@@ -12,6 +12,7 @@ import ClassPicker from './ClassPicker.vue';
 import WalletBadge from './WalletBadge.vue';
 import ResourceBadge from './ResourceBadge.vue';
 import QuizRunner from './QuizRunner.vue';
+import { wipeTo } from '../transitions.js';
 import AvatarPreview from './AvatarPreview.vue';
 import { TOWN_AVATAR_DEFAULT_COLOR } from '../../../config/tuning.js';
 
@@ -101,6 +102,7 @@ const onStart = action(() => enterBattle(async () => {
         <div class="practice-resource-row" aria-label="Your resources">
           <WalletBadge />
           <ResourceBadge />
+          <button class="btn small practice-return" type="button" @click="wipeTo('kingdom')"><span aria-hidden="true">&#8592;</span> Return to Kingdom</button>
         </div>
       </header>
 
@@ -193,4 +195,6 @@ const onStart = action(() => enterBattle(async () => {
 .encounter-wipe.reduced .wipe-emblem { animation: none; }
 @keyframes wipe-fade-in { from { opacity: 0; } to { opacity: 1; } }
 @keyframes wipe-fade-out { from { opacity: 1; } to { opacity: 0; } }
+/* back to the Kingdom: tucked at the end of the coins/resources row */
+.practice-return { margin-left: auto; white-space: nowrap; }
 </style>
