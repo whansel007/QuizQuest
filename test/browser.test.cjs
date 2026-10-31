@@ -283,15 +283,34 @@ test('Engineer E toggles turret placement and primary fire confirms it', async (
   await page.waitForFunction(() => document.querySelector('#hero-name')?.textContent?.includes('Engineer'));
 
   const room = srv.heroLab.rooms.peekDefaultRoom();
-  const player = room.snapshot().players.find((candidate) => candidate.heroId === 'engineer');
+  const snapshot = room.snapshot();
+  const player = snapshot.players.find((candidate) => candidate.heroId === 'engineer');
   assert.ok(player, 'the arena has joined as Engineer');
   const canvas = page.locator('#world');
   const box = await canvas.boundingBox();
-  const target = { x: player.x + 100, y: player.y };
-  await page.mouse.move(box.x + target.x * box.width / 1920, box.y + target.y * box.height / 1080);
+  // A turret may not stand within 110px of the campfire, and the Engineer
+  // spawns on a 105-145px ring around it. A fixed "+100 to the right" target
+  // therefore lands inside that ring whenever the player spawns on the left
+  // of the fire, and the game refuses the placement. Aim straight away from
+  // the campfire instead: the spot is then always legal and always 100px out.
+  const away = Math.hypot(player.x - snapshot.campfire.x, player.y - snapshot.campfire.y) || 1;
+  const target = {
+    x: player.x + (player.x - snapshot.campfire.x) / away * 100,
+    y: player.y + (player.y - snapshot.campfire.y) / away * 100,
+  };
+  const onScreen = (point) => [
+    box.x + point.x * box.width / 1920,
+    box.y + point.y * box.height / 1080,
+  ];
+  await page.mouse.move(...onScreen(target));
+  // The arena draws at 1920x1080 but keeps a smaller backing store, so the
+  // pixels have to be read in backing-store coordinates, not arena ones.
   const readRegion = () => page.evaluate(({ x, y }) => {
-    const ctx = document.querySelector('#world').getContext('2d');
-    return [...ctx.getImageData(Math.round(x) - 24, Math.round(y) - 20, 48, 40).data];
+    const canvas = document.querySelector('#world');
+    const ctx = canvas.getContext('2d');
+    const sx = canvas.width / 1920;
+    const sy = canvas.height / 1080;
+    return [...ctx.getImageData(Math.round(x * sx) - 24, Math.round(y * sy) - 20, 48, 40).data];
   }, target);
   await page.waitForTimeout(100);
   const before = await readRegion();
@@ -299,6 +318,10 @@ test('Engineer E toggles turret placement and primary fire confirms it', async (
   const targetingHint = page.locator('#targeting-hint');
   await targetingHint.waitFor({ state: 'visible' });
   assert.match(await targetingHint.textContent(), /Primary fire to place/);
+  // The one-time briefing fades for 300ms and stays hit-testable while it
+  // fades, so a click in that window lands on the invisible overlay instead
+  // of the arena. Wait until it is really gone.
+  await page.locator('#join-briefing').waitFor({ state: 'hidden' });
   await page.keyboard.press('e');
   await targetingHint.waitFor({ state: 'hidden' });
   assert.equal(room.snapshot().turrets.some((candidate) => candidate.ownerId === player.id), false,
@@ -306,8 +329,8 @@ test('Engineer E toggles turret placement and primary fire confirms it', async (
 
   await page.keyboard.press('e');
   await targetingHint.waitFor({ state: 'visible' });
-  await page.mouse.move(box.x + target.x * box.width / 1920, box.y + target.y * box.height / 1080);
-  await page.mouse.click(box.x + target.x * box.width / 1920, box.y + target.y * box.height / 1080);
+  await page.mouse.move(...onScreen(target));
+  await page.mouse.click(...onScreen(target));
 
   const deadline = Date.now() + 2000;
   let turret;
@@ -316,7 +339,8 @@ test('Engineer E toggles turret placement and primary fire confirms it', async (
     if (turret) break;
     await new Promise((resolve) => setTimeout(resolve, 30));
   }
-  assert.ok(turret, 'primary fire confirms an owned turret at the cursor');
+  const refused = await page.locator('.toast', { hasText: "Can't place turret here" }).count();
+  assert.ok(turret, `primary fire confirms an owned turret at the cursor${refused ? ' - the game refused the spot' : ''}`);
   await page.waitForTimeout(100);
   const after = await readRegion();
   const changedPixels = before.reduce((count, value, index) => count + (value !== after[index] ? 1 : 0), 0);
