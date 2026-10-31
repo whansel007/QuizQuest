@@ -21,7 +21,14 @@ test('the World tab picks a hero and opens a lobby with a room code', async ({ p
 
   await page.getByRole('button', { name: 'HOST LOBBY', exact: true }).click();
   const frame = page.frameLocator('iframe[title="Campfire Defense"]');
-  await expect(frame.locator('#room-code-value')).toHaveText(/^[A-Z]{4}$/, { timeout: 15000 });
+  // The room code is static markup in the arena document
+  // (public/hero-lab/world.html:41), so until that document is parsed the
+  // locator matches nothing at all and the failure reads "element(s) not
+  // found" rather than anything about the code. Give the document its own
+  // budget: on a loaded runner the iframe's navigation queues behind the
+  // sprite sheets the World tab is downloading.
+  await expect(frame.locator('#room-code-corner')).toBeAttached({ timeout: 30000 });
+  await expect(frame.locator('#room-code-value')).toHaveText(/^[A-Z]{4}$/, { timeout: 30000 });
 });
 
 test('the Kingdom tab shows the town and its buildings', async ({ page }) => {
