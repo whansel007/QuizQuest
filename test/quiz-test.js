@@ -437,8 +437,8 @@ test('hero summon guarantees, owned heroes, refunds, resources, and retry safety
   const R = require('../src/quiz/rewards');
   const token = await login('s-06');
   const home = (await call(token, 'GET', '/api/student/home')).body;
-  assert.deepEqual(home.catalog.heroSummon.odds, { common: 600, rare: 300, epic: 100 });
-  assert.ok(home.inventory.heroes.includes('sheriff'), 'new students start with Sheriff');
+  assert.deepEqual(home.catalog.heroSummon.odds, { common: 620, rare: 300, epic: 80 });
+  assert.ok(home.inventory.heroes.includes('sheriff') && home.inventory.heroes.includes('electromancer'), 'new students start with Sheriff and Electromancer');
   R.inventory(db(), 's-06').resources = { wood: 0, crystal: 0, herb: 0 };
   db().ledger.push({ id: 'hero-summon-funds', studentId: 's-06', kind: 'refund', amount: 500, refKey: 'hero-summon-funds', at: Date.now() });
 
@@ -456,15 +456,15 @@ test('hero summon guarantees, owned heroes, refunds, resources, and retry safety
 
     const duplicate = await call(token, 'POST', '/api/student/hero-summon', { requestId: 'hero-summon-0002' });
     assert.equal(duplicate.body.duplicateHero, true);
-    assert.equal(duplicate.body.refund, home.catalog.heroSummon.pullCost);
+    assert.equal(duplicate.body.refund, Math.floor(home.catalog.heroSummon.pullCost * home.catalog.heroSummon.duplicateRefundFraction.epic));
     assert.equal(duplicate.body.inventory.heroDupes.bombardier, 1);
   } finally { R.drawHeroSummon = draw; }
 
-  const pity = { totalPulls: 9, sinceHero: 9, sinceEpic: 9 };
+  const pity = { totalPulls: 4, sinceHero: 4, sinceEpic: 4 };
   const guaranteed = R.drawHeroSummon(pity, (n) => n > 1 ? 0 : 0);
-  assert.equal(guaranteed.prize.kind, 'hero', 'the 10th pull guarantees a hero');
-  const epic = R.drawHeroSummon({ totalPulls: 49, sinceHero: 49, sinceEpic: 49 }, () => 0);
-  assert.equal(epic.prize.rarity, 'epic', 'the 50th-pull epic guarantee takes priority');
+  assert.equal(guaranteed.prize.kind, 'hero', 'the 5th pull guarantees a hero');
+  const epic = R.drawHeroSummon({ totalPulls: 19, sinceHero: 19, sinceEpic: 19 }, () => 0);
+  assert.equal(epic.prize.rarity, 'epic', 'the 20th-pull 5-star guarantee takes priority');
   const common = R.drawHeroSummon({ totalPulls: 0, sinceHero: 0, sinceEpic: 0 }, () => 0);
   assert.equal(common.prize.kind, 'resource');
   assert.equal(common.prize.amount, home.catalog.heroSummon.commonResourceAmount);

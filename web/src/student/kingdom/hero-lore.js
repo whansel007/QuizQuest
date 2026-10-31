@@ -31,4 +31,24 @@ export const HERO_LORE = Object.freeze({
     story: 'An electrician, they borrowed the wrong book from the library. It was full of lightning magic. They returned it late, learned to channel the sparks, and still label every wire carefully.',
     fieldNote: 'Every cable is labeled. Even the enchanted ones.',
   },
+  fairy: {
+    personality: 'Gentle, bright, and happiest with a fresh breeze.',
+    story: 'Fairy learned to guide the wind by listening to leaves and watching clouds cross the garden. Now a soft gust can clear a path for friends, while a stronger storm sends trouble tumbling away.',
+    fieldNote: 'The garden breeze is usually friendly. The occasional whirlwind is on purpose.',
+  },
+  engineer: {
+    personality: 'Inventive, practical, and proud of every well-placed bolt.',
+    story: 'Engineer can turn a pile of spare parts into a dependable turret. They test every gear twice, carry a trusty wrench, and believe that even a battlefield runs better with regular maintenance.',
+    fieldNote: 'Please keep a safe distance while the turret is being calibrated.',
+  },
+  samurai: {
+    personality: 'Focused, disciplined, and quietly competitive.',
+    story: 'Samurai practices each cut until it is smooth as a falling leaf. Every victory sharpens their resolve, and every new challenge is met with a steady stance and a carefully honed blade.',
+    fieldNote: 'The training yard is swept before and after every practice.',
+  },
+  ranger: {
+    personality: 'Observant, resourceful, and devoted to the forest.',
+    story: 'Ranger knows every trail around town and never wastes an arrow. A trusted wolf answers their call, helping protect the woodland and keeping watch when the path grows quiet.',
+    fieldNote: 'There are always a few extra arrows tucked into the pack.',
+  },
 });

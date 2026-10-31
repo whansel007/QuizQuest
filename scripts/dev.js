@@ -31,12 +31,20 @@ function hasSeededDemoAccounts(users) {
   return Array.isArray(users) && users.some((user) => user.id === 's-01' && user.email === 'student01@quizquest.demo');
 }
 
+function supportsCurrentHeroLab(status) {
+  // Require the newest hero so a stale, already-running API cannot serve the
+  // refreshed picker while rejecting Engineer joins.
+  return Array.isArray(status?.heroLabHeroes)
+    && status.heroLabHeroes.includes('fairy')
+    && status.heroLabHeroes.includes('engineer');
+}
+
 async function isDemoApiReady(port) {
   try {
     const health = await fetch(`http://127.0.0.1:${port}/api/dev-ready`, { signal: AbortSignal.timeout(1000) });
     if (!health.ok) return false;
     const status = await health.json();
-    if (status.ready !== true || !status.demoAccounts) return false;
+    if (status.ready !== true || !status.demoAccounts || !supportsCurrentHeroLab(status)) return false;
     const response = await fetch(`http://127.0.0.1:${port}/api/demo-users`, { signal: AbortSignal.timeout(1000) });
     return response.ok && hasSeededDemoAccounts(await response.json());
   } catch {
@@ -97,6 +105,11 @@ async function waitForApi(child, port, timeoutMs = 15000) {
         await new Promise((resolve) => setTimeout(resolve, 250));
         continue;
       }
+      if (!supportsCurrentHeroLab(status)) {
+        lastError = 'the dev server does not include the current Hero Lab roster';
+        await new Promise((resolve) => setTimeout(resolve, 250));
+        continue;
+      }
       const response = await fetch(`http://127.0.0.1:${port}/api/demo-users`, { signal: AbortSignal.timeout(1000) });
       if (response.ok) {
         const users = await response.json();
@@ -147,4 +160,4 @@ if (require.main === module) {
   });
 }
 
-module.exports = { availableApiPort, canBind, hasSeededDemoAccounts };
+module.exports = { availableApiPort, canBind, hasSeededDemoAccounts, supportsCurrentHeroLab };

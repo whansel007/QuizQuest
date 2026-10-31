@@ -13,7 +13,8 @@ route remains available for quick sandbox playtests.
 3. Move with WASD or the arrow keys, aim with the mouse, click the left mouse
    button to fire, press E for the skill, and Q for the ultimate. Hold the left
    button to keep firing: the server repeats the shot as soon as the weapon
-   cooldown allows, for every hero. Bombardier
+   cooldown allows. Ranger instead charges the bow until release; a ring and
+   overhead percentage show the server-measured charge level. Bombardier
    uses Q to aim and right-click to confirm a target. Escape cancels targeting.
 4. Press I (or click **Information**) to see current stats and the hero's
    passive talent. Teammate health appears under your own health bar.
@@ -62,6 +63,26 @@ route remains available for quick sandbox playtests.
   five-second lockout prevents an immediate recast. Overload no longer adds
   damage to stunned enemies. Stunned enemies show an ⚡ indicator while they
   remain stunned.
+- **Fairy:** 🧚 fires a piercing Wind Arrow, a Gale Burst that pushes enemies
+  away from the campfire, and a Vortex Orb that continuously pulls enemies
+  toward its center for four seconds. It holds them there, corrects small
+  knockbacks on the next server tick, and deals 0.35× attack per second in
+  250 ms damage ticks. Training dummies are affected; bosses and Kings are
+  immune. Its 18 px final nudge is intentionally too small to scatter the
+  group. Windswept slows skill and ultimate targets after the push or release.
+- **Samurai:** 🥷 fires non-piercing Shuriken, dashes through enemies with an
+  execute against targets below half health, and spends Kill Count on a delayed
+  rectangular Afterimage Cut. Kill Count stacks decay after four seconds idle,
+  then lose one every two seconds; rest, vote and pre-wave phases pause decay.
+- **Ranger:** 🧝 is a Magic hero with a server-timed Charge Bow, Meat and Wolf
+  skill, and three instant Dead Aim arrows. Full charge deals 2.5× attack and
+  can hit two enemies; movement slows to 60% while drawing. The wolf bites
+  enemies near its anchor, marks them for 4 s, and draws eligible zombies,
+  skeletons, and Brutes within 150 px. Ranger arrows deal 30% more damage to
+  that Ranger's marked targets. Dead Aim arrows deal 7× attack and stop at the
+  first enemy. Wolf damage counts toward Ranger damage and kills but does not
+  trigger kill talents, combo, kill-pitch progression, or cooldown refunds.
+  Lobby dummies exercise the same attacks and marks.
 Every hero has a passive talent (name, icon, one-line description and the button
 it works with) defined once in `game-config.js`. The World-page hero preview and
 the in-game Info panel both read that single entry, so they can never disagree.
@@ -75,6 +96,67 @@ combo, rewards or the wave counter.
 
 - Zombies walk to the campfire. Devils chase the nearest hero. Skeletons pause
   periodically to fire a red bullet at the nearest hero, then resume walking.
+- Engineer turret staging: each turret is server-owned, holds 150 HP, lasts
+  30 s under its 5 HP/s lifetime drain, and fires unlimited shots. It selects
+  the nearest enemy or lobby dummy within 260 px every
+  100 ms. It turns at 540 degrees/s and fires at 2.5 shots/s inside an 8-degree
+  cone for half its owner's current attack. Turrets persist across waves and
+  refill at the start of REST. ZOMBIES, SKELETONS and BRUTES within 220 px
+  taunt to the nearest active turret, with a 1.5 s target lock and 500 ms
+  staggered retargeting. At expiry, it warns for 2 s, then blasts in a 120 px
+  radius for 24 enemy damage, 10 hero damage and 12 campfire damage. Replacing
+  a turret or losing it to enemy damage does not cause an expiry blast. Turrets
+  pause and repair at REST. Skeletons stop 260 px away and shoot through their
+  normal wind-up. Devils still chase heroes; Exploders still run to the fire.
+  Enemy explosions and King slams damage turrets, while player area attacks do
+  not. The turret's server snapshot stays compact; the browser draws its
+  placeholder body, barrel and a health bar that drains over its lifetime.
+  Debug-only placement and enemy spawn controls are available in the existing
+  debug menu.
+- Ranger wolf targeting reuses the turret's 500 ms staggered retarget schedule
+  and 1.5 s target lock. Wolves only taunt zombies, skeletons, and Brutes in
+  their configured radius; they do not change turret targeting, King behavior,
+  Devil pursuit, or Exploder behavior. Wolves are server-owned, one per Ranger,
+  take enemy damage but ignore player explosions, and are cleared at REST and
+  when their owner leaves or changes hero. Charge duration, arrow parameters,
+  wolf placement, bites, marks, and Dead Aim expiry are server-authoritative;
+  the charge indicator and combat effects are presentation only.
+- Engineer play controls are server-authoritative too. E sends the last arena
+  cursor point; the server clamps it to 220 px, validates campfire/turret
+  spacing, and searches for a nearby legal point before spending the cooldown.
+  The preview shows the expiry blast radius and highlights the campfire if it
+  would be hit. Each Engineer owns at most two turrets, and a third breaks the
+  oldest without an explosion. The Wrench Boomerang tracks its outbound and
+  return legs on the server, pushing 30 px outbound and pulling targets 90 px
+  toward the Engineer on return, with one hit per target on each leg. Wrench
+  hits mark enemies for 8 s; the Engineer's turret deals double damage to
+  marked enemies, and a marked enemy killed by its Engineer's turret triggers
+  Refueling. Q charges
+  for 0.4 s, locks aim for its last 0.1 s,
+  and applies one 6x attack pass through a clipped 70-by-900 px beam. Engineer
+  kills and wrench-marked turret kills refuel each living owned turret by
+  restoring 5% max HP and extending its life by 1.5 s;
+  direct lobby mannequin kills trigger Refueling but do not change run
+  statistics; a wrench-marked mannequin killed by its Engineer's turret also
+  triggers it.
+- Shared crowd control is resolved by the server in `src/hero-lab/monster-effects.js`.
+  Pushes ease to their destination and stop at arena bounds or the campfire;
+  Brutes take half distance, dummies take 1.5×, and Kings/bosses are immune.
+  Holds stop movement and attacks, cancel a skeleton wind-up or Exploder fuse,
+  and prevent re-holding for 1.5 seconds after release. Slows affect movement
+  only and use the strongest active slow rather than stacking. Vortex attraction
+  is the exception to ordinary push collision: it supplies an inward vector and
+  may cross the campfire obstacle. Its server tick keeps pulling targets inside
+  the 180 px radius toward the core, including after small knockbacks. Training
+  dummies have separate lobby shove physics, so an active Vortex must take
+  priority over that shove loop.
+- Crowd-control indicators do not recolor enemy bodies or add status rings.
+  ⚡ marks stun, 🌀 marks Vortex pull/hold, and 🐌 marks slow; place these icons
+  above the taller training dummies so they do not cover the target or health bar.
+- Fairy and Vortex effects use pink and pale pink accents with a near-black
+  core. Keep teal/cyan out of the Fairy palette. Draw the Vortex directly with
+  vector canvas paths; offscreen bitmap layers produced opaque square artifacts
+  in the browser.
 - Heroes slowly recover health while standing near the campfire.
 - When a wave is cleared the break runs in three phases, so voting never eats
   into the downtime:
@@ -185,20 +267,24 @@ from wave 3, one rare effect that is not already active.
 
 ## Summon, collection, and debug menu
 
-The student **Summon** tab replaces the old collection page. A new
-student starts with Sheriff. Each summon costs 50 coins by default. A common
-pull gives 5 units of one kingdom resource; rare pulls are Sheriff, Guardian,
-Bubbles, or Electromancer; epic pulls are Pilot or Bombardier. Duplicate heroes
-refund the full pull cost by default. Cost, refund fraction, resource amount,
-rates, hero rarities, and pity thresholds are in `game-config.js`.
+The student **Summon** tab replaces the old collection page. A new student
+starts with Sheriff and Electromancer and receives a one-time 500-coin welcome
+gift. Each summon costs 50 coins. A resource result gives 5 units of one
+kingdom resource; 4-star heroes are Guardian, Sheriff, Bubbles, Electromancer,
+Samurai, and Ranger; 5-star heroes are Pilot, Bombardier, Fairy, and Engineer.
+Odds are 62% resources, 30% 4-star, and 8% 5-star. Hero pulls skip owned
+heroes while that star pool has new heroes. Duplicate 4-star and 5-star heroes
+refund 30% and 60% of a pull, respectively. Once a star pool is complete,
+pulls of that rarity refund coins. Cost, refund fractions, resource amount,
+rates, hero rarities, welcome gift, and pity thresholds are in `game-config.js`.
 
 The server owns summon RNG, coin spending/refunds, resource rewards, hero
-ownership, and pity counters. Hero pity guarantees a rare-or-epic hero after 10
-pulls without one. Epic pity guarantees a 5-star hero after 50 pulls without
-one; it wins if both guarantees are due. Getting either hero rarity resets the
-hero counter. Getting an epic resets both counters. Pull history and owned
-heroes persist with the student's inventory. World validates ownership again
-when the student joins, so the client cannot select a locked hero.
+ownership, and pity counters. A hero is guaranteed at least every 5 pulls,
+and a 5-star is guaranteed by pull 20. The 5-star guarantee takes priority
+when both are due. Any hero resets the hero counter; a 5-star resets both.
+Pull history and owned heroes persist with the student's inventory. World
+validates ownership again when the student joins, so the client cannot select
+a locked hero.
 
 The collection lists all six heroes and their owned/locked state. History at
 the bottom switches between coin and resource transactions. To adjust coins in
@@ -209,14 +295,14 @@ server. Its endpoint refuses requests when `NODE_ENV=production` or
 
 ### Playtest this phase
 
-1. Sign in as a student and open **Summon**. Confirm Sheriff is owned and
-   the other five heroes are visible but locked.
+1. Sign in as a new student and open **Summon**. Confirm Sheriff and
+   Electromancer are owned, the welcome gift is present, and six heroes remain.
 2. Enter the Konami code. Set the balance to 500 and confirm the wallet updates.
 3. Summon repeatedly. Check that common results add the shown resource amount,
    new hero results unlock a collection card, and duplicate heroes refund the
    configured amount.
-4. Confirm pity counters survive page reloads. The 10th pull since the last
-   hero must be rare or epic; the 50th pull since the last epic must be epic.
+4. Confirm pity counters survive page reloads. The 5th pull since the last
+   hero must be a hero; the 20th pull since the last 5-star must be 5-star.
    If both counters reach their threshold together, the result must be epic.
 5. Open **World**. Confirm only owned heroes can be selected and that a newly
    summoned hero becomes selectable. Check kingdom bonuses still apply.
@@ -225,11 +311,12 @@ server. Its endpoint refuses requests when `NODE_ENV=production` or
 7. In a production environment, confirm the debug menu does not open and the
    wallet adjustment endpoint returns not found.
 
-Assumptions for this phase: default summon cost is 50 coins, duplicate refund
-is 100%, a common prize is 5 units of one uniformly selected resource, and
-Sheriff is the free starter hero. Hero pity resets on any hero; epic pity
-resets only on an epic. Both pity counters are persistent and have no time or
-daily reset.
+Assumptions for this phase: default summon cost is 50 coins, duplicate refunds
+are 30% for 4-star and 60% for 5-star, a resource prize is 5 units of one
+uniformly selected resource, and Sheriff and Electromancer are starter heroes.
+Pity counters persist and have no time or daily reset. Run
+`node scripts/simulate-hero-summon.js` to report 100,000 simulated players'
+average first-5-star and full-roster pull counts, plus pity frequency.
 
 Campfire Defense is now the student **World** entry point. The old Class World
 screen is out of the student navigation; its quiz server and question-gathering
@@ -263,7 +350,13 @@ root. For a manual playtest:
    status. Use Q on a group; check the CHAIN counter, cooldown refill, doubled
    stunned-target refunds, and the 5-second lockout. Confirm stunned targets do
    not take Overload bonus damage.
-7. Use two tabs. Let enemies reach the campfire to see the global game-over
+7. Choose Fairy. Cast Q into a group of training dummies inside the ground ring.
+   Confirm they move toward the center, show 🌀 while pulled/held, stay their
+   normal colors, and are pulled back after a small displacement. Check that
+   health chips away during the four-second hold, the final nudge keeps the
+   group together, and 🐌 appears on released enemies. Confirm all Fairy VFX
+   are pink/pale pink with a near-black core and no teal/cyan accents.
+8. Use two tabs. Let enemies reach the campfire to see the global game-over
    overlay. In another run, clear a wave, vote in both tabs, and verify the
    same winning buff updates both players. Disconnect one voter during a vote
    to confirm their vote no longer counts.

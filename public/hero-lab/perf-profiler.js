@@ -1,5 +1,5 @@
-// Debug-only performance overlay (same gate as the debug menu: seeded demo
-// accounts). It samples frame cost, server tick cost and entity counts once a
+// Debug-only performance overlay for the Hero Lab page.
+// It samples frame cost, server tick cost and entity counts once a
 // second, keeps a short frame trace for kill bursts, and exposes live effect
 // toggles so each visual can be measured on its own.
 //
@@ -121,7 +121,7 @@ export function createProfiler({ getStats, getRoomCode, getToken }) {
     if (!code) return;
     const token = getToken();
     try {
-      const response = await fetch('/api/student/hero-lab/rooms', {
+      const response = await fetch(`/api/student/hero-lab/rooms?code=${encodeURIComponent(code)}`, {
         headers: token ? { Authorization: `Bearer ${token}` } : {},
       });
       if (!response.ok) return;
@@ -267,27 +267,19 @@ export function createProfiler({ getStats, getRoomCode, getToken }) {
   };
 
   async function start() {
-    let enabled = false;
-    try {
-      const token = getToken();
-      // Without a session there is nothing to ask: /api/student/debug-mode
-      // needs a student token, so the request could only ever 401. Skipping it
-      // keeps the standalone arena from logging a failed request.
-      if (token) {
+    const token = getToken();
+    let enabled = !token; // Standalone Hero Lab needs no login for debug tools.
+    if (token) {
+      try {
         const response = await fetch('/api/student/debug-mode', {
           headers: { Authorization: `Bearer ${token}` },
         });
         enabled = response.ok && (await response.json()).enabled === true;
-      }
-    } catch { enabled = false; }
-    // The visible overlay is the debug-menu-gated tool, but the measurement data
-    // is always exposed so the lag investigation can read frame stats without
-    // forcing the overlay open. ?profiler=1 also passes the gate (builds the
-    // overlay), but visibility is still controlled by the Settings panel, so
-    // the pop-up can never appear during normal play.
+      } catch { enabled = false; }
+    }
+    // Keep the overlay tucked into Settings so it never appears over play.
     window.__heroLabPerf = api;
-    const forced = typeof location !== 'undefined' && new URLSearchParams(location.search).has('profiler');
-    if (!enabled && !forced) return false;
+    if (!enabled) return false;
     build();
     // Both timers no-op while the overlay is hidden (no DOM work, no polling);
     // recordFrame keeps the minimal counters running regardless.
