@@ -36,6 +36,7 @@ import { playSound, setAudioOptions, setHeartbeat, audioStats, setAudioEnabled, 
 import { createProfiler, effectToggles } from './perf-profiler.js';
 import { createTalentBadge, talentKeyLabel, talentKeyTooltip } from './talent-badge.js';
 import { preloadHeroSprites, drawCachedHero, getHeroSpriteUrl } from './hero-visuals.js';
+import { cosmeticArt, drawCosmeticIcon } from './avatar-cosmetic-art.js';
 
 const canvas = document.querySelector('#world');
 const ARENA_WIDTH = GAME_CONFIG.arena.width;
@@ -575,7 +576,7 @@ let sessionNudgeCount = 0;
 // gate or the user opened the explicit anonymous debug entry.
 const profiler = createProfiler({
   getStats: () => ({
-    particles: particles.length,
+    particles: particles.length + dustPuffs.length,
     damageTexts: damageTexts.length,
     audioVoices: audioStats().voices,
     monsters: state.monsters?.length || 0,
@@ -1084,6 +1085,51 @@ function addParticle(particle) {
   p.travelDurationMs = particle.travelDurationMs ?? null;
   Object.assign(p, particle);
   particles.push(p);
+}
+
+// Dash / roll dust: soft earth-tone puffs at the feet that swell as they fade
+// (the shared sparks shrink instead). Own pool and hard cap so dust never
+// evicts combat sparks; off under reduced motion, the 'burst' toggle and low
+// quality, thinned on medium. Drawn on the ground layer, below area rings,
+// telegraphs, characters and health bars, so it can never hide them.
+const DUST_COLORS = ['#C4AE84', '#A8916A', '#D6C49E'];
+const DUST_CAP = { high: 36, medium: 18 };
+const DUST_EMIT_MS = { high: 45, medium: 85 };
+const dustPuffs = [], dustPool = [], dustEmitAt = new Map(), wolfDustChecks = new Map();
+function dustAllowed() { return !prefersReducedMotion && effectToggles.burst && effectiveQuality() !== 'low'; }
+function spawnDust(x, y, dirX = 0, dirY = 0, count = 1, now = performance.now()) {
+  if (!dustAllowed()) return;
+  const quality = effectiveQuality(), cap = DUST_CAP[quality] ?? DUST_CAP.medium;
+  if (quality !== 'high') count = Math.ceil(count / 2);
+  for (let i = 0; i < count; i++) {
+    if (dustPuffs.length >= cap) dustPool.push(dustPuffs.shift());
+    const p = dustPool.pop() || {}, side = Math.random() - 0.5, speed = 10 + Math.random() * 22;
+    p.x = x + (Math.random() - 0.5) * 12 - dirX * 6; p.y = y + (Math.random() - 0.5) * 4 - dirY * 4;
+    p.vx = -dirX * speed - dirY * side * 26; p.vy = (-dirY * speed + dirX * side * 26) * 0.55 - 5;
+    p.r0 = 3 + Math.random() * 2.5; p.grow = 5 + Math.random() * 5; p.alpha = 0.36 + Math.random() * 0.14;
+    p.color = DUST_COLORS[(Math.random() * DUST_COLORS.length) | 0]; p.startedAt = now; p.lifeMs = 300 + Math.random() * 160;
+    dustPuffs.push(p);
+  }
+}
+// Throttled trail emitter for anything moving fast along the ground.
+function emitDashDust(key, x, y, dirX, dirY, now = performance.now()) {
+  if (!dustAllowed() || now - (dustEmitAt.get(key) || 0) < (DUST_EMIT_MS[effectiveQuality()] ?? DUST_EMIT_MS.medium)) return;
+  if (dustEmitAt.size > 64) dustEmitAt.clear();
+  dustEmitAt.set(key, now); spawnDust(x, y, dirX, dirY, 1, now);
+}
+function drawDustPuffs(now, dt) {
+  if (!dustPuffs.length) return;
+  const damp = Math.max(0, 1 - 4.5 * dt);
+  context.save();
+  for (let i = dustPuffs.length - 1; i >= 0; i--) {
+    const p = dustPuffs[i], t = (now - p.startedAt) / p.lifeMs;
+    if (t >= 1 || t < 0) { dustPuffs.splice(i, 1); dustPool.push(p); continue; }
+    p.x += p.vx * dt; p.y += p.vy * dt; p.vx *= damp; p.vy *= damp;
+    const r = p.r0 + p.grow * Math.sqrt(t);
+    context.globalAlpha = p.alpha * (t < 0.12 ? t / 0.12 : 1 - (t - 0.12) / 0.88); context.fillStyle = p.color;
+    context.beginPath(); context.ellipse(p.x, p.y, r, r * 0.62, 0, 0, Math.PI * 2); context.fill();
+  }
+  context.restore();
 }
 
 // --- Kill-path visual budget (STEP 2A / 2G / 2H) ---------------------------
@@ -2127,6 +2173,14 @@ socket.on('engineer_laser_fired', (beam) => {
       addParticle({ x: hit.x, y: hit.y, vx: Math.cos(angle) * speed, vy: Math.sin(angle) * speed,
         radius: 1.5 + Math.random() * 1.5, color: i % 2 ? '#FFD27A' : '#fff', alpha: 1, decay: 0.08 });
     }
+    // A few sparks spraying back off the beam's end point.
+    const dirLen = Math.hypot(beam.dx || 0, beam.dy || 0) || 1, bx = (beam.dx || 0) / dirLen, by = (beam.dy || 0) / dirLen;
+    const endX = beam.x + bx * (beam.length || 0), endY = beam.y + by * (beam.length || 0);
+    for (let i = 0; i < sparkCount; i++) {
+      const angle = Math.atan2(-by, -bx) + (Math.random() - 0.5) * 2.2, speed = 50 + Math.random() * 70;
+      addParticle({ x: endX, y: endY, vx: Math.cos(angle) * speed, vy: Math.sin(angle) * speed,
+        radius: 1.5 + Math.random() * 1.5, color: i % 2 ? '#FF9F1C' : '#FFF6D0', alpha: 1, decay: 0.07 });
+    }
   }
 });
 socket.on('engineer_salvage', (event) => {
@@ -2227,7 +2281,8 @@ socket.on('ability_used', (event) => {
     const px = player ? player.x : 0, py = player ? player.y : 0;
     if (player) guardianDashSquash.set(player.id, { dir: { x: dx, y: dy }, startedAt: performance.now() });
     const fx = HERO_FX_COLORS.guardian.primary;
-    for (let i = 0; i < 14; i++) {
+    if (player) spawnDust(px - dx * 8, py + GAME_CONFIG.arena.playerRadius * 0.7, dx, dy, 4);
+    for (let i = 0; i < 10; i++) {
       const spread = (Math.random() - 0.5) * 1.4;
       const back = -0.4 - Math.random() * 0.5;
       const ang = Math.atan2(dy, dx) + spread;
@@ -2241,6 +2296,9 @@ socket.on('samurai_dash_started', (event = {}) => {
   const startedAt = performance.now();
   const trail = { ...event, startedAt };
   samuraiDashTrails.set(event.playerId, trail);
+  const kickLen = Math.hypot((event.endX ?? event.startX) - event.startX, (event.endY ?? event.startY) - event.startY) || 1;
+  spawnDust(event.startX, event.startY + GAME_CONFIG.arena.playerRadius * 0.7,
+    ((event.endX ?? event.startX) - event.startX) / kickLen, ((event.endY ?? event.startY) - event.startY) / kickLen, 3, startedAt);
   if (effectToggles.sound) playSound(event.kind === 'afterimage-cut' ? 'ultimateCast' : 'fairyWhoosh',
     { volume: event.playerId === me ? 0.9 : 0.55 });
   if (!prefersReducedMotion && effectiveQuality() !== 'low') {
@@ -2584,7 +2642,7 @@ if (typeof window !== 'undefined' && new URLSearchParams(location.search).has('p
       }
     },
     clearEffects() {
-      particles.length = 0;
+      particles.length = 0; dustPuffs.length = 0;
       damageTexts.length = 0;
       deathSprites.length = 0;
       damageNumberMerge.clear();
@@ -3240,10 +3298,26 @@ roomCodeButton?.addEventListener('click', async () => {
 //   room.waiting  — joining entries (no gameplay data yet)
 //   state.players — gameplay data (hp, maxHp, downed, respawn)
 // The label is the account display name, NOT the hero/class name.
-const AVATAR_MARKS = Object.freeze({
-  hat_ribbon: '🎀', hat_top_hat: '🎩', hat_crown: '👑', hat_cowboy: '🤠',
-  accessory_star_pin: '⭐', accessory_leaf_pin: '🍃', accessory_heart_pin: '💛',
-});
+// The roster mark shows the player's pin (or hat) with the same shared art the
+// Kingdom, World, Duel and Castle mirror use. IDs without shared art are ignored.
+const AVATAR_MARK_PX = 13;
+function avatarMarkLabel(id) {
+  return id.replace(/^(hat|accessory)_/, '').replace(/_/g, ' ');
+}
+function fillAvatarMark(mark, visual) {
+  const hat = cosmeticArt(visual.hat, 'hat') ? visual.hat : null;
+  const accessory = cosmeticArt(visual.accessory, 'accessory') ? visual.accessory : null;
+  const shown = accessory || hat;
+  mark.title = [hat, accessory].filter(Boolean).map(avatarMarkLabel).join(', ') || 'Player avatar';
+  if (!shown) { mark.textContent = '•'; return; }
+  const dpr = Math.min(3, Math.max(1, window.devicePixelRatio || 1));
+  const icon = document.createElement('canvas');
+  icon.width = icon.height = Math.round(AVATAR_MARK_PX * dpr);
+  icon.style.width = icon.style.height = `${AVATAR_MARK_PX}px`;
+  icon.style.display = 'block';
+  drawCosmeticIcon(icon.getContext('2d'), shown, { x: icon.width / 2, y: icon.height / 2, size: icon.width });
+  mark.append(icon);
+}
 
 let playerListSignature = '';
 let pendingHeroSwap = null;
@@ -3301,8 +3375,7 @@ function renderPlayerList(room) {
       const mark = document.createElement('span');
       mark.className = 'roster-avatar-mark';
       mark.style.setProperty('--avatar-color', visual.color);
-      mark.textContent = AVATAR_MARKS[visual.accessory] || AVATAR_MARKS[visual.hat] || '•';
-      mark.title = [visual.hat && AVATAR_MARKS[visual.hat], visual.accessory && AVATAR_MARKS[visual.accessory]].filter(Boolean).join(' ') || 'Player avatar';
+      fillAvatarMark(mark, visual);
       mark.setAttribute('aria-hidden', 'true');
       portrait.append(mark);
     }
@@ -4223,6 +4296,18 @@ function drawRangerWolves(now) {
   for (const wolf of state.wolves || []) {
     if (wolf.waitingForMeat) continue;
     const arriving = Boolean(wolf.arriving);
+    // Loyal rush: paw dust while the wolf is running flat out (sampled every
+    // ~90 ms because wolf positions arrive with snapshots, not every frame).
+    if (!arriving && dustAllowed()) {
+      const check = wolfDustChecks.get(wolf.id);
+      if (!check || now - check.at >= 90) {
+        if (wolfDustChecks.size > 32) wolfDustChecks.clear();
+        wolfDustChecks.set(wolf.id, { x: wolf.x, y: wolf.y, at: now });
+        const moved = check ? Math.hypot(wolf.x - check.x, wolf.y - check.y) : 0;
+        if (check && now - check.at < 250 && moved / (now - check.at) * 1000 > GAME_CONFIG.heroes.ranger.ranger.wolfSpeed * 0.6)
+          spawnDust(wolf.x, wolf.y + 12, (wolf.x - check.x) / moved, (wolf.y - check.y) / moved, 1, now);
+      }
+    }
     const fade = arriving ? Math.max(0, Math.min(1, wolf.arrivalProgress || 0)) : 1;
     const pulse = 1 + Math.sin(now * 0.008) * 0.045;
     context.save();
@@ -4274,14 +4359,13 @@ function drawRangerWolfBiteFx(now) {
     const fx = rangerWolfBiteFx[i];
     const progress = (now - fx.startedAt) / 230;
     if (progress >= 1) { rangerWolfBiteFx.splice(i, 1); continue; }
+    // Three curved, tapered claw rakes (dark body, pale edge) in place of the
+    // old straight capsules; same footprint and timing.
     context.save(); context.translate(fx.x, fx.y - 12 - progress * 8); context.globalAlpha = 1 - progress;
-    context.lineCap = 'round'; context.strokeStyle = '#303728'; context.lineWidth = 5;
     for (let claw = 0; claw < 3; claw++) {
-      context.beginPath(); context.moveTo(-10 + claw * 8, -8); context.lineTo(-14 + claw * 8, 8); context.stroke();
-    }
-    context.strokeStyle = '#fff'; context.lineWidth = 2;
-    for (let claw = 0; claw < 3; claw++) {
-      context.beginPath(); context.moveTo(-10 + claw * 8, -8); context.lineTo(-14 + claw * 8, 8); context.stroke();
+      context.save(); context.translate(-10 + claw * 8, -9); context.rotate(1.82);
+      context.fillStyle = '#303728'; crescentPath(19, 6.5, 2.2, 0.45); context.fill();
+      context.fillStyle = '#FFF2CC'; crescentPath(19, 2.4, 2.2, 0.45); context.fill(); context.restore();
     }
     context.restore();
   }
@@ -4293,14 +4377,14 @@ function drawRangerDeadAimStreaks(now) {
     const progress = (now - streak.startedAt) / streak.durationMs;
     if (progress >= 1) { rangerDeadAimStreaks.splice(i, 1); continue; }
     const length = streak.range * Math.min(1, progress * 3 + 0.08);
-    const x2 = streak.x + streak.dx * length, y2 = streak.y + streak.dy * length;
-    context.save(); context.globalAlpha = (1 - progress) * (prefersReducedMotion ? 0.55 : 0.9);
-    context.lineCap = 'round'; context.strokeStyle = '#5A3E0C'; context.lineWidth = 13;
-    context.beginPath(); context.moveTo(streak.x, streak.y); context.lineTo(x2, y2); context.stroke();
-    context.strokeStyle = '#FFF2CC'; context.lineWidth = 7;
-    context.beginPath(); context.moveTo(streak.x, streak.y); context.lineTo(x2, y2); context.stroke();
-    context.strokeStyle = '#F0DDA0'; context.lineWidth = 2;
-    context.beginPath(); context.moveTo(streak.x, streak.y); context.lineTo(x2, y2); context.stroke();
+    // Tapered arrow wake: needle-thin at the bow, fullest just behind the
+    // arrowhead, so it reads as speed rather than a solid bar.
+    if (length < 1) continue;
+    context.save(); context.translate(streak.x, streak.y); context.rotate(Math.atan2(streak.dy, streak.dx));
+    context.globalAlpha = (1 - progress) * (prefersReducedMotion ? 0.55 : 0.9);
+    context.fillStyle = '#5A3E0C'; crescentPath(length, 18, 0, 0.82); context.fill();
+    context.fillStyle = '#FFF2CC'; crescentPath(length, 10, 0, 0.82); context.fill();
+    context.fillStyle = '#F0DDA0'; crescentPath(length, 3, 0, 0.82); context.fill();
     context.restore();
   }
 }
@@ -4634,14 +4718,42 @@ function drawEngineerEffects(now) {
   for (let i = engineerLaserBeams.length - 1; i >= 0; i -= 1) {
     const beam = engineerLaserBeams[i], progress = (now - beam.startedAt) / beam.durationMs;
     if (progress >= 1) { engineerLaserBeams.splice(i, 1); continue; }
-    const fade = progress > 0.68 ? (1 - progress) / 0.32 : 1;
+    const fade = Math.max(0, progress > 0.68 ? (1 - progress) / 0.32 : 1);
     const reduced = prefersReducedMotion || effectiveQuality() === 'low';
-    const jitter = reduced ? 0 : (Math.random() - 0.5) * beam.width * 0.02;
-    context.save(); context.translate(beam.x, beam.y); context.rotate(Math.atan2(beam.dy, beam.dx)); context.globalAlpha = Math.max(0, fade);
-    context.fillStyle = '#FF8A1F'; context.globalAlpha *= 0.55; context.fillRect(0, -beam.width / 2, beam.length, beam.width);
-    context.globalAlpha = Math.max(0, fade) * 0.85; context.fillStyle = '#FFD27A'; context.fillRect(0, -beam.width * 0.3, beam.length, beam.width * 0.6);
-    context.globalAlpha = Math.max(0, fade); context.fillStyle = '#fff'; context.fillRect(0, -beam.width * 0.14 + jitter, beam.length, beam.width * 0.28);
-    context.fillStyle = '#fff6d0'; context.beginPath(); context.arc(0, 0, 18 * fade, 0, Math.PI * 2); context.fill();
+    // Overclock beam: one soft-edged, tapered capsule (narrow at the muzzle,
+    // rounded nose at the hit-line end) filled with a cross-beam gradient, a
+    // hot core, and a slight flicker. Full hit width stays readable while it
+    // is live; it only thins as it dissipates.
+    const flicker = reduced ? 1 : 1 + 0.05 * Math.sin(now * 0.09 + i) + 0.03 * Math.sin(now * 0.23);
+    const len = beam.length, half = beam.width / 2 * flicker * (0.55 + 0.45 * fade);
+    const capsule = (h, startTaper, nose) => {
+      context.beginPath(); context.moveTo(0, -h * 0.3); context.quadraticCurveTo(startTaper * 0.35, -h, startTaper, -h);
+      context.lineTo(len - nose, -h); context.quadraticCurveTo(len, -h, len, 0); context.quadraticCurveTo(len, h, len - nose, h);
+      context.lineTo(startTaper, h); context.quadraticCurveTo(startTaper * 0.35, h, 0, h * 0.3); context.closePath();
+    };
+    const startTaper = Math.min(70, len * 0.15), nose = Math.min(half * 1.1, len * 0.2);
+    context.save(); context.translate(beam.x, beam.y); context.rotate(Math.atan2(beam.dy, beam.dx));
+    const glow = context.createLinearGradient(0, -half, 0, half);
+    glow.addColorStop(0, 'rgba(255,138,31,0.12)'); glow.addColorStop(0.16, 'rgba(255,138,31,0.6)'); glow.addColorStop(0.34, 'rgba(255,210,122,0.92)');
+    glow.addColorStop(0.5, 'rgba(255,253,240,1)'); glow.addColorStop(0.66, 'rgba(255,210,122,0.92)'); glow.addColorStop(0.84, 'rgba(255,138,31,0.6)'); glow.addColorStop(1, 'rgba(255,138,31,0.12)');
+    context.globalAlpha = fade; context.fillStyle = glow; capsule(half, startTaper, nose); context.fill();
+    const coreJitter = reduced ? 0 : (Math.random() - 0.5) * beam.width * 0.03;
+    context.translate(0, coreJitter); context.fillStyle = '#fff'; context.globalAlpha = fade * 0.95;
+    capsule(Math.max(2, half * 0.2), startTaper * 0.8, Math.min(half * 0.4, len * 0.1)); context.fill(); context.translate(0, -coreJitter);
+    if (!reduced) {
+      // Energy pulses racing down the core.
+      context.globalAlpha = fade * 0.55; context.strokeStyle = '#FFF6D0'; context.lineCap = 'round'; context.lineWidth = Math.max(2, half * 0.5);
+      context.setLineDash([26, 54]); context.lineDashOffset = -now * 1.4;
+      context.beginPath(); context.moveTo(startTaper, 0); context.lineTo(len - nose, 0); context.stroke(); context.setLineDash([]);
+    }
+    // Muzzle flare and a small impact bloom where the beam ends.
+    const muzzle = context.createRadialGradient(0, 0, 0, 0, 0, 26);
+    muzzle.addColorStop(0, 'rgba(255,246,208,1)'); muzzle.addColorStop(0.5, 'rgba(255,210,122,0.7)'); muzzle.addColorStop(1, 'rgba(255,159,28,0)');
+    context.globalAlpha = fade; context.fillStyle = muzzle; context.beginPath(); context.arc(0, 0, 26 * (0.6 + 0.4 * fade), 0, Math.PI * 2); context.fill();
+    context.translate(len, 0);
+    const bloom = context.createRadialGradient(0, 0, 0, 0, 0, half * 0.9);
+    bloom.addColorStop(0, 'rgba(255,246,208,0.9)'); bloom.addColorStop(1, 'rgba(255,159,28,0)');
+    context.globalAlpha = fade * 0.7; context.fillStyle = bloom; context.beginPath(); context.arc(0, 0, half * 0.9, 0, Math.PI * 2); context.fill();
     context.restore();
   }
   for (const [id, popup] of engineerSalvagePopups) {
@@ -4656,17 +4768,27 @@ function drawEngineerEffects(now) {
   }
 }
 
+// Filled crescent along +x from 0 to len with pointed, tapered tips. The outer
+// edge bows by bow + thickness/2 and the inner by bow - thickness/2, so the
+// blade is `thickness` thick near `peak` (0-1 along it) and thins to a point.
+function crescentPath(len, thickness, bow = 0, peak = 0.5) {
+  context.beginPath(); context.moveTo(0, 0);
+  context.quadraticCurveTo(len * peak, -2 * (bow + thickness / 2), len, 0);
+  context.quadraticCurveTo(len * peak, -2 * (bow - thickness / 2), 0, 0); context.closePath();
+}
+const SAMURAI_MARK_LEN = Math.hypot(40, 32), SAMURAI_MARK_TILT = Math.atan2(-32, 40);
+
 function drawSamuraiWorldEffects(now) {
   const fx = HERO_FX_COLORS.samurai.primary;
   const slashMs = SAMURAI_SLASH_FADE_MS;
+  // Dash streak: a crescent wisp that is thin at the launch point and fullest
+  // just behind the hero, with a white edge riding inside it.
   const drawBlade = (startX, startY, endX, endY, width, alpha, accent = true) => {
-    const dx = endX - startX, dy = endY - startY;
+    const dx = endX - startX, dy = endY - startY, len = Math.hypot(dx, dy);
+    if (len < 1) return;
     context.save(); context.translate(startX, startY); context.rotate(Math.atan2(dy, dx));
-    context.globalAlpha = Math.max(0, alpha);
-    context.lineCap = 'round';
-    context.strokeStyle = fx; context.lineWidth = width; context.beginPath(); context.moveTo(0, 0); context.lineTo(Math.hypot(dx, dy), 0); context.stroke();
-    context.globalAlpha *= 0.95; context.strokeStyle = accent ? '#fff' : '#E6DFFF'; context.lineWidth = Math.max(2, width * 0.24);
-    context.beginPath(); context.moveTo(0, 0); context.lineTo(Math.hypot(dx, dy), 0); context.stroke();
+    context.globalAlpha = Math.max(0, alpha); context.fillStyle = fx; crescentPath(len, width * 1.5, width * 0.35, 0.72); context.fill();
+    context.globalAlpha *= 0.95; context.fillStyle = accent ? '#fff' : '#E6DFFF'; crescentPath(len, Math.max(2, width * 0.45), width * 0.35, 0.72); context.fill();
     context.restore();
   };
   for (const [playerId, trail] of samuraiDashTrails) {
@@ -4706,21 +4828,28 @@ function drawSamuraiWorldEffects(now) {
     const grow = Math.min(1, age / SAMURAI_SLASH_GROW_MS);
     const fade = age <= SAMURAI_SLASH_GROW_MS ? 1 : 1 - (age - SAMURAI_SLASH_GROW_MS) / (slashMs - SAMURAI_SLASH_GROW_MS);
     const width = 2 + (slash.width - 2) * grow;
-    const dx = slash.endX - slash.startX, dy = slash.endY - slash.startY;
+    const dx = slash.endX - slash.startX, dy = slash.endY - slash.startY, len = Math.hypot(dx, dy);
+    if (len < 1) continue;
+    // Afterimage Cut: one sweeping crescent (violet body, lavender edge, white
+    // core) bowed inside the cut band, over a faint band showing the true
+    // cut width, plus a thin counter-arc for a second, quicker stroke.
+    const bow = width * 0.1, reach = len * (0.4 + 0.6 * grow);
     context.save(); context.translate(slash.startX, slash.startY); context.rotate(Math.atan2(dy, dx));
-    context.globalAlpha = 0.55 * fade; context.fillStyle = fx; context.fillRect(0, -width / 2, Math.hypot(dx, dy), width);
-    context.globalAlpha = 0.6 * fade; context.fillStyle = '#DCD5FF'; context.fillRect(0, -width * 0.3, Math.hypot(dx, dy), width * 0.6);
-    context.globalAlpha = 0.95 * fade; context.fillStyle = '#fff'; context.fillRect(0, -Math.max(1, width * 0.14), Math.hypot(dx, dy), Math.max(2, width * 0.28));
+    context.globalAlpha = 0.16 * fade; context.fillStyle = fx; context.beginPath(); context.roundRect(0, -width / 2, len, width, width / 2); context.fill();
+    context.globalAlpha = 0.6 * fade; crescentPath(reach, width * 0.8, bow, 0.56); context.fill();
+    context.globalAlpha = 0.7 * fade; context.fillStyle = '#DCD5FF'; crescentPath(reach, width * 0.45, bow, 0.56); context.fill();
+    context.globalAlpha = 0.95 * fade; context.fillStyle = '#fff'; crescentPath(reach, Math.max(2, width * 0.16), bow, 0.56); context.fill();
+    context.globalAlpha = 0.45 * fade * grow; crescentPath(len, Math.max(2, width * 0.1), -width * 0.22, 0.44); context.fill();
     context.restore();
   }
   for (let i = samuraiHitMarks.length - 1; i >= 0; i--) {
     const mark = samuraiHitMarks[i], progress = (now - mark.startedAt) / SAMURAI_HIT_MARK_MS;
     if (progress >= 1) { samuraiHitMarks.splice(i, 1); continue; }
-    context.save(); context.translate(mark.x, mark.y); context.rotate(mark.angle); context.globalAlpha = 1 - progress;
-    context.lineCap = 'round'; context.strokeStyle = fx; context.lineWidth = mark.execute ? 8 : 6;
-    context.beginPath(); context.moveTo(-20, 16); context.lineTo(20, -16); context.stroke();
-    context.strokeStyle = '#fff'; context.lineWidth = mark.execute ? 3.5 : 2.5;
-    context.beginPath(); context.moveTo(-20, 16); context.lineTo(20, -16); context.stroke(); context.restore();
+    // Same diagonal as before, now a tapered crescent nick instead of a capsule.
+    const thick = mark.execute ? 12 : 9;
+    context.save(); context.translate(mark.x, mark.y); context.rotate(mark.angle + SAMURAI_MARK_TILT); context.translate(-SAMURAI_MARK_LEN / 2, 0);
+    context.globalAlpha = 1 - progress; context.fillStyle = fx; crescentPath(SAMURAI_MARK_LEN, thick, 4, 0.55); context.fill();
+    context.fillStyle = '#fff'; crescentPath(SAMURAI_MARK_LEN, thick * 0.38, 4, 0.55); context.fill(); context.restore();
   }
   for (let i = samuraiExecuteLabels.length - 1; i >= 0; i--) {
     const label = samuraiExecuteLabels[i], progress = (now - label.startedAt) / SAMURAI_EXECUTE_LABEL_MS;
@@ -4796,6 +4925,7 @@ function drawScene(timestamp) {
   context.drawImage(backgroundCanvas, -shakeOverscan, -shakeOverscan,
     ARENA_WIDTH + shakeOverscan * 2, ARENA_HEIGHT + shakeOverscan * 2);
   drawFairyVortexGround(currentTime);
+  drawDustPuffs(currentTime, dt);
 
   // 1. Draw Campfire in the middle
   const cf = state.campfire || {
@@ -5259,6 +5389,10 @@ function drawScene(timestamp) {
     const samuraiTrail = samuraiDashTrails.get(player.id);
     if (player.heroId === 'samurai' && samuraiTrail && !prefersReducedMotion && effectiveQuality() !== 'low') {
       const trailAge = currentTime - samuraiTrail.startedAt;
+      if (trailAge < samuraiTrail.durationMs) {
+        const tdx = samuraiTrail.endX - samuraiTrail.startX, tdy = samuraiTrail.endY - samuraiTrail.startY, tLen = Math.hypot(tdx, tdy) || 1;
+        emitDashDust(player.id, player.x, player.y + GAME_CONFIG.arena.playerRadius * 0.7, tdx / tLen, tdy / tLen, currentTime);
+      }
       for (let echo = 0; echo < 3; echo++) {
         const fraction = [0.28, 0.54, 0.8][echo];
         const echoAge = trailAge - samuraiTrail.durationMs * fraction;
@@ -5612,7 +5746,9 @@ function drawScene(timestamp) {
 function spawnDashTrail(player) {
   const prior=previousPositions.get(player.id);
   previousPositions.set(player.id,{x:player.x,y:player.y});
-  if(!prior || Math.hypot(player.x-prior.x,player.y-prior.y)<2)return;
+  const step=prior ? Math.hypot(player.x-prior.x,player.y-prior.y) : 0;
+  if(!prior || step<2)return;
+  emitDashDust(player.id, player.x, player.y + GAME_CONFIG.arena.playerRadius * 0.7, (player.x-prior.x)/step, (player.y-prior.y)/step);
   const spec=GAME_CONFIG.visuals.dashTrail;
   const ramp = player.guardianCharging ? Math.min(1, player.guardianDamageRamp / GAME_CONFIG.arenaTuning.heroTweaks.guardianUltimateRampCap) : 0;
   for(let i=0;i<spec.count;i++) addParticle({x:prior.x+(Math.random()-.5)*16,y:prior.y+(Math.random()-.5)*16,
