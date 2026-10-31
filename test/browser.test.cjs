@@ -37,11 +37,24 @@ async function openStudentTab(page, name) {
   await tab.focus();
   await tab.click();
 }
+// The question counter is on screen while the session is still being
+// fetched, so waiting for it says nothing about the question having
+// arrived. Wait for the answers card to hold a real answer control:
+// counting the options once can land on the loading screen and pick the
+// wrong branch for a question that has no options at all.
+async function waitForAnswerControl(page) {
+  await page.waitForFunction(() => {
+    const card = document.querySelector('.quiz-answers-card');
+    if (!card) return false;
+    return !!card.querySelector('.options button, [aria-label="Numeric answer"], [aria-label="Written answer"]');
+  });
+}
 
 test('student reports survive a failed submission and show a professor response in My Progress', async (t) => {
   const page = await pageFor(t, 'Student 01');
   await page.getByRole('button', { name: 'Start practice', exact: true }).click();
   await page.locator('.quiz-head').waitFor();
+  await waitForAnswerControl(page);
   const choices = page.locator('.options button');
   if (await choices.count()) {
     await choices.first().click();
@@ -139,6 +152,7 @@ test('practice Next recovers from a failed request and the session finishes', as
   await page.getByRole('button', { name: 'Start practice' }).click();
   for (let i = 0; i < 5; i++) {
     await page.locator('.quiz-head').waitFor();
+    await waitForAnswerControl(page);
     const choices = page.locator('.options button');
     if (await choices.count()) {
       await choices.first().click();
@@ -408,6 +422,7 @@ test('an answer accepted before a lost response can be retried exactly once', as
     await route.fetch(); // server committed; pretend the response was lost
     await route.abort();
   }, { times: 1 });
+  await waitForAnswerControl(page);
   if (await page.locator('.options button').count()) {
     await page.locator('.options button').first().click();
     if (await page.getByRole('button', { name: 'Submit answer' }).count()) await page.getByRole('button', { name: 'Submit answer' }).click();
