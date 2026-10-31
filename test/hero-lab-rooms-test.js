@@ -351,9 +351,27 @@ test('only the host starts the run, and the countdown opens wave 1', async (t) =
 // whatever stood in front of it. The test picks a target whose firing line is
 // actually clear, so it tests the break-and-respawn rule instead of the luck
 // of the spawn.
-const SHOT_DISTANCE = 90;
+//
+// The lobby's physics also shove any dummy that overlaps a hero away from it.
+// A dummy standing in front of the hero is therefore pushed forward, straight
+// into the firing line, and the shot hits it instead. So the shooting spot
+// has to be clear of every dummy's body as well - a dummy radius (18) plus a
+// hero radius (24) is how close the two get before the shove starts.
+const SHOT_ANGLES = 24;     // how many directions around a target are tried
+const SHOT_DISTANCES = [90, 70, 110, 130];  // how far back the hero stands
 const BULLET_RADIUS = 5;   // the sheriff's bullet
 const MUZZLE_OFFSET = 24;  // the bullet leaves the barrel this far out
+const SHOVE_RADIUS = 42;   // the body shove starts inside this distance
+
+// The hero has to stand clear of every dummy's body, not just of the one it
+// shoots. The lobby shoves any dummy that overlaps a hero, and the shove
+// pushes it straight away from the hero - so a dummy standing next to the
+// shooter is pushed into the firing line between the moment the shot is
+// chosen and the moment it is fired. A dummy radius (18) plus a hero radius
+// (24) is how close the two get before the shove starts.
+function bodyIsClear(dummies, from) {
+  return dummies.every((dummy) => Math.hypot(dummy.x - from.x, dummy.y - from.y) >= SHOVE_RADIUS);
+}
 
 function firingLineIsClear(dummies, target, from) {
   const dx = target.x - from.x;
@@ -375,13 +393,17 @@ function firingLineIsClear(dummies, target, from) {
 
 function pickDummyWithClearShot(dummies) {
   for (const target of dummies) {
-    for (let step = 0; step < 16; step += 1) {
-      const angle = (step / 16) * Math.PI * 2;
-      const from = {
-        x: target.x - Math.cos(angle) * SHOT_DISTANCE,
-        y: target.y - Math.sin(angle) * SHOT_DISTANCE,
-      };
-      if (firingLineIsClear(dummies, target, from)) return { target, from };
+    for (const distance of SHOT_DISTANCES) {
+      for (let step = 0; step < SHOT_ANGLES; step += 1) {
+        const angle = (step / SHOT_ANGLES) * Math.PI * 2;
+        const from = {
+          x: target.x - Math.cos(angle) * distance,
+          y: target.y - Math.sin(angle) * distance,
+        };
+        if (!bodyIsClear(dummies, from)) continue;
+        if (!firingLineIsClear(dummies, target, from)) continue;
+        return { target, from };
+      }
     }
   }
   return null;
@@ -403,7 +425,8 @@ test('the dummy takes damage and talents but never counts as a kill', async (t) 
   const player = room.players.get(welcome.you);
   player.x = shot.from.x;
   player.y = shot.from.y;
-  player.aim = { x: (dummy.x - shot.from.x) / SHOT_DISTANCE, y: (dummy.y - shot.from.y) / SHOT_DISTANCE };
+  const aimLength = Math.hypot(dummy.x - shot.from.x, dummy.y - shot.from.y) || 1;
+  player.aim = { x: (dummy.x - shot.from.x) / aimLength, y: (dummy.y - shot.from.y) / aimLength };
   player.hero.aim = { ...player.aim };
 
   const hit = waitFor(host, 'hit', (event) => event.enemyType === 'dummy', 4000);
@@ -436,7 +459,8 @@ test('a broken dummy comes back after three seconds', async (t) => {
   const player = room.players.get(welcome.you);
   player.x = shot.from.x;
   player.y = shot.from.y;
-  player.aim = { x: (dummy.x - shot.from.x) / SHOT_DISTANCE, y: (dummy.y - shot.from.y) / SHOT_DISTANCE };
+  const aimLength = Math.hypot(dummy.x - shot.from.x, dummy.y - shot.from.y) || 1;
+  player.aim = { x: (dummy.x - shot.from.x) / aimLength, y: (dummy.y - shot.from.y) / aimLength };
   player.hero.aim = { ...player.aim };
   host.emit('fire', 'primary');
   await broken;
