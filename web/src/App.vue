@@ -153,7 +153,7 @@ onUnmounted(() => {
     </header>
     <div v-if="drawerOpen" class="t-scrim" @click="closeDrawer"></div>
     <aside id="t-sidebar" class="t-sidebar" aria-label="Teacher navigation">
-      <div class="t-brand">
+      <div class="t-brand d-flex align-items-center">
         <QuizQuestLogo :size="30" />
         <button class="t-icon-btn t-collapse" type="button" :aria-label="navCollapsed ? 'Expand sidebar' : 'Collapse sidebar'" :title="navCollapsed ? 'Expand sidebar' : 'Collapse sidebar'" :aria-expanded="!navCollapsed" @click="toggleCollapsed">
           <svg viewBox="0 0 24 24" aria-hidden="true"><path :d="navCollapsed ? 'm10 7 5 5-5 5' : 'm14 7-5 5 5 5'" /></svg>
@@ -167,7 +167,7 @@ onUnmounted(() => {
           <TeacherNavIcon :tab="id" /><span class="t-nav-label">{{ label }}</span>
         </button>
       </nav>
-      <div id="who" class="t-account">
+      <div id="who" class="t-account d-flex align-items-center">
         <span class="t-avatar" aria-hidden="true">{{ (S.me.name || '?').trim().charAt(0).toUpperCase() }}</span>
         <span class="t-account-name">{{ S.me.name }}</span>
         <AccountMenu />
@@ -190,13 +190,13 @@ onUnmounted(() => {
     @focusin="onTopFocusIn"
     @focusout="onTopFocusOut"
   >
-    <div class="brand">
+    <div class="brand d-flex align-items-center">
       <QuizQuestLogo :size="30" />
     </div>
     <nav id="tabs" :class="{ crowded: tabs.length > 5 }">
       <button v-for="[id, label] in tabs" :key="id" :aria-current="current && current[0] === id ? 'page' : null" @click="openStudentTab(id)">{{ label }}</button>
     </nav>
-    <div id="who">
+    <div id="who" class="d-flex align-items-center">
       <template v-if="S.me">
         <span>{{ S.me.name }}</span>
         <AccountMenu />

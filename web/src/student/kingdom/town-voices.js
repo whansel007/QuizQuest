@@ -35,15 +35,15 @@ export const HERO_LINES = {
   },
   engineer: {
     ambient: ['Loose bolt? Uh... guess that\'s an extra', 'A turret broke? Oh no... Anyway :V', 'Has anyone seen a random screw somewhere? Don\'t eat it! I need it!'],
-    greet: ['Hi! Want to see what I can build with these spare parts?', 'Honestly, if turret doesn\'t instantly explode, it is already a success XD'],
+    greet: ['Hi! Want to see what I can build with these spare parts?', 'Honestly, if the turret doesn\'t instantly explode, it is already a success XD'],
   },
   samurai: {
-    ambient: ['Practice makes a plastic blade pretty impressive.', 'One more drill. Then another.', 'Please do not look too closely at the price sticker.'],
-    greet: ['Hello! The sword is plastic. The practice is very real.', 'No formal training, just a lot of practice. Want to see?'],
+    ambient: ['I do 100 pushup daily, without hands!!!', 'I am the chosen one! Trust me >:D', 'Did you know that watching anime makes you smarter? Believe it!'],
+    greet: ['こんにちは! My blade can cut through 1000 enemies >:D', 'I have the power of anime by my side >:D'],
   },
   ranger: {
-    ambient: ['Always pack an extra hot dog.', 'My best friend has four paws and a great nose.', 'The trail is quiet. The wolf is listening.'],
-    greet: ['Hi there! Have you met my best friend? They\'re somewhere in the forest...', 'The wolf and I have your back provided I have some meat to give them :V'],
+    ambient: ['Always pack an extra hot dog.', 'Friendship starts with great food :3', 'Awoooooooooo! It means hello :D'],
+    greet: ['Hi there! Have you met my best friend? They\'re somewhere in the forest...', 'The wolf and I have your back! As long as I have some meat to give them :V'],
   },
 };
 
