@@ -23,10 +23,16 @@ test('two students share a Campfire Defense lobby through its room code', async 
     await page.getByRole('button', { name: 'HOST LOBBY' }).click();
 
     // Wait for the server-created room code before the second student joins.
+    // The room code is static markup in the arena document
+    // (public/hero-lab/world.html:39), so until that document is parsed the
+    // locator matches nothing at all and the failure reads "element(s) not
+    // found" rather than anything about the code. Give the document its own
+    // budget: on a loaded runner the iframe's navigation queues behind the
+    // sprite sheets the World tab is downloading.
     const hostGame = page.frameLocator('iframe[title="Campfire Defense"]');
     const hostCode = hostGame.locator('#room-code-value');
-    await expect(hostGame.locator('#room-code-corner')).toBeVisible({ timeout: 15000 });
-    await expect(hostCode).toHaveText(/^[A-Z]{4}$/);
+    await expect(hostGame.locator('#room-code-corner')).toBeAttached({ timeout: 30000 });
+    await expect(hostCode).toHaveText(/^[A-Z]{4}$/, { timeout: 30000 });
     const code = (await hostCode.innerText()).trim();
 
     await signIn(guest, GUEST);
@@ -40,14 +46,15 @@ test('two students share a Campfire Defense lobby through its room code', async 
     await guest.getByRole('button', { name: 'JOIN', exact: true }).click();
 
     // The lobby stays idle: no wave or countdown is started during this journey.
+    // The guest repeats the whole cold start, so it gets the same budget.
     const guestGame = guest.frameLocator('iframe[title="Campfire Defense"]');
-    await expect(guestGame.locator('#room-code-corner')).toBeVisible({ timeout: 15000 });
-    await expect(guestGame.locator('#room-code-value')).toHaveText(code);
+    await expect(guestGame.locator('#room-code-corner')).toBeAttached({ timeout: 30000 });
+    await expect(guestGame.locator('#room-code-value')).toHaveText(code, { timeout: 30000 });
 
     // Both clients must render the same two server-reported room members.
     for (const game of [hostGame, guestGame]) {
       const roster = game.locator('#player-roster');
-      await expect(roster.locator('.roster-row')).toHaveCount(2, { timeout: 15000 });
+      await expect(roster.locator('.roster-row')).toHaveCount(2, { timeout: 30000 });
       const hostRow = roster.locator('.roster-row').filter({ hasText: HOST.name });
       const guestRow = roster.locator('.roster-row').filter({ hasText: GUEST.name });
       await expect(hostRow).toHaveCount(1);

@@ -37,11 +37,24 @@ async function openStudentTab(page, name) {
   await tab.focus();
   await tab.click();
 }
+// The question counter is on screen while the session is still being
+// fetched, so waiting for it says nothing about the question having
+// arrived. Wait for the answers card to hold a real answer control:
+// counting the options once can land on the loading screen and pick the
+// wrong branch for a question that has no options at all.
+async function waitForAnswerControl(page) {
+  await page.waitForFunction(() => {
+    const card = document.querySelector('.quiz-answers-card');
+    if (!card) return false;
+    return !!card.querySelector('.options button, [aria-label="Numeric answer"], [aria-label="Written answer"]');
+  });
+}
 
 test('student reports survive a failed submission and show a professor response in My Progress', async (t) => {
   const page = await pageFor(t, 'Student 01');
   await page.getByRole('button', { name: 'Start practice', exact: true }).click();
   await page.locator('.quiz-head').waitFor();
+  await waitForAnswerControl(page);
   const choices = page.locator('.options button');
   if (await choices.count()) {
     await choices.first().click();
@@ -90,7 +103,15 @@ test('My Progress handles empty history, a failed load and narrow screens', asyn
   await page.getByRole('button', { name: 'Refresh progress', exact: true }).click();
   await page.getByText('No completed practice sessions yet.', { exact: true }).waitFor();
   await page.getByText('You have not reported any questions in this class.', { exact: true }).waitFor();
-  assert.equal(await page.getByText('Not practised yet', { exact: true }).count(), 3);
+  // The topics a student can practise are the ones of the courses their
+  // classes belong to, so the count comes from the server's own tables
+  // rather than from a number that only matches today's seed.
+  const studentId = srv.quiz.db.users.find((user) => user.name === 'Student 12').id;
+  const studentCourses = [...new Set(srv.quiz.db.enrolments
+    .filter((enrolment) => enrolment.studentId === studentId)
+    .map((enrolment) => srv.quiz.db.classes.find((cls) => cls.id === enrolment.classId)?.courseId))];
+  const studentTopics = srv.quiz.db.topics.filter((topic) => studentCourses.includes(topic.courseId)).length;
+  assert.equal(await page.getByText('Not practised yet', { exact: true }).count(), studentTopics);
   assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth), true);
   if (process.env.QA_SCREENSHOTS) await page.screenshot({ path: require('node:path').join(process.env.QA_SCREENSHOTS, 'Progress-empty-mobile.png'), fullPage: true });
 });
@@ -139,6 +160,7 @@ test('practice Next recovers from a failed request and the session finishes', as
   await page.getByRole('button', { name: 'Start practice' }).click();
   for (let i = 0; i < 5; i++) {
     await page.locator('.quiz-head').waitFor();
+    await waitForAnswerControl(page);
     const choices = page.locator('.options button');
     if (await choices.count()) {
       await choices.first().click();
@@ -408,6 +430,7 @@ test('an answer accepted before a lost response can be retried exactly once', as
     await route.fetch(); // server committed; pretend the response was lost
     await route.abort();
   }, { times: 1 });
+  await waitForAnswerControl(page);
   if (await page.locator('.options button').count()) {
     await page.locator('.options button').first().click();
     if (await page.getByRole('button', { name: 'Submit answer' }).count()) await page.getByRole('button', { name: 'Submit answer' }).click();
@@ -479,7 +502,10 @@ test('kingdom builds drop new blocks in place and the summon reveal hands over t
     pity: { totalPulls: pity.totalPulls + 1, sinceHero: 0, sinceEpic: 0 },
   });
   t.after(() => { R.drawHeroSummon = draw; });
-  await page.locator('#tabs').getByRole('button', { name: 'Summon' }).click();
+  // The Kingdom is immersive, so the tab bar slides out of reach a moment
+  // after the pointer leaves it. openStudentTab brings it back the way a
+  // keyboard user would, so the click cannot land off-screen.
+  await openStudentTab(page, 'Summon');
   await page.getByRole('button', { name: /^Summon ×1(?!0)/ }).click();
   const dialog = page.getByRole('dialog');
   await dialog.waitFor();
@@ -905,7 +931,18 @@ test('weekly topics: narrow the dashboard, follow a next step, and add a topic f
   await page.locator('#tabs').getByRole('button', { name: 'Analytics', exact: true }).click();
   const weeks = page.locator('#dash-weeks');
   await weeks.getByRole('heading', { name: 'Weekly topics' }).waitFor();
-  assert.deepEqual(await weeks.locator('tbody tr td:first-child').allInnerTexts(), ['1', '2', '3']);
+  // The dashboard lists one row per topic of the professor's own courses, so
+  // the expectation comes from the server's topic table: a change to the
+  // seed must not look like a broken dashboard.
+  const teacherId = srv.quiz.db.users.find((user) => user.name === 'Prof. Demo A').id;
+  const teacherCourses = [...new Set(srv.quiz.db.classes
+    .filter((cls) => cls.teacherIds.includes(teacherId))
+    .map((cls) => cls.courseId))];
+  const teacherTopicWeeks = srv.quiz.db.topics
+    .filter((topic) => teacherCourses.includes(topic.courseId))
+    .map((topic) => String(topic.week))
+    .sort((a, b) => Number(a) - Number(b));
+  assert.deepEqual(await weeks.locator('tbody tr td:first-child').allInnerTexts(), teacherTopicWeeks);
   // a topic narrows every section, and the filter shows it
   await weeks.getByRole('button', { name: 'Show only Networking basics on the dashboard' }).click();
   await page.getByText('Showing Week 2 · Networking basics only', { exact: false }).waitFor();
@@ -924,7 +961,7 @@ test('weekly topics: narrow the dashboard, follow a next step, and add a topic f
   await page.locator('#tabs').getByRole('button', { name: 'Analytics', exact: true }).click();
   await page.getByRole('button', { name: 'Show all topics' }).click();
   await page.waitForFunction(() => document.querySelectorAll('#dash-topics tbody tr:not(.subrow)').length === 3);
-  assert.equal(await weeks.locator('tbody tr').count(), 3);
+  assert.equal(await weeks.locator('tbody tr').count(), teacherTopicWeeks.length);
   // Source material's topic table follows its topic filter too
   await page.locator('#tabs').getByRole('button', { name: 'AI drafting', exact: true }).click();
   await page.getByRole('heading',{name:'Manage topics & learning outcomes',exact:true}).waitFor(); // always open
@@ -935,9 +972,10 @@ test('weekly topics: narrow the dashboard, follow a next step, and add a topic f
   await page.locator('p', { hasText: 'Uploaded files are kept with this topic' }).waitFor();
   await page.getByRole('heading',{name:'Manage topics & learning outcomes',exact:true}).waitFor(); // always open
   await page.getByRole('button',{name:'Edit Cyber hygiene',exact:true}).waitFor();
-  assert.deepEqual(await page.locator('.topic-table tbody tr:not(.subrow) td:first-child').allInnerTexts(), ['3']);
+  const filteredWeek = String(srv.quiz.db.topics.find((topic) => topic.id === 'tp-sec').week);
+  assert.deepEqual(await page.locator('.topic-table tbody tr:not(.subrow) td:first-child').allInnerTexts(), [filteredWeek]);
   await page.getByRole('button',{name:'Show all topics',exact:true}).click();
-  await page.waitForFunction(() => document.querySelectorAll('.topic-table tbody tr:not(.subrow)').length === 3);
+  await page.waitForFunction((expected) => document.querySelectorAll('.topic-table tbody tr:not(.subrow)').length === expected, teacherTopicWeeks.length);
   // Source material: add Week 4; uploads then go into it
   await page.locator('#tabs').getByRole('button', { name: 'AI drafting', exact: true }).click();
   await page.getByRole('heading',{name:'Manage topics & learning outcomes',exact:true}).waitFor(); // always open

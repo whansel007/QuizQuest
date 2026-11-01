@@ -25,6 +25,16 @@ const COURSE_ID = 'c-comp';
 const STUDENT_A = { email: 'student01@quizquest.demo' };
 const STUDENT_B = { email: 'student02@quizquest.demo' };
 
+// The two student pages sit on the animated Kingdom town for the whole raid.
+// With the trace's screencast on, the browser encodes a frame for every
+// canvas repaint, the trace grows to tens of megabytes and the recording
+// itself eats most of the test's time budget on a loaded runner - the spec
+// then fails with a bare "Test timeout" that says nothing about the raid.
+// Keep the action log, the DOM snapshots and the network log; drop only the
+// screencast. This has to sit at the top level: trace options are
+// worker-scoped, so a use() inside a describe would start a new worker.
+test.use({ trace: { mode: 'retain-on-failure', screenshots: false } });
+
 // The server never sends the answer key to the browser, so the test knows
 // the answers the way a professor does: from the question bank. The seeded
 // bank is the starting point, and the live bank below is what the server
@@ -277,9 +287,15 @@ test('two students share one raid boss: a correct answer damages it for the clas
     // finish it. Count the hits instead of watching the health bar: the state
     // snapshot can lag a frame behind the kill, and the boss comes back after
     // thirty seconds, so a flag that is read too late sees the next boss.
-    for (let round = 0; round < 16 && hits.length < 6; round++) {
+    // The raid is answered in rounds, and a round can take a while when the
+    // boss is out of reach or a wrong answer has to breathe out first. The
+    // rounds stop at the deadline so a run that cannot finish says how many
+    // hits it landed instead of running into the test timeout with nothing
+    // to show for it.
+    const deadline = Date.now() + 150 * 1000;
+    for (let round = 0; round < 16 && hits.length < 6 && Date.now() < deadline; round++) {
       for (const page of players) {
-        if (hits.length >= 6) break;
+        if (hits.length >= 6 || Date.now() > deadline) break;
         await walkToBoss(page);
         const asked = await askForChallenge(page);
         if (asked.ev === 'notice') {

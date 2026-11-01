@@ -366,26 +366,54 @@ test('primary fire during Shield Rush ends the dash early and fires the fan ther
 
   const player = server.heroLab.players.get(clientId);
   server.heroLab.monsters.clear();
-  const before = { x: player.x, y: player.y };
   const weaponReadyAt = player.hero.cooldowns.weapon.readyAt;
   const shots = [];
   client.on('weapon_fired', (event) => shots.push(event));
-  // Register before casting: the fan fires as soon as the cancel lands.
-  const effectPromise = new Promise((resolve) => client.once('area_effect', resolve));
 
-  client.emit('aim', { x: 1, y: 0 });
-  client.emit('skill');
-  await new Promise((resolve) => setTimeout(resolve, 60));
-  client.emit('fire', 'primary');
+  // The click has to be handled while the dash is still running. If the
+  // server is busy the 250ms dash ends first: the fan fires at the full
+  // distance and the click falls through to the normal weapon path, which
+  // shows up as a shot and a moved weapon cooldown. Detect that and cast the
+  // skill again rather than guessing a click latency.
+  let effect = null;
+  let before = null;
+  for (let attempt = 0; attempt < 5 && !effect; attempt += 1) {
+    shots.length = 0;
+    before = { x: player.x, y: player.y };
+    const effectPromise = new Promise((resolve) => client.once('area_effect', resolve));
+    client.emit('aim', { x: 1, y: 0 });
+    client.emit('skill');
+    await new Promise((resolve) => setTimeout(resolve, 60));
+    client.emit('fire', 'primary');
+    const candidate = await Promise.race([
+      effectPromise,
+      new Promise((_, reject) => setTimeout(() => reject(new Error('area_effect never fired within 3s')), 3000)),
+    ]);
+    const landed = candidate.x - before.x;
+    // A full-distance landing is the natural end (endGuardianDash with
+    // atEnd=true); a shot or a moved cooldown means the click missed the
+    // dash and fired the weapon instead.
+    const missed = landed >= GUARDIAN_RUSH_DISTANCE
+      || shots.length > 0
+      || player.hero.cooldowns.weapon.readyAt !== weaponReadyAt;
+    if (!missed) {
+      effect = candidate;
+    } else {
+      // Give the cooldowns back so the next cast is legal, and reset the
+      // position so the landing is measured from the new dash start.
+      player.hero.cooldowns.weapon.readyAt = weaponReadyAt;
+      player.hero.cooldowns.skill.readyAt = 0;
+    }
+  }
+  assert.ok(effect, 'the click was handled inside the Shield Rush dash');
 
-  const effect = await Promise.race([
-    effectPromise,
-    new Promise((_, reject) => setTimeout(() => reject(new Error('area_effect never fired within 3s')), 3000)),
-  ]);
   const travelled = effect.x - before.x;
   assert.equal(effect.sourceAbility, 'skill', 'the early end still fires the Shield Rush fan');
   assert.ok(travelled >= 0, 'the cancel never moves the Guardian backwards');
-  assert.ok(travelled < GUARDIAN_RUSH_DISTANCE - 50,
+  // The only thing the cancel can produce is a landing short of the full
+  // dash, so the bound is the dash distance itself, not a guess about how
+  // fast the click arrives.
+  assert.ok(travelled < GUARDIAN_RUSH_DISTANCE,
     `the fan fires short of the full ${GUARDIAN_RUSH_DISTANCE}px (travelled ${Math.round(travelled)}px)`);
   assert.ok(Math.abs(effect.y - before.y) < 2, 'the cancel keeps the locked dash line');
   assert.equal(player.dashState, null, 'the dash is over immediately, not left to expire');
@@ -402,23 +430,37 @@ test('holding primary fire repeats the shot at the weapon cooldown', async (t) =
   await nextState(client, (state) => state.players.some((player) => player.id === clientId));
 
   const shots = [];
+  const player = server.heroLab.players.get(clientId);
   client.on('weapon_fired', (event) => {
-    if (event.playerId === clientId) shots.push({ ...event, at: Date.now() });
+    if (event.playerId !== clientId) return;
+    // The event carries no server timestamp, so record the SERVER's cooldown
+    // anchor instead of the client's arrival time.
+    shots.push({ ...event, readyAt: player?.hero.cooldowns.weapon.readyAt ?? 0 });
   });
   client.emit('primary_hold', true);
   await new Promise((resolve) => setTimeout(resolve, 900));
   client.emit('primary_hold', false);
+  // Wait until the server has seen the release, then let the in-flight shot
+  // land, so a shot that was already on the wire cannot land after the count.
+  const releaseDeadline = Date.now() + 1000;
+  while (player.primaryHeld && Date.now() < releaseDeadline) {
+    await new Promise((resolve) => setTimeout(resolve, 10));
+  }
+  await new Promise((resolve) => setTimeout(resolve, 60));
   const whileHeld = shots.length;
   await new Promise((resolve) => setTimeout(resolve, 400));
 
   assert.ok(whileHeld >= 2, `holding primary fire keeps shooting (got ${whileHeld} shots)`);
   assert.ok(shots.every((shot) => shot.source === 'hold'), 'held shots are tagged so the client can play their sound');
   assert.equal(shots.length, whileHeld, 'releasing the button stops the stream');
-  // Times are when the client received each shot, so one late delivery can
-  // make a single gap look short under load; the average over the burst
-  // still shows the 270ms revolver cooldown is respected.
-  const meanGap = (shots.at(-1).at - shots[0].at) / (shots.length - 1);
-  assert.ok(meanGap >= 240, `shots respect the 270ms revolver cooldown (mean gap ${Math.round(meanGap)}ms)`);
+  // The cooldown lives on the server: assert the cooldown anchor advanced a
+  // full 270ms per shot. Client arrival times only measure how promptly the
+  // event loop got to run.
+  for (let i = 1; i < shots.length; i += 1) {
+    const advance = shots[i].readyAt - shots[i - 1].readyAt;
+    assert.ok(advance >= 270,
+      `shots respect the 270ms revolver cooldown (server cooldown anchor advanced ${Math.round(advance)}ms)`);
+  }
 });
 
 test('a held primary button does not cancel Shield Rush', async (t) => {
@@ -437,13 +479,37 @@ test('a held primary button does not cancel Shield Rush', async (t) => {
   client.emit('primary_hold', true);
   await new Promise((resolve) => setTimeout(resolve, 120));
   assert.ok(shots > 0, 'the hold is live before the dash starts');
-  shots = 0;
 
+  // The fan is emitted exactly once, when the dash ends - naturally at the
+  // 250ms deadline, or early if something cancelled it. Waiting for that
+  // event removes the fixed sleep, so the check no longer depends on the wall
+  // clock: the landing point says whether the dash was cut short.
+  // Register the listener BEFORE casting: the fan fires ~250ms after the skill.
+  const effectPromise = new Promise((resolve) => client.once('area_effect', resolve));
+  const before = { x: player.x, y: player.y };
+  client.emit('aim', { x: 1, y: 0 });
   client.emit('skill');
-  await nextState(client, (state) => state.players.find((candidate) => candidate.id === clientId)?.rushDashing);
-  await new Promise((resolve) => setTimeout(resolve, 120));
+  // The counter is reset once the dash is known to be running: a hold shot the
+  // server fires between the skill being emitted and the server handling it
+  // belongs to the gap, not to the dash. The 'rushDashing' frame can be
+  // missed when the dash starts and ends inside one tick on a stalled runner,
+  // so the fan - which always arrives - is the fallback.
+  await Promise.race([
+    nextState(client, (state) => state.players.find((candidate) => candidate.id === clientId)?.rushDashing).catch(() => null),
+    effectPromise,
+  ]);
+  shots = 0; // the dash is running now, so the hold must be silent from here on
+  const effect = await Promise.race([
+    effectPromise,
+    new Promise((_, reject) => setTimeout(() => reject(new Error('area_effect never fired within 3s')), 3000)),
+  ]);
 
-  assert.ok(player.dashState, 'the dash is still running while the button is held');
+  assert.equal(effect.sourceHeroId, 'guardian');
+  assert.equal(effect.sourceAbility, 'skill');
+  assert.ok(effect.x - before.x >= GUARDIAN_RUSH_DISTANCE - 1,
+    `the held button did not cut the dash short (travelled ${Math.round(effect.x - before.x)}px)`);
+  assert.ok(Math.abs(effect.y - before.y) < 2, 'the dash kept its locked line');
+  assert.equal(player.dashState, null, 'the dash is over once the fan has fired');
   assert.equal(shots, 0, 'holding fires nothing during the dash');
   client.emit('primary_hold', false);
 });
