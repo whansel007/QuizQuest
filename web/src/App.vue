@@ -7,7 +7,6 @@ import { S, setTab, restoreSession } from './api.js';
 import { toastState } from './ui.js';
 import LoginView from './LoginView.vue';
 import ReviewView from './teacher/ReviewView.vue';
-import MaterialLibrary from './teacher/MaterialLibrary.vue';
 import GenerateView from './teacher/GenerateView.vue';
 import AnalyticsView from './teacher/AnalyticsView.vue';
 import EvaluationView from './teacher/EvaluationView.vue';
@@ -27,7 +26,7 @@ import QuizQuestLogo from './components/QuizQuestLogo.vue';
 import TeacherNavIcon from './teacher/TeacherNavIcon.vue';
 
 const TABS = {
-  teacher: [['analytics', 'Analytics', AnalyticsView], ['classes', 'Classes & Roster', ClassManagementView], ['review', 'Question bank', ReviewView], ['content', 'Source material', MaterialLibrary], ['generate', 'AI drafting', GenerateView], ['evaluation', 'Evaluation', EvaluationView], ['settings', 'Settings', SettingsView]],
+  teacher: [['analytics', 'Analytics', AnalyticsView], ['classes', 'Classes & Roster', ClassManagementView], ['review', 'Question bank', ReviewView], ['generate', 'AI drafting', GenerateView], ['evaluation', 'Evaluation', EvaluationView], ['settings', 'Settings', SettingsView]],
   student: [['kingdom', 'Kingdom', KingdomView], ['practice', 'Practice', PracticeView], ['progress', 'My Progress', ProgressView], ['world', 'World', HeroLabView], ['pets', 'Summon', PetsView]],
 };
 
