@@ -287,7 +287,7 @@ function draftFor(topicId, outcomeId) {
   S.draftTarget = { topicId, outcomeId };
   setTab('generate');
 }
-// Weekly topics "next step": open Source material, AI drafting or the bank on that topic
+// Weekly topics "next step": open AI drafting or the bank on that topic
 function goTopic({ topicId, tab, filter = null }) {
   S.courseId = courseId.value || S.courseId;
   S.topicId = topicId;

@@ -102,7 +102,15 @@ function drawMeteor(meteor, now) {
   gradient.addColorStop(1, `rgba(251,242,216,${fade})`);
   ctx.strokeStyle = gradient;
   ctx.lineWidth = 1.5;
+  ctx.lineCap = 'round';
   ctx.beginPath(); ctx.moveTo(tailX, tailY); ctx.lineTo(headX, headY); ctx.stroke();
+  // a small bright head leads the trail, so the direction of travel reads clearly
+  ctx.globalAlpha = fade;
+  ctx.fillStyle = '#FFF8E4';
+  ctx.beginPath(); ctx.arc(headX, headY, 1.8, 0, Math.PI * 2); ctx.fill();
+  ctx.globalAlpha = fade * 0.35;
+  ctx.beginPath(); ctx.arc(headX, headY, 4, 0, Math.PI * 2); ctx.fill();
+  ctx.globalAlpha = 1;
   return elapsed < SUMMON_METEOR_DURATION_MS;
 }
 

@@ -70,7 +70,7 @@ export const S = reactive({
   classId: null,
   qFilter: 'draft',
   qReviewMode: 'list', // Question bank: 'list' or 'cards' (kept across the remount after a save)
-  // Weekly topic shared by Source material, AI drafting, Question bank and
+  // Weekly topic shared by AI drafting, Question bank and
   // Analytics, so moving between them keeps the same week ('' = all topics)
   topicId: '',
   // Analytics period: '7d' | '30d' | 'semester' | 'all' | 'custom' (from/to:

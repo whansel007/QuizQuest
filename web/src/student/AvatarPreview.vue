@@ -1,6 +1,6 @@
 <script setup>
 import { onMounted, onUnmounted, ref, watch } from 'vue';
-import { drawAvatarCosmetics, loadPlayerVisuals, tintedPlayerFrames } from './avatar.js';
+import { COSMETIC_HEADROOM, drawAvatarCosmetics, loadPlayerVisuals, tintedPlayerFrames } from './avatar.js';
 
 const props = defineProps({
   color: { type: String, required: true },
@@ -35,10 +35,11 @@ function draw(time = performance.now(), force = false) {
   const frame = tintedPlayerFrames(visuals, props.color)[frameName]
     || tintedPlayerFrames(visuals, props.color).open;
   const context = canvas.value.getContext('2d');
-  const height = canvas.value.height - 4 * dpr;
+  // Leave room above the head so tall hats are not clipped by the canvas.
+  const height = (canvas.value.height - 4 * dpr) / (1 + COSMETIC_HEADROOM);
   const width = height * frame.width / frame.height;
   const left = (canvas.value.width - width) / 2;
-  const top = 2 * dpr;
+  const top = canvas.value.height - 2 * dpr - height;
   context.clearRect(0, 0, canvas.value.width, canvas.value.height);
   context.imageSmoothingEnabled = true;
   context.imageSmoothingQuality = 'high';
