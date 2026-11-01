@@ -97,7 +97,10 @@ function trimRedundantOptions(q, indexes) {
   const remove = new Set(indexes.filter(i => Number.isInteger(i) && q.answerIndexes.includes(i)));
   if (!remove.size || q.options.length - remove.size < 4 || q.answerIndexes.length - remove.size < 2) return null;
   const wording = [q.stem, q.explanation, ...q.options].join(' ');
-  if (/\([A-F1-6]\)|\b[A-F]\s*[\/)\.&]\s|\b(?:two|three|four|five|[2-5])\s+(?:correct|true|valid|supported)\s+(?:options|answers|choices|statements)\b/.test(wording)) return null;
+  // The option-label parts stay case-sensitive (they name A-F labels); the count
+  // wording is matched case-insensitively, like the guard below it, so a
+  // capitalised "Three correct options apply." is caught as well.
+  if (/\([A-F1-6]\)|\b[A-F]\s*[\/)\.&]\s/.test(wording) || /\b(?:two|three|four|five|[2-5])\s+(?:correct|true|valid|supported)\s+(?:options|answers|choices|statements)\b/i.test(wording)) return null;
   if (/\b(?:option|answer|choice|statement)s?\s+[A-F1-6]\b|\b[A-F]\s*(?:and|or|,)\s*[A-F]\b|\b(?:select|choose|pick|mark)\s+(?:exactly\s+)?(?:two|three|four|five|[2-5])\b/i.test(wording)) return null;
   const retained = q.options.map((text, i) => ({ text, i })).filter(({ i }) => !remove.has(i));
   return { options: retained.map(x => x.text), answerIndexes: retained.flatMap((x, i) => q.answerIndexes.includes(x.i) ? [i] : []) };

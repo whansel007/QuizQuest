@@ -39,6 +39,21 @@ function inputHash(parts) {
   return crypto.createHash('sha256').update(JSON.stringify(parts)).digest('hex').slice(0, 16);
 }
 
+// The same bad draft can be tried again and again, and each try is kept in
+// the audit log. The professor is told about each distinct failure once, so
+// "3 items failed" means three questions, not three attempts at one.
+function distinctRejected(rejected) {
+  const seen = new Set();
+  const out = [];
+  for (const r of rejected || []) {
+    const key = r.candidate ? inputHash(r.candidate) : `${r.stem}|${(r.errors || []).join(' ')}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    out.push(r);
+  }
+  return out;
+}
+
 // --- Gemini drafter ---------------------------------------------------
 const SYSTEM_PROMPT = [
   'You write practice questions for a university course.',
@@ -227,7 +242,7 @@ async function geminiDraft(ctx, client = gemini.generateJson) {
     parts: [{ text: buildUserPrompt(ctx) }],
     schema,
   });
-  if (!Array.isArray(json.questions)) throw new Error('missing questions array');
+  if (!Array.isArray(json.questions)) throw Object.assign(new Error('missing questions array'), { code: 'BAD_SHAPE' });
   return { items: json.questions.slice(0, ctx.count), raw, model, applicationSupported:json.applicationSupported, limitation:json.limitation };
 }
 
@@ -410,7 +425,8 @@ async function generate({
   };
   let lastError,
     hadOutput = false,
-    calls = 0, rounds = 0;
+    calls = 0, rounds = 0,
+    shapeFeedback = []; // structural complaints, sent back to the model
   inFlight.add(course.id);
   try {
     await checkpoint(log);
@@ -433,13 +449,17 @@ async function generate({
           count: Math.min(batchSize, count - log.createdQuestionIds.length),
           existingStems: existingStems.map((q) => q.stem),
           relatedQuestions: related(),
-          validationFeedback: log.rejected.slice(-5).map(({ stem, errors }) => ({ stem, errors })),
+          validationFeedback: [...distinctRejected(log.rejected).slice(-5).map(({ stem, errors }) => ({ stem, errors })), ...shapeFeedback.map((error) => ({ stem: 'the whole reply', errors: [error] }))],
         });
-        if (!out || !Array.isArray(out.items)) throw new Error('Missing questions array');
+        if (!out || !Array.isArray(out.items)) throw Object.assign(new Error('Missing questions array'), { code: 'BAD_SHAPE' });
         hadOutput = true;
         log.model = out.model || log.model;
       } catch (err) {
         lastError = err;
+        // A reply of the wrong shape is worth another round, but only if the
+        // model is told what was wrong with it.
+        if (err.code === 'BAD_SHAPE')
+          shapeFeedback = ['Your previous reply was not in the required shape: ' + (err.message || 'the questions array was missing') + '. Return exactly {"questions":[...]} and nothing else.'];
         if (batchVerifier && (err.status === 429 || err.retryable === false)) throw err;
         if (err.retryable === false || [400, 401, 403, 404, 402, 422].includes(err.status)) break;
         continue;
@@ -513,6 +533,9 @@ async function generate({
           }
         }
         if (errors.length) {
+          // Every attempt is kept: the audit trail says which round produced
+          // the failure. The answer to the professor counts each distinct
+          // failure once (see distinctRejected).
           log.rejected.push({ stem: q.stem.slice(0, 200), errors, candidate: structuredClone(item), batch: log.calls, index, at: now });
           continue;
         }
@@ -549,13 +572,23 @@ async function generate({
   log.missing = Math.max(0, count - log.createdQuestionIds.length);
   if (lastError) console.error('[generate]', lastError.message);
   if (!log.createdQuestionIds.length && !hadOutput) {
-    log.error = 'Generation failed';
+    // The model's own reply is not kept, not even in the log: it can repeat
+    // the professor's course material. The size of an unreadable reply is
+    // enough to tell "no answer" from "an answer the server cannot use".
+    log.error =
+      lastError && typeof lastError.replyBytes === 'number'
+        ? `Generation failed (the model replied with ${lastError.replyBytes} bytes the server could not read)`
+        : 'Generation failed';
     await checkpoint(log);
     return {
       status: 502,
       body: {
         error: 'The drafting service did not return usable questions. Retry to continue, or write questions manually.',
         generationId: log.id,
+        // The provider's own failure, so the caller can tell a problem only an
+        // administrator can fix from one the professor can.
+        ...(lastError && lastError.code ? { code: lastError.code } : {}),
+        ...(lastError && lastError.status ? { providerStatus: lastError.status } : {}),
       },
     };
   }
@@ -567,7 +600,7 @@ async function generate({
       generationId: log.id,
       created: log.createdQuestionIds,
       missing: log.missing,
-      rejected: log.rejected,
+      rejected: distinctRejected(log.rejected),
       provider,
       retrieved,
     },

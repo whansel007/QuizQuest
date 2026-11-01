@@ -297,8 +297,15 @@ function createQuizApi({ dataFile = null, store = null, now = () => Date.now(), 
     const result = validateQuestion(body, { allowedSourceIds: allowed, requireSource: original?.origin === 'ai', existingStems, ignoreId });
     if (original?.origin === 'ai' && result.q.type === 'mcq' && result.q.options.length !== 4)
       result.errors.push('AI MCQs require exactly four options.');
-    if (result.q.type === 'multi' && result.q.answerIndexes.length < 2 && (!original || original.versions.at(-1).type !== 'multi'))
-      result.errors.push('Multi-select requires at least two correct options.');
+    // A multi-select question needs at least two correct options. The
+    // exemption is for questions that were SAVED with fewer, not for every
+    // multi-select question: editing one down to a single answer has to fail
+    // the same check a new question would.
+    if (result.q.type === 'multi' && result.q.answerIndexes.length < 2) {
+      const originalIndexes = original?.versions.at(-1).answerIndexes;
+      const historical = Array.isArray(originalIndexes) && originalIndexes.length < 2;
+      if (!historical) result.errors.push('Multi-select requires at least two correct options.');
+    }
     return result;
   }
   function checkOrFail(course, body, ignoreId) {
@@ -1527,21 +1534,46 @@ attemptId: attempt.id,
     let tags;
     try { tags=resolveTags(db,c,body); } catch(e) { if(e.status) fail(e.status,e.message); throw e; }
     const {topic,outcome}=tags;
+    // The topic and its outcome are stored with the request, but only kept
+    // when the request actually does something with them. A failed generation
+    // must not leave a half-made topic behind. The professor's own typing
+    // stays in the form either way.
+    const topicWasThere = db.topics.some((t) => t.id === topic.id);
+    const outcomeWasThere = (db.topics.find((t) => t.id === topic.id)?.outcomes || []).some((o) => o.id === outcome.id);
+    const rollback = () => {
+      if (db.questions.some((q) => q.topicId === topic.id)) return; // it holds questions now
+      if (topicWasThere) {
+        const saved = db.topics.find((t) => t.id === topic.id);
+        const i = saved?.outcomes.findIndex((o) => o.id === outcome.id) ?? -1;
+        if (saved && !outcomeWasThere && i >= 0) saved.outcomes.splice(i, 1);
+      } else {
+        const i = db.topics.findIndex((t) => t.id === topic.id);
+        if (i >= 0) db.topics.splice(i, 1);
+      }
+    };
     tags.commit();
-    const r = await generate({
-      db,
-      course: c,
-      topic,
-      outcome,
-      count: body.count,
-      format: body.format,
-      focus: body.focus,
-      force: body.force === true,
-      userId: user.id,
-      now: now(),
-      drafter,
-      checkpoint: persist,
-    });
+    let r;
+    try {
+      r = await generate({
+        db,
+        course: c,
+        topic,
+        outcome,
+        count: body.count,
+        format: body.format,
+        focus: body.focus,
+        force: body.force === true,
+        userId: user.id,
+        now: now(),
+        drafter,
+        checkpoint: persist,
+      });
+    } catch (e) {
+      rollback();
+      save();
+      throw e;
+    }
+    if (r.status !== 200) rollback();
     save();
     return [r.status, r.body];
   });
