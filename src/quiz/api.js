@@ -1059,10 +1059,14 @@ attemptId: attempt.id,
     return { ok: true };
   });
 
+  // A job carries the server's own working state: the recovery log, the
+  // validation notes, the drafted batch, the job key and the provider's
+  // error text. None of that belongs in a response to the browser.
+  const publicJob = ({ metrics, key, sourceDigest, _recovery, _validation, reportSnapshot, pendingBatch, _diagnostics, ...j }) => j;
   route('GET', '/api/teacher/courses/:cid/authoring', 'teacher', ({ user, params }) =>
-    authoring.jobs(teacherCourse(user, params.cid)).map(({ metrics, key, sourceDigest, _recovery, _validation, reportSnapshot, pendingBatch, _diagnostics, ...j }) => {
+    authoring.jobs(teacherCourse(user, params.cid)).map((j) => {
       const { parts, synthesis, ...result } = j.result;
-      return { ...j, result: { ...result, partCount: parts?.length } };
+      return { ...publicJob(j), result: { ...result, partCount: parts?.length } };
     }),
   );
   route('GET', '/api/teacher/courses/:cid/authoring/:jid', 'teacher', ({ user, params }) => {
@@ -1076,7 +1080,7 @@ attemptId: attempt.id,
     statusReply(async ({ user, params, body }) => {
       const j = authoring.start(teacherCourse(user, params.cid), body.kind, body, user.id);
       await persist();
-      return [202, j];
+      return [202, publicJob(j)];
     }),
   );
   route(
@@ -1086,7 +1090,7 @@ attemptId: attempt.id,
     statusReply(async ({ user, params }) => {
       const j = authoring.resume(teacherCourse(user, params.cid), params.jid);
       await persist();
-      return [202, j];
+      return [202, publicJob(j)];
     }),
   );
   route(
