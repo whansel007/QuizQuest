@@ -31,7 +31,17 @@ export default defineConfig({
   // and then report only "test timed out", with no hint what was missing.
   // 30s per action fails fast and names the selector that was not there.
   use: {
-    trace: 'on-first-retry',
+    // Keep the evidence of the first failure, not only of the retry. The
+    // retry replays the test against the data the first attempt already
+    // changed, so the first attempt's trace is the one that shows what
+    // really went wrong. 'retain-on-failure' keeps it, and a screenshot of
+    // the failed page goes with it.
+    trace: 'retain-on-failure',
+    screenshot: 'only-on-failure',
+    // A click that never finds its element would wait for the whole test
+    // budget and then report only "test timed out", with no hint what was
+    // missing. 30s per action fails fast and names the selector that was
+    // not there.
     actionTimeout: 30 * 1000,
   },
   // 5s is the default. A page that has to answer the server and then redraw

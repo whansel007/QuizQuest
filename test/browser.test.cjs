@@ -37,11 +37,24 @@ async function openStudentTab(page, name) {
   await tab.focus();
   await tab.click();
 }
+// The question counter is on screen while the session is still being
+// fetched, so waiting for it says nothing about the question having
+// arrived. Wait for the answers card to hold a real answer control:
+// counting the options once can land on the loading screen and pick the
+// wrong branch for a question that has no options at all.
+async function waitForAnswerControl(page) {
+  await page.waitForFunction(() => {
+    const card = document.querySelector('.quiz-answers-card');
+    if (!card) return false;
+    return !!card.querySelector('.options button, [aria-label="Numeric answer"], [aria-label="Written answer"]');
+  });
+}
 
 test('student reports survive a failed submission and show a professor response in My Progress', async (t) => {
   const page = await pageFor(t, 'Student 01');
   await page.getByRole('button', { name: 'Start practice', exact: true }).click();
   await page.locator('.quiz-head').waitFor();
+  await waitForAnswerControl(page);
   const choices = page.locator('.options button');
   if (await choices.count()) {
     await choices.first().click();
@@ -90,7 +103,15 @@ test('My Progress handles empty history, a failed load and narrow screens', asyn
   await page.getByRole('button', { name: 'Refresh progress', exact: true }).click();
   await page.getByText('No completed practice sessions yet.', { exact: true }).waitFor();
   await page.getByText('You have not reported any questions in this class.', { exact: true }).waitFor();
-  assert.equal(await page.getByText('Not practised yet', { exact: true }).count(), 3);
+  // The topics a student can practise are the ones of the courses their
+  // classes belong to, so the count comes from the server's own tables
+  // rather than from a number that only matches today's seed.
+  const studentId = srv.quiz.db.users.find((user) => user.name === 'Student 12').id;
+  const studentCourses = [...new Set(srv.quiz.db.enrolments
+    .filter((enrolment) => enrolment.studentId === studentId)
+    .map((enrolment) => srv.quiz.db.classes.find((cls) => cls.id === enrolment.classId)?.courseId))];
+  const studentTopics = srv.quiz.db.topics.filter((topic) => studentCourses.includes(topic.courseId)).length;
+  assert.equal(await page.getByText('Not practised yet', { exact: true }).count(), studentTopics);
   assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth), true);
   if (process.env.QA_SCREENSHOTS) await page.screenshot({ path: require('node:path').join(process.env.QA_SCREENSHOTS, 'Progress-empty-mobile.png'), fullPage: true });
 });
@@ -139,6 +160,7 @@ test('practice Next recovers from a failed request and the session finishes', as
   await page.getByRole('button', { name: 'Start practice' }).click();
   for (let i = 0; i < 5; i++) {
     await page.locator('.quiz-head').waitFor();
+    await waitForAnswerControl(page);
     const choices = page.locator('.options button');
     if (await choices.count()) {
       await choices.first().click();
@@ -255,9 +277,13 @@ test('hero lab picks a hero and hands off to the arena', async (t) => {
   // anchors, not buttons.
   const cards = page.locator('#hero-list a');
   await cards.first().waitFor();
-  assert.equal(await cards.count(), 8);
-  for (const hero of ['Guardian', 'Sheriff', 'Pilot', 'Bombardier', 'Bubbles', 'Electromancer', 'Fairy', 'Engineer']) {
-    assert.ok(await cards.filter({ hasText: hero }).count(), `${hero} is offered`);
+  // The roster is the source of truth: the picker must offer every hero the
+  // game ships. Reading it from the roster means a new hero cannot slip in
+  // unnoticed and a removed one cannot linger in the picker.
+  const { HEROES } = await import('../public/hero-lab/hero-list.js');
+  assert.equal(await cards.count(), HEROES.length);
+  for (const hero of HEROES) {
+    assert.ok(await cards.filter({ hasText: hero.name }).count(), `${hero.name} is offered`);
   }
   await cards.filter({ hasText: 'Sheriff' }).click();
   await page.waitForURL(/\/hero-lab\/world\?heroId=sheriff/);
@@ -279,15 +305,34 @@ test('Engineer E toggles turret placement and primary fire confirms it', async (
   await page.waitForFunction(() => document.querySelector('#hero-name')?.textContent?.includes('Engineer'));
 
   const room = srv.heroLab.rooms.peekDefaultRoom();
-  const player = room.snapshot().players.find((candidate) => candidate.heroId === 'engineer');
+  const snapshot = room.snapshot();
+  const player = snapshot.players.find((candidate) => candidate.heroId === 'engineer');
   assert.ok(player, 'the arena has joined as Engineer');
   const canvas = page.locator('#world');
   const box = await canvas.boundingBox();
-  const target = { x: player.x + 100, y: player.y };
-  await page.mouse.move(box.x + target.x * box.width / 1920, box.y + target.y * box.height / 1080);
+  // A turret may not stand within 110px of the campfire, and the Engineer
+  // spawns on a 105-145px ring around it. A fixed "+100 to the right" target
+  // therefore lands inside that ring whenever the player spawns on the left
+  // of the fire, and the game refuses the placement. Aim straight away from
+  // the campfire instead: the spot is then always legal and always 100px out.
+  const away = Math.hypot(player.x - snapshot.campfire.x, player.y - snapshot.campfire.y) || 1;
+  const target = {
+    x: player.x + (player.x - snapshot.campfire.x) / away * 100,
+    y: player.y + (player.y - snapshot.campfire.y) / away * 100,
+  };
+  const onScreen = (point) => [
+    box.x + point.x * box.width / 1920,
+    box.y + point.y * box.height / 1080,
+  ];
+  await page.mouse.move(...onScreen(target));
+  // The arena draws at 1920x1080 but keeps a smaller backing store, so the
+  // pixels have to be read in backing-store coordinates, not arena ones.
   const readRegion = () => page.evaluate(({ x, y }) => {
-    const ctx = document.querySelector('#world').getContext('2d');
-    return [...ctx.getImageData(Math.round(x) - 24, Math.round(y) - 20, 48, 40).data];
+    const canvas = document.querySelector('#world');
+    const ctx = canvas.getContext('2d');
+    const sx = canvas.width / 1920;
+    const sy = canvas.height / 1080;
+    return [...ctx.getImageData(Math.round(x * sx) - 24, Math.round(y * sy) - 20, 48, 40).data];
   }, target);
   await page.waitForTimeout(100);
   const before = await readRegion();
@@ -295,6 +340,10 @@ test('Engineer E toggles turret placement and primary fire confirms it', async (
   const targetingHint = page.locator('#targeting-hint');
   await targetingHint.waitFor({ state: 'visible' });
   assert.match(await targetingHint.textContent(), /Primary fire to place/);
+  // The one-time briefing fades for 300ms and stays hit-testable while it
+  // fades, so a click in that window lands on the invisible overlay instead
+  // of the arena. Wait until it is really gone.
+  await page.locator('#join-briefing').waitFor({ state: 'hidden' });
   await page.keyboard.press('e');
   await targetingHint.waitFor({ state: 'hidden' });
   assert.equal(room.snapshot().turrets.some((candidate) => candidate.ownerId === player.id), false,
@@ -302,8 +351,8 @@ test('Engineer E toggles turret placement and primary fire confirms it', async (
 
   await page.keyboard.press('e');
   await targetingHint.waitFor({ state: 'visible' });
-  await page.mouse.move(box.x + target.x * box.width / 1920, box.y + target.y * box.height / 1080);
-  await page.mouse.click(box.x + target.x * box.width / 1920, box.y + target.y * box.height / 1080);
+  await page.mouse.move(...onScreen(target));
+  await page.mouse.click(...onScreen(target));
 
   const deadline = Date.now() + 2000;
   let turret;
@@ -312,7 +361,8 @@ test('Engineer E toggles turret placement and primary fire confirms it', async (
     if (turret) break;
     await new Promise((resolve) => setTimeout(resolve, 30));
   }
-  assert.ok(turret, 'primary fire confirms an owned turret at the cursor');
+  const refused = await page.locator('.toast', { hasText: "Can't place turret here" }).count();
+  assert.ok(turret, `primary fire confirms an owned turret at the cursor${refused ? ' - the game refused the spot' : ''}`);
   await page.waitForTimeout(100);
   const after = await readRegion();
   const changedPixels = before.reduce((count, value, index) => count + (value !== after[index] ? 1 : 0), 0);
@@ -380,6 +430,7 @@ test('an answer accepted before a lost response can be retried exactly once', as
     await route.fetch(); // server committed; pretend the response was lost
     await route.abort();
   }, { times: 1 });
+  await waitForAnswerControl(page);
   if (await page.locator('.options button').count()) {
     await page.locator('.options button').first().click();
     if (await page.getByRole('button', { name: 'Submit answer' }).count()) await page.getByRole('button', { name: 'Submit answer' }).click();
@@ -451,7 +502,10 @@ test('kingdom builds drop new blocks in place and the summon reveal hands over t
     pity: { totalPulls: pity.totalPulls + 1, sinceHero: 0, sinceEpic: 0 },
   });
   t.after(() => { R.drawHeroSummon = draw; });
-  await page.locator('#tabs').getByRole('button', { name: 'Summon' }).click();
+  // The Kingdom is immersive, so the tab bar slides out of reach a moment
+  // after the pointer leaves it. openStudentTab brings it back the way a
+  // keyboard user would, so the click cannot land off-screen.
+  await openStudentTab(page, 'Summon');
   await page.getByRole('button', { name: /^Summon ×1(?!0)/ }).click();
   const dialog = page.getByRole('dialog');
   await dialog.waitFor();
@@ -877,7 +931,18 @@ test('weekly topics: narrow the dashboard, follow a next step, and add a topic f
   await page.locator('#tabs').getByRole('button', { name: 'Analytics', exact: true }).click();
   const weeks = page.locator('#dash-weeks');
   await weeks.getByRole('heading', { name: 'Weekly topics' }).waitFor();
-  assert.deepEqual(await weeks.locator('tbody tr td:first-child').allInnerTexts(), ['1', '2', '3']);
+  // The dashboard lists one row per topic of the professor's own courses, so
+  // the expectation comes from the server's topic table: a change to the
+  // seed must not look like a broken dashboard.
+  const teacherId = srv.quiz.db.users.find((user) => user.name === 'Prof. Demo A').id;
+  const teacherCourses = [...new Set(srv.quiz.db.classes
+    .filter((cls) => cls.teacherIds.includes(teacherId))
+    .map((cls) => cls.courseId))];
+  const teacherTopicWeeks = srv.quiz.db.topics
+    .filter((topic) => teacherCourses.includes(topic.courseId))
+    .map((topic) => String(topic.week))
+    .sort((a, b) => Number(a) - Number(b));
+  assert.deepEqual(await weeks.locator('tbody tr td:first-child').allInnerTexts(), teacherTopicWeeks);
   // a topic narrows every section, and the filter shows it
   await weeks.getByRole('button', { name: 'Show only Networking basics on the dashboard' }).click();
   await page.getByText('Showing Week 2 · Networking basics only', { exact: false }).waitFor();
@@ -896,7 +961,7 @@ test('weekly topics: narrow the dashboard, follow a next step, and add a topic f
   await page.locator('#tabs').getByRole('button', { name: 'Analytics', exact: true }).click();
   await page.getByRole('button', { name: 'Show all topics' }).click();
   await page.waitForFunction(() => document.querySelectorAll('#dash-topics tbody tr:not(.subrow)').length === 3);
-  assert.equal(await weeks.locator('tbody tr').count(), 3);
+  assert.equal(await weeks.locator('tbody tr').count(), teacherTopicWeeks.length);
   // Source material's topic table follows its topic filter too
   await page.locator('#tabs').getByRole('button', { name: 'AI drafting', exact: true }).click();
   await page.getByRole('heading',{name:'Manage topics & learning outcomes',exact:true}).waitFor(); // always open
@@ -907,9 +972,10 @@ test('weekly topics: narrow the dashboard, follow a next step, and add a topic f
   await page.locator('p', { hasText: 'Uploaded files are kept with this topic' }).waitFor();
   await page.getByRole('heading',{name:'Manage topics & learning outcomes',exact:true}).waitFor(); // always open
   await page.getByRole('button',{name:'Edit Cyber hygiene',exact:true}).waitFor();
-  assert.deepEqual(await page.locator('.topic-table tbody tr:not(.subrow) td:first-child').allInnerTexts(), ['3']);
+  const filteredWeek = String(srv.quiz.db.topics.find((topic) => topic.id === 'tp-sec').week);
+  assert.deepEqual(await page.locator('.topic-table tbody tr:not(.subrow) td:first-child').allInnerTexts(), [filteredWeek]);
   await page.getByRole('button',{name:'Show all topics',exact:true}).click();
-  await page.waitForFunction(() => document.querySelectorAll('.topic-table tbody tr:not(.subrow)').length === 3);
+  await page.waitForFunction((expected) => document.querySelectorAll('.topic-table tbody tr:not(.subrow)').length === expected, teacherTopicWeeks.length);
   // Source material: add Week 4; uploads then go into it
   await page.locator('#tabs').getByRole('button', { name: 'AI drafting', exact: true }).click();
   await page.getByRole('heading',{name:'Manage topics & learning outcomes',exact:true}).waitFor(); // always open

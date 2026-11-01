@@ -32,10 +32,40 @@ const once = (s, ev, ms = 3000) => new Promise((resolve, reject) => {
 });
 // The handshake is quick, but a busy CI runner can hold the event loop for
 // seconds, so the socket gets a longer window than the game events.
-const connected = (s) => once(s, 'connect', 15000);
+// The client starts connecting the moment the socket is created, so 'connect'
+// can fire before the caller attaches its listener - the handshake can beat
+// the next login round trip, and the event is then lost. socket.connected is
+// true once it has fired, so the wait never looks for an event that has been
+// and gone. A refused handshake now reports its reason instead of sitting on
+// a 15 second timeout for a connect that will never come.
+const connected = (s) => {
+  if (s.connected) return Promise.resolve(s);
+  return new Promise((resolve, reject) => {
+    const timer = setTimeout(() => {
+      s.off('connect', onConnect);
+      s.off('connect_error', onError);
+      reject(new Error('timeout waiting for connect'));
+    }, 15000);
+    function onConnect() { clearTimeout(timer); resolve(s); }
+    function onError(err) { clearTimeout(timer); reject(err); }
+    s.once('connect', onConnect);
+    s.once('connect_error', onError);
+  });
+};
 function connect(token) {
   return ioClient(base + '/world', { transports: ['websocket'], auth: { token }, reconnection: false });
 }
+// Wait for the effect instead of guessing at it: the server records the
+// cooldown when it releases the challenge (src/world/world.js:88), on its own
+// schedule - not a fixed number of milliseconds after the client closes.
+const until = async (fn, ms = 5000) => {
+  const started = Date.now();
+  for (;;) {
+    if (fn()) return true;
+    if (Date.now() - started > ms) throw new Error('until() timed out');
+    await new Promise((r) => setTimeout(r, 5));
+  }
+};
 function rightAnswer(ch) {
   const q = db().questions.find((x) => x.id === ch.q.id);
   const v = ch.v;
@@ -76,7 +106,11 @@ test('abandoned challenges are recorded and release reserved nodes', async () =>
   const qid = p.challenge.q.id;
   const before = db().attempts.length;
   s.emit('leave');
-  await new Promise((r) => setTimeout(r, 80));
+  // Wait for the release instead of guessing at it: the server reads the
+  // leave packet on its own schedule, and a busy runner can take longer
+  // than a fixed sleep allows. The attempt is recorded in the same server
+  // turn that clears the claim, so the count is already settled by then.
+  await until(() => node.claimedBy === null);
   assert.equal(node.claimedBy, null);
   assert.equal(db().attempts.length, before + 1);
   const a = db().attempts.at(-1);
@@ -275,11 +309,16 @@ test('a second tab takes over cleanly, even when alone in the world', async () =
   const kicked = once(tab1, 'kicked');
   // listen before joining: 'welcome' can arrive before 'kicked' is handled
   const welcome = once(tab2, 'welcome');
+  // 'state' has to be listened for before the join too. The World sends
+  // exactly ONE snapshot after a join - the game loop skips unchanged
+  // snapshots - so a listener attached after the join can only ever catch it
+  // by luck, and on a loaded runner the snapshot is already gone.
+  const state = once(tab2, 'state');
   tab2.emit('join', { classId: 'cl-a' });
   await kicked;
   const w = await welcome;
-  const state = await once(tab2, 'state');
-  assert.ok(state.players.some((p) => p.id === w.you), 'new tab is in the live world');
+  const snapshot = await state;
+  assert.ok(snapshot.players.some((p) => p.id === w.you), 'new tab is in the live world');
   assert.ok(srv.world.worlds.get('cl-a')?.players.has(w.you));
   tab1.close();
   tab2.close();
@@ -287,7 +326,7 @@ test('a second tab takes over cleanly, even when alone in the world', async () =
 
 test('leaving with an open question keeps the cooldown (no re-rolling)', async () => {
   const token = await login('s-06');
-  let s = connect(token);
+  const s = connect(token);
   await connected(s);
   s.emit('join', { classId: 'cl-a' });
   const w = await once(s, 'welcome');
@@ -298,18 +337,26 @@ test('leaving with an open question keeps the cooldown (no re-rolling)', async (
   world.nodes.length = 0;
   s.emit('interact');
   await once(s, 'challenge');
+
+  // Open the replacement socket BEFORE the walk-away: the handshake must not
+  // eat the 4 second cooldown window - a busy CI runner has been seen
+  // holding this process's event loop for more than 15 seconds.
+  const again = connect(token);
+  await connected(again);
+
   s.close(); // walk away without answering
-  await new Promise((r) => setTimeout(r, 100));
-  s = connect(token);
-  await connected(s);
-  s.emit('join', { classId: 'cl-a' });
-  const w2 = await once(s, 'welcome');
+  // The server records the cooldown when it processes the disconnect, so wait
+  // for that instead of assuming it already happened.
+  await until(() => (srv.world.cooldowns.get('s-06') || 0) > Date.now());
+
+  again.emit('join', { classId: 'cl-a' });
+  const w2 = await once(again, 'welcome');
   const world2 = srv.world.worlds.get('cl-a');
   Object.assign(world2.players.get(w2.you), { x: world2.boss.x + 80, y: world2.boss.y });
   world2.nodes.length = 0;
-  s.emit('interact');
-  assert.match(await once(s, 'notice'), /breath/);
-  s.close();
+  again.emit('interact');
+  assert.match(await once(again, 'notice'), /breath/);
+  again.close();
 });
 
 test('signing out ends World access on the open socket', async () => {

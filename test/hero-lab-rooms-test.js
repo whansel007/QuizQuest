@@ -345,6 +345,70 @@ test('only the host starts the run, and the countdown opens wave 1', async (t) =
   assert.ok(running.players.every((player) => player.hp === player.maxHp));
 });
 
+// The lobby dummies spawn at random spots inside a cluster, so a sibling dummy
+// can stand between the shooter and the target. The bullet then hits that one
+// instead and the target never breaks - the game is right, the shot simply hit
+// whatever stood in front of it. The test picks a target whose firing line is
+// actually clear, so it tests the break-and-respawn rule instead of the luck
+// of the spawn.
+//
+// The lobby's physics also shove any dummy that overlaps a hero away from it.
+// A dummy standing in front of the hero is therefore pushed forward, straight
+// into the firing line, and the shot hits it instead. So the shooting spot
+// has to be clear of every dummy's body as well - a dummy radius (18) plus a
+// hero radius (24) is how close the two get before the shove starts.
+const SHOT_ANGLES = 24;     // how many directions around a target are tried
+const SHOT_DISTANCES = [90, 70, 110, 130];  // how far back the hero stands
+const BULLET_RADIUS = 5;   // the sheriff's bullet
+const MUZZLE_OFFSET = 24;  // the bullet leaves the barrel this far out
+const SHOVE_RADIUS = 42;   // the body shove starts inside this distance
+
+// The hero has to stand clear of every dummy's body, not just of the one it
+// shoots. The lobby shoves any dummy that overlaps a hero, and the shove
+// pushes it straight away from the hero - so a dummy standing next to the
+// shooter is pushed into the firing line between the moment the shot is
+// chosen and the moment it is fired. A dummy radius (18) plus a hero radius
+// (24) is how close the two get before the shove starts.
+function bodyIsClear(dummies, from) {
+  return dummies.every((dummy) => Math.hypot(dummy.x - from.x, dummy.y - from.y) >= SHOVE_RADIUS);
+}
+
+function firingLineIsClear(dummies, target, from) {
+  const dx = target.x - from.x;
+  const dy = target.y - from.y;
+  const length = Math.hypot(dx, dy) || 1;
+  const ux = dx / length;
+  const uy = dy / length;
+  const muzzle = { x: from.x + ux * MUZZLE_OFFSET, y: from.y + uy * MUZZLE_OFFSET };
+  for (const other of dummies) {
+    if (other === target) continue;
+    const ox = other.x - muzzle.x;
+    const oy = other.y - muzzle.y;
+    if (ox * ux + oy * uy <= 0) continue; // behind the shooter
+    const across = Math.abs(ox * uy - oy * ux);
+    if (across <= other.radius + BULLET_RADIUS) return false;
+  }
+  return true;
+}
+
+function pickDummyWithClearShot(dummies) {
+  for (const target of dummies) {
+    for (const distance of SHOT_DISTANCES) {
+      for (let step = 0; step < SHOT_ANGLES; step += 1) {
+        const angle = (step / SHOT_ANGLES) * Math.PI * 2;
+        const from = {
+          x: target.x - Math.cos(angle) * distance,
+          y: target.y - Math.sin(angle) * distance,
+        };
+        if (!bodyIsClear(dummies, from)) continue;
+        if (!firingLineIsClear(dummies, target, from)) continue;
+        return { target, from };
+      }
+    }
+  }
+  return null;
+}
+
 test('the dummy takes damage and talents but never counts as a kill', async (t) => {
   const host = await connectClient();
   t.after(() => host.disconnect());
@@ -353,13 +417,17 @@ test('the dummy takes damage and talents but never counts as a kill', async (t) 
   const kills = [];
   host.on('monster_killed', (event) => kills.push(event));
 
-  const state = await waitFor(host, 'state', (snapshot) => snapshot.room?.phase === 'lobby', 4000);
-  const dummy = state.monsters.find((monster) => monster.isDummy);
+  await waitFor(host, 'state', (snapshot) => snapshot.room?.phase === 'lobby', 4000);
+  const dummies = [...room.monsters.values()].filter((monster) => monster.isDummy);
+  const shot = pickDummyWithClearShot(dummies);
+  assert.ok(shot, 'the lobby has a dummy with a clear firing line');
+  const dummy = shot.target;
   const player = room.players.get(welcome.you);
-  player.x = dummy.x - 90;
-  player.y = dummy.y;
-  player.aim = { x: 1, y: 0 };
-  player.hero.aim = { x: 1, y: 0 };
+  player.x = shot.from.x;
+  player.y = shot.from.y;
+  const aimLength = Math.hypot(dummy.x - shot.from.x, dummy.y - shot.from.y) || 1;
+  player.aim = { x: (dummy.x - shot.from.x) / aimLength, y: (dummy.y - shot.from.y) / aimLength };
+  player.hero.aim = { ...player.aim };
 
   const hit = waitFor(host, 'hit', (event) => event.enemyType === 'dummy', 4000);
   host.emit('fire', 'primary');
@@ -383,13 +451,17 @@ test('a broken dummy comes back after three seconds', async (t) => {
   await waitFor(host, 'state', (snapshot) => snapshot.room?.phase === 'lobby', 4000);
 
   const broken = waitFor(host, 'dummy_broken', () => true, 4000);
-  const dummy = [...room.monsters.values()].find((monster) => monster.isDummy);
+  const dummies = [...room.monsters.values()].filter((monster) => monster.isDummy);
+  const shot = pickDummyWithClearShot(dummies);
+  assert.ok(shot, 'the lobby has a dummy with a clear firing line');
+  const dummy = shot.target;
   dummy.hp = 1;
   const player = room.players.get(welcome.you);
-  player.x = dummy.x - 90;
-  player.y = dummy.y;
-  player.aim = { x: 1, y: 0 };
-  player.hero.aim = { x: 1, y: 0 };
+  player.x = shot.from.x;
+  player.y = shot.from.y;
+  const aimLength = Math.hypot(dummy.x - shot.from.x, dummy.y - shot.from.y) || 1;
+  player.aim = { x: (dummy.x - shot.from.x) / aimLength, y: (dummy.y - shot.from.y) / aimLength };
+  player.hero.aim = { ...player.aim };
   host.emit('fire', 'primary');
   await broken;
   assert.equal(room.dummyCount(), 3);
@@ -536,7 +608,10 @@ test('leaving at the dawn milestone hands the room to the next player', async (t
   assert.equal(room.hostId(), guestWelcome.you);
 
   guest.emit('milestone_choice', 'continue');
-  await new Promise((resolve) => setTimeout(resolve, 200));
+  // Wait for the milestone to actually close rather than guessing with a
+  // sleep: every 'state' frame sent while the milestone is open still
+  // carries it, so the wait cannot come back too early.
+  await waitFor(guest, 'state', (state) => state.dawn === null, 5000);
   const after = room.snapshot();
   assert.equal(after.dawn, null, 'the milestone closes');
   assert.equal(after.gameEnded, false, 'the run continues for the remaining hero');

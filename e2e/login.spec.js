@@ -13,8 +13,10 @@ test('should successfully log in a student with valid credentials', async ({ pag
   await page.getByRole('button', { name: 'Continue' }).click();
   await page.locator('#login-password').fill('quizquest');
   await page.getByRole('button', { name: 'Sign in' }).click();
-  // assert: the student's name is shown and they can start practising
+  // Students now land in their Kingdom home hub after sign-in.
   await expect(page.getByText('Student 01')).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Log out' })).toBeVisible();
+  await expect(page.locator('#tabs').getByRole('button', { name: 'Kingdom', exact: true })).toHaveAttribute('aria-current', 'page');
   // students land in their Kingdom, so open the practice tab to reach the setup
   await openTab(page, 'Practice');
   await expect(page.getByRole('button', { name: 'Start practice' })).toBeVisible();

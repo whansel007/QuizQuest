@@ -2,7 +2,7 @@
 // E2E test for the enrolment flow: a professor generates a join code and a
 // new student redeems it to get into the class.
 import { test, expect } from '@playwright/test';
-import { signIn, openTab, TEACHER } from './helpers.js';
+import { signIn, signUpStudent, openTab, TEACHER } from './helpers.js';
 
 test('a professor generates a join code and a new student enrols with it', async ({ page }) => {
   // Two sign-ins and a code round trip: give it room on WebKit.
@@ -21,13 +21,7 @@ test('a professor generates a join code and a new student enrols with it', async
 
   // --- a new student redeems it ---
   const student = await page.context().newPage();
-  const email = `joiner.${Date.now()}@example.com`;
-  await student.goto('/');
-  await student.getByRole('button', { name: 'Create a student account' }).click();
-  await student.getByRole('textbox', { name: 'Name' }).fill('Joiner');
-  await student.getByRole('textbox', { name: 'Email' }).fill(email);
-  await student.locator('#signup-password').fill('longenough');
-  await student.getByRole('button', { name: 'Create account' }).click();
+  await signUpStudent(student, 'Joiner');
 
   await openTab(student, 'Practice');
   await student.getByRole('button', { name: '+ Join Class' }).click();
@@ -40,12 +34,7 @@ test('a professor generates a join code and a new student enrols with it', async
 });
 
 test('a wrong join code is refused with a clear message', async ({ page }) => {
-  await page.goto('/');
-  await page.getByRole('button', { name: 'Create a student account' }).click();
-  await page.getByRole('textbox', { name: 'Name' }).fill('Wrong Code');
-  await page.getByRole('textbox', { name: 'Email' }).fill(`wrong.code.${Date.now()}@example.com`);
-  await page.locator('#signup-password').fill('longenough');
-  await page.getByRole('button', { name: 'Create account' }).click();
+  await signUpStudent(page, 'Wrong Code');
 
   await openTab(page, 'Practice');
   await page.getByRole('button', { name: '+ Join Class' }).click();

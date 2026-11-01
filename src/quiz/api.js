@@ -1624,13 +1624,14 @@ attemptId: attempt.id,
   // ---------------- student: home & progress ----------------
   route('GET', '/api/student/debug-mode', 'student', ({ user }) => ({ enabled: isSeededDemoUser(user) }));
   // Live Hero Lab rooms for the debug menu. Same gate as the rest of the menu:
-  // only synthetic demo accounts can see it.
-  // The route stays open for the profiler's room-code lookup, so the router
-  // never signs anyone in here: read the optional token ourselves.
-  route('GET', '/api/student/hero-lab/rooms', null, ({ req, query }) => {
-    const user = authenticate((req.headers.authorization || '').replace(/^Bearer\s+/i, ''));
+  // only synthetic demo accounts can see the whole list. Any other student may
+  // look up one room by its code (the profiler asks for it that way).
+  // The route keeps the 'student' role: the dispatcher only resolves the
+  // session user for a route that declares one, so a null role would leave
+  // `user` empty and every caller would be treated as a stranger.
+  route('GET', '/api/student/hero-lab/rooms', 'student', ({ user, query }) => {
     const rooms = services.heroLab?.rooms?.list?.() || [];
-    const isDebugUser = Boolean(user && isSeededDemoUser(user));
+    const isDebugUser = isSeededDemoUser(user);
     if (!isDebugUser) {
       const code = String(query.get('code') || '').trim().toUpperCase();
       if (!code) fail(400, 'Room code is required.');

@@ -10,6 +10,7 @@
     "test": "node --test test/*-test.js",
     "test:unit": "vitest",
     "test:e2e": "playwright test",
+    "test:e2e:retry": "playwright test --repeat-each=2",
     "check": "node scripts/check.js",
     "test:browser": "vite build && node --test test/browser*.test.cjs",
     "reset-data": "node -e \"require('fs').rmSync('data',{recursive:true,force:true})\"",

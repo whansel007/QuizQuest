@@ -5,6 +5,9 @@ import { test, expect } from '@playwright/test';
 import { signIn, openTab, createDraftQuestion, TEACHER } from './helpers.js';
 
 test('should list draft questions that need review', async ({ page }) => {
+  // The bank refetches and redraws the whole list when the filter changes,
+  // so the card can take a while to appear on a busy machine.
+  test.slow();
   await signIn(page, TEACHER);
   // The bank seeds one draft, but approving it (the test below) takes it out
   // of the review list, and a CI retry replays this test against the same
@@ -22,6 +25,9 @@ test('should list draft questions that need review', async ({ page }) => {
 });
 
 test('should publish a draft question when it is approved', async ({ page }) => {
+  // The bank refetches and redraws the whole list when the filter changes,
+  // so the card can take a while to appear on a busy machine.
+  test.slow();
   await signIn(page, TEACHER);
   const draft = await createDraftQuestion(page);
 

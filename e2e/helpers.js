@@ -11,6 +11,76 @@ export const STUDENT = { email: 'student01@quizquest.demo', name: 'Student 01' }
 // clock ran out.
 const VERDICT = /Correct!|Not quite\.|Partly right|Time is up|No answer given/;
 
+// Create a student account.
+//
+// The registration is one request, and it can come back with no answer at
+// all: the browser reuses a connection the server has just closed (the
+// server's keep-alive timeout is five seconds) and the POST never lands. The
+// app then says "Could not reach the server" instead, so the request is made
+// again, exactly as the sign-in helper does. The form keeps its values -
+// LoginView only clears the message - so the retry sends the same email.
+//
+// A retry can also come back with "that email already exists": the first
+// request DID land and only its answer was lost, so the account is there.
+//
+// `done` is the locator that means the request was answered - the "Log out"
+// button for a new account, or the "already exists" message for a duplicate.
+// Returns true when the account was already there, so the caller can sign in
+// instead of expecting a fresh session.
+export async function registerStudent(page, { name, email, password = 'longenough', done }) {
+  const offline = page.getByRole('alert').filter({ hasText: 'Could not reach the server' });
+  const already = page.getByText('An account with this email already exists. Sign in instead.');
+  const answered = done.or(already).or(offline);
+  await page.getByRole('button', { name: 'Create a student account' }).click();
+  await page.getByRole('textbox', { name: 'Name' }).fill(name);
+  await page.getByRole('textbox', { name: 'Email' }).fill(email);
+  await page.locator('#signup-password').fill(password);
+  await page.getByRole('button', { name: 'Create account' }).click();
+  await expect(answered.first()).toBeVisible({ timeout: 30_000 });
+  for (let attempt = 0; attempt < 3 && await offline.first().isVisible(); attempt++) {
+    await page.getByRole('button', { name: 'Create account' }).click();
+    await expect(answered.first()).toBeVisible({ timeout: 30_000 });
+  }
+  return already.first().isVisible();
+}
+
+// A student account of this test's own.
+//
+// A CI retry replays the test against the same server and the same data, so
+// a test that needs an account of its own makes a new one every attempt. A
+// shared account would arrive at the second attempt already holding the
+// first attempt's answers, reports and enrolments, and the "no history yet"
+// checks would be measuring the past instead of the test.
+//
+// Creating an account is a request of its own, so the wait is for the
+// "Log out" button that only appears once the account exists: reloading the
+// tab while the sign-up is still in flight would cancel it, and whatever the
+// test did next would find no such account.
+export async function signUpStudent(page, name) {
+  const email = `${name.toLowerCase().replace(/\s+/g, '.')}.${crypto.randomUUID().slice(0, 8)}@example.com`;
+  await page.goto('/');
+  const existed = await registerStudent(page, {
+    name,
+    email,
+    done: page.getByRole('button', { name: 'Log out' }),
+  });
+  if (existed) await signIn(page, { email, password: 'longenough' });
+  return email;
+}
+
+// Put a student account into one of the professor's classes, through the
+// professor's own session. The account has to exist already and the class has
+// to be one the professor owns.
+export async function enrolStudent(teacherPage, email, className) {
+  const token = await apiToken(teacherPage);
+  const response = await teacherPage.request.post('/api/classes/enrol', {
+    headers: { Authorization: `Bearer ${token}` },
+    data: { email, className },
+  });
+  const body = await response.text();
+  expect(response.status(), `the student joins ${className}: ${body}`).toBe(201);
+}
+
 export async function signIn(page, { email, password = PASSWORD }) {
   // A test that opens two pages has to say which one it is driving: WebKit
   // stops animating a page that is not in front, and a click waits for the
@@ -26,11 +96,23 @@ export async function signIn(page, { email, password = PASSWORD }) {
   // "Could not reach the server". Nothing is half done at this point - no
   // session, no data - so the sign-in is simply done again, which is what
   // the app asks the user to do.
+  //
+  // Two things have to be right for that retry to work. The app empties the
+  // password field when a sign-in fails, so the password has to be typed
+  // again - a retry with an empty field only earns "Enter your password."
+  // And typing in the field clears the error message, so the alert read
+  // after the retry always belongs to the retry and never to the attempt
+  // before it.
   const signedIn = page.getByRole('button', { name: 'Log out' });
   const offline = page.getByRole('alert').filter({ hasText: 'Could not reach the server' });
-  await expect(signedIn.or(offline).first()).toBeVisible();
-  if (await offline.isVisible()) {
+  // The wait is generous: a sign-in that has to be tried again can take a
+  // while on a busy machine, and the default ten seconds would fail the test
+  // for a server that was about to answer.
+  await expect(signedIn.or(offline).first()).toBeVisible({ timeout: 30_000 });
+  for (let attempt = 0; attempt < 3 && await offline.first().isVisible(); attempt++) {
+    await page.locator('#login-password').fill(password);
     await page.getByRole('button', { name: 'Sign in' }).click();
+    await expect(signedIn.or(offline).first()).toBeVisible({ timeout: 30_000 });
   }
   await expect(signedIn).toBeVisible();
 }
@@ -48,19 +130,27 @@ export async function openTab(page, name) {
 export async function answerCurrentQuestion(page) {
   const written = page.getByLabel('Written answer');
   const numeric = page.getByLabel('Numeric answer');
-  const options = page.locator('.options button');
+  const choice = page.locator('.options button').first();
   const submit = page.getByRole('button', { name: 'Submit answer' });
-
+  let answerKind;
   // The question arrives after the session starts, and its format decides how
   // it is answered: a choice question shows options, a numeric one a number
   // box, a written one a text area. Wait for one of them to be on screen
-  // before choosing, or the wrong branch waits for ever — a numeric question
-  // never grows an options list.
-  await expect(written.or(numeric).or(options).first()).toBeVisible({ timeout: 30 * 1000 });
+  // before choosing, or the wrong branch waits for ever - a numeric question
+  // never grows an options list. The question counter can appear before the
+  // answer control, so this waits for the control itself rather than for the
+  // page to settle. WebKit is the slowest engine here, so the wait is 30s.
+  await expect.poll(async () => {
+    if (await written.isVisible()) answerKind = 'written';
+    else if (await numeric.isVisible()) answerKind = 'numeric';
+    else if (await choice.isVisible()) answerKind = 'choice';
+    else answerKind = null;
+    return answerKind;
+  }, { message: 'A supported answer control should appear before answering', timeout: 30_000 }).toBeTruthy();
 
-  if (await written.count()) await written.fill('Latency measures travel delay, while bandwidth describes transfer capacity.');
-  else if (await numeric.count()) await numeric.fill('13');
-  else await options.first().click();
+  if (answerKind === 'written') await written.fill('Latency measures travel delay, while bandwidth describes transfer capacity.');
+  else if (answerKind === 'numeric') await numeric.fill('13');
+  else await choice.click();
   if (await submit.count()) await submit.click();
   await expect(page.getByText(VERDICT)).toBeVisible();
 }
@@ -85,8 +175,10 @@ export async function createDraftQuestion(page, { courseId = 'c-comp', topicId =
   // Every draft needs its own wording: the bank refuses a question that looks
   // like one it already holds, and a retry would be turned away as a copy of
   // the attempt before it. A short stem keeps the two well clear of each
-  // other, whatever the marker turns out to be.
-  const marker = Math.random().toString(36).slice(2, 10);
+  // other, whatever the marker turns out to be. The marker is a UUID slice
+  // rather than a clock reading, so two drafts made in the same millisecond
+  // still differ.
+  const marker = crypto.randomUUID().slice(0, 8);
   const stem = `CI retry marker ${marker}`;
   const response = await page.request.post(`/api/teacher/courses/${courseId}/questions`, {
     headers: { Authorization: `Bearer ${token}` },
