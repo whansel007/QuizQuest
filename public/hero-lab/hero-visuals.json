@@ -335,11 +335,11 @@
         "ultimate": "samurai_ultimate.png"
       },
       "crop": {
-        "open": [479, 387, 778, 707],
-        "closed": [479, 387, 778, 707],
-        "ultimate": [479, 228, 758, 874]
+        "open": [448, 359, 840, 764],
+        "closed": [448, 359, 840, 764],
+        "ultimate": [449, 193, 819, 944]
       },
-      "scale": 1.6,
+      "scale": 1.48,
       "anchor": { "x": 0.5, "y": 0.5 },
       "partyOffsetX": -2,
       "ultimate": { "mode": "swap", "frame": "ultimate", "transformMs": 200 }

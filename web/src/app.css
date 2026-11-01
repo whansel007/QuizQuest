@@ -2776,7 +2776,7 @@ main#main.main-practice .practice-hero {
 
 /* My Progress is a calm field journal, with the forest palette carried into
    its navigation, topic cards, indicators, and report controls. */
-body:has(header#top.progress-nav) { background: #f1e7c8; color: #23382f; }
+body:has(header#top.progress-nav) { background: #254937; color: #fff8e4; }
 header#top.progress-nav {
   color: #fff7df;
   background: linear-gradient(180deg, #254937, #193a2c);
@@ -2793,17 +2793,24 @@ header#top.progress-nav nav#tabs button[aria-current="page"] { color: #26392c; b
 header#top.progress-nav #who button,
 header#top.progress-nav #who .btn { color: #f1f0d9; background: #31543e; border-color: #71875b; }
 main#main.main-progress {
-  --bg: #f1e7c8;
+  --bg: #254937;
   --panel: #fbf2d8;
-  --ink: #23382f;
+  --ink: #fff8e4;
   --muted: #5f6d58;
   --line: #c9ba93;
-  background-color: #f1e7c8;
+  color: #fff8e4;
+  background-color: #254937;
   background-image:
-    url('/hero-lab/assets/storybook-paper.svg'),
-    radial-gradient(ellipse at 50% 0%, rgb(50 83 62 / 22%), transparent 65%),
-    linear-gradient(180deg, #f7efd8, #ecdfb9);
-  background-size: 144px 144px, auto, auto;
+    radial-gradient(ellipse at 50% 0%, rgb(127 174 88 / 16%), transparent 62%),
+    linear-gradient(180deg, #315a42, #254937 58%, #1d3b2d);
+}
+main#main.main-progress :is(h2, h3) { color: #fff8e4; }
+main#main.main-progress > .small.muted { color: #d5e3d0; }
+main#main.main-progress .pg-heading::after { border-top-color: #9db37f; }
+main#main.main-progress .pg-hero {
+  background: radial-gradient(ellipse at 0% 0%, rgb(127 174 88 / 30%), transparent 55%), #315a42;
+  border-color: #9db37f;
+  box-shadow: 0 5px 0 #193a2c, 0 12px 26px rgb(10 28 19 / 28%);
 }
 /* Center the compact resource shelf and use a study-book mark for its setup card. */
 main#main.main-practice .practice-resource-row { justify-content: center; }

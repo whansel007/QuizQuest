@@ -17,6 +17,7 @@ const page = ref('signin');
 const debugUnlocked = ref(false);
 const versionOpen = ref(false);
 const versionDialog = ref(null);
+const versionTaps = ref(0);
 const version = packageJson.version;
 const debugCode = ['ArrowUp', 'ArrowUp', 'ArrowDown', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'ArrowLeft', 'ArrowRight', 'b', 'a', 'Enter'];
 let debugPosition = 0;
@@ -35,9 +36,19 @@ function go(to) {
 }
 async function openTools() {
   debugPosition = 0;
+  versionTaps.value = 0;
   versionOpen.value = true;
   await nextTick();
   versionDialog.value?.focus();
+}
+function tapVersion() {
+  versionTaps.value++;
+  if (versionTaps.value < 3) return;
+  versionTaps.value = 0;
+  debugPosition = 0;
+  debugUnlocked.value = true;
+  versionOpen.value = false;
+  void loadDemo().then(() => go('accounts'));
 }
 function enterDebugCode(event) {
   if (!versionOpen.value) return;
@@ -46,6 +57,7 @@ function enterDebugCode(event) {
   if (event.key === 'Escape') {
     versionOpen.value = false;
     debugPosition = 0;
+    versionTaps.value = 0;
     return;
   }
   if (event.repeat) return;
@@ -274,9 +286,9 @@ const floaters = ['?', '★', '✓', 'A', '+', '!', '◆', '?'];
 
     <TestAccountsView v-else :users="users" :error="demoError" @back="go('signin')" @retry="loadDemo" @fill="fill" />
 
-    <section v-if="versionOpen" ref="versionDialog" class="qq-debug-backdrop" role="dialog" aria-modal="true" aria-labelledby="login-version-title" tabindex="-1" @click.self="versionOpen = false">
-      <div class="qq-debug-panel">
-        <button class="qq-debug-close" type="button" aria-label="Close tools and version" @click="versionOpen = false; debugPosition = 0">×</button>
+    <section v-if="versionOpen" ref="versionDialog" class="qq-debug-backdrop" role="dialog" aria-modal="true" aria-labelledby="login-version-title" tabindex="-1" @click.self="versionOpen = false; versionTaps = 0">
+      <div class="qq-debug-panel" @click="tapVersion">
+        <button class="qq-debug-close" type="button" aria-label="Close tools and version" @click.stop="versionOpen = false; debugPosition = 0; versionTaps = 0">×</button>
         <h2 id="login-version-title">QuizQuest v{{ version }}</h2>
       </div>
     </section>

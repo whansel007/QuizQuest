@@ -6,28 +6,44 @@
 
 export const HERO_LINES = {
   guardian: {
-    ambient: ['I\'ll keep watch by the gate.', 'Shield polished. Town safe.', 'Nobody sneaks past this shield!'],
-    greet: ['Hello, friend! I\'ll stand guard while you explore.', 'Need a shield to lean on? I\'m right here.'],
+    ambient: ['Anybody wants to learn Rollate? :D', 'Man I love rolling on grass ~', 'They see me rolling ~'],
+    greet: ['Greetings! Do not worry, my rolls are unstopable! >:D', 'Hark! A perfectly soft patch of grass! One must roll on it >:D'],
   },
   sheriff: {
-    ambient: ['Trail\'s clear to the north.', 'All quiet in town today.', 'Keepin\' an eye on things.'],
-    greet: ['Howdy, partner! I checked the trail twice. It\'s safe.', 'Welcome back! No trouble in town today.'],
+    ambient: ['Trail\'s clear to the north... or is that south?', 'All quiet in town today.... too quiet..', 'What do cowboys say? Moooo?'],
+    greet: ['Howdy, partner! I checked the trail twice. Should be safe (probably...)', 'This town ain\'t big enough for the 2 of us... just kidding ;V'],
   },
   pilot: {
-    ambient: ['Robot check: all bolts tight!', 'Flight test after lunch!', 'Mech suit… powering up. Soon!'],
-    greet: ['Hey! Want to see me turn into a robot? Later, promise!', 'Running a quick systems check. All green!'],
+    ambient: ['Robot check: all bolts tight!', 'Maybe the engineer has some upgrade ideas...', 'Did anybody see my mech charger cable? I lost it! T_T'],
+    greet: ['Hey! Want to see me turn into a robot? Later, promise! ;D', 'Running a quick systems check. All neon green! ;D'],
   },
   bombardier: {
-    ambient: ['Arr, I smell treasure!', 'Yo-ho, what a fine breeze.', 'X marks the spot… somewhere.'],
-    greet: ['Ahoy, matey! Found any treasure today?', 'Arr! A fine day for an adventure!'],
+    ambient: ['Arr, I smell treasure!', 'Yo-ho, what a fine breeze.', 'X marks the spot... somewhere...'],
+    greet: ['Ahoy, matey! Found any treasure today? ;D', 'Arr! A fine day for an EXPLOSIVE adventure! ;3'],
   },
   bubbles: {
-    ambient: ['Wanna play tag?', 'Bubbles! Bubbles everywhere!', 'Hehe, catch me!'],
-    greet: ['Hi hi! Wanna play with me?', 'You\'re it! Just kidding. Let\'s play!'],
+    ambient: ['Wanna play tag? :D', 'Bubbles! Bubbles everywhere! ^_^', 'Hehe, catch me! catch me!'],
+    greet: ['Hi hi! Wanna play with me? :3', 'You\'re it! Just kidding. Let\'s play! :3'],
   },
   electromancer: {
-    ambient: ['Ooh, a tiny spark!', 'A storm is brewing… a small one.', 'Zzzap! Oops, sorry.'],
-    greet: ['Careful, my whiskers are a bit staticky today.', 'Hello! Did you feel that tiny spark?'],
+    ambient: ['Ouch, a tiny spark!', 'Maybe I should just quit my job and be full mage...', 'I wonder if I should start an power company...'],
+    greet: ['Have you read the magic thunder book in the library? It\'s shocking! ;D', 'Hello! Do you want to lightning in a bottle? Too bad... Even I don\'t know how to do that :V'],
+  },
+  fairy: {
+    ambient: ['They were a fairy ~', 'That wind you just felt? You\'re welcome', 'Maybe I should just '],
+    greet: ['Greetings! I do wind magic! So unless your wish is a tornado, too bad :p', 'Please stop trying to exchange teeth for money.. I am not that kind of fairy :/'],
+  },
+  engineer: {
+    ambient: ['Loose bolt? Uh... guess that\'s an extra', 'A turret broke? Oh no... Anyway :V', 'Has anyone seen a random screw somewhere? Don\'t eat it! I need it!'],
+    greet: ['Hi! Want to see what I can build with these spare parts?', 'Honestly, if turret doesn\'t instantly explode, it is already a success XD'],
+  },
+  samurai: {
+    ambient: ['Practice makes a plastic blade pretty impressive.', 'One more drill. Then another.', 'Please do not look too closely at the price sticker.'],
+    greet: ['Hello! The sword is plastic. The practice is very real.', 'No formal training, just a lot of practice. Want to see?'],
+  },
+  ranger: {
+    ambient: ['Always pack an extra hot dog.', 'My best friend has four paws and a great nose.', 'The trail is quiet. The wolf is listening.'],
+    greet: ['Hi there! Have you met my best friend? They\'re somewhere in the forest...', 'The wolf and I have your back provided I have some meat to give them :V'],
   },
 };
 

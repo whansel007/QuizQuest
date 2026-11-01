@@ -367,6 +367,16 @@ function chooseEmote(index) {
   if (!choice) return;
   const now = performance.now();
   emote = { glyph: choice.glyph, label: choice.label, start: now, until: now + 2400 };
+  // Nearby heroes answer with the same emote, like a little town-wide wave.
+  const responseRange = 260;
+  wanderers.forEach((hero, index) => {
+    if (Math.hypot(hero.x - player.x, hero.y - player.y) > responseRange) return;
+    const delay = 120 + index * 90;
+    hero.emote = { glyph: choice.glyph, start: now + delay, until: now + delay + 2100 };
+    hero.pauseUntil = Math.max(hero.pauseUntil, now + delay + 650);
+    hero.path = [];
+    hero.moving = false;
+  });
   playSound('townEmote');
   closeWheel();
 }
@@ -640,23 +650,35 @@ function drawAvatar(g, time) {
   });
 }
 
-function drawEmote(g, time) {
-  if (!emote || time > emote.until) { emote = null; return; }
-  const age = time - emote.start;
+function drawEmoteBubble(g, glyph, x, y, age, remaining) {
   const pop = reducedMotion ? 1 : Math.min(1, age / 160) * (1 + 0.15 * Math.max(0, 1 - age / 320));
-  const fade = Math.min(1, (emote.until - time) / 300);
-  const x = player.x; const y = player.y - TOWN_AVATAR_RADIUS * 3.2 - 26;
+  const fade = Math.min(1, remaining / 300);
   g.save();
   g.globalAlpha = fade;
   g.translate(x, y); g.scale(pop, pop);
   g.fillStyle = PALETTE.paper; g.strokeStyle = INK; g.lineWidth = 2.5;
+  // Draw the pointer first so the round bubble hides its base cleanly.
+  g.beginPath(); g.moveTo(-6, 15); g.lineTo(0, 28); g.lineTo(6, 15); g.closePath(); g.fill(); g.stroke();
   g.beginPath(); g.arc(0, 0, 21, 0, Math.PI * 2); g.fill(); g.stroke();
-  g.beginPath(); g.moveTo(-6, 18); g.lineTo(0, 28); g.lineTo(6, 18); g.closePath(); g.fill(); g.stroke();
-  g.fillStyle = PALETTE.paper; g.fillRect(-7, 14, 14, 6);
   g.font = '24px "Segoe UI Emoji", "Apple Color Emoji", "Noto Color Emoji", system-ui, sans-serif';
   g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillStyle = INK;
-  g.fillText(emote.glyph, 0, 1);
+  g.fillText(glyph, 0, 1);
   g.restore();
+}
+
+function drawEmote(g, time) {
+  if (emote && time > emote.until) emote = null;
+  if (emote && time >= emote.start) {
+    drawEmoteBubble(g, emote.glyph, player.x, player.y - TOWN_AVATAR_RADIUS * 3.2 - 26,
+      time - emote.start, emote.until - time);
+  }
+  for (const hero of wanderers) {
+    if (!hero.emote) continue;
+    if (time > hero.emote.until) { hero.emote = null; continue; }
+    if (time < hero.emote.start) continue;
+    drawEmoteBubble(g, hero.emote.glyph, hero.x, hero.y - TOWN_HERO_AVATAR_RADIUS * 3.2 - 26,
+      time - hero.emote.start, hero.emote.until - time);
+  }
 }
 
 function targetPrompt(t) {
