@@ -127,18 +127,21 @@ test('the authoring job responses carry no server working state', async () => {
   const job = apiDb.courses.find((c) => c.id === 'c-comp').authoringJobs.find((j) => j.id === started.body.id);
   await settled(job);
   // The server keeps its own notes on the job. They must not leave the server.
-  job._diagnostics = { status: 500, providerMessage: 'the provider said this' };
-  job._recovery = { log: { id: 'log-1', rawOutput: 'the model said this' }, drafts: [] };
+  const SECRET = 'the model said this';
+  job._diagnostics = { status: 500, providerMessage: SECRET };
+  job._recovery = { log: { id: 'log-1', rawOutput: SECRET }, drafts: [] };
   const listed = await request('GET', '/api/teacher/courses/c-comp/authoring', null, teacher);
   assert.equal(listed.status, 200);
   for (const j of listed.body) {
     for (const key of ['_recovery', '_validation', '_diagnostics', 'key', 'sourceDigest', 'metrics', 'pendingBatch', 'reportSnapshot']) {
       assert.equal(j[key], undefined, 'the job list carries ' + key);
     }
+    assert.equal(JSON.stringify(j).includes(SECRET), false, 'the job list carries the model\'s own words');
   }
   const resumed = await request('POST', `/api/teacher/courses/c-comp/authoring/${job.id}/resume`, null, teacher);
   assert.equal(resumed.status, 202, JSON.stringify(resumed.body));
   for (const key of ['_recovery', '_validation', '_diagnostics', 'key', 'sourceDigest', 'metrics', 'pendingBatch', 'reportSnapshot']) {
     assert.equal(resumed.body[key], undefined, 'the resume response carries ' + key);
   }
+  assert.equal(JSON.stringify(resumed.body).includes(SECRET), false, 'the resume response carries the model\'s own words');
 });
