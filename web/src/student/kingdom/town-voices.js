@@ -22,7 +22,7 @@ export const HERO_LINES = {
     greet: ['Ahoy, matey! Found any treasure today? ;D', 'Arr! A fine day for an EXPLOSIVE adventure! ;3'],
   },
   bubbles: {
-    ambient: ['Wanna play tag? :D', 'Bubbles! Bubbles everywhere! ^_^', 'Hehe, catch me! catch me!'],
+    ambient: ['Wanna play tag? :D', 'Bubbles! Bubbles everywhere! ^_^', 'Hehe, catch me! catch me! :3'],
     greet: ['Hi hi! Wanna play with me? :3', 'You\'re it! Just kidding. Let\'s play! :3'],
   },
   electromancer: {
