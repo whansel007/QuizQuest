@@ -14,21 +14,34 @@
 const { gradeSync } = require('./formats');
 const gemini = require('./gemini');
 
-const PASS_SCORE = 0.67;
+// Two thirds, written as a fraction. A decimal 0.67 sits above 2/3, so an answer
+// covering exactly two of three key points would fail the threshold.
+const PASS_SCORE = 2 / 3;
 const STOP = new Set('a an and are as at be by for from has have in is it its of on or that the this to was were which with can will not more most also than then because so'.split(' '));
 
 const words = (t) => String(t || '').toLowerCase().replace(/[^a-z0-9\s]/g, ' ').split(/\s+/).filter((w) => w.length > 3 && !STOP.has(w));
+
+// The short tokens of a phrase: "IP", "aws", "3". A key point written only with
+// these has no important word to match on, so it needs its own way in.
+const shortTokens = (t) => String(t || '').toLowerCase().replace(/[^a-z0-9\s]/g, ' ').split(/\s+/).filter((w) => w.length >= 2 && !STOP.has(w));
 
 // A key point counts as covered if most of its important words (or
 // words sharing their first 5 letters, e.g. "encrypts"/"encryption")
 // appear in the answer. A key point written with alternatives
 // ("less delay or lower latency", "fast/quick") is covered by either.
+//
+// A key point with no important word at all ("AWS", "IP") is matched on its
+// short tokens instead. Without that the point could never be covered, so the
+// student could never be marked correct however well they answered.
 function keywordGrade(v, text) {
   const answer = words(text);
+  const answerTokens = shortTokens(text);
   const has = (w) => answer.some((a) => a === w || (a.length >= 5 && w.length >= 5 && a.slice(0, 5) === w.slice(0, 5)));
   const covers = (phrase) => {
     const ws = words(phrase);
-    return ws.length > 0 && ws.filter(has).length / ws.length >= 0.6;
+    if (ws.length) return ws.filter(has).length / ws.length >= 0.6;
+    const ts = shortTokens(phrase);
+    return ts.length > 0 && ts.every((w) => answerTokens.includes(w));
   };
   const covered = [];
   v.keyPoints.forEach((kp, i) => {
@@ -72,9 +85,22 @@ async function grade(v, instance, sub) {
   if (text) {
     try {
       if(v.answerMode==='numeric') {
-        const match=text.replace(/,/g,'').match(/^([+-]?(?:\d+(?:\.\d*)?|\.\d+)(?:e[+-]?\d+)?)\s*(.*?)$/i);
-        const unitsMatch=!!match && (!match[2] || (v.unit && match[2].toLowerCase()===v.unit.toLowerCase()));
-        const result=gradeSync({...v,type:'numeric'},null,{value:unitsMatch?match[1]:null});
+        // The student may write the number inside a sentence, so the number
+        // is taken from anywhere in the answer. The last number in the answer
+        // is the one, and only the unit may follow it: "The total is 10 kg"
+        // and "10 kg" are read as 10, while "10 kg extra" is not, because
+        // the words after the number say more than the unit does.
+        const cleaned=text.replace(/,/g,'');
+        const numbers=[...cleaned.matchAll(/[+-]?(?:\d+(?:\.\d*)?|\.\d+)(?:e[+-]?\d+)?/gi)];
+        const letters=(s)=>s.toLowerCase().replace(/[^a-z0-9]+/g,'');
+        const unit=letters(String(v.unit||''));
+        let value=null;
+        if(numbers.length){
+          const last=numbers[numbers.length-1];
+          const after=letters(cleaned.slice(last.index+last[0].length));
+          if(!after || (unit && after===unit)) value=last[0];
+        }
+        const result=gradeSync({...v,type:'numeric'},null,{value});
         g={score:result.score,coveredPoints:result.correct?v.keyPoints.map((_,i)=>i):[],feedback:null,method:'numeric'};
       } else g = gemini.enabled() ? await aiGrade(v, text) : keywordGrade(v, text);
     } catch (err) {

@@ -181,9 +181,14 @@ function validateTyped(q, errors, warnings) {
     if (q.answerIndex < 0 || q.answerIndex >= q.options.length) errors.push('Correct answer must point at one of the options.');
   } else if (q.type === 'multi') {
     checkOptions(q.options, 3, 6, errors);
-    if (!q.answerIndexes.length || q.answerIndexes.some((i) => i < 0 || i >= q.options.length)) errors.push('Mark at least one correct option.');
+    // "Nothing is marked" and "a marked option does not exist" are different
+    // mistakes, and on the AI path this message is the model's only cue to
+    // recount, so they get their own words.
+    const outOfRange=q.answerIndexes.filter((i) => i < 0 || i >= q.options.length);
+    if (!q.answerIndexes.length) errors.push('Mark at least one correct option.');
+    else if (outOfRange.length) errors.push('Correct option ' + outOfRange.map((i) => i + 1).join(', ') + ' does not exist - mark one of the options above.');
     if (q.answerIndexes.length >= q.options.length) errors.push('At least one option must be wrong.');
-    if (q.answerIndexes.length === 1) warnings.push('Only one option is correct - a single-answer question may be clearer.');
+    if (q.answerIndexes.length === 1 && !outOfRange.length) warnings.push('Only one option is correct - a single-answer question may be clearer.');
   } else if (q.type === 'tf') {
     if (q.answerIndex < 0) errors.push('Choose whether the statement is true or false.');
   } else if (q.type === 'numeric') {
@@ -211,6 +216,9 @@ function studentView(v, instance) {
     base.options = instance.options;
   }
   if (v.type === 'numeric') base.unit = v.unit;
+  // A numerical Short Answer is graded against its unit too, so the student
+  // has to be told what unit to write.
+  if (v.type === 'short' && v.answerMode === 'numeric') base.unit = v.unit;
   return base;
 }
 

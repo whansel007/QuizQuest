@@ -355,9 +355,11 @@ function createAuthoring({ db, persist, ai = gemini.generateJson, drafter }) {
         error(400, 'Invalid generation attempt. Refresh the page and try again.');
       input.attemptId = raw.attemptId;
     }
-    // An edited PROMPT 1 is a new report, like a changed model
+    // An edited PROMPT 1 is a new report, like a changed model. PROMPT 2 is
+    // the drafting instructions, so an edited one is a new batch too.
     const key = hash([kind, input, sourceDigest, gemini.model(), gemini.fallbackModel(), 'gemini-authoring-v4-report',
-      ...(kind === 'analysis' ? [prompts.analysis.digest] : [])]);
+      ...(kind === 'analysis' ? [prompts.analysis.digest] : []),
+      ...(kind === 'generation' ? [prompts.generation.digest] : [])]);
     const attempt = input.attemptId && jobs(c).find(j => j.kind === kind && j.input.attemptId === input.attemptId);
     if (attempt && attempt.key !== key) error(409, 'This generation attempt already uses different settings. Retry its original request or start a new batch.');
     const prior = jobs(c).find((j) => j.key === key);
@@ -798,7 +800,15 @@ function createAuthoring({ db, persist, ai = gemini.generateJson, drafter }) {
           return issues;
         },
       });
-      if (result.status !== 200) throw new Error(result.body.error);
+      if (result.status !== 200) {
+        // Keep the provider's own code and status, so the message below can
+        // tell a problem only an administrator can fix from one the professor
+        // can. They are dropped by a plain Error.
+        throw Object.assign(new Error(result.body.error), {
+          code: result.body.code,
+          providerStatus: result.body.providerStatus,
+        });
+      }
       j.result = { ...j.result, ...result.body };
       if (result.body.missing && j.regeneration)
         error(409, 'Regeneration could not produce a distinct, valid replacement within three attempts. Your original question is kept. Review the validation feedback before trying again.');
@@ -828,8 +838,16 @@ function createAuthoring({ db, persist, ai = gemini.generateJson, drafter }) {
         if(e.providerMessage)j._diagnostics={status:e.status,providerMessage:e.providerMessage};
         j.status = 'failed';
         j.retryAt = e.retryAt || null;
-        j.message =
-          e.status === 409 || e.status === 429 || ['INCOMPLETE', 'AI_FAILED', 'QUOTA_STORAGE', 'PROMPT_CONFIG', 'NO_KEY'].includes(e.code)
+        // A missing key, a model the server does not allow, or a provider that
+        // refuses the request can only be fixed by an administrator. Telling
+        // the professor to check their own material sends them down the wrong
+        // path, so name the real cause instead.
+        const adminOnly =
+          ['NO_KEY', 'MODEL_CONFIG', 'GEMINI_UNAVAILABLE'].includes(e.code) ||
+          [401, 403, 404].includes(e.providerStatus || e.status);
+        j.message = adminOnly
+          ? 'The AI service is not set up correctly, so this step could not run. Your progress is saved - ask your administrator to check the AI configuration, then resume.'
+          : e.status === 409 || e.status === 429 || ['INCOMPLETE', 'AI_FAILED', 'QUOTA_STORAGE', 'PROMPT_CONFIG'].includes(e.code)
             ? e.message
             : 'This step could not finish. Your progress is saved. Resume to try again, or check the selected material.';
       } finally {
