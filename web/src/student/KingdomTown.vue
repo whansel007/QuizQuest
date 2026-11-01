@@ -15,9 +15,10 @@ import {
   WORLD_HEIGHT, WORLD_TOP, buildTownObjects, createForestPattern, createGroundLayer, makeEdgeTrees,
 } from './kingdom/town-scene.js';
 import { EMOTES, heroLine } from './kingdom/town-voices.js';
+import { BUILDING_LAYOUT } from './kingdom/buildings/index.js';
 import { playSound, setAudioOptions, warmUpAudio } from '../../../public/hero-lab/arena-audio.js';
 import {
-  BUILDING_LAYOUT, TOWN_AVATAR_RADIUS, TOWN_DESTINATIONS, TOWN_DOOR_RADIUS, TOWN_GREET_RADIUS,
+  TOWN_AVATAR_RADIUS, TOWN_DESTINATIONS, TOWN_DOOR_RADIUS, TOWN_GREET_RADIUS,
   TOWN_HEIGHT, TOWN_HERO_AVATAR_RADIUS, TOWN_HERO_HOP_HEIGHT, TOWN_HERO_HOPS_PER_SECOND,
   TOWN_HERO_REDUCED_MOTION_HOP_HEIGHT, TOWN_HERO_REDUCED_MOTION_PAUSE_MAX_MS, TOWN_HERO_REDUCED_MOTION_PAUSE_MIN_MS,
   TOWN_HERO_WANDER_PAUSE_MAX_MS, TOWN_HERO_WANDER_PAUSE_MIN_MS, TOWN_HERO_WALK_SPEED, TOWN_MAX_HEROES,

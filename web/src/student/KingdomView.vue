@@ -4,7 +4,7 @@
 // HUD, building panels, the first-visit tour and the telescope
 // hand-off to Hero Summon. The map itself lives in KingdomTown.
 // ============================================================
-import { ref, computed, nextTick, onMounted, onUnmounted } from 'vue';
+import { ref, computed, reactive, nextTick, onMounted, onUnmounted } from 'vue';
 import { S, api, retryablePost } from '../api.js';
 import { fmtBundle, toast } from '../ui.js';
 import { soundState, toggleMuted, playCue } from '../sound.js';
@@ -14,10 +14,11 @@ import { loadHome } from './home.js';
 import KingdomTown from './KingdomTown.vue';
 import AvatarPreview from './AvatarPreview.vue';
 import BuildingIcon from './BuildingIcon.vue';
-import HeroIcon from './HeroIcon.vue';
-import SummonSky from './SummonSky.vue';
-import LibraryProp from './kingdom/LibraryProp.vue';
-import CosmeticIcon from './CosmeticIcon.vue';
+import GardenPanel from './kingdom/panels/GardenPanel.vue';
+import TowerPanel from './kingdom/panels/TowerPanel.vue';
+import LibraryPanel from './kingdom/panels/LibraryPanel.vue';
+import WorkshopPanel from './kingdom/panels/WorkshopPanel.vue';
+import CastlePanel from './kingdom/panels/CastlePanel.vue';
 import { HERO_LORE } from './kingdom/hero-lore.js';
 import { BUILDING_ROLES, buildingCap, buildingEffect } from './kingdom/building-effects.js';
 import { GAME_CONFIG } from '../../../public/hero-lab/game-config.js';
@@ -171,9 +172,7 @@ const plots = computed(() => Object.keys(k.value.catalog.buildings).map((id) => 
   return { id, def, lvl, cost, affordable };
 }));
 const townPlot = computed(() => townTarget.value && townTarget.value !== 'castle' ? plots.value.find((p) => p.id === townTarget.value) : null);
-const castleMeaning = computed(() => k.value?.castleLevel === 0
-  ? 'Your castle grows as every building reaches the same level.'
-  : `Every building has reached level ${k.value?.castleLevel}. The castle level is the lowest level among your four buildings.`);
+const castleLevel = computed(() => k.value?.castleLevel || 0);
 const heroesOfType = (type) => ownedHeroes.value.filter((hero) => hero.type === type);
 const haveText = computed(() => {
   const res = Object.fromEntries(Object.entries(k.value?.resources || {}).filter(([, v]) => v > 0));
@@ -504,6 +503,29 @@ async function upgrade(p) {
   Object.assign(k.value, { buildings: r.buildings, castleLevel: r.castleLevel, resources: r.resources });
   toast(grew ? `${p.def.name} upgraded - your castle grew!` : `${p.def.name} upgraded!`);
 }
+
+const gardenPanelContext = reactive({ CONSTELLATIONS, lensOn, lookThroughTelescope });
+const towerPanelContext = reactive({
+  homeData, S, radioState, radioBusy, tuneRadio, radioStatusText,
+  tradeFilter, tradePage, tradeError, tradeBoard, fmtBundle, R, towerTrades, TRADE_PAGE_SIZE,
+  cancelTrade, tradePending, tradeConfirm, filteredTowerTrades, tradePageCount, tradeConfirmPreview,
+  acceptTrade, tradeLoading, tradeGive, tradeWant, tradePost, setTradeAmount, tradeCreateConfirm,
+  tradeBundleHasItems, reviewTrade, createTrade,
+});
+const libraryPanelContext = reactive({
+  libraryShelves, archiveOpen, archiveHero, selectedArchiveHero, openArchiveBook, closeArchiveBook,
+  bookBackButton, trapBookDialog, heroStars, selectedHeroLore, GAME_CONFIG,
+});
+const workshopPanelContext = reactive({
+  workshopHeroes, workshopHero, previewWorkshopHero, workshopConfig, ownedHeroIds,
+  heroesOfType, heroStars, trialStarting, startWorkshopTrial,
+});
+const castlePanelContext = reactive({
+  wardrobeResources, R, fmtBundle, wardrobeLoading, wardrobeError, wardrobeCategory, wardrobeHats,
+  wardrobeOwnedIds, wardrobeHat, wardrobeClaiming, wardrobeCanAfford, wardrobePrice, wardrobeShortfall,
+  claimWardrobeCosmetic, wardrobeAccessory, wardrobeAccessories, wardrobeColors, wardrobeColor,
+  colorSaving, wardrobeDirty, wardrobeCanSave, saveWardrobeLook, castleInfoOpen, castleLevel, BUILDING_LEVEL_CAP,
+});
 </script>
 
 <template>
@@ -627,312 +649,17 @@ async function upgrade(p) {
             <button class="town-modal-close" type="button" aria-label="Close" @click="closePanel">×</button>
           </header>
 
-          <section v-if="castleInfoOpen && townTarget === 'castle'" id="castle-upgrade-info" class="castle-info-card" aria-label="How castle levels grow">
-            <button class="book-back" type="button" @click="castleInfoOpen = false">Close explanation</button>
-            <h3>The castle follows your town</h3>
-            <p>{{ castleMeaning }}</p>
-            <ol class="castle-levels"><li v-for="level in BUILDING_LEVEL_CAP" :key="level" :class="{ done: k.castleLevel >= level }">Level {{ level }} · All four buildings reach level {{ level }}.</li></ol>
-          </section>
-
           <template v-if="townPlot">
             <p v-if="townPlot.cost && !townPlot.affordable" class="panel-note">You have {{ haveText }}. Gather more through Practice or by exploring the World.</p>
           </template>
 
-          <!-- role-specific content -->
+          <!-- Each building owns its own panel content. Shared title, level, effect and upgrade controls stay above. -->
           <div class="panel-content">
-            <template v-if="townTarget === 'garden'">
-              <div class="sky-card">
-                <div class="garden-sky" aria-hidden="true">
-                  <SummonSky class="garden-star-sky" />
-                  <figure v-for="c in CONSTELLATIONS" :key="c.id" class="constellation" :style="c.place">
-                    <svg :viewBox="c.viewBox"><path :d="c.path" /><circle v-for="(star, i) in c.stars" :key="i" :class="{ bright: star[2] > 4 }" :cx="star[0]" :cy="star[1]" :r="star[2]" :style="{ animationDelay: `${-i * 0.7}s` }" /></svg>
-                    <figcaption>{{ c.name }}</figcaption>
-                  </figure>
-                  <svg class="garden-horizon" viewBox="0 0 1200 220" preserveAspectRatio="xMidYMax slice">
-                    <path d="M0 120C140 84 260 92 380 112s230 8 330-22 250-22 330 2 120 30 160 26V220H0Z" fill="#3f5e45" />
-                    <path d="M0 150c160-30 300-22 450 4s260 12 400-14 260-8 350 18V220H0Z" fill="#567a4f" stroke="#23382f" stroke-width="3" />
-                    <g stroke="#23382f" stroke-width="3" stroke-linecap="round"><path d="M520 150v-34M560 147v-34M600 146v-34M640 147v-34M680 149v-34M510 124h180M510 140h180" stroke="#8a6541" /></g>
-                    <g><path d="M760 154v-56" stroke="#23382f" stroke-width="4" /><path d="M748 98h24l-4 18h-16Z" fill="#f2ba55" stroke="#23382f" stroke-width="3" stroke-linejoin="round" /><circle class="lantern-glow" cx="760" cy="107" r="22" fill="#f2ba55" opacity=".22" /></g>
-                    <g><path d="M436 160v-52" stroke="#23382f" stroke-width="4" /><path d="M424 108h24l-4 18h-16Z" fill="#f2ba55" stroke="#23382f" stroke-width="3" stroke-linejoin="round" /><circle class="lantern-glow" cx="436" cy="117" r="22" fill="#f2ba55" opacity=".22" /></g>
-                    <g stroke="#23382f" stroke-width="2"><circle cx="300" cy="158" r="8" fill="#d86f6b" /><circle cx="318" cy="152" r="7" fill="#f3cfd1" /><circle cx="336" cy="160" r="8" fill="#8062a9" /><circle cx="880" cy="160" r="8" fill="#f2ba55" /><circle cx="898" cy="154" r="7" fill="#d86f6b" /><circle cx="916" cy="162" r="7" fill="#f3cfd1" /><circle cx="1080" cy="168" r="8" fill="#8062a9" /><circle cx="1098" cy="162" r="7" fill="#f2ba55" /></g>
-                    <g fill="#7fae58" stroke="#23382f" stroke-width="2"><path d="M290 172c4-10 10-14 18-12-2 8-8 12-18 12ZM340 174c-2-9 2-15 10-16 1 8-3 13-10 16ZM870 176c4-10 10-14 18-12-2 8-8 12-18 12ZM1090 182c-2-9 2-15 10-16 1 8-3 13-10 16Z" /></g>
-                  </svg>
-                </div>
-                <button class="telescope-button" type="button" tabindex="-1" aria-label="Look through the telescope to open Hero Summon" :disabled="lensOn" @click="lookThroughTelescope">
-                  <svg class="telescope-art" viewBox="0 0 220 200" aria-hidden="true" focusable="false">
-                    <ellipse cx="110" cy="188" rx="92" ry="10" fill="#23382f" opacity=".35" />
-                    <g stroke="#23382f" stroke-width="4" stroke-linecap="round"><path d="M110 104 54 184M110 104l58 80M110 104v80" stroke="#7a5534" stroke-width="9" /><path d="M110 104 54 184M110 104l58 80M110 104v80" fill="none" /></g>
-                    <circle cx="110" cy="102" r="10" fill="#c99c67" stroke="#23382f" stroke-width="3" />
-                    <g class="telescope-tube">
-                      <path d="m40 96 120-52 12 28-120 52Z" fill="#c8963e" stroke="#23382f" stroke-width="4" stroke-linejoin="round" />
-                      <path d="m70 83 8 28M128 58l9 28" stroke="#7a5534" stroke-width="6" />
-                      <path d="m158 40 30-13 16 36-30 13Z" fill="#e8c57c" stroke="#23382f" stroke-width="4" stroke-linejoin="round" />
-                      <path d="m190 30 10 23" stroke="#6db8cf" stroke-width="6" stroke-linecap="round" />
-                      <path d="m24 100 18-8 10 24-18 8Z" fill="#7a5534" stroke="#23382f" stroke-width="4" stroke-linejoin="round" />
-                      <path d="m62 86 70-30" stroke="#fff3d0" stroke-width="3" stroke-linecap="round" opacity=".6" />
-                    </g>
-                  </svg>
-                </button>
-                <div class="garden-caption">
-                  <span class="scene-kicker">The star garden</span>
-                  <h3>The stargazing telescope</h3>
-                  <p>Follow a shooting star through the lens to visit Hero Summon. The visit is free, and summoning always asks you first.</p>
-                  <button class="btn primary" type="button" :disabled="lensOn" @click="lookThroughTelescope">Look through the telescope</button>
-                </div>
-              </div>
-            </template>
-            <template v-else-if="townTarget === 'tower'">
-              <div class="tower-feature">
-                <section class="tower-board" aria-label="Class exchange request board">
-                  <div class="tower-board-heading">
-                    <div class="board-sign"><span class="scene-kicker">Class channel · {{ homeData?.classes?.find((c) => c.id === S.classId)?.name || 'Selected class' }}</span><h3>Exchange noticeboard</h3></div>
-                    <div class="radio-station" :class="`radio-${radioState}`">
-                      <svg class="radio-set" viewBox="0 0 120 84" aria-hidden="true" focusable="false">
-                        <path class="radio-antenna" d="M86 30 104 4" stroke="#23382f" stroke-width="3" stroke-linecap="round" /><circle class="radio-antenna" cx="104" cy="4" r="3.5" fill="#d86f6b" stroke="#23382f" stroke-width="1.5" />
-                        <g class="radio-waves" fill="none" stroke="#fff3d0" stroke-width="2.5" stroke-linecap="round"><path d="M110 12a10 10 0 0 0-4-10" /><path d="M116 16a17 17 0 0 0-7-17" /></g>
-                        <rect x="6" y="28" width="108" height="52" rx="9" fill="#c99c67" stroke="#23382f" stroke-width="3" />
-                        <rect x="14" y="36" width="44" height="36" rx="5" fill="#7a5534" stroke="#23382f" stroke-width="2" />
-                        <path d="M19 44h34M19 51h34M19 58h34M19 65h34" stroke="#4a3324" stroke-width="2.5" stroke-linecap="round" />
-                        <rect x="64" y="36" width="42" height="16" rx="3" fill="#fff3d0" stroke="#23382f" stroke-width="2" />
-                        <path d="M68 44h34" stroke="#a8774a" stroke-width="1.5" stroke-dasharray="2 3" />
-                        <path class="radio-needle" d="M76 38v12" stroke="#c4574f" stroke-width="2.5" stroke-linecap="round" />
-                        <circle cx="74" cy="64" r="7" fill="#e8c57c" stroke="#23382f" stroke-width="2" /><path class="radio-knob" d="M74 64v-6" stroke="#23382f" stroke-width="2" stroke-linecap="round" />
-                        <circle cx="96" cy="64" r="7" fill="#e8c57c" stroke="#23382f" stroke-width="2" />
-                        <circle class="radio-lamp" cx="96" cy="64" r="3" fill="#7fae58" />
-                      </svg>
-                      <button class="radio-tune" type="button" :disabled="radioBusy" :aria-busy="radioBusy" @click="tuneRadio">
-                        <svg viewBox="0 0 20 20" aria-hidden="true" focusable="false"><path d="M15.5 6.5A6.5 6.5 0 1 0 16.4 12" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" /><path d="M16.8 2.8v4.6h-4.6" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" /></svg>
-                        {{ radioBusy ? 'Tuning…' : 'Tune in for new notes' }}
-                      </button>
-                      <span class="radio-status" role="status">{{ radioStatusText }}</span>
-                    </div>
-                  </div>
-                  <div class="tower-filter-row"><span class="board-hint">Pinned requests from your classmates</span><label>Show <select v-model="tradeFilter" @change="tradePage = 0"><option value="all">All open notes</option><option value="mine">My notes</option></select></label></div>
-                  <p v-if="tradeError" class="trade-error" role="alert">The radio caught only static: {{ tradeError }} <button class="text-button" type="button" :disabled="radioBusy" @click="tuneRadio">Try again</button></p>
-                  <div v-if="tradeBoard" class="pinned-notes">
-                    <article class="info-note">
-                      <span class="note-pin" aria-hidden="true" />
-                      <h4>Board rules</h4>
-                      <p v-if="!tradeBoard.enabled">Your class teacher has turned trading off for now.</p>
-                      <p v-else-if="!tradeBoard.unlocked">Upgrade the Tower to level 1 to unlock class trading.</p>
-                      <p v-else>Offers stay in this class. Pinned resources are held safely until a classmate accepts or you unpin the note.</p>
-                    </article>
-                    <article v-if="tradeBoard.enabled && tradeBoard.unlocked" class="info-note stash-note">
-                      <span class="note-pin" aria-hidden="true" />
-                      <h4>Your stash</h4>
-                      <p>{{ fmtBundle(tradeBoard.resources, R) }}</p>
-                      <small>{{ tradeBoard.mine?.length || 0 }} of {{ tradeBoard.limits.maxOpenPerStudent }} notes pinned</small>
-                    </article>
-                    <article v-if="tradeBoard.enabled && tradeBoard.unlocked" class="info-note steps-note">
-                      <span class="note-pin" aria-hidden="true" />
-                      <h4>How trading works</h4>
-                      <ol><li>Write a request at the offer desk.</li><li>Your offer waits safely on this board.</li><li>A classmate accepts, and both stashes update.</li></ol>
-                    </article>
-                    <template v-if="tradeBoard.enabled && tradeBoard.unlocked">
-                    <p v-if="!towerTrades.length" class="empty-board-note">No requests pinned yet. Write the first one at the offer desk, or tune the radio to check again.</p>
-                    <article v-for="trade in towerTrades" :key="trade.id" class="trade-entry" :class="{ own: trade.mine }">
-                      <span class="note-pin" aria-hidden="true" />
-                      <div class="note-author"><b>{{ trade.from }}</b><span v-if="trade.mine" class="trade-state">Your note · resources held</span></div>
-                      <div class="note-exchange"><span><small>OFFER</small>{{ fmtBundle(trade.give, R) }}</span><b aria-hidden="true">⇄</b><span><small>LOOKING FOR</small>{{ fmtBundle(trade.want, R) }}</span></div>
-                      <template v-if="trade.mine"><button class="btn note-action" type="button" :disabled="tradePending" @click="cancelTrade(trade)">Unpin · return resources</button></template>
-                      <button v-else class="btn note-action" type="button" :disabled="tradePending" @click="tradeConfirm = trade">Read &amp; accept</button>
-                    </article>
-                    <nav v-if="filteredTowerTrades.length > TRADE_PAGE_SIZE" class="trade-pagination" aria-label="Exchange note pages">
-                      <button class="text-button" type="button" :disabled="tradePage === 0" @click="tradePage--">← Newer notes</button>
-                      <span>Page {{ tradePage + 1 }} of {{ tradePageCount }} · {{ filteredTowerTrades.length }} notes</span>
-                      <button class="text-button" type="button" :disabled="tradePage + 1 >= tradePageCount" @click="tradePage++">Older notes →</button>
-                    </nav>
-                    </template>
-                  </div>
-                  <p v-else-if="tradeLoading" class="empty-board-note">Tuning the class radio…</p>
-                  <div v-if="tradeConfirm" class="trade-confirm" role="alertdialog" aria-modal="true" aria-label="Confirm trade">
-                    <p>Accept {{ tradeConfirm.from }}’s offer? You give {{ fmtBundle(tradeConfirm.want, R) }} and receive {{ fmtBundle(tradeConfirm.give, R) }}.</p>
-                    <dl v-if="tradeConfirmPreview" class="trade-preview-values"><div><dt>Your resources now</dt><dd>{{ fmtBundle(tradeConfirmPreview.before, R) }}</dd></div><div v-if="tradeConfirmPreview.affordable"><dt>After the exchange</dt><dd>{{ fmtBundle(tradeConfirmPreview.after, R) }}</dd></div></dl>
-                    <p v-if="tradeConfirmPreview && !tradeConfirmPreview.affordable" class="trade-error">You do not currently have enough resources for this note.</p>
-                    <button class="btn" type="button" :disabled="tradePending" @click="tradeConfirm = null">Close note</button>
-                    <button class="btn primary" type="button" :disabled="tradePending || !tradeConfirmPreview?.affordable" @click="acceptTrade(tradeConfirm)">{{ tradePending ? 'Trading…' : 'Yes, accept' }}</button>
-                  </div>
-                </section>
-                <aside class="tower-offer-desk" aria-labelledby="tower-offer-title">
-                  <span class="preview-tag">Offer desk</span><h3 id="tower-offer-title">Write a request</h3>
-                  <p>Tell your class what you can trade and what you hope to find.</p>
-                  <template v-if="tradeBoard?.enabled && tradeBoard?.unlocked">
-                    <div class="trade-columns">
-                      <fieldset v-for="side in ['give', 'want']" :key="side" class="offer-paper">
-                        <legend>{{ side === 'give' ? 'I can offer' : 'I am looking for' }}</legend>
-                        <label v-for="(resource, key) in R" :key="key"><span>{{ resource.emoji }} {{ resource.name }}</span><input :value="side === 'give' ? tradeGive[key] : tradeWant[key]" type="number" min="0" max="20" inputmode="numeric" :disabled="tradePending || !!tradePost" @input="setTradeAmount(side, key, $event.target.value)" /></label>
-                      </fieldset>
-                    </div>
-                    <p class="offer-rules">Available: {{ fmtBundle(tradeBoard.resources, R) }}<br>Up to 20 units per side · {{ tradeBoard.limits.maxOpenPerStudent }} open notes</p>
-                    <section v-if="tradeCreateConfirm" class="trade-create-confirm" role="alertdialog" aria-label="Review your exchange note">
-                      <h4>Review before pinning</h4>
-                      <p>You offer {{ fmtBundle(tradeGive, R) }} and ask for {{ fmtBundle(tradeWant, R) }}.</p>
-                      <p>Pinning this note holds your offered resources in escrow until a classmate accepts or you unpin it.</p>
-                      <button class="btn" type="button" :disabled="tradePending || !!tradePost" @click="tradeCreateConfirm = false">Edit offer</button>
-                      <button class="btn primary" type="button" :disabled="tradePending" @click="createTrade">{{ tradePending ? 'Pinning…' : tradePost ? 'Retry pinning note' : 'Confirm and pin' }}</button>
-                    </section>
-                    <button v-else class="btn primary" type="button" :disabled="tradePending || !tradeBundleHasItems(tradeGive) || !tradeBundleHasItems(tradeWant)" @click="reviewTrade">Review my offer</button>
-                  </template>
-                  <p v-else-if="tradeBoard && !tradeBoard.enabled" class="offer-rules">Your class teacher has turned trading off.</p>
-                  <p v-else-if="tradeError" class="offer-rules">Resolve the board notice to make an offer.</p>
-                  <p v-else class="offer-rules">Loading your class exchange rules…</p>
-                </aside>
-              </div>
-            </template>
-            <template v-else-if="townTarget === 'library'">
-              <div class="library-feature">
-                <section class="library-shelves" aria-labelledby="library-archive-title">
-                  <div class="shelf-heading">
-                    <div class="archive-plaque"><span class="scene-kicker">The magical archive</span><h3 id="library-archive-title">Choose a volume</h3></div>
-                    <p class="library-magic-note">Every hero has a gold-titled book on these shelves. The library strengthens magic heroes.</p>
-                  </div>
-                  <div class="bookcase">
-                    <div v-for="(bays, shelfIndex) in libraryShelves" :key="shelfIndex" class="shelf-row" role="group" :aria-label="`Shelf ${shelfIndex + 1}`">
-                      <div v-for="bay in bays" :key="bay.id" class="shelf-bay">
-                        <template v-for="item in bay.items" :key="item.key">
-                          <button v-if="item.kind === 'hero'" class="spine hero-spine" :class="{ selected: archiveOpen && archiveHero?.id === item.hero.id }" :style="{ '--book-color': item.color }" type="button" :aria-pressed="archiveOpen && archiveHero?.id === item.hero.id" :aria-label="`Read ${item.hero.name}'s story`" @click="openArchiveBook(item.hero, $event)"><span>{{ item.hero.name }}</span></button>
-                          <span v-else-if="item.kind === 'book'" class="spine decorative-spine" :class="{ tilted: item.tilt, extra: item.extra }" :style="{ '--book-color': item.color, '--spine-h': `${item.height}px`, '--spine-w': `${item.width}px` }" aria-hidden="true" />
-                          <span v-else-if="item.kind === 'stack'" class="book-stack" aria-hidden="true"><i v-for="(color, i) in item.colors" :key="i" :style="{ '--book-color': color }" /></span>
-                          <span v-else class="shelf-curio" :class="`curio-${item.prop}`" aria-hidden="true"><LibraryProp :kind="item.prop" /></span>
-                        </template>
-                      </div>
-                    </div>
-                  </div>
-                </section>
-                <div v-if="archiveOpen && selectedArchiveHero" class="storybook-overlay" @pointerdown.self="closeArchiveBook">
-                  <div class="storybook-spread" role="dialog" aria-modal="true" aria-labelledby="story-title" @keydown="trapBookDialog">
-                  <article class="storybook-page story-left">
-                    <button ref="bookBackButton" class="book-back" type="button" @click="closeArchiveBook">← Back to the shelves</button>
-                    <span class="story-kicker">{{ selectedArchiveHero.name }} · {{ heroStars(selectedArchiveHero) }}-star {{ selectedArchiveHero.type }} hero</span>
-                    <h3 id="story-title" class="story-title">{{ selectedHeroLore?.title || selectedArchiveHero.name }}</h3>
-                    <p class="hero-personality">{{ selectedHeroLore?.personality || 'A valued member of the town’s defenders.' }}</p>
-                    <p class="story-copy">{{ selectedHeroLore?.story || `${selectedArchiveHero.name} brings ${selectedArchiveHero.weapon || 'their own talents'} to every adventure. Their signature skill is ${selectedArchiveHero.skill || 'always ready'}, and their ultimate is ${selectedArchiveHero.ultimate || 'a force to reckon with'}.` }}</p>
-                    <p v-if="selectedHeroLore?.fieldNote" class="field-note"><b>Field note</b> · {{ selectedHeroLore.fieldNote }}</p>
-                  </article>
-                  <div class="storybook-page story-right">
-                    <figure class="story-portrait"><div class="portrait-frame"><HeroIcon :hero="selectedArchiveHero" :size="150" :label="`${selectedArchiveHero.name} portrait`" :animated="true" /></div><figcaption>{{ selectedArchiveHero.name }}</figcaption></figure>
-                    <dl class="hero-book-stats"><div><dt>HP</dt><dd>{{ selectedArchiveHero.hp }}</dd></div><div><dt>Attack</dt><dd>{{ selectedArchiveHero.attack }}</dd></div><div><dt>Defense</dt><dd>{{ selectedArchiveHero.defense }}</dd></div><div><dt>Speed</dt><dd>{{ selectedArchiveHero.speed }}</dd></div></dl>
-                    <dl class="hero-abilities"><div><dt>Primary fire</dt><dd>{{ selectedArchiveHero.weapon || 'Heroic strike' }}</dd></div><div><dt>Skill</dt><dd>{{ selectedArchiveHero.skill || 'Signature skill' }}</dd></div><div><dt>Ultimate</dt><dd>{{ selectedArchiveHero.ultimate || 'Ultimate power' }}</dd></div><div v-if="GAME_CONFIG.heroes[selectedArchiveHero.id]?.talent"><dt>Talent · {{ GAME_CONFIG.heroes[selectedArchiveHero.id].talent.name }}</dt><dd>{{ GAME_CONFIG.heroes[selectedArchiveHero.id].talent.description }}</dd></div></dl>
-                  </div>
-                  </div>
-                </div>
-              </div>
-            </template>
-            <template v-else-if="townTarget === 'workshop'">
-              <div class="gym-card workshop-feature">
-                <section class="workshop-roster" aria-labelledby="workshop-roster-title">
-                  <span class="clipboard-clip" aria-hidden="true" />
-                  <h3 id="workshop-roster-title" class="roster-title">Member roster</h3>
-                  <p class="roster-sub">Training Workshop · sign-in sheet</p>
-                  <div class="roster-list" role="group" aria-label="Choose a hero to preview">
-                    <button v-for="(hero, index) in workshopHeroes" :key="hero.id" class="workshop-hero" :class="{ selected: workshopHero?.id === hero.id }" type="button" :aria-pressed="workshopHero?.id === hero.id" @click="previewWorkshopHero = hero">
-                      <span class="member-no" aria-hidden="true">{{ String(index + 1).padStart(2, '0') }}</span>
-                      <HeroIcon :hero="hero" :size="34" />
-                      <b>{{ hero.name }}</b>
-                      <small>{{ heroStars(hero) }}-star · {{ hero.type }}</small>
-                      <em class="member-pass" :class="{ guest: !ownedHeroIds.has(hero.id) }">{{ ownedHeroIds.has(hero.id) ? 'Member' : 'Guest pass' }}</em>
-                    </button>
-                  </div>
-                </section>
-                <article v-if="workshopHero" class="workshop-detail training-form" aria-labelledby="training-form-title">
-                  <header class="form-head">
-                    <div><span class="scene-kicker">Training registration form</span><h3 id="training-form-title">{{ workshopHero.name }}</h3></div>
-                    <span class="form-stamp" aria-hidden="true">Cleared for<br>practice</span>
-                  </header>
-                  <div class="form-body">
-                    <div class="workshop-preview-stage">
-                      <svg class="training-yard" viewBox="0 0 400 260" preserveAspectRatio="xMidYMax meet" aria-hidden="true" focusable="false">
-                        <rect width="400" height="260" fill="#cfe2e8" />
-                        <path d="M0 120c60-18 120-16 180-4s130 8 220-10v154H0Z" fill="#9db98a" />
-                        <path d="M0 150h400v110H0Z" fill="#d8bf8f" />
-                        <path d="M0 150h400" stroke="#23382f" stroke-width="2.5" />
-                        <g stroke="#7a5534" stroke-width="5" stroke-linecap="round"><path d="M14 150v-44M64 150v-44M114 150v-44M286 150v-44M336 150v-44M386 150v-44" /><path d="M8 116h112M8 134h112M280 116h112M280 134h112" stroke-width="4" /></g>
-                        <g stroke="#23382f" stroke-width="2.5"><path d="M30 196h58l6 30H24Z" fill="#e8c57c" /><path d="M34 206h50M30 216h58" stroke="#b7914e" /></g>
-                        <g><path d="M312 222v-56" stroke="#7a5534" stroke-width="5" /><circle cx="312" cy="160" r="30" fill="#fff8e4" stroke="#23382f" stroke-width="3" /><circle cx="312" cy="160" r="20" fill="#d86f6b" /><circle cx="312" cy="160" r="11" fill="#fff8e4" /><circle cx="312" cy="160" r="4.5" fill="#d86f6b" /></g>
-                        <g><path d="M366 214v-46" stroke="#7a5534" stroke-width="4" /><circle cx="366" cy="166" r="18" fill="#fff8e4" stroke="#23382f" stroke-width="2.5" /><circle cx="366" cy="166" r="11" fill="#d86f6b" /><circle cx="366" cy="166" r="4" fill="#fff8e4" /></g>
-                        <ellipse cx="160" cy="226" rx="70" ry="9" fill="#7a6545" opacity=".35" />
-                      </svg>
-                      <div class="yard-hero"><HeroIcon :hero="workshopHero" :size="150" :label="`${workshopHero.name} warming up in the training yard`" :animated="true" /></div>
-                    </div>
-                    <div class="form-fields">
-                      <div class="form-line"><span>Class</span><b>{{ heroStars(workshopHero) }}-star {{ workshopHero.type }} hero</b></div>
-                      <div class="form-line"><span>Kit</span><b>{{ workshopHero.weapon || 'A practiced strike' }} · {{ workshopHero.skill || 'Signature skill' }} · {{ workshopHero.ultimate || 'Ultimate' }}</b></div>
-                      <dl class="hero-book-stats"><div class="stat-hp"><dt>HP</dt><dd>{{ workshopHero.hp }}</dd></div><div class="stat-atk"><dt>Attack</dt><dd>{{ workshopHero.attack }}</dd></div><div class="stat-def"><dt>Defense</dt><dd>{{ workshopHero.defense }}</dd></div><div class="stat-spd"><dt>Speed</dt><dd>{{ workshopHero.speed }}</dd></div></dl>
-                      <dl class="trial-cooldowns"><div><dt>Primary</dt><dd>{{ ((workshopConfig?.weaponCooldownMs || 0) / 1000).toFixed(1) }}s</dd></div><div><dt>Skill</dt><dd>{{ ((workshopConfig?.skillCooldownMs || 0) / 1000).toFixed(1) }}s</dd></div><div><dt>Ultimate</dt><dd>{{ ((workshopConfig?.ultimateCooldownMs || 0) / 1000).toFixed(1) }}s</dd></div></dl>
-                      <p v-if="workshopConfig?.talent" class="trial-talent"><b>{{ workshopConfig.talent.name }}</b> · {{ workshopConfig.talent.description }}</p>
-                      <div class="form-sign"><span>Signed by coach</span><b>Bramble</b></div>
-                    </div>
-                  </div>
-                  <footer class="form-foot">
-                    <p class="trial-note">Practice privately with any hero. Trials use the real combat controls and grant no rewards or progress. Workshop levels still boost physical heroes in Campfire Run.</p>
-                    <button class="btn primary trial-start" type="button" :disabled="trialStarting" @click="startWorkshopTrial(workshopHero)">{{ trialStarting ? 'Opening training ground…' : 'Start Test' }}</button>
-                  </footer>
-                </article>
-              </div>
-            </template>
-            <template v-else-if="townTarget === 'castle'">
-              <div class="wardrobe-feature">
-                <section class="wardrobe-catalog" aria-labelledby="wardrobe-title">
-                  <div class="wardrobe-title-row"><div><span class="preview-tag">Castle wardrobe</span><h3 id="wardrobe-title">Dress for your next tale</h3></div><span class="wardrobe-stamp" aria-hidden="true">ROYAL<br>SEAL</span></div>
-                  <p>Try-ons are free. Add keepsakes with the resources you gather around town, then save the look to equip them.</p>
-                  <p class="wardrobe-purse">On hand: {{ fmtBundle(wardrobeResources, R) }}</p>
-                  <p v-if="wardrobeLoading" class="wardrobe-status" role="status">Opening the wardrobe…</p>
-                  <p v-if="wardrobeError" class="wardrobe-error" role="alert">{{ wardrobeError }}</p>
-                  <div class="wardrobe-tabs" role="group" aria-label="Wardrobe category">
-                    <button v-for="tab in [{ id: 'hats', label: 'Hats' }, { id: 'accessories', label: 'Pins' }, { id: 'colors', label: 'Colors' }]" :key="tab.id" class="wardrobe-tab" type="button" :aria-pressed="wardrobeCategory === tab.id" @click="wardrobeCategory = tab.id">{{ tab.label }}</button>
-                  </div>
-                  <section v-if="wardrobeCategory === 'hats'" class="wardrobe-items" aria-labelledby="wardrobe-hats-title">
-                    <h4 id="wardrobe-hats-title">Hat shelf</h4>
-                    <div class="hat-options" role="group" aria-label="Try on a hat">
-                      <article v-for="hat in wardrobeHats" :key="hat.id" class="hat-card">
-                        <button class="hat-option" type="button" :aria-label="'Try on ' + hat.name" :aria-pressed="wardrobeHat?.id === hat.id" :disabled="wardrobeLoading" @click="wardrobeHat = hat"><CosmeticIcon :id="hat.id" :size="58" /><small>{{ hat.name }}</small></button>
-                        <button v-if="!wardrobeOwnedIds.includes(hat.id) && wardrobeCanAfford(hat)" class="hat-claim" type="button" :disabled="!!wardrobeClaiming" @click="claimWardrobeCosmetic(hat)">{{ wardrobeClaiming === hat.id ? 'Adding…' : `${hat.cost ? 'Buy' : 'Add'} · ${wardrobePrice(hat)}` }}</button>
-                        <small v-else-if="!wardrobeOwnedIds.includes(hat.id)" class="wardrobe-shortfall">{{ wardrobeShortfall(hat) }}</small>
-                        <small v-else class="hat-owned">{{ wardrobeHat?.id === hat.id ? 'Selected' : 'In wardrobe' }}</small>
-                      </article>
-                      <article class="hat-card"><button class="hat-option" type="button" :aria-pressed="!wardrobeHat" aria-label="Preview without a hat" @click="wardrobeHat = null"><span aria-hidden="true">◌</span><small>No hat</small></button><small class="hat-owned">Always available</small></article>
-                    </div>
-                  </section>
-                  <section v-else-if="wardrobeCategory === 'accessories'" class="wardrobe-items" aria-labelledby="wardrobe-accessories-title">
-                    <h4 id="wardrobe-accessories-title">Pinned keepsakes</h4>
-                    <div class="hat-options" role="group" aria-label="Try on an accessory">
-                      <article v-for="item in wardrobeAccessories" :key="item.id" class="hat-card">
-                        <button class="hat-option" type="button" :aria-label="'Try on ' + item.name" :aria-pressed="wardrobeAccessory?.id === item.id" :disabled="wardrobeLoading" @click="wardrobeAccessory = item"><CosmeticIcon :id="item.id" :size="58" /><small>{{ item.name }}</small></button>
-                        <button v-if="!wardrobeOwnedIds.includes(item.id) && wardrobeCanAfford(item)" class="hat-claim" type="button" :disabled="!!wardrobeClaiming" @click="claimWardrobeCosmetic(item)">{{ wardrobeClaiming === item.id ? 'Adding…' : `${item.cost ? 'Buy' : 'Add'} · ${wardrobePrice(item)}` }}</button>
-                        <small v-else-if="!wardrobeOwnedIds.includes(item.id)" class="wardrobe-shortfall">{{ wardrobeShortfall(item) }}</small>
-                        <small v-else class="hat-owned">{{ wardrobeAccessory?.id === item.id ? 'Selected' : 'In wardrobe' }}</small>
-                      </article>
-                      <article class="hat-card"><button class="hat-option" type="button" :aria-pressed="!wardrobeAccessory" aria-label="Preview without a pin" @click="wardrobeAccessory = null"><span aria-hidden="true">◌</span><small>No pin</small></button><small class="hat-owned">Always available</small></article>
-                    </div>
-                  </section>
-                  <section v-else class="wardrobe-items" aria-labelledby="wardrobe-colors-title">
-                    <h4 id="wardrobe-colors-title">Color swatches</h4>
-                    <div class="avatar-swatches wardrobe-swatches" role="group" aria-label="Preview avatar color">
-                      <button v-for="color in wardrobeColors" :key="color.id" class="avatar-swatch" type="button" :style="{ '--swatch-color': color.renderValue }" :aria-label="color.name" :title="color.name" :aria-pressed="wardrobeColor === color.renderValue" :disabled="colorSaving || wardrobeLoading" @click="wardrobeColor = color.renderValue" />
-                    </div>
-                    <p class="wardrobe-current">Selected color: <code>{{ wardrobeColor }}</code></p>
-                  </section>
-                  <button class="btn primary wardrobe-save" type="button" :disabled="colorSaving || wardrobeLoading || !wardrobeDirty || !wardrobeCanSave" @click="saveWardrobeLook">{{ colorSaving ? 'Saving…' : 'Save this look' }}</button>
-                </section>
-                <aside class="wardrobe-preview dressing-room" aria-labelledby="castle-mirror-title">
-                  <div class="room-wall" aria-hidden="true">
-                    <span class="sconce sconce-left"><i /></span><span class="sconce sconce-right"><i /></span>
-                    <span class="hat-stand"><i /><i /><i /></span>
-                  </div>
-                  <div class="room-floor" aria-hidden="true"><span class="rug" /></div>
-                  <figure class="castle-mirror">
-                    <div class="mirror-frame">
-                      <div class="mirror-glass">
-                        <div class="wardrobe-avatar"><AvatarPreview :color="wardrobeColor" :hat-id="wardrobeHat?.id" :accessory-id="wardrobeAccessory?.id" /></div>
-                        <span class="mirror-sheen" aria-hidden="true" />
-                      </div>
-                    </div>
-                    <span class="mirror-feet" aria-hidden="true" />
-                    <figcaption id="castle-mirror-title">Castle mirror<small>{{ wardrobeDirty ? 'Previewing · not saved yet' : 'Your saved look' }}</small></figcaption>
-                  </figure>
-                </aside>
-              </div>
-            </template>
+            <GardenPanel v-if="townTarget === 'garden'" :context="gardenPanelContext" />
+            <TowerPanel v-else-if="townTarget === 'tower'" :context="towerPanelContext" />
+            <LibraryPanel v-else-if="townTarget === 'library'" :context="libraryPanelContext" />
+            <WorkshopPanel v-else-if="townTarget === 'workshop'" :context="workshopPanelContext" />
+            <CastlePanel v-else-if="townTarget === 'castle'" :context="castlePanelContext" />
           </div>
         </section>
       </div>
@@ -941,441 +668,442 @@ async function upgrade(p) {
   </div>
 </template>
 
-<style scoped>
+<style>
+/* Root-scoped global rules also style the building panel child components. */
 .kingdom-screen { position: relative; width: 100%; height: 100%; min-height: 100%; overflow: hidden; background: #2f5e3e; }
-.scene-note { position: absolute; inset: 50% auto auto 50%; width: min(90vw, 440px); padding: 30px; transform: translate(-50%, -50%); color: #23382f; background: #fbf2d8; border: 4px solid #23382f; border-radius: 14px 11px 16px 12px; box-shadow: 0 8px 0 #7a6545; text-align: center; }
-.scene-note h1 { margin: 8px 0; color: #254937; font: 700 32px/1.1 Georgia, "Palatino Linotype", serif; }
-.scene-note p { margin: 0; }
-.note-action { margin-top: 16px; }
-.scene-error { color: #812e2d; }
+.kingdom-screen .scene-note { position: absolute; inset: 50% auto auto 50%; width: min(90vw, 440px); padding: 30px; transform: translate(-50%, -50%); color: #23382f; background: #fbf2d8; border: 4px solid #23382f; border-radius: 14px 11px 16px 12px; box-shadow: 0 8px 0 #7a6545; text-align: center; }
+.kingdom-screen .scene-note h1 { margin: 8px 0; color: #254937; font: 700 32px/1.1 Georgia, "Palatino Linotype", serif; }
+.kingdom-screen .scene-note p { margin: 0; }
+.kingdom-screen .note-action { margin-top: 16px; }
+.kingdom-screen .scene-error { color: #812e2d; }
 /* storybook buttons: campfire-gold main action, parchment secondary */
 .kingdom-screen .btn { min-height: 38px; padding: 7px 14px; color: #23382f; background: #fff8e4; border: 2px solid #23382f; border-radius: 8px 9px 7px 10px; box-shadow: 0 3px 0 #7a6545; font: 800 .9rem Nunito, Trebuchet MS, sans-serif; cursor: pointer; }
 .kingdom-screen .btn.primary { color: #23382f; background: #f2ba55; border-color: #23382f; }
 .kingdom-screen .btn:hover:not(:disabled), .kingdom-screen .btn:focus-visible { outline: 3px solid #8062a9; outline-offset: 2px; }
 .kingdom-screen .btn:active:not(:disabled) { transform: translateY(2px); box-shadow: 0 1px 0 #7a6545; }
 .kingdom-screen .btn:disabled { color: #6b6450; background: #ece3cc; border-style: dashed; box-shadow: none; cursor: not-allowed; opacity: 1; }
-.scene-kicker { display: block; color: #778054; font: 800 .66rem ui-monospace, monospace; letter-spacing: .11em; }
-.town-hud { position: absolute; z-index: 2; }
-.town-title-hud { top: 18px; left: 18px; padding: 11px 14px 12px; color: #fff8e4; background: rgb(35 56 47 / 90%); border: 2px solid #23382f; border-radius: 12px 10px 14px 9px; box-shadow: 0 4px 0 rgb(35 56 47 / 45%); }
-.town-title-hud .scene-kicker { color: #f2ba55; }
-.town-title { margin: 3px 0 9px; color: #fff8e4; font: 700 22px/1.15 Georgia, "Palatino Linotype", serif; }
-.town-title-dot { color: #f2ba55; }
-.town-title-actions { display: flex; gap: 6px; }
-.hud-btn { display: inline-flex; align-items: center; gap: 6px; min-height: 36px; padding: 6px 12px; color: #23382f; background: #fbf2d8; border: 2px solid #23382f; border-radius: 8px; box-shadow: 0 3px 0 #7a6545; font: 800 .84rem Nunito, Trebuchet MS, sans-serif; cursor: pointer; }
-.hud-btn svg { width: 17px; height: 17px; fill: #23382f; stroke: #23382f; }
-.hud-btn.gold { background: #f2ba55; }
-.hud-btn kbd { padding: 0 5px; background: #fff8e4; border: 1.5px solid #23382f; border-radius: 4px; font: 800 .66rem/1.5 ui-monospace, monospace; }
-.hud-icon { justify-content: center; min-width: 36px; padding: 6px; }
-.hud-btn:hover, .hud-btn:focus-visible { outline: 3px solid #f2ba55; outline-offset: 2px; }
-.hud-btn.gold:hover, .hud-btn.gold:focus-visible { outline-color: #fff8e4; }
-.hud-btn:active { transform: translateY(2px); box-shadow: 0 1px 0 #7a6545; }
-.town-list { position: absolute; z-index: 3; top: 128px; left: 18px; display: grid; gap: 6px; width: min(270px, calc(100vw - 36px)); padding: 9px; background: #fbf2d8; border: 2px solid #23382f; border-radius: 10px; box-shadow: 0 4px 0 #7a6545; }
-.town-list-entry { display: grid; grid-template-columns: 34px 1fr auto; align-items: center; gap: 10px; padding: 6px 9px; color: #23382f; background: #fff8e4; border: 1.5px solid #c5b58e; border-radius: 7px; text-align: left; cursor: pointer; }
-.town-list-entry :deep(.building-icon), .town-list-entry .building-icon { width: 34px; height: 34px; }
-.town-list-entry b { display: block; font: 700 1rem Georgia, "Palatino Linotype", serif; }
-.town-list-entry small { color: #5f6d58; font: 800 .64rem ui-monospace, monospace; letter-spacing: .08em; text-transform: uppercase; }
-.town-list-entry em { color: #5f6d58; font: 800 .72rem ui-monospace, monospace; font-style: normal; white-space: nowrap; }
-.town-list-entry em.ready { color: #254937; }
-.town-list-entry:hover, .town-list-entry:focus-visible { border-color: #23382f; outline: 2px solid #f2ba55; outline-offset: 1px; }
-.town-level { top: 18px; right: 18px; padding: 9px 14px; color: #23382f; background: #f2ba55; border: 3px solid #23382f; border-radius: 9px; box-shadow: 0 4px 0 #7a6545; font-weight: 900; pointer-events: none; }
-.town-actions { left: 18px; bottom: 16px; display: flex; gap: 8px; }
-.town-controls-hud { right: 18px; bottom: 16px; display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 4px 14px; max-width: min(560px, 60vw); padding: 9px 14px; color: #fff8e4; background: rgb(35 56 47 / 90%); border-radius: 9px; font: 700 .8rem/1.3 Nunito, Trebuchet MS, sans-serif; pointer-events: none; }
-.town-controls-hud kbd { padding: 1px 5px; color: #23382f; background: #f2ba55; border: 1px solid #23382f; border-radius: 4px; font: 800 .68rem ui-monospace, monospace; }
-.north-hint { color: #f2ba55; }
-.touch-controls-hint { display: none; }
-.avatar-customize { position: absolute; z-index: 4; left: 18px; bottom: 70px; width: min(360px, calc(100vw - 32px)); max-height: calc(100% - 100px); overflow-y: auto; padding: 22px; color: #23382f; background: #fbf2d8; background-image: url('/hero-lab/assets/storybook-paper.svg'), linear-gradient(135deg, #fff8e4, #f1e6c7); background-size: 144px 144px, auto; border: 3px solid #23382f; border-radius: 14px 11px 16px 12px; box-shadow: 0 6px 0 #7a6545, 0 14px 30px rgb(16 33 23 / 28%); }
-.avatar-customize h2 { margin: 4px 38px 0 0; color: #254937; font: 700 22px/1.1 Georgia, "Palatino Linotype", serif; }
-.customize-close { top: 10px; right: 10px; }
-.avatar-swatches { display: grid; grid-template-columns: repeat(6, 1fr); gap: 9px; }
-.avatar-swatch { width: 38px; height: 38px; justify-self: center; padding: 0; background: var(--swatch-color); border: 2px solid #23382f; border-radius: 50% 45% 48% 42%; box-shadow: 0 2px 0 #7a6545; cursor: pointer; }
-.avatar-swatch[aria-pressed="true"] { outline: 3px solid #8062a9; outline-offset: 2px; transform: scale(1.08); }
-.avatar-swatch:disabled { opacity: .72; cursor: wait; }
-.avatar-swatch:focus-visible { outline: 3px solid #8062a9; outline-offset: 3px; }
-.avatar-save-state { min-height: 1.3em; margin: 12px 0 0 !important; color: #52664b; font-size: .82rem; text-align: center; }
+.kingdom-screen .scene-kicker { display: block; color: #778054; font: 800 .66rem ui-monospace, monospace; letter-spacing: .11em; }
+.kingdom-screen .town-hud { position: absolute; z-index: 2; }
+.kingdom-screen .town-title-hud { top: 18px; left: 18px; padding: 11px 14px 12px; color: #fff8e4; background: rgb(35 56 47 / 90%); border: 2px solid #23382f; border-radius: 12px 10px 14px 9px; box-shadow: 0 4px 0 rgb(35 56 47 / 45%); }
+.kingdom-screen .town-title-hud .scene-kicker { color: #f2ba55; }
+.kingdom-screen .town-title { margin: 3px 0 9px; color: #fff8e4; font: 700 22px/1.15 Georgia, "Palatino Linotype", serif; }
+.kingdom-screen .town-title-dot { color: #f2ba55; }
+.kingdom-screen .town-title-actions { display: flex; gap: 6px; }
+.kingdom-screen .hud-btn { display: inline-flex; align-items: center; gap: 6px; min-height: 36px; padding: 6px 12px; color: #23382f; background: #fbf2d8; border: 2px solid #23382f; border-radius: 8px; box-shadow: 0 3px 0 #7a6545; font: 800 .84rem Nunito, Trebuchet MS, sans-serif; cursor: pointer; }
+.kingdom-screen .hud-btn svg { width: 17px; height: 17px; fill: #23382f; stroke: #23382f; }
+.kingdom-screen .hud-btn.gold { background: #f2ba55; }
+.kingdom-screen .hud-btn kbd { padding: 0 5px; background: #fff8e4; border: 1.5px solid #23382f; border-radius: 4px; font: 800 .66rem/1.5 ui-monospace, monospace; }
+.kingdom-screen .hud-icon { justify-content: center; min-width: 36px; padding: 6px; }
+.kingdom-screen .hud-btn:hover, .kingdom-screen .hud-btn:focus-visible { outline: 3px solid #f2ba55; outline-offset: 2px; }
+.kingdom-screen .hud-btn.gold:hover, .kingdom-screen .hud-btn.gold:focus-visible { outline-color: #fff8e4; }
+.kingdom-screen .hud-btn:active { transform: translateY(2px); box-shadow: 0 1px 0 #7a6545; }
+.kingdom-screen .town-list { position: absolute; z-index: 3; top: 128px; left: 18px; display: grid; gap: 6px; width: min(270px, calc(100vw - 36px)); padding: 9px; background: #fbf2d8; border: 2px solid #23382f; border-radius: 10px; box-shadow: 0 4px 0 #7a6545; }
+.kingdom-screen .town-list-entry { display: grid; grid-template-columns: 34px 1fr auto; align-items: center; gap: 10px; padding: 6px 9px; color: #23382f; background: #fff8e4; border: 1.5px solid #c5b58e; border-radius: 7px; text-align: left; cursor: pointer; }
+.kingdom-screen .town-list-entry .building-icon, .kingdom-screen .town-list-entry .building-icon { width: 34px; height: 34px; }
+.kingdom-screen .town-list-entry b { display: block; font: 700 1rem Georgia, "Palatino Linotype", serif; }
+.kingdom-screen .town-list-entry small { color: #5f6d58; font: 800 .64rem ui-monospace, monospace; letter-spacing: .08em; text-transform: uppercase; }
+.kingdom-screen .town-list-entry em { color: #5f6d58; font: 800 .72rem ui-monospace, monospace; font-style: normal; white-space: nowrap; }
+.kingdom-screen .town-list-entry em.ready { color: #254937; }
+.kingdom-screen .town-list-entry:hover, .kingdom-screen .town-list-entry:focus-visible { border-color: #23382f; outline: 2px solid #f2ba55; outline-offset: 1px; }
+.kingdom-screen .town-level { top: 18px; right: 18px; padding: 9px 14px; color: #23382f; background: #f2ba55; border: 3px solid #23382f; border-radius: 9px; box-shadow: 0 4px 0 #7a6545; font-weight: 900; pointer-events: none; }
+.kingdom-screen .town-actions { left: 18px; bottom: 16px; display: flex; gap: 8px; }
+.kingdom-screen .town-controls-hud { right: 18px; bottom: 16px; display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 4px 14px; max-width: min(560px, 60vw); padding: 9px 14px; color: #fff8e4; background: rgb(35 56 47 / 90%); border-radius: 9px; font: 700 .8rem/1.3 Nunito, Trebuchet MS, sans-serif; pointer-events: none; }
+.kingdom-screen .town-controls-hud kbd { padding: 1px 5px; color: #23382f; background: #f2ba55; border: 1px solid #23382f; border-radius: 4px; font: 800 .68rem ui-monospace, monospace; }
+.kingdom-screen .north-hint { color: #f2ba55; }
+.kingdom-screen .touch-controls-hint { display: none; }
+.kingdom-screen .avatar-customize { position: absolute; z-index: 4; left: 18px; bottom: 70px; width: min(360px, calc(100vw - 32px)); max-height: calc(100% - 100px); overflow-y: auto; padding: 22px; color: #23382f; background: #fbf2d8; background-image: url('/hero-lab/assets/storybook-paper.svg'), linear-gradient(135deg, #fff8e4, #f1e6c7); background-size: 144px 144px, auto; border: 3px solid #23382f; border-radius: 14px 11px 16px 12px; box-shadow: 0 6px 0 #7a6545, 0 14px 30px rgb(16 33 23 / 28%); }
+.kingdom-screen .avatar-customize h2 { margin: 4px 38px 0 0; color: #254937; font: 700 22px/1.1 Georgia, "Palatino Linotype", serif; }
+.kingdom-screen .customize-close { top: 10px; right: 10px; }
+.kingdom-screen .avatar-swatches { display: grid; grid-template-columns: repeat(6, 1fr); gap: 9px; }
+.kingdom-screen .avatar-swatch { width: 38px; height: 38px; justify-self: center; padding: 0; background: var(--swatch-color); border: 2px solid #23382f; border-radius: 50% 45% 48% 42%; box-shadow: 0 2px 0 #7a6545; cursor: pointer; }
+.kingdom-screen .avatar-swatch[aria-pressed="true"] { outline: 3px solid #8062a9; outline-offset: 2px; transform: scale(1.08); }
+.kingdom-screen .avatar-swatch:disabled { opacity: .72; cursor: wait; }
+.kingdom-screen .avatar-swatch:focus-visible { outline: 3px solid #8062a9; outline-offset: 3px; }
+.kingdom-screen .avatar-save-state { min-height: 1.3em; margin: 12px 0 0 !important; color: #52664b; font-size: .82rem; text-align: center; }
 
-.town-intro { position: absolute; z-index: 5; left: 18px; bottom: 70px; width: min(430px, calc(100vw - 32px)); padding: 18px 20px 16px; color: #23382f; background: #fbf2d8; background-image: url('/hero-lab/assets/storybook-paper.svg'), linear-gradient(135deg, #fff8e4, #f1e6c7); background-size: 144px 144px, auto; border: 3px solid #23382f; border-radius: 14px 11px 16px 12px; box-shadow: 0 6px 0 #7a6545, 0 14px 30px rgb(16 33 23 / 30%); }
-.town-intro h2 { margin: 4px 0 6px; color: #254937; font: 700 24px/1.15 Georgia, "Palatino Linotype", serif; }
-.town-intro p { margin: 0 0 14px; line-height: 1.45; }
-.town-intro-actions { display: flex; align-items: center; justify-content: flex-end; gap: 8px; }
-.intro-dots { display: flex; gap: 6px; margin-right: auto; }
-.intro-dots i { width: 9px; height: 9px; background: #e2d3ad; border: 1.5px solid #23382f; border-radius: 50%; }
-.intro-dots i.on { background: #f2ba55; }
+.kingdom-screen .town-intro { position: absolute; z-index: 5; left: 18px; bottom: 70px; width: min(430px, calc(100vw - 32px)); padding: 18px 20px 16px; color: #23382f; background: #fbf2d8; background-image: url('/hero-lab/assets/storybook-paper.svg'), linear-gradient(135deg, #fff8e4, #f1e6c7); background-size: 144px 144px, auto; border: 3px solid #23382f; border-radius: 14px 11px 16px 12px; box-shadow: 0 6px 0 #7a6545, 0 14px 30px rgb(16 33 23 / 30%); }
+.kingdom-screen .town-intro h2 { margin: 4px 0 6px; color: #254937; font: 700 24px/1.15 Georgia, "Palatino Linotype", serif; }
+.kingdom-screen .town-intro p { margin: 0 0 14px; line-height: 1.45; }
+.kingdom-screen .town-intro-actions { display: flex; align-items: center; justify-content: flex-end; gap: 8px; }
+.kingdom-screen .intro-dots { display: flex; gap: 6px; margin-right: auto; }
+.kingdom-screen .intro-dots i { width: 9px; height: 9px; background: #e2d3ad; border: 1.5px solid #23382f; border-radius: 50%; }
+.kingdom-screen .intro-dots i.on { background: #f2ba55; }
 
-.town-modal-shade { position: fixed; z-index: 1000; inset: 0; display: grid; place-items: center; padding: 20px; background: rgb(22 36 27 / 66%); }
-.town-modal { position: relative; display: flex; flex-direction: column; width: min(82vw, 1540px); height: min(82vh, 900px); max-height: calc(100svh - 40px); overflow: hidden; padding: 22px 24px 24px; color: #23382f; background: #fbf2d8; background-image: url('/hero-lab/assets/storybook-paper.svg'), linear-gradient(135deg, #fff8e4, #f1e6c7); background-size: 144px 144px, auto; border: 4px solid #23382f; border-radius: 14px 11px 16px 12px; box-shadow: 0 8px 0 #7a6545, 0 18px 48px rgb(0 0 0 / 30%); }
-.panel-head { display: flex; flex-wrap: wrap; align-items: flex-start; gap: 12px 16px; padding-right: 44px; padding-bottom: 14px; border-bottom: 2px dashed #c5b58e; }
-.panel-title { flex: 0 1 190px; }
-.panel-title h2 { margin: 4px 0 4px; color: #254937; font: 700 30px/1.05 Georgia, "Palatino Linotype", serif; }
-.panel-level { display: flex; align-items: center; gap: 8px; margin: 0; color: #4a3d63; font-weight: 900; }
-.level-pips { display: inline-flex; gap: 4px; }
-.level-pips i { width: 14px; height: 14px; background: #fff8e4; border: 2px solid #23382f; border-radius: 3px 4px 3px 5px; }
-.level-pips i.on { background: #f2ba55; }
-.panel-upgrade { display: flex; align-items: center; align-self: center; }
-.panel-upgrade :deep(.btn) { white-space: nowrap; }
-.max-badge { padding: 6px 10px; color: #254937; background: #dcebc8; border: 2px solid #254937; border-radius: 8px; font-weight: 900; }
-.town-modal-kicker { color: #5f6d58; font: 800 .68rem ui-monospace, monospace; letter-spacing: .08em; }
-.town-modal-close { position: absolute; top: 12px; right: 12px; width: 36px; height: 36px; color: #23382f; background: #fff8e4; border: 2px solid #23382f; border-radius: 8px; box-shadow: 0 3px 0 #7a6545; font-size: 24px; line-height: 1; cursor: pointer; }
-.town-modal-close:focus-visible, .town-modal-close:hover { outline: 3px solid #f2ba55; outline-offset: 2px; }
-.panel-purpose { margin: 14px 0 10px; line-height: 1.45; }
-.panel-effect { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 8px; margin: 0 0 10px; }
-.panel-effect div { padding: 9px 12px; background: #fff8e4; border: 2px solid #23382f; border-radius: 8px 10px 7px 9px; }
-.panel-effect dt { color: #5f6d58; font: 800 .64rem ui-monospace, monospace; letter-spacing: .08em; text-transform: uppercase; }
-.panel-effect dd { margin: 2px 0 0; font-weight: 800; }
-.compact-effect { flex: 1 1 330px; grid-template-columns: repeat(2,minmax(0,1fr)); margin: 0; }
-.panel-note { margin: 0 0 8px; color: #5f4a2e; font-size: .88rem; }
-.panel-content { flex: 1; min-height: 0; overflow: auto; margin-top: 14px; }
-.panel-content h3 { margin: 2px 0 4px; font: 700 19px/1.2 Georgia, "Palatino Linotype", serif; }
-.panel-content p { margin: 0 0 10px; line-height: 1.45; }
-.preview-tag { display: inline-block; padding: 2px 8px; color: #4a3d63; background: #ece3f8; border: 1.5px dashed #8062a9; border-radius: 999px; font: 800 .64rem ui-monospace, monospace; letter-spacing: .06em; text-transform: uppercase; }
-.sky-card { position: relative; flex: 1; min-height: 0; overflow: hidden; padding: 0; color: #fff8e4; background: #101d42; border: 3px solid #23382f; border-radius: 12px 10px 14px 9px; }
-.theme-garden .panel-content, .theme-library .panel-content { display: flex; }
-.garden-sky { position: absolute; inset: 0; overflow: hidden; background: linear-gradient(180deg,#1b3154 0%,#2c4d7c 68%,#4d6e9e 100%); }
-.garden-star-sky { position: absolute; z-index: 0; inset: 0; }
-.garden-star-sky :deep(.summon-sky) { position: absolute; inset: 0; }
-.constellation { position: absolute; z-index: 1; margin: 0; pointer-events: none; }
-.constellation svg { display: block; width: 100%; height: auto; overflow: visible; }
-.constellation path { fill: none; stroke: #c9d6f2; stroke-width: 1.6; stroke-linecap: round; opacity: .62; vector-effect: non-scaling-stroke; }
-.constellation circle { fill: #fff3d0; filter: drop-shadow(0 0 3px #fff1b8); animation: star-glimmer 3.6s ease-in-out infinite; }
-.constellation circle.bright { fill: #fff8e4; filter: drop-shadow(0 0 5px #f2ba55); }
-.constellation figcaption { margin-top: 2px; color: #c9d6f2; font: italic 600 .7rem Georgia,serif; letter-spacing: .03em; opacity: .7; text-align: center; }
+.kingdom-screen .town-modal-shade { position: fixed; z-index: 1000; inset: 0; display: grid; place-items: center; padding: 20px; background: rgb(22 36 27 / 66%); }
+.kingdom-screen .town-modal { position: relative; display: flex; flex-direction: column; width: min(82vw, 1540px); height: min(82vh, 900px); max-height: calc(100svh - 40px); overflow: hidden; padding: 22px 24px 24px; color: #23382f; background: #fbf2d8; background-image: url('/hero-lab/assets/storybook-paper.svg'), linear-gradient(135deg, #fff8e4, #f1e6c7); background-size: 144px 144px, auto; border: 4px solid #23382f; border-radius: 14px 11px 16px 12px; box-shadow: 0 8px 0 #7a6545, 0 18px 48px rgb(0 0 0 / 30%); }
+.kingdom-screen .panel-head { display: flex; flex-wrap: wrap; align-items: flex-start; gap: 12px 16px; padding-right: 44px; padding-bottom: 14px; border-bottom: 2px dashed #c5b58e; }
+.kingdom-screen .panel-title { flex: 0 1 190px; }
+.kingdom-screen .panel-title h2 { margin: 4px 0 4px; color: #254937; font: 700 30px/1.05 Georgia, "Palatino Linotype", serif; }
+.kingdom-screen .panel-level { display: flex; align-items: center; gap: 8px; margin: 0; color: #4a3d63; font-weight: 900; }
+.kingdom-screen .level-pips { display: inline-flex; gap: 4px; }
+.kingdom-screen .level-pips i { width: 14px; height: 14px; background: #fff8e4; border: 2px solid #23382f; border-radius: 3px 4px 3px 5px; }
+.kingdom-screen .level-pips i.on { background: #f2ba55; }
+.kingdom-screen .panel-upgrade { display: flex; align-items: center; align-self: center; }
+.kingdom-screen .panel-upgrade .btn { white-space: nowrap; }
+.kingdom-screen .max-badge { padding: 6px 10px; color: #254937; background: #dcebc8; border: 2px solid #254937; border-radius: 8px; font-weight: 900; }
+.kingdom-screen .town-modal-kicker { color: #5f6d58; font: 800 .68rem ui-monospace, monospace; letter-spacing: .08em; }
+.kingdom-screen .town-modal-close { position: absolute; top: 12px; right: 12px; width: 36px; height: 36px; color: #23382f; background: #fff8e4; border: 2px solid #23382f; border-radius: 8px; box-shadow: 0 3px 0 #7a6545; font-size: 24px; line-height: 1; cursor: pointer; }
+.kingdom-screen .town-modal-close:focus-visible, .kingdom-screen .town-modal-close:hover { outline: 3px solid #f2ba55; outline-offset: 2px; }
+.kingdom-screen .panel-purpose { margin: 14px 0 10px; line-height: 1.45; }
+.kingdom-screen .panel-effect { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 8px; margin: 0 0 10px; }
+.kingdom-screen .panel-effect div { padding: 9px 12px; background: #fff8e4; border: 2px solid #23382f; border-radius: 8px 10px 7px 9px; }
+.kingdom-screen .panel-effect dt { color: #5f6d58; font: 800 .64rem ui-monospace, monospace; letter-spacing: .08em; text-transform: uppercase; }
+.kingdom-screen .panel-effect dd { margin: 2px 0 0; font-weight: 800; }
+.kingdom-screen .compact-effect { flex: 1 1 330px; grid-template-columns: repeat(2,minmax(0,1fr)); margin: 0; }
+.kingdom-screen .panel-note { margin: 0 0 8px; color: #5f4a2e; font-size: .88rem; }
+.kingdom-screen .panel-content { flex: 1; min-height: 0; overflow: auto; margin-top: 14px; }
+.kingdom-screen .panel-content h3 { margin: 2px 0 4px; font: 700 19px/1.2 Georgia, "Palatino Linotype", serif; }
+.kingdom-screen .panel-content p { margin: 0 0 10px; line-height: 1.45; }
+.kingdom-screen .preview-tag { display: inline-block; padding: 2px 8px; color: #4a3d63; background: #ece3f8; border: 1.5px dashed #8062a9; border-radius: 999px; font: 800 .64rem ui-monospace, monospace; letter-spacing: .06em; text-transform: uppercase; }
+.kingdom-screen .sky-card { position: relative; flex: 1; min-height: 0; overflow: hidden; padding: 0; color: #fff8e4; background: #101d42; border: 3px solid #23382f; border-radius: 12px 10px 14px 9px; }
+.kingdom-screen .theme-garden .panel-content, .kingdom-screen .theme-library .panel-content { display: flex; }
+.kingdom-screen .garden-sky { position: absolute; inset: 0; overflow: hidden; background: linear-gradient(180deg,#1b3154 0%,#2c4d7c 68%,#4d6e9e 100%); }
+.kingdom-screen .garden-star-sky { position: absolute; z-index: 0; inset: 0; }
+.kingdom-screen .garden-star-sky .summon-sky { position: absolute; inset: 0; }
+.kingdom-screen .constellation { position: absolute; z-index: 1; margin: 0; pointer-events: none; }
+.kingdom-screen .constellation svg { display: block; width: 100%; height: auto; overflow: visible; }
+.kingdom-screen .constellation path { fill: none; stroke: #c9d6f2; stroke-width: 1.6; stroke-linecap: round; opacity: .62; vector-effect: non-scaling-stroke; }
+.kingdom-screen .constellation circle { fill: #fff3d0; filter: drop-shadow(0 0 3px #fff1b8); animation: star-glimmer 3.6s ease-in-out infinite; }
+.kingdom-screen .constellation circle.bright { fill: #fff8e4; filter: drop-shadow(0 0 5px #f2ba55); }
+.kingdom-screen .constellation figcaption { margin-top: 2px; color: #c9d6f2; font: italic 600 .7rem Georgia,serif; letter-spacing: .03em; opacity: .7; text-align: center; }
 @keyframes star-glimmer { 0%,100% { opacity: 1; } 50% { opacity: .55; } }
-.garden-horizon { position: absolute; z-index: 2; right: 0; bottom: 0; left: 0; width: 100%; height: 30%; }
-.lantern-glow { animation: lantern-glow 2.8s ease-in-out infinite; }
+.kingdom-screen .garden-horizon { position: absolute; z-index: 2; right: 0; bottom: 0; left: 0; width: 100%; height: 30%; }
+.kingdom-screen .lantern-glow { animation: lantern-glow 2.8s ease-in-out infinite; }
 @keyframes lantern-glow { 0%,100% { opacity: .16; } 50% { opacity: .3; } }
-.telescope-button { position: absolute; z-index: 3; bottom: 6%; left: clamp(8px,8%,140px); width: clamp(150px,19vw,280px); padding: 0; background: none; border: 0; cursor: pointer; }
-.telescope-art { display: block; width: 100%; height: auto; overflow: visible; filter: drop-shadow(0 4px 2px #111a28aa); }
-.telescope-tube { transform-origin: 110px 102px; transition: transform .25s ease; }
-.telescope-button:hover .telescope-tube { transform: rotate(-4deg); }
-.telescope-button:disabled { cursor: default; }
-.garden-caption { position: absolute; z-index: 4; right: clamp(8px,3%,48px); bottom: clamp(10px,5%,40px); width: min(40%,520px); padding: clamp(14px,1.4vw,24px); color: #23382f; background: #fff8e4 url('/hero-lab/assets/storybook-paper.svg'); background-size: 144px; border: 3px solid #23382f; border-radius: 6px 9px 5px 8px; box-shadow: 0 5px 0 #4a3324, 0 10px 26px rgb(8 14 30 / 45%); }
-.garden-caption .scene-kicker { color: #6b5847; }
-.garden-caption h3 { margin: 5px 0; color: #254937; }
-.garden-caption p { margin-bottom: 10px; color: #23382f; }
-.theme-tower .panel-content, .theme-workshop .panel-content, .theme-castle .panel-content { display: flex; }
-.tower-feature { display: grid; flex: 1; min-height: 0; grid-template-columns: minmax(0, 3fr) minmax(250px, 1fr); gap: 14px; padding: 14px; overflow: hidden; background: repeating-linear-gradient(7deg,#835b38 0 16px,#8e6741 17px 34px,#7b5332 35px 38px); border: 3px solid #503c2a; border-radius: 7px; box-shadow: inset 0 0 0 4px #aa8153, 0 4px 0 #503c2a; }
-.tower-board { position: relative; display: flex; flex-direction: column; min-width: 0; min-height: 0; overflow: hidden; padding: 16px; background: repeating-linear-gradient(0deg,#a47548 0 30px,#986d43 31px 33px); border: 8px solid #66462e; border-radius: 5px; box-shadow: inset 0 0 0 2px #c29965; }
-.tower-board-heading { display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: 12px; padding-bottom: 12px; border-bottom: 2px dashed #edd4a8; }
-.board-sign { padding: 7px 16px 9px; color: #23382f; background: #fff3d0; border: 2px solid #4b3425; box-shadow: 3px 4px 0 #4b3425; transform: rotate(-1deg); }
-.board-sign .scene-kicker { color: #6b5847; }
-.board-sign h3 { margin: 2px 0 0; color: #254937; font-size: 24px; }
-.radio-station { display: grid; grid-template-columns: auto auto; grid-template-rows: auto auto; align-items: center; gap: 4px 10px; }
-.radio-set { grid-row: span 2; width: 104px; height: auto; overflow: visible; filter: drop-shadow(2px 3px 0 #4b3425); }
-.radio-waves { opacity: 0; }
-.radio-tune { display: inline-flex; align-items: center; gap: 7px; min-height: 40px; padding: 6px 13px; color: #23382f; background: #f2ba55; border: 2px solid #23382f; border-radius: 8px 10px 7px 9px; box-shadow: 0 3px 0 #4b3425; font: 800 .86rem Nunito,Trebuchet MS,sans-serif; cursor: pointer; }
-.radio-tune svg { width: 18px; height: 18px; }
-.radio-tune:hover:not(:disabled), .radio-tune:focus-visible { outline: 3px solid #fff3d0; outline-offset: 2px; }
-.radio-tune:active:not(:disabled) { transform: translateY(2px); box-shadow: 0 1px 0 #4b3425; }
-.radio-tune:disabled { cursor: wait; background: #e8d3a3; }
-.radio-tuning .radio-tune svg { animation: radio-spin .8s linear infinite; }
-.radio-status { max-width: 30ch; color: #fff3d0; font-size: .8rem; font-weight: 700; }
-.radio-tuning .radio-set { animation: radio-lift .65s ease-in-out infinite alternate; }
-.radio-tuning .radio-needle { animation: radio-sweep .65s ease-in-out infinite alternate; }
-.radio-tuning .radio-knob { transform-origin: 74px 64px; animation: radio-spin .65s linear infinite; }
-.radio-tuning .radio-waves, .radio-fresh .radio-waves { animation: radio-waves .55s ease-out infinite; }
-.radio-tuning .radio-lamp { fill: #f2ba55; animation: radio-blink .3s steps(2) infinite; }
-.radio-fresh .radio-lamp { fill: #9be07a; filter: drop-shadow(0 0 3px #9be07a); }
-.radio-static .radio-lamp { fill: #c4574f; }
-.radio-fresh .radio-status { color: #dff5c8; }
+.kingdom-screen .telescope-button { position: absolute; z-index: 3; bottom: 6%; left: clamp(8px,8%,140px); width: clamp(150px,19vw,280px); padding: 0; background: none; border: 0; cursor: pointer; }
+.kingdom-screen .telescope-art { display: block; width: 100%; height: auto; overflow: visible; filter: drop-shadow(0 4px 2px #111a28aa); }
+.kingdom-screen .telescope-tube { transform-origin: 110px 102px; transition: transform .25s ease; }
+.kingdom-screen .telescope-button:hover .telescope-tube { transform: rotate(-4deg); }
+.kingdom-screen .telescope-button:disabled { cursor: default; }
+.kingdom-screen .garden-caption { position: absolute; z-index: 4; right: clamp(8px,3%,48px); bottom: clamp(10px,5%,40px); width: min(40%,520px); padding: clamp(14px,1.4vw,24px); color: #23382f; background: #fff8e4 url('/hero-lab/assets/storybook-paper.svg'); background-size: 144px; border: 3px solid #23382f; border-radius: 6px 9px 5px 8px; box-shadow: 0 5px 0 #4a3324, 0 10px 26px rgb(8 14 30 / 45%); }
+.kingdom-screen .garden-caption .scene-kicker { color: #6b5847; }
+.kingdom-screen .garden-caption h3 { margin: 5px 0; color: #254937; }
+.kingdom-screen .garden-caption p { margin-bottom: 10px; color: #23382f; }
+.kingdom-screen .theme-tower .panel-content, .kingdom-screen .theme-workshop .panel-content, .kingdom-screen .theme-castle .panel-content { display: flex; }
+.kingdom-screen .tower-feature { display: grid; flex: 1; min-height: 0; grid-template-columns: minmax(0, 3fr) minmax(250px, 1fr); gap: 14px; padding: 14px; overflow: hidden; background: repeating-linear-gradient(7deg,#835b38 0 16px,#8e6741 17px 34px,#7b5332 35px 38px); border: 3px solid #503c2a; border-radius: 7px; box-shadow: inset 0 0 0 4px #aa8153, 0 4px 0 #503c2a; }
+.kingdom-screen .tower-board { position: relative; display: flex; flex-direction: column; min-width: 0; min-height: 0; overflow: hidden; padding: 16px; background: repeating-linear-gradient(0deg,#a47548 0 30px,#986d43 31px 33px); border: 8px solid #66462e; border-radius: 5px; box-shadow: inset 0 0 0 2px #c29965; }
+.kingdom-screen .tower-board-heading { display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: 12px; padding-bottom: 12px; border-bottom: 2px dashed #edd4a8; }
+.kingdom-screen .board-sign { padding: 7px 16px 9px; color: #23382f; background: #fff3d0; border: 2px solid #4b3425; box-shadow: 3px 4px 0 #4b3425; transform: rotate(-1deg); }
+.kingdom-screen .board-sign .scene-kicker { color: #6b5847; }
+.kingdom-screen .board-sign h3 { margin: 2px 0 0; color: #254937; font-size: 24px; }
+.kingdom-screen .radio-station { display: grid; grid-template-columns: auto auto; grid-template-rows: auto auto; align-items: center; gap: 4px 10px; }
+.kingdom-screen .radio-set { grid-row: span 2; width: 104px; height: auto; overflow: visible; filter: drop-shadow(2px 3px 0 #4b3425); }
+.kingdom-screen .radio-waves { opacity: 0; }
+.kingdom-screen .radio-tune { display: inline-flex; align-items: center; gap: 7px; min-height: 40px; padding: 6px 13px; color: #23382f; background: #f2ba55; border: 2px solid #23382f; border-radius: 8px 10px 7px 9px; box-shadow: 0 3px 0 #4b3425; font: 800 .86rem Nunito,Trebuchet MS,sans-serif; cursor: pointer; }
+.kingdom-screen .radio-tune svg { width: 18px; height: 18px; }
+.kingdom-screen .radio-tune:hover:not(:disabled), .kingdom-screen .radio-tune:focus-visible { outline: 3px solid #fff3d0; outline-offset: 2px; }
+.kingdom-screen .radio-tune:active:not(:disabled) { transform: translateY(2px); box-shadow: 0 1px 0 #4b3425; }
+.kingdom-screen .radio-tune:disabled { cursor: wait; background: #e8d3a3; }
+.kingdom-screen .radio-tuning .radio-tune svg { animation: radio-spin .8s linear infinite; }
+.kingdom-screen .radio-status { max-width: 30ch; color: #fff3d0; font-size: .8rem; font-weight: 700; }
+.kingdom-screen .radio-tuning .radio-set { animation: radio-lift .65s ease-in-out infinite alternate; }
+.kingdom-screen .radio-tuning .radio-needle { animation: radio-sweep .65s ease-in-out infinite alternate; }
+.kingdom-screen .radio-tuning .radio-knob { transform-origin: 74px 64px; animation: radio-spin .65s linear infinite; }
+.kingdom-screen .radio-tuning .radio-waves, .kingdom-screen .radio-fresh .radio-waves { animation: radio-waves .55s ease-out infinite; }
+.kingdom-screen .radio-tuning .radio-lamp { fill: #f2ba55; animation: radio-blink .3s steps(2) infinite; }
+.kingdom-screen .radio-fresh .radio-lamp { fill: #9be07a; filter: drop-shadow(0 0 3px #9be07a); }
+.kingdom-screen .radio-static .radio-lamp { fill: #c4574f; }
+.kingdom-screen .radio-fresh .radio-status { color: #dff5c8; }
 @keyframes radio-lift { from { transform: translateY(0) rotate(0); } to { transform: translateY(-5px) rotate(-3deg); } }
 @keyframes radio-sweep { from { transform: translateX(0); } to { transform: translateX(26px); } }
 @keyframes radio-spin { to { transform: rotate(360deg); } }
 @keyframes radio-waves { from { opacity: .9; } to { opacity: 0; } }
 @keyframes radio-blink { 50% { opacity: .3; } }
-.tower-filter-row { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 8px; padding: 10px 0; color: #fff3d0; }
-.board-hint { font-size: .86rem; font-weight: 700; }
-.info-note { position: relative; padding: 20px 14px 12px; color: #23382f; background: #e6eed6; border: 1px solid #5f6d58; box-shadow: 3px 4px 0 #493827; transform: rotate(.8deg); }
-.info-note h4 { margin: 0 0 5px; color: #254937; font: 800 .74rem ui-monospace,monospace; letter-spacing: .07em; text-transform: uppercase; }
-.info-note p { margin: 0 0 4px !important; font-size: .86rem; font-weight: 700; }
-.info-note small { color: #5f6d58; font-weight: 800; }
-.stash-note { background: #fff3d0; transform: rotate(-1.1deg); }
-.steps-note { background: #e9e1f3; transform: rotate(-.4deg); }
-.steps-note ol { margin: 0; padding-left: 18px; font-size: .84rem; font-weight: 700; line-height: 1.45; }
-.tower-filter-row label { color: #fff3d0; }
-.tower-filter-row label { display: flex; align-items: center; gap: 6px; font-weight: 800; }.tower-filter-row select { min-height: 34px; padding: 4px 7px; color: #23382f; background: #fff8e4; border: 2px solid #503c2a; border-radius: 5px; font: inherit; }
-.pinned-notes { display: grid; flex: 1; min-height: 0; grid-template-columns: repeat(auto-fit,minmax(min(100%,260px),1fr)); align-content: start; gap: 12px; overflow: auto; padding: 7px 7px 14px; }
-.empty-board-note { grid-column: 1/-1; align-self: center; max-width: 440px; margin: auto; padding: 24px; color: #493829; background: #fff4d5; border: 2px dashed #795738; box-shadow: 3px 4px #513b29; text-align: center; transform: rotate(-1deg); }
-.tower-offer-desk { align-self: stretch; padding: 18px 15px; overflow: auto; background: repeating-linear-gradient(0deg,#fff8e4 0 29px,#e9d9b5 30px 31px); border: 2px solid #513b29; box-shadow: 3px 4px #513b29; }
-.tower-offer-desk h3 { margin-top: 8px; font-size: 23px; }.tower-offer-desk > p { font-size: .88rem; }
-.offer-paper { background: rgb(255 248 228 / 80%); }
-.trade-columns { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
-.trade-columns fieldset { display: grid; gap: 7px; margin: 0; padding: 10px; border: 1.5px solid #c5b58e; border-radius: 7px; }
-.trade-columns legend { padding: 0 5px; font-weight: 900; }
-.trade-columns label { display: flex; align-items: center; justify-content: space-between; gap: 8px; font-weight: 700; }
-.trade-columns input { width: 70px; min-height: 34px; padding: 4px 7px; color: #23382f; background: white; border: 1.5px solid #7a6545; border-radius: 5px; font: inherit; }
-.trade-entry { position: relative; display: flex; flex-direction: column; align-items: stretch; gap: 8px; min-height: 132px; padding: 19px 12px 12px; color: #3c3229; background: #fff6dc; border: 1px solid #76573a; box-shadow: 3px 4px 0 #493827; transform: rotate(-.7deg); }
-.trade-entry:nth-child(even) { background: #f8edcf; transform: rotate(.65deg); }.trade-entry.own { background: #e9edcf; }
-.note-pin { position: absolute; top: 5px; left: 50%; width: 12px; height: 12px; background: #b95643; border: 2px solid #4d3827; border-radius: 50%; box-shadow: 1px 2px #493827; transform: translateX(-50%); }
-.note-author { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 5px; font: 800 .78rem ui-monospace,monospace; text-transform: uppercase; }
-.note-exchange { display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; gap: 6px; }.note-exchange span { display: grid; gap: 3px; overflow-wrap: anywhere; font-weight: 800; font-size: .83rem; }.note-exchange small { color: #726047; font: 800 .58rem ui-monospace,monospace; letter-spacing: .08em; }.note-exchange > b { color: #8062a9; font-size: 1.2rem; }
-.note-action { align-self: start; margin-top: auto; }
-.offer-rules { padding: 8px; color: #594630; background: rgb(243 228 196 / 75%); border-left: 3px solid #a47b49; font-size: .8rem; }
-.trade-state { color: #5f6d58; font-size: .88rem; }
-.trade-error { padding: 8px 10px; color: #812e2d; background: #f8e3e1; border-radius: 6px; }
-.text-button { color: #254937; background: transparent; border: 0; font: inherit; font-weight: 900; text-decoration: underline; cursor: pointer; }
-.trade-confirm { position: sticky; bottom: 0; display: flex; flex-wrap: wrap; align-items: center; gap: 9px; margin-top: 10px; padding: 12px; background: #f2ba55; border: 2px solid #23382f; border-radius: 8px; box-shadow: 0 4px 14px #23382f44; }
-.trade-confirm p { flex: 1 1 100%; margin: 0; font-weight: 800; }
-.trade-preview-values { display:grid; flex:1 1 100%; grid-template-columns:repeat(2,minmax(0,1fr)); gap:8px; margin:0; }
-.trade-preview-values > div { padding:8px; background:#fff8e4; border:1px solid #9b8157; }
-.trade-preview-values dt { color:#5f6d58; font:800 .62rem ui-monospace,monospace; text-transform:uppercase; }
-.trade-preview-values dd { margin:3px 0 0; font-weight:800; }
-.trade-pagination { display:flex; grid-column:1/-1; align-items:center; justify-content:space-between; gap:8px; padding:8px; color:#493827; background:#f1e2bd; border:1px dashed #76573a; font-size:.76rem; font-weight:800; }
-.trade-create-confirm { margin:12px 0; padding:12px; color:#23382f; background:#fff8e4; border:2px solid #76573a; box-shadow:3px 3px #493827; }
-.trade-create-confirm h4 { margin:0 0 8px; color:#315b45; font:800 .82rem ui-monospace,monospace; text-transform:uppercase; }
-.trade-create-confirm p { max-width:none; margin:0 0 8px; font-size:.82rem; }
+.kingdom-screen .tower-filter-row { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 8px; padding: 10px 0; color: #fff3d0; }
+.kingdom-screen .board-hint { font-size: .86rem; font-weight: 700; }
+.kingdom-screen .info-note { position: relative; padding: 20px 14px 12px; color: #23382f; background: #e6eed6; border: 1px solid #5f6d58; box-shadow: 3px 4px 0 #493827; transform: rotate(.8deg); }
+.kingdom-screen .info-note h4 { margin: 0 0 5px; color: #254937; font: 800 .74rem ui-monospace,monospace; letter-spacing: .07em; text-transform: uppercase; }
+.kingdom-screen .info-note p { margin: 0 0 4px !important; font-size: .86rem; font-weight: 700; }
+.kingdom-screen .info-note small { color: #5f6d58; font-weight: 800; }
+.kingdom-screen .stash-note { background: #fff3d0; transform: rotate(-1.1deg); }
+.kingdom-screen .steps-note { background: #e9e1f3; transform: rotate(-.4deg); }
+.kingdom-screen .steps-note ol { margin: 0; padding-left: 18px; font-size: .84rem; font-weight: 700; line-height: 1.45; }
+.kingdom-screen .tower-filter-row label { color: #fff3d0; }
+.kingdom-screen .tower-filter-row label { display: flex; align-items: center; gap: 6px; font-weight: 800; }.kingdom-screen .tower-filter-row select { min-height: 34px; padding: 4px 7px; color: #23382f; background: #fff8e4; border: 2px solid #503c2a; border-radius: 5px; font: inherit; }
+.kingdom-screen .pinned-notes { display: grid; flex: 1; min-height: 0; grid-template-columns: repeat(auto-fit,minmax(min(100%,260px),1fr)); align-content: start; gap: 12px; overflow: auto; padding: 7px 7px 14px; }
+.kingdom-screen .empty-board-note { grid-column: 1/-1; align-self: center; max-width: 440px; margin: auto; padding: 24px; color: #493829; background: #fff4d5; border: 2px dashed #795738; box-shadow: 3px 4px #513b29; text-align: center; transform: rotate(-1deg); }
+.kingdom-screen .tower-offer-desk { align-self: stretch; padding: 18px 15px; overflow: auto; background: repeating-linear-gradient(0deg,#fff8e4 0 29px,#e9d9b5 30px 31px); border: 2px solid #513b29; box-shadow: 3px 4px #513b29; }
+.kingdom-screen .tower-offer-desk h3 { margin-top: 8px; font-size: 23px; }.kingdom-screen .tower-offer-desk > p { font-size: .88rem; }
+.kingdom-screen .offer-paper { background: rgb(255 248 228 / 80%); }
+.kingdom-screen .trade-columns { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+.kingdom-screen .trade-columns fieldset { display: grid; gap: 7px; margin: 0; padding: 10px; border: 1.5px solid #c5b58e; border-radius: 7px; }
+.kingdom-screen .trade-columns legend { padding: 0 5px; font-weight: 900; }
+.kingdom-screen .trade-columns label { display: flex; align-items: center; justify-content: space-between; gap: 8px; font-weight: 700; }
+.kingdom-screen .trade-columns input { width: 70px; min-height: 34px; padding: 4px 7px; color: #23382f; background: white; border: 1.5px solid #7a6545; border-radius: 5px; font: inherit; }
+.kingdom-screen .trade-entry { position: relative; display: flex; flex-direction: column; align-items: stretch; gap: 8px; min-height: 132px; padding: 19px 12px 12px; color: #3c3229; background: #fff6dc; border: 1px solid #76573a; box-shadow: 3px 4px 0 #493827; transform: rotate(-.7deg); }
+.kingdom-screen .trade-entry:nth-child(even) { background: #f8edcf; transform: rotate(.65deg); }.kingdom-screen .trade-entry.own { background: #e9edcf; }
+.kingdom-screen .note-pin { position: absolute; top: 5px; left: 50%; width: 12px; height: 12px; background: #b95643; border: 2px solid #4d3827; border-radius: 50%; box-shadow: 1px 2px #493827; transform: translateX(-50%); }
+.kingdom-screen .note-author { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 5px; font: 800 .78rem ui-monospace,monospace; text-transform: uppercase; }
+.kingdom-screen .note-exchange { display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; gap: 6px; }.kingdom-screen .note-exchange span { display: grid; gap: 3px; overflow-wrap: anywhere; font-weight: 800; font-size: .83rem; }.kingdom-screen .note-exchange small { color: #726047; font: 800 .58rem ui-monospace,monospace; letter-spacing: .08em; }.kingdom-screen .note-exchange > b { color: #8062a9; font-size: 1.2rem; }
+.kingdom-screen .note-action { align-self: start; margin-top: auto; }
+.kingdom-screen .offer-rules { padding: 8px; color: #594630; background: rgb(243 228 196 / 75%); border-left: 3px solid #a47b49; font-size: .8rem; }
+.kingdom-screen .trade-state { color: #5f6d58; font-size: .88rem; }
+.kingdom-screen .trade-error { padding: 8px 10px; color: #812e2d; background: #f8e3e1; border-radius: 6px; }
+.kingdom-screen .text-button { color: #254937; background: transparent; border: 0; font: inherit; font-weight: 900; text-decoration: underline; cursor: pointer; }
+.kingdom-screen .trade-confirm { position: sticky; bottom: 0; display: flex; flex-wrap: wrap; align-items: center; gap: 9px; margin-top: 10px; padding: 12px; background: #f2ba55; border: 2px solid #23382f; border-radius: 8px; box-shadow: 0 4px 14px #23382f44; }
+.kingdom-screen .trade-confirm p { flex: 1 1 100%; margin: 0; font-weight: 800; }
+.kingdom-screen .trade-preview-values { display:grid; flex:1 1 100%; grid-template-columns:repeat(2,minmax(0,1fr)); gap:8px; margin:0; }
+.kingdom-screen .trade-preview-values > div { padding:8px; background:#fff8e4; border:1px solid #9b8157; }
+.kingdom-screen .trade-preview-values dt { color:#5f6d58; font:800 .62rem ui-monospace,monospace; text-transform:uppercase; }
+.kingdom-screen .trade-preview-values dd { margin:3px 0 0; font-weight:800; }
+.kingdom-screen .trade-pagination { display:flex; grid-column:1/-1; align-items:center; justify-content:space-between; gap:8px; padding:8px; color:#493827; background:#f1e2bd; border:1px dashed #76573a; font-size:.76rem; font-weight:800; }
+.kingdom-screen .trade-create-confirm { margin:12px 0; padding:12px; color:#23382f; background:#fff8e4; border:2px solid #76573a; box-shadow:3px 3px #493827; }
+.kingdom-screen .trade-create-confirm h4 { margin:0 0 8px; color:#315b45; font:800 .82rem ui-monospace,monospace; text-transform:uppercase; }
+.kingdom-screen .trade-create-confirm p { max-width:none; margin:0 0 8px; font-size:.82rem; }
 
 /* Library: a magical working archive. Furniture first, books as the controls. */
-.library-feature { position: relative; display: flex; flex: 1; min-width: 0; min-height: 0; overflow: hidden; background: #3f2c1f; border: 3px solid #23382f; border-radius: 7px; }
-.library-shelves { position: relative; display: flex; flex: 1; flex-direction: column; min-width: 0; min-height: 0; padding: 12px clamp(10px,1.4vw,22px) 16px; background: radial-gradient(ellipse at 50% 0%,rgb(242 186 85 / 16%),transparent 60%), linear-gradient(90deg,#4a3324,#5d412d 12%,#5d412d 88%,#4a3324); border: 10px solid #6b4a31; border-top-width: 14px; box-shadow: inset 0 0 0 2px #2e2016, inset 0 10px 18px rgb(0 0 0 / 30%); }
-.shelf-heading { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 6px 18px; margin-bottom: 10px; }
-.archive-plaque { padding: 6px 16px 8px; color: #23382f; background: linear-gradient(#e8c57c,#c99a4c); border: 2px solid #2e2016; border-radius: 4px 4px 10px 10px; box-shadow: 0 3px 0 #2e2016, inset 0 0 0 2px #f6dd9f; }
-.archive-plaque .scene-kicker { color: #5a3d27; }
-.archive-plaque h3 { margin: 2px 0 0; color: #23382f; }
-.library-magic-note { max-width: 46ch; margin: 0 !important; color: #f6e7c4; font-size: .85rem; font-weight: 700; }
-.bookcase { display: grid; flex: 1; min-height: 0; grid-template-rows: repeat(3,minmax(112px,1fr)); gap: 0; }
-.shelf-row { display: grid; grid-template-columns: repeat(3,minmax(0,1fr)); min-width: 0; min-height: 0; background: linear-gradient(180deg,#2e2016 0,#3c2a1d 22%,#3c2a1d 100%); border-bottom: 12px solid #7a5534; box-shadow: inset 0 -3px 0 #2e2016, 0 3px 0 #a8774a; }
-.shelf-bay { display: flex; min-width: 0; align-items: flex-end; justify-content: center; gap: 2px; padding: 8px 10px 0; overflow: hidden; }
-.shelf-bay + .shelf-bay { border-left: 10px solid #6b4a31; box-shadow: inset 2px 0 0 #2e2016; }
-.spine { display: block; flex: 0 0 auto; padding: 0; border: 2px solid #23382f; border-bottom: 0; border-radius: 3px 3px 0 0; }
-.decorative-spine { width: var(--spine-w); height: var(--spine-h); background: linear-gradient(180deg,transparent 0 12%,rgb(35 56 47 / 35%) 12% 15%,transparent 15% 82%,rgb(35 56 47 / 35%) 82% 85%,transparent 85%), var(--book-color); box-shadow: inset 3px 0 rgb(255 255 255 / 14%), inset -3px 0 rgb(0 0 0 / 22%); filter: saturate(.72) brightness(.88); }
-.decorative-spine.tilted { margin: 0 6px 0 4px; transform: rotate(-8deg); transform-origin: bottom right; }
-.book-stack { display: flex; flex: 0 0 auto; flex-direction: column-reverse; align-items: center; margin: 0 8px; }
-.book-stack i { display: block; width: 74px; height: 15px; margin-top: -2px; background: linear-gradient(90deg,transparent 0 8%,rgb(35 56 47 / 35%) 8% 11%,transparent 11%), var(--book-color); border: 2px solid #23382f; border-radius: 2px 4px 4px 2px; filter: saturate(.72) brightness(.88); }
-.book-stack i:nth-child(2) { width: 66px; transform: translateX(4px); }
-.book-stack i:nth-child(3) { width: 70px; transform: translateX(-3px); }
-.hero-spine { position: relative; width: 36px; height: 100px; color: #fff3cf; background: linear-gradient(180deg,transparent 0 9%,#e8c57c 9% 12%,transparent 12% 88%,#e8c57c 88% 91%,transparent 91%), var(--book-color); box-shadow: inset 4px 0 rgb(255 255 255 / 20%), inset -4px 0 rgb(0 0 0 / 22%); cursor: pointer; transition: transform .14s ease; }
-.hero-spine > span { display: block; max-height: 84px; margin: auto; overflow: hidden; font: 800 .64rem/1 Georgia,"Palatino Linotype",serif; letter-spacing: .02em; text-overflow: ellipsis; text-shadow: 0 1px #23382f; white-space: nowrap; writing-mode: vertical-rl; transform: rotate(180deg); }
-.hero-spine::after { position: absolute; bottom: -9px; left: 9px; width: 6px; height: 14px; background: #d86f6b; border: 1px solid #23382f; clip-path: polygon(0 0,100% 0,100% 100%,50% 75%,0 100%); content: ''; }
-.hero-spine:hover { transform: translateY(-6px); }
-.hero-spine:focus-visible { outline: 3px solid #b9a3e3; outline-offset: 2px; transform: translateY(-6px); }
-.hero-spine.selected { transform: translateY(-10px); }
-.shelf-curio { flex: 0 0 auto; width: 74px; height: 90px; margin: 0 14px; }
-.curio-portrait { width: 74px; height: 100px; align-self: center; }
-.curio-skull, .curio-stones { width: 80px; height: 82px; }
-.storybook-overlay { position: absolute; z-index: 8; inset: 0; display: grid; place-items: center; padding: clamp(10px,2vw,28px); overflow: auto; background: rgb(28 20 14 / 74%); }
-.storybook-spread { position: relative; display: grid; width: min(1080px,100%); max-height: 100%; grid-template-columns: minmax(0,1fr) minmax(0,.86fr); overflow: auto; padding: 12px; background: #6b3f2a; border: 3px solid #23382f; border-radius: 10px 12px 10px 12px; box-shadow: 0 8px 0 #2e2016,0 18px 44px rgb(0 0 0 / 50%); }
-.storybook-page { padding: clamp(16px,2.2vw,34px); background: #fff8e4 url('/hero-lab/assets/storybook-paper.svg'); background-size: 144px; }
-.story-left { border-radius: 6px 0 0 6px; box-shadow: inset -22px 0 24px -18px rgb(80 55 30 / 55%); }
-.story-right { display: flex; flex-direction: column; gap: 12px; border-radius: 0 6px 6px 0; box-shadow: inset 22px 0 24px -18px rgb(80 55 30 / 55%); }
-.book-back { display: block; margin: 0 0 14px; padding: 4px 0; color: #254937; background: none; border: 0; font: 800 .85rem Nunito, sans-serif; text-decoration: underline; cursor: pointer; }
-.book-back:focus-visible { outline: 3px solid #8062a9; outline-offset: 2px; }
-.story-kicker { display: block; color: #6b5847; font: 800 .68rem ui-monospace,monospace; letter-spacing: .08em; text-transform: uppercase; }
-.storybook-page .story-title { margin: 6px 0 4px; color: #254937; font-size: clamp(24px,2.4vw,32px); }
-.hero-personality { color: #4a3d63; font: italic 700 1.02rem Georgia,serif; }
-.storybook-page .story-copy { max-width: 60ch; font-size: 1.02rem; line-height: 1.65; }
-.story-copy::first-letter { float: left; margin: 4px 8px 0 0; color: #8062a9; font: 700 3.1em/.8 Georgia,serif; }
-.field-note { margin: 12px 0; padding: 8px 10px; background: #f3e4c4; border-left: 3px solid #8062a9; font-size: .88rem; }
-.story-portrait { display: grid; justify-items: center; gap: 6px; margin: 0; }
-.portrait-frame { display: grid; width: min(170px,100%); aspect-ratio: 5 / 6; place-items: center; overflow: hidden; background: radial-gradient(ellipse at 50% 88%,#8fa86f 0 18%,transparent 19%), linear-gradient(#cfe2e8,#eef3e6 70%); border: 8px solid #b98a3e; border-radius: 50% 50% 46% 46% / 40% 40% 36% 36%; box-shadow: 0 0 0 2px #23382f, inset 0 0 0 2px #23382f, 0 4px 0 #7a6545; }
-.story-portrait figcaption { color: #57412f; font: 700 .95rem Georgia,serif; }
-.hero-abilities { display: grid; gap: 6px; margin: 10px 0 0; }
-.hero-abilities div { display: grid; grid-template-columns: 105px 1fr; gap: 8px; padding: 5px 8px; background: #f3e4c4; border-radius: 5px; }
-.hero-abilities dt { color: #5f6d58; font-size: .76rem; font-weight: 900; }
-.hero-abilities dd { margin: 0; font-weight: 800; }
-.hero-book-stats { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; margin: 12px 0 0; }
-.hero-book-stats div { padding: 7px; background: #e8f0de; border-radius: 5px; }
-.hero-book-stats dt { color: #5f6d58; font: 800 .62rem ui-monospace, monospace; text-transform: uppercase; }
-.hero-book-stats dd { margin: 2px 0 0; font-weight: 900; }
+.kingdom-screen .library-feature { position: relative; display: flex; flex: 1; min-width: 0; min-height: 0; overflow: hidden; background: #3f2c1f; border: 3px solid #23382f; border-radius: 7px; }
+.kingdom-screen .library-shelves { position: relative; display: flex; flex: 1; flex-direction: column; min-width: 0; min-height: 0; padding: 12px clamp(10px,1.4vw,22px) 16px; background: radial-gradient(ellipse at 50% 0%,rgb(242 186 85 / 16%),transparent 60%), linear-gradient(90deg,#4a3324,#5d412d 12%,#5d412d 88%,#4a3324); border: 10px solid #6b4a31; border-top-width: 14px; box-shadow: inset 0 0 0 2px #2e2016, inset 0 10px 18px rgb(0 0 0 / 30%); }
+.kingdom-screen .shelf-heading { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 6px 18px; margin-bottom: 10px; }
+.kingdom-screen .archive-plaque { padding: 6px 16px 8px; color: #23382f; background: linear-gradient(#e8c57c,#c99a4c); border: 2px solid #2e2016; border-radius: 4px 4px 10px 10px; box-shadow: 0 3px 0 #2e2016, inset 0 0 0 2px #f6dd9f; }
+.kingdom-screen .archive-plaque .scene-kicker { color: #5a3d27; }
+.kingdom-screen .archive-plaque h3 { margin: 2px 0 0; color: #23382f; }
+.kingdom-screen .library-magic-note { max-width: 46ch; margin: 0 !important; color: #f6e7c4; font-size: .85rem; font-weight: 700; }
+.kingdom-screen .bookcase { display: grid; flex: 1; min-height: 0; grid-template-rows: repeat(3,minmax(112px,1fr)); gap: 0; }
+.kingdom-screen .shelf-row { display: grid; grid-template-columns: repeat(3,minmax(0,1fr)); min-width: 0; min-height: 0; background: linear-gradient(180deg,#2e2016 0,#3c2a1d 22%,#3c2a1d 100%); border-bottom: 12px solid #7a5534; box-shadow: inset 0 -3px 0 #2e2016, 0 3px 0 #a8774a; }
+.kingdom-screen .shelf-bay { display: flex; min-width: 0; align-items: flex-end; justify-content: center; gap: 2px; padding: 8px 10px 0; overflow: hidden; }
+.kingdom-screen .shelf-bay + .shelf-bay { border-left: 10px solid #6b4a31; box-shadow: inset 2px 0 0 #2e2016; }
+.kingdom-screen .spine { display: block; flex: 0 0 auto; padding: 0; border: 2px solid #23382f; border-bottom: 0; border-radius: 3px 3px 0 0; }
+.kingdom-screen .decorative-spine { width: var(--spine-w); height: var(--spine-h); background: linear-gradient(180deg,transparent 0 12%,rgb(35 56 47 / 35%) 12% 15%,transparent 15% 82%,rgb(35 56 47 / 35%) 82% 85%,transparent 85%), var(--book-color); box-shadow: inset 3px 0 rgb(255 255 255 / 14%), inset -3px 0 rgb(0 0 0 / 22%); filter: saturate(.72) brightness(.88); }
+.kingdom-screen .decorative-spine.tilted { margin: 0 6px 0 4px; transform: rotate(-8deg); transform-origin: bottom right; }
+.kingdom-screen .book-stack { display: flex; flex: 0 0 auto; flex-direction: column-reverse; align-items: center; margin: 0 8px; }
+.kingdom-screen .book-stack i { display: block; width: 74px; height: 15px; margin-top: -2px; background: linear-gradient(90deg,transparent 0 8%,rgb(35 56 47 / 35%) 8% 11%,transparent 11%), var(--book-color); border: 2px solid #23382f; border-radius: 2px 4px 4px 2px; filter: saturate(.72) brightness(.88); }
+.kingdom-screen .book-stack i:nth-child(2) { width: 66px; transform: translateX(4px); }
+.kingdom-screen .book-stack i:nth-child(3) { width: 70px; transform: translateX(-3px); }
+.kingdom-screen .hero-spine { position: relative; width: 36px; height: 100px; color: #fff3cf; background: linear-gradient(180deg,transparent 0 9%,#e8c57c 9% 12%,transparent 12% 88%,#e8c57c 88% 91%,transparent 91%), var(--book-color); box-shadow: inset 4px 0 rgb(255 255 255 / 20%), inset -4px 0 rgb(0 0 0 / 22%); cursor: pointer; transition: transform .14s ease; }
+.kingdom-screen .hero-spine > span { display: block; max-height: 84px; margin: auto; overflow: hidden; font: 800 .64rem/1 Georgia,"Palatino Linotype",serif; letter-spacing: .02em; text-overflow: ellipsis; text-shadow: 0 1px #23382f; white-space: nowrap; writing-mode: vertical-rl; transform: rotate(180deg); }
+.kingdom-screen .hero-spine::after { position: absolute; bottom: -9px; left: 9px; width: 6px; height: 14px; background: #d86f6b; border: 1px solid #23382f; clip-path: polygon(0 0,100% 0,100% 100%,50% 75%,0 100%); content: ''; }
+.kingdom-screen .hero-spine:hover { transform: translateY(-6px); }
+.kingdom-screen .hero-spine:focus-visible { outline: 3px solid #b9a3e3; outline-offset: 2px; transform: translateY(-6px); }
+.kingdom-screen .hero-spine.selected { transform: translateY(-10px); }
+.kingdom-screen .shelf-curio { flex: 0 0 auto; width: 74px; height: 90px; margin: 0 14px; }
+.kingdom-screen .curio-portrait { width: 74px; height: 100px; align-self: center; }
+.kingdom-screen .curio-skull, .kingdom-screen .curio-stones { width: 80px; height: 82px; }
+.kingdom-screen .storybook-overlay { position: absolute; z-index: 8; inset: 0; display: grid; place-items: center; padding: clamp(10px,2vw,28px); overflow: auto; background: rgb(28 20 14 / 74%); }
+.kingdom-screen .storybook-spread { position: relative; display: grid; width: min(1080px,100%); max-height: 100%; grid-template-columns: minmax(0,1fr) minmax(0,.86fr); overflow: auto; padding: 12px; background: #6b3f2a; border: 3px solid #23382f; border-radius: 10px 12px 10px 12px; box-shadow: 0 8px 0 #2e2016,0 18px 44px rgb(0 0 0 / 50%); }
+.kingdom-screen .storybook-page { padding: clamp(16px,2.2vw,34px); background: #fff8e4 url('/hero-lab/assets/storybook-paper.svg'); background-size: 144px; }
+.kingdom-screen .story-left { border-radius: 6px 0 0 6px; box-shadow: inset -22px 0 24px -18px rgb(80 55 30 / 55%); }
+.kingdom-screen .story-right { display: flex; flex-direction: column; gap: 12px; border-radius: 0 6px 6px 0; box-shadow: inset 22px 0 24px -18px rgb(80 55 30 / 55%); }
+.kingdom-screen .book-back { display: block; margin: 0 0 14px; padding: 4px 0; color: #254937; background: none; border: 0; font: 800 .85rem Nunito, sans-serif; text-decoration: underline; cursor: pointer; }
+.kingdom-screen .book-back:focus-visible { outline: 3px solid #8062a9; outline-offset: 2px; }
+.kingdom-screen .story-kicker { display: block; color: #6b5847; font: 800 .68rem ui-monospace,monospace; letter-spacing: .08em; text-transform: uppercase; }
+.kingdom-screen .storybook-page .story-title { margin: 6px 0 4px; color: #254937; font-size: clamp(24px,2.4vw,32px); }
+.kingdom-screen .hero-personality { color: #4a3d63; font: italic 700 1.02rem Georgia,serif; }
+.kingdom-screen .storybook-page .story-copy { max-width: 60ch; font-size: 1.02rem; line-height: 1.65; }
+.kingdom-screen .story-copy::first-letter { float: left; margin: 4px 8px 0 0; color: #8062a9; font: 700 3.1em/.8 Georgia,serif; }
+.kingdom-screen .field-note { margin: 12px 0; padding: 8px 10px; background: #f3e4c4; border-left: 3px solid #8062a9; font-size: .88rem; }
+.kingdom-screen .story-portrait { display: grid; justify-items: center; gap: 6px; margin: 0; }
+.kingdom-screen .portrait-frame { display: grid; width: min(170px,100%); aspect-ratio: 5 / 6; place-items: center; overflow: hidden; background: radial-gradient(ellipse at 50% 88%,#8fa86f 0 18%,transparent 19%), linear-gradient(#cfe2e8,#eef3e6 70%); border: 8px solid #b98a3e; border-radius: 50% 50% 46% 46% / 40% 40% 36% 36%; box-shadow: 0 0 0 2px #23382f, inset 0 0 0 2px #23382f, 0 4px 0 #7a6545; }
+.kingdom-screen .story-portrait figcaption { color: #57412f; font: 700 .95rem Georgia,serif; }
+.kingdom-screen .hero-abilities { display: grid; gap: 6px; margin: 10px 0 0; }
+.kingdom-screen .hero-abilities div { display: grid; grid-template-columns: 105px 1fr; gap: 8px; padding: 5px 8px; background: #f3e4c4; border-radius: 5px; }
+.kingdom-screen .hero-abilities dt { color: #5f6d58; font-size: .76rem; font-weight: 900; }
+.kingdom-screen .hero-abilities dd { margin: 0; font-weight: 800; }
+.kingdom-screen .hero-book-stats { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; margin: 12px 0 0; }
+.kingdom-screen .hero-book-stats div { padding: 7px; background: #e8f0de; border-radius: 5px; }
+.kingdom-screen .hero-book-stats dt { color: #5f6d58; font: 800 .62rem ui-monospace, monospace; text-transform: uppercase; }
+.kingdom-screen .hero-book-stats dd { margin: 2px 0 0; font-weight: 900; }
 /* Workshop: a friendly training gym that keeps its members' paperwork. */
-.workshop-feature { display: grid; flex: 1; min-height: 0; grid-template-columns: minmax(240px,.62fr) minmax(0,1.38fr); gap: 16px; padding: 14px; overflow: hidden; background: repeating-linear-gradient(90deg,#9a7550 0 46px,#8d6a47 47px 48px); border: 3px solid #23382f; border-radius: 7px; box-shadow: inset 0 0 0 4px #b48c5f; }
-.workshop-roster { position: relative; display: flex; flex-direction: column; min-height: 0; padding: 30px 12px 12px; background: #fbf2d8 url('/hero-lab/assets/storybook-paper.svg'); background-size: 144px; border: 2px solid #5a4632; border-top: 14px solid #7a5534; border-radius: 6px; box-shadow: 3px 4px 0 #4a3324; }
-.clipboard-clip { position: absolute; top: -20px; left: 50%; width: 76px; height: 24px; background: linear-gradient(#d9dbd2,#a8aa9f); border: 2px solid #23382f; border-radius: 6px 6px 3px 3px; transform: translateX(-50%); }
-.roster-title { margin: 0; color: #254937; font-size: 21px; text-align: center; }
-.roster-sub { margin: 0 0 8px !important; color: #5f6d58; font: 800 .64rem ui-monospace,monospace; letter-spacing: .08em; text-align: center; text-transform: uppercase; }
-.roster-list { display: flex; flex-direction: column; min-height: 0; overflow: auto; border-top: 2px solid #23382f; }
-.workshop-hero { display: grid; flex: 0 0 auto; grid-template-columns: 24px 38px 1fr auto; grid-template-rows: auto auto; align-items: center; gap: 0 8px; min-height: 52px; padding: 5px 6px; color: #23382f; background: transparent; border: 0; border-bottom: 1px solid #c5b58e; text-align: left; cursor: pointer; }
-.workshop-hero .member-no { grid-row: span 2; color: #8a7a5c; font: 800 .7rem ui-monospace,monospace; }
-.workshop-hero .hero-icon { grid-row: span 2; justify-self: center; }
-.workshop-hero b { grid-column: 3; grid-row: 1; align-self: end; font: 800 .9rem Nunito,sans-serif; }
-.workshop-hero small { grid-column: 3; grid-row: 2; align-self: start; color: #5f6d58; font: 800 .6rem ui-monospace,monospace; text-transform: uppercase; }
-.member-pass { grid-column: 4; grid-row: 1 / 3; padding: 2px 6px; color: #254937; border: 1.5px solid #254937; border-radius: 3px; font: 800 .58rem ui-monospace,monospace; font-style: normal; letter-spacing: .05em; text-transform: uppercase; transform: rotate(-4deg); }
-.member-pass.guest { color: #7a6545; border-style: dashed; border-color: #7a6545; }
-.workshop-hero:hover { background: rgb(220 235 200 / 45%); }
-.workshop-hero.selected { background: #dcebc8; box-shadow: inset 4px 0 0 #254937; }
-.workshop-hero:focus-visible { outline: 3px solid #8062a9; outline-offset: -3px; }
-.workshop-detail { position: relative; display: flex; flex-direction: column; gap: 12px; min-height: 0; overflow: auto; padding: 18px 20px; background: #fbf2d8 url('/hero-lab/assets/storybook-paper.svg'); background-size: 144px; border: 2px solid #5a4632; border-radius: 4px; box-shadow: 3px 4px 0 #4a3324; }
-.workshop-detail::before { position: absolute; top: -8px; left: 26px; width: 14px; height: 38px; border: 3px solid #8a8c82; border-radius: 8px; content: ''; }
-.form-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding-bottom: 8px; border-bottom: 2px solid #23382f; }
-.form-head h3 { margin: 2px 0 0; color: #254937; font-size: 26px; }
-.form-stamp { display: grid; place-items: center; padding: 6px 10px; color: #4f7a3c; border: 3px double #4f7a3c; border-radius: 6px; font: 800 .62rem/1.15 ui-monospace,monospace; letter-spacing: .06em; text-align: center; text-transform: uppercase; opacity: .85; transform: rotate(-7deg); }
-.form-body { display: grid; flex: 1; grid-template-columns: minmax(240px,1fr) minmax(260px,1.05fr); gap: 16px; align-items: stretch; }
-.workshop-preview-stage { position: relative; min-height: 220px; background: #cfe2e8; overflow: hidden; border: 2px solid #23382f; border-radius: 4px; box-shadow: 2px 3px 0 #7a6545; }
-.training-yard { position: absolute; inset: 0; width: 100%; height: 100%; }
-.yard-hero { position: absolute; left: 40%; bottom: 10%; display: grid; place-items: end center; width: 45%; height: 72%; transform: translateX(-50%); }
-.yard-hero .hero-icon { max-width: 100%; max-height: 100%; }
-.form-fields { display: flex; flex-direction: column; gap: 8px; }
-.form-sign { display: flex; align-items: flex-end; gap: 10px; margin-top: auto; padding-top: 10px; }
-.form-sign span { color: #5f6d58; font: 800 .62rem ui-monospace,monospace; letter-spacing: .06em; text-transform: uppercase; }
-.form-sign b { flex: 1; padding: 0 4px 2px; color: #315b45; border-bottom: 1.5px solid #23382f; font: italic 700 1.15rem Georgia,serif; transform: rotate(-2deg); }
-.form-line { display: grid; grid-template-columns: 52px 1fr; gap: 8px; align-items: baseline; padding-bottom: 4px; border-bottom: 1px dashed #b9a57c; }
-.form-line span { color: #5f6d58; font: 800 .62rem ui-monospace,monospace; letter-spacing: .06em; text-transform: uppercase; }
-.form-line b { font-size: .9rem; }
-.stat-hp { background: #e3efd6 !important; }.stat-atk { background: #f8e2d2 !important; }.stat-def { background: #dbeaf0 !important; }.stat-spd { background: #e9e1f3 !important; }
-.form-foot { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 16px; margin-top: auto; padding-top: 10px; border-top: 1px dashed #9d8962; }
-.form-foot .trial-start { margin-left: auto; }
-.trial-note { flex: 1 1 320px; margin: 0 !important; color: #5f4a2e; font-size: .86rem; }
-.trial-cooldowns { display: flex; flex-wrap: wrap; gap: 7px; margin: 8px 0; }
-.trial-cooldowns div { display: flex; gap: 5px; padding: 4px 8px; background: #f3e4c4; border-radius: 99px; }
-.trial-cooldowns dt { color: #5f6d58; font-size: .7rem; font-weight: 900; }
-.trial-cooldowns dd { margin: 0; font-size: .75rem; font-weight: 900; }
-.trial-talent { margin: 8px 0 0 !important; font-size: .86rem; }
-.gym-roster { display: flex; flex-wrap: wrap; gap: 6px; margin: 0 0 10px; padding: 0; list-style: none; }
-.gym-roster li { padding: 5px 11px; background: #fff8e4; border: 2px solid #23382f; border-radius: 999px 999px 999px 6px; font-weight: 800; }
-.gym-roster li.empty { border-style: dashed; color: #5f4a2e; }
-.castle-levels { display: grid; gap: 8px; margin: 0 0 14px; padding-left: 22px; line-height: 1.4; }
-.castle-levels li.done { color: #254937; font-weight: 800; }
-.castle-info-chip { align-self: center; min-height: 40px; padding: 7px 12px; color: #254937; background: #dcebc8; border: 2px solid #254937; border-radius: 9px; box-shadow: 0 3px #7a8d67; font: 900 .84rem Nunito,sans-serif; cursor: pointer; }
-.castle-info-chip span { display: inline-grid; width: 19px; height: 19px; place-items: center; margin-right: 5px; color: #fff8e4; background: #8062a9; border-radius: 50%; }
-.castle-info-chip:focus-visible,.castle-info-chip:hover { outline: 3px solid #f2ba55; outline-offset: 2px; }
-.castle-info-card { position: absolute; z-index: 5; top: 88px; right: 62px; width: min(420px,calc(100% - 40px)); padding: 16px; background: #fff8e4 url('/hero-lab/assets/storybook-paper.svg') repeat; background-size: 144px; border: 3px solid #23382f; box-shadow: 0 5px #7a6545; }
-.castle-info-card h3 { font: 700 20px Georgia,serif; }
-.wardrobe-feature { display: grid; flex: 1; min-height: 0; grid-template-columns: minmax(0,3fr) minmax(220px,1fr); gap: 12px; padding: 12px; overflow: hidden; background: linear-gradient(145deg,#ead9b2,#d7c49a); border: 3px solid #57412f; box-shadow: inset 0 0 0 4px #a98256; }
-.wardrobe-catalog { overflow: auto; padding: clamp(16px,2vw,30px); background: #fff8e4; border: 2px solid #9b8157; box-shadow: inset 0 0 0 4px #f1e6c7; }
-.wardrobe-catalog h3 { margin-top: 10px; font-size: 25px; }
-.wardrobe-catalog p { max-width: 640px; }
-.wardrobe-swatches { justify-content: flex-start; max-width: 480px; margin: 20px 0; }
-.wardrobe-current { color: #5f6d58; font-size: .85rem; }
+.kingdom-screen .workshop-feature { display: grid; flex: 1; min-height: 0; grid-template-columns: minmax(240px,.62fr) minmax(0,1.38fr); gap: 16px; padding: 14px; overflow: hidden; background: repeating-linear-gradient(90deg,#9a7550 0 46px,#8d6a47 47px 48px); border: 3px solid #23382f; border-radius: 7px; box-shadow: inset 0 0 0 4px #b48c5f; }
+.kingdom-screen .workshop-roster { position: relative; display: flex; flex-direction: column; min-height: 0; padding: 30px 12px 12px; background: #fbf2d8 url('/hero-lab/assets/storybook-paper.svg'); background-size: 144px; border: 2px solid #5a4632; border-top: 14px solid #7a5534; border-radius: 6px; box-shadow: 3px 4px 0 #4a3324; }
+.kingdom-screen .clipboard-clip { position: absolute; top: -20px; left: 50%; width: 76px; height: 24px; background: linear-gradient(#d9dbd2,#a8aa9f); border: 2px solid #23382f; border-radius: 6px 6px 3px 3px; transform: translateX(-50%); }
+.kingdom-screen .roster-title { margin: 0; color: #254937; font-size: 21px; text-align: center; }
+.kingdom-screen .roster-sub { margin: 0 0 8px !important; color: #5f6d58; font: 800 .64rem ui-monospace,monospace; letter-spacing: .08em; text-align: center; text-transform: uppercase; }
+.kingdom-screen .roster-list { display: flex; flex-direction: column; min-height: 0; overflow: auto; border-top: 2px solid #23382f; }
+.kingdom-screen .workshop-hero { display: grid; flex: 0 0 auto; grid-template-columns: 24px 38px 1fr auto; grid-template-rows: auto auto; align-items: center; gap: 0 8px; min-height: 52px; padding: 5px 6px; color: #23382f; background: transparent; border: 0; border-bottom: 1px solid #c5b58e; text-align: left; cursor: pointer; }
+.kingdom-screen .workshop-hero .member-no { grid-row: span 2; color: #8a7a5c; font: 800 .7rem ui-monospace,monospace; }
+.kingdom-screen .workshop-hero .hero-icon { grid-row: span 2; justify-self: center; }
+.kingdom-screen .workshop-hero b { grid-column: 3; grid-row: 1; align-self: end; font: 800 .9rem Nunito,sans-serif; }
+.kingdom-screen .workshop-hero small { grid-column: 3; grid-row: 2; align-self: start; color: #5f6d58; font: 800 .6rem ui-monospace,monospace; text-transform: uppercase; }
+.kingdom-screen .member-pass { grid-column: 4; grid-row: 1 / 3; padding: 2px 6px; color: #254937; border: 1.5px solid #254937; border-radius: 3px; font: 800 .58rem ui-monospace,monospace; font-style: normal; letter-spacing: .05em; text-transform: uppercase; transform: rotate(-4deg); }
+.kingdom-screen .member-pass.guest { color: #7a6545; border-style: dashed; border-color: #7a6545; }
+.kingdom-screen .workshop-hero:hover { background: rgb(220 235 200 / 45%); }
+.kingdom-screen .workshop-hero.selected { background: #dcebc8; box-shadow: inset 4px 0 0 #254937; }
+.kingdom-screen .workshop-hero:focus-visible { outline: 3px solid #8062a9; outline-offset: -3px; }
+.kingdom-screen .workshop-detail { position: relative; display: flex; flex-direction: column; gap: 12px; min-height: 0; overflow: auto; padding: 18px 20px; background: #fbf2d8 url('/hero-lab/assets/storybook-paper.svg'); background-size: 144px; border: 2px solid #5a4632; border-radius: 4px; box-shadow: 3px 4px 0 #4a3324; }
+.kingdom-screen .workshop-detail::before { position: absolute; top: -8px; left: 26px; width: 14px; height: 38px; border: 3px solid #8a8c82; border-radius: 8px; content: ''; }
+.kingdom-screen .form-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding-bottom: 8px; border-bottom: 2px solid #23382f; }
+.kingdom-screen .form-head h3 { margin: 2px 0 0; color: #254937; font-size: 26px; }
+.kingdom-screen .form-stamp { display: grid; place-items: center; padding: 6px 10px; color: #4f7a3c; border: 3px double #4f7a3c; border-radius: 6px; font: 800 .62rem/1.15 ui-monospace,monospace; letter-spacing: .06em; text-align: center; text-transform: uppercase; opacity: .85; transform: rotate(-7deg); }
+.kingdom-screen .form-body { display: grid; flex: 1; grid-template-columns: minmax(240px,1fr) minmax(260px,1.05fr); gap: 16px; align-items: stretch; }
+.kingdom-screen .workshop-preview-stage { position: relative; min-height: 220px; background: #cfe2e8; overflow: hidden; border: 2px solid #23382f; border-radius: 4px; box-shadow: 2px 3px 0 #7a6545; }
+.kingdom-screen .training-yard { position: absolute; inset: 0; width: 100%; height: 100%; }
+.kingdom-screen .yard-hero { position: absolute; left: 40%; bottom: 10%; display: grid; place-items: end center; width: 45%; height: 72%; transform: translateX(-50%); }
+.kingdom-screen .yard-hero .hero-icon { max-width: 100%; max-height: 100%; }
+.kingdom-screen .form-fields { display: flex; flex-direction: column; gap: 8px; }
+.kingdom-screen .form-sign { display: flex; align-items: flex-end; gap: 10px; margin-top: auto; padding-top: 10px; }
+.kingdom-screen .form-sign span { color: #5f6d58; font: 800 .62rem ui-monospace,monospace; letter-spacing: .06em; text-transform: uppercase; }
+.kingdom-screen .form-sign b { flex: 1; padding: 0 4px 2px; color: #315b45; border-bottom: 1.5px solid #23382f; font: italic 700 1.15rem Georgia,serif; transform: rotate(-2deg); }
+.kingdom-screen .form-line { display: grid; grid-template-columns: 52px 1fr; gap: 8px; align-items: baseline; padding-bottom: 4px; border-bottom: 1px dashed #b9a57c; }
+.kingdom-screen .form-line span { color: #5f6d58; font: 800 .62rem ui-monospace,monospace; letter-spacing: .06em; text-transform: uppercase; }
+.kingdom-screen .form-line b { font-size: .9rem; }
+.kingdom-screen .stat-hp { background: #e3efd6 !important; }.kingdom-screen .stat-atk { background: #f8e2d2 !important; }.kingdom-screen .stat-def { background: #dbeaf0 !important; }.kingdom-screen .stat-spd { background: #e9e1f3 !important; }
+.kingdom-screen .form-foot { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 16px; margin-top: auto; padding-top: 10px; border-top: 1px dashed #9d8962; }
+.kingdom-screen .form-foot .trial-start { margin-left: auto; }
+.kingdom-screen .trial-note { flex: 1 1 320px; margin: 0 !important; color: #5f4a2e; font-size: .86rem; }
+.kingdom-screen .trial-cooldowns { display: flex; flex-wrap: wrap; gap: 7px; margin: 8px 0; }
+.kingdom-screen .trial-cooldowns div { display: flex; gap: 5px; padding: 4px 8px; background: #f3e4c4; border-radius: 99px; }
+.kingdom-screen .trial-cooldowns dt { color: #5f6d58; font-size: .7rem; font-weight: 900; }
+.kingdom-screen .trial-cooldowns dd { margin: 0; font-size: .75rem; font-weight: 900; }
+.kingdom-screen .trial-talent { margin: 8px 0 0 !important; font-size: .86rem; }
+.kingdom-screen .gym-roster { display: flex; flex-wrap: wrap; gap: 6px; margin: 0 0 10px; padding: 0; list-style: none; }
+.kingdom-screen .gym-roster li { padding: 5px 11px; background: #fff8e4; border: 2px solid #23382f; border-radius: 999px 999px 999px 6px; font-weight: 800; }
+.kingdom-screen .gym-roster li.empty { border-style: dashed; color: #5f4a2e; }
+.kingdom-screen .castle-levels { display: grid; gap: 8px; margin: 0 0 14px; padding-left: 22px; line-height: 1.4; }
+.kingdom-screen .castle-levels li.done { color: #254937; font-weight: 800; }
+.kingdom-screen .castle-info-chip { align-self: center; min-height: 40px; padding: 7px 12px; color: #254937; background: #dcebc8; border: 2px solid #254937; border-radius: 9px; box-shadow: 0 3px #7a8d67; font: 900 .84rem Nunito,sans-serif; cursor: pointer; }
+.kingdom-screen .castle-info-chip span { display: inline-grid; width: 19px; height: 19px; place-items: center; margin-right: 5px; color: #fff8e4; background: #8062a9; border-radius: 50%; }
+.kingdom-screen .castle-info-chip:focus-visible, .kingdom-screen .castle-info-chip:hover { outline: 3px solid #f2ba55; outline-offset: 2px; }
+.kingdom-screen .castle-info-card { position: absolute; z-index: 5; top: 88px; right: 62px; width: min(420px,calc(100% - 40px)); padding: 16px; background: #fff8e4 url('/hero-lab/assets/storybook-paper.svg') repeat; background-size: 144px; border: 3px solid #23382f; box-shadow: 0 5px #7a6545; }
+.kingdom-screen .castle-info-card h3 { font: 700 20px Georgia,serif; }
+.kingdom-screen .wardrobe-feature { display: grid; flex: 1; min-height: 0; grid-template-columns: minmax(0,3fr) minmax(220px,1fr); gap: 12px; padding: 12px; overflow: hidden; background: linear-gradient(145deg,#ead9b2,#d7c49a); border: 3px solid #57412f; box-shadow: inset 0 0 0 4px #a98256; }
+.kingdom-screen .wardrobe-catalog { overflow: auto; padding: clamp(16px,2vw,30px); background: #fff8e4; border: 2px solid #9b8157; box-shadow: inset 0 0 0 4px #f1e6c7; }
+.kingdom-screen .wardrobe-catalog h3 { margin-top: 10px; font-size: 25px; }
+.kingdom-screen .wardrobe-catalog p { max-width: 640px; }
+.kingdom-screen .wardrobe-swatches { justify-content: flex-start; max-width: 480px; margin: 20px 0; }
+.kingdom-screen .wardrobe-current { color: #5f6d58; font-size: .85rem; }
 /* Castle dressing room: wallpaper, wainscot, sconces and a standing mirror. */
-.dressing-room { position: relative; display: flex; flex-direction: column; align-items: center; justify-content: flex-end; min-height: 0; overflow: hidden; padding: 18px 14px 22px; border: 2px solid #23382f; border-radius: 6px; }
-.room-wall { position: absolute; inset: 0 0 18%; background: linear-gradient(180deg,transparent 0 70%,#7a5534 70% 71.5%,#a8774a 71.5% 100%), repeating-linear-gradient(90deg,transparent 0 22px,rgb(255 248 228 / 16%) 22px 24px), radial-gradient(circle at 50% 50%,rgb(242 186 85 / 22%) 0 3px,transparent 4px) 0 0 / 34px 34px, #6c4f7e; }
-.room-wall::after { position: absolute; right: 0; bottom: 0; left: 0; height: 28.5%; background: repeating-linear-gradient(90deg,transparent 0 46px,#7a5534 46px 48px); content: ''; }
-.room-floor { position: absolute; right: 0; bottom: 0; left: 0; height: 18%; background: repeating-linear-gradient(90deg,#8d6a47 0 38px,#7a5534 38px 40px); border-top: 3px solid #4a3324; }
-.rug { position: absolute; bottom: 18%; left: 50%; width: 74%; height: 46%; background: #b9534c; border: 2px solid #23382f; border-radius: 50%; box-shadow: inset 0 0 0 5px #e8c57c, inset 0 0 0 7px #23382f; transform: translateX(-50%); }
-.sconce { position: absolute; top: 20%; width: 14px; height: 34px; background: #c8963e; border: 2px solid #23382f; border-radius: 3px 3px 8px 8px; }
-.sconce i { position: absolute; top: -18px; left: 50%; width: 12px; height: 18px; background: #f2ba55; border-radius: 50% 50% 40% 40%; box-shadow: 0 0 18px 8px rgb(242 186 85 / 35%); transform: translateX(-50%); animation: flame-glow 2.4s ease-in-out infinite; }
-.sconce-left { left: 9%; }.sconce-right { right: 9%; }
-.hat-stand { position: absolute; right: 6%; bottom: -48%; width: 6px; height: 86%; background: #5a3d27; border: 1.5px solid #23382f; }
-.hat-stand i { position: absolute; top: 4%; width: 22px; height: 4px; background: #5a3d27; border: 1.5px solid #23382f; border-radius: 3px; }
-.hat-stand i:nth-child(1) { left: -20px; transform: rotate(-20deg); }.hat-stand i:nth-child(2) { left: 2px; transform: rotate(20deg); }.hat-stand i:nth-child(3) { top: -2px; left: -9px; width: 24px; height: 12px; background: #3f4b5a; border-radius: 10px 10px 2px 2px; }
+.kingdom-screen .dressing-room { position: relative; display: flex; flex-direction: column; align-items: center; justify-content: flex-end; min-height: 0; overflow: hidden; padding: 18px 14px 22px; border: 2px solid #23382f; border-radius: 6px; }
+.kingdom-screen .room-wall { position: absolute; inset: 0 0 18%; background: linear-gradient(180deg,transparent 0 70%,#7a5534 70% 71.5%,#a8774a 71.5% 100%), repeating-linear-gradient(90deg,transparent 0 22px,rgb(255 248 228 / 16%) 22px 24px), radial-gradient(circle at 50% 50%,rgb(242 186 85 / 22%) 0 3px,transparent 4px) 0 0 / 34px 34px, #6c4f7e; }
+.kingdom-screen .room-wall::after { position: absolute; right: 0; bottom: 0; left: 0; height: 28.5%; background: repeating-linear-gradient(90deg,transparent 0 46px,#7a5534 46px 48px); content: ''; }
+.kingdom-screen .room-floor { position: absolute; right: 0; bottom: 0; left: 0; height: 18%; background: repeating-linear-gradient(90deg,#8d6a47 0 38px,#7a5534 38px 40px); border-top: 3px solid #4a3324; }
+.kingdom-screen .rug { position: absolute; bottom: 18%; left: 50%; width: 74%; height: 46%; background: #b9534c; border: 2px solid #23382f; border-radius: 50%; box-shadow: inset 0 0 0 5px #e8c57c, inset 0 0 0 7px #23382f; transform: translateX(-50%); }
+.kingdom-screen .sconce { position: absolute; top: 20%; width: 14px; height: 34px; background: #c8963e; border: 2px solid #23382f; border-radius: 3px 3px 8px 8px; }
+.kingdom-screen .sconce i { position: absolute; top: -18px; left: 50%; width: 12px; height: 18px; background: #f2ba55; border-radius: 50% 50% 40% 40%; box-shadow: 0 0 18px 8px rgb(242 186 85 / 35%); transform: translateX(-50%); animation: flame-glow 2.4s ease-in-out infinite; }
+.kingdom-screen .sconce-left { left: 9%; }.kingdom-screen .sconce-right { right: 9%; }
+.kingdom-screen .hat-stand { position: absolute; right: 6%; bottom: -48%; width: 6px; height: 86%; background: #5a3d27; border: 1.5px solid #23382f; }
+.kingdom-screen .hat-stand i { position: absolute; top: 4%; width: 22px; height: 4px; background: #5a3d27; border: 1.5px solid #23382f; border-radius: 3px; }
+.kingdom-screen .hat-stand i:nth-child(1) { left: -20px; transform: rotate(-20deg); }.kingdom-screen .hat-stand i:nth-child(2) { left: 2px; transform: rotate(20deg); }.kingdom-screen .hat-stand i:nth-child(3) { top: -2px; left: -9px; width: 24px; height: 12px; background: #3f4b5a; border-radius: 10px 10px 2px 2px; }
 @keyframes flame-glow { 0%,100% { opacity: .85; } 50% { opacity: 1; } }
-.castle-mirror { position: relative; z-index: 1; display: flex; flex-direction: column; align-items: center; margin: 0; }
-.mirror-frame { padding: 10px; background: linear-gradient(135deg,#e8c57c,#b98a3e 45%,#e8c57c 70%,#9a7030); border: 3px solid #23382f; border-radius: 50% 50% 10px 10px / 34% 34% 10px 10px; box-shadow: 0 6px 0 #4a3324, 0 12px 24px rgb(0 0 0 / 30%); }
-.mirror-glass { position: relative; display: grid; width: clamp(150px,15vw,210px); aspect-ratio: 3 / 4.2; place-items: end center; overflow: hidden; padding-bottom: 10%; background: radial-gradient(ellipse at 50% 92%,rgb(35 56 47 / 25%) 0 22%,transparent 23%), linear-gradient(170deg,#e6eef0,#bfd2d8 55%,#a9bfc7); border: 2px solid #23382f; border-radius: 50% 50% 6px 6px / 30% 30% 6px 6px; box-shadow: inset 0 0 18px rgb(35 56 47 / 25%); }
-.mirror-sheen { position: absolute; top: -10%; left: 16%; width: 18%; height: 130%; background: linear-gradient(90deg,transparent,rgb(255 255 255 / 45%),transparent); pointer-events: none; transform: rotate(18deg); }
-.mirror-feet { width: 64%; height: 14px; background: #b98a3e; border: 3px solid #23382f; border-top: 0; border-radius: 0 0 10px 10px; }
-.castle-mirror figcaption { display: grid; justify-items: center; gap: 2px; margin-top: 10px; padding: 5px 14px; color: #23382f; background: #fbf2d8; border: 2px solid #23382f; border-radius: 4px; box-shadow: 0 3px 0 #4a3324; font: 700 1rem Georgia,serif; }
-.castle-mirror figcaption small { color: #5f6d58; font: 800 .62rem ui-monospace,monospace; letter-spacing: .05em; text-transform: uppercase; }
-.wardrobe-avatar { position: relative; z-index: 1; width: 80%; aspect-ratio: 1; }
-.wardrobe-avatar :deep(.avatar-preview) { width: 100%; height: 100%; }
-.wardrobe-tabs { display:flex; flex-wrap:wrap; gap:7px; margin:14px 0 12px; padding-bottom:9px; border-bottom:2px dashed #c5b58e; }
-.wardrobe-tab { min-height:34px; padding:5px 13px; color:#493827; background:#f3e4c4; border:1.5px solid #9b8157; border-radius:5px 8px 5px 7px; font:800 .78rem Nunito,sans-serif; cursor:pointer; }
-.wardrobe-tab[aria-pressed="true"] { color:#fff8e4; background:#315b45; border-color:#23382f; box-shadow:0 2px #23382f; }
-.wardrobe-tab:focus-visible { outline:3px solid #8062a9; outline-offset:2px; }
-.wardrobe-items { min-height:154px; margin:8px 0 12px; }
-.wardrobe-items h4 { margin:0 0 9px; color:#57412f; font:800 .78rem ui-monospace,monospace; letter-spacing:.06em; text-transform:uppercase; }
-.wardrobe-save { margin-top:4px; }
-.wardrobe-title-row { display:flex; align-items:center; justify-content:space-between; gap:12px; }.wardrobe-stamp { display:grid; width:56px; height:56px; place-items:center; color:#8062a9; border:2px double #8062a9; border-radius:50%; font:800 .53rem/1.1 ui-monospace,monospace; text-align:center; transform:rotate(9deg); }
-.wardrobe-selection-grid { display:grid; grid-template-columns:minmax(0,1fr) minmax(200px,.8fr); gap:20px; margin:18px 0; }
-.wardrobe-selection-grid h4 { margin:0 0 9px; color:#57412f; font:800 .78rem ui-monospace,monospace; letter-spacing:.06em; text-transform:uppercase; }
-.hat-options { display:grid; grid-template-columns:repeat(auto-fill,minmax(112px,1fr)); align-items:stretch; gap:14px 10px; }
-.hat-card { display:grid; min-width:0; grid-template-rows:1fr auto; gap:4px; }
-.hat-option { display:grid; width:100%; min-width:0; min-height:108px; place-items:center; gap:4px; padding:10px 4px 7px; color:#493827; background:linear-gradient(#e9d6ad,#f3e4c4 40%); border:1px solid #9b8157; border-bottom:7px solid #7a5534; border-radius:6px 6px 2px 2px; box-shadow:inset 0 6px 10px rgb(90 61 39 / 18%); cursor:pointer; }
-.hat-option:hover:not(:disabled) { background:linear-gradient(#efdfba,#fbf2d8 40%); }.hat-option:focus-visible { outline:3px solid #8062a9; outline-offset:2px; }
-.hat-option small { max-width:100%; font-size:.62rem; font-weight:800; text-align:center; }.hat-option[aria-pressed="true"] { background:#dcebc8; outline:2px solid #254937; }
-.hat-claim { min-height:29px; padding:3px; color:#254937; background:#e8f0de; border:1px solid #687553; border-radius:4px; font:800 .62rem Nunito,sans-serif; cursor:pointer; }
-.hat-claim:disabled,.hat-option:disabled { cursor:wait; opacity:.65; }.hat-owned { min-height:29px; display:grid; place-items:center; color:#53654f; font:800 .6rem ui-monospace,monospace; text-align:center; }
-.wardrobe-status { color:#53654f; font-size:.82rem; }.wardrobe-error { padding:8px 10px; color:#812e2d; background:#f8e3e1; border-left:3px solid #812e2d; font-size:.85rem; }
-.wardrobe-purse { width:fit-content; padding:5px 9px; color:#254937; background:#e8f0de; border:1px solid #687553; font-size:.8rem; font-weight:900; }
-.wardrobe-shortfall { display:grid; min-height:29px; align-content:center; color:#812e2d; font:800 .58rem/1.2 Nunito,sans-serif; text-align:center; }
-.wardrobe-swatches { grid-template-columns:repeat(6,minmax(30px,38px)); gap:10px; margin:10px 0; }
-.theme-garden .panel-head { border-bottom-color: #8062a9; }
-.theme-tower .panel-level { color: #4a3d63; }
+.kingdom-screen .castle-mirror { position: relative; z-index: 1; display: flex; flex-direction: column; align-items: center; margin: 0; }
+.kingdom-screen .mirror-frame { padding: 10px; background: linear-gradient(135deg,#e8c57c,#b98a3e 45%,#e8c57c 70%,#9a7030); border: 3px solid #23382f; border-radius: 50% 50% 10px 10px / 34% 34% 10px 10px; box-shadow: 0 6px 0 #4a3324, 0 12px 24px rgb(0 0 0 / 30%); }
+.kingdom-screen .mirror-glass { position: relative; display: grid; width: clamp(150px,15vw,210px); aspect-ratio: 3 / 4.2; place-items: end center; overflow: hidden; padding-bottom: 10%; background: radial-gradient(ellipse at 50% 92%,rgb(35 56 47 / 25%) 0 22%,transparent 23%), linear-gradient(170deg,#e6eef0,#bfd2d8 55%,#a9bfc7); border: 2px solid #23382f; border-radius: 50% 50% 6px 6px / 30% 30% 6px 6px; box-shadow: inset 0 0 18px rgb(35 56 47 / 25%); }
+.kingdom-screen .mirror-sheen { position: absolute; top: -10%; left: 16%; width: 18%; height: 130%; background: linear-gradient(90deg,transparent,rgb(255 255 255 / 45%),transparent); pointer-events: none; transform: rotate(18deg); }
+.kingdom-screen .mirror-feet { width: 64%; height: 14px; background: #b98a3e; border: 3px solid #23382f; border-top: 0; border-radius: 0 0 10px 10px; }
+.kingdom-screen .castle-mirror figcaption { display: grid; justify-items: center; gap: 2px; margin-top: 10px; padding: 5px 14px; color: #23382f; background: #fbf2d8; border: 2px solid #23382f; border-radius: 4px; box-shadow: 0 3px 0 #4a3324; font: 700 1rem Georgia,serif; }
+.kingdom-screen .castle-mirror figcaption small { color: #5f6d58; font: 800 .62rem ui-monospace,monospace; letter-spacing: .05em; text-transform: uppercase; }
+.kingdom-screen .wardrobe-avatar { position: relative; z-index: 1; width: 80%; aspect-ratio: 1; }
+.kingdom-screen .wardrobe-avatar .avatar-preview { width: 100%; height: 100%; }
+.kingdom-screen .wardrobe-tabs { display:flex; flex-wrap:wrap; gap:7px; margin:14px 0 12px; padding-bottom:9px; border-bottom:2px dashed #c5b58e; }
+.kingdom-screen .wardrobe-tab { min-height:34px; padding:5px 13px; color:#493827; background:#f3e4c4; border:1.5px solid #9b8157; border-radius:5px 8px 5px 7px; font:800 .78rem Nunito,sans-serif; cursor:pointer; }
+.kingdom-screen .wardrobe-tab[aria-pressed="true"] { color:#fff8e4; background:#315b45; border-color:#23382f; box-shadow:0 2px #23382f; }
+.kingdom-screen .wardrobe-tab:focus-visible { outline:3px solid #8062a9; outline-offset:2px; }
+.kingdom-screen .wardrobe-items { min-height:154px; margin:8px 0 12px; }
+.kingdom-screen .wardrobe-items h4 { margin:0 0 9px; color:#57412f; font:800 .78rem ui-monospace,monospace; letter-spacing:.06em; text-transform:uppercase; }
+.kingdom-screen .wardrobe-save { margin-top:4px; }
+.kingdom-screen .wardrobe-title-row { display:flex; align-items:center; justify-content:space-between; gap:12px; }.kingdom-screen .wardrobe-stamp { display:grid; width:56px; height:56px; place-items:center; color:#8062a9; border:2px double #8062a9; border-radius:50%; font:800 .53rem/1.1 ui-monospace,monospace; text-align:center; transform:rotate(9deg); }
+.kingdom-screen .wardrobe-selection-grid { display:grid; grid-template-columns:minmax(0,1fr) minmax(200px,.8fr); gap:20px; margin:18px 0; }
+.kingdom-screen .wardrobe-selection-grid h4 { margin:0 0 9px; color:#57412f; font:800 .78rem ui-monospace,monospace; letter-spacing:.06em; text-transform:uppercase; }
+.kingdom-screen .hat-options { display:grid; grid-template-columns:repeat(auto-fill,minmax(112px,1fr)); align-items:stretch; gap:14px 10px; }
+.kingdom-screen .hat-card { display:grid; min-width:0; grid-template-rows:1fr auto; gap:4px; }
+.kingdom-screen .hat-option { display:grid; width:100%; min-width:0; min-height:108px; place-items:center; gap:4px; padding:10px 4px 7px; color:#493827; background:linear-gradient(#e9d6ad,#f3e4c4 40%); border:1px solid #9b8157; border-bottom:7px solid #7a5534; border-radius:6px 6px 2px 2px; box-shadow:inset 0 6px 10px rgb(90 61 39 / 18%); cursor:pointer; }
+.kingdom-screen .hat-option:hover:not(:disabled) { background:linear-gradient(#efdfba,#fbf2d8 40%); }.kingdom-screen .hat-option:focus-visible { outline:3px solid #8062a9; outline-offset:2px; }
+.kingdom-screen .hat-option small { max-width:100%; font-size:.62rem; font-weight:800; text-align:center; }.kingdom-screen .hat-option[aria-pressed="true"] { background:#dcebc8; outline:2px solid #254937; }
+.kingdom-screen .hat-claim { min-height:29px; padding:3px; color:#254937; background:#e8f0de; border:1px solid #687553; border-radius:4px; font:800 .62rem Nunito,sans-serif; cursor:pointer; }
+.kingdom-screen .hat-claim:disabled, .kingdom-screen .hat-option:disabled { cursor:wait; opacity:.65; }.kingdom-screen .hat-owned { min-height:29px; display:grid; place-items:center; color:#53654f; font:800 .6rem ui-monospace,monospace; text-align:center; }
+.kingdom-screen .wardrobe-status { color:#53654f; font-size:.82rem; }.kingdom-screen .wardrobe-error { padding:8px 10px; color:#812e2d; background:#f8e3e1; border-left:3px solid #812e2d; font-size:.85rem; }
+.kingdom-screen .wardrobe-purse { width:fit-content; padding:5px 9px; color:#254937; background:#e8f0de; border:1px solid #687553; font-size:.8rem; font-weight:900; }
+.kingdom-screen .wardrobe-shortfall { display:grid; min-height:29px; align-content:center; color:#812e2d; font:800 .58rem/1.2 Nunito,sans-serif; text-align:center; }
+.kingdom-screen .wardrobe-swatches { grid-template-columns:repeat(6,minmax(30px,38px)); gap:10px; margin:10px 0; }
+.kingdom-screen .theme-garden .panel-head { border-bottom-color: #8062a9; }
+.kingdom-screen .theme-tower .panel-level { color: #4a3d63; }
 
 @media (prefers-reduced-motion: reduce) {
-  .constellation circle, .lantern-glow, .sconce i, .radio-set, .radio-needle, .radio-knob, .radio-waves, .radio-lamp, .radio-tune svg { animation: none !important; }
-  .hero-spine, .telescope-tube { transition: none; }
+  .kingdom-screen .constellation circle, .kingdom-screen .lantern-glow, .kingdom-screen .sconce i, .kingdom-screen .radio-set, .kingdom-screen .radio-needle, .kingdom-screen .radio-knob, .kingdom-screen .radio-waves, .kingdom-screen .radio-lamp, .kingdom-screen .radio-tune svg { animation: none !important; }
+  .kingdom-screen .hero-spine, .kingdom-screen .telescope-tube { transition: none; }
 }
 
 @media (max-width: 760px) {
-  .town-controls-hud { display: none; }
-  .tower-feature { grid-template-columns: minmax(0,2fr) minmax(230px,1fr); gap: 9px; padding: 9px; }
-  .tower-board { padding: 11px; border-width: 6px; }
-  .tower-offer-desk { padding: 12px 10px; }
-  .workshop-feature { grid-template-columns: minmax(200px,.7fr) minmax(0,1.3fr); }
+  .kingdom-screen .town-controls-hud { display: none; }
+  .kingdom-screen .tower-feature { grid-template-columns: minmax(0,2fr) minmax(230px,1fr); gap: 9px; padding: 9px; }
+  .kingdom-screen .tower-board { padding: 11px; border-width: 6px; }
+  .kingdom-screen .tower-offer-desk { padding: 12px 10px; }
+  .kingdom-screen .workshop-feature { grid-template-columns: minmax(200px,.7fr) minmax(0,1.3fr); }
 }
 @media (max-width: 1180px) {
-  .form-body { grid-template-columns: 1fr; }
-  .workshop-preview-stage { max-width: 440px; min-height: 0; aspect-ratio: 400 / 260; }
+  .kingdom-screen .form-body { grid-template-columns: 1fr; }
+  .kingdom-screen .workshop-preview-stage { max-width: 440px; min-height: 0; aspect-ratio: 400 / 260; }
 }
 @media (max-width: 600px) {
-  .town-title-hud { top: 10px; left: 10px; right: auto; padding: 8px 10px; }
-  .town-title { font-size: 17px; margin-bottom: 7px; }
-  .town-title span:last-child { display: block; font-size: 14px; }
-  .town-title-dot { display: none; }
-  .town-list { top: 118px; left: 10px; }
-  .town-level { top: 10px; right: 10px; padding: 6px 9px; font-size: .78rem; }
-  .town-actions { left: 10px; right: 10px; bottom: 10px; flex-wrap: wrap; }
-  .avatar-customize { bottom: 62px; left: 10px; padding: 18px; }
-  .town-intro { bottom: 62px; padding: 14px 16px; }
-  .town-intro h2 { font-size: 20px; }
-  .town-modal { width: calc(100vw - 16px); height: calc(100svh - 16px); max-height: none; padding: 16px 12px; }
-  .panel-title h2 { font-size: 24px; }
-  .theme-tower .panel-content, .theme-workshop .panel-content, .theme-castle .panel-content, .theme-library .panel-content { overflow: auto; }
-  .tower-feature { flex: 0 0 auto; grid-template-columns: 1fr; overflow: visible; }
-  .tower-board { min-height: 420px; }
-  .pinned-notes { grid-template-columns: 1fr; }
-  .tower-offer-desk { min-height: 310px; }
-  .trade-columns { grid-template-columns: 1fr; }
-  .theme-library .panel-content, .theme-tower .panel-content, .theme-workshop .panel-content, .theme-castle .panel-content { display: block; }
-  .constellation figcaption { display: none; }
-  .library-feature { overflow: visible; }
-  .library-shelves { min-height: 0; border-width: 7px; }
-  .bookcase { grid-template-rows: none; }
-  .shelf-row { grid-template-columns: minmax(0,1fr); }
-  .decorative-spine.extra, .book-stack { display: none; }
-  .shelf-bay { min-height: 116px; }
-  .shelf-bay + .shelf-bay { border-top: 8px solid #6b4a31; border-left: 0; box-shadow: none; }
-  .shelf-curio { width: 60px; height: 74px; margin: 0 8px; }
-  .storybook-spread { grid-template-columns: 1fr; }
-  .storybook-overlay { padding: 7px; }
-  .storybook-page { min-height: 300px; }
-  .story-right { border-top: 2px solid #c5b58e; border-left: 0; }
-  .wardrobe-feature { flex: 0 0 auto; grid-template-columns: 1fr; overflow: visible; }
-  .wardrobe-preview { min-height: 250px; }
-  .wardrobe-selection-grid { grid-template-columns: 1fr; }
-  .castle-info-card { top: 105px; right: 12px; }
-  .theme-garden .garden-caption { right: 8px; bottom: 8px; left: 34%; width: auto; padding: 12px; }
-  .theme-garden .garden-caption p { max-width: 56ch; }
-  .workshop-feature { flex: 0 0 auto; grid-template-columns: 1fr; overflow: visible; }
-  .workshop-roster { max-height: 300px; }
-  .workshop-detail { overflow: visible; padding: 14px; }
-  .theme-garden .telescope-button { left: 2%; width: 120px; }
-  .dressing-room { min-height: 340px; }
-  .hero-book-stats { grid-template-columns: repeat(2, 1fr); }
+  .kingdom-screen .town-title-hud { top: 10px; left: 10px; right: auto; padding: 8px 10px; }
+  .kingdom-screen .town-title { font-size: 17px; margin-bottom: 7px; }
+  .kingdom-screen .town-title span:last-child { display: block; font-size: 14px; }
+  .kingdom-screen .town-title-dot { display: none; }
+  .kingdom-screen .town-list { top: 118px; left: 10px; }
+  .kingdom-screen .town-level { top: 10px; right: 10px; padding: 6px 9px; font-size: .78rem; }
+  .kingdom-screen .town-actions { left: 10px; right: 10px; bottom: 10px; flex-wrap: wrap; }
+  .kingdom-screen .avatar-customize { bottom: 62px; left: 10px; padding: 18px; }
+  .kingdom-screen .town-intro { bottom: 62px; padding: 14px 16px; }
+  .kingdom-screen .town-intro h2 { font-size: 20px; }
+  .kingdom-screen .town-modal { width: calc(100vw - 16px); height: calc(100svh - 16px); max-height: none; padding: 16px 12px; }
+  .kingdom-screen .panel-title h2 { font-size: 24px; }
+  .kingdom-screen .theme-tower .panel-content, .kingdom-screen .theme-workshop .panel-content, .kingdom-screen .theme-castle .panel-content, .kingdom-screen .theme-library .panel-content { overflow: auto; }
+  .kingdom-screen .tower-feature { flex: 0 0 auto; grid-template-columns: 1fr; overflow: visible; }
+  .kingdom-screen .tower-board { min-height: 420px; }
+  .kingdom-screen .pinned-notes { grid-template-columns: 1fr; }
+  .kingdom-screen .tower-offer-desk { min-height: 310px; }
+  .kingdom-screen .trade-columns { grid-template-columns: 1fr; }
+  .kingdom-screen .theme-library .panel-content, .kingdom-screen .theme-tower .panel-content, .kingdom-screen .theme-workshop .panel-content, .kingdom-screen .theme-castle .panel-content { display: block; }
+  .kingdom-screen .constellation figcaption { display: none; }
+  .kingdom-screen .library-feature { overflow: visible; }
+  .kingdom-screen .library-shelves { min-height: 0; border-width: 7px; }
+  .kingdom-screen .bookcase { grid-template-rows: none; }
+  .kingdom-screen .shelf-row { grid-template-columns: minmax(0,1fr); }
+  .kingdom-screen .decorative-spine.extra, .kingdom-screen .book-stack { display: none; }
+  .kingdom-screen .shelf-bay { min-height: 116px; }
+  .kingdom-screen .shelf-bay + .shelf-bay { border-top: 8px solid #6b4a31; border-left: 0; box-shadow: none; }
+  .kingdom-screen .shelf-curio { width: 60px; height: 74px; margin: 0 8px; }
+  .kingdom-screen .storybook-spread { grid-template-columns: 1fr; }
+  .kingdom-screen .storybook-overlay { padding: 7px; }
+  .kingdom-screen .storybook-page { min-height: 300px; }
+  .kingdom-screen .story-right { border-top: 2px solid #c5b58e; border-left: 0; }
+  .kingdom-screen .wardrobe-feature { flex: 0 0 auto; grid-template-columns: 1fr; overflow: visible; }
+  .kingdom-screen .wardrobe-preview { min-height: 250px; }
+  .kingdom-screen .wardrobe-selection-grid { grid-template-columns: 1fr; }
+  .kingdom-screen .castle-info-card { top: 105px; right: 12px; }
+  .kingdom-screen .theme-garden .garden-caption { right: 8px; bottom: 8px; left: 34%; width: auto; padding: 12px; }
+  .kingdom-screen .theme-garden .garden-caption p { max-width: 56ch; }
+  .kingdom-screen .workshop-feature { flex: 0 0 auto; grid-template-columns: 1fr; overflow: visible; }
+  .kingdom-screen .workshop-roster { max-height: 300px; }
+  .kingdom-screen .workshop-detail { overflow: visible; padding: 14px; }
+  .kingdom-screen .theme-garden .telescope-button { left: 2%; width: 120px; }
+  .kingdom-screen .dressing-room { min-height: 340px; }
+  .kingdom-screen .hero-book-stats { grid-template-columns: repeat(2, 1fr); }
 }
 @media (pointer: coarse) {
-  .town-controls-hud { display: flex; right: 10px; bottom: calc(74px + env(safe-area-inset-bottom)); left: 10px; justify-content: center; max-width: none; padding: 7px 10px; font-size: .75rem; text-align: center; }
-  .town-controls-hud > span:not(.touch-controls-hint) { display: none; }
-  .touch-controls-hint { display: inline; }
-  .town-actions { bottom: max(10px, env(safe-area-inset-bottom)); }
-  .town-actions .hud-btn { min-height: 44px; }
-  .town-title-actions .hud-btn { min-height: 42px; }
-  .town-modal-shade { padding: max(8px, env(safe-area-inset-top)) max(8px, env(safe-area-inset-right)) max(8px, env(safe-area-inset-bottom)) max(8px, env(safe-area-inset-left)); }
-  .town-modal { width: 100%; height: 100%; max-height: 100%; }
+  .kingdom-screen .town-controls-hud { display: flex; right: 10px; bottom: calc(74px + env(safe-area-inset-bottom)); left: 10px; justify-content: center; max-width: none; padding: 7px 10px; font-size: .75rem; text-align: center; }
+  .kingdom-screen .town-controls-hud > span:not(.touch-controls-hint) { display: none; }
+  .kingdom-screen .touch-controls-hint { display: inline; }
+  .kingdom-screen .town-actions { bottom: max(10px, env(safe-area-inset-bottom)); }
+  .kingdom-screen .town-actions .hud-btn { min-height: 44px; }
+  .kingdom-screen .town-title-actions .hud-btn { min-height: 42px; }
+  .kingdom-screen .town-modal-shade { padding: max(8px, env(safe-area-inset-top)) max(8px, env(safe-area-inset-right)) max(8px, env(safe-area-inset-bottom)) max(8px, env(safe-area-inset-left)); }
+  .kingdom-screen .town-modal { width: 100%; height: 100%; max-height: 100%; }
 }
 @media (pointer: coarse) and (max-width: 600px) and (orientation: portrait) {
-  .town-title-hud { top: max(8px, env(safe-area-inset-top)); left: max(8px, env(safe-area-inset-left)); padding: 7px 9px; }
-  .town-title-hud .scene-kicker { font-size: .58rem; }
-  .town-title { font-size: 16px; }
-  .town-title span:last-child { display: none; }
-  .town-level { top: max(8px, env(safe-area-inset-top)); right: max(8px, env(safe-area-inset-right)); padding: 5px 8px; }
-  .town-actions { right: max(8px, env(safe-area-inset-right)); left: max(8px, env(safe-area-inset-left)); justify-content: center; gap: 6px; }
-  .town-actions .hud-btn { flex: 1 1 0; justify-content: center; padding: 6px 8px; font-size: .78rem; }
-  .town-controls-hud { bottom: calc(68px + env(safe-area-inset-bottom)); }
-  .town-list { top: 92px; left: max(8px, env(safe-area-inset-left)); width: min(290px, calc(100vw - 16px)); }
-  .town-intro, .avatar-customize { bottom: calc(124px + env(safe-area-inset-bottom)); left: 8px; width: min(430px, calc(100vw - 16px)); max-height: calc(100svh - 150px); overflow: auto; }
+  .kingdom-screen .town-title-hud { top: max(8px, env(safe-area-inset-top)); left: max(8px, env(safe-area-inset-left)); padding: 7px 9px; }
+  .kingdom-screen .town-title-hud .scene-kicker { font-size: .58rem; }
+  .kingdom-screen .town-title { font-size: 16px; }
+  .kingdom-screen .town-title span:last-child { display: none; }
+  .kingdom-screen .town-level { top: max(8px, env(safe-area-inset-top)); right: max(8px, env(safe-area-inset-right)); padding: 5px 8px; }
+  .kingdom-screen .town-actions { right: max(8px, env(safe-area-inset-right)); left: max(8px, env(safe-area-inset-left)); justify-content: center; gap: 6px; }
+  .kingdom-screen .town-actions .hud-btn { flex: 1 1 0; justify-content: center; padding: 6px 8px; font-size: .78rem; }
+  .kingdom-screen .town-controls-hud { bottom: calc(68px + env(safe-area-inset-bottom)); }
+  .kingdom-screen .town-list { top: 92px; left: max(8px, env(safe-area-inset-left)); width: min(290px, calc(100vw - 16px)); }
+  .kingdom-screen .town-intro, .kingdom-screen .avatar-customize { bottom: calc(124px + env(safe-area-inset-bottom)); left: 8px; width: min(430px, calc(100vw - 16px)); max-height: calc(100svh - 150px); overflow: auto; }
 }
 @media (pointer: coarse) and (orientation: landscape) and (max-height: 520px) {
-  .town-title-hud { top: max(6px, env(safe-area-inset-top)); left: max(8px, env(safe-area-inset-left)); padding: 6px 9px; }
-  .town-title { margin-bottom: 5px; font-size: 16px; }
-  .town-title-hud .scene-kicker { display: none; }
-  .town-title-actions .hud-btn { min-height: 38px; }
-  .town-level { top: max(8px, env(safe-area-inset-top)); right: max(8px, env(safe-area-inset-right)); }
-  .town-actions { bottom: max(6px, env(safe-area-inset-bottom)); left: max(8px, env(safe-area-inset-left)); }
-  .town-actions .hud-btn { min-height: 40px; }
-  .town-controls-hud { right: max(8px, env(safe-area-inset-right)); bottom: max(8px, env(safe-area-inset-bottom)); left: auto; width: min(370px, 45vw); }
-  .town-modal { padding: 12px; }
-  .panel-head { padding-bottom: 8px; }
-  .panel-title h2 { font-size: 23px; }
-  .panel-purpose { margin: 8px 0; }
+  .kingdom-screen .town-title-hud { top: max(6px, env(safe-area-inset-top)); left: max(8px, env(safe-area-inset-left)); padding: 6px 9px; }
+  .kingdom-screen .town-title { margin-bottom: 5px; font-size: 16px; }
+  .kingdom-screen .town-title-hud .scene-kicker { display: none; }
+  .kingdom-screen .town-title-actions .hud-btn { min-height: 38px; }
+  .kingdom-screen .town-level { top: max(8px, env(safe-area-inset-top)); right: max(8px, env(safe-area-inset-right)); }
+  .kingdom-screen .town-actions { bottom: max(6px, env(safe-area-inset-bottom)); left: max(8px, env(safe-area-inset-left)); }
+  .kingdom-screen .town-actions .hud-btn { min-height: 40px; }
+  .kingdom-screen .town-controls-hud { right: max(8px, env(safe-area-inset-right)); bottom: max(8px, env(safe-area-inset-bottom)); left: auto; width: min(370px, 45vw); }
+  .kingdom-screen .town-modal { padding: 12px; }
+  .kingdom-screen .panel-head { padding-bottom: 8px; }
+  .kingdom-screen .panel-title h2 { font-size: 23px; }
+  .kingdom-screen .panel-purpose { margin: 8px 0; }
 }
 </style>

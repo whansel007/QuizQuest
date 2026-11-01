@@ -342,10 +342,19 @@ const floaters = ['?', '★', '✓', 'A', '+', '!', '◆', '?'];
 .qq-preview-side { position: absolute; z-index: 1; top: 0; right: 0; bottom: 0; width: 46%; filter: drop-shadow(-6px 0 14px rgb(35 56 47 / 28%)); pointer-events: none; }
 .qq-preview-clip { position: absolute; inset: 0; clip-path: ellipse(100% 82% at 100% 50%); }
 .qq-preview-clip::after { content: ''; position: absolute; inset: 0; box-shadow: inset 18px 0 30px -18px rgb(251 242 216 / 70%); }
-/* a small decorative campfire low on the paper, centred between the form
-   column and the preview's curved edge */
+/* A small decorative campfire low on the paper, centred between the form
+   column and the preview's curved edge on wide screens. */
 .qq-campfire { position: absolute; z-index: 0; bottom: 64px; left: calc((clamp(24px, 6vw, 96px) + 460px + 58vw) / 2 - clamp(70px, 5vw, 95px)); width: clamp(140px, 10vw, 190px); height: auto; }
-@media (max-width: 1180px), (max-height: 620px) { .qq-campfire { display: none; } }
+/* In a side-by-side window, put it under the login card on the paper side. */
+@media (max-width: 1180px) and (min-width: 761px) and (min-height: 621px) {
+  .qq-campfire {
+    display: block;
+    bottom: 64px;
+    left: calc(clamp(24px, 6vw, 96px) + 230px - clamp(75px, 10vw, 105px));
+    width: clamp(150px, 20vw, 210px);
+  }
+}
+@media (max-width: 760px), (max-height: 620px) { .qq-campfire { display: none; } }
 @media (max-width: 980px) {
   .qq-form-side { width: 62%; padding-inline: 32px 40px; }
   .qq-preview-side { width: 44%; }

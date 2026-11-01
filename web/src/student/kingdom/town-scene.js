@@ -5,13 +5,14 @@
 // both draw the town from here, so they always show the same place.
 // ============================================================
 import {
-  BUILDING_LAYOUT, TOWN_DESTINATIONS, TOWN_GRASS_COLOR, TOWN_HEIGHT, TOWN_NORTH_HEIGHT, TOWN_PATH_WIDTH,
+  TOWN_DESTINATIONS, TOWN_GRASS_COLOR, TOWN_HEIGHT, TOWN_NORTH_HEIGHT, TOWN_PATH_WIDTH,
   TOWN_PLAZA, TOWN_PROP_LAYOUT, TOWN_ROADS, TOWN_TRAIL_WIDTH, TOWN_WIDTH,
 } from '../../../../config/tuning.js';
 import {
-  drawBarterCorner, drawBuilding, drawCampfireCamp, drawCastle, drawDuelCamp, drawFlowers, drawHouse, drawRock,
+  drawBarterCorner, drawCampfireCamp, drawDuelCamp, drawFlowers, drawHouse, drawRock,
   drawTrailSign, drawTree, drawWell,
 } from './town-art.js';
+import { BUILDING_LAYOUT, drawBuilding } from './buildings/index.js';
 
 export const WORLD_TOP = -TOWN_NORTH_HEIGHT;
 export const WORLD_HEIGHT = TOWN_HEIGHT + TOWN_NORTH_HEIGHT;
@@ -250,7 +251,7 @@ export function buildTownObjects(levelOf, cache = new Map(), edgeTrees = makeEdg
   for (const b of TOWN_BUILDINGS) {
     const level = levelOf(b.id);
     const w = b.art.w; const h = b.art.h + ART_HEADROOM;
-    const art = artFor(cache, `${b.id}:${level}`, w, h, (g) => (b.id === 'castle' ? drawCastle(g, level, w, h) : drawBuilding(g, b.id, level, w, h, b.w)));
+    const art = artFor(cache, `${b.id}:${level}`, w, h, (g) => drawBuilding(g, b.id, level, w, h, b.w));
     list.push(placeArt(b, art, w, h));
   }
   for (const d of TOWN_CAMPS) {
