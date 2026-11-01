@@ -524,6 +524,20 @@ function clampBubble(x, y, w, h) {
   };
 }
 
+function speechBubbleOverlapsHero(box, hero, width, height) {
+  const radius = TOWN_HERO_AVATAR_RADIUS;
+  const heroBox = {
+    x: hero.x - radius * 1.2,
+    y: hero.y - radius * 3.15 - TOWN_HERO_HOP_HEIGHT,
+    w: radius * 2.4,
+    h: radius * 3.15 + 6 + TOWN_HERO_HOP_HEIGHT,
+  };
+  return box.x < heroBox.x + heroBox.w
+    && box.x + width > heroBox.x
+    && box.y < heroBox.y + heroBox.h
+    && box.y + height > heroBox.y;
+}
+
 function drawSpeech(g, time) {
   if (!speech || time > speech.until) { speech = null; return; }
   const hero = wanderers.find((h) => h.id === speech.heroId);
@@ -534,13 +548,27 @@ function drawSpeech(g, time) {
   const nameH = speech.kind === 'greet' ? 15 : 0;
   const height = lines.length * 15 + 14 + nameH;
   const tipY = hero.y - TOWN_HERO_AVATAR_RADIUS * 3.2;
-  const box = clampBubble(hero.x - width / 2, tipY - height - 8, width, height);
+  let box = clampBubble(hero.x - width / 2, tipY - height - 8, width, height);
+  let pointer = 'bottom';
+  if (speechBubbleOverlapsHero(box, hero, width, height)) {
+    // At the top edge there may not be enough room above the sprite. Move the
+    // bubble below it instead of letting the viewport clamp push it over the
+    // character's face.
+    const below = clampBubble(hero.x - width / 2, hero.y + 16, width, height);
+    if (!speechBubbleOverlapsHero(below, hero, width, height)) {
+      box = below;
+      pointer = 'top';
+    }
+  }
   g.fillStyle = PALETTE.paper; g.strokeStyle = INK; g.lineWidth = 2.5;
   g.beginPath(); g.roundRect(box.x, box.y, width, height, 9); g.fill(); g.stroke();
   const tipX = Math.max(box.x + 12, Math.min(box.x + width - 12, hero.x));
-  if (box.y + height <= tipY) {
+  if (pointer === 'bottom' && box.y + height <= tipY) {
     g.beginPath(); g.moveTo(tipX - 6, box.y + height - 1); g.lineTo(tipX, box.y + height + 7); g.lineTo(tipX + 6, box.y + height - 1); g.closePath(); g.fill();
     g.beginPath(); g.moveTo(tipX - 6, box.y + height); g.lineTo(tipX, box.y + height + 7); g.lineTo(tipX + 6, box.y + height); g.stroke();
+  } else if (pointer === 'top') {
+    g.beginPath(); g.moveTo(tipX - 6, box.y + 1); g.lineTo(tipX, box.y - 7); g.lineTo(tipX + 6, box.y + 1); g.closePath(); g.fill();
+    g.beginPath(); g.moveTo(tipX - 6, box.y); g.lineTo(tipX, box.y - 7); g.lineTo(tipX + 6, box.y); g.stroke();
   }
   g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillStyle = INK;
   if (nameH) {

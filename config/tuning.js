@@ -266,6 +266,7 @@ export const TOWN_HERO_REDUCED_MOTION_PAUSE_MAX_MS = 5_000;
 export const TOWN_AVATAR_PRESET_COLORS = Object.freeze([
   '#F2BA55', '#EF7137', '#3D78A0', '#6DB8CF', '#8062A9', '#D86F6B',
   '#548CB0', '#B96448', '#C08A54', '#BAA1D0', '#E49B35', '#4F9B83',
+  '#E85D8F', '#7651A8', '#E3C547', '#347F73', '#53627F',
   TOWN_AVATAR_ORIGINAL_COLOR,
 ]);
 // Town map road and trail geometry. Building footprints, art sizes, and

@@ -870,12 +870,15 @@ const castlePanelContext = reactive({
 .kingdom-screen .book-stack i { display: block; width: 74px; height: 15px; margin-top: -2px; background: linear-gradient(90deg,transparent 0 8%,rgb(35 56 47 / 35%) 8% 11%,transparent 11%), var(--book-color); border: 2px solid #23382f; border-radius: 2px 4px 4px 2px; filter: saturate(.72) brightness(.88); }
 .kingdom-screen .book-stack i:nth-child(2) { width: 66px; transform: translateX(4px); }
 .kingdom-screen .book-stack i:nth-child(3) { width: 70px; transform: translateX(-3px); }
-.kingdom-screen .hero-spine { position: relative; width: 36px; height: 100px; color: #fff3cf; background: linear-gradient(180deg,transparent 0 9%,#e8c57c 9% 12%,transparent 12% 88%,#e8c57c 88% 91%,transparent 91%), var(--book-color); box-shadow: inset 4px 0 rgb(255 255 255 / 20%), inset -4px 0 rgb(0 0 0 / 22%); cursor: pointer; transition: transform .14s ease; }
+.kingdom-screen .hero-spine { position: relative; width: 36px; height: 100px; color: #fff3cf; background: linear-gradient(180deg,transparent 0 4%,#e8c57c 4% 7%,transparent 7% 93%,#e8c57c 93% 96%,transparent 96%), var(--book-color); box-shadow: inset 4px 0 rgb(255 255 255 / 20%), inset -4px 0 rgb(0 0 0 / 22%); cursor: pointer; transition: transform .14s ease; }
 .kingdom-screen .hero-spine > span { display: block; max-height: 84px; margin: auto; overflow: hidden; font: 800 .64rem/1 Georgia,"Palatino Linotype",serif; letter-spacing: .02em; text-overflow: ellipsis; text-shadow: 0 1px #23382f; white-space: nowrap; writing-mode: vertical-rl; transform: rotate(180deg); }
+.kingdom-screen .hero-spine.long-title > span { font-size: .6rem; white-space: normal; overflow-wrap: anywhere; }
 .kingdom-screen .hero-spine::after { position: absolute; bottom: -9px; left: 9px; width: 6px; height: 14px; background: #d86f6b; border: 1px solid #23382f; clip-path: polygon(0 0,100% 0,100% 100%,50% 75%,0 100%); content: ''; }
 .kingdom-screen .hero-spine:hover { transform: translateY(-6px); }
 .kingdom-screen .hero-spine:focus-visible { outline: 3px solid #b9a3e3; outline-offset: 2px; transform: translateY(-6px); }
 .kingdom-screen .hero-spine.selected { transform: translateY(-10px); }
+.hero-name-bubble { position: fixed; z-index: 10000; display: grid; min-width: 156px; max-width: calc(100vw - 32px); min-height: 50px; place-items: center; padding: 10px 18px; color: #254937; background: #fbf2d8 url('/hero-lab/assets/storybook-paper.svg'); background-size: 144px; border: 3px solid #23382f; border-radius: 10px 12px 9px 11px; box-shadow: 0 5px 0 #7a6545, 0 9px 18px rgb(0 0 0 / 30%); font: 900 1rem Nunito, sans-serif; text-align: center; white-space: nowrap; pointer-events: none; transform: translate(-50%, calc(-100% - 13px)); }
+.hero-name-bubble::after { position: absolute; bottom: -9px; left: 50%; width: 12px; height: 12px; background: #fbf2d8; border-right: 3px solid #23382f; border-bottom: 3px solid #23382f; content: ''; transform: translateX(-50%) rotate(45deg); }
 .kingdom-screen .shelf-curio { flex: 0 0 auto; width: 74px; height: 90px; margin: 0 14px; }
 .kingdom-screen .curio-portrait { width: 74px; height: 100px; align-self: center; }
 .kingdom-screen .curio-skull, .kingdom-screen .curio-stones { width: 80px; height: 82px; }
@@ -893,7 +896,7 @@ const castlePanelContext = reactive({
 .kingdom-screen .story-copy::first-letter { float: left; margin: 4px 8px 0 0; color: #8062a9; font: 700 3.1em/.8 Georgia,serif; }
 .kingdom-screen .field-note { margin: 12px 0; padding: 8px 10px; background: #f3e4c4; border-left: 3px solid #8062a9; font-size: .88rem; }
 .kingdom-screen .story-portrait { display: grid; justify-items: center; gap: 6px; margin: 0; }
-.kingdom-screen .portrait-frame { display: grid; width: min(170px,100%); aspect-ratio: 5 / 6; place-items: center; overflow: hidden; background: radial-gradient(ellipse at 50% 88%,#8fa86f 0 18%,transparent 19%), linear-gradient(#cfe2e8,#eef3e6 70%); border: 8px solid #b98a3e; border-radius: 50% 50% 46% 46% / 40% 40% 36% 36%; box-shadow: 0 0 0 2px #23382f, inset 0 0 0 2px #23382f, 0 4px 0 #7a6545; }
+.kingdom-screen .portrait-frame { display: grid; width: min(132px,100%); aspect-ratio: 5 / 6; place-items: center; overflow: hidden; background: linear-gradient(#cfe2e8,#eef3e6 70%); border: 8px solid #b98a3e; border-radius: 50% 50% 46% 46% / 40% 40% 36% 36%; box-shadow: 0 0 0 2px #23382f, inset 0 0 0 2px #23382f, 0 4px 0 #7a6545; }
 .kingdom-screen .story-portrait figcaption { color: #57412f; font: 700 .95rem Georgia,serif; }
 .kingdom-screen .hero-abilities { display: grid; gap: 6px; margin: 10px 0 0; }
 .kingdom-screen .hero-abilities div { display: grid; grid-template-columns: 105px 1fr; gap: 8px; padding: 5px 8px; background: #f3e4c4; border-radius: 5px; }
@@ -961,7 +964,8 @@ const castlePanelContext = reactive({
 .kingdom-screen .wardrobe-catalog h3 { margin-top: 10px; font-size: 25px; }
 .kingdom-screen .wardrobe-catalog p { max-width: 640px; }
 .kingdom-screen .wardrobe-swatches { justify-content: flex-start; max-width: 480px; margin: 20px 0; }
-.kingdom-screen .wardrobe-current { color: #5f6d58; font-size: .85rem; }
+.kingdom-screen .wardrobe-current { display: flex; align-items: center; gap: 7px; color: #5f6d58; font-size: .85rem; }
+.kingdom-screen .wardrobe-current code { padding: 3px 7px; border: 1px solid rgb(35 56 47 / 35%); border-radius: 5px; font: 800 .75rem ui-monospace,monospace; box-shadow: 0 1px 2px rgb(35 56 47 / 18%); }
 /* Castle dressing room: wallpaper, wainscot, sconces and a standing mirror. */
 .kingdom-screen .dressing-room { position: relative; display: flex; flex-direction: column; align-items: center; justify-content: flex-end; min-height: 0; overflow: hidden; padding: 18px 14px 22px; border: 2px solid #23382f; border-radius: 6px; }
 .kingdom-screen .room-wall { position: absolute; inset: 0 0 18%; background: linear-gradient(180deg,transparent 0 70%,#7a5534 70% 71.5%,#a8774a 71.5% 100%), repeating-linear-gradient(90deg,transparent 0 22px,rgb(255 248 228 / 16%) 22px 24px), radial-gradient(circle at 50% 50%,rgb(242 186 85 / 22%) 0 3px,transparent 4px) 0 0 / 34px 34px, #6c4f7e; }

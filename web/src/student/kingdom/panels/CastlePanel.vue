@@ -6,6 +6,12 @@ import CosmeticIcon from '../../CosmeticIcon.vue';
 
 const props = defineProps({ context: { type: Object, required: true } });
 const { wardrobeResources, R, fmtBundle, wardrobeLoading, wardrobeError, wardrobeCategory, wardrobeHats, wardrobeOwnedIds, wardrobeHat, wardrobeClaiming, wardrobeCanAfford, wardrobePrice, wardrobeShortfall, claimWardrobeCosmetic, wardrobeAccessory, wardrobeAccessories, wardrobeColors, wardrobeColor, colorSaving, wardrobeDirty, wardrobeCanSave, saveWardrobeLook, castleInfoOpen, castleLevel, BUILDING_LEVEL_CAP } = toRefs(props.context);
+const wardrobeColorChipStyle = computed(() => {
+  const hex = wardrobeColor.value || '#000000';
+  const channels = [1, 3, 5].map((index) => Number.parseInt(hex.slice(index, index + 2), 16));
+  const luminance = (channels[0] * 299 + channels[1] * 587 + channels[2] * 114) / 1000;
+  return { backgroundColor: hex, color: luminance > 150 ? '#23382f' : '#fff8e4' };
+});
 const castleMeaning = computed(() => castleLevel.value === 0
   ? 'Your castle grows as every building reaches the same level.'
   : `Every building has reached level ${castleLevel.value}. The castle level is the lowest level among your four buildings.`);
@@ -57,7 +63,7 @@ const castleMeaning = computed(() => castleLevel.value === 0
                     <div class="avatar-swatches wardrobe-swatches" role="group" aria-label="Preview avatar color">
                       <button v-for="color in wardrobeColors" :key="color.id" class="avatar-swatch" type="button" :style="{ '--swatch-color': color.renderValue }" :aria-label="color.name" :title="color.name" :aria-pressed="wardrobeColor === color.renderValue" :disabled="colorSaving || wardrobeLoading" @click="wardrobeColor = color.renderValue" />
                     </div>
-                    <p class="wardrobe-current">Selected color: <code>{{ wardrobeColor }}</code></p>
+                    <p class="wardrobe-current">Selected color: <code :style="wardrobeColorChipStyle">{{ wardrobeColor }}</code></p>
                   </section>
                   <button class="btn primary wardrobe-save" type="button" :disabled="colorSaving || wardrobeLoading || !wardrobeDirty || !wardrobeCanSave" @click="saveWardrobeLook">{{ colorSaving ? 'Saving…' : 'Save this look' }}</button>
                 </section>

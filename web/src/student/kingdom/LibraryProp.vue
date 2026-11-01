@@ -58,13 +58,16 @@ defineProps({ kind: { type: String, required: true } });
       <path d="M32 80v-5M40 80v-5M48 80v-5" stroke="#23382f" stroke-width="2" />
     </g>
     <g v-else-if="kind === 'portrait'">
-      <rect x="10" y="10" width="60" height="78" rx="4" fill="#b98a3e" stroke="#23382f" stroke-width="2.5" />
-      <rect x="17" y="17" width="46" height="64" rx="22" fill="#3d4e5c" stroke="#23382f" stroke-width="2" />
-      <path d="M24 81c0-14 7-22 16-22s16 8 16 22Z" fill="#5b4a6e" />
+      <rect x="10" y="10" width="60" height="78" rx="4" fill="#b98a3e" />
+      <rect x="17" y="17" width="46" height="64" rx="22" fill="#3d4e5c" />
+      <path d="M26 76c0-12 6-19 14-19s14 7 14 19Z" fill="#5b4a6e" />
       <path d="M30 45 26 31l9 8M50 45l4-14-9 8" fill="#cbbfa8" stroke="#23382f" stroke-width="1.5" stroke-linejoin="round" />
       <circle cx="40" cy="50" r="13" fill="#cbbfa8" stroke="#23382f" stroke-width="1.5" />
       <g class="portrait-eyes"><circle cx="35" cy="49" r="2" fill="#23382f" /><circle cx="45" cy="49" r="2" fill="#23382f" /></g>
       <path d="M36 56q4 2 8 0" fill="none" stroke="#23382f" stroke-width="1.5" stroke-linecap="round" />
+      <!-- Paint the frame edges last so the portrait sits behind its borders. -->
+      <rect x="10" y="10" width="60" height="78" rx="4" fill="none" stroke="#23382f" stroke-width="2.5" />
+      <rect x="17" y="17" width="46" height="64" rx="22" fill="none" stroke="#23382f" stroke-width="2" />
     </g>
     <g v-else-if="kind === 'candle'">
       <path d="M16 90h48l-6-8H22Z" fill="#c99c67" stroke="#23382f" stroke-width="2.5" stroke-linejoin="round" />
