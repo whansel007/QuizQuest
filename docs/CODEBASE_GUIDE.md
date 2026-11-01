@@ -42,7 +42,7 @@ The authoritative dependency list and scripts are in [package.json](../package.j
 
 | Layer | Current implementation |
 | --- | --- |
-| Runtime | Node.js, minimum declared version `22.13.0`; CommonJS backend modules |
+| Runtime | Node.js, minimum declared version `22.19.0`; CommonJS backend modules |
 | Frontend | Vue 3 single-file components, JavaScript, shared CSS; Vite build/dev server |
 | HTTP | Node `http`, with a custom JSON API router; no Express dependency |
 | Browser HTTP client | Axios |
