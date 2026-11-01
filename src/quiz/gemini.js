@@ -25,6 +25,20 @@ function extractJson(raw) {
   if (start >= 0 && end > start) return JSON.parse(fenced.slice(start, end + 1));
   throw new SyntaxError('The AI reply was not JSON.');
 }
+// The model's own words, kept with the error so the server can record why a
+// batch failed. They can contain the professor's own course material, so the
+// property is deliberately NOT enumerable: an error that is logged or
+// serialised whole must not carry them out of the server. Only code that
+// asks for `error.raw` by name can read them.
+function withRaw(error, raw) {
+  Object.defineProperty(error, 'raw', {
+    value: String(raw == null ? '' : raw).slice(0, 20000),
+    enumerable: false,
+    writable: true,
+    configurable: true,
+  });
+  return error;
+}
 async function responseJson(res) {
   try{return await res.json();}catch(e){if(res.ok)throw e;return {};}
 }
@@ -189,7 +203,7 @@ async function generateJson({
         json = extractJson(raw);
       } catch (e) {
         // Keep the reply: it is the only clue to what the model actually said.
-        throw Object.assign(e, { raw: String(raw).slice(0, 20000) });
+        throw withRaw(e, raw);
       }
       return {
         json,
@@ -216,16 +230,18 @@ async function generateJson({
     }
   }
   console.error('[gemini] exhausted attempts:', last?.name, last?.code || last?.status || 'invalid response');
-  throw Object.assign(
+  const failure = Object.assign(
     new Error(
       last?.name === 'TimeoutError'
         ? 'The AI service timed out. Your work is saved; resume to continue.'
         : 'The AI service could not finish. Your work is saved; resume to continue.',
     ),
     // The reply is kept with the error, not in the server log: it can contain
-    // the professor's own course material, and the job's recovery log is
-    // where a teacher can see it.
-    { code: 'AI_FAILED', retryable: false, cause: last, ...(lastRaw ? { raw: lastRaw } : {}) },
+    // the professor's own course material. It is a hidden property (see
+    // withRaw), so the error can be logged or serialised whole without
+    // carrying the reply with it.
+    { code: 'AI_FAILED', retryable: false, cause: last },
   );
+  throw lastRaw ? withRaw(failure, lastRaw) : failure;
 }
 module.exports = { enabled, model, fallbackModel, generateJson, ALLOWED_MODELS, retryDetails };

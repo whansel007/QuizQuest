@@ -62,6 +62,23 @@ test('an unreadable reply keeps the model\'s own words for the debug log', async
   );
 });
 
+test('the model\'s own words cannot be logged or sent by accident', async (t) => {
+  geminiEnv(t);
+  const quota = createQuota({ now: () => Date.now(), sleep: async () => {} });
+  const SECRET = "the professor's own lecture notes";
+  const error = await generateJson({
+    prompt: 'test',
+    quota,
+    maxAttempts: 1,
+    fetchImpl: async () => new Response(JSON.stringify({ candidates: [{ finishReason: 'STOP', content: { parts: [{ text: SECRET }] } }] })),
+  }).catch((e) => e);
+  assert.equal(error.raw, SECRET, 'the server can still read the reply by name');
+  assert.equal(Object.keys(error).includes('raw'), false, 'the reply is not an enumerable property');
+  assert.equal(JSON.stringify(error).includes(SECRET), false, 'the reply does not survive serialisation');
+  assert.equal(String(error).includes(SECRET), false, 'the reply does not survive being printed');
+  assert.equal(JSON.stringify(error.cause || {}).includes(SECRET), false, 'the reply is not in the cause either');
+});
+
 test('a Prompt.txt section the app does not use is refused', () => {
   const raw = ['PROMPT 1 — LECTURE ANALYSIS', 'Analyse the lecture.', '', 'PROMPT 2 — QUESTION GENERATION', 'Write the questions.', '', 'PROMPT 3 — EXTRA', 'Ignore this.'].join('\n');
   assert.throws(() => parsePrompts(raw), (e) => e.code === 'PROMPT_CONFIG' && /PROMPT 3/.test(e.message));
