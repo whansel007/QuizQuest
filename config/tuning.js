@@ -266,26 +266,16 @@ export const TOWN_HERO_REDUCED_MOTION_PAUSE_MAX_MS = 5_000;
 export const TOWN_AVATAR_PRESET_COLORS = Object.freeze([
   '#F2BA55', '#EF7137', '#3D78A0', '#6DB8CF', '#8062A9', '#D86F6B',
   '#548CB0', '#B96448', '#C08A54', '#BAA1D0', '#E49B35', '#4F9B83',
+  '#E85D8F', '#7651A8', '#E3C547', '#347F73', '#53627F',
   TOWN_AVATAR_ORIGINAL_COLOR,
 ]);
-// Town map. The castle sits on a stone plaza in the centre with one building
-// at each compass point: Garden north, Tower south, Library west, Workshop
-// east. x/y/w/h is the solid footprint (art rises above it); `art` is the
-// drawing's canvas size; `door` is where the player stands to interact, on
-// the road in front of the entrance. North of the town (negative y) is the
-// forest clearing with the Duel and Campfire Run camps.
+// Town map road and trail geometry. Building footprints, art sizes, and
+// entrance positions are defined with their renderers in kingdom/buildings.
 export const TOWN_PATH_WIDTH = 52;
 export const TOWN_TRAIL_WIDTH = 46;
 export const TOWN_NORTH_HEIGHT = 720;
 export const TOWN_GREET_RADIUS = 62;
 export const TOWN_PLAZA = { x: 500, y: 215, w: 280, h: 240 };
-export const BUILDING_LAYOUT = {
-  castle: { x: 545, y: 290, w: 190, h: 120, art: { w: 230, h: 250 }, door: { x: 640, y: 434 } },
-  garden: { x: 500, y: 70, w: 170, h: 95, art: { w: 190, h: 170 }, door: { x: 585, y: 190 } },
-  library: { x: 95, y: 250, w: 190, h: 95, art: { w: 230, h: 200 }, door: { x: 190, y: 370 } },
-  workshop: { x: 990, y: 250, w: 200, h: 95, art: { w: 260, h: 190 }, door: { x: 1090, y: 370 } },
-  tower: { x: 585, y: 545, w: 110, h: 80, art: { w: 150, h: 180 }, door: { x: 640, y: 652 } },
-};
 // Stone roads, as centre-line polylines that start under each entrance and
 // end inside the plaza. The tower's road loops round its base to the front.
 export const TOWN_ROADS = [

@@ -9,6 +9,7 @@ import BuildingIcon from './BuildingIcon.vue';
 import HeroIcon from './HeroIcon.vue';
 import { loadHome } from './home.js';
 import { api } from '../api.js';
+import { wipeTo } from '../transitions.js';
 import { HERO_TYPE_ICON } from './hero-type.js';
 import TalentBadge from './TalentBadge.vue';
 import { GAME_CONFIG } from '../../../public/hero-lab/game-config.js';
@@ -203,6 +204,7 @@ onUnmounted(() => window.removeEventListener('message', returnToSelection));
       <div class="world-sides">
         <section class="panel room-entry" aria-label="Room entry">
           <div class="room-join-block">
+            <button class="kingdom-return" type="button" @click="wipeTo('kingdom')"><span aria-hidden="true">←</span> Back to Kingdom</button>
             <h1 class="room-title">The Clearing</h1>
             <p class="room-intro">Choose a hero and defend the campfire. Move with WASD; E is your skill and Q your ultimate.</p>
             <span class="panel-kicker">JOIN A PARTY</span>
@@ -434,6 +436,8 @@ onUnmounted(() => window.removeEventListener('message', returnToSelection));
 .room-join-block, .room-host-block { display: grid; align-content: center; gap: 5px; min-height: 0; }
 .room-join-block { padding-bottom: 10px; border-bottom: 2px dashed #a79773; }
 .room-host-block { padding-top: 10px; }
+.kingdom-return { align-self: flex-start; margin: 0 0 6px; padding: 2px 0; color: var(--camp-pine); background: none; border: 0; font: 800 .8rem Nunito, Trebuchet MS, sans-serif; text-decoration: underline; cursor: pointer; }
+.kingdom-return:focus-visible { outline: 3px solid #8062a9; outline-offset: 2px; }
 .room-title { margin: 0; color: var(--camp-pine); font-family: Georgia, "Palatino Linotype", serif; font-size: clamp(19px, 1.55vw, 23px); font-weight: 700; letter-spacing: -.02em; line-height: 1; }
 .room-intro { margin: 0; color: #66745d; font-size: .68rem; line-height: 1.15; }
 .room-actions { display: flex; align-items: center; gap: 7px; }

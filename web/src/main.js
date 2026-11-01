@@ -10,6 +10,9 @@ import '@fontsource/fredoka/latin-600.css';
 import '@fontsource/nunito/latin-400.css';
 import '@fontsource/nunito/latin-600.css';
 import '@fontsource/nunito/latin-700.css';
+// Bootstrap utilities provide layout helpers without its global Reboot or
+// component defaults, which would change QuizQuest's established visual design.
+import 'bootstrap/dist/css/bootstrap-utilities.css';
 import './app.css';
 
 createApp(App).mount('#app');

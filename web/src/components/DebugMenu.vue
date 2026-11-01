@@ -148,7 +148,6 @@ onUnmounted(() => window.removeEventListener('keydown', konami, true));
     <div class="panel debug-panel version-panel" @click="tapVersion">
       <button class="btn small debug-close" type="button" aria-label="Close version" @click.stop="versionOpen = false; position = 0; versionTaps = 0">×</button>
       <h2 id="version-title">QuizQuest v{{ appVersion }}</h2>
-      <p class="muted small">Tap 3 times to open debug tools.</p>
       <p v-if="versionNotice" class="muted small">{{ versionNotice }}</p>
     </div>
   </section>
