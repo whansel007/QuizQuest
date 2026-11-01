@@ -39,6 +39,10 @@ function parsePrompts(raw) {
     const m = line.trim().match(HEADING);
     if (m) {
       if (found[m[1]]) throw promptError(`Prompt.txt has two "PROMPT ${m[1]}" sections. Keep one, then try again.`);
+      // Only PROMPT 1 and PROMPT 2 are used. A third section would be read
+      // and then dropped, so the professor would think their wording was used.
+      if (!SECTIONS[m[1]])
+        throw promptError(`Prompt.txt has a "PROMPT ${m[1]}" section that QuizQuest does not use. Keep PROMPT 1 (lecture analysis) and PROMPT 2 (question generation) only, then try again.`);
       current = found[m[1]] = { title: m[2].trim(), lines: [] };
     } else if (current) current.lines.push(line);
   }
