@@ -25,19 +25,15 @@ function extractJson(raw) {
   if (start >= 0 && end > start) return JSON.parse(fenced.slice(start, end + 1));
   throw new SyntaxError('The AI reply was not JSON.');
 }
-// The model's own words, kept with the error so the server can record why a
-// batch failed. They can contain the professor's own course material, so the
-// property is deliberately NOT enumerable: an error that is logged or
-// serialised whole must not carry them out of the server. Only code that
-// asks for `error.raw` by name can read them.
-function withRaw(error, raw) {
-  Object.defineProperty(error, 'raw', {
-    value: String(raw == null ? '' : raw).slice(0, 20000),
-    enumerable: false,
-    writable: true,
-    configurable: true,
+// The model can reply with something the server cannot read. Those words may
+// repeat the professor's own course material, so they are never kept: not on
+// the error, not in the log, not anywhere. Only the size of the reply is
+// recorded, which is enough to tell "the model never answered" from "the
+// model answered with something the server cannot use".
+function withReplySize(error, raw) {
+  return Object.assign(error, {
+    replyBytes: Buffer.byteLength(String(raw == null ? '' : raw), 'utf8'),
   });
-  return error;
 }
 async function responseJson(res) {
   try{return await res.json();}catch(e){if(res.ok)throw e;return {};}
@@ -97,7 +93,7 @@ async function generateJson({
   const multimodal = parts.some((p) => typeof p.text !== 'string');
   let candidate = primary,
     last,
-    lastRaw = '',
+    lastReplyBytes = null,
     counted = false;
   const attempts = Number.isFinite(maxAttempts) ? Math.max(1, Math.min(3, Math.floor(maxAttempts))) : 3;
   async function recordAttempt(id, operation) {
@@ -202,8 +198,8 @@ async function generateJson({
       try {
         json = extractJson(raw);
       } catch (e) {
-        // Keep the reply: it is the only clue to what the model actually said.
-        throw withRaw(e, raw);
+        // The reply itself does not leave this function. Only its size does.
+        throw withReplySize(e, raw);
       }
       return {
         json,
@@ -215,9 +211,10 @@ async function generateJson({
     } catch (e) {
       if (reservation) await quota.finish(reservation, { status: e.status || 'failed' });
       last = e;
-      // A reply the server could not read is the one worth keeping: a later
-      // attempt that fails for another reason must not hide it.
-      if (e.raw) lastRaw = String(e.raw);
+      // The size of an unreadable reply is worth keeping: a later attempt
+      // that fails for another reason must not hide that the model did
+      // answer at all.
+      if (typeof e.replyBytes === 'number') lastReplyBytes = e.replyBytes;
       if (e.code === 'DAILY_QUOTA' || e.status === 429 || (e.retryable === false && e.status !== 404)) throw e;
       if ([400, 401, 403].includes(e.status)) throw e;
       if (e.status === 404 && (!fallback || candidate === fallback)) throw e;
@@ -236,12 +233,11 @@ async function generateJson({
         ? 'The AI service timed out. Your work is saved; resume to continue.'
         : 'The AI service could not finish. Your work is saved; resume to continue.',
     ),
-    // The reply is kept with the error, not in the server log: it can contain
-    // the professor's own course material. It is a hidden property (see
-    // withRaw), so the error can be logged or serialised whole without
-    // carrying the reply with it.
+    // The model's own words are deliberately not here: they can repeat the
+    // professor's course material, and an error is exactly the sort of thing
+    // that gets logged, serialised and stored by accident.
     { code: 'AI_FAILED', retryable: false, cause: last },
   );
-  throw lastRaw ? withRaw(failure, lastRaw) : failure;
+  throw lastReplyBytes != null ? Object.assign(failure, { replyBytes: lastReplyBytes }) : failure;
 }
 module.exports = { enabled, model, fallbackModel, generateJson, ALLOWED_MODELS, retryDetails };

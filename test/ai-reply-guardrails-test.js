@@ -1,11 +1,11 @@
 // ============================================================
 // Guard rails around the AI reply and Prompt.txt
 // ------------------------------------------------------------
-// Four checks on the files that talk to the model:
+// Five checks on the files that talk to the model:
 //   - a reply in a code fence, or with prose around the JSON,
 //     is still read
-//   - a reply the server cannot read keeps the model's own
-//     words, so the debug log has something to show
+//   - a reply the server cannot read is measured, never kept
+//   - the model's own words cannot be logged or sent
 //   - a Prompt.txt section the app does not use is refused,
 //     instead of being read and then dropped
 //   - the server's own notes on a job never leave the server
@@ -48,18 +48,19 @@ test('a reply in a code fence, or with prose around it, is still read', async (t
   }
 });
 
-test('an unreadable reply keeps the model\'s own words for the debug log', async (t) => {
+test('an unreadable reply is measured, not kept', async (t) => {
   geminiEnv(t);
   const quota = createQuota({ now: () => Date.now(), sleep: async () => {} });
-  await assert.rejects(
-    generateJson({
-      prompt: 'test',
-      quota,
-      maxAttempts: 1,
-      fetchImpl: async () => new Response(JSON.stringify({ candidates: [{ finishReason: 'STOP', content: { parts: [{ text: 'not json at all' }] } }] })),
-    }),
-    (e) => e.code === 'AI_FAILED' && typeof e.raw === 'string' && e.raw.includes('not json at all'),
-  );
+  const error = await generateJson({
+    prompt: 'test',
+    quota,
+    maxAttempts: 1,
+    fetchImpl: async () => new Response(JSON.stringify({ candidates: [{ finishReason: 'STOP', content: { parts: [{ text: 'not json at all' }] } }] })),
+  }).catch((e) => e);
+  assert.equal(error.code, 'AI_FAILED');
+  assert.equal(error.replyBytes, 15, 'the size of the reply is recorded');
+  assert.equal(error.raw, undefined, 'the reply itself is not kept on the error');
+  assert.equal(JSON.stringify(error).includes('not json at all'), false, 'the reply does not survive serialisation');
 });
 
 test('the model\'s own words cannot be logged or sent by accident', async (t) => {
@@ -72,8 +73,7 @@ test('the model\'s own words cannot be logged or sent by accident', async (t) =>
     maxAttempts: 1,
     fetchImpl: async () => new Response(JSON.stringify({ candidates: [{ finishReason: 'STOP', content: { parts: [{ text: SECRET }] } }] })),
   }).catch((e) => e);
-  assert.equal(error.raw, SECRET, 'the server can still read the reply by name');
-  assert.equal(Object.keys(error).includes('raw'), false, 'the reply is not an enumerable property');
+  assert.equal(error.raw, undefined, 'the error carries no copy of the reply');
   assert.equal(JSON.stringify(error).includes(SECRET), false, 'the reply does not survive serialisation');
   assert.equal(String(error).includes(SECRET), false, 'the reply does not survive being printed');
   assert.equal(JSON.stringify(error.cause || {}).includes(SECRET), false, 'the reply is not in the cause either');
