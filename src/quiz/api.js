@@ -1059,9 +1059,9 @@ attemptId: attempt.id,
     return { ok: true };
   });
 
-  // A job carries the server's own working state: the recovery log with the
-  // model's raw replies, the validation notes, the drafted batch and the
-  // provider's error text. None of that belongs in a response to the browser.
+  // A job carries the server's own working state: the recovery log, the
+  // validation notes, the drafted batch, the job key and the provider's
+  // error text. None of that belongs in a response to the browser.
   const publicJob = ({ metrics, key, sourceDigest, _recovery, _validation, reportSnapshot, pendingBatch, _diagnostics, ...j }) => j;
   route('GET', '/api/teacher/courses/:cid/authoring', 'teacher', ({ user, params }) =>
     authoring.jobs(teacherCourse(user, params.cid)).map((j) => {

@@ -167,7 +167,6 @@ defineExpose({
 
     <div v-else-if="kind === 'short'">
       <textarea v-model="text" aria-label="Written answer" rows="4" maxlength="1000" placeholder="Write your answer in a few sentences." :disabled="locked"></textarea>
-      <p v-if="q.unit" class="small muted" style="margin-top: 4px">Give your answer in {{ q.unit }}.</p>
       <p class="small muted" style="margin-top: 4px">Marked against key points; your professor may review the mark. Please don't include personal information.</p>
       <button class="btn primary" :disabled="locked" @click="goShort">Submit answer</button>
     </div>
