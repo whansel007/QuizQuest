@@ -1104,7 +1104,11 @@ attemptId: attempt.id,
     'PUT',
     '/api/teacher/courses/:cid/authoring/:jid/review',
     'teacher',
-    statusReply(({ user, params, body }) => authoring.review(teacherCourse(user, params.cid), params.jid, body.markdown, body.reportRevision)),
+    // The review route answers with the job itself, so it needs the same
+    // strip as the other job routes: the server's own notes on the job - the
+    // provider's own error text, the job key, the metrics - are not the
+    // professor's business.
+    statusReply(async ({ user, params, body }) => publicJob(await authoring.review(teacherCourse(user, params.cid), params.jid, body.markdown, body.reportRevision))),
     { limit: 300 * 1024 },
   );
   route(

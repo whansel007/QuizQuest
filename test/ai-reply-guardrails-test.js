@@ -155,6 +155,19 @@ test('the authoring job responses carry no server working state', async () => {
     }
     assert.equal(JSON.stringify(j).includes(SECRET), false, 'the job list carries the model\'s own words');
   }
+  // The review route answers with the job itself, so it has to be stripped
+  // too: this is the one route that used to hand the browser the provider's
+  // own error text along with the job key and the metrics.
+  const reviewed = await request('PUT', `/api/teacher/courses/c-comp/authoring/${job.id}/review`, { markdown: analysisText, reportRevision: 0 }, teacher);
+  assert.equal(reviewed.status, 200, JSON.stringify(reviewed.body));
+  for (const key of ['_recovery', '_validation', '_diagnostics', 'key', 'sourceDigest', 'metrics', 'pendingBatch', 'reportSnapshot']) {
+    assert.equal(reviewed.body[key], undefined, 'the review response carries ' + key);
+  }
+  assert.equal(JSON.stringify(reviewed.body).includes(SECRET), false, 'the review response carries the model\'s own words');
+  // What the app needs from that answer must still be there: the professor's
+  // own saved text and the revision it was saved under.
+  assert.equal(reviewed.body.reviewedText, analysisText.trim(), 'the review response still carries the saved text');
+  assert.equal(reviewed.body.id, job.id, 'the review response still names the job');
   const resumed = await request('POST', `/api/teacher/courses/c-comp/authoring/${job.id}/resume`, null, teacher);
   assert.equal(resumed.status, 202, JSON.stringify(resumed.body));
   for (const key of ['_recovery', '_validation', '_diagnostics', 'key', 'sourceDigest', 'metrics', 'pendingBatch', 'reportSnapshot']) {
