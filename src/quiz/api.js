@@ -142,6 +142,19 @@ function createQuizApi({ dataFile = null, store = null, now = () => Date.now(), 
   store = store || createStore(dataFile);
   const { db } = store;
   if (P.ensureDemoCredentials(db.users)) store.save();
+  // A join code is the credential, so it must not be kept. Older versions
+  // of the app stored the readable code next to its hash, so a data file
+  // left over from before the fix still carries one: drop it here, once,
+  // at load time, and the next write takes it out of the file for good.
+  // The hash is enough to redeem the code, so nothing is lost.
+  let staleCodesDropped = 0;
+  for (const rec of db.classJoinCodes || []) {
+    if (rec && rec.code !== undefined) {
+      delete rec.code;
+      staleCodesDropped += 1;
+    }
+  }
+  if (staleCodesDropped) store.save();
   // Every change goes through save(), so counting saves tells us whether
   // the data has changed (used to cache dashboard numbers). A save can say
   // what it touched, so one class practising doesn't keep throwing away
@@ -679,7 +692,10 @@ attemptId: attempt.id,
 
   // ---------------- class management (Task 1B) ----------------
   // Join codes are unpredictable and stored hashed, so the database never
-  // holds a usable code and probing cannot enumerate valid ones.
+  // holds a usable code and probing cannot enumerate valid ones. The
+  // readable code is shown to the teacher once, when it is generated, and
+  // is not kept anywhere else - not in the database, and not in the
+  // record's id either, which is an identifier and not a credential.
   const hashJoinCode = (rawCode) =>
     crypto.createHash('sha256').update(String(rawCode).trim().toUpperCase()).digest('hex');
 
@@ -822,7 +838,10 @@ attemptId: attempt.id,
     const rec = {
       id: crypto.randomUUID(),
       classId: cls.id,
-      code: rawCode,
+      // Only the hash of the code is kept. The readable code goes back to
+      // the teacher in the response below, once, and is never written to
+      // the database - so a database file or a database dump holds no
+      // code that anybody could redeem.
       codeHash,
       expiresAt,
       usageLimit,
@@ -839,11 +858,12 @@ attemptId: attempt.id,
   route('GET', '/api/classes/:classId/join-codes', 'teacher', ({ user, params }) => {
     const cls = teacherClass(user, params.classId);
     db.classJoinCodes = db.classJoinCodes || [];
+    // No code comes back: the teacher saw it once, when it was generated.
+    // The id is here so each row can be told apart and revoked.
     return db.classJoinCodes
       .filter((c) => c.classId === cls.id)
       .map((c) => ({
         id: c.id,
-        code: c.code || null,
         expiresAt: c.expiresAt,
         usageLimit: c.usageLimit,
         usageCount: c.usageCount,
@@ -864,7 +884,10 @@ attemptId: attempt.id,
 
   // Redemption is checked and applied in one pass: an unknown, revoked,
   // expired or exhausted code never creates an enrolment.
-  // Supports QQ-XXXXX, prefix-less XXXXX, and fallback by code ID.
+  // Supports QQ-XXXXX and prefix-less XXXXX. The code's own id is NOT a
+  // way in: the id is stored in the clear as the row's primary key, so
+  // accepting it would hand anybody who reads the database a working
+  // enrolment code - which is exactly what storing only the hash is for.
   route('POST', '/api/classes/join', 'student', ({ user, body }) => {
     const raw = (body?.code || '').trim();
     if (!raw) fail(400, 'Please enter a join code.');
@@ -877,18 +900,7 @@ attemptId: attempt.id,
 
     const codeRecord = db.classJoinCodes.find((c) => {
       if (c.revoked) return false;
-      if (c.codeHash === rawHashed || c.codeHash === prefixedHashed) return true;
-      if (c.code && (c.code.toUpperCase() === norm || c.code.toUpperCase() === withPrefix)) return true;
-      if (c.id) {
-        const idUpper = c.id.toUpperCase();
-        if (
-          idUpper === norm ||
-          idUpper === `CODE-${norm.replace(/^CODE-?/i, '')}` ||
-          idUpper.replace(/^CODE-?/i, '') === norm.replace(/^CODE-?/i, '')
-        )
-          return true;
-      }
-      return false;
+      return c.codeHash === rawHashed || c.codeHash === prefixedHashed;
     });
 
     if (!codeRecord) fail(404, 'Invalid or revoked join code.');
