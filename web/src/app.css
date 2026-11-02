@@ -3249,16 +3249,25 @@ body:has(.teacher-app) { background: var(--bg); }
   box-shadow: inset -1px 0 0 var(--line);
 }
 
-/* The section bar scrolls sideways on phones; fade its right edge so the
-   sections still to come are visibly there. The end padding lets the last
-   button scroll clear of the fade. */
-@media (max-width: 767.98px) {
-  .teacher-app .dash-nav {
-    padding-right: 28px;
-    -webkit-mask-image: linear-gradient(to right, #000 calc(100% - 28px), transparent);
-    mask-image: linear-gradient(to right, #000 calc(100% - 28px), transparent);
-  }
+/* The dashboard section bar is always one row. AnalyticsView adds .compact
+   when the full labels don't fit, which swaps in the short ones. If even
+   those don't fit (phones) the row scrolls sideways, and its right edge
+   fades so the sections still to come are visibly there; the end padding
+   keeps the last button clear of the fade once it is scrolled to. */
+.teacher-app .dash-nav,
+.teacher-app .dash-toolbar .dash-nav {
+  flex-wrap: nowrap;
+  overflow-x: auto;
+  scrollbar-width: none;
+  padding-right: 28px;
+  -webkit-mask-image: linear-gradient(to right, #000 calc(100% - 28px), transparent);
+  mask-image: linear-gradient(to right, #000 calc(100% - 28px), transparent);
 }
+.teacher-app .dash-nav::-webkit-scrollbar { display: none; }
+.teacher-app .dash-nav .btn { flex: 0 0 auto; white-space: nowrap; }
+.dash-nav-short { display: none; }
+.dash-nav.compact .dash-nav-full { display: none; }
+.dash-nav.compact .dash-nav-short { display: inline; }
 
 /* Phones (below Bootstrap's sm): one-row-per-item tables become a stack of
    cards. Each cell shows its column name from data-label, so nothing is cut

@@ -364,18 +364,49 @@ const topicBars = computed(() => {
 const unansweredTopics = computed(() => (a.value?.byTopic || []).filter((t) => !t.first.n).map((t) => ({ id: t.topicId, name: t.name })));
 const barLabel = (r) => `${r.name}: ${pct(r.accuracy)} correct on first attempts (${r.correct} of ${r.n})${r.lowN ? ', few answers so far' : ''}. Show only this topic.`;
 
-// in page order (the section bar marks the last one scrolled past)
+// in page order (the section bar marks the last one scrolled past).
+// [id, label, short label]: the bar stays one row, and where the full labels
+// don't fit it shows the short ones (each a word of the full label, which
+// stays the button's accessible name).
 const sections = computed(() => [
-  ['dash-overview', 'Overview'],
-  ...(markingTotal.value ? [['dash-marking', 'To mark']] : []),
-  ...(a.value?.reports?.length ? [['dash-reports', 'Student reports']] : []),
-  ['dash-weeks', 'Weekly topics'],
-  ['dash-trends', 'Trends'],
-  ['dash-topics', 'Topics and questions'],
-  ['dash-missed', 'Commonly missed'],
-  ['dash-quality', 'Question quality'],
-  ...(sameCourseClasses.value >= 2 ? [['dash-compare', 'Compare classes']] : []),
+  ['dash-overview', 'Overview', 'Overview'],
+  ...(markingTotal.value ? [['dash-marking', 'To mark', 'To mark']] : []),
+  ...(a.value?.reports?.length ? [['dash-reports', 'Student reports', 'Reports']] : []),
+  ['dash-weeks', 'Weekly topics', 'Weekly'],
+  ['dash-trends', 'Trends', 'Trends'],
+  ['dash-topics', 'Topics and questions', 'Topics'],
+  ['dash-missed', 'Commonly missed', 'Missed'],
+  ['dash-quality', 'Question quality', 'Quality'],
+  ...(sameCourseClasses.value >= 2 ? [['dash-compare', 'Compare classes', 'Compare']] : []),
 ]);
+// Measured rather than set by a breakpoint, because the buttons come and go
+// ("To mark", "Student reports") and the sidebar can be collapsed. Taking the
+// class off, measuring and putting it back happens in one frame, so the
+// labels never visibly flicker.
+let navRo = null;
+let navFrame = 0;
+function fitNav() {
+  cancelAnimationFrame(navFrame);
+  navFrame = requestAnimationFrame(() => {
+    const nav = navEl.value;
+    if (!nav) return;
+    nav.classList.remove('compact');
+    if (nav.scrollWidth > nav.clientWidth + 1) nav.classList.add('compact');
+  });
+}
+watch(navEl, (nav) => {
+  navRo?.disconnect();
+  if (!nav || typeof ResizeObserver === 'undefined') return;
+  navRo = new ResizeObserver(fitNav);
+  navRo.observe(nav);
+  fitNav();
+});
+watch(() => sections.value.map(([id]) => id).join(), () => nextTick(fitNav));
+onMounted(() => document.fonts?.ready.then(fitNav)); // web fonts change the label widths
+onUnmounted(() => {
+  navRo?.disconnect();
+  cancelAnimationFrame(navFrame);
+});
 
 // ---- "needs attention": the few things worth acting on, each linked
 const VERY_LOW = 0.25; // first-attempt accuracy that is flagged on its own
@@ -612,7 +643,7 @@ function missedCsv() {
           <button class="btn" @click="printReport">Print report</button>
         </div>
         <nav ref="navEl" class="dash-nav" aria-label="Dashboard sections" :style="{ top: barHeight + 'px' }">
-          <button v-for="[id, label] in sections" :key="id" class="btn small" :data-section="id" :aria-current="currentSection === id ? 'location' : null" @click="goTo(id)">{{ label }}</button>
+          <button v-for="[id, label, short] in sections" :key="id" class="btn small" :data-section="id" :aria-label="label" :aria-current="currentSection === id ? 'location' : null" @click="goTo(id)"><span class="dash-nav-full">{{ label }}</span><span class="dash-nav-short" aria-hidden="true">{{ short }}</span></button>
         </nav>
       </div>
       <p v-if="noSemester" class="note small no-print">
