@@ -273,10 +273,6 @@ const floaters = ['?', '★', '✓', 'A', '+', '!', '◆', '?'];
             </div>
           </div>
         </div>
-        <p class="qq-foot">
-          Demo build with synthetic users and demo course content only. Do not enter real student data.
-          · <a href="/tag">Circle Tag</a>
-        </p>
         <LoginCampfire class="qq-campfire" />
       </div>
       <div class="qq-preview-side">
@@ -292,11 +288,6 @@ const floaters = ['?', '★', '✓', 'A', '+', '!', '◆', '?'];
         <h2 id="login-version-title">QuizQuest v{{ version }}</h2>
       </div>
     </section>
-
-    <p v-if="page !== 'signin'" class="qq-foot">
-      Demo build with synthetic users and demo course content only. Do not enter real student data.
-      · <a href="/tag">Circle Tag</a>
-    </p>
   </div>
 </template>
 
@@ -347,8 +338,6 @@ const floaters = ['?', '★', '✓', 'A', '+', '!', '◆', '?'];
 .qq-story .qq-link { color: #254937; }
 .qq-story .qq-link:hover, .qq-story .qq-link:focus-visible { color: #23382F; background: rgb(242 186 85 / 30%); }
 .qq-story :is(button, a, input):focus-visible { outline: 3px solid #254937; outline-offset: 2px; }
-.qq-story .qq-foot { position: static; margin: 22px 0 0; color: var(--qq-muted); text-align: left; }
-.qq-story .qq-foot a { color: #254937; }
 /* the preview fills the right of the page; its curved edge bulges into the
    paper side, behind the form column's padding, never across the text */
 .qq-preview-side { position: absolute; z-index: 1; top: 0; right: 0; bottom: 0; width: 46%; filter: drop-shadow(-6px 0 14px rgb(35 56 47 / 28%)); pointer-events: none; }

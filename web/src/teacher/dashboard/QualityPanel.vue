@@ -19,7 +19,7 @@ const frac = (r) => `${pct(r.accuracy)} (${r.correct}/${r.n})`;
 </script>
 
 <template>
-  <!-- three checks as cards side by side; a check with issues spans the row for its table -->
+  <!-- three checks as full-width cards, one under the other -->
   <div class="quality-checks">
     <section class="quality-check" :class="{ wide: tags.issues.length }">
     <h4>Tags</h4>
