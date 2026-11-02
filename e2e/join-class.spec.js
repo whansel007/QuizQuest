@@ -23,7 +23,7 @@ test('a professor generates a join code and a new student enrols with it', async
   const student = await page.context().newPage();
   await signUpStudent(student, 'Joiner');
 
-  await openTab(student, 'Practice');
+  await openTab(student, 'Quiz');
   await student.getByRole('button', { name: '+ Join Class' }).click();
   await student.getByLabel('Class Join Code').fill(code);
   await student.getByRole('button', { name: 'Join Class', exact: true }).click();
@@ -36,7 +36,7 @@ test('a professor generates a join code and a new student enrols with it', async
 test('a wrong join code is refused with a clear message', async ({ page }) => {
   await signUpStudent(page, 'Wrong Code');
 
-  await openTab(page, 'Practice');
+  await openTab(page, 'Quiz');
   await page.getByRole('button', { name: '+ Join Class' }).click();
   await page.getByLabel('Class Join Code').fill('QQ-00000');
   await page.getByRole('button', { name: 'Join Class', exact: true }).click();

@@ -1,11 +1,11 @@
-// E2E journey for two students meeting in the same Campfire Defense lobby.
+// E2E journey for two students meeting in the same Campfire Run lobby.
 import { test, expect } from '@playwright/test';
 import { signIn, openTab } from './helpers.js';
 
 const HOST = { email: 'student01@quizquest.demo', name: 'Student 01' };
 const GUEST = { email: 'student02@quizquest.demo', name: 'Student 02' };
 
-test('two students share a Campfire Defense lobby through its room code', async ({ browser, page, baseURL }) => {
+test('two students share a Campfire Run lobby through its room code', async ({ browser, page, baseURL }) => {
   // Two browsers and a shared socket room: give it room.
   test.slow();
   // A separate browser context keeps each student's login session independent.
@@ -14,7 +14,7 @@ test('two students share a Campfire Defense lobby through its room code', async 
 
   try {
     await signIn(page, HOST);
-    await openTab(page, 'World');
+    await openTab(page, 'Campfire Run');
     const hostHero = page.locator('.hero-chip[aria-disabled="false"]').first();
     await expect(hostHero).toBeVisible();
     const hostHeroName = (await hostHero.locator('.hero-chip-name').innerText()).trim();
@@ -29,14 +29,14 @@ test('two students share a Campfire Defense lobby through its room code', async 
     // found" rather than anything about the code. Give the document its own
     // budget: on a loaded runner the iframe's navigation queues behind the
     // sprite sheets the World tab is downloading.
-    const hostGame = page.frameLocator('iframe[title="Campfire Defense"]');
+    const hostGame = page.frameLocator('iframe[title="Campfire Run"]');
     const hostCode = hostGame.locator('#room-code-value');
     await expect(hostGame.locator('#room-code-corner')).toBeAttached({ timeout: 30000 });
     await expect(hostCode).toHaveText(/^[A-Z]{4}$/, { timeout: 30000 });
     const code = (await hostCode.innerText()).trim();
 
     await signIn(guest, GUEST);
-    await openTab(guest, 'World');
+    await openTab(guest, 'Campfire Run');
     const guestHero = guest.locator('.hero-chip[aria-disabled="false"]').first();
     await expect(guestHero).toBeVisible();
     const guestHeroName = (await guestHero.locator('.hero-chip-name').innerText()).trim();
@@ -47,7 +47,7 @@ test('two students share a Campfire Defense lobby through its room code', async 
 
     // The lobby stays idle: no wave or countdown is started during this journey.
     // The guest repeats the whole cold start, so it gets the same budget.
-    const guestGame = guest.frameLocator('iframe[title="Campfire Defense"]');
+    const guestGame = guest.frameLocator('iframe[title="Campfire Run"]');
     await expect(guestGame.locator('#room-code-corner')).toBeAttached({ timeout: 30000 });
     await expect(guestGame.locator('#room-code-value')).toHaveText(code, { timeout: 30000 });
 

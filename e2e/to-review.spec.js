@@ -27,7 +27,7 @@ test('a professor reaches a student report from the dashboard and resolves it on
     await studentPage.reload();
 
     await test.step('student submits a report', async () => {
-      await openTab(studentPage, 'Practice');
+      await openTab(studentPage, 'Quiz');
       await studentPage.getByLabel('Length', { exact: true }).selectOption('5');
       await studentPage.getByRole('button', { name: 'Start practice', exact: true }).click();
       await answerCurrentQuestion(studentPage);
