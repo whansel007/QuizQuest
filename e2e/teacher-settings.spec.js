@@ -14,6 +14,16 @@ import { signIn, openTab, apiToken, TEACHER } from './helpers.js';
 const CLASS_ID = 'cl-a';
 const CLASS_NAME = 'Computing - Tutorial Group A';
 
+// How long a poll that asks the server for the course may wait.
+//
+// expect.poll gives up at the expect timeout, which is 10s here - but one
+// call to teacherCourse can take up to three eight-second requests when the
+// server drops the connection twice, which is exactly the case the helper's
+// retries exist for. A poll on the default budget would give up while the
+// helper was still trying, and report a failure for a value that was about
+// to arrive. Every poll that asks the server gets this budget instead.
+const POLL_TIMEOUT = 30_000;
+
 // The professor's own course, as the server holds it, so a test can check
 // what was really stored instead of trusting the toast.
 // Playwright's request context does not resolve a relative URL against the
@@ -114,14 +124,14 @@ test('should save the subject guidance and the semester dates, and put them back
     const course = await teacherCourse(page);
     // the same button posts the coverage target as well, which must not move
     return { promptConfig: course.promptConfig, coverageTarget: course.coverageTarget };
-  }).toEqual({ promptConfig: 'E2E: use SI units.', coverageTarget: Number(originalCoverage) });
+  }, { timeout: POLL_TIMEOUT }).toEqual({ promptConfig: 'E2E: use SI units.', coverageTarget: Number(originalCoverage) });
 
   // ---- semester dates ----
   await starts.fill('2026-01-05');
   await page.getByRole('button', { name: 'Save dates' }).click();
   await expect(page.locator('#toast')).toHaveText('Semester dates saved');
   await expect(starts).toHaveValue('2026-01-05');
-  await expect.poll(async () => (await teacherCourse(page)).semester).toEqual({ start: '2026-01-05' });
+  await expect.poll(async () => ((await teacherCourse(page)).semester), { timeout: POLL_TIMEOUT }).toEqual({ start: '2026-01-05' });
 
   // ---- a semester that ends before it starts is refused ----
   await ends.fill('2025-12-01');
@@ -129,7 +139,7 @@ test('should save the subject guidance and the semester dates, and put them back
   await expect(page.locator('#toast')).toHaveText('The semester must end after it starts.');
   await expect(page.locator('#toast')).toHaveAttribute('class', /bad/);
   // and the dates the course had are still the ones it has
-  await expect.poll(async () => (await teacherCourse(page)).semester).toEqual({ start: '2026-01-05' });
+  await expect.poll(async () => ((await teacherCourse(page)).semester), { timeout: POLL_TIMEOUT }).toEqual({ start: '2026-01-05' });
 
   // ---- clearing the dates ----
   // the end box first: it is only editable while a start is set
@@ -140,7 +150,7 @@ test('should save the subject guidance and the semester dates, and put them back
   await expect(page.getByRole('button', { name: 'Save dates' })).toHaveCount(0);
   await page.getByRole('button', { name: 'Clear dates' }).click();
   await expect(page.locator('#toast')).toHaveText('Semester dates cleared');
-  await expect.poll(async () => (await teacherCourse(page)).semester).toBeNull();
+  await expect.poll(async () => ((await teacherCourse(page)).semester), { timeout: POLL_TIMEOUT }).toBeNull();
 
   // ---- put the settings back ----
   // the start date first: it brings the end box back with it
@@ -149,12 +159,20 @@ test('should save the subject guidance and the semester dates, and put them back
   await guidance.fill(originalGuidance);
   await page.getByRole('button', { name: 'Save', exact: true }).click();
   await expect(page.locator('#toast')).toHaveText('Saved');
-  await page.getByRole('button', { name: 'Save dates' }).click();
-  await expect(page.locator('#toast')).toHaveText('Semester dates saved');
+  // With no start the button clears the dates instead of saving them. The
+  // course can be left without a semester by an attempt that died before it
+  // could put one back, and CI replays the test against that same course -
+  // so the button to press is read from the date that was found, not
+  // assumed.
+  await page.getByRole('button', { name: originalStart ? 'Save dates' : 'Clear dates' }).click();
+  await expect(page.locator('#toast')).toHaveText(originalStart ? 'Semester dates saved' : 'Semester dates cleared');
   await expect.poll(async () => {
     const course = await teacherCourse(page);
     return { promptConfig: course.promptConfig, semester: course.semester };
-  }).toEqual({ promptConfig: originalGuidance, semester: { start: originalStart } });
+  }, { timeout: POLL_TIMEOUT }).toEqual({
+    promptConfig: originalGuidance,
+    semester: originalStart ? { start: originalStart } : null,
+  });
 });
 
 test('should turn classmate trading off for a class and back on again', async ({ page }) => {
@@ -171,7 +189,7 @@ test('should turn classmate trading off for a class and back on again', async ({
   if (wasEnabled) await trading.uncheck();
   else await trading.check();
   await expect(page.locator('#toast')).toHaveText('Saved');
-  await expect.poll(() => tradingOnServer(page)).toBe(!wasEnabled);
+  await expect.poll(() => tradingOnServer(page), { timeout: POLL_TIMEOUT }).toBe(!wasEnabled);
 
   // a fresh page proves the switch was stored, not just drawn
   await page.reload();
@@ -186,7 +204,7 @@ test('should turn classmate trading off for a class and back on again', async ({
   if (wasEnabled) await tradingAgain.check();
   else await tradingAgain.uncheck();
   await expect(page.locator('#toast')).toHaveText('Saved');
-  await expect.poll(() => tradingOnServer(page)).toBe(wasEnabled);
+  await expect.poll(() => tradingOnServer(page), { timeout: POLL_TIMEOUT }).toBe(wasEnabled);
 });
 
 test('should use the semester dates from Settings on the Analytics dashboard', async ({ page }) => {
@@ -205,7 +223,7 @@ test('should use the semester dates from Settings on the Analytics dashboard', a
   await starts.fill('2025-03-03');
   await page.getByRole('button', { name: 'Save dates' }).click();
   await expect(page.locator('#toast')).toHaveText('Semester dates saved');
-  await expect.poll(async () => (await teacherCourse(page)).semester?.start).toBe('2025-03-03');
+  await expect.poll(async () => ((await teacherCourse(page)).semester?.start), { timeout: POLL_TIMEOUT }).toBe('2025-03-03');
 
   // "This semester" on the dashboard runs from the date set in Settings
   await clickTab(page, 'Analytics');
@@ -222,5 +240,5 @@ test('should use the semester dates from Settings on the Analytics dashboard', a
   // with no start the button clears the dates instead of saving them
   await page.getByRole('button', { name: originalStart ? 'Save dates' : 'Clear dates' }).click();
   await expect(page.locator('#toast')).toHaveText(originalStart ? 'Semester dates saved' : 'Semester dates cleared');
-  await expect.poll(async () => (await teacherCourse(page)).semester?.start).toBe(originalStart || undefined);
+  await expect.poll(async () => ((await teacherCourse(page)).semester?.start), { timeout: POLL_TIMEOUT }).toBe(originalStart || undefined);
 });
