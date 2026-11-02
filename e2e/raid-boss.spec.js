@@ -237,7 +237,12 @@ async function allEvents(page) {
 }
 
 test('two students share one raid boss: a correct answer damages it for the class and the reward is split', async ({ browser, baseURL }) => {
-  test.setTimeout(180 * 1000); // a raid takes a few questions and a walk or two
+  // A raid takes a few questions and a walk or two, and every poll below
+  // waits on a broadcast the server sends after a round trip. The budget has
+  // to hold the whole thing - the answering loop AND the polls that follow
+  // it - so that a failure says what was missing instead of running into
+  // "Test timeout" with nothing to show.
+  test.setTimeout(240 * 1000);
   const contextA = await browser.newContext({ baseURL });
   const contextB = await browser.newContext({ baseURL });
   const contextT = await browser.newContext({ baseURL }); // the professor, for the answer key
@@ -268,7 +273,7 @@ test('two students share one raid boss: a correct answer damages it for the clas
       .poll(async () => {
         const players = await pageA.evaluate(() => (window.__raid.state?.players || []).map((p) => p.name));
         return players.length;
-      }, { timeout: 20000 })
+      }, { timeout: 30000 })
       .toBe(2);
 
     // The boss is shared: one boss, 60 health, for both of them.
@@ -291,8 +296,9 @@ test('two students share one raid boss: a correct answer damages it for the clas
     // boss is out of reach or a wrong answer has to breathe out first. The
     // rounds stop at the deadline so a run that cannot finish says how many
     // hits it landed instead of running into the test timeout with nothing
-    // to show for it.
-    const deadline = Date.now() + 150 * 1000;
+    // to show for it. The deadline is shorter than the test's own timeout on
+    // purpose: the polls that follow the kill still have to fit inside it.
+    const deadline = Date.now() + 120 * 1000;
     for (let round = 0; round < 16 && hits.length < 6 && Date.now() < deadline; round++) {
       for (const page of players) {
         if (hits.length >= 6 || Date.now() > deadline) break;
@@ -320,7 +326,7 @@ test('two students share one raid boss: a correct answer damages it for the clas
         const others = players.filter((p) => p !== page);
         for (const other of others) {
           try {
-            await expect.poll(async () => (await seenEvents(other, 'hit')).length, { timeout: 10000 }).toBe(hits.length);
+            await expect.poll(async () => (await seenEvents(other, 'hit')).length, { timeout: 30000 }).toBe(hits.length);
           } catch (err) {
             console.log('RAID attacker events', JSON.stringify(await allEvents(page), null, 1));
             console.log('RAID other events', JSON.stringify(await allEvents(other), null, 1));
@@ -336,7 +342,7 @@ test('two students share one raid boss: a correct answer damages it for the clas
 
     // When the last health goes, the whole class is told who won it.
     for (const p of players) {
-      await expect.poll(async () => (await seenEvents(p, 'raidWon')).length, { timeout: 15000 }).toBeGreaterThan(0);
+      await expect.poll(async () => (await seenEvents(p, 'raidWon')).length, { timeout: 30000 }).toBeGreaterThan(0);
     }
     const victory = (await seenEvents(pageA, 'raidWon'))[0];
     expect(victory).not.toBeNull();
@@ -345,7 +351,7 @@ test('two students share one raid boss: a correct answer damages it for the clas
 
     // Both of them were paid, and both were told their new totals.
     for (const page of players) {
-      await expect.poll(async () => (await seenEvents(page, 'balances')).length, { timeout: 10000 }).toBeGreaterThan(0);
+      await expect.poll(async () => (await seenEvents(page, 'balances')).length, { timeout: 30000 }).toBeGreaterThan(0);
     }
   } finally {
     // The contexts are closed even when an assertion fails. A student that

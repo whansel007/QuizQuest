@@ -268,7 +268,7 @@ async function rewriteSelected() {
 .rewrite-bar .field { margin: 0; }
 .bank-cards { display: grid; gap: 12px; }
 .bank-topic { margin: 0; }
-@media (max-width: 1000px) {
+@media (max-width: 991.98px) {
   .bank-layout { grid-template-columns: minmax(0, 1fr); }
   .bank-filters { position: static; }
   .bank-status { grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); }

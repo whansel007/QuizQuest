@@ -43,6 +43,17 @@ export default defineConfig({
     // missing. 30s per action fails fast and names the selector that was
     // not there.
     actionTimeout: 30 * 1000,
+    // The app's screens are full of endless CSS animations - the floating
+    // quiz glyphs on the sign-in page, the twinkling logo, the prize that
+    // spins. Playwright waits for an element to stop moving before it
+    // clicks it, so on a busy runner the box never settles and the click
+    // fails with "element is not stable" (it cost the WebKit runs of two
+    // whole specs before this was found). The app already honours the
+    // browser's reduced-motion setting - web/src/app.css:1028 switches off
+    // every animation and transition inside .qq-login, and there are ten
+    // such blocks across the app - so the whole suite asks for it here,
+    // once, instead of every spec asking on its own.
+    reducedMotion: 'reduce',
   },
   // 5s is the default. A page that has to answer the server and then redraw
   // can be slower than that on WebKit, and the answer would be read as a
