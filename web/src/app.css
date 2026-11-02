@@ -1257,9 +1257,6 @@ button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible
 .dash-table .q { min-width: 220px; overflow-wrap: normal; }
 
 /* ---------- dashboard: attention strip, deltas, drill-downs ---------- */
-.attention ul { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
-.attention li { display: flex; gap: 8px; align-items: baseline; font-size: 14px; }
-.attention .icon { width: 1.2em; flex: 0 0 1.2em; text-align: center; color: var(--muted); }
 .linklike { background: none; border: 0; padding: 0; font: inherit; color: var(--accent); text-align: left; cursor: pointer; text-decoration: underline; text-underline-offset: 2px; }
 .linklike:hover { text-decoration-thickness: 2px; }
 .tile .delta { font-size: 12px; margin-top: 4px; font-variant-numeric: tabular-nums; }
@@ -2972,9 +2969,28 @@ body:has(.teacher-app) { background: var(--bg); }
 .tb-unanswered { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin-top: 10px; padding-top: 10px; border-top: 1px dashed var(--line); }
 .tb-chip { padding: 3px 10px; color: var(--ink); background: var(--bg); border: 1px solid var(--line); border-radius: 999px; font: inherit; font-size: 13px; cursor: pointer; }
 .tb-chip:hover, .tb-chip:focus-visible { color: var(--accent); border-color: var(--accent); }
-.attention ul { gap: 4px; }
-.attention li { font-size: 13.5px; line-height: 1.35; }
+/* Needs attention: two columns of equal cards (every row the same height);
+   an odd last card spans both columns, and with enough items the grid
+   stretches to the height of the accuracy panel beside it. One column when
+   the panel is narrow. */
+.attention { display: flex; flex-direction: column; container-type: inline-size; }
 .attention h4 { color: var(--ink); }
+.attention-grid { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); grid-auto-rows: 1fr; gap: 10px; }
+.attention-grid.fill { flex: 1 1 auto; }
+.attention-grid.odd > li:last-child { grid-column: 1 / -1; }
+.attention-grid > li { display: flex; min-width: 0; }
+.attention-card { flex: 1 1 auto; display: flex; align-items: center; gap: 10px; min-width: 0; padding: 10px 12px; font: inherit; font-size: 13.5px; line-height: 1.35; text-align: left; color: var(--ink); background: var(--bg); border: 1px solid var(--line); border-radius: var(--radius); }
+.attention-card .icon { flex: 0 0 28px; display: grid; place-items: center; width: 28px; height: 28px; border-radius: 8px; color: var(--muted); background: var(--panel); border: 1px solid var(--line); }
+.attention-text { flex: 1 1 auto; min-width: 0; overflow-wrap: anywhere; }
+.attention-go { flex: 0 0 auto; font-size: 18px; line-height: 1; color: var(--muted); }
+button.attention-card { cursor: pointer; }
+button.attention-card .attention-text { color: var(--accent); }
+button.attention-card:hover, button.attention-card:focus-visible { border-color: var(--accent); background: var(--accent-soft); }
+button.attention-card:hover .attention-go, button.attention-card:focus-visible .attention-go { color: var(--accent); }
+@container (max-width: 420px) {
+  .attention-grid { grid-template-columns: minmax(0, 1fr); }
+  .attention-grid.odd > li:last-child { grid-column: auto; }
+}
 #dash-time { margin-top: 16px; }
 @media (max-width: 991.98px) {
   /* pickers scroll away; only the section bar sticks under the top bar */

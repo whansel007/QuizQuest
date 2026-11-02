@@ -698,11 +698,19 @@ function missedCsv() {
             </div>
             <div class="span-5 panel attention">
               <h4>Needs attention</h4>
-              <ul v-if="attention.length">
+              <!-- a two-column grid of equal cards; an odd last card spans the row.
+                   With enough items the grid fills the panel's height (fill). -->
+              <ul v-if="attention.length" class="attention-grid" :class="{ odd: attention.length % 2, fill: attention.length > 4 }">
                 <li v-for="(item, i) in attention" :key="i">
-                  <span class="icon" aria-hidden="true">{{ item.icon }}</span>
-                  <button v-if="item.go" class="linklike" @click="item.go">{{ item.text }}</button>
-                  <span v-else>{{ item.text }}</span>
+                  <button v-if="item.go" type="button" class="attention-card" @click="item.go">
+                    <span class="icon" aria-hidden="true">{{ item.icon }}</span>
+                    <span class="attention-text">{{ item.text }}</span>
+                    <span class="attention-go" aria-hidden="true">›</span>
+                  </button>
+                  <div v-else class="attention-card">
+                    <span class="icon" aria-hidden="true">{{ item.icon }}</span>
+                    <span class="attention-text">{{ item.text }}</span>
+                  </div>
                 </li>
               </ul>
               <p v-else class="small" style="margin: 0">✓ Nothing needs attention right now.</p>
@@ -858,7 +866,7 @@ function missedCsv() {
               </p>
               <div class="table-wrap">
                 <table class="dash-table stack">
-                  <thead><tr><th>Question</th><th>Group</th><th>Topic</th><th>Students</th><th>Answers</th><th>Average time</th><th>Median</th><th>Correct (all answers)</th></tr></thead>
+                  <thead><tr><th>Question</th><th>Group</th><th>Topic</th><th>Students</th><th>Answers</th><th>Average</th><th>Median</th><th>Correct</th></tr></thead>
                   <tbody>
                     <tr v-for="q in timePages.items" :key="q.questionId">
                       <td class="q stack-head">
