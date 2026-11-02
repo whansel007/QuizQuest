@@ -13,7 +13,7 @@ QuizQuest opens as a sign-in page when no valid account is restored. A signed-in
 - **JavaScript:** JavaScript handles decisions and events. Vue's `ref`/`reactive` values drive visible updates; event handlers send requests and start animations.
 - **Canvas:** A canvas is a blank pixel surface that JavaScript paints directly, like a sheet of animation paper. It is good for a large scene with many moving pieces, but its individual drawn objects are not separate HTML buttons or text; accessibility and interaction have to be added separately. `KingdomTown.vue`, `LoginPreview.vue`, `WorldView.vue`, `SummonSky.vue`, `AvatarPreview.vue`, `HeroIcon.vue` and `CosmeticIcon.vue` use canvas.
 
-The shell is `web/src/main.js` → `App.vue` → the current view component. `App.vue` defines student tabs as `kingdom`, `practice`, `progress`, `world` (component `HeroLabView`) and `pets` (component `PetsView`). The view key includes tab, session view key and token, so tab/user changes remount the component and its cleanup runs.
+The shell is `web/src/main.js` → `App.vue` → the current view component. `App.vue` defines student tabs labeled Kingdom, Quiz (`practice`), My Progress, Campfire Run (`world`, component `HeroLabView`) and Summon (`pets`). The view key includes tab, session view key and token, so tab/user changes remount the component and its cleanup runs.
 
 ### Render loops, canvases and scaling
 
@@ -46,7 +46,7 @@ flowchart LR
 - `web/src/App.vue`: tab map, session gate, view mounting, global menus and wipe.
 - `web/src/api.js`: `S`, `api`, `signIn`, `signUp`, `restoreSession`, `setTab` and HTTP token handling.
 - `web/src/student/home.js`: shared `store.home`, `loadHome()` and `updateBalances()`; `web/src/student/KingdomView.vue`: Kingdom/profile data loading and overlays; `KingdomTown.vue`: town canvas and local player.
-- `web/src/student/PracticeView.vue`, `QuizRunner.vue`: practice flow; `HeroLabView.vue`: World tab selector/room; `PetsView.vue`: Summon.
+- `web/src/student/PracticeView.vue`, `QuizRunner.vue`: Quiz flow; `HeroLabView.vue`: Campfire Run selector/room; `PetsView.vue`: Summon.
 - `config/tuning.js`: town, summon, combat effect values; arena-specific tuning also lives in `public/hero-lab/game-config.js`.
 
 ## 4. DATA AND TIMING
@@ -63,7 +63,7 @@ HTTP is request/response; Axios calls resolve to JSON or throw. The arena and `W
 ## 6. GOTCHAS
 
 - A canvas drawing is not automatically a button or readable text; the town canvas uses keyboard and pointer handlers, while the DOM overlays supply dialog controls.
-- The World tab is the hero-lab page, despite the existence of a separate `WorldView.vue` class world.
+- The Campfire Run tab uses the `world` internal ID and opens the hero-lab page, despite the existence of a separate `WorldView.vue` class world.
 - Remounting by key intentionally resets per-view state; state that must persist belongs in `S` or the server.
 - This codebase has several independent animation clocks. Changing one FPS constant will not change all animation.
 - API response field details should be checked against both the view and its handler before changing display logic.

@@ -1,5 +1,5 @@
 <script setup>
-// Student-facing entry point for the campfire defense game.
+// Student-facing entry point for Campfire Run.
 // The signed-in user's kingdom upgrades are applied by the authoritative game server.
 //
 // Layout: the pre-lobby World page is a forest clearing with camp controls,
@@ -205,7 +205,7 @@ onUnmounted(() => window.removeEventListener('message', returnToSelection));
         <section class="panel room-entry" aria-label="Room entry">
           <div class="room-join-block">
             <button class="kingdom-return" type="button" @click="wipeTo('kingdom')"><span aria-hidden="true">←</span> Back to Kingdom</button>
-            <h1 class="room-title">The Clearing</h1>
+            <h1 class="room-title">Campfire Run</h1>
             <p class="room-intro">Choose a hero and defend the campfire. Move with WASD; E is your skill and Q your ultimate.</p>
             <span class="panel-kicker">JOIN A PARTY</span>
             <div class="room-actions">
@@ -345,7 +345,7 @@ onUnmounted(() => window.removeEventListener('message', returnToSelection));
         ref="gameFrame"
         class="hero-lab-frame"
         :src="gameUrl"
-        title="Campfire Defense"
+        title="Campfire Run"
         allow="gamepad; clipboard-write"
         tabindex="0"
         @load="focusGame"

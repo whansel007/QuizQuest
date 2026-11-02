@@ -6,7 +6,7 @@ Practice is an individual quiz with an illustrated turn-based battle and result 
 
 ## 2. HOW IT WORKS
 
-### Practice
+### Quiz
 
 `PracticeView.vue` loads or starts a quiz session and mounts `QuizRunner.vue`. QuizRunner fetches questions, renders `QuestionForm.vue`, sends answers through API calls, handles retry/feedback, animates the small battle turn and shows summary/result components. A leave-confirm dialog and report modal are Vue DOM. The battle figures use DOM elements and CSS classes/rules (e.g. `.battle-damage`, `.battle-impact`, `.battle-enemy-sprite` in `app.css`); this is distinct from the canvas arena.
 
@@ -30,7 +30,7 @@ The iframe joins the room through Socket.IO (see `public/hero-lab/world.js`, Soc
 
 ## 3. WHERE IT LIVES
 
-- Practice screens: `web/src/student/PracticeView.vue`, `QuizRunner.vue`, `QuestionForm.vue`, `ReportForm.vue`, `ResultBlock.vue`.
+- Quiz screens: `web/src/student/PracticeView.vue`, `QuizRunner.vue`, `QuestionForm.vue`, `ReportForm.vue`, `ResultBlock.vue`.
 - Arena structure and styles: `public/hero-lab/world.html`, `hud.css`.
 - Arena live state, sockets, HUD and drawing: `public/hero-lab/world.js` (`draw`, socket listeners, HUD update functions, particle/damage drawing).
 - Arena display/effect values: `public/hero-lab/game-config.js`, shared constants in `config/tuning.js`.
@@ -38,7 +38,7 @@ The iframe joins the room through Socket.IO (see `public/hero-lab/world.js`, Soc
 
 ## 4. DATA AND TIMING
 
-Arena: server socket snapshots/events; browser rAF draws at up to 24 FPS; UI button cooldown rings interpolate with CSS over 100ms. Wave/rest/vote timings are defined in game config and server tuning (for example `REST_DURATION_S=8`, `VOTE_DURATION_S=10`, `PRE_WAVE_S=2` in `config/tuning.js`; check matching client game config before altering). Practice: HTTP session and question responses; answer countdown uses `setInterval(tickTimer, 250)` in `QuizRunner.vue`; entry/turn transitions use local timers.
+Arena: server socket snapshots/events; browser rAF draws at up to 24 FPS; UI button cooldown rings interpolate with CSS over 100ms. Wave/rest/vote timings are defined in game config and server tuning (for example `REST_DURATION_S=8`, `VOTE_DURATION_S=10`, `PRE_WAVE_S=2` in `config/tuning.js`; check matching client game config before altering). Quiz: HTTP session and question responses; answer countdown uses `setInterval(tickTimer, 250)` in `QuizRunner.vue`; entry/turn transitions use local timers.
 
 ## 5. HOW TO CHANGE IT
 
@@ -50,7 +50,7 @@ Arena: server socket snapshots/events; browser rAF draws at up to 24 FPS; UI but
 
 ## 6. GOTCHAS
 
-- The Practice battle is a Vue DOM/CSS illustration; Campfire Run is an iframe game with canvas and DOM HUD.
+- The Quiz battle is a Vue DOM/CSS illustration; Campfire Run is an iframe game with canvas and DOM HUD.
 - Server state is authoritative. A visual change must not change client-side reward or grading assumptions.
 - The HUD's DOM does not shake with the canvas. Confetti is intentionally screen-space.
 - HUD identifiers are linked between `world.html`, `world.js` and `hud.css`; renaming one without all three breaks the display.

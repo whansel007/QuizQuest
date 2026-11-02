@@ -71,8 +71,8 @@ flowchart TB
   Browser[web/src/main.js: Vue app] --> Shell[App.vue session shell and tabs]
   Shell --> Login[LoginView]
   Shell --> Kingdom[KingdomView + KingdomTown canvas]
-  Shell --> Practice[PracticeView + QuizRunner]
-  Shell --> World[HeroLabView selector]
+  Shell --> Practice[Quiz: PracticeView + QuizRunner]
+  Shell --> World[Campfire Run: HeroLabView selector]
   Shell --> Summon[PetsView + SummonSky canvas]
   World --> Frame[hero-lab iframe]
   Frame --> Arena[public/hero-lab/world.js: canvas arena + DOM HUD]
@@ -87,7 +87,7 @@ flowchart TB
 
 Ranked by how broadly a change can surprise the student experience:
 
-1. **Two different “World” implementations:** tab points at `HeroLabView`, while `WorldView.vue` is another student world with its own socket protocol and no shell entry found.
+1. **Two different “World” implementations:** Campfire Run tab points at `HeroLabView`, while `WorldView.vue` is another student world with its own socket protocol and no shell entry found.
 2. **Several independent avatar drawing paths:** town, avatar preview, class world and arena can drift in color/cosmetic support.
 3. **Animation policy is distributed:** reduced motion, frame caps and timing live in multiple Vue components, CSS and arena config.
 4. **Layout, collision and art are separate town data:** modifying just one can create invisible walls or inaccessible doors.
@@ -100,7 +100,7 @@ Ranked by how broadly a change can surprise the student experience:
 
 ## Anything confusing or not verified
 
-- The student-facing shell does not map `WorldView.vue` to a tab; its product entry point is unknown.
+- The student-facing shell labels `HeroLabView` as Campfire Run; separate `WorldView.vue` is not mapped to a tab and its product entry point is unknown.
 - Arena boss zoom is confirmed: scale 1.05 for 300ms; it affects the arena scene transform, not HUD/screen-space celebration.
 - No Kingdom-specific confetti upgrade effect was found; the confirmed town build celebration is the isometric SVG block drop.
 - No single global canvas count or render loop exists, so those counts depend on which views and subcomponents are mounted.

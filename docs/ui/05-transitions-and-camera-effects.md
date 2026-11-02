@@ -2,11 +2,11 @@
 
 ## 1. WHAT THE PLAYER SEES
 
-Moving between the Kingdom and Practice, World or Summon is covered by a storybook sheet that sweeps across. Summon entry from the telescope uses a closing/opening lens. Other tab switches happen immediately. Arena combat can shake and zoom the camera; those effects are separate from page navigation.
+Moving between the Kingdom and Quiz, Campfire Run or Summon is covered by a storybook sheet that sweeps across. Summon entry from the telescope uses a closing/opening lens. Other tab switches happen immediately. Arena combat can shake and zoom the camera; those effects are separate from page navigation.
 
 ## 2. HOW IT WORKS
 
-`App.vue:openStudentTab()` calls `wipeTo()` for Kingdom ↔ Practice/World/Summon transitions. `transitions.js:wipe()` sets a reactive phase (`cover` → `covered` → `reveal` → `idle`). `ScreenWipe.vue` draws the overlay as regular DOM; CSS keyframes move the sheet or animate the iris. When covered, callback switches the tab; it waits for Vue's next update and two animation frames (with 120ms fallback) before revealing. The “shape” is either the green paper sheet with SVG mark and decorative edges, or a circular telescope iris with a dark navy field. It travels from left to right for the page sheet. Telescope is centered and expands/contracts. CSS owns the motion; JavaScript owns phase/timing and destination switch.
+`App.vue:openStudentTab()` calls `wipeTo()` for Kingdom ↔ Quiz/Campfire Run/Summon transitions. The internal tab IDs remain `practice` and `world`. `transitions.js:wipe()` sets a reactive phase (`cover` → `covered` → `reveal` → `idle`). `ScreenWipe.vue` draws the overlay as regular DOM; CSS keyframes move the sheet or animate the iris. When covered, callback switches the tab; it waits for Vue's next update and two animation frames (with 120ms fallback) before revealing. The “shape” is either the green paper sheet with SVG mark and decorative edges, or a circular telescope iris with a dark navy field. It travels from left to right for the page sheet. Telescope is centered and expands/contracts. CSS owns the motion; JavaScript owns phase/timing and destination switch.
 
 ```mermaid
 sequenceDiagram

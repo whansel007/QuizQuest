@@ -26,24 +26,24 @@ export const HERO_LINES = {
     greet: ['Hi hi! Wanna play with me? :3', 'You\'re it! Just kidding. Let\'s play! :3'],
   },
   electromancer: {
-    ambient: ['Ouch, a tiny spark!', 'Maybe I should just quit my job and be full mage...', 'I wonder if I should start an power company...'],
-    greet: ['Have you read the magic thunder book in the library? It\'s shocking! ;D', 'Hello! Do you want to lightning in a bottle? Too bad... Even I don\'t know how to do that :V'],
+    ambient: ['Ouch, a tiny spark!', 'Maybe I should just quit my job and be full mage...', 'UNLIMITED POWER!!!!'],
+    greet: ['Go read the magic thunder book in the library! It\'s shocking! ;D', 'Hello! Do you want to lightning in a bottle? ;V'],
   },
   fairy: {
     ambient: ['They were a fairy ~', 'That wind you just felt? You\'re welcome', 'Maybe I should just '],
-    greet: ['Greetings! I do wind magic! So unless your wish is a tornado, too bad :p', 'Please stop trying to exchange teeth for money.. I am not that kind of fairy :/'],
+    greet: ['Greetings! I do wind magic! So unless your wish is a tornado, too bad :p', 'Stop trying to exchange teeth for money. I\'m not that kind of fairy :/'],
   },
   engineer: {
     ambient: ['Loose bolt? Uh... guess that\'s an extra', 'A turret broke? Oh no... Anyway :V', 'Has anyone seen a random screw somewhere? Don\'t eat it! I need it!'],
-    greet: ['Hi! Want to see what I can build with these spare parts?', 'Honestly, if the turret doesn\'t instantly explode, it is already a success XD'],
+    greet: ['Hi! Want to see what I can build? Me too! :D', 'Honestly, if doesn\'t instanly explode, it is already a success XD'],
   },
   samurai: {
-    ambient: ['I do 100 pushup daily, without hands!!!', 'I am the chosen one! Trust me >:D', 'Did you know that watching anime makes you smarter? Believe it!'],
+    ambient: ['お前はもう死んでいる!', 'I am the chosen one! Trust me >:D', 'Watching anime makes you smarter! Believe it!'],
     greet: ['こんにちは! My blade can cut through 1000 enemies >:D', 'I have the power of anime by my side >:D'],
   },
   ranger: {
     ambient: ['Always pack an extra hot dog.', 'Friendship starts with great food :3', 'Awoooooooooo! It means hello :D'],
-    greet: ['Hi there! Have you met my best friend? They\'re somewhere in the forest...', 'The wolf and I have your back! As long as I have some meat to give them :V'],
+    greet: ['Hi there! Have you met my best friend? They\'re somewhere in the forest...', 'As long as we have meat, the wolf and I have your back! :D'],
   },
 };
 
