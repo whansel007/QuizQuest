@@ -320,28 +320,29 @@ watch([trendPanel, whenPanel], ([left, right]) => {
 onUnmounted(() => { trendRo?.disconnect(); cancelAnimationFrame(trendFrame); });
 
 // ---- Overview: first-attempt accuracy per topic, weakest first. Topics on
-// fewer than minN confirmed first attempts are striped, tagged "few answers"
-// and listed after the others (weakest first among themselves), so a topic
-// on 0 of 1 can't top a "weakest first" list.
+// fewer than minN confirmed first attempts, none included, are striped and
+// tagged ("few answers", "no answers") and listed after the others: those
+// with a few answers weakest first, then those with none. So a topic on 0 of
+// 1 can't top a "weakest first" list, and an unanswered topic still shows.
 const topicBars = computed(() => {
   if (!a.value) return [];
   const minN = a.value.minN || 1;
   const rows = a.value.byTopic.map((t) => ({
     id: t.topicId, name: t.name, n: t.first.n || 0, correct: t.first.correct || 0,
-    accuracy: t.first.n ? t.first.accuracy : null, lowN: t.first.n > 0 && t.first.n < minN,
+    accuracy: t.first.n ? t.first.accuracy : null, none: !t.first.n, lowN: !t.first.n || t.first.n < minN,
   }));
   const weakestFirst = (x, y) => x.accuracy - y.accuracy || y.n - x.n;
-  const answered = rows.filter((r) => r.accuracy !== null);
-  return [...answered.filter((r) => !r.lowN).sort(weakestFirst), ...answered.filter((r) => r.lowN).sort(weakestFirst)];
+  return [
+    ...rows.filter((r) => !r.lowN).sort(weakestFirst),
+    ...rows.filter((r) => r.lowN && !r.none).sort(weakestFirst),
+    ...rows.filter((r) => r.none),
+  ];
 });
-// "1–2" for the footnote, from the threshold (just "1" when it is 2)
-const fewRange = computed(() => {
-  const most = (a.value?.minN || 1) - 1;
-  return most <= 1 ? '1' : `1–${most}`;
-});
-// topics nobody has answered yet: one line of chips instead of empty bars
-const unansweredTopics = computed(() => (a.value?.byTopic || []).filter((t) => !t.first.n).map((t) => ({ id: t.topicId, name: t.name })));
-const barLabel = (r) => `${r.name}: ${pct(r.accuracy)} correct on first attempts (${r.correct} of ${r.n})${r.lowN ? ', few answers so far' : ''}. Show only this topic.`;
+// "0–2" for the footnote, from the threshold
+const fewRange = computed(() => `0–${Math.max(1, (a.value?.minN || 1) - 1)}`);
+const barLabel = (r) => r.none
+  ? `${r.name}: no first attempts yet. Show only this topic.`
+  : `${r.name}: ${pct(r.accuracy)} correct on first attempts (${r.correct} of ${r.n})${r.lowN ? ', few answers so far' : ''}. Show only this topic.`;
 
 // in page order (the section bar marks the last one scrolled past).
 // [id, label, short label]: the bar stays one row, and where the full labels
@@ -693,18 +694,14 @@ function missedCsv() {
                   <button type="button" class="tb-row" :class="{ 'low-n': r.lowN }" :aria-label="barLabel(r)" :title="barLabel(r)" @click="focusTopic(r.id)">
                     <span class="tb-name">{{ r.name }}</span>
                     <span class="tb-track" aria-hidden="true">
-                      <span class="tb-fill" :style="{ width: Math.max(2, r.accuracy * 100) + '%' }"></span>
+                      <span class="tb-fill" :style="{ width: Math.max(2, (r.accuracy || 0) * 100) + '%' }"></span>
                     </span>
-                    <!-- the tag is for sighted readers: barLabel already says "few answers so far" -->
-                    <span class="tb-value"><b>{{ pct(r.accuracy) }}</b> <span class="muted">{{ r.correct }}/{{ r.n }}</span><span v-if="r.lowN" class="tb-few" aria-hidden="true">few answers</span></span>
+                    <!-- the tag is for sighted readers: barLabel already says it -->
+                    <span class="tb-value"><b>{{ r.none ? '–' : pct(r.accuracy) }}</b> <span class="muted">{{ r.correct }}/{{ r.n }}</span><span v-if="r.lowN" class="tb-few" aria-hidden="true">{{ r.none ? 'no answers' : 'few answers' }}</span></span>
                   </button>
                 </li>
               </ol>
-              <div v-if="unansweredTopics.length" class="tb-unanswered">
-                <span class="small muted">No first attempts yet:</span>
-                <button v-for="t in unansweredTopics" :key="t.id" type="button" class="tb-chip" :aria-label="`${t.name}: no first attempts yet. Show only this topic.`" @click="focusTopic(t.id)">{{ t.name }}</button>
-              </div>
-              <p v-if="topicBars.some((r) => r.lowN)" class="small muted tb-note"><span class="tb-swatch" aria-hidden="true"></span>Only {{ fewRange }} answer{{ fewRange === '1' ? '' : 's' }} so far — one more could change these a lot.</p>
+              <p v-if="topicBars.some((r) => r.lowN)" class="small muted tb-note"><span class="tb-swatch" aria-hidden="true"></span>Only {{ fewRange }} answers so far — one more could change these a lot.</p>
             </div>
             <div class="span-5 panel attention">
               <h4>Needs attention</h4>

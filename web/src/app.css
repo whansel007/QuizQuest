@@ -1284,7 +1284,9 @@ button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible
 .zone-card:hover { border-color: var(--accent); }
 .zone-card[aria-pressed="true"] { border-color: var(--accent); box-shadow: inset 0 0 0 1px var(--accent); }
 .zone-card .zc-head { display: flex; align-items: baseline; gap: 8px; }
-.zone-card .zc-n { font-size: 22px; font-weight: 800; font-variant-numeric: tabular-nums; }
+/* the count stays whole: an inherited overflow-wrap: anywhere let a long label
+   squeeze "35" into a 3 above a 5 */
+.zone-card .zc-n { flex: none; font-size: 22px; font-weight: 800; font-variant-numeric: tabular-nums; white-space: nowrap; overflow-wrap: normal; }
 .zone-card .zc-label { font-weight: 700; }
 .zone-card.warn .zc-label { color: var(--warn); }
 .zone-card .zc-action b { font-weight: 600; }
@@ -2991,9 +2993,6 @@ body:has(.teacher-app) { background: var(--bg); }
 .tb-value { font-size: 13px; font-variant-numeric: tabular-nums; white-space: nowrap; text-align: right; }
 .tb-value b { font-size: 15px; }
 .tb-note { margin: 8px 0 0; }
-.tb-unanswered { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin-top: 10px; padding-top: 10px; border-top: 1px dashed var(--line); }
-.tb-chip { padding: 3px 10px; color: var(--ink); background: var(--bg); border: 1px solid var(--line); border-radius: 999px; font: inherit; font-size: 13px; cursor: pointer; }
-.tb-chip:hover, .tb-chip:focus-visible { color: var(--accent); border-color: var(--accent); }
 /* Needs attention: two columns of equal cards (every row the same height);
    an odd last card spans both columns, and with enough items the grid
    stretches to the height of the accuracy panel beside it. One column when
