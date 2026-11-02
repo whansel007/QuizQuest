@@ -2,7 +2,7 @@
 
 ## 1. WHAT THE PLAYER SEES
 
-The Kingdom is a walkable top-down town with a castle, upgrade buildings, roads, trees and a north trail to Duel and Campfire Run. The player moves with keys or clicks, can approach doors to interact, and sees owned heroes wander and greet them. Building panels, trade, avatar customization and tour UI sit above the scene as DOM dialogs.
+The Kingdom is a walkable top-down town with a castle, upgrade buildings, roads, trees and a north trail to Duel and Campfire Run. The player moves with keys or clicks, can approach doors to interact, and sees owned heroes wander and greet them. Building panels, trade, Castle wardrobe and tour UI sit above the scene as DOM dialogs; the town corner controls are for emotes and sound.
 
 ## 2. HOW IT WORKS
 

@@ -28,7 +28,7 @@ import TeacherNavIcon from './teacher/TeacherNavIcon.vue';
 
 const TABS = {
   teacher: [['analytics', 'Analytics', AnalyticsView], ['todo', 'To review', ToReviewView], ['classes', 'Classes & Roster', ClassManagementView], ['review', 'Question bank', ReviewView], ['generate', 'AI drafting', GenerateView], ['evaluation', 'Evaluation', EvaluationView], ['settings', 'Settings', SettingsView]],
-  student: [['kingdom', 'Kingdom', KingdomView], ['practice', 'Practice', PracticeView], ['progress', 'My Progress', ProgressView], ['world', 'World', HeroLabView], ['pets', 'Summon', PetsView]],
+  student: [['kingdom', 'Kingdom', KingdomView], ['practice', 'Quiz', PracticeView], ['progress', 'My Progress', ProgressView], ['world', 'Campfire Run', HeroLabView], ['pets', 'Summon', PetsView]],
 };
 
 const ready = ref(false);
@@ -87,8 +87,8 @@ function onTopFocusOut(event) {
   showStudentNav();
 }
 
-// Moving between the Kingdom and its game screens (Practice/Duel, the World's
-// hero selector, Summon) uses the storybook screen wipe; other tabs switch
+// Moving between the Kingdom and its game screens (Quiz/Duel, the Campfire
+// Run hero selector, Summon) uses the storybook screen wipe; other tabs switch
 // at once.
 const WIPE_FROM_KINGDOM = new Set(['practice', 'world', 'pets']);
 function openStudentTab(id) {

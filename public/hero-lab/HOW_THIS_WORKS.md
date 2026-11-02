@@ -1,6 +1,6 @@
-# How Campfire Defense works
+# How Campfire Run works
 
-Campfire Defense is the student **World** game. The browser draws the arena
+Campfire Run is the student **Campfire Run** game. The browser draws the arena
 and sends input. The Node server owns hero stats, cooldowns, damage,
 projectiles, monsters, waves, votes, and the campfire. The standalone Hero Lab
 route remains available for quick sandbox playtests.
@@ -318,7 +318,7 @@ Pity counters persist and have no time or daily reset. Run
 `node scripts/simulate-hero-summon.js` to report 100,000 simulated players'
 average first-5-star and full-roster pull counts, plus pity frequency.
 
-Campfire Defense is now the student **World** entry point. The old Class World
+Campfire Run is now the student **Campfire Run** entry point. The old Class World
 screen is out of the student navigation; its quiz server and question-gathering
 code remain in place so existing quiz behavior is preserved.
 

@@ -9,9 +9,9 @@ This is a single-page Vue application: the address bar does not have separate st
 | Sign-in, sign-up, demo-account picker and hidden version/debug dialog | Signed-out state in `App.vue` | `web/src/LoginView.vue`; `web/src/components/LoginPreview.vue`; `LoginCampfire.vue` | DOM/CSS plus a canvas town preview and SVG campfire |
 | Kingdom home/town | Student tab `kingdom` | `web/src/student/KingdomView.vue`, `KingdomTown.vue`, `kingdom/town-scene.js`, `kingdom/town-art.js` | Both: DOM header/menus/dialogs, canvas town |
 | Kingdom tour, avatar color panel, castle info, building panels, trade board, archive/hero book, wardrobe | States within Kingdom | `KingdomView.vue`, `kingdom/panels/*.vue`, `AvatarPreview.vue`, `CosmeticIcon.vue` | DOM/CSS, some canvas previews/icons |
-| Practice selection, resume/start, in-run quiz, results/summary, report-question form, leave confirmation | Student tab `practice` | `PracticeView.vue`, `QuizRunner.vue`, `QuestionForm.vue`, `ReportForm.vue`, `ResultBlock.vue` | DOM/CSS; battle art includes CSS/DOM sprites; no canvas in the inspected runner component |
+| Quiz selection, resume/start, in-run quiz, results/summary, report-question form, leave confirmation | Student tab label **Quiz** (`practice`) | `PracticeView.vue`, `QuizRunner.vue`, `QuestionForm.vue`, `ReportForm.vue`, `ResultBlock.vue` | DOM/CSS; battle art includes CSS/DOM sprites; no canvas in the inspected runner component |
 | My Progress | Student tab `progress` | `ProgressView.vue`, `ResultBlock.vue` | DOM/CSS |
-| World hero selector / co-op room lobby / embedded arena | Student tab `world` maps to `HeroLabView.vue` | `HeroLabView.vue`, `HeroIcon.vue`; arena source in `public/hero-lab/` | DOM/CSS, hero icon canvases, arena runs in an iframe |
+| Campfire Run hero selector / co-op room lobby / embedded arena | Student tab label **Campfire Run** (`world`) maps to `HeroLabView.vue` | `HeroLabView.vue`, `HeroIcon.vue`; arena source in `public/hero-lab/` | DOM/CSS, hero icon canvases, arena runs in an iframe |
 | Separate class world | No tab mapping found in `App.vue`; `WorldView.vue` exists | `web/src/student/WorldView.vue`, server namespace `/world` | DOM/CSS plus a 960×576 canvas and Socket.IO |
 | Summon banner, single pull reveal, ten-pull summary, history/details dialogs | Student tab `pets` (label “Summon”) | `PetsView.vue`, `SummonSky.vue`, `gacha/PrizeReveal.vue`, `HeroIcon.vue` | DOM/CSS plus ambient sky canvas and hero icon canvases |
 | Student account menu, debug menu, sound toggle, global toast, screen wipe | Shared shell | `AccountMenu.vue`, `DebugMenu.vue`, `SoundToggle.vue`, `ScreenWipe.vue`, `ui.js` | DOM/CSS; wipe is a CSS animated DOM overlay |
@@ -20,7 +20,7 @@ This is a single-page Vue application: the address bar does not have separate st
 
 - No standalone student “settings” page is in `TABS` in `App.vue`. Student preferences appear in controls (sound, shake setting in the arena, avatar wardrobe); exact completeness of settings is **unverified** outside those components.
 - No separate “upgrade modal” component exists by that name. Building upgrades/panels are inside the Kingdom `townTarget` dialog state and each building panel.
-- `WorldView.vue` implements a separate real-time shared world, but the app shell maps the World tab to `HeroLabView.vue`. How a student is meant to enter `WorldView.vue` is **unverified**; no shell entry was found.
+- `WorldView.vue` implements a separate real-time shared world, but the app shell maps the Campfire Run tab to `HeroLabView.vue`. How a student is meant to enter `WorldView.vue` is **unverified**; no shell entry was found.
 - No standalone results route was found. Practice results are states inside `QuizRunner.vue`; co-op arena results are rendered by the iframe game.
 - Hidden debug surfaces include the login version-tap/debug-code route, `DebugMenu.vue`, and the hero-lab local debug roster (`hero-lab-debug-unlocked-heroes`). They are not normal student navigation destinations.
 

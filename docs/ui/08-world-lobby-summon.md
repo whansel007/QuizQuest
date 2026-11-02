@@ -1,16 +1,16 @@
-# 08 — World, lobby and Summon
+# 08 — Campfire Run, lobby and Summon
 
 ## 1. WHAT THE PLAYER SEES
 
-The World tab currently opens a hero selection/workshop page. It shows an arena preview, hero selector, building-related bonuses and controls to create/join a room; entering a room loads the hero-lab game. Summon shows featured heroes, a starry sky, one-pull and ten-pull actions, reveal/result screens, and summon history/details dialogs.
+The Campfire Run tab (internal ID `world`) currently opens a hero selection/workshop page. It shows an arena preview, hero selector, building-related bonuses and controls to create/join a room; entering a room loads the hero-lab game. Summon shows featured heroes, a starry sky, one-pull and ten-pull actions, reveal/result screens, and summon history/details dialogs.
 
 ## 2. HOW IT WORKS
 
 ### World and lobby
 
-`App.vue` maps `world` to `HeroLabView.vue` (the component is named hero lab). Its desktop layout uses a two-sided grid: room-entry controls and Kingdom camp-upgrade tiles on one side, selected-hero stat/talent card and a forest/campfire hero preview on the other, with a hero selector roster along the bottom. Responsive CSS in `HeroLabView.vue` rearranges those regions on narrow screens. The page loads hero roster and Kingdom building levels, chooses a hero, and creates/joins a room using the four-character code. `HeroIcon.vue` paints/caches hero sprites in canvas; if the visual cannot load it displays the hero emoji. The arena itself is hosted under `public/hero-lab/`; `HeroLabView.vue` handles iframe/game entry and return-to-selection. Hero room state is live through arena Socket.IO, not Vue HTTP polling.
+`App.vue` maps internal ID `world` (visible label **Campfire Run**) to `HeroLabView.vue` (the component is named hero lab). Its desktop layout uses a two-sided grid: room-entry controls and Kingdom camp-upgrade tiles on one side, selected-hero stat/talent card and a forest/campfire hero preview on the other, with a hero selector roster along the bottom. Responsive CSS in `HeroLabView.vue` rearranges those regions on narrow screens. The page loads hero roster and Kingdom building levels, chooses a hero, and creates/joins a room using the four-character code. `HeroIcon.vue` paints/caches hero sprites in canvas; if the visual cannot load it displays the hero emoji. The arena itself is hosted under `public/hero-lab/`; `HeroLabView.vue` handles iframe/game entry and return-to-selection. Hero room state is live through arena Socket.IO, not Vue HTTP polling.
 
-There is also `web/src/student/WorldView.vue`, a different canvas class-world component using `io('/world')` with live state, keyboard movement, interaction, challenge/results and a 960×576 logical canvas. It is not selected by the current App tab mapping; its intended entry is **unverified**. It is listed so it is not mistaken for the World tab.
+There is also `web/src/student/WorldView.vue`, a different canvas class-world component using `io('/world')` with live state, keyboard movement, interaction, challenge/results and a 960×576 logical canvas. It is not selected by the current App tab mapping; its intended entry is **unverified**. It is listed so it is not mistaken for the Campfire Run tab.
 
 ### Summon and its animation
 
@@ -22,7 +22,7 @@ Summon page layout and banner content is DOM/CSS in `PetsView.vue`; title/subtit
 
 ## 3. WHERE IT LIVES
 
-- Tab mapping: `web/src/App.vue` `TABS.student`.
+- Tab mapping and visible label: `web/src/App.vue` `TABS.student` (`world` → Campfire Run).
 - World selector/lobby: `web/src/student/HeroLabView.vue` (`selectHero`, `enterRoom`, `reloadIntoRoom`, `returnToSelection`).
 - World hero icons: `web/src/student/HeroIcon.vue`, visual loader `avatar.js` plus hero visual assets in `public/hero-lab/`.
 - Separate class world: `web/src/student/WorldView.vue` (`connect`, socket handlers, `draw`).
@@ -45,7 +45,7 @@ World selector data comes from HTTP roster/profile calls; live arena gameplay is
 
 ## 6. GOTCHAS
 
-- “World” is ambiguous in the code: the tab is `HeroLabView`; `WorldView.vue` is separate and currently not wired into `App.vue`.
+- The `world` internal tab ID is named **Campfire Run** in the navigation and opens `HeroLabView`; `WorldView.vue` is separate and currently not wired into `App.vue`.
 - Pull animation only presents server results; odds, costs and pity belong to game/server configuration.
 - There are three layers of art: CSS/DOM prize effects, Summon sky canvas, and hero icon canvas.
 - The arena is a separate page in an iframe; outer app styling does not automatically style its DOM.

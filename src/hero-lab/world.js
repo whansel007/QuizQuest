@@ -87,6 +87,7 @@ function attachHeroLab(io, services = null) {
     }));
 
     socket.on('input', safe('input', (input) => roomOf()?.input(socket, input)));
+    socket.on('emote', safe('emote', (emoteId) => roomOf()?.emote(socket, emoteId)));
     socket.on('primary_hold', safe('primary_hold', (held) => roomOf()?.primaryHold(socket, held)));
     socket.on('milestone_choice', safe('milestone_choice', (choice) => roomOf()?.milestoneChoice(socket, choice)));
     socket.on('aim', safe('aim', (aim) => roomOf()?.aim(socket, aim)));
