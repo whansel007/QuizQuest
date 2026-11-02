@@ -93,6 +93,12 @@ nav#tabs button[aria-current="page"] { background: var(--accent-soft); color: va
   nav#tabs.crowded button { flex: 0 0 auto; white-space: nowrap; }
   nav#tabs.crowded ~ #who { margin-left: auto; }
 }
+/* the student's five tabs: between the phone layout and wide screens they
+   stay on one line instead of wrapping "Summon" under the others */
+@media (min-width: 641px) and (max-width: 1023px) {
+  nav#tabs:not(.crowded):not(.t-nav) { min-width: 0; flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; }
+  nav#tabs:not(.crowded):not(.t-nav) button { flex: 0 0 auto; padding: 7px 9px; white-space: nowrap; }
+}
 #who { display: flex; gap: 10px; align-items: center; font-size: 14px; color: var(--muted); }
 
 main { max-width: 1040px; margin: 0 auto; padding: 22px 16px 60px; }
@@ -2801,6 +2807,8 @@ main#main.main-progress {
 main#main.main-progress :is(h2, h3) { color: #fff8e4; }
 main#main.main-progress > .small.muted { color: #d5e3d0; }
 main#main.main-progress .pg-columns > .panel { color: #254937; }
+/* the page ink is cream for the forest background; fields sit on paper */
+main#main.main-progress .pg-columns :is(select, select option) { color: #23382f; }
 main#main.main-progress .pg-columns .pg-heading { color: #254937; }
 main#main.main-progress .pg-heading::after { border-top-color: #9db37f; }
 main#main.main-progress .pg-hero {

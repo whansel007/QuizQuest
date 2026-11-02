@@ -455,6 +455,32 @@ onUnmounted(() => {
 .hero-stars { margin:8px 0 12px; color:#C38B25; font-size:22px; letter-spacing:3px; }
 .hero-talent { display:grid; gap:3px; color:#304638; font-size:16px; }.talent-label { color:#687553; font:700 10px ui-monospace,'Cascadia Code',monospace; letter-spacing:.1em; }
 .roster-strip { display:grid; grid-template-columns:repeat(auto-fit,minmax(130px,1fr)); gap:8px; }
+/* Narrow banners (half-screen windows, tablets): sized by the banner, not the
+   viewport. Featured heroes stack art over text, then drop to two per row;
+   roster cards stack icon over name so long names like Electromancer fit. */
+.summon-banner { container:summon-banner / inline-size; }
+@container summon-banner (max-width: 1250px) {
+  .featured-many .featured-hero { flex-direction:column; justify-content:center; gap:8px; padding:12px 10px; text-align:center; }
+  .featured-many .featured-art { flex:0 0 auto; }
+  .featured-many .featured-info { flex:0 1 auto; width:100%; }
+  .featured-many .featured-info h3 { margin-bottom:6px; font-size:clamp(20px,2.4cqi,28px); overflow-wrap:anywhere; }
+  .featured-many .hero-stars { margin:4px 0 8px; font-size:18px; letter-spacing:1px; }
+  .featured-many .hero-talent { justify-items:center; font-size:15px; }
+}
+@container summon-banner (max-width: 760px) {
+  .featured-row.featured-many { grid-template-columns:repeat(2,minmax(0,1fr)); }
+}
+@container summon-banner (max-width: 1300px) {
+  .roster-strip .roster-hero { flex-direction:column; justify-content:center; gap:4px; padding:8px 4px; text-align:center; }
+  .roster-strip .roster-info { justify-items:center; }
+  .roster-strip .roster-info strong { font-size:clamp(11px,1.3cqi,13px); overflow-wrap:anywhere; }
+}
+/* short and narrow: smaller featured art so the stacked cards keep their hats inside */
+@media (max-height: 760px) and (min-width: 761px) {
+  .featured-many .featured-hero { gap:4px; }
+  .featured-many .featured-art :deep(canvas) { width:clamp(56px,10vh,86px)!important; }
+  .featured-many .hero-stars { margin:2px 0 4px; }
+}
 /* short windows: the featured cards shrink to their row instead of spilling into the roster strip */
 @media (max-height: 760px) and (min-width: 761px) {
   .featured-hero { min-height:0; padding:10px 18px; }
