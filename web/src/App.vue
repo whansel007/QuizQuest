@@ -172,7 +172,7 @@ onUnmounted(() => {
       <div id="who" class="t-account d-flex align-items-center">
         <span class="t-avatar" aria-hidden="true">{{ (S.me.name || '?').trim().charAt(0).toUpperCase() }}</span>
         <span class="t-account-name">{{ S.me.name }}</span>
-        <AccountMenu />
+        <AccountMenu icon />
       </div>
     </aside>
     <main id="main" class="main-teacher">

@@ -320,7 +320,9 @@ watch([trendPanel, whenPanel], ([left, right]) => {
 onUnmounted(() => { trendRo?.disconnect(); cancelAnimationFrame(trendFrame); });
 
 // ---- Overview: first-attempt accuracy per topic, weakest first. Topics on
-// fewer than minN confirmed first attempts are drawn lighter and say so.
+// fewer than minN confirmed first attempts are striped, tagged "few answers"
+// and listed after the others (weakest first among themselves), so a topic
+// on 0 of 1 can't top a "weakest first" list.
 const topicBars = computed(() => {
   if (!a.value) return [];
   const minN = a.value.minN || 1;
@@ -328,7 +330,14 @@ const topicBars = computed(() => {
     id: t.topicId, name: t.name, n: t.first.n || 0, correct: t.first.correct || 0,
     accuracy: t.first.n ? t.first.accuracy : null, lowN: t.first.n > 0 && t.first.n < minN,
   }));
-  return rows.filter((r) => r.accuracy !== null).sort((x, y) => x.accuracy - y.accuracy || y.n - x.n);
+  const weakestFirst = (x, y) => x.accuracy - y.accuracy || y.n - x.n;
+  const answered = rows.filter((r) => r.accuracy !== null);
+  return [...answered.filter((r) => !r.lowN).sort(weakestFirst), ...answered.filter((r) => r.lowN).sort(weakestFirst)];
+});
+// "1–2" for the footnote, from the threshold (just "1" when it is 2)
+const fewRange = computed(() => {
+  const most = (a.value?.minN || 1) - 1;
+  return most <= 1 ? '1' : `1–${most}`;
 });
 // topics nobody has answered yet: one line of chips instead of empty bars
 const unansweredTopics = computed(() => (a.value?.byTopic || []).filter((t) => !t.first.n).map((t) => ({ id: t.topicId, name: t.name })));
@@ -686,7 +695,8 @@ function missedCsv() {
                     <span class="tb-track" aria-hidden="true">
                       <span class="tb-fill" :style="{ width: Math.max(2, r.accuracy * 100) + '%' }"></span>
                     </span>
-                    <span class="tb-value"><b>{{ pct(r.accuracy) }}</b> <span class="muted">{{ r.correct }}/{{ r.n }}</span></span>
+                    <!-- the tag is for sighted readers: barLabel already says "few answers so far" -->
+                    <span class="tb-value"><b>{{ pct(r.accuracy) }}</b> <span class="muted">{{ r.correct }}/{{ r.n }}</span><span v-if="r.lowN" class="tb-few" aria-hidden="true">few answers</span></span>
                   </button>
                 </li>
               </ol>
@@ -694,7 +704,7 @@ function missedCsv() {
                 <span class="small muted">No first attempts yet:</span>
                 <button v-for="t in unansweredTopics" :key="t.id" type="button" class="tb-chip" :aria-label="`${t.name}: no first attempts yet. Show only this topic.`" @click="focusTopic(t.id)">{{ t.name }}</button>
               </div>
-              <p v-if="topicBars.some((r) => r.lowN)" class="small muted tb-note">Lighter bars rest on fewer than {{ a.minN }} first attempts, so read them with care.</p>
+              <p v-if="topicBars.some((r) => r.lowN)" class="small muted tb-note"><span class="tb-swatch" aria-hidden="true"></span>Only {{ fewRange }} answer{{ fewRange === '1' ? '' : 's' }} so far — one more could change these a lot.</p>
             </div>
             <div class="span-5 panel attention">
               <h4>Needs attention</h4>

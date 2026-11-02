@@ -146,9 +146,13 @@ const cardStyle = computed(() => {
 
 <template>
   <section class="card-review" aria-label="Review AI drafts as cards">
-    <div class="cr-progress" role="status">
-      <span><b>{{ reviewed }}</b> reviewed · <b>{{ queue.length }}</b> left{{ scoped ? ' in this topic' : '' }}</span>
-      <span class="cr-bar" aria-hidden="true"><span :style="{ width: progress + '%' }"></span></span>
+    <!-- the topic picker (from the Question bank) above the side panel, progress above the card -->
+    <div class="cr-top">
+      <div class="cr-picker"><slot name="picker" /></div>
+      <div class="cr-progress" role="status">
+        <span><b>{{ reviewed }}</b> reviewed · <b>{{ queue.length }}</b> left{{ scoped ? ' in this topic' : '' }}</span>
+        <span class="cr-bar" aria-hidden="true"><span :style="{ width: progress + '%' }"></span></span>
+      </div>
     </div>
 
     <div v-if="!current" class="t-empty cr-empty">
@@ -158,77 +162,99 @@ const cardStyle = computed(() => {
       <button class="btn primary" type="button" @click="emit('exit')">Back to the question list</button>
     </div>
 
-    <template v-else>
-      <p class="cr-help small muted">
-        Swipe or drag the card right to <b>approve and publish</b>, left to <b>deny</b> (reject). Keys:
-        <kbd>→</kbd> approve · <kbd>←</kbd> deny.
-      </p>
-      <div class="cr-stage">
-        <article
-          :key="current.id"
-          ref="card"
-          class="panel cr-card"
-          :class="{ dragging: !!dragX && !pending, [`hint-${hint}`]: hint }"
-          :style="cardStyle"
-          tabindex="-1"
-          :aria-labelledby="`cr-title-${current.id}`"
-          @pointerdown="onPointerDown"
-          @pointermove="onPointerMove"
-          @pointerup="onPointerUp"
-          @pointercancel="onPointerUp"
-        >
-          <div v-if="hint" class="cr-stamp" :class="hint" :style="{ opacity: hintStrength }" aria-hidden="true">
-            {{ hint === 'approve' ? (pending ? 'Approving…' : 'Approve') : (pending ? 'Denying…' : 'Deny') }}
+    <div v-else class="cr-body">
+      <!-- where the draft comes from, beside the card so the card is just the question -->
+      <aside class="panel cr-side" aria-label="About this draft">
+        <dl class="cr-context">
+          <div><dt>Topic</dt><dd>{{ topic ? topicLabel(topic) : current.assessment?.topic || '—' }}</dd></div>
+          <div><dt>Source</dt><dd>{{ current.sources.length ? current.sources.map((s) => s.title).join(', ') : v.sourceIds.length ? 'source removed' : 'none cited' }}</dd></div>
+          <div v-if="outcome"><dt>Learning outcome</dt><dd>{{ outcome.text }}</dd></div>
+        </dl>
+        <p class="cr-help small muted">
+          Swipe or drag the card right to <b>approve and publish</b>, left to <b>deny</b> (reject). Keys:
+          <kbd>→</kbd> approve · <kbd>←</kbd> deny.
+        </p>
+      </aside>
+
+      <div class="cr-main">
+        <div class="cr-stage">
+          <article
+            :key="current.id"
+            ref="card"
+            class="panel cr-card"
+            :class="{ dragging: !!dragX && !pending, [`hint-${hint}`]: hint }"
+            :style="cardStyle"
+            tabindex="-1"
+            :aria-labelledby="`cr-title-${current.id}`"
+            @pointerdown="onPointerDown"
+            @pointermove="onPointerMove"
+            @pointerup="onPointerUp"
+            @pointercancel="onPointerUp"
+          >
+            <div v-if="hint" class="cr-stamp" :class="hint" :style="{ opacity: hintStrength }" aria-hidden="true">
+              {{ hint === 'approve' ? (pending ? 'Approving…' : 'Approve') : (pending ? 'Denying…' : 'Deny') }}
+            </div>
+            <header class="cr-meta">
+              <h3 :id="`cr-title-${current.id}`" class="sr-only">Draft question</h3>
+              <span :class="'badge ' + current.status">{{ current.status }}</span>
+              <span class="badge">{{ QUESTION_LABELS[type] || current.typeLabel }}</span>
+              <span class="badge plain">{{ v.difficulty }}</span>
+              <span v-if="current.cognitiveStyle" class="badge plain">{{ current.cognitiveStyle === 'application' ? 'Application' : 'Conceptual' }}</span>
+              <span class="badge plain">{{ ORIGIN[current.origin] || current.origin }}</span>
+              <span class="badge plain">v{{ v.v }}</span>
+            </header>
+            <QuestionDetails :value="v" :sample="current.sample" />
+            <div v-if="v.warnings?.length" class="note warn small" style="margin-top: 10px">{{ v.warnings.join(' ') }}</div>
+            <ReportReview v-for="r in current.reports.filter((x) => !x.resolved)" :key="r.id" :question-id="current.id" :report="r" />
+            <QuestionEditor v-if="editing" :key="editorKey" :course="course" :passages="passages" :q="current" @close="editing = false" />
+          </article>
+        </div>
+
+        <div v-if="error" class="note bad cr-error" role="alert">{{ error }}</div>
+
+        <!-- Wide screens: one row, Deny on the card's left edge, Approve on its
+             right, the other actions between. Phones: Deny and Approve side by
+             side (still pinned), the other actions under them. -->
+        <div class="cr-actions">
+          <div class="cr-decide">
+            <button class="btn bad cr-deny" type="button" :disabled="!!pending || editing" @click="decide('deny')">
+              <span aria-hidden="true">←</span> Deny
+            </button>
+            <button class="btn good cr-approve" type="button" :disabled="!!pending || editing" @click="decide('approve')">
+              Approve &amp; publish <span aria-hidden="true">→</span>
+            </button>
           </div>
-          <header class="cr-meta">
-            <h3 :id="`cr-title-${current.id}`" class="sr-only">Draft question</h3>
-            <span :class="'badge ' + current.status">{{ current.status }}</span>
-            <span class="badge">{{ QUESTION_LABELS[type] || current.typeLabel }}</span>
-            <span class="badge plain">{{ v.difficulty }}</span>
-            <span v-if="current.cognitiveStyle" class="badge plain">{{ current.cognitiveStyle === 'application' ? 'Application' : 'Conceptual' }}</span>
-            <span class="badge plain">{{ ORIGIN[current.origin] || current.origin }}</span>
-            <span class="badge plain">v{{ v.v }}</span>
-          </header>
-          <dl class="cr-context">
-            <div><dt>Topic</dt><dd>{{ topic ? topicLabel(topic) : current.assessment?.topic || '—' }}</dd></div>
-            <div v-if="outcome"><dt>Learning outcome</dt><dd>{{ outcome.text }}</dd></div>
-            <div><dt>Source</dt><dd>{{ current.sources.length ? current.sources.map((s) => s.title).join(', ') : v.sourceIds.length ? 'source removed' : 'none cited' }}</dd></div>
-          </dl>
-          <QuestionDetails :value="v" :sample="current.sample" />
-          <div v-if="v.warnings?.length" class="note warn small" style="margin-top: 10px">{{ v.warnings.join(' ') }}</div>
-          <ReportReview v-for="r in current.reports.filter((x) => !x.resolved)" :key="r.id" :question-id="current.id" :report="r" />
-          <QuestionEditor v-if="editing" :key="editorKey" :course="course" :passages="passages" :q="current" @close="editing = false" />
-        </article>
+          <div class="cr-secondary" role="group" aria-label="More actions for this question">
+            <button class="btn small" type="button" :disabled="!!pending" @click="edit">Edit</button>
+            <AsyncButton v-if="course.authoringEnabled && current.generationId" class="btn small" :disabled="!!pending" :run="regenerate">Regenerate draft</AsyncButton>
+            <button class="btn small" type="button" @click="emit('exit')">Back to list</button>
+          </div>
+        </div>
       </div>
-
-      <div v-if="error" class="note bad cr-error" role="alert">{{ error }}</div>
-
-      <div class="cr-decide">
-        <button class="btn bad cr-deny" type="button" :disabled="!!pending || editing" @click="decide('deny')">
-          <span aria-hidden="true">←</span> Deny
-        </button>
-        <button class="btn good cr-approve" type="button" :disabled="!!pending || editing" @click="decide('approve')">
-          Approve &amp; publish <span aria-hidden="true">→</span>
-        </button>
-      </div>
-      <div class="cr-secondary" aria-label="More actions for this question">
-        <button class="btn small" type="button" :disabled="!!pending" @click="edit">Edit</button>
-        <AsyncButton v-if="course.authoringEnabled && current.generationId" class="btn small" :disabled="!!pending" :run="regenerate">Regenerate draft</AsyncButton>
-        <button class="btn small" type="button" @click="emit('exit')">Back to list</button>
-      </div>
-    </template>
+    </div>
   </section>
 </template>
 
 <style scoped>
-.card-review { display: grid; gap: 12px; }
-.cr-progress { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 14px; font-size: 14px; }
+/* the side column is as wide as the Question bank's filter column */
+.card-review { --cr-side: 270px; --cr-card: 820px; display: grid; gap: 14px; }
+.cr-top, .cr-body { display: grid; grid-template-columns: var(--cr-side) minmax(0, 1fr); gap: 16px 28px; }
+.cr-top { align-items: end; }
+.cr-picker:empty { display: none; }
+.cr-picker :slotted(.field) { margin: 0; }
+.cr-progress { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 14px; min-height: 40px; font-size: 14px; }
 .cr-bar { flex: 1 1 200px; height: 8px; overflow: hidden; background: var(--line); border-radius: 99px; }
 .cr-bar > span { display: block; height: 100%; background: var(--accent); transition: width 0.3s ease; }
-.cr-help { margin: 0; }
-.cr-help kbd { padding: 1px 6px; border: 1px solid var(--line); border-bottom-width: 2px; border-radius: 5px; background: var(--panel); font: 700 12px var(--font-body); }
+.cr-body { align-items: start; }
+.cr-side { position: sticky; top: 16px; display: flex; flex-direction: column; gap: 16px; margin: 0; padding: 16px; }
+.cr-context { display: grid; gap: 14px; margin: 0; }
+.cr-context dt { color: var(--muted); font-size: 11px; font-weight: 800; letter-spacing: 0.06em; text-transform: uppercase; }
+.cr-context dd { margin: 3px 0 0; font-size: 14px; line-height: 1.45; overflow-wrap: anywhere; }
+.cr-help { margin: 0; padding-top: 14px; border-top: 1px solid var(--line); line-height: 1.7; }
+.cr-help kbd { padding: 1px 6px; border: 1px solid var(--line); border-bottom-width: 2px; border-radius: 5px; background: var(--bg); font: 700 12px var(--font-body); }
+.cr-main { display: grid; gap: 12px; min-width: 0; }
 .cr-stage { position: relative; overflow-x: clip; padding: 4px 0; }
-.cr-card { position: relative; width: min(100%, 980px); min-height: 52vh; margin: 0 auto; padding: 22px 26px; cursor: grab; touch-action: pan-y; user-select: none; transition: transform 0.22s ease, opacity 0.22s ease, box-shadow 0.15s; }
+.cr-card { position: relative; width: min(100%, var(--cr-card)); min-height: max(52vh, 540px); margin: 0 auto; padding: 22px 26px; cursor: grab; touch-action: pan-y; user-select: none; transition: transform 0.22s ease, opacity 0.22s ease, box-shadow 0.15s; }
 .cr-card :deep(input), .cr-card :deep(textarea), .cr-card :deep(select) { user-select: text; }
 .cr-card.dragging { cursor: grabbing; box-shadow: 0 16px 40px rgba(22, 33, 58, 0.18); }
 .cr-card.hint-approve { border-color: var(--good); }
@@ -238,21 +264,38 @@ const cardStyle = computed(() => {
 .cr-stamp.approve { right: 22px; color: var(--good); transform: rotate(6deg); }
 .cr-stamp.deny { left: 22px; color: var(--bad); transform: rotate(-6deg); }
 .cr-meta { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
-.cr-context { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 8px 18px; margin: 14px 0 4px; padding: 10px 12px; background: var(--bg); border-radius: 8px; }
-.cr-context dt { color: var(--muted); font-size: 11px; font-weight: 800; letter-spacing: 0.06em; text-transform: uppercase; }
-.cr-context dd { margin: 2px 0 0; font-size: 14px; overflow-wrap: anywhere; }
-.cr-card :deep(.question-stem) { font-size: 1.2rem; }
-.cr-error { width: min(100%, 980px); margin: 0 auto; }
-/* decisions stay in reach however tall the card is */
-.cr-decide { position: sticky; bottom: 0; z-index: 3; display: flex; justify-content: center; gap: 14px; padding: 12px 0; background: linear-gradient(transparent, var(--bg) 35%); }
-.cr-decide .btn { min-width: 170px; min-height: 48px; font-size: 16px; font-weight: 800; }
-.cr-approve { color: #fff !important; background: var(--good); border-color: var(--good); }
-.cr-deny { background: var(--panel); border-color: var(--bad); }
-.cr-secondary { display: flex; flex-wrap: wrap; justify-content: center; gap: 8px; }
+/* Nothing jumps from one draft to the next: the question gets the same room
+   on every card (about four lines), so the options start at the same place,
+   and the card (min-height above) fits a four-option question with a short
+   explanation, so Deny and Approve stay put. Longer content still grows. */
+.cr-card :deep(.question-stem) { display: flex; flex-direction: column; justify-content: center; min-height: 6.4em; margin: 22px 0 18px; font-size: 1.2rem; line-height: 1.5; }
+.cr-error { width: min(100%, var(--cr-card)); margin: 0 auto; }
+/* decisions stay in reach however tall the card is, lined up with its edges
+   (.cr-decide only groups Deny and Approve here; it is the pinned bar on phones) */
+.cr-actions { position: sticky; bottom: 0; z-index: 3; display: grid; grid-template-columns: auto minmax(0, 1fr) auto; grid-template-areas: "deny more approve"; align-items: center; gap: 12px; width: min(100%, var(--cr-card)); margin: 0 auto; padding: 12px 0; background: linear-gradient(transparent, var(--bg) 35%); }
+.cr-decide { display: contents; }
+.cr-decide > .btn { min-width: 150px; min-height: 48px; font-size: 16px; font-weight: 800; white-space: nowrap; }
+.cr-deny { grid-area: deny; background: var(--panel); border-color: var(--bad); }
+.cr-approve { grid-area: approve; color: #fff !important; background: var(--good); border-color: var(--good); }
+.cr-secondary { grid-area: more; display: flex; flex-wrap: wrap; justify-content: center; gap: 8px; }
 .cr-empty h3 { color: var(--ink); }
+/* narrower pages: one column, the details as a strip above the card */
+@media (max-width: 991.98px) {
+  .cr-top, .cr-body { grid-template-columns: minmax(0, 1fr); }
+  .cr-side { position: static; }
+  .cr-context { grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 10px 18px; }
+}
 @media (max-width: 767.98px) {
   .cr-card { min-height: 0; padding: 16px; }
-  .cr-decide .btn { flex: 1; min-width: 0; }
+  .cr-card :deep(.question-stem) { min-height: 0; margin: 16px 0 12px; font-size: 1.1rem; }
+  .cr-help { display: none; }
+  /* Deny and Approve side by side and pinned, the other actions under them
+     (.cr-actions steps aside so the pinned bar is just the two buttons) */
+  .cr-actions { display: contents; }
+  .cr-decide { position: sticky; bottom: 0; z-index: 3; display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); align-items: stretch; gap: 10px; padding: 12px 0; background: linear-gradient(transparent, var(--bg) 35%); }
+  .cr-decide > .btn { min-width: 0; padding-inline: 8px; font-size: 15px; white-space: normal; }
+  /* the wide layout's area names would make columns in the page grid here */
+  .cr-deny, .cr-approve, .cr-secondary { grid-area: auto; }
 }
 @media (prefers-reduced-motion: reduce) { .cr-card { transition: none; } }
 </style>
