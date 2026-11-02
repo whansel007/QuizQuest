@@ -39,6 +39,11 @@ The older server tests in `test/` still run with `pnpm test` (Node's built-in te
 - `e2e/raid-boss.spec.js`: two students share one raid boss; a correct answer damages it for the class and the reward is split.
 - `e2e/progress-reporting.spec.js`: practice changes the topic's correct/count figures; a student report reaches the professor and the student sees the resolution response.
 - `e2e/team-room.spec.js`: two students create and join the same Campfire Defense room and see its membership.
+- `e2e/summon.spec.js`: the hero summon — a single pull that costs 50 coins, shows the prize and is written into the journal, and a ten-pull that shows all ten results.
+- `e2e/kingdom-build.spec.js`: a Kingdom building is built from the building list and the panel says it went up; the server refuses one the student cannot pay for.
+- `e2e/question-editor.spec.js`: a professor writes a question in the editor and publishes it from the question bank.
+- `e2e/class-management.spec.js`: the professor's Classes & Roster tab — creating a class, giving it a join code, revoking that code, and archiving and restoring the class.
+- `e2e/teacher-settings.spec.js`: the course settings — the subject guidance, the semester dates and the classmate trading toggle — and the dates then reaching the Analytics dashboard.
 
 ## How the end-to-end tests run
 
