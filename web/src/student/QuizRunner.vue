@@ -227,7 +227,7 @@ onUnmounted(() => {
 
 <template>
   <div class="practice-quiz-layout" :class="{ 'encounter-intro': encounterIntro, 'turn-hero': battleTurn === 'hero', 'turn-enemy': battleTurn === 'enemy' }">
-    <section class="quiz-content-column" aria-label="Practice question">
+    <section class="quiz-content-column" :class="{ 'quiz-summary-layout': phase === 'summary' }" aria-label="Practice question">
       <template v-if="phase === 'error'">
         <section class="panel quiz-details-card">
           <div class="quiz-section-kicker">PRACTICE DETAILS</div>
@@ -252,24 +252,26 @@ onUnmounted(() => {
             </tbody>
           </table>
           <div v-if="summary.wallet.earnedToday >= summary.wallet.dailyCap" class="note warn small">You reached today's coin cap. You can keep practising; coins reset at midnight.</div>
-          <div v-if="!summary.feedbackGiven">
-            <div v-if="fbDone" class="note good small">Thanks - this helps improve the app.</div>
-            <div v-else class="panel quiz-feedback-card">
-              <b>How was this session?</b>
-              <div class="row" style="margin: 8px 0">
-                <input v-model="fbComment" type="text" maxlength="300" aria-label="Session comment" placeholder="Anything that was confusing or annoying? (optional, no personal info)" />
-              </div>
-              <div class="row faces">
-                <button v-for="[n, face, label] in FACES" :key="n" class="btn" :aria-label="label" :title="label" @click="rate(n)($event)">{{ face }}</button>
-              </div>
-            </div>
-          </div>
           <div class="quiz-action-row">
             <button class="btn primary" @click="rerender">Back to practice</button>
             <button class="btn" @click="setTab('progress')">View my progress</button>
             <button class="btn" @click="wipeTo('kingdom')">Return to Kingdom</button>
-            <button class="btn" @click="setTab('world')">Enter the World</button>
+            <button class="btn" @click="setTab('pets')">Summon</button>
           </div>
+        </section>
+        <section v-if="!summary.feedbackGiven" class="panel quiz-feedback-card">
+          <template v-if="fbDone">
+            <div class="note good small">Thanks - this helps improve the app.</div>
+          </template>
+          <template v-else>
+            <b>How was this session?</b>
+            <div class="row" style="margin: 8px 0">
+              <input v-model="fbComment" type="text" maxlength="300" aria-label="Session comment" placeholder="Anything that was confusing or annoying? (optional, no personal info)" />
+            </div>
+            <div class="row faces">
+              <button v-for="[n, face, label] in FACES" :key="n" class="btn" :aria-label="label" :title="label" @click="rate(n)($event)">{{ face }}</button>
+            </div>
+          </template>
         </section>
       </template>
 
@@ -295,7 +297,7 @@ onUnmounted(() => {
 
         <section class="panel quiz-answers-card" aria-label="Answer choices">
           <div class="quiz-section-kicker">CHOOSE YOUR ANSWER</div>
-          <QuestionForm v-if="phase === 'question' && question" :key="qKey" ref="form" :q="question" :submit="answerer(question)" />
+          <QuestionForm v-if="phase === 'question' && question" :key="qKey" ref="form" :q="question" :submit="answerer(question)" :show-stem="false" />
           <p v-else class="small muted">Preparing your next question…</p>
         </section>
 

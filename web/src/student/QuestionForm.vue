@@ -15,7 +15,11 @@ import { ref, reactive, computed, onMounted, onUnmounted } from 'vue';
 import { toast } from '../ui.js';
 import FormattedText from '../components/FormattedText.vue';
 
-const props = defineProps({ q: { type: Object, required: true }, submit: { type: Function, required: true } });
+const props = defineProps({
+  q: { type: Object, required: true },
+  submit: { type: Function, required: true },
+  showStem: { type: Boolean, default: true },
+});
 const LETTERS = 'ABCDEF';
 const q = props.q;
 const kind = q.type === 'mcq' || q.type === 'tf' ? 'single' : q.type;
@@ -142,7 +146,7 @@ defineExpose({
 
 <template>
   <div>
-    <FormattedText class="stem" :text="q.stem" />
+    <FormattedText v-if="showStem" class="stem" :text="q.stem" />
 
     <div v-if="kind === 'single'" class="options" :class="{ two: q.type === 'tf' }">
       <button v-for="(opt, i) in q.options" :key="i" :disabled="locked" :class="optionClass(i)" @click="pick(i)">
