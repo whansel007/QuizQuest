@@ -21,6 +21,7 @@
 
 const { TYPE_LABELS } = require('./formats');
 const { sortTopics, topicSummary } = require('./topics');
+const { reportContext } = require('./reporting');
 const { DAY, DEFAULT_TZ, isValidTimeZone, localDate, instantOf, mondayOf, weekdayHour } = require('./time');
 
 // semester: from the course's semester start (see api.js semesterPeriod)
@@ -273,6 +274,30 @@ function contexts(confirmed, topics) {
 
 // The class's practice sessions; for one topic, only sessions that
 // included a question from it (`attempts` = that topic's answers)
+// Open student reports on this course's questions, newest first, so the
+// dashboard can list and resolve them in place. Like the Question bank, a
+// report never says who sent it: only which class it came from.
+function openReportList(db, cls, courseQs, topics) {
+  const classNames = new Map(db.classes.filter((c) => c.courseId === cls.courseId).map((c) => [c.id, c.name]));
+  return courseQs
+    .flatMap((q) => q.reports.filter((r) => !r.resolved).map((r) => {
+      const context = reportContext(db, q, r);
+      return {
+        id: r.id,
+        questionId: q.id,
+        topic: topics.find((t) => t.id === q.topicId)?.name || null,
+        stem: context.stem,
+        version: context.version,
+        category: r.category || 'other',
+        reason: r.reason,
+        at: r.at,
+        thisClass: context.classId === cls.id,
+        className: classNames.get(context.classId) || null,
+      };
+    }))
+    .sort((x, y) => y.at - x.at);
+}
+
 function sessionsOf(db, classId, attempts) {
   const sessions = db.sessions.filter((s) => s.classId === classId);
   if (!attempts) return sessions;
@@ -431,6 +456,7 @@ function classAnalytics(db, classId, now = Date.now(), period = { range: 'all' }
     when: whenPractised(attempts, tz),
     contexts: contexts(confirmed, topics),
     openReports: courseQs.reduce((n, q) => n + q.reports.filter((r) => !r.resolved).length, 0),
+    reports: openReportList(db, cls, courseQs, topics),
     points,
   };
 }

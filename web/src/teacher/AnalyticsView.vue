@@ -32,6 +32,7 @@ import WhenPanel from './dashboard/WhenPanel.vue';
 import ContextsPanel from './dashboard/ContextsPanel.vue';
 import QualityPanel from './dashboard/QualityPanel.vue';
 import ComparePanel from './dashboard/ComparePanel.vue';
+import ReportsPanel from './dashboard/ReportsPanel.vue';
 import { loadCourses, syncTopic, topicLabel } from './courses.js';
 import { downloadCsv, pctCell, secCell } from './csv.js';
 
@@ -282,6 +283,15 @@ function toBank({ focus = null, filter = null } = {}) {
   setTab('review');
 }
 const openInBank = (id) => toBank({ focus: id });
+// a report resolved on the dashboard leaves the list at once; the quiet
+// reload then brings every count (Needs attention, Commonly missed) in line
+function reportResolved(id) {
+  if (a.value) {
+    a.value.reports = a.value.reports.filter((r) => r.id !== id);
+    a.value.openReports = Math.max(0, a.value.openReports - 1);
+  }
+  load({ quiet: true });
+}
 function draftFor(topicId, outcomeId) {
   S.courseId = courseId.value || S.courseId;
   S.draftTarget = { topicId, outcomeId };
@@ -358,6 +368,7 @@ const barLabel = (r) => `${r.name}: ${pct(r.accuracy)} correct on first attempts
 const sections = computed(() => [
   ['dash-overview', 'Overview'],
   ...(markingTotal.value ? [['dash-marking', 'To mark']] : []),
+  ...(a.value?.reports?.length ? [['dash-reports', 'Student reports']] : []),
   ['dash-weeks', 'Weekly topics'],
   ['dash-trends', 'Trends'],
   ['dash-topics', 'Topics and questions'],
@@ -396,7 +407,7 @@ const attention = computed(() => {
   const drafts = a.value.overview.topics.filter((t) => !a.value.topicId || t.topicId === a.value.topicId).reduce((n, t) => n + t.questions.draft, 0);
   if (drafts) out.push({ icon: '✎', text: `${plural(drafts, 'drafted question')} waiting for your review`, go: () => goTopic({ topicId: a.value.topicId || '', tab: 'review', filter: 'draft' }) });
   if (a.value.tags.issues.length) out.push({ icon: '⚠', text: `${plural(a.value.tags.issues.length, 'question')} missing tags`, go: () => goTo('dash-quality') });
-  if (a.value.openReports) out.push({ icon: '⚑', text: `${plural(a.value.openReports, 'open student report')}`, go: () => toBank({ filter: 'reported' }) });
+  if (a.value.openReports) out.push({ icon: '⚑', text: `${plural(a.value.openReports, 'open student report')}`, go: () => goTo('dash-reports') });
   const confusing = a.value.time.questions.filter((q) => q.confusing).length;
   // a single question opens straight away; several go to their list
   const flagged = a.value.time.questions.filter((q) => q.confusing);
@@ -718,6 +729,12 @@ function missedCsv() {
           <Pager :paged="markingPages" label="Answers to mark pages" noun="answers" />
         </div>
 
+        <!-- OPEN STUDENT REPORTS: read and resolve them without leaving the dashboard -->
+        <div v-if="a.reports?.length" id="dash-reports" class="panel no-print" style="border-color: var(--warn)">
+          <h3 tabindex="-1">Open student reports ({{ a.reports.length }})</h3>
+          <ReportsPanel :reports="a.reports" :timezone="a.timezone" @resolved="reportResolved" @open-question="openQuestion" @open-in-bank="openInBank" />
+        </div>
+
         <!-- WEEKLY TOPICS -->
         <section id="dash-weeks" class="t-section">
           <div class="t-section-head"><h3 tabindex="-1">Weekly topics</h3><span class="t-desc">Material, questions and practice by week</span></div>
@@ -914,7 +931,7 @@ function missedCsv() {
                 </div>
                 <div class="small muted">{{ `${q.topic} · first attempts ${frac(q.first)} · retries ${frac(q.retry)}` }}</div>
                 <div v-if="q.topWrong" class="small">Most chosen wrong answer: <b>"{{ q.topWrong.option }}"</b> ({{ q.topWrong.count }}x)</div>
-                <div v-if="q.openReports" class="small" style="color: var(--bad)">⚑ {{ q.openReports }} open student report(s) - see Question bank → Reported</div>
+                <div v-if="q.openReports" class="small" style="color: var(--bad)">⚑ {{ q.openReports }} open student report(s) - <button class="linklike" @click="goTo('dash-reports')">see Open student reports</button></div>
               </div>
               <Pager :paged="missedPages" label="Commonly missed questions pages" noun="questions" />
             </template>
