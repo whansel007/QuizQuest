@@ -633,29 +633,34 @@ attemptId: attempt.id,
     return [201, startSession(user)];
   });
 
+  // There is no mail service in this build, so there is no way to prove that
+  // the person asking for a reset controls the mailbox. A reset that only
+  // takes an address would let anyone take over anyone else's account, so
+  // this endpoint does not change any password: it says plainly what to do
+  // instead. The answer never depends on whether the address has an account,
+  // so it cannot be used to discover who has one.
   route('POST', '/api/auth/forgot-password', null, ({ body }) => {
     const email = P.normEmail(body.email);
     if (!email || !EMAIL_RE.test(email)) fail(400, 'Enter a valid email address.');
-    // Always the same answer, so this cannot be used to discover who has an account.
     return {
       ok: true,
-      message: 'If an account exists for that address, password reset instructions have been sent.',
+      message: 'Password recovery by email is not available in this build. Ask the project team to reset it for you.',
     };
   });
 
-  // Completes a reset started by /api/auth/forgot-password. The recovery
-  // link proves control of the mailbox; this call exchanges it for a session.
-  const handleResetPassword = ({ req, body }) => {
+  // Changes the password of the CALLER, and of nobody else. The session token
+  // is the proof of identity: a recovery link would need to arrive by email,
+  // and this build sends no email, so the session is the only thing that can
+  // stand in for one. The address in the body is ignored on purpose - acting
+  // on it would let a signed-in student overwrite a professor's password.
+  const handlePasswordChange = ({ req, body }) => {
     const newPassword = body?.newPassword || body?.password || '';
-    const email = P.normEmail(body?.email);
     if (!newPassword || newPassword.length < P.PASSWORD_MIN) fail(400, `Use a password of at least ${P.PASSWORD_MIN} characters.`);
     if (newPassword.length > P.PASSWORD_MAX) fail(400, `Use a password of at most ${P.PASSWORD_MAX} characters.`);
 
-    // A signed-in caller may change their own password without a recovery link.
     const currentToken = (req.headers.authorization || '').replace(/^Bearer\s+/i, '');
-    let target = currentToken ? authenticate(currentToken) : null;
-    if (!target && email) target = db.users.find((u) => u.email === email || `${u.id}@quizquest.edu` === email);
-    if (!target) fail(400, 'Could not identify the account. Please request a new reset link.');
+    const target = currentToken ? authenticate(currentToken) : null;
+    if (!target) fail(401, 'Sign in to change your password.');
 
     target.passwordHash = P.hashPassword(newPassword);
     // Changing a password ends every other session for that account.
@@ -664,8 +669,8 @@ attemptId: attempt.id,
     return startSession(target);
   };
 
-  route('POST', '/api/auth/reset-password', null, handleResetPassword);
-  route('POST', '/api/auth/update-password', null, handleResetPassword);
+  route('POST', '/api/auth/reset-password', null, handlePasswordChange);
+  route('POST', '/api/auth/update-password', null, handlePasswordChange);
 
   route('POST', '/api/logout', 'any', ({ token }) => {
     tokens.delete(token);

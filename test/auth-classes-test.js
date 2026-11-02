@@ -60,15 +60,31 @@ test('Task 1A: Student registration and email login', async () => {
     const wrong = await call(null, 'POST', '/api/login', { email: 'alice@example.com', password: 'wrongPassword' });
     assert.equal(wrong.status, 401);
 
-    // 6. Forgot password endpoint
+    // 6. Forgot password answers, but never claims an email was sent
     const fp = await call(null, 'POST', '/api/auth/forgot-password', { email: 'alice@example.com', redirectTo: 'http://localhost:5173' });
     assert.equal(fp.status, 200);
     assert.ok(fp.body.ok);
+    assert.ok(!/sent/i.test(fp.body.message), `must not claim an email was sent, got: ${fp.body.message}`);
 
-    // 7. Reset password updates password and issues session token
-    const reset = await call(null, 'POST', '/api/auth/reset-password', { email: 'alice@example.com', newPassword: 'brandNewPassword456' });
-    assert.equal(reset.status, 200);
-    assert.ok(reset.body.token);
+    // 7. An unauthenticated reset must NOT change any password. Naming an
+    //    address is not proof of ownership, so this used to let anyone take
+    //    over anyone else's account.
+    const takeover = await call(null, 'POST', '/api/auth/reset-password', { email: 'alice@example.com', newPassword: 'attackerPassword999' });
+    assert.equal(takeover.status, 401);
+    assert.equal(takeover.body.token, undefined);
+
+    // The account still has its old password, so the takeover changed nothing.
+    const stillMine = await call(null, 'POST', '/api/login', { email: 'alice@example.com', password: 'securePassword123' });
+    assert.equal(stillMine.status, 200);
+
+    // The attacker's password never worked on this account.
+    const attacker = await call(null, 'POST', '/api/login', { email: 'alice@example.com', password: 'attackerPassword999' });
+    assert.equal(attacker.status, 401);
+
+    // 8. A signed-in caller changes their own password
+    const update = await call(stillMine.body.token, 'POST', '/api/auth/update-password', { newPassword: 'brandNewPassword456' });
+    assert.equal(update.status, 200);
+    assert.ok(update.body.token);
 
     // Old password no longer works
     const oldLogin = await call(null, 'POST', '/api/login', { email: 'alice@example.com', password: 'securePassword123' });
@@ -78,6 +94,17 @@ test('Task 1A: Student registration and email login', async () => {
     const newLogin = await call(null, 'POST', '/api/login', { email: 'alice@example.com', password: 'brandNewPassword456' });
     assert.equal(newLogin.status, 200);
     assert.ok(newLogin.body.token);
+
+    // 9. A signed-in caller still cannot touch another account, even by
+    //    naming that account's address in the body.
+    const bob = await call(null, 'POST', '/api/auth/register', { name: 'Bob Walker', email: 'bob@example.com', password: 'bobsOwnPassword1' });
+    assert.equal(bob.status, 201);
+    const crossAccount = await call(newLogin.body.token, 'POST', '/api/auth/update-password', { email: 'bob@example.com', newPassword: 'stolenPassword999' });
+    assert.equal(crossAccount.status, 200);
+    const bobStillHim = await call(null, 'POST', '/api/login', { email: 'bob@example.com', password: 'bobsOwnPassword1' });
+    assert.equal(bobStillHim.status, 200);
+    const bobNotStolen = await call(null, 'POST', '/api/login', { email: 'bob@example.com', password: 'stolenPassword999' });
+    assert.equal(bobNotStolen.status, 401);
   } finally {
     await close();
   }
