@@ -9,6 +9,21 @@ this file is informal and human-edited.
 
 ## [Unreleased]
 
+### Security
+- **`POST /api/auth/reset-password` no longer takes over an account.** It
+  accepted `{email, newPassword}` with no proof of ownership, set that
+  account's password and signed the caller in - so anyone who knew an
+  address could take that account over, and the README lists the professor
+  addresses. There is no mail service in this build, so there is no way to
+  prove someone controls a mailbox, and a reset that only takes an address
+  cannot be made safe. `/api/auth/reset-password` and
+  `/api/auth/update-password` now change the password of the **caller** and
+  of nobody else, proved by the session token; the address in the body is
+  ignored on purpose. `/api/auth/forgot-password` no longer claims an email
+  has been sent - it says plainly that recovery by email is not available in
+  this build, and still answers the same way for every address, so it cannot
+  be used to find out who has an account.
+
 ### Added
 - **CI workflow** — `.github/workflows/test.yml` runs all four suites on every push
   and PR to `main`: `pnpm run check && pnpm test` (node), `pnpm exec vitest run`
@@ -48,11 +63,22 @@ this file is informal and human-edited.
 Commit: `a19d1f7 feat: Implement Task 1 (Auth & Class Management) and Task 2 (Content Archival & Metadata)`
 
 ### Task 1A — Real Authentication
-- `POST /api/auth/register` — student self-registration via Supabase Auth + local fallback.
+
+> **Corrected on 2026-11-02.** This entry originally said "via Supabase Auth"
+> and described a password-reset email flow. Neither was ever connected: there
+> is no Supabase Auth in this codebase — the Supabase adapter is a data
+> store, not an auth provider — and no mail service sends anything. The
+> bullets below say what actually shipped.
+
+- `POST /api/auth/register` — student self-registration, stored locally.
 - `POST /api/login` — replaced demo login with email + password; backward compatible
   with `{userId}` for 1-click demo.
-- `POST /api/auth/forgot-password` — Supabase password-reset email flow.
-- `POST /api/auth/reset-password`, `POST /api/auth/update-password` — recovery flows.
+- `POST /api/auth/forgot-password` — answers for an address. No mail service is
+  connected, so nothing was ever sent; it now says so instead of claiming
+  otherwise.
+- `POST /api/auth/reset-password`, `POST /api/auth/update-password` — change the
+  caller's own password. They used to change the password of whichever account
+  the address named — see [Unreleased] / Security.
 - `web/src/LoginView.vue` — three tabs: Sign In / Create Account / Demo Accounts.
 
 ### Task 1B — Class Management

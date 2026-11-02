@@ -35,7 +35,7 @@ pets, kingdom buildings and loot in a co-op multiplayer World.
 | Layer | Technology |
 |---|---|
 | Frontend | Vue 3, built with Vite; axios for API calls |
-| Backend | Node.js 22.13+ (`http` module), Socket.IO for the World |
+| Backend | Node.js 22.19+ (`http` module), Socket.IO for the World |
 | Database | Supabase (PostgreSQL), or a local JSON file when Supabase isn't set up |
 | AI (optional) | Gemini 3.5 Flash-Lite; configurable Gemini 3.1 Flash-Lite fallback |
 | Other | pdf.js (PDF text extraction), Playwright and PGlite (tests) |
@@ -45,7 +45,7 @@ coins and access checks all happen on the server.
 
 ## Quick start
 
-Requires **Node.js 22.13 or newer** and **pnpm** (run `corepack enable` once to get the
+Requires **Node.js 22.19 or newer** and **pnpm** (run `corepack enable` once to get the
 version pinned in `package.json`). Use pnpm only: `pnpm-lock.yaml` is the single lockfile.
 
 ```bash

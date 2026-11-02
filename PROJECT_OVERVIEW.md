@@ -108,13 +108,13 @@ Multiple choice, multi-select, true/false and short answer (text or numeric) for
 **Demo data**: 2 courses, 3 classes, 2 professors, 12 students, 29 questions in 6 formats, and about 190 synthetic practice attempts. All demo accounts use the password `quizquest`.
 
 **Must fix before deployment**
-- **Password reset doesn't check ownership.** It must require a one-time reset link or code sent to the account's email. Until then, treat any instance with real accounts as unsafe.
+- ~~**Password reset doesn't check ownership.**~~ **Fixed 2 Nov 2026** — both password endpoints now change the caller's own password and only the caller's, proved by the session token, and `/api/auth/forgot-password` no longer claims an email was sent. Self-service recovery by email is still not there, so an instance with real accounts still needs a way to reset a forgotten password by hand.
 - **Join codes are stored in plain text** next to their hash. Only the hash should be stored.
 - **The Supabase secret key and database password were shared in chat** and should be rotated.
 
 **Not done yet**
 - **Deployment**: no hosting is set up. The plan is a single long-running instance in Singapore, such as Render (`pnpm build`, then `pnpm start`).
-- **Forgot password**: there's no button for it on the login page, and no email is ever sent.
+- **Forgot password**: there's no button for it on the login page, and no email is ever sent. The endpoint now says so plainly instead of claiming that reset instructions were sent.
 - **Live Gemini testing**: the AI features have only been tested with simulated responses.
 - **Leftover features without screens**: the class raid boss (server only, since the World tab became Campfire Defense) and the pet shop and eggs (server only, since the tab became Hero Summon).
 
@@ -132,7 +132,6 @@ Multiple choice, multi-select, true/false and short answer (text or numeric) for
 **Out-of-date documents**
 These conflict with the code; trust this overview or the code instead:
 - `docs/PROTOTYPE.md` and `docs/CODEBASE_GUIDE.md` describe passwordless demo login.
-- `CHANGELOG.md` claims Supabase Auth and a password-reset email flow, neither of which exists.
 
 ## 7. Team
 
