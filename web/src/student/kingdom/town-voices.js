@@ -19,14 +19,14 @@ export const HERO_LINES = {
   },
   bombardier: {
     ambient: ['Arr, I smell treasure!', 'Yo-ho, what a fine breeze.', 'X marks the spot... somewhere...'],
-    greet: ['Ahoy, matey! Found any treasure today? ;D', 'Arr! A fine day for an EXPLOSIVE adventure! ;3'],
+    greet: ['Ahoy, matey! Found any treasure today? >:D', 'Arr! A fine day for an EXPLOSIVE adventure! >:3'],
   },
   bubbles: {
     ambient: ['Wanna play tag? :D', 'Bubbles! Bubbles everywhere! ^_^', 'Hehe, catch me! catch me! :3'],
     greet: ['Hi hi! Wanna play with me? :3', 'You\'re it! Just kidding. Let\'s play! :3'],
   },
   electromancer: {
-    ambient: ['Ouch, a tiny spark!', 'Maybe I should just quit my job and be full mage...', 'UNLIMITED POWER!!!!'],
+    ambient: ['Ouch, a tiny spark!', 'Electric boogaloo ~', 'UNLIMITED POWER!!!!'],
     greet: ['Go read the magic thunder book in the library! It\'s shocking! ;D', 'Hello! Do you want to lightning in a bottle? ;V'],
   },
   fairy: {

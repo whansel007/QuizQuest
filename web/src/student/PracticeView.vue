@@ -173,6 +173,7 @@ const onStart = action(() => enterBattle(async () => {
               <legend class="practice-kicker">TOPICS TO PRACTISE</legend>
               <div class="practice-topics-head">
                 <span class="practice-topics-count" aria-live="polite">{{ chosen.length }} of {{ pickable.length }} chosen</span>
+                <p v-if="!chosen.length" class="practice-topics-hint" role="status">Choose at least one topic to start practising.</p>
                 <div class="practice-topics-actions">
                   <button class="btn small" type="button" :disabled="allChosen" @click="chooseAll(true)">Select all</button>
                   <button class="btn small" type="button" :disabled="!chosen.length" @click="chooseAll(false)">Select none</button>
@@ -187,7 +188,6 @@ const onStart = action(() => enterBattle(async () => {
                   </label>
                 </li>
               </ul>
-              <p v-if="!chosen.length" class="practice-topics-hint" role="status">Choose at least one topic to start practising.</p>
             </fieldset>
           </section>
           <section v-if="resumable" class="panel practice-resume-card">
@@ -285,7 +285,7 @@ const onStart = action(() => enterBattle(async () => {
 .practice-topic-name { overflow: hidden; font-weight: 700; line-height: 1.25; text-overflow: ellipsis; white-space: nowrap; }
 .practice-topic-meta { color: #536A53; font-size: 12px; font-weight: 600; }
 .practice-topic.empty .practice-topic-meta { color: #77816C; }
-.practice-topics-hint { margin: 10px 0 0; color: #713C36 !important; font-size: 14px; font-weight: 700; }
+.practice-topics-hint { margin: 0; color: #713C36 !important; font-size: 14px; font-weight: 700; }
 @media (max-width: 760px) {
   .practice-topic-list { grid-template-columns: minmax(0, 1fr); }
   .practice-topics-actions { margin-left: 0; }
