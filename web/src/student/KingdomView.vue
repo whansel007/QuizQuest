@@ -12,7 +12,6 @@ import { wipe, wipeTo } from '../transitions.js';
 import AsyncButton from '../components/AsyncButton.vue';
 import { loadHome } from './home.js';
 import KingdomTown from './KingdomTown.vue';
-import AvatarPreview from './AvatarPreview.vue';
 import BuildingIcon from './BuildingIcon.vue';
 import GardenPanel from './kingdom/panels/GardenPanel.vue';
 import TowerPanel from './kingdom/panels/TowerPanel.vue';
@@ -23,7 +22,7 @@ import { HERO_LORE } from './kingdom/hero-lore.js';
 import { BUILDING_ROLES, buildingCap, buildingEffect } from './kingdom/building-effects.js';
 import { GAME_CONFIG } from '../../../public/hero-lab/game-config.js';
 import {
-  BUILDING_LEVEL_CAP, TOWN_AVATAR_DEFAULT_COLOR, TOWN_AVATAR_ORIGINAL_COLOR, TOWN_AVATAR_PRESET_COLORS, TOWN_MAX_HEROES,
+  BUILDING_LEVEL_CAP, TOWN_AVATAR_DEFAULT_COLOR, TOWN_MAX_HEROES,
 } from '../../../config/tuning.js';
 
 const error = ref('');
@@ -131,7 +130,6 @@ function wardrobeShortfall(item) {
 const castleInfoOpen = ref(false);
 const upgraders = {};
 const townTarget = ref(null);
-const customizeOpen = ref(false);
 const listOpen = ref(false);
 const tradeBoard = ref(null);
 const tradeLoading = ref(false);
@@ -276,7 +274,6 @@ function trapBookDialog(event) {
 function onTownInteract(id) {
   if (id === 'duel') { wipeTo('practice'); return; }
   if (id === 'campfire') { wipeTo('world'); return; }
-  customizeOpen.value = false;
   listOpen.value = false;
   // moving from one building window to another turns the page with a wipe
   if (townTarget.value && townTarget.value !== id) { wipe(() => openBuilding(id)); return; }
@@ -302,11 +299,6 @@ function onTownKeydown(event) {
   else if (archiveOpen.value) { closeArchiveBook(); event.stopPropagation(); }
   else if (townTarget.value) { closePanel(); event.stopPropagation(); }
   else if (listOpen.value) { listOpen.value = false; event.stopPropagation(); }
-  else if (customizeOpen.value) { customizeOpen.value = false; event.stopPropagation(); }
-}
-function openCustomize() {
-  townTarget.value = null;
-  customizeOpen.value = true;
 }
 
 // Radio refresh: keeps the current notes pinned while tuning, holds the tuning
@@ -449,22 +441,6 @@ async function lookThroughTelescope() {
   } finally { if (alive) lensOn.value = false; }
 }
 
-async function chooseAvatarColor(color) {
-  if (colorSaving.value || color === previewColor.value) return;
-  const previous = previewColor.value;
-  previewColor.value = color;
-  colorSaving.value = true;
-  try {
-    const result = await api('POST', '/api/student/avatar/color', { color });
-    S.me.avatarColor = result.avatarColor;
-    S.me.avatarVisual = result.avatarVisual;
-    previewColor.value = result.avatarColor;
-    toast('Your new look is saved!');
-  } catch (err) {
-    previewColor.value = previous;
-    toast(err.message, true);
-  } finally { colorSaving.value = false; }
-}
 async function saveWardrobeLook() {
   if (colorSaving.value) return;
   const colorId = wardrobeColors.value.find((item) => item.renderValue === wardrobeColor.value)?.id;
@@ -579,7 +555,6 @@ const castlePanelContext = reactive({
       <div class="town-hud town-level">Castle · {{ k.castleLevel }} / {{ BUILDING_LEVEL_CAP }}</div>
 
       <div class="town-hud town-actions">
-        <button class="hud-btn gold" type="button" :aria-expanded="customizeOpen" @click="customizeOpen = !customizeOpen">Customize</button>
         <button class="hud-btn" type="button" title="Emotes (Z)" @click="town?.openEmotes()">Emote <kbd>Z</kbd></button>
         <button class="hud-btn hud-icon" type="button" :aria-pressed="soundState.muted" :aria-label="soundState.muted ? 'Turn sounds on' : 'Mute sounds'" :title="soundState.muted ? 'Sounds off' : 'Sounds on'" @click="toggleMuted">
           <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M3 8h3l4-4v12l-4-4H3Z" /><path v-if="!soundState.muted" d="M13 7c1.4 1.6 1.4 4.4 0 6M15.5 5c2.6 2.8 2.6 7.2 0 10" fill="none" stroke-width="1.8" stroke-linecap="round" /><path v-else d="m13 7 5 6m0-6-5 6" fill="none" stroke-width="1.8" stroke-linecap="round" /></svg>
@@ -589,28 +564,6 @@ const castlePanelContext = reactive({
         <span><kbd>WASD</kbd> walk</span><span><kbd>E</kbd> open / greet</span><span><kbd>Z</kbd> emote</span><span class="north-hint">Battles: walk north-west ↖</span>
         <span class="touch-controls-hint">Tap the ground to walk · tap a building to open</span>
       </div>
-
-      <section v-if="customizeOpen" class="avatar-customize" role="dialog" aria-label="Customize your town avatar">
-        <button class="town-modal-close customize-close" type="button" aria-label="Close customization" @click="customizeOpen = false">×</button>
-        <span class="town-modal-kicker">A NEW COAT OF COLOR</span>
-        <h2>Customize your cat</h2>
-        <AvatarPreview :color="previewColor" />
-        <div class="avatar-swatches" role="group" aria-label="Avatar color presets">
-          <button
-            v-for="color in TOWN_AVATAR_PRESET_COLORS"
-            :key="color"
-            class="avatar-swatch"
-            type="button"
-            :style="{ '--swatch-color': color }"
-            :aria-label="color === TOWN_AVATAR_ORIGINAL_COLOR ? 'Use original sprite color' : `Choose ${color}`"
-            :title="color === TOWN_AVATAR_ORIGINAL_COLOR ? 'Original sprite color' : color"
-            :aria-pressed="previewColor === color"
-            :disabled="colorSaving"
-            @click="chooseAvatarColor(color)"
-          />
-        </div>
-        <p class="avatar-save-state" role="status">{{ colorSaving ? 'Saving your look…' : 'Pick a color to wear around town.' }}</p>
-      </section>
 
       <!-- first-visit tour: a card along the bottom, so the town stays visible -->
       <section v-if="introOpen" class="town-intro" role="dialog" aria-labelledby="town-intro-title" aria-describedby="town-intro-body">
@@ -711,15 +664,6 @@ const castlePanelContext = reactive({
 .kingdom-screen .town-controls-hud kbd { padding: 1px 5px; color: #23382f; background: #f2ba55; border: 1px solid #23382f; border-radius: 4px; font: 800 .68rem ui-monospace, monospace; }
 .kingdom-screen .north-hint { color: #f2ba55; }
 .kingdom-screen .touch-controls-hint { display: none; }
-.kingdom-screen .avatar-customize { position: absolute; z-index: 4; left: 18px; bottom: 70px; width: min(360px, calc(100vw - 32px)); max-height: calc(100% - 100px); overflow-y: auto; padding: 22px; color: #23382f; background: #fbf2d8; background-image: url('/hero-lab/assets/storybook-paper.svg'), linear-gradient(135deg, #fff8e4, #f1e6c7); background-size: 144px 144px, auto; border: 3px solid #23382f; border-radius: 14px 11px 16px 12px; box-shadow: 0 6px 0 #7a6545, 0 14px 30px rgb(16 33 23 / 28%); }
-.kingdom-screen .avatar-customize h2 { margin: 4px 38px 0 0; color: #254937; font: 700 22px/1.1 Georgia, "Palatino Linotype", serif; }
-.kingdom-screen .customize-close { top: 10px; right: 10px; }
-.kingdom-screen .avatar-swatches { display: grid; grid-template-columns: repeat(6, 1fr); gap: 9px; }
-.kingdom-screen .avatar-swatch { width: 38px; height: 38px; justify-self: center; padding: 0; background: var(--swatch-color); border: 2px solid #23382f; border-radius: 50% 45% 48% 42%; box-shadow: 0 2px 0 #7a6545; cursor: pointer; }
-.kingdom-screen .avatar-swatch[aria-pressed="true"] { outline: 3px solid #8062a9; outline-offset: 2px; transform: scale(1.08); }
-.kingdom-screen .avatar-swatch:disabled { opacity: .72; cursor: wait; }
-.kingdom-screen .avatar-swatch:focus-visible { outline: 3px solid #8062a9; outline-offset: 3px; }
-.kingdom-screen .avatar-save-state { min-height: 1.3em; margin: 12px 0 0 !important; color: #52664b; font-size: .82rem; text-align: center; }
 
 .kingdom-screen .town-intro { position: absolute; z-index: 5; left: 18px; bottom: 70px; width: min(430px, calc(100vw - 32px)); padding: 18px 20px 16px; color: #23382f; background: #fbf2d8; background-image: url('/hero-lab/assets/storybook-paper.svg'), linear-gradient(135deg, #fff8e4, #f1e6c7); background-size: 144px 144px, auto; border: 3px solid #23382f; border-radius: 14px 11px 16px 12px; box-shadow: 0 6px 0 #7a6545, 0 14px 30px rgb(16 33 23 / 30%); }
 .kingdom-screen .town-intro h2 { margin: 4px 0 6px; color: #254937; font: 700 24px/1.15 Georgia, "Palatino Linotype", serif; }
@@ -1036,7 +980,6 @@ const castlePanelContext = reactive({
   .kingdom-screen .town-list { top: 118px; left: 10px; }
   .kingdom-screen .town-level { top: 10px; right: 10px; padding: 6px 9px; font-size: .78rem; }
   .kingdom-screen .town-actions { left: 10px; right: 10px; bottom: 10px; flex-wrap: wrap; }
-  .kingdom-screen .avatar-customize { bottom: 62px; left: 10px; padding: 18px; }
   .kingdom-screen .town-intro { bottom: 62px; padding: 14px 16px; }
   .kingdom-screen .town-intro h2 { font-size: 20px; }
   .kingdom-screen .town-modal { width: calc(100vw - 16px); height: calc(100svh - 16px); max-height: none; padding: 16px 12px; }
@@ -1094,7 +1037,7 @@ const castlePanelContext = reactive({
   .kingdom-screen .town-actions .hud-btn { flex: 1 1 0; justify-content: center; padding: 6px 8px; font-size: .78rem; }
   .kingdom-screen .town-controls-hud { bottom: calc(68px + env(safe-area-inset-bottom)); }
   .kingdom-screen .town-list { top: 92px; left: max(8px, env(safe-area-inset-left)); width: min(290px, calc(100vw - 16px)); }
-  .kingdom-screen .town-intro, .kingdom-screen .avatar-customize { bottom: calc(124px + env(safe-area-inset-bottom)); left: 8px; width: min(430px, calc(100vw - 16px)); max-height: calc(100svh - 150px); overflow: auto; }
+  .kingdom-screen .town-intro { bottom: calc(124px + env(safe-area-inset-bottom)); left: 8px; width: min(430px, calc(100vw - 16px)); max-height: calc(100svh - 150px); overflow: auto; }
 }
 @media (pointer: coarse) and (orientation: landscape) and (max-height: 520px) {
   .kingdom-screen .town-title-hud { top: max(6px, env(safe-area-inset-top)); left: max(8px, env(safe-area-inset-left)); padding: 6px 9px; }
