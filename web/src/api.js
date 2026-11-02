@@ -68,6 +68,7 @@ export const S = reactive({
   tab: null,
   courseId: null,
   classId: null,
+  reviewCount: 0, // the To review tab's badge: answers to mark + open reports (teacher/review-count.js)
   qFilter: 'draft',
   qReviewMode: 'list', // Question bank: 'list' or 'cards' (kept across the remount after a save)
   // Weekly topic shared by AI drafting, Question bank and
@@ -180,7 +181,7 @@ function clearSession() {
   } catch {
     // storage blocked: the token only lived in memory anyway
   }
-  Object.assign(S, { token: null, me: null, tab: null, courseId: null, classId: null, qFilter: 'draft', qReviewMode: 'list', topicId: '', ...savedPeriod(), focusQuestionId: null, focusRewrite: false, draftTarget: null });
+  Object.assign(S, { token: null, me: null, tab: null, courseId: null, classId: null, reviewCount: 0, qFilter: 'draft', qReviewMode: 'list', topicId: '', ...savedPeriod(), focusQuestionId: null, focusRewrite: false, draftTarget: null });
   rerender();
 }
 

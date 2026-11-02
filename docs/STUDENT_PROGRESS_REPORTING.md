@@ -37,8 +37,9 @@ pool; its remaining choices can include any eligible topic.
 3. One unresolved report is allowed per student, class, question and version.
    Retrying a submission returns the existing open report. Typed text stays in
    the form when a request fails.
-4. On the **Analytics** dashboard (**Open student reports**, also reached from
-   **Needs attention**) or in **Question bank → Reported**, a professor reads the report and optionally
+4. On **To review → Open student reports** (the Analytics dashboard counts them
+   under **Needs attention** and links there) or in **Question bank → Reported**,
+   a professor reads the report and optionally
    writes a student-visible response before choosing **Mark resolved**. The
    reporter's identity is omitted from the professor's report response.
 5. The student sees pending/resolved reports and the response in **My Progress**.
@@ -56,8 +57,9 @@ pool; its remaining choices can include any eligible topic.
 | `web/src/student/ProgressView.vue` | Progress, report filters, paging and refresh |
 | `web/src/student/ReportForm.vue` | Report form and recoverable submission errors |
 | `web/src/teacher/ReportReview.vue` | Professor response and resolved-report display |
-| `web/src/teacher/dashboard/ReportsPanel.vue` | Open reports on the Analytics dashboard, resolved in place |
-| `src/quiz/analytics.js` | `reports` in the dashboard data: open reports for the course, newest first, without the reporter |
+| `web/src/teacher/ToReviewView.vue` | The professor's To review page: answers to mark and open reports for a class |
+| `web/src/teacher/dashboard/ReportsPanel.vue` | Open reports listed and resolved in place (used by To review) |
+| `src/quiz/reporting.js` (`openReports`) | Open reports for a class's course, newest first, without the reporter; served by `GET /api/teacher/classes/:classId/reports` |
 | `test/progress-reporting-test.js` | Progress rules, access boundaries and database round trip |
 
 New routes: `GET /api/student/classes/:classId/reports`. The existing progress,

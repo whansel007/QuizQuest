@@ -1,6 +1,6 @@
 <script setup>
 // ============================================================
-// Analytics dashboard (+ free-response marking)
+// Analytics dashboard (marking and student reports are on To review)
 // ------------------------------------------------------------
 // One filter row (class, weekly topic, period) scopes everything below
 // it; the Weekly topics table always lists every topic of the course. While new
@@ -17,7 +17,6 @@ import { ref, computed, nextTick, watch, onMounted, onUnmounted } from 'vue';
 import { S, api, setTab, rerender, periodQuery, dashQuery, dashPrefs, saveDashPrefs, customPeriodError } from '../api.js';
 import { pct, secs, toast, when, clockTime } from '../ui.js';
 import Meter from '../components/Meter.vue';
-import AsyncButton from '../components/AsyncButton.vue';
 import Pager from '../components/Pager.vue';
 import { usePaged, printing } from '../components/paged.js';
 import ClassPicker from './ClassPicker.vue';
@@ -32,7 +31,7 @@ import WhenPanel from './dashboard/WhenPanel.vue';
 import ContextsPanel from './dashboard/ContextsPanel.vue';
 import QualityPanel from './dashboard/QualityPanel.vue';
 import ComparePanel from './dashboard/ComparePanel.vue';
-import ReportsPanel from './dashboard/ReportsPanel.vue';
+import { refreshReviewCount } from './review-count.js';
 import { loadCourses, syncTopic, topicLabel } from './courses.js';
 import { downloadCsv, pctCell, secCell } from './csv.js';
 
@@ -47,8 +46,7 @@ const courses = ref([]);
 const classes = ref([]);
 const courseOfClass = new Map(); // so links into other tabs open the right course
 const a = ref(null);
-const marking = ref([]); // the newest answers waiting for a mark
-const markingTotal = ref(0); // all of them (the list above may be capped)
+const markingTotal = ref(0); // answers waiting for a mark (Needs attention links to To review)
 const updatedAt = ref(null);
 const stamp = ref(0); // bumps on every load, so side panels reload too
 const auto = ref(dashPrefs().auto !== false);
@@ -77,12 +75,12 @@ async function load({ quiet = false } = {}) {
     // a newly chosen topic opens with its learning outcomes showing
     if (analytics.topicId && analytics.topicId !== a.value?.topicId) openTopics.value = new Set([analytics.topicId]);
     a.value = analytics;
-    marking.value = queue.items;
     markingTotal.value = queue.total;
     error.value = '';
     refreshFailedAt.value = null;
     updatedAt.value = Date.now();
     stamp.value++;
+    refreshReviewCount();
     return true;
   } catch (err) {
     if (mine !== seq) return;
@@ -237,27 +235,6 @@ const period = computed(() => {
 });
 
 const frac = (r) => (r && r.n ? `${pct(r.accuracy)} (${r.correct}/${r.n})` : '-');
-// The marked answer leaves the list at once and the numbers refresh in
-// the background: no reload, so scroll position, open topics and pages stay.
-const sliding = ref(false); // only a marked answer slides out, not a page turn
-// If a co-teacher (or another tab) marked it first, their mark stands.
-const mark = (m, correct) => async () => {
-  let taken = false;
-  try {
-    await api('POST', `/api/teacher/attempts/${m.attemptId}/mark`, { correct, expectPending: true });
-  } catch (err) {
-    if (err.status !== 409) throw err;
-    taken = true;
-  }
-  sliding.value = true;
-  setTimeout(() => (sliding.value = false), 400);
-  marking.value = marking.value.filter((x) => x.attemptId !== m.attemptId);
-  markingTotal.value = Math.max(0, markingTotal.value - 1);
-  toast(taken ? 'Someone else already marked this answer, so their mark stands.' : `Marked ${correct ? 'correct' : 'not correct'}`, taken);
-  await nextTick(); // the clicked button is gone: keep keyboard focus nearby
-  document.querySelector(marking.value.length ? '#dash-marking h3' : '#dash-overview h3')?.focus({ preventScroll: true });
-  load({ quiet: true });
-};
 // ---- the weekly topic the dashboard is narrowed to ('' = all)
 const course = computed(() => courses.value.find((c) => c.id === courseOfClass.get(S.classId)));
 const topic = computed(() => course.value?.topics.find((t) => t.id === a.value?.topicId) || null);
@@ -283,15 +260,8 @@ function toBank({ focus = null, filter = null } = {}) {
   setTab('review');
 }
 const openInBank = (id) => toBank({ focus: id });
-// a report resolved on the dashboard leaves the list at once; the quiet
-// reload then brings every count (Needs attention, Commonly missed) in line
-function reportResolved(id) {
-  if (a.value) {
-    a.value.reports = a.value.reports.filter((r) => r.id !== id);
-    a.value.openReports = Math.max(0, a.value.openReports - 1);
-  }
-  load({ quiet: true });
-}
+// answers to mark and open student reports live on their own page
+const goReview = () => setTab('todo');
 function draftFor(topicId, outcomeId) {
   S.courseId = courseId.value || S.courseId;
   S.draftTarget = { topicId, outcomeId };
@@ -367,11 +337,11 @@ const barLabel = (r) => `${r.name}: ${pct(r.accuracy)} correct on first attempts
 // in page order (the section bar marks the last one scrolled past).
 // [id, label, short label]: the bar stays one row, and where the full labels
 // don't fit it shows the short ones (each a word of the full label, which
-// stays the button's accessible name).
+// stays in the button as screen-reader text, so it is still the button's name).
+// No aria-label: that would make "Weekly topics" match getByLabel('Weekly
+// topic') and other label lookups meant for the form fields.
 const sections = computed(() => [
   ['dash-overview', 'Overview', 'Overview'],
-  ...(markingTotal.value ? [['dash-marking', 'To mark', 'To mark']] : []),
-  ...(a.value?.reports?.length ? [['dash-reports', 'Student reports', 'Reports']] : []),
   ['dash-weeks', 'Weekly topics', 'Weekly'],
   ['dash-trends', 'Trends', 'Trends'],
   ['dash-topics', 'Topics and questions', 'Topics'],
@@ -434,11 +404,11 @@ const attention = computed(() => {
   if (!a.value) return [];
   const out = [];
   const plural = (n, one, many = one + 's') => `${n} ${n === 1 ? one : many}`;
-  if (markingTotal.value) out.push({ icon: '✎', text: `${plural(markingTotal.value, 'answer')} waiting for your mark`, go: () => goTo('dash-marking') });
+  if (markingTotal.value) out.push({ icon: '✎', text: `${plural(markingTotal.value, 'answer')} waiting for your mark`, go: goReview });
   const drafts = a.value.overview.topics.filter((t) => !a.value.topicId || t.topicId === a.value.topicId).reduce((n, t) => n + t.questions.draft, 0);
   if (drafts) out.push({ icon: '✎', text: `${plural(drafts, 'drafted question')} waiting for your review`, go: () => goTopic({ topicId: a.value.topicId || '', tab: 'review', filter: 'draft' }) });
   if (a.value.tags.issues.length) out.push({ icon: '⚠', text: `${plural(a.value.tags.issues.length, 'question')} missing tags`, go: () => goTo('dash-quality') });
-  if (a.value.openReports) out.push({ icon: '⚑', text: `${plural(a.value.openReports, 'open student report')}`, go: () => goTo('dash-reports') });
+  if (a.value.openReports) out.push({ icon: '⚑', text: `${plural(a.value.openReports, 'open student report')}`, go: goReview });
   const confusing = a.value.time.questions.filter((q) => q.confusing).length;
   // a single question opens straight away; several go to their list
   const flagged = a.value.time.questions.filter((q) => q.confusing);
@@ -549,7 +519,6 @@ function toggleTopic(id) {
 }
 
 // ---- long lists are paged (the charts and CSV exports still use everything)
-const markingPages = usePaged(() => marking.value, 5);
 
 
 // "commonly missed": under the same line as "often wrong", worst first
@@ -643,7 +612,7 @@ function missedCsv() {
           <button class="btn" @click="printReport">Print report</button>
         </div>
         <nav ref="navEl" class="dash-nav" aria-label="Dashboard sections" :style="{ top: barHeight + 'px' }">
-          <button v-for="[id, label, short] in sections" :key="id" class="btn small" :data-section="id" :aria-label="label" :aria-current="currentSection === id ? 'location' : null" @click="goTo(id)"><span class="dash-nav-full">{{ label }}</span><span class="dash-nav-short" aria-hidden="true">{{ short }}</span></button>
+          <button v-for="[id, label, short] in sections" :key="id" class="btn small" :data-section="id" :aria-current="currentSection === id ? 'location' : null" @click="goTo(id)"><span class="dash-nav-full">{{ label }}</span><span class="dash-nav-short" aria-hidden="true">{{ short }}</span></button>
         </nav>
       </div>
       <p v-if="noSemester" class="note small no-print">
@@ -740,31 +709,6 @@ function missedCsv() {
             </div>
           </div>
         </section>
-
-        <div v-if="marking.length" id="dash-marking" class="panel no-print" style="border-color: var(--warn)">
-          <h3 tabindex="-1">Answers to mark ({{ markingTotal }})</h3>
-          <p class="small muted">Free-response answers get a provisional automatic mark. Confirm or change it; marking an answer correct pays the usual first-correct coins. Answers are shown without student names. This list covers every period.</p>
-          <p v-if="markingTotal > marking.length" class="small">Showing the newest {{ marking.length }} of {{ markingTotal }}; older ones appear as you mark these.</p>
-          <TransitionGroup tag="div" :name="sliding ? 'marked' : 'none'" class="marking-list">
-            <div v-for="m in markingPages.items" :key="m.attemptId" class="marking-item">
-              <div style="font-weight: 600">{{ m.stem }}</div>
-              <div class="small muted">Key points: {{ m.keyPoints.map((k, i) => (m.coveredPoints.includes(i) ? `✓ ${k}` : `○ ${k}`)).join(' · ') }}</div>
-              <div class="panel" style="background: var(--bg); margin: 6px 0; padding: 10px; white-space: pre-wrap">{{ m.text || '(blank)' }}</div>
-              <div class="row">
-                <span class="small">Auto ({{ m.method }}): <b>{{ m.autoCorrect ? 'correct' : 'not correct' }}</b> · {{ pct(m.score) }} of key points</span>
-                <AsyncButton class="btn small good" :run="mark(m, true)">Mark correct</AsyncButton>
-                <AsyncButton class="btn small bad" :run="mark(m, false)">Mark not correct</AsyncButton>
-              </div>
-            </div>
-          </TransitionGroup>
-          <Pager :paged="markingPages" label="Answers to mark pages" noun="answers" />
-        </div>
-
-        <!-- OPEN STUDENT REPORTS: read and resolve them without leaving the dashboard -->
-        <div v-if="a.reports?.length" id="dash-reports" class="panel no-print" style="border-color: var(--warn)">
-          <h3 tabindex="-1">Open student reports ({{ a.reports.length }})</h3>
-          <ReportsPanel :reports="a.reports" :timezone="a.timezone" @resolved="reportResolved" @open-question="openQuestion" @open-in-bank="openInBank" />
-        </div>
 
         <!-- WEEKLY TOPICS -->
         <section id="dash-weeks" class="t-section">
@@ -962,7 +906,7 @@ function missedCsv() {
                 </div>
                 <div class="small muted">{{ `${q.topic} · first attempts ${frac(q.first)} · retries ${frac(q.retry)}` }}</div>
                 <div v-if="q.topWrong" class="small">Most chosen wrong answer: <b>"{{ q.topWrong.option }}"</b> ({{ q.topWrong.count }}x)</div>
-                <div v-if="q.openReports" class="small" style="color: var(--bad)">⚑ {{ q.openReports }} open student report(s) - <button class="linklike" @click="goTo('dash-reports')">see Open student reports</button></div>
+                <div v-if="q.openReports" class="small" style="color: var(--bad)">⚑ {{ q.openReports }} open student report(s) - <button class="linklike" @click="goReview">see To review</button></div>
               </div>
               <Pager :paged="missedPages" label="Commonly missed questions pages" noun="questions" />
             </template>

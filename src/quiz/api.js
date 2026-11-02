@@ -31,7 +31,7 @@ const { validateQuestion } = require('./validate');
 const { generate, GEN } = require('./generator');
 const { ADAPTIVE, topicStats, planSession, similarToMissed } = require('./adaptive');
 const { studentProgress } = require('./progress');
-const { reportContext, studentReports } = require('./reporting');
+const { reportContext, studentReports, openReports } = require('./reporting');
 const reportCategories = require('./report-categories.json');
 const { classAnalytics, courseComparison, questionInsights, parsePeriod, isValidTimeZone } = require('./analytics');
 const { localIso, APP_TZ } = require('./time');
@@ -1625,6 +1625,11 @@ attemptId: attempt.id,
     const p = { ...period(query, db.courses.find((c) => c.id === cls.courseId), classTz(cls)), topicId: topicFilter(query, cls.courseId) };
     return cached(`class|${params.classId}|${periodKey(p)}`, versionOfClass(params.classId), () => classAnalytics(db, params.classId, now(), p));
   });
+
+  // Open student reports for the class's course (the To review page)
+  route('GET', '/api/teacher/classes/:classId/reports', 'teacher', ({ user, params }) => ({
+    items: openReports(db, teacherClass(user, params.classId)),
+  }));
 
   // One question in detail (dashboard drill-down), for this class's answers
   route('GET', '/api/teacher/classes/:classId/questions/:qid/insights', 'teacher', ({ user, params, query }) => {
