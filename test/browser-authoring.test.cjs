@@ -592,7 +592,7 @@ test('a pending generation request belongs to its own topic', async t => {
   await page.goto(base);
   await pickDemo(page, 'Prof. Demo A');
   await page.locator('#tabs').getByRole('button', { name: 'AI drafting', exact: true }).click();
-  await page.getByLabel('Weekly topic').waitFor();
+  await page.getByLabel('Weekly topic', { exact: true }).waitFor();
   // A request that never reached the server is kept in the browser, so it can
   // be retried without creating another batch. It belongs to one topic.
   const pending = { kind: 'generation', attemptId: 'attempt-for-week-2', analysisId: 'a', reportRevision: 0, topicId: 'tp-net', learningOutcome: 'Describe how data moves across a network', assessmentStyle: 'conceptual', quantities: { mcq: 1 } };
@@ -612,13 +612,13 @@ test('a pending generation request belongs to its own topic', async t => {
   }, pending);
   const banner = page.getByRole('status').filter({ hasText: 'A generation request needs confirmation.' });
   // Week 2 is the topic the request belongs to.
-  await page.getByLabel('Weekly topic').selectOption('tp-net');
+  await page.getByLabel('Weekly topic', { exact: true }).selectOption('tp-net');
   await banner.waitFor();
   // Another topic is neither blocked by it nor given its retry button.
-  await page.getByLabel('Weekly topic').selectOption('tp-data');
+  await page.getByLabel('Weekly topic', { exact: true }).selectOption('tp-data');
   await banner.waitFor({ state: 'detached' });
   assert.equal(await page.getByRole('button', { name: 'Retry generation request', exact: true }).count(), 0);
   // And the request is still there when the professor comes back to Week 2.
-  await page.getByLabel('Weekly topic').selectOption('tp-net');
+  await page.getByLabel('Weekly topic', { exact: true }).selectOption('tp-net');
   await banner.waitFor();
 });
