@@ -4,8 +4,9 @@
 // Analytics dashboard so that page stays about the numbers.
 //  - Answers to mark: free-response answers with a provisional automatic
 //    mark, waiting for the professor's (any period, this class).
-//  - Open student reports: what students said is wrong with a question
-//    (the class's whole course, newest first, never who sent them).
+//  - Open student reports: what this class's students said is wrong with a
+//    question (newest first, never who sent them), and a pointer to the
+//    professor's other classes of the course that have some.
 // Both work in place: a marked answer or resolved report leaves its list
 // at once and the lists refresh quietly, so nothing jumps.
 // ============================================================
@@ -28,6 +29,7 @@ const error = ref('');
 const marking = ref([]); // the newest answers waiting for a mark (the server caps the list)
 const markingTotal = ref(0); // all of them
 const reports = ref([]);
+const otherClasses = ref([]); // this professor's other classes of the course with open reports
 const insight = ref(null);
 const total = computed(() => markingTotal.value + reports.value.length);
 const markingPages = usePaged(() => marking.value, 5);
@@ -45,6 +47,7 @@ async function load() {
     marking.value = queue.items;
     markingTotal.value = queue.total;
     reports.value = open.items;
+    otherClasses.value = open.otherClasses;
     S.reviewCount = total.value;
     error.value = '';
   } catch (err) {
@@ -110,6 +113,14 @@ function reportResolved(id) {
   load();
 }
 const openQuestion = (id) => insight.value.open(id);
+// "1 more report in Group A": look at that class instead
+function showClass(id) {
+  S.classId = id;
+  saveDashPrefs({ classId: id });
+  marking.value = [];
+  reports.value = [];
+  load();
+}
 function openInBank(id) {
   S.courseId = courses.value.find((c) => c.classes.some((cl) => cl.id === S.classId))?.id || S.courseId;
   S.focusQuestionId = id;
@@ -159,7 +170,16 @@ onUnmounted(() => refreshReviewCount());
           <ReportsPanel :reports="reports" :timezone="timezone" @resolved="reportResolved" @open-question="openQuestion" @open-in-bank="openInBank" />
         </div>
       </section>
+
+      <p v-if="otherClasses.length" class="small other-classes">
+        ⚑ {{ otherClasses.reduce((n, c) => n + c.count, 0) }} more open {{ otherClasses.reduce((n, c) => n + c.count, 0) === 1 ? 'report' : 'reports' }} in your other {{ otherClasses.length === 1 ? 'class' : 'classes' }} of this course:
+        <template v-for="(c, i) in otherClasses" :key="c.id">{{ i ? ', ' : ' ' }}<button class="linklike" @click="showClass(c.id)">{{ c.name }} ({{ c.count }})</button></template>
+      </p>
     </template>
     <QuestionInsight ref="insight" @open-in-bank="openInBank" />
   </div>
 </template>
+
+<style scoped>
+.other-classes { margin: 0 0 16px; }
+</style>

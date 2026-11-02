@@ -782,7 +782,8 @@ test('to review: marking keeps the page in place and the sidebar count follows',
   await page.locator('#tabs').getByRole('button', { name: 'To review', exact: true }).click();
   // earlier tests may have left short answers or reports of their own
   const pending = () => db.attempts.filter((a) => a.classId === 'cl-a' && a.needsReview).length;
-  const openReports = () => db.questions.filter((q) => q.courseId === 'c-comp').reduce((n, q) => n + q.reports.filter((r) => !r.resolved).length, 0);
+  // the badge counts this class's open reports, as the page lists them
+  const openReports = () => require('../src/quiz/reporting').openReports(db, db.classes.find((c) => c.id === 'cl-a'), 't-a').items.length;
   const n = pending();
   await page.getByRole('heading', { name: `Answers to mark (${n})` }).waitFor();
   const badge = page.locator('#tabs .t-nav-count');

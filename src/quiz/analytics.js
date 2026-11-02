@@ -20,6 +20,7 @@
 // ============================================================
 
 const { TYPE_LABELS } = require('./formats');
+const { openReportsForClass } = require('./reporting');
 const { sortTopics, topicSummary } = require('./topics');
 const { DAY, DEFAULT_TZ, isValidTimeZone, localDate, instantOf, mondayOf, weekdayHour } = require('./time');
 
@@ -381,7 +382,7 @@ function classAnalytics(db, classId, now = Date.now(), period = { range: 'all' }
       first: rate(list.filter((a) => a.first)),
       retry: rate(list.filter((a) => !a.first)),
       topWrong,
-      openReports: q.reports.filter((r) => !r.resolved).length,
+      openReports: openReportsForClass(db, q, classId).length, // this class's, like To review
     });
   }
   // lowest first-attempt accuracy first; ties: more evidence first
@@ -430,7 +431,8 @@ function classAnalytics(db, classId, now = Date.now(), period = { range: 'all' }
     time: timeByQuestion(questionsById, byQuestion, topics),
     when: whenPractised(attempts, tz),
     contexts: contexts(confirmed, topics),
-    openReports: courseQs.reduce((n, q) => n + q.reports.filter((r) => !r.resolved).length, 0),
+    // this class's open reports (Needs attention links to To review, which lists the same ones)
+    openReports: courseQs.reduce((n, q) => n + openReportsForClass(db, q, classId).length, 0),
     points,
   };
 }
