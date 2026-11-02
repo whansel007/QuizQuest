@@ -183,6 +183,13 @@ const handleGenerateCode = action(async () => {
 const handleRevokeCode = (code) => action(async () => {
   if (!confirm('Are you sure you want to revoke this join code? Students will no longer be able to use it.')) return;
   await api('DELETE', `/api/classes/${selectedClass.value.id}/join-codes/${code.id}`);
+  // The green banner still holds the code that was just revoked, and it
+  // still says "Share this code with your students" with a live Copy Code
+  // button - so the professor could copy and hand out a code that no
+  // longer works. The banner goes when the code it names is the one that
+  // dies; a code revoked from the list that is not the banner's leaves the
+  // banner alone, because that one is still good.
+  if (newlyGeneratedCode.value === code.code) newlyGeneratedCode.value = null;
   toast('Join code revoked.');
   await loadClassDetails(selectedClass.value);
   await loadData();
