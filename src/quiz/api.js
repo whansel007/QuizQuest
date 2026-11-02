@@ -54,6 +54,7 @@ const BODY_LIMIT = 100 * 1024;     // bytes, default per request
 const PASSAGE_LIMIT = 100000;      // characters per passage (PDF chapters)
 const TOKEN_TTL = 8 * 3600 * 1000;
 const SESSION_LENGTHS = [5, 8, 10, 15];
+const PRACTICE_ATTACK_DAMAGE = 10;
 const TIMERS = [0, 30, 60, 90];    // seconds per question; 0 = untimed
 const LOGIN_MAX_FAILS = 5;         // wrong passwords per email...
 const LOGIN_LOCK_MS = 15 * 60 * 1000; // ...before it is locked for this long
@@ -63,6 +64,16 @@ const ACCOMMODATION = [1, 1.5, 2];
 const TIMER_GRACE_MS = 3000;       // network slack before the server calls time
 const SEEDED_DEMO_USER_IDS = new Set(['t-a', 't-b', ...Array.from({ length: 12 }, (_, i) => `s-${String(i + 1).padStart(2, '0')}`)]);
 const isSeededDemoUser = (user) => SEEDED_DEMO_USER_IDS.has(user.id) && user.email?.endsWith('@quizquest.demo');
+
+function syncPracticeNpc(session) {
+  if (!session.npc) return false;
+  const maxHp = Math.max(1, session.items.length) * PRACTICE_ATTACK_DAMAGE;
+  const hp = Math.max(0, maxHp - PRACTICE_ATTACK_DAMAGE * session.items.filter((it) => it.result?.correct).length);
+  if (session.npc.maxHp === maxHp && session.npc.hp === hp) return false;
+  session.npc.maxHp = maxHp;
+  session.npc.hp = hp;
+  return true;
+}
 
 class HttpError extends Error {
   constructor(status, message) {
@@ -1502,7 +1513,7 @@ attemptId: attempt.id,
       Object.assign(item.result, { correct: a.correct, score: a.score, provisional: false, markedAt: a.markedAt });
       item.result.attack = null; // a later mark is not another live attack
       session.coins += paid;
-      session.npc.hp = Math.max(0, session.npc.maxHp - 10 * session.items.filter((it) => it.result?.correct).length);
+      syncPracticeNpc(session);
       item.result.npc = { ...session.npc };
       if (paid) item.result.rewards.push({ reason: 'Confirmed by professor', granted: paid, capped: false });
     }
@@ -1827,7 +1838,7 @@ return studentProgress(db, user.id, cl);
     const mine = db.attempts.filter((a) => a.studentId === user.id && a.classId === cl.id);
     const recentIds = [...mine].sort((a, b) => b.at - a.at).map((a) => a.questionId);
     const plan = planSession({ bank, topics, stats: topicStats(mine, topics), recentIds, length: body.length });
-    const npcHp = Math.max(1, Math.ceil(plan.questionIds.length * 0.6)) * 10;
+    const npcHp = Math.max(1, plan.questionIds.length) * PRACTICE_ATTACK_DAMAGE;
     const session = {
       id: newId('ses'),
       studentId: user.id,
@@ -1868,6 +1879,7 @@ return studentProgress(db, user.id, cl);
         if (s.cursor >= s.items.length) finishSession(s, user);
         save();
       }
+      if (syncPracticeNpc(s)) save();
     }
     // Prepare the current item (first view only). A maths template may
     // fail to produce usable numbers; skip it rather than leave the
@@ -1926,6 +1938,7 @@ return studentProgress(db, user.id, cl);
     // memory (not on the saved session) so a restart can't leave it stuck.
     const lock = `${s.id}:${index}`;
     if (index !== s.cursor || !item.servedAt || grading.has(lock)) fail(409, 'That question is not the current one.');
+    syncPracticeNpc(s);
     grading.add(lock);
     const q = db.questions.find((x) => x.id === item.qid);
     const v = versionOf(q, item.v);
@@ -1948,7 +1961,7 @@ return studentProgress(db, user.id, cl);
       grading.delete(lock);
     }
     s.coins += out.coins;
-    if (out.result.correct) s.npc.hp = Math.max(0, s.npc.hp - 10);
+    if (out.result.correct) s.npc.hp = Math.max(0, s.npc.hp - PRACTICE_ATTACK_DAMAGE);
     s.cursor++;
     let extras = {};
     if (s.cursor >= s.items.length) {
@@ -1961,7 +1974,7 @@ return studentProgress(db, user.id, cl);
       index,
       ...out.result,
       npc: { ...s.npc },
-      attack: out.result.correct ? { pet: pet.emoji, move: pet.move, damage: 10 } : null,
+      attack: out.result.correct ? { pet: pet.emoji, move: pet.move, damage: PRACTICE_ATTACK_DAMAGE } : null,
       done: !!s.completedAt,
       resources: extras.resources,
       participation: extras.participation,
