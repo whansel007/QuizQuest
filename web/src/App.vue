@@ -139,7 +139,7 @@ onUnmounted(() => {
 </script>
 
 <template>
-  <!-- signed out: the sign-in page fills the screen, with its own logo and footer -->
+  <!-- signed out: the sign-in page fills the screen, with its own logo -->
   <LoginView v-if="ready && !S.me" :key="'login' + S.viewKey" />
   <!-- teachers: a calm workspace with a collapsible sidebar and full-width pages -->
   <div v-else-if="ready && teacherActive" class="teacher-app" :class="{ 'nav-collapsed': navCollapsed, 'drawer-open': drawerOpen }">
@@ -174,10 +174,6 @@ onUnmounted(() => {
     </aside>
     <main id="main" class="main-teacher">
       <component :is="current[2]" :key="current[0] + ':' + S.viewKey + ':' + S.token" />
-      <footer class="t-footer">
-        Demo build with synthetic users and demo course content only. Do not enter real student data.
-        · <a href="/tag">Circle Tag (the original multiplayer experiment)</a>
-      </footer>
     </main>
   </div>
   <template v-else-if="ready">
@@ -224,10 +220,6 @@ onUnmounted(() => {
     @focus="showStudentNav"
     @click="onTopPointerEnter"
   >▾</button>
-  <footer :class="{ 'footer-student': studentActive }">
-    Demo build with synthetic users and demo course content only. Do not enter real student data.
-    · <a href="/tag">Circle Tag (the original multiplayer experiment)</a>
-  </footer>
   </template>
   <ScreenWipe />
   <div id="toast" role="status" aria-live="polite" :class="{ show: toastState.show, bad: toastState.bad }">{{ toastState.msg }}</div>

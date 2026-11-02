@@ -7,6 +7,7 @@ import { S, api, rerender, setTab } from '../api.js';
 import { toast, action, fmtBundle } from '../ui.js';
 import { store } from './home.js';
 import QuestionForm from './QuestionForm.vue';
+import FormattedText from '../components/FormattedText.vue';
 import ResultBlock from './ResultBlock.vue';
 import ReportForm from './ReportForm.vue';
 import AvatarPreview from './AvatarPreview.vue';
@@ -289,7 +290,7 @@ onUnmounted(() => {
               <button class="btn small" type="button" @click="goToKingdom">Return to Kingdom</button>
             </div>
           </div>
-          <div class="stem">{{ question?.stem || 'Preparing your next question…' }}</div>
+          <FormattedText class="stem" :text="question?.stem || 'Preparing your next question…'" />
         </section>
 
         <section class="panel quiz-answers-card" aria-label="Answer choices">
