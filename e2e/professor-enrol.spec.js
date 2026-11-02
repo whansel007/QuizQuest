@@ -50,7 +50,13 @@ test("clicking a student in the roster offers the professor's other classes in a
   await form.getByLabel('Add to class').selectOption({ label: 'Computing - Tutorial Group C' });
   await form.getByRole('button', { name: 'Add' }).click();
   await expect(page.getByText('Added Dropdown Pick to Computing - Tutorial Group C.')).toBeVisible();
-  // the profile stays open and now lists both classes, with nothing left to add
+  // the profile stays open and now lists both classes
+  const profile = page.locator('tr.student-profile');
+  await expect(profile.getByText('Computing - Tutorial Group A', { exact: true })).toBeVisible();
+  await expect(profile.getByText('Computing - Tutorial Group C', { exact: true })).toBeVisible();
+  // and Group C is no longer on offer, because the student is in it now
+  await expect(form.getByRole('option', { name: 'Computing - Tutorial Group C' })).toHaveCount(0);
+  // with nothing left to add, the roster says so
   await expect(page.getByText('Already in all of your active classes.')).toBeVisible();
 });
 

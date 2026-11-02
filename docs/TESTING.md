@@ -39,6 +39,11 @@ The older server tests in `test/` still run with `pnpm test` (Node's built-in te
 - `e2e/raid-boss.spec.js`: two students share one raid boss; a correct answer damages it for the class and the reward is split.
 - `e2e/progress-reporting.spec.js`: practice changes the topic's correct/count figures; a student report reaches the professor and the student sees the resolution response.
 - `e2e/team-room.spec.js`: two students create and join the same Campfire Defense room and see its membership.
+- `e2e/summon.spec.js`: the hero summon — a single pull that costs 50 coins, shows the prize and is written into the journal, and a ten-pull that shows all ten results.
+- `e2e/kingdom-build.spec.js`: a Kingdom building is built from the building list and the panel says it went up; the server refuses one the student cannot pay for.
+- `e2e/question-editor.spec.js`: a professor writes a question in the editor and publishes it from the question bank.
+- `e2e/class-management.spec.js`: the professor's Classes & Roster tab — creating a class, giving it a join code, revoking that code, and archiving and restoring the class.
+- `e2e/teacher-settings.spec.js`: the course settings — the subject guidance, the semester dates and the classmate trading toggle — and the dates then reaching the Analytics dashboard.
 
 ## How the end-to-end tests run
 
@@ -79,6 +84,9 @@ The rules that keep a test safe to retry:
 - **Read the numbers off the page.** The length of a session is what the counter says, not what the test asked for: the server can shorten a session when it has no instance of a question to serve.
 - **Wait for the account to exist.** Creating an account is a request of its own, and reloading the tab while it is still in flight cancels it. `signUpStudent` waits for the "Log out" button that only appears once the account exists.
 - **Close what you open.** A browser context that stays open leaves its student connected to the class world, so the next attempt finds one player too many. Close the contexts in a `finally`, not at the end of the happy path.
+- **Put away what you leave behind.** A class a test creates stays in the professor's list for good, and the roster builds its "add to another class" dropdown from that list — so a class left **active** changes what a later spec sees, and that spec fails for a reason that has nothing to do with it. Archive the class before the test ends, and archive any leftovers from a failed attempt at the start of the next one. (An archived class is still on the grid when "Show archived classes" is ticked, which is why the counts are read off the page rather than assumed.)
+- **Give a poll a budget longer than the request it is waiting for.** `expect.poll` gives up at the **expect** timeout (10 s), not at the test timeout. If the helper it polls can take three eight-second requests when the server drops the connection, the poll needs a bigger timeout of its own — otherwise it reports a failure for a value that was about to arrive.
+- **Make the test's own timeout hold the whole test.** When `test.setTimeout` is the thing that fires, the report says *"Test timeout of N ms exceeded"* and nothing else — no clue which wait was the one that ran out. The timeout has to hold the work the test does **and** the polls that follow it, and each of those polls needs a budget of its own. The raid spec is the example: it answers for two minutes and then waits for four more broadcasts, so its timeout has to hold all of that, not just the first two minutes.
 
 CI keeps first-attempt failure traces and screenshots in the **playwright-test-results** artifact for seven days. Download and unzip it from the GitHub Actions run, then open a trace with `pnpm exec playwright show-trace path/to/trace.zip`. The report journey has named steps for student submission, professor resolution and student refresh; a separate fixture owns the professor browser's cleanup so a teardown error can be distinguished from a journey failure.
 
