@@ -140,7 +140,7 @@ onUnmounted(() => {
 </script>
 
 <template>
-  <!-- signed out: the sign-in page fills the screen, with its own logo and footer -->
+  <!-- signed out: the sign-in page fills the screen, with its own logo -->
   <LoginView v-if="ready && !S.me" :key="'login' + S.viewKey" />
   <!-- teachers: a calm workspace with a collapsible sidebar and full-width pages -->
   <div v-else-if="ready && teacherActive" class="teacher-app" :class="{ 'nav-collapsed': navCollapsed, 'drawer-open': drawerOpen }">

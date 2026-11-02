@@ -1412,6 +1412,7 @@ dialog.insight::backdrop { background: rgba(10, 12, 20, 0.45); }
     display: block; min-height: 0; background: #fff;
   }
   .teacher-app .t-sidebar, .teacher-app .t-scrim, .teacher-app header#top.t-topbar { display: none !important; }
+  .teacher-app .t-sidebar, .teacher-app .t-scrim, .teacher-app header#top.t-topbar { display: none !important; }
   .teacher-app main#main.main-teacher { padding: 0; }
   body .viz, body .cell-bar, body .topic-bars { --viz-grid: #e5e5e5; --viz-axis: #bbbbbb; --series-1: #2a78d6; --series-2: #eb6834; --series-3: #05a873; --series-4: #cd8300; --series-5: #dc709a; --series-6: #008300; --series-7: #4a3aa7; --series-8: #e34948; }
   body { background: #fff; color: #111; font-size: 12px; }
@@ -2794,9 +2795,13 @@ main#main.main-progress {
   background-image:
     radial-gradient(ellipse at 50% 0%, rgb(127 174 88 / 16%), transparent 62%),
     linear-gradient(180deg, #315a42, #254937 58%, #1d3b2d);
+  background-size: auto, auto;
+  background-repeat: no-repeat;
 }
 main#main.main-progress :is(h2, h3) { color: #fff8e4; }
 main#main.main-progress > .small.muted { color: #d5e3d0; }
+main#main.main-progress .pg-columns > .panel { color: #254937; }
+main#main.main-progress .pg-columns .pg-heading { color: #254937; }
 main#main.main-progress .pg-heading::after { border-top-color: #9db37f; }
 main#main.main-progress .pg-hero {
   background: radial-gradient(ellipse at 0% 0%, rgb(127 174 88 / 30%), transparent 55%), #315a42;
