@@ -41,6 +41,7 @@ const previewHero = ref(null);
 const rosterError = ref('');
 const loadingRoster = ref(true);
 const heroes = computed(() => roster.value?.catalog.heroes || []);
+const orderedHeroes = computed(() => [...heroes.value].sort((a, b) => a.name.localeCompare(b.name, undefined, { sensitivity: 'base' })));
 const ownsHero = (id) => roster.value?.inventory.heroes.includes(id) || debugUnlockedHeroes.value.includes(id) || false;
 // Building levels live on their own endpoint (/api/student/kingdom); the home
 // payload does not carry a kingdom block, so reading levels from `roster` left
@@ -309,9 +310,9 @@ onUnmounted(() => window.removeEventListener('message', returnToSelection));
 
         <section class="hero-selector" aria-label="Choose your hero">
           <div class="roster-heading"><strong>Choose an adventurer</strong></div>
-          <div class="hero-roster-grid" :style="{ '--hero-cols': heroes.length }">
+          <div class="hero-roster-grid" :style="{ '--hero-cols': orderedHeroes.length }">
             <button
-              v-for="hero in heroes"
+              v-for="hero in orderedHeroes"
               :key="hero.id"
               class="hero-chip"
               :class="[`rarity-${heroRarity(hero)}`, { selected: selectedHero?.id === hero.id, locked: !ownsHero(hero.id) }]"
