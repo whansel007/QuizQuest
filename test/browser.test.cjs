@@ -629,7 +629,8 @@ test('dashboard: very low accuracy is flagged, commonly missed means under 60%, 
   // tests answer at random, so others may join it). One question opens
   // straight away; several go to their list.
   const lowest = attention.getByRole('button', { name: /\d+ questions? under 25% correct on first attempts/ });
-  const one = /^1 question /.test(await lowest.innerText());
+  // the card's own text (its icon and arrow are decoration)
+  const one = /^1 question /.test(await lowest.locator('.attention-text').innerText());
   await lowest.click();
   if (one) {
     const dialog = page.getByRole('dialog');
@@ -653,7 +654,7 @@ test('dashboard: very low accuracy is flagged, commonly missed means under 60%, 
   for (const line of firsts.filter((l) => l.includes(' · first attempts '))) assert.ok(Number(line.match(/first attempts (\d+)%/)[1]) < 60, line);
   // 50% is no longer "mostly right": the time table's groups use the 60% line
   const time = page.locator('#dash-time');
-  await time.getByRole('columnheader', { name: 'Correct (all answers)' }).waitFor();
+  await time.getByRole('columnheader', { name: 'Correct', exact: true }).waitFor();
   const https = time.locator('tr', { hasText: 'What does HTTPS add to HTTP?' });
   // 50% is under the 60% "mostly right" line, so this question is in a *wrong*
   // group. Which one depends on whether it lands above the slow threshold, so
