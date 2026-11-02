@@ -105,6 +105,23 @@ test('Task 1A: Student registration and email login', async () => {
     assert.equal(bobStillHim.status, 200);
     const bobNotStolen = await call(null, 'POST', '/api/login', { email: 'bob@example.com', password: 'stolenPassword999' });
     assert.equal(bobNotStolen.status, 401);
+
+    // 10. A demo session cannot change a password. The demo sign-in hands out
+    //     a session for no credential at all, so that session proves nothing
+    //     about who is holding it. Sign in with the account's own password.
+    const demoLogin = await call(null, 'POST', '/api/login', { userId: 's-01' });
+    assert.equal(demoLogin.status, 200);
+    const demoChange = await call(demoLogin.body.token, 'POST', '/api/auth/update-password', { newPassword: 'hijackedByDemo999' });
+    assert.equal(demoChange.status, 403);
+    // The refused attempt changed nothing: the account still answers to its
+    // own password and not to the one the demo session tried to set.
+    const demoStillOurs = await call(null, 'POST', '/api/login', { email: 'student01@quizquest.demo', password: 'quizquest' });
+    assert.equal(demoStillOurs.status, 200);
+    const demoNotHijacked = await call(null, 'POST', '/api/login', { email: 'student01@quizquest.demo', password: 'hijackedByDemo999' });
+    assert.equal(demoNotHijacked.status, 401);
+    // The same account, signed in with its own password, can still change it.
+    const demoOwnChange = await call(demoStillOurs.body.token, 'POST', '/api/auth/update-password', { newPassword: 'demoOwnPassword456' });
+    assert.equal(demoOwnChange.status, 200);
   } finally {
     await close();
   }

@@ -588,18 +588,24 @@ attemptId: attempt.id,
     return user;
   }
 
-  function startSession(user) {
+  function startSession(user, { demo = false } = {}) {
     for (const [t, s] of tokens) if (s.expires < now()) tokens.delete(t); // forget expired sessions
     const token = crypto.randomBytes(24).toString('hex');
-    tokens.set(token, { userId: user.id, expires: now() + TOKEN_TTL });
+    // Remember how the session was earned. The demo sign-in needs no
+    // credential at all, so a session it hands out proves nothing about who
+    // is holding it, and it must not be allowed to change a password.
+    tokens.set(token, { userId: user.id, expires: now() + TOKEN_TTL, demo });
     return { token, user: publicUser(user) };
   }
 
   route('POST', '/api/login', null, ({ body }) => {
     let user;
-    if (body.userId !== undefined) user = db.users.find((u) => u.id === body.userId && isSeededDemoUser(u)) || fail(400, 'Unknown demo user.');
-    else user = checkPassword(body);
-    return startSession(user);
+    let demo = false;
+    if (body.userId !== undefined) {
+      user = db.users.find((u) => u.id === body.userId && isSeededDemoUser(u)) || fail(400, 'Unknown demo user.');
+      demo = true;
+    } else user = checkPassword(body);
+    return startSession(user, { demo });
   });
 
   // Self sign-up always makes a student. Teacher accounts are created by
@@ -661,6 +667,13 @@ attemptId: attempt.id,
     const currentToken = (req.headers.authorization || '').replace(/^Bearer\s+/i, '');
     const target = currentToken ? authenticate(currentToken) : null;
     if (!target) fail(401, 'Sign in to change your password.');
+
+    // A demo session was earned with no credential, so it is not proof that
+    // the caller owns the account. Sign in with the account's own password
+    // to change it. (The demo accounts have a known password, so this is
+    // about the session, not about the account.)
+    const session = tokens.get(currentToken);
+    if (session && session.demo) fail(403, 'Sign in with your email and password to change your password.');
 
     target.passwordHash = P.hashPassword(newPassword);
     // Changing a password ends every other session for that account.

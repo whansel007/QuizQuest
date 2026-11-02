@@ -10,6 +10,13 @@ this file is informal and human-edited.
 ## [Unreleased]
 
 ### Security
+- **A demo session cannot change a password.** `POST /api/login` with a
+  `userId` signs in one of the seeded demo accounts with no credential at
+  all, and `GET /api/demo-users` lists those accounts in the open - so a
+  session earned that way proves nothing about who is holding it. Sessions
+  now record how they were earned, and a demo session is refused with 403
+  when it tries to change a password. Sign in with the account's own email
+  and password to change it. No UI change: the app has no password screen.
 - **`POST /api/auth/reset-password` no longer takes over an account.** It
   accepted `{email, newPassword}` with no proof of ownership, set that
   account's password and signed the caller in - so anyone who knew an
