@@ -100,7 +100,7 @@ button:focus-visible, select:focus-visible, input:focus-visible { outline: 3px s
 #boss-hud strong, #boss-health-value { color: var(--hud-text); }
 .boss-track { grid-column: 1 / -1; height: 10px; overflow: hidden; background: #2B1F1A; border-radius: 99px; }
 .boss-track span { display: block; width: 100%; height: 100%; background: linear-gradient(90deg, #E0807B, #A8423B); transition: width .12s linear; }
-#targeting-hint { position: fixed; z-index: 2; top: 6.4rem; left: 50%; padding: .45rem .75rem; transform: translateX(-50%); }
+#targeting-hint { position: fixed; z-index: 2; top: 8rem; left: 50%; padding: .45rem .75rem; transform: translateX(-50%); }
 #targeting-hint[hidden] { display: none; }
 #targeting-hint button { min-height: 36px; margin-left: .45rem; padding: .25rem .6rem; color: var(--hud-text); background: var(--hud-panel-raised); border: 1px solid var(--hud-line); border-radius: 6px; font: inherit; font-weight: 800; cursor: pointer; }
 #targeting-reticle { position: fixed; z-index: 8; display: grid; place-items: center; width: var(--target-size, 120px); height: var(--target-size, 120px); border: 2px dashed #fff8e4; border-radius: 50%; background: rgb(239 113 55 / 20%); transform: translate(-50%, -50%); pointer-events: none; }
@@ -252,9 +252,9 @@ body[data-mode="workshop-trial"] #waiting-banner { display: none !important; }
 @keyframes samurai-max-pulse { 50% { box-shadow: 0 0 9px #ffd27a99; } }
 .ranger-ability-pill { position: absolute; z-index: 4; top: 3px; left: 50%; padding: 3px 7px; color: #fff2cc; background: #17202bf2; border: 1.5px solid #f0dda0; border-radius: 99px; box-shadow: 0 2px 4px #101018aa; font: 900 9px/1 system-ui, sans-serif; white-space: nowrap; transform: translateX(-50%); pointer-events: none; }
 .ranger-ability-pill[hidden] { display: none; }
-.ranger-dead-aim-pill { color: #fff2cc; border-color: #ffd75e; }
+.ranger-dead-aim-pill { color: #e4ffdb; border-color: #8be04e; }
 .ranger-wolf-pill { color: #f0d8bd; border-color: #b07a4a; }
-.ranger-window-ring { position: absolute; inset: -5px; border: 0; border-radius: 50%; background: conic-gradient(from 0deg, #ffd75e 0 var(--window-degrees, 0deg), transparent var(--window-degrees, 0deg) 360deg); -webkit-mask: radial-gradient(farthest-side, transparent calc(100% - 3px), #000 calc(100% - 2px)); mask: radial-gradient(farthest-side, transparent calc(100% - 3px), #000 calc(100% - 2px)); pointer-events: none; }
+.ranger-window-ring { position: absolute; inset: -5px; border: 0; border-radius: 50%; background: conic-gradient(from 0deg, #8be04e 0 var(--window-degrees, 0deg), transparent var(--window-degrees, 0deg) 360deg); -webkit-mask: radial-gradient(farthest-side, transparent calc(100% - 3px), #000 calc(100% - 2px)); mask: radial-gradient(farthest-side, transparent calc(100% - 3px), #000 calc(100% - 2px)); pointer-events: none; }
 .ability[data-ability="skill"] .ranger-window-ring { background: conic-gradient(from 0deg, #b07a4a 0 var(--window-degrees, 0deg), transparent var(--window-degrees, 0deg) 360deg); }
 .ability[data-ability="skill"] .ranger-window-ring,
 .ability[data-ability="ultimate"] .ranger-window-ring { display: none; }
@@ -451,7 +451,8 @@ body[data-mode="workshop-trial"] #waiting-banner { display: none !important; }
   /* objective panel takes the top row; party and room code sit below it */
   #combat-hud { top: .55rem; width: min(520px, calc(100vw - 1.1rem)); min-width: 0; }
   #hero-hud, #room-code-corner { top: 6.1rem; }
-  #boss-hud, #targeting-hint, #waiting-banner { top: auto; bottom: calc(1rem + var(--ability-cluster-height, 232px) + .5rem); }
+  #boss-hud, #waiting-banner { top: auto; bottom: calc(1rem + var(--ability-cluster-height, 232px) + .5rem); }
+  #targeting-hint { top: 8rem; bottom: auto; }
   #buff-cards { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
 @media (max-width: 700px) {
@@ -512,7 +513,7 @@ body[data-mode="workshop-trial"] #waiting-banner { display: none !important; }
   #emote-button { min-height: 32px; padding: .2rem .55rem; font-size: .72rem; }
   #start-run { min-height: 34px; padding: .35rem .75rem; font-size: .74rem; }
   #bottom-left-hud { bottom: calc(7.5rem + env(safe-area-inset-bottom)); left: max(.55rem, env(safe-area-inset-left)); }
-  #targeting-hint { top: max(4rem, env(safe-area-inset-top)); right: .6rem; bottom: auto; left: .6rem; width: auto; text-align: center; transform: none; }
+  #targeting-hint { top: max(7.5rem, env(safe-area-inset-top)); right: .6rem; bottom: auto; left: .6rem; width: auto; text-align: center; transform: none; }
   #targeting-hint button { min-height: 44px; margin: .35rem .2rem 0; }
 }
 @media (pointer: coarse) and (orientation: portrait) {

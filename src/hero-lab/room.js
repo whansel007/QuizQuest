@@ -2171,7 +2171,8 @@ function createRoom({ io, services = null, id, code = null, isDefault = false, m
       // slow room ticks cannot time-expire the arrow short of the aim marker.
       maxDistance: Math.max(1, range - GAME_CONFIG.weaponMuzzleOffset),
       piercing: false, pierces: deadAim ? 0 : (clamp((chargeSeconds - spec.chargeMinS) / (spec.chargeMaxS - spec.chargeMinS), 0, 1) >= spec.pierceT ? 1 : 0),
-      knockback, color: GAME_CONFIG.heroFxColors.ranger.primary, shape: 'arrow', rotateToAim: true,
+      knockback, color: deadAim ? GAME_CONFIG.heroFxSecondary.ranger : GAME_CONFIG.heroFxColors.ranger.primary,
+      shape: 'arrow', rotateToAim: true,
       sourceAbility: 'weapon',
     });
     projectile.rangerArrow = true;

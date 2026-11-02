@@ -221,7 +221,7 @@ export const RANGER_FEEDBACK = Object.freeze({
   aimLineWidthMinPx: 1, aimLineWidthMaxPx: 4, chargeRingRadiusPx: 15, chargeFullFlashMs: 120,
   meatArcHeightPx: 48, meatGroundMs: 600, wolfFadeInMs: 600, wolfTimerBarWidthPx: 40, wolfTimerBarHeightPx: 6,
   wolfTimerRadiusPx: 24, markIconPx: 14, markDrawCap: 20, deadAimPipCount: 3,
-  deadAimStreakMs: 70, deadAimMuzzleMs: 110, deadAimImpactLeaves: 6,
+  deadAimMuzzleMs: 110, deadAimImpactLeaves: 6,
 });
 export const RANGER_SOUND_PROFILES = Object.freeze({
   rangerCreak: { frequency: 260, slideTo: 430, durationMs: 150, gain: 0.035, type: 'sawtooth', minIntervalMs: 240 },
@@ -778,7 +778,7 @@ export const GAME_CONFIG = Object.freeze({
       type: 'magic', hp: 90, attack: 18, defense: 3, speed: 215,
       weaponCooldownMs: 250, skillCooldownMs: 14000, ultimateCooldownMs: 40000,
       talent: {
-        name: 'Pack Hunter', icon: '🐾',
+        name: 'Pack Hunter', icon: 'assets/icons/ranger-talent.svg',
         description: `Enemies the wolf bites take ${RANGER_MARK_BONUS * 100}% more damage from your arrows for ${RANGER_MARK_DURATION_S} s. Killing a marked enemy refunds ${RANGER_MARK_KILL_REFUND_FRACTION * 100}% of the wolf skill cooldown.`,
         linkedSlot: ['skill'],
       },
