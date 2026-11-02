@@ -1752,6 +1752,13 @@ attemptId: attempt.id,
           id: cl.id,
           name: cl.name,
           course: db.courses.find((c) => c.id === cl.courseId)?.title || 'Course',
+          // for the Practice topic picker; questions = published questions in the topic
+          topics: topicsOf(cl.courseId).map((t) => ({
+            id: t.id,
+            name: t.name,
+            week: Number.isInteger(t.week) ? t.week : null,
+            questions: db.questions.filter((q) => q.topicId === t.id && q.status === 'published').length,
+          })),
           tradingEnabled: cl.settings.tradingEnabled,
           participation: cl.settings.participation?.enabled
             ? {
@@ -1803,9 +1810,15 @@ return studentProgress(db, user.id, cl);
     if (!SESSION_LENGTHS.includes(body.length)) fail(400, 'Pick a session length from the list.');
     if (!TIMERS.includes(body.timerSec)) fail(400, 'Pick a timer from the list.');
     const mult = ACCOMMODATION.includes(body.accommodation) ? body.accommodation : 1;
-    const topics = topicsOf(cl.courseId);
-    const bank = db.questions.filter((q) => q.courseId === cl.courseId && q.status === 'published');
-    if (!bank.length) fail(409, 'There are no published questions for this class yet.');
+    // topicIds (optional): practise only these topics; omitted means all of them
+    let topics = topicsOf(cl.courseId);
+    if (body.topicIds !== undefined) {
+      if (!Array.isArray(body.topicIds) || !body.topicIds.length) fail(400, 'Choose at least one topic to practise.');
+      if (body.topicIds.some((id) => !topics.some((t) => t.id === id))) fail(400, 'Unknown topic.');
+      topics = topics.filter((t) => body.topicIds.includes(t.id));
+    }
+    const bank = db.questions.filter((q) => q.courseId === cl.courseId && q.status === 'published' && (!body.topicIds || body.topicIds.includes(q.topicId)));
+    if (!bank.length) fail(409, body.topicIds ? 'There are no published questions in the topics you chose yet.' : 'There are no published questions for this class yet.');
     const mine = db.attempts.filter((a) => a.studentId === user.id && a.classId === cl.id);
     const recentIds = [...mine].sort((a, b) => b.at - a.at).map((a) => a.questionId);
     const plan = planSession({ bank, topics, stats: topicStats(mine, topics), recentIds, length: body.length });

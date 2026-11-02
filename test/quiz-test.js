@@ -142,6 +142,21 @@ test('drafts are never served to students', async () => {
   assert.ok(!seen.has('q-draft1'));
 });
 
+test('students can limit a practice session to chosen topics', async () => {
+  const t = await login('s-03');
+  const home = (await call(t, 'GET', '/api/student/home')).body;
+  const topics = home.classes.find((c) => c.id === 'cl-a').topics;
+  const picked = topics.find((x) => x.questions > 0);
+  assert.ok(picked, 'home lists the class topics with their published question counts');
+  const s = await call(t, 'POST', '/api/student/sessions', { classId: 'cl-a', length: 5, timerSec: 0, topicIds: [picked.id] });
+  assert.equal(s.status, 201);
+  for (const it of db().sessions.find((x) => x.id === s.body.id).items) {
+    assert.equal(db().questions.find((q) => q.id === it.qid).topicId, picked.id);
+  }
+  assert.equal((await call(t, 'POST', '/api/student/sessions', { classId: 'cl-a', length: 5, timerSec: 0, topicIds: [] })).status, 400);
+  assert.equal((await call(t, 'POST', '/api/student/sessions', { classId: 'cl-a', length: 5, timerSec: 0, topicIds: ['tp-nope'] })).status, 400);
+});
+
 test('teachers cannot see other classes; students cannot join other classes', async () => {
   const profB = await login('t-b');
   assert.equal((await call(profB, 'GET', '/api/teacher/classes/cl-a/analytics')).status, 404);

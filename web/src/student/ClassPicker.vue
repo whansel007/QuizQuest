@@ -38,7 +38,7 @@ const handleJoin = action(async () => {
 
 <template>
   <div style="display: inline-flex; align-items: center; gap: 8px;">
-    <select v-if="(store.home?.classes.length ?? 0) > 1" style="width: auto" aria-label="Class" :value="S.classId" @change="pick">
+    <select v-if="store.home?.classes.length" style="width: auto" aria-label="Class" :value="S.classId" @change="pick">
       <option v-for="c in store.home.classes" :key="c.id" :value="c.id">{{ c.name }}</option>
     </select>
     <span v-else class="badge plain">{{ store.home?.classes[0]?.name || 'No class enrolled' }}</span>
