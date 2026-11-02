@@ -110,7 +110,7 @@ Multiple choice, multi-select, true/false and short answer (text or numeric) for
 
 **Must fix before deployment**
 - ~~**Password reset doesn't check ownership.**~~ **Fixed 2 Nov 2026** — both password endpoints now change the caller's own password and only the caller's, proved by the session token, and `/api/auth/forgot-password` no longer claims an email was sent. Self-service recovery by email is still not there, so an instance with real accounts still needs a way to reset a forgotten password by hand.
-- ~~**Join codes are stored in plain text** next to their hash. Only the hash should be stored.~~ **Fixed 2 Nov 2026** — the server now keeps only a hash of a join code, so a database file or dump holds no code that anybody could redeem. The readable code is shown to the teacher once, when it is generated, and the code's id identifies it from then on.
+- ~~**Join codes are stored in plain text** next to their hash. Only the hash should be stored.~~ **Fixed 2 Nov 2026** — the server now keeps only a hash of a join code, and the readable code is shown to the teacher once, when it is generated. The code is 12 characters from a 32-character alphabet (about 1.15e18 possibilities) drawn with a CSPRNG, so searching hashes backwards is not worth doing and a database file or dump holds no code that anybody could redeem. The code's id identifies it from then on.
 - **The Supabase secret key and database password were shared in chat** and should be rotated.
 
 **Not done yet**

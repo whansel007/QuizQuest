@@ -17,7 +17,7 @@ test('a professor generates a join code and a new student enrols with it', async
   await page.getByRole('button', { name: 'Generate Code' }).click();
 
   const code = (await page.locator('.code-badge-large').innerText()).trim();
-  expect(code).toMatch(/^QQ-[23456789A-HJ-NP-Z]{5}$/);
+  expect(code).toMatch(/^QQ-[23456789A-HJ-NP-Z]{12}$/);
 
   // --- a new student redeems it ---
   const student = await page.context().newPage();
