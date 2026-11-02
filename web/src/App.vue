@@ -177,10 +177,6 @@ onUnmounted(() => {
     </aside>
     <main id="main" class="main-teacher">
       <component :is="current[2]" :key="current[0] + ':' + S.viewKey + ':' + S.token" />
-      <footer class="t-footer">
-        Demo build with synthetic users and demo course content only. Do not enter real student data.
-        · <a href="/tag">Circle Tag (the original multiplayer experiment)</a>
-      </footer>
     </main>
   </div>
   <template v-else-if="ready">
@@ -227,10 +223,6 @@ onUnmounted(() => {
     @focus="showStudentNav"
     @click="onTopPointerEnter"
   >▾</button>
-  <footer :class="{ 'footer-student': studentActive }">
-    Demo build with synthetic users and demo course content only. Do not enter real student data.
-    · <a href="/tag">Circle Tag (the original multiplayer experiment)</a>
-  </footer>
   </template>
   <ScreenWipe />
   <div id="toast" role="status" aria-live="polite" :class="{ show: toastState.show, bad: toastState.bad }">{{ toastState.msg }}</div>
