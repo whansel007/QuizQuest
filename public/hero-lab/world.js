@@ -4215,29 +4215,42 @@ function releasePointerControls(event) {
 // advances exactly one interval per drawn frame and never falls behind the
 // clock, so a long stall (GC, tab restore) resyncs instead of bursting.
 let nextFrameAt = -1;
+const playerEmoteAnimations = new Map();
 function drawPlayerEmote(player, time) {
   const emote = player.emote;
-  if (!emote?.glyph || emote.remainingMs <= 0) return;
-  const alpha = Math.min(1, emote.remainingMs / 350);
+  if (!emote?.glyph || emote.remainingMs <= 0) {
+    playerEmoteAnimations.delete(player.id);
+    return;
+  }
+  let animation = playerEmoteAnimations.get(player.id);
+  if (!animation || animation.glyph !== emote.glyph) {
+    animation = { glyph: emote.glyph, startedAt: time };
+    playerEmoteAnimations.set(player.id, animation);
+  }
+  const popProgress = Math.max(0, Math.min(1, (time - animation.startedAt) / 180));
+  const popEase = 1 - (1 - popProgress) ** 3;
+  const alpha = Math.min(1, emote.remainingMs / 350) * popEase;
   const float = Math.sin(time * 0.006) * 2;
   const x = player.x;
-  const y = player.y - 104 - float;
+  const y = -64 - float + (1 - popEase) * 14;
   context.save();
+  context.translate(x, player.y);
+  context.scale(0.84 + popEase * 0.16, 0.84 + popEase * 0.16);
   context.globalAlpha = alpha;
   context.fillStyle = '#FBF2D8';
   context.strokeStyle = '#1D3329';
   context.lineWidth = 3;
   // Paint the tail first so the bubble's fill and outline sit cleanly over it.
   context.beginPath();
-  context.moveTo(x - 3, y + 18); context.lineTo(x + 2, y + 27); context.lineTo(x + 9, y + 18);
+  context.moveTo(-3, y + 18); context.lineTo(2, y + 27); context.lineTo(9, y + 18);
   context.closePath(); context.fill(); context.stroke();
   context.beginPath();
-  context.roundRect(x - 25, y - 23, 50, 42, 13);
+  context.roundRect(-25, y - 23, 50, 42, 13);
   context.fill(); context.stroke();
   context.fillStyle = '#1D3329';
   context.font = '25px system-ui, sans-serif';
   context.textAlign = 'center'; context.textBaseline = 'middle';
-  context.fillText(emote.glyph, x, y - 2);
+  context.fillText(emote.glyph, 0, y - 2);
   context.restore();
 }
 
