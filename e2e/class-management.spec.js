@@ -5,6 +5,27 @@
 import { test, expect } from '@playwright/test';
 import { signIn, openTab, apiToken, PASSWORD, TEACHER, STUDENT } from './helpers.js';
 
+// Archive the classes a previous attempt left behind.
+//
+// CI replays this file against the same server and the same data, so a run
+// that died before it could archive its class leaves an *active* E2E class
+// behind. An active class stays in the professor's list for good, and the
+// roster builds its "add to another class" dropdown from that list - so one
+// leftover changes what a later spec sees, and the later spec fails for a
+// reason that has nothing to do with it. They are archived here, before the
+// counts are read, so every attempt starts from the same place.
+async function archiveLeftovers(page) {
+  const leftovers = page.locator('.class-card').filter({ hasText: 'E2E Class' });
+  for (let guard = 0; guard < 20 && (await leftovers.count()) > 0; guard += 1) {
+    const card = leftovers.first();
+    // the card's own name, so the wait below cannot be satisfied by a
+    // different card that happens to share the words
+    const name = (await card.getByRole('heading', { level: 3 }).innerText()).trim();
+    await card.getByRole('button', { name: 'Archive', exact: true }).click();
+    await expect(page.locator('.class-card').filter({ hasText: name })).toHaveCount(0);
+  }
+}
+
 // Open the tab and wait for the class grid.
 //
 // The grid is only in the DOM once /api/classes has answered, and how many
@@ -24,6 +45,9 @@ async function openClassManagement(page) {
   await openTab(page, 'Classes & Roster');
   await expect(page.getByRole('heading', { name: 'Class Management' })).toBeVisible();
   await expect(page.locator('.class-card').first()).toBeVisible();
+  // what a failed attempt left behind is put away first, so the counts
+  // below and every later spec see the same grid
+  await archiveLeftovers(page);
   const active = await page.locator('.class-card').count();
 
   const showArchived = page.getByRole('checkbox', { name: 'Show archived classes' });
