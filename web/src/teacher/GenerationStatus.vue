@@ -120,7 +120,7 @@ onUnmounted(() => reserve(null));
 .gen-status-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
 @keyframes gen-status-in { from { opacity: 0; transform: translateY(8px); } }
 /* phones: full width along the bottom edge, clear of the home indicator */
-@media (max-width: 600px) {
+@media (max-width: 575.98px) {
   .gen-status { left: 12px; right: 12px; bottom: calc(12px + env(safe-area-inset-bottom, 0px)); width: auto; max-height: 50vh; }
 }
 @media (prefers-reduced-motion: reduce) { .gen-status { animation: none; } }

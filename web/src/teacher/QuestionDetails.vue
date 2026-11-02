@@ -37,5 +37,5 @@ const correct = (v,i) => v.type === 'multi' ? v.answerIndexes?.includes(i) : v.a
 .answer-section { border-top:1px solid var(--line); padding-top:12px; margin-top:14px; }
 h4 { font-size:.8rem; color:var(--muted); margin:0 0 6px; }
 p { margin:4px 0; }.formula { display:block; margin:4px 0; }
-@media(max-width:600px) { .answer-options li { flex-wrap:wrap; } .answer-indicator { margin-left:24px; } }
+@media (max-width: 767.98px) { .answer-options li { flex-wrap:wrap; } .answer-indicator { margin-left:24px; } }
 </style>

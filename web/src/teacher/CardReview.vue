@@ -250,7 +250,7 @@ const cardStyle = computed(() => {
 .cr-deny { background: var(--panel); border-color: var(--bad); }
 .cr-secondary { display: flex; flex-wrap: wrap; justify-content: center; gap: 8px; }
 .cr-empty h3 { color: var(--ink); }
-@media (max-width: 640px) {
+@media (max-width: 767.98px) {
   .cr-card { min-height: 0; padding: 16px; }
   .cr-decide .btn { flex: 1; min-width: 0; }
 }

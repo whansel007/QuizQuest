@@ -37,26 +37,26 @@ const plural = (n, one) => `${n} ${one}${n === 1 ? '' : 's'}`;
     <p class="small muted">Material and questions are shared by all your classes for this course; accuracy and practice are this class's ({{ period }}). {{ current ? 'Showing the chosen topic only.' : 'Click a topic to narrow the whole dashboard to it.' }}</p>
     <p v-if="!overview.topics.length" class="muted small">This course has no topics yet. Add weekly topics in AI drafting.</p>
     <div v-else class="table-wrap">
-      <table class="dash-table">
+      <table class="dash-table stack">
         <thead>
           <tr><th>Week</th><th>Topic</th><th title="Uploaded files and added passages">Material</th><th title="The knowledge report AI drafting makes from this topic's material">Report</th><th>Questions</th><th>First-attempt accuracy</th><th></th><th>Practised</th><th class="no-print">Next step</th></tr>
         </thead>
         <tbody>
           <tr v-for="t in rows" :key="t.topicId">
-            <td class="num">{{ t.week ?? '—' }}</td>
-            <td class="label">
+            <td class="num" data-label="Week">{{ t.week ?? '—' }}</td>
+            <td class="label stack-head">
               <button class="linklike" :aria-pressed="t.topicId === current ? 'true' : 'false'" :aria-label="t.topicId === current ? 'Show every topic on the dashboard' : `Show only ${t.name} on the dashboard`" @click="emit('focus', t.topicId === current ? '' : t.topicId)">{{ t.name }}</button>
             </td>
-            <td class="num">{{ t.files + t.passages || '—' }}</td>
-            <td class="small">{{ reportText(t.report) }}</td>
-            <td class="small">
+            <td class="num" data-label="Material">{{ t.files + t.passages || '—' }}</td>
+            <td class="small" data-label="Report">{{ reportText(t.report) }}</td>
+            <td class="small" data-label="Questions">
               {{ t.questions.published }} published
               <span v-if="t.openReports" class="badge draft" :title="plural(t.openReports, 'open student report')">⚑ {{ t.openReports }}</span>
             </td>
-            <td class="num">{{ frac(t.first) }}</td>
+            <td class="num" data-label="First-attempt accuracy">{{ frac(t.first) }}</td>
             <td style="width: 100px"><Meter v-if="t.first.n" :value="t.first.accuracy" /></td>
-            <td class="num">{{ t.students }} / {{ enrolled }}</td>
-            <td class="no-print">
+            <td class="num" data-label="Practised">{{ t.students }} / {{ enrolled }}</td>
+            <td class="no-print" data-label="Next step">
               <button v-if="next(t)" class="btn small" @click="emit('go', { topicId: t.topicId, ...next(t) })">{{ next(t).label }}</button>
               <span v-else-if="!t.answers" class="small muted">Waiting for practice</span>
               <span v-else class="small muted">✓ Ready</span>

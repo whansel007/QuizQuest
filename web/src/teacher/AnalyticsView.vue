@@ -765,7 +765,7 @@ function missedCsv() {
             <details class="viz-table">
               <summary>Show the chart data as a table</summary>
               <div class="table-wrap">
-                <table class="dash-table">
+                <table class="dash-table sticky-first">
                   <thead>
                     <tr>
                       <th>{{ per === 'week' ? 'Week' : 'Day' }}</th>
@@ -799,44 +799,44 @@ function missedCsv() {
             <p class="small muted">First attempts are a student's first ever answer to a question; retries are later answers (often after seeing the explanation). Answers awaiting marking are not counted in accuracy. Open a topic to see its learning outcomes and how many published questions cover each; times based on fewer than {{ a.trend.lowN }} answers are shown lighter.</p>
             <div class="table-wrap">
               <!-- one Questions column for topics and outcomes, so coverage reads down a single line -->
-              <table class="dash-table by-topic-table">
+              <table class="dash-table by-topic-table stack">
                 <thead><tr><th></th><th v-for="(h, i) in ['Topic', 'Questions', 'First-attempt accuracy', 'Retry accuracy', 'Awaiting marking', 'Students', 'Median / p75 time', 'Timeouts']" :key="i">{{ h }}</th></tr></thead>
                 <tbody>
                   <template v-for="t in a.byTopic" :key="t.topicId">
                     <tr class="topic-row">
-                      <td style="width: 1%">
+                      <td class="stack-lead" style="width: 1%">
                         <button class="btn small" :aria-expanded="openTopics.has(t.topicId) ? 'true' : 'false'" :aria-label="`${openTopics.has(t.topicId) ? 'Hide' : 'Show'} learning outcomes for ${t.name}`" @click="toggleTopic(t.topicId)">{{ openTopics.has(t.topicId) ? '▾' : '▸' }}</button>
                       </td>
-                      <td class="label"><b>{{ t.name }}</b></td>
-                      <td class="q-cell">
+                      <td class="label stack-head"><b>{{ t.name }}</b></td>
+                      <td class="q-cell" data-label="Questions">
                         <span class="q-pill" :class="{ none: !topicPublished(t) }">{{ topicPublished(t) || 'None' }} published</span>
                         <span v-if="topicGaps(t) && topicPublished(t)" class="q-gap" :title="`${topicGaps(t)} learning outcome${topicGaps(t) === 1 ? ' has' : 's have'} no published questions`">⚠ {{ topicGaps(t) }} {{ topicGaps(t) === 1 ? 'gap' : 'gaps' }}</span>
                       </td>
-                      <td class="num acc-cell">{{ frac(t.first) }}<Meter v-if="t.first.n" :value="t.first.accuracy" /></td>
-                      <td class="num">{{ frac(t.retry) }}</td>
-                      <td class="num">{{ t.awaitingMarking }}</td>
-                      <td class="num">{{ t.students }}</td>
-                      <td class="num">{{ t.first.n || t.retry.n ? `${secs(t.medianMs)} / ${secs(t.p75Ms)}` : '-' }}</td>
-                      <td class="num">{{ t.timeouts }}</td>
+                      <td class="num acc-cell" data-label="First-attempt accuracy">{{ frac(t.first) }}<Meter v-if="t.first.n" :value="t.first.accuracy" /></td>
+                      <td class="num" data-label="Retry accuracy">{{ frac(t.retry) }}</td>
+                      <td class="num" data-label="Awaiting marking">{{ t.awaitingMarking }}</td>
+                      <td class="num" data-label="Students">{{ t.students }}</td>
+                      <td class="num" data-label="Median / p75 time">{{ t.first.n || t.retry.n ? `${secs(t.medianMs)} / ${secs(t.p75Ms)}` : '-' }}</td>
+                      <td class="num" data-label="Timeouts">{{ t.timeouts }}</td>
                     </tr>
                     <!-- on paper every topic is open -->
                     <tr v-for="(o, oi) in printing || openTopics.has(t.topicId) ? t.outcomes : []" :key="o.outcomeId" class="subrow" :class="{ first: oi === 0, last: oi === t.outcomes.length - 1 }">
                       <td></td>
-                      <td class="label small">{{ o.text }}</td>
-                      <td class="q-cell">
+                      <td class="label small stack-head">{{ o.text }}</td>
+                      <td class="q-cell" data-label="Questions">
                         <span v-if="o.published" class="q-pill">{{ o.published }} published</span>
                         <span v-else class="q-none">
                           <span class="q-pill none">None yet</span>
                           <button class="btn small q-draft no-print" :aria-label="`Draft questions for: ${o.text}`" @click="draftFor(t.topicId, o.outcomeId)">Draft</button>
                         </span>
                       </td>
-                      <td class="num small acc-cell">{{ frac(o.first) }}<Meter v-if="o.first.n" :value="o.first.accuracy" /></td>
-                      <td class="num small">{{ frac(o.retry) }}</td>
-                      <td class="num small">{{ o.awaitingMarking }}</td>
-                      <td class="num small">{{ o.students }}</td>
+                      <td class="num small acc-cell" data-label="First-attempt accuracy">{{ frac(o.first) }}<Meter v-if="o.first.n" :value="o.first.accuracy" /></td>
+                      <td class="num small" data-label="Retry accuracy">{{ frac(o.retry) }}</td>
+                      <td class="num small" data-label="Awaiting marking">{{ o.awaitingMarking }}</td>
+                      <td class="num small" data-label="Students">{{ o.students }}</td>
                       <!-- times resting on only a few answers are shown lighter, as in Trends -->
-                      <td class="num small" :class="{ 'low-n': o.timedAnswers && o.timedAnswers < a.trend.lowN }" :title="o.timedAnswers && o.timedAnswers < a.trend.lowN ? `Based on only ${o.timedAnswers} answer${o.timedAnswers === 1 ? '' : 's'}, so read it with care` : null">{{ o.timedAnswers ? `${secs(o.medianMs)} / ${secs(o.p75Ms)}` : '-' }}</td>
-                      <td class="num small">{{ o.timeouts }}</td>
+                      <td class="num small" data-label="Median / p75 time" :class="{ 'low-n': o.timedAnswers && o.timedAnswers < a.trend.lowN }" :title="o.timedAnswers && o.timedAnswers < a.trend.lowN ? `Based on only ${o.timedAnswers} answer${o.timedAnswers === 1 ? '' : 's'}, so read it with care` : null">{{ o.timedAnswers ? `${secs(o.medianMs)} / ${secs(o.p75Ms)}` : '-' }}</td>
+                      <td class="num small" data-label="Timeouts">{{ o.timeouts }}</td>
                     </tr>
                   </template>
                 </tbody>
@@ -865,24 +865,24 @@ function missedCsv() {
                 <template v-else>Showing all {{ a.time.questions.length }} questions, the groups to act on first. Bars mark the slow line (time) and the {{ pct(a.time.maxAccuracy) }} line (correct).</template>
               </p>
               <div class="table-wrap">
-                <table class="dash-table">
+                <table class="dash-table stack">
                   <thead><tr><th>Question</th><th>Group</th><th>Topic</th><th>Students</th><th>Answers</th><th>Average time</th><th>Median</th><th>Correct (all answers)</th></tr></thead>
                   <tbody>
                     <tr v-for="q in timePages.items" :key="q.questionId">
-                      <td class="q">
+                      <td class="q stack-head">
                         <button class="linklike" @click="openQuestion(q.questionId)">{{ q.stem }}</button>
                         <span class="badge plain">{{ q.type }}</span>
                       </td>
-                      <td class="label small"><span v-if="q.zone === 'reread'" class="badge draft">⚠ {{ ZONES[q.zone].label }}</span><template v-else>{{ ZONES[q.zone].label }}</template></td>
-                      <td class="label">{{ q.topic }}</td>
-                      <td class="num">{{ q.students }}</td>
-                      <td class="num">{{ q.n }}</td>
-                      <td class="num">
+                      <td class="label small" data-label="Group"><span v-if="q.zone === 'reread'" class="badge draft">⚠ {{ ZONES[q.zone].label }}</span><template v-else>{{ ZONES[q.zone].label }}</template></td>
+                      <td class="label" data-label="Topic">{{ q.topic }}</td>
+                      <td class="num" data-label="Students">{{ q.students }}</td>
+                      <td class="num" data-label="Answers">{{ q.n }}</td>
+                      <td class="num" data-label="Average time">
                         <b>{{ secs(q.meanMs) }}</b>
                         <span class="cell-bar" aria-hidden="true"><span :style="{ width: barPct(q.meanMs, timeMaxMs) }"></span><i v-if="a.time.slowMs !== null" :style="{ left: barPct(a.time.slowMs, timeMaxMs) }"></i></span>
                       </td>
-                      <td class="num">{{ secs(q.medianMs) }}</td>
-                      <td class="num">
+                      <td class="num" data-label="Median">{{ secs(q.medianMs) }}</td>
+                      <td class="num" data-label="Correct (all answers)">
                         {{ frac(q.accuracy) }}
                         <span v-if="q.accuracy.n" class="cell-bar" aria-hidden="true"><span :style="{ width: barPct(q.accuracy.accuracy, 1) }"></span><i :style="{ left: barPct(a.time.maxAccuracy, 1) }"></i></span>
                       </td>

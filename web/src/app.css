@@ -1225,7 +1225,7 @@ button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible
 }
 .viz-plot { position: relative; }
 .viz svg { display: block; width: 100%; overflow: visible; }
-.viz .tick { font-size: 11px; fill: var(--muted); font-variant-numeric: tabular-nums; }
+.viz .tick { font-size: 12px; fill: var(--muted); font-variant-numeric: tabular-nums; }
 .viz .gridline { stroke: var(--viz-grid); stroke-width: 1; }
 .viz .baseline { stroke: var(--viz-axis); stroke-width: 1; }
 .viz .crosshair { stroke: var(--muted); stroke-width: 1; }
@@ -1298,7 +1298,7 @@ button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible
 .cell-bar { position: relative; display: block; height: 4px; min-width: 64px; margin-top: 4px; border-radius: 2px; background: var(--line); }
 .cell-bar > span { display: block; height: 100%; border-radius: 2px; background: var(--series-1); }
 .cell-bar > i { position: absolute; top: -2px; bottom: -2px; width: 2px; margin-left: -1px; background: var(--ink); }
-.viz .direct-label { font-size: 11px; fill: var(--ink); font-weight: 600; paint-order: stroke; stroke: var(--panel); stroke-width: 3px; stroke-linejoin: round; }
+.viz .direct-label { font-size: 12px; fill: var(--ink); font-weight: 600; paint-order: stroke; stroke: var(--panel); stroke-width: 3px; stroke-linejoin: round; }
 .viz .leader { stroke: var(--muted); stroke-width: 1; }
 .zone-hint { margin: -2px 0 8px; }
 .how-measured { margin: -4px 0 10px; }
@@ -1361,7 +1361,7 @@ dialog.insight::backdrop { background: rgba(10, 12, 20, 0.45); }
 /* sticks under the top bar (its top is set from the bar's height) and marks the section in view */
 .dash-nav { display: flex; flex-wrap: wrap; gap: 6px; margin: 0 0 14px; padding: 6px 0; position: sticky; z-index: 4; background: var(--bg); }
 .dash-nav .btn[aria-current] { background: var(--accent-soft); border-color: var(--accent); color: var(--accent); }
-@media (max-width: 640px) {
+@media (max-width: 767.98px) {
   /* one row that scrolls sideways, so it doesn't eat the screen */
   .dash-nav { flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; }
   .dash-nav .btn { flex: 0 0 auto; white-space: nowrap; }
@@ -1384,7 +1384,7 @@ dialog.insight::backdrop { background: rgba(10, 12, 20, 0.45); }
 .dash-table tr.current td { background: var(--accent-soft); }
 .print-only { display: none; }
 .heat { display: grid; grid-template-columns: 34px repeat(8, minmax(0, 1fr)); gap: 3px; align-items: center; }
-.heat-col { font-size: 11px; color: var(--muted); text-align: center; font-variant-numeric: tabular-nums; }
+.heat-col { font-size: 12px; color: var(--muted); text-align: center; font-variant-numeric: tabular-nums; }
 .heat-row { font-size: 12px; color: var(--muted); }
 .heat-cell { position: relative; height: 26px; border-radius: 4px; background: var(--bg); outline-offset: 1px; }
 .heat-cell .fill { position: absolute; inset: 0; border-radius: 4px; background: var(--series-1); }
@@ -1402,7 +1402,7 @@ dialog.insight::backdrop { background: rgba(10, 12, 20, 0.45); }
 .outcome-picks .btn[aria-pressed="true"] { border-color: var(--accent); background: var(--accent-soft); }
 .unsorted-file { display: flex; flex-wrap: wrap; gap: 8px 12px; align-items: flex-start; padding: 8px 0; border-bottom: 1px solid var(--line); }
 .topic-scope { margin: -6px 0 10px; }
-@media (max-width: 640px) {
+@media (max-width: 767.98px) {
   .field.week-field { max-width: none; flex-basis: 100%; }
 }
 
@@ -1444,7 +1444,7 @@ dialog.insight::backdrop { background: rgba(10, 12, 20, 0.45); }
 .pager { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin: 10px 0 12px; }
 .pager-count { margin-right: auto; }
 .pager .btn[aria-current="page"] { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); }
-@media (max-width: 640px) {
+@media (max-width: 767.98px) {
   /* phones: question titles get the full width; badges and pager count wrap below */
   .missed-title { flex-basis: 100%; }
   .pager-count { flex-basis: 100%; }
@@ -2989,7 +2989,7 @@ body:has(.teacher-app) { background: var(--bg); }
   .dash-toolbar .dash-nav { position: sticky; z-index: 6; margin: 0 0 14px; padding: 6px 0; background: var(--bg); }
 }
 /* the activity heatmap sits in a narrower column beside the trends */
-#dash-activity .heat-col { font-size: 10px; white-space: nowrap; letter-spacing: -0.02em; }
+#dash-activity .heat-col { white-space: nowrap; }
 /* Trends: per-topic small multiples run across the full width below */
 .trend-multiples { margin-top: 16px; }
 .trend-multiples .multiples { grid-template-columns: repeat(auto-fill, minmax(min(260px, 100%), 1fr)); }
@@ -3218,4 +3218,119 @@ body:has(.teacher-app) { background: var(--bg); }
   .teacher-app .t-grid .tiles .tile .v { font-size: 20px; }
   .teacher-app .insight-actions { flex-direction: column; align-items: stretch; }
   .teacher-app .insight-actions .btn { width: 100%; }
+}
+
+/* ---------- professor workspace: wide tables, touch screens ---------- */
+/* Breakpoints follow Bootstrap 5: sm 576, md 768, lg 992, xl 1200. */
+
+/* A table wider than its box shows a soft shadow on the side that still has
+   more to scroll to. The two covers scroll with the table and hide a shadow
+   once that edge is reached; the two shadows stay put. A table that fits
+   shows nothing. */
+@media screen {
+  .teacher-app .table-wrap {
+    --wrap-bg: var(--panel);
+    background:
+      linear-gradient(to right, var(--wrap-bg) 30%, transparent) left center / 32px 100% no-repeat local,
+      linear-gradient(to left, var(--wrap-bg) 30%, transparent) right center / 32px 100% no-repeat local,
+      radial-gradient(farthest-side at 0 50%, rgb(0 0 0 / 0.16), transparent) left center / 12px 100% no-repeat scroll,
+      radial-gradient(farthest-side at 100% 50%, rgb(0 0 0 / 0.16), transparent) right center / 12px 100% no-repeat scroll;
+  }
+  .teacher-app .quality-check .table-wrap { --wrap-bg: var(--bg); }
+}
+
+/* Grids of numbers (rows x weeks, rows x classes) keep scrolling sideways on a
+   phone, with the row names pinned so every number keeps its label. */
+.teacher-app .table-wrap > table.sticky-first > * > tr > :first-child {
+  position: sticky;
+  left: 0;
+  z-index: 1;
+  background: var(--wrap-bg, var(--panel));
+  box-shadow: inset -1px 0 0 var(--line);
+}
+
+/* The section bar scrolls sideways on phones; fade its right edge so the
+   sections still to come are visibly there. The end padding lets the last
+   button scroll clear of the fade. */
+@media (max-width: 767.98px) {
+  .teacher-app .dash-nav {
+    padding-right: 28px;
+    -webkit-mask-image: linear-gradient(to right, #000 calc(100% - 28px), transparent);
+    mask-image: linear-gradient(to right, #000 calc(100% - 28px), transparent);
+  }
+}
+
+/* Phones (below Bootstrap's sm): one-row-per-item tables become a stack of
+   cards. Each cell shows its column name from data-label, so nothing is cut
+   off and nothing needs sideways scrolling. Classes on the cells:
+     stack-head   the item's name, on its own line at the top
+     stack-lead   a small control kept beside the stack-head (expand button)
+     stack-block  long text: label on top, text below
+     stack-action a button, left-aligned at the bottom */
+@media (max-width: 575.98px) {
+  .teacher-app .table-wrap > .dash-table.stack { display: block; min-width: 0; }
+  .teacher-app .table-wrap > .dash-table.stack > thead {
+    position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap;
+  }
+  .teacher-app .table-wrap > .dash-table.stack > tbody { display: block; }
+  .teacher-app .table-wrap > .dash-table.stack > tbody > tr {
+    display: grid; grid-template-columns: auto minmax(0, 1fr); column-gap: 8px; align-items: center;
+    padding: 10px 0; border-bottom: 1px solid var(--line); background: none;
+  }
+  .teacher-app .table-wrap > .dash-table.stack > tbody > tr > td {
+    grid-column: 1 / -1;
+    display: flex; flex-wrap: wrap; align-items: center; justify-content: flex-end; gap: 2px 10px;
+    width: auto !important; /* beats the cells' inline widths, which only make sense as columns */
+    min-width: 0; max-width: none;
+    padding: 3px 0; border: 0; border-radius: 0; background: none;
+    text-align: right; white-space: normal;
+  }
+  .teacher-app .table-wrap > .dash-table.stack > tbody > tr > td[data-label]::before {
+    content: attr(data-label);
+    margin-right: auto; padding-right: 8px;
+    color: var(--muted); font-size: 13px; font-weight: 400; text-align: left;
+  }
+  .teacher-app .table-wrap > .dash-table.stack > tbody > tr > td:empty { display: none; }
+  /* the item's name heads its card even when it is not the first column */
+  .teacher-app .table-wrap > .dash-table.stack > tbody > tr > td.stack-head {
+    order: -1; display: block; padding-bottom: 4px; font-size: 15px; font-weight: 600; text-align: left;
+  }
+  .teacher-app .table-wrap > .dash-table.stack > tbody > tr > td.stack-lead { order: -2; grid-column: 1; padding: 0; }
+  .teacher-app .table-wrap > .dash-table.stack > tbody > tr > td.stack-lead + td { grid-column: 2; }
+  .teacher-app .table-wrap > .dash-table.stack > tbody > tr > td.stack-block { display: block; text-align: left; }
+  .teacher-app .table-wrap > .dash-table.stack > tbody > tr > td.stack-block::before { display: block; margin-bottom: 2px; }
+  .teacher-app .table-wrap > .dash-table.stack > tbody > tr > td.stack-action { justify-content: flex-start; padding-top: 6px; }
+  /* a topic's learning outcomes read as tinted cards under it */
+  .teacher-app .table-wrap > .dash-table.stack > tbody > tr.subrow {
+    margin: 6px 0; padding: 8px 10px; border: 0; border-radius: 10px; background: var(--bg);
+  }
+  .teacher-app .table-wrap > .dash-table.stack > tbody > tr.subrow > td.stack-head { font-size: 14px; font-weight: 400; }
+}
+
+/* Activity heatmap: hour labels shorten to "00", "03"... when the grid is
+   narrow, so they stay at a readable 12px instead of shrinking. */
+.heat-viz { container-type: inline-size; }
+.heat-col-short { display: none; }
+@container (max-width: 400px) {
+  .heat-col-full { display: none; }
+  .heat-col-short { display: inline; }
+}
+
+/* Touch screens cannot hover: say "tap" instead. */
+.hint-touch { display: none; }
+@media (hover: none) {
+  .hint-hover { display: none; }
+  .hint-touch { display: inline; }
+}
+
+/* Touch screens of any size (tablets included, not just phones below md)
+   get 44px tap targets and 16px inputs, as phones already do above. */
+@media (pointer: coarse) {
+  .teacher-app button:not(.sort), .teacher-app a.btn { min-height: 44px; touch-action: manipulation; }
+  .teacher-app .btn.small { padding: 8px 11px; }
+  .teacher-app :is(input:not([type]), input[type="text"], input[type="number"], input[type="email"], input[type="password"], input[type="date"], select, textarea) {
+    min-height: 44px;
+    font-size: 16px;
+  }
+  .teacher-app input[type="checkbox"], .teacher-app input[type="radio"] { min-width: 20px; min-height: 20px; }
 }

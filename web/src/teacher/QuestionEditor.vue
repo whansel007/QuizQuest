@@ -285,5 +285,5 @@ const plainLabel = 'font-weight:400;color:inherit';
 .opt-row input[type=radio], .opt-row input[type=checkbox] { margin-top:12px; }
 .advanced-options, .editor-preview { padding:12px 0; }
 summary { cursor:pointer; font-weight:600; }
-@media(max-width:600px) { .opt-row { flex-wrap:wrap; } .opt-row textarea { flex-basis:70%; } }
+@media (max-width: 767.98px) { .opt-row { flex-wrap:wrap; } .opt-row textarea { flex-basis:70%; } }
 </style>
