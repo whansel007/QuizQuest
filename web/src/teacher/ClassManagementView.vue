@@ -338,6 +338,7 @@ function copyToClipboard(text) {
           <div>
             <b style="color: var(--good);">New Join Code Generated:</b>
             <span class="code-badge-large" :data-code-id="newlyGeneratedCodeId">{{ newlyGeneratedCode }}</span>
+            <span class="small muted" style="margin-left: 8px;">id {{ newlyGeneratedCodeId ? newlyGeneratedCodeId.slice(0, 8) : '' }}</span>
             <p class="small muted" style="margin: 4px 0 0;">
               Share this code with your students. They can redeem it on their student practice dashboard to enroll!
               <br />
@@ -443,7 +444,7 @@ function copyToClipboard(text) {
         <div class="row" style="justify-content: space-between; align-items: center; margin-bottom: 14px;">
           <div>
             <h3 style="margin-bottom: 2px;">Enrolment Join Codes</h3>
-            <p class="muted small">Students enter these unpredictable codes to self-enroll in this class.</p>
+            <p class="muted small">Students enter these codes to self-enroll in this class.</p>
           </div>
           <button class="btn primary small" @click="showGenerateCodeModal = true">
             + Generate Join Code
@@ -472,7 +473,7 @@ function copyToClipboard(text) {
               <tr v-for="c in joinCodes" :key="c.id" :data-code-id="c.id">
                 <td>
                   <div style="display: flex; align-items: center; gap: 8px;">
-                    <code class="code-badge-table">QQ-•••••</code>
+                    <code class="code-badge-table">QQ-••••••••••••</code>
                     <span class="small muted" :title="`Code id ${c.id}`">{{ c.id.slice(0, 8) }}</span>
                   </div>
                 </td>
@@ -499,7 +500,7 @@ function copyToClipboard(text) {
           <p class="small muted" style="margin: 10px 0 0;">
             A code is shown once, on the banner above, when it is generated. The server keeps only a hash of it,
             so it cannot be shown again — the id beside each row is what identifies a code, and what the
-            Revoke button uses.
+            Revoke button uses. The banner shows the id too, so a code and its row can be matched up.
           </p>
         </div>
       </div>

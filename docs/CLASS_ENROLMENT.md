@@ -48,9 +48,10 @@ keeps all its enrolments but stops new ones.
 ## Join codes (students)
 
 A professor can also open **Join Codes** in a class, generate a code such as
-`QQ-9X4K2` (optionally with an expiry and a usage limit) and share it. The
-student clicks **+ Join Class** and enters it. The `QQ-` prefix and letter case
-are optional. Revoked, expired, used-up and archived-class codes are refused.
+`QQ-7K4M2X9PQWTB` (optionally with an expiry and a usage limit) and share it.
+The student clicks **+ Join Class** and enters it. The `QQ-` prefix and letter
+case are optional. Revoked, expired, used-up and archived-class codes are
+refused.
 
 ## Code map
 
@@ -102,9 +103,11 @@ tab; the class picker now lists both classes.
 - One student at a time; there is no bulk add or CSV import.
 - No invitations for people without an account.
 - A join code is shown to the professor once, when it is generated, and the
-  server keeps only a hash of it. A database file or dump therefore holds no
-  code anybody could redeem, and a code's internal ID is not accepted in
-  place of the code. The cost: a professor who loses a code generates another.
+  server keeps only a hash of it. The code is 12 characters from a
+  32-character alphabet (about 1.15e18 possibilities) drawn with a CSPRNG,
+  so a database file or dump holds no code anybody could redeem, and a
+  code's internal ID is not accepted in place of the code. The cost: a
+  professor who loses a code generates another.
 - Students can still join by code. Whether enrolment should be
   professor-only is an open decision.
 

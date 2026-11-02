@@ -106,17 +106,20 @@ test('a professor creates a class, gives it a join code and revokes the code', a
 
   await expect(page.locator('#toast')).toContainText('New join code generated: QQ-');
   const code = (await page.locator('.code-badge-large').innerText()).trim();
-  expect(code).toMatch(/^QQ-[23456789A-HJ-NP-Z]{5}$/);
+  expect(code).toMatch(/^QQ-[23456789A-HJ-NP-Z]{12}$/);
   // The banner carries the code's id as well. The server keeps only a hash
   // of the code, so the id - not the code - is what identifies the row.
   const codeId = await page.locator('.code-badge-large').getAttribute('data-code-id');
   expect(codeId, 'the generated code has an id').toBeTruthy();
+  // The id is shown next to the code on the banner too, so a professor can
+  // match the code they are about to share with the row it belongs to.
+  await expect(page.locator('.code-badge-large').locator('xpath=..')).toContainText(codeId.slice(0, 8));
 
   const row = page.locator(`tr[data-code-id="${codeId}"]`);
   await expect(row).toHaveCount(1);
   // The table shows a masked form, not the code: the code is shown once, on
   // the banner above, and the server does not keep it.
-  await expect(row.locator('.code-badge-table')).toHaveText('QQ-•••••');
+  await expect(row.locator('.code-badge-table')).toHaveText('QQ-••••••••••••');
   await expect(row).not.toContainText(code);
   await expect(row.getByRole('cell').nth(1)).toHaveText('0 / 20');
   await expect(row.locator('.badge.good')).toHaveText('Active');
@@ -135,7 +138,7 @@ test('a professor creates a class, gives it a join code and revokes the code', a
   await expect(row.getByRole('button', { name: 'Revoke' })).toHaveCount(0);
   await expect(row.getByRole('button', { name: 'Copy' })).toHaveCount(0);
   await expect(row.getByText('—')).toBeVisible();
-  await expect(row.locator('.code-badge-table')).toHaveText('QQ-•••••');
+  await expect(row.locator('.code-badge-table')).toHaveText('QQ-••••••••••••');
   await expect(page.getByRole('button', { name: 'Join Codes (0)', exact: true })).toBeVisible();
 
   // And the green banner that said "share this code with your students" is

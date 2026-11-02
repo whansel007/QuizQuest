@@ -1008,7 +1008,7 @@ test('a student with no classes joins one with the code their professor generate
   const auth = { 'content-type': 'application/json', authorization: `Bearer ${teacher.token}` };
   const [cls] = await fetch(`${base}/api/classes`, { headers: auth }).then((r) => r.json());
   const { code } = await fetch(`${base}/api/classes/${cls.id}/join-codes`, { method: 'POST', headers: auth, body: '{}' }).then((r) => r.json());
-  assert.match(code, /^QQ-[2-9A-HJ-NP-Z]{5}$/, 'the generated code has the shape the student form advertises');
+  assert.match(code, /^QQ-[2-9A-HJ-NP-Z]{12}$/, 'the generated code has the shape the student form advertises');
 
   // A brand-new account, enrolled in nothing at all.
   const email = `joiner.${Date.now()}@example.com`;
