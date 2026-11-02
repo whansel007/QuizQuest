@@ -352,6 +352,10 @@ const joinBriefing = document.querySelector('#join-briefing');
 const infoButton = document.querySelector('#info-button');
 const statsPanel = document.querySelector('#stats-panel');
 const infoCloseButton = document.querySelector('#info-close');
+const emoteButton = document.querySelector('#emote-button');
+const emoteMenu = document.querySelector('#emote-menu');
+const emoteClose = document.querySelector('#emote-close');
+const emoteChoices = [...document.querySelectorAll('.emote-choice[data-emote]')];
 const buffVote = document.querySelector('#buff-vote');
 const buffCards = document.querySelector('#buff-cards');
 const targetingHint = document.querySelector('#targeting-hint');
@@ -463,6 +467,7 @@ const codeToKey = {
 };
 let me = null;
 let state = { players: [], projectiles: [], monsters: [], campfire: null, wave: null };
+let emoteFocusIndex = 0;
 let debugTurretRanges = false;
 const turretVisualState = new Map();
 const rangerMeatThrows = new Map();
@@ -3216,8 +3221,68 @@ function onPointerMove(event) {
   }, delay);
 }
 
+function openEmoteMenu() {
+  if (!me || !emoteMenu.hidden) return;
+  releaseKeys();
+  emoteMenu.hidden = false;
+  emoteButton.setAttribute('aria-expanded', 'true');
+  emoteFocusIndex = 0;
+  emoteChoices[emoteFocusIndex]?.focus({ preventScroll: true });
+}
+
+function closeEmoteMenu() {
+  if (emoteMenu.hidden) return;
+  emoteMenu.hidden = true;
+  emoteButton.setAttribute('aria-expanded', 'false');
+  emoteButton.focus({ preventScroll: true });
+}
+
+function sendEmote(emoteId) {
+  if (!emoteChoices.some((choice) => choice.dataset.emote === emoteId)) return;
+  socket.emit('emote', emoteId);
+  closeEmoteMenu();
+}
+
+function onEmoteMenuKeyDown(event) {
+  const count = emoteChoices.length;
+  const digit = Number(event.key);
+  if (digit >= 1 && digit <= count) {
+    event.preventDefault();
+    sendEmote(emoteChoices[digit - 1].dataset.emote);
+    return;
+  }
+  if (event.code === 'Escape' || event.code === 'KeyZ') {
+    event.preventDefault();
+    closeEmoteMenu();
+    return;
+  }
+  const direction = ['ArrowRight', 'ArrowDown'].includes(event.code) ? 1
+    : ['ArrowLeft', 'ArrowUp'].includes(event.code) ? -1 : 0;
+  if (direction) {
+    event.preventDefault();
+    emoteFocusIndex = (emoteFocusIndex + direction + count) % count;
+    emoteChoices[emoteFocusIndex]?.focus({ preventScroll: true });
+    return;
+  }
+  if (event.code === 'Tab') {
+    const focusables = [...emoteChoices, emoteClose];
+    const currentIndex = focusables.indexOf(document.activeElement);
+    const nextIndex = event.shiftKey
+      ? (currentIndex <= 0 ? focusables.length - 1 : currentIndex - 1)
+      : (currentIndex < 0 || currentIndex === focusables.length - 1 ? 0 : currentIndex + 1);
+    event.preventDefault();
+    focusables[nextIndex]?.focus({ preventScroll: true });
+  }
+}
+
+emoteButton.addEventListener('click', openEmoteMenu);
+emoteClose.addEventListener('click', closeEmoteMenu);
+emoteMenu.addEventListener('click', (event) => { if (event.target === emoteMenu) closeEmoteMenu(); });
+emoteChoices.forEach((choice) => choice.addEventListener('click', () => sendEmote(choice.dataset.emote)));
+
 function onKeyDown(event) {
   if (!me || event.target.closest?.('input, textarea, select')) return;
+  if (!emoteMenu.hidden) { onEmoteMenuKeyDown(event); return; }
   const key = codeToKey[event.code];
   if (key) {
     if (!keys[key]) {
@@ -3229,6 +3294,9 @@ function onKeyDown(event) {
     activateAbility('skill');
   } else if (event.code === 'KeyQ' && !event.repeat) {
     activateAbility('ultimate');
+  } else if (event.code === 'KeyZ' && !event.repeat) {
+    event.preventDefault();
+    openEmoteMenu();
   } else if (event.code === 'KeyI' && !event.repeat) {
     toggleStats();
   } else if (event.code === 'Escape' && !event.repeat) {
@@ -4148,6 +4216,31 @@ function releasePointerControls(event) {
 // advances exactly one interval per drawn frame and never falls behind the
 // clock, so a long stall (GC, tab restore) resyncs instead of bursting.
 let nextFrameAt = -1;
+function drawPlayerEmote(player, time) {
+  const emote = player.emote;
+  if (!emote?.glyph || emote.remainingMs <= 0) return;
+  const alpha = Math.min(1, emote.remainingMs / 350);
+  const float = Math.sin(time * 0.006) * 2;
+  const x = player.x;
+  const y = player.y - 58 - float;
+  context.save();
+  context.globalAlpha = alpha;
+  context.fillStyle = '#FBF2D8';
+  context.strokeStyle = '#1D3329';
+  context.lineWidth = 3;
+  context.beginPath();
+  context.roundRect(x - 25, y - 23, 50, 42, 13);
+  context.fill(); context.stroke();
+  context.beginPath();
+  context.moveTo(x - 3, y + 18); context.lineTo(x + 2, y + 27); context.lineTo(x + 9, y + 18);
+  context.closePath(); context.fill(); context.stroke();
+  context.fillStyle = '#1D3329';
+  context.font = '25px system-ui, sans-serif';
+  context.textAlign = 'center'; context.textBaseline = 'middle';
+  context.fillText(emote.glyph, x, y - 2);
+  context.restore();
+}
+
 function draw(timestamp) {
   requestAnimationFrame(draw);
   if (FRAME_CAP_FPS > 0) {
@@ -5291,6 +5384,7 @@ function drawScene(timestamp) {
 
   // 3. Draw players
   for (const player of state.players) {
+    drawPlayerEmote(player, currentTime);
     const visualState = getHeroVisualState(player, currentTime);
     if (visualState.downed) {
       const remainingRatio = Math.max(0, Math.min(1, player.respawnRemainingMs / Math.max(1, player.respawnDurationMs)));

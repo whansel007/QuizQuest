@@ -2,7 +2,7 @@
 
 ## 1. WHAT THE PLAYER SEES
 
-Practice is an individual quiz with an illustrated turn-based battle and result summary. The co-op Campfire Run arena shows player/hero roster, room code, wave/enemy count, campfire health, ability buttons and between-wave cards. Damage numbers, hit flashes, telegraphs, floating labels and boss confetti appear over the arena. The main arena is an iframe with a DOM HUD over a canvas world.
+Practice is an individual quiz with an illustrated turn-based battle and result summary. The co-op Campfire Run arena shows player/hero roster, room code, wave/enemy count, campfire health, ability buttons, an emote picker and between-wave cards. Damage numbers, hit flashes, telegraphs, floating labels and boss confetti appear over the arena. The main arena is an iframe with a DOM HUD over a canvas world.
 
 ## 2. HOW IT WORKS
 
@@ -15,6 +15,10 @@ Practice is an individual quiz with an illustrated turn-based battle and result 
 `public/hero-lab/world.html` supplies the arena's HUD element structure; `hud.css` styles it; `world.js` reads server snapshots and updates named DOM fields using `setHudText`, `setHudStyle` and class toggles. Socket.IO supplies room/state/ability events. HUD is not redrawn as part of every canvas pixel: `setHudText()` caches text per element and `setHudStyle()` caches styles, returning early if a value is unchanged; hero labels also use a signature cache. `updateHud()` and nearby functions handle player list, room code, wave phase and campfire bar. Campfire bar width is health/max health, green above 50%, gold above 25%, rose otherwise. CSS transition is `.15s` for width/color.
 
 The HUD includes player portraits/names/HP, room code/copy affordance, wave banner/count, campfire health bar, controls/pills/tooltips, and ability controls. Its shared palette in `hud.css` uses dark pine panels (`--hud-panel: #2E4A39`), cream text (`#F0EAD2`), gold (`#F2BA55`), leaf green (`#8DB872`), ember (`#EF7137`), rose (`#E0807B`) and sky blue (`#8FCBDC`). Roster portraits are 32px desktop (26px narrow), HP bars 7px; the campfire bar is 14px. Weapon/skill/ultimate use M1/E/Q; cooldown fill is a CSS custom property ring with `COOLDOWN_RING_TRANSITION_MS=100`; ready glow period is 1000ms; ready pulse is 300ms. CSS sizes are responsive: ultimate has `--btn-size-ult: 88px` default and 62px in a narrow viewport (`hud.css`). Hero information is an HTML panel in `world.html` toggled with the info button: `world.js` fills selected hero health, attack, defense, speed, building bonuses, momentum, talent and connection status. Per-hero pill badges show state such as Samurai stacks or Ranger ultimate/window state. Cooldown and talent descriptions appear through button/title text and the info panel; check the hero-specific DOM update code for exact tooltip copy.
+
+### Campfire Run emotes
+
+The emote picker opens with **Z** or the **Emote** HUD button, so it is available on touch devices as well. It offers the same six choices as Kingdom: thumbs up, thumbs down, wave, heart, laugh and question. Number keys 1–6 choose directly; arrow keys move focus; Escape or Z closes the picker. The menu is an accessible HTML dialog styled in `public/hero-lab/hud.css`; the chosen bubble is drawn over the player sprite by `drawPlayerEmote()` in `public/hero-lab/world.js` and fades after 2.4 seconds. The client sends an `emote` Socket.IO intent; `src/hero-lab/world.js` routes it to that player's room, where `src/hero-lab/room.js` validates the choice, applies a 500ms rate limit and includes the active glyph and remaining time in each player snapshot. Emotes are visual/social only and do not affect combat. The help card and join briefing in `world.html` document the desktop key and touch button.
 
 ### Canvas effects and art
 
@@ -31,10 +35,10 @@ The iframe joins the room through Socket.IO (see `public/hero-lab/world.js`, Soc
 ## 3. WHERE IT LIVES
 
 - Quiz screens: `web/src/student/PracticeView.vue`, `QuizRunner.vue`, `QuestionForm.vue`, `ReportForm.vue`, `ResultBlock.vue`.
-- Arena structure and styles: `public/hero-lab/world.html`, `hud.css`.
-- Arena live state, sockets, HUD and drawing: `public/hero-lab/world.js` (`draw`, socket listeners, HUD update functions, particle/damage drawing).
+- Arena structure and styles: `public/hero-lab/world.html`, `public/hero-lab/hud.css` (including the emote dialog/button).
+- Arena live state, sockets, HUD and drawing: `public/hero-lab/world.js` (keyboard/button emote picker, `drawPlayerEmote`, `draw`, socket listeners, HUD update functions, particle/damage drawing).
 - Arena display/effect values: `public/hero-lab/game-config.js`, shared constants in `config/tuning.js`.
-- Server room: `src/hero-lab/room.js`, `rooms.js`, `world.js`.
+- Server room and intent routing: `src/hero-lab/room.js`, `src/hero-lab/rooms.js`, `src/hero-lab/world.js` (emote validation, rate limit and shared snapshots are room-owned).
 
 ## 4. DATA AND TIMING
 
@@ -53,5 +57,6 @@ Arena: server socket snapshots/events; browser rAF draws at up to 24 FPS; UI but
 - The Quiz battle is a Vue DOM/CSS illustration; Campfire Run is an iframe game with canvas and DOM HUD.
 - Server state is authoritative. A visual change must not change client-side reward or grading assumptions.
 - The HUD's DOM does not shake with the canvas. Confetti is intentionally screen-space.
+- Emote choices and timing are server-owned; keep the client picker IDs in sync with `PLAYER_EMOTES` in `src/hero-lab/room.js` and the Kingdom list if changing the shared choices.
 - HUD identifiers are linked between `world.html`, `world.js` and `hud.css`; renaming one without all three breaks the display.
 - Game config mirrors/imports some tuning. Check where a value is sourced before adding a duplicate constant.
