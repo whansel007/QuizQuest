@@ -342,6 +342,6 @@ async function save(onlyId = '') {
 summary { cursor: pointer; }
 .upload-options, .upload-message { margin: 12px 0; }
 .extracted-text { white-space: pre-wrap; overflow-wrap: anywhere; max-height: 240px; overflow: auto; }
-@media (max-width: 540px) { .material-row { flex-direction: column; gap: 8px; } .saved-toggle { flex-wrap: wrap; gap: 8px; } .saved-toggle > .grow { flex-basis: 100%; } }
+@media (max-width: 575.98px) { .material-row { flex-direction: column; gap: 8px; } .saved-toggle { flex-wrap: wrap; gap: 8px; } .saved-toggle > .grow { flex-basis: 100%; } }
 @media (prefers-reduced-motion: reduce) { .saved-region { transition: none; } }
 </style>

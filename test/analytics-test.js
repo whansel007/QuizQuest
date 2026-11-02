@@ -476,3 +476,38 @@ test('question detail: a wording fix keeps the answer counts, new options restar
   assert.equal(d.choicesChangedAt, NOW - 500);
   assert.equal(d.first.n, 2);
 });
+
+test('open student reports are listed on the dashboard without the reporter', () => {
+  const { db } = setup();
+  const q = db.questions.find((x) => x.id === 'q-n2');
+  // a newer report from the course's other class, on a reported version
+  q.reports.push({ id: 'r-test-c', studentId: 's-09', classId: 'cl-c', version: 1, stem: 'Reported wording', category: 'typo', reason: 'Missing word', at: NOW - DAY, resolved: false });
+  q.reports.push({ id: 'r-test-done', studentId: 's-02', classId: 'cl-a', version: 1, category: 'answer', reason: 'Already handled', at: NOW - 3 * DAY, resolved: true });
+
+  const a = classAnalytics(db, 'cl-a', NOW, { range: 'all' });
+  assert.equal(a.reports.length, a.openReports, 'the list matches the count in Needs attention');
+  assert.deepEqual(a.reports.map((r) => r.id), ['r-test-c', 'r-seed1'], 'newest first, resolved ones left out');
+
+  const [other, seeded] = a.reports;
+  assert.equal(other.thisClass, false);
+  assert.equal(other.className, 'Computing - Tutorial Group C');
+  assert.equal(other.stem, 'Reported wording', 'the wording the student saw, not a later edit');
+  assert.equal(other.category, 'typo');
+  // the seeded report predates stored context: its class comes from the student's answer
+  assert.equal(seeded.thisClass, true);
+  assert.equal(seeded.category, 'other');
+  assert.equal(seeded.topic, 'Networking basics');
+  assert.equal(seeded.questionId, 'q-n2');
+  for (const r of a.reports) {
+    assert.equal(r.studentId, undefined, 'never who sent it');
+    assert.ok(!JSON.stringify(r).includes('s-0'), 'no student id anywhere in the row');
+  }
+
+  // narrowed to another topic, the list narrows with the count
+  const data = classAnalytics(db, 'cl-a', NOW, { range: 'all', topicId: 'tp-data' });
+  assert.deepEqual(data.reports, []);
+
+  // a resolved report leaves the list
+  q.reports.find((r) => r.id === 'r-seed1').resolved = true;
+  assert.deepEqual(classAnalytics(db, 'cl-a', NOW, { range: 'all' }).reports.map((r) => r.id), ['r-test-c']);
+});
