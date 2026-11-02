@@ -72,6 +72,7 @@ let heroSpritesDisabled = false;
 const heroOffsets = new Map();
 const heroFacing = new Map();
 const heroUltimateLook = new Map();
+const shortUltimateLooksUntil = new Map();
 const heroTransformStarts = new Map();
 const heroPreviousPositions = new Map();
 const heroHitFlashStarts = new Map();
@@ -2263,12 +2264,14 @@ socket.on('ability_used', (event) => {
       return;
     }
     if (event.heroId === 'fairy') {
+      shortUltimateLooksUntil.set(event.playerId, performance.now() + 500);
       if (effectToggles.sound) {
         playSound('fairyWhoosh', { volume: event.playerId === me ? 1 : 0.65 });
         fairyTravelSoundStops.set(event.playerId, startSoundLoop('fairyTravel', { volume: 0.35 }));
       }
       return;
     }
+    if (event.heroId === 'engineer') shortUltimateLooksUntil.set(event.playerId, performance.now() + 500);
     playSound('ultimateCast', { volume: event.playerId === me ? 1 : 0.65 });
     shakeCamera(SHAKE_ULTIMATE_TRAUMA, 'major');
     return;
@@ -4288,7 +4291,10 @@ function getHeroVisualState(player, now) {
   const ultActive = Boolean(!downed && !runEnded && (heroDebugUltimate && player.id === me
     || (heroId === 'sheriff' && player.ultimateFlash)
     || (heroId === 'guardian' && player.guardianCharging)
-    || (heroId === 'pilot' && player.mech)));
+    || (heroId === 'pilot' && player.mech)
+    || (heroId === 'samurai' && ['cutting-dash', 'afterimage-cut'].includes(player.samuraiAction?.kind))
+    || (heroId === 'ranger' && player.deadAimArrows > 0)
+    || ((heroId === 'fairy' || heroId === 'engineer') && now < (shortUltimateLooksUntil.get(player.id) || 0))));
   const priorUltimate = heroUltimateLook.get(player.id) || false;
   if (priorUltimate !== ultActive) {
     heroTransformStarts.set(player.id, now);
@@ -4856,6 +4862,71 @@ function crescentPath(len, thickness, bow = 0, peak = 0.5) {
 }
 const SAMURAI_MARK_LEN = Math.hypot(40, 32), SAMURAI_MARK_TILT = Math.atan2(-32, 40);
 
+function drawSamuraiCutGuides(now) {
+  const fx = HERO_FX_COLORS.samurai.primary;
+  const serverNow = (state.serverTime || Date.now()) + (now - stateReceivedAt);
+  for (const player of state.players || []) {
+    const action = player.samuraiAction;
+    if (player.heroId !== 'samurai' || action?.phase !== 'sheathe') continue;
+    const delayStart = action.startedAt + action.durationMs;
+    const progress = Math.max(0, Math.min(1, (serverNow - delayStart) / Math.max(1, action.cutAt - delayStart)));
+    const begin = -action.cutPad;
+    const finish = action.distance + action.cutPad;
+    const sx = action.startX + action.direction.x * begin;
+    const sy = action.startY + action.direction.y * begin;
+    const ex = action.startX + action.direction.x * finish;
+    const ey = action.startY + action.direction.y * finish;
+    const len = Math.hypot(ex - sx, ey - sy);
+    if (len < 1) continue;
+    const alpha = (0.15 + 0.25 * progress) * (player.id === me ? 1 : 0.5);
+    const tileLength = 21;
+    context.save();
+    context.translate(sx, sy);
+    context.rotate(Math.atan2(ey - sy, ex - sx));
+    context.globalAlpha = alpha;
+    for (let tileX = 0, tile = 0; tileX < len; tileX += tileLength, tile += 1) {
+      const width = Math.min(tileLength, len - tileX);
+      const centerT = (tileX + width / 2) / len;
+      // A sine envelope makes the cut band taper at both ends and swell in
+      // the middle, while the adjacent blocks retain the alternating look.
+      const tileHeight = Math.max(3, action.width * Math.sin(Math.PI * centerT));
+      context.fillStyle = '#17202B';
+      context.fillRect(tileX, -(tileHeight + 5) / 2, width, tileHeight + 5);
+      context.fillStyle = tile % 2 ? '#6E5BD0' : fx;
+      context.fillRect(tileX, -tileHeight / 2, width, tileHeight);
+    }
+    context.globalAlpha = alpha * 0.9;
+    context.strokeStyle = '#E6DFFF';
+    context.lineWidth = 2;
+    context.beginPath(); context.moveTo(0, 0); context.lineTo(len, 0); context.stroke();
+    context.restore();
+  }
+}
+
+function drawSamuraiCutSlashes(now) {
+  const fx = HERO_FX_COLORS.samurai.primary;
+  const slashMs = SAMURAI_SLASH_FADE_MS;
+  for (let i = samuraiSlashEffects.length - 1; i >= 0; i--) {
+    const slash = samuraiSlashEffects[i], age = now - slash.startedAt;
+    if (age >= slashMs) { samuraiSlashEffects.splice(i, 1); continue; }
+    const grow = Math.min(1, age / SAMURAI_SLASH_GROW_MS);
+    const fade = age <= SAMURAI_SLASH_GROW_MS ? 1 : 1 - (age - SAMURAI_SLASH_GROW_MS) / (slashMs - SAMURAI_SLASH_GROW_MS);
+    const width = 2 + (slash.width - 2) * grow;
+    const dx = slash.endX - slash.startX, dy = slash.endY - slash.startY, len = Math.hypot(dx, dy);
+    if (len < 1) continue;
+    // Afterimage Cut: a tapered crescent slash, shown between the enemy and
+    // player draw passes so it reads as striking through the arena.
+    const bow = width * 0.1, reach = len * (0.4 + 0.6 * grow);
+    context.save(); context.translate(slash.startX, slash.startY); context.rotate(Math.atan2(dy, dx));
+    context.globalAlpha = 0.16 * fade; context.fillStyle = fx; context.beginPath(); context.roundRect(0, -width / 2, len, width, width / 2); context.fill();
+    context.globalAlpha = 0.6 * fade; crescentPath(reach, width * 0.8, bow, 0.56); context.fill();
+    context.globalAlpha = 0.7 * fade; context.fillStyle = '#DCD5FF'; crescentPath(reach, width * 0.45, bow, 0.56); context.fill();
+    context.globalAlpha = 0.95 * fade; context.fillStyle = '#fff'; crescentPath(reach, Math.max(2, width * 0.16), bow, 0.56); context.fill();
+    context.globalAlpha = 0.45 * fade * grow; crescentPath(len, Math.max(2, width * 0.1), -width * 0.22, 0.44); context.fill();
+    context.restore();
+  }
+}
+
 function drawSamuraiWorldEffects(now) {
   const fx = HERO_FX_COLORS.samurai.primary;
   const slashMs = SAMURAI_SLASH_FADE_MS;
@@ -4877,49 +4948,10 @@ function drawSamuraiWorldEffects(now) {
     const toY = trail.startY + (trail.endY - trail.startY) * progress;
     const fade = age <= trail.durationMs ? 0.95 : Math.max(0, 1 - (age - trail.durationMs) / SAMURAI_DASH_AFTERIMAGE_MS);
     if (fade > 0) drawBlade(fromX, fromY, toX, toY, trail.kind === 'afterimage-cut' ? 11 : 8, fade, true);
-    if (age > trail.durationMs + SAMURAI_DASH_AFTERIMAGE_MS) samuraiDashTrails.delete(playerId);
+    const afterimageLifetime = trail.kind === 'afterimage-cut' ? Math.max(SAMURAI_DASH_AFTERIMAGE_MS, 280) : SAMURAI_DASH_AFTERIMAGE_MS;
+    if (age > trail.durationMs + afterimageLifetime) samuraiDashTrails.delete(playerId);
   }
   const serverNow = (state.serverTime || Date.now()) + (now - stateReceivedAt);
-  for (const player of state.players || []) {
-    const action = player.samuraiAction;
-    if (player.heroId !== 'samurai' || action?.phase !== 'sheathe') continue;
-    const delayStart = action.startedAt + action.durationMs;
-    const progress = Math.max(0, Math.min(1, (serverNow - delayStart) / Math.max(1, action.cutAt - delayStart)));
-    const begin = -action.cutPad;
-    const finish = action.distance + action.cutPad;
-    const sx = action.startX + action.direction.x * begin;
-    const sy = action.startY + action.direction.y * begin;
-    const ex = action.startX + action.direction.x * finish;
-    const ey = action.startY + action.direction.y * finish;
-    const alpha = (0.15 + 0.25 * progress) * (player.id === me ? 1 : 0.5);
-    context.save(); context.setLineDash([12, 9]); context.lineCap = 'butt';
-    context.globalAlpha = alpha; context.strokeStyle = '#17202B'; context.lineWidth = action.width + 5;
-    context.beginPath(); context.moveTo(sx, sy); context.lineTo(ex, ey); context.stroke();
-    context.globalAlpha = alpha; context.strokeStyle = fx; context.lineWidth = action.width;
-    context.beginPath(); context.moveTo(sx, sy); context.lineTo(ex, ey); context.stroke();
-    context.setLineDash([]); context.globalAlpha = alpha * 0.9; context.strokeStyle = '#E6DFFF'; context.lineWidth = 2;
-    context.beginPath(); context.moveTo(sx, sy); context.lineTo(ex, ey); context.stroke(); context.restore();
-  }
-  for (let i = samuraiSlashEffects.length - 1; i >= 0; i--) {
-    const slash = samuraiSlashEffects[i], age = now - slash.startedAt;
-    if (age >= slashMs) { samuraiSlashEffects.splice(i, 1); continue; }
-    const grow = Math.min(1, age / SAMURAI_SLASH_GROW_MS);
-    const fade = age <= SAMURAI_SLASH_GROW_MS ? 1 : 1 - (age - SAMURAI_SLASH_GROW_MS) / (slashMs - SAMURAI_SLASH_GROW_MS);
-    const width = 2 + (slash.width - 2) * grow;
-    const dx = slash.endX - slash.startX, dy = slash.endY - slash.startY, len = Math.hypot(dx, dy);
-    if (len < 1) continue;
-    // Afterimage Cut: one sweeping crescent (violet body, lavender edge, white
-    // core) bowed inside the cut band, over a faint band showing the true
-    // cut width, plus a thin counter-arc for a second, quicker stroke.
-    const bow = width * 0.1, reach = len * (0.4 + 0.6 * grow);
-    context.save(); context.translate(slash.startX, slash.startY); context.rotate(Math.atan2(dy, dx));
-    context.globalAlpha = 0.16 * fade; context.fillStyle = fx; context.beginPath(); context.roundRect(0, -width / 2, len, width, width / 2); context.fill();
-    context.globalAlpha = 0.6 * fade; crescentPath(reach, width * 0.8, bow, 0.56); context.fill();
-    context.globalAlpha = 0.7 * fade; context.fillStyle = '#DCD5FF'; crescentPath(reach, width * 0.45, bow, 0.56); context.fill();
-    context.globalAlpha = 0.95 * fade; context.fillStyle = '#fff'; crescentPath(reach, Math.max(2, width * 0.16), bow, 0.56); context.fill();
-    context.globalAlpha = 0.45 * fade * grow; crescentPath(len, Math.max(2, width * 0.1), -width * 0.22, 0.44); context.fill();
-    context.restore();
-  }
   for (let i = samuraiHitMarks.length - 1; i >= 0; i--) {
     const mark = samuraiHitMarks[i], progress = (now - mark.startedAt) / SAMURAI_HIT_MARK_MS;
     if (progress >= 1) { samuraiHitMarks.splice(i, 1); continue; }
@@ -5366,6 +5398,10 @@ function drawScene(timestamp) {
     context.restore();
   }
 
+  // Keep the cut guide and slash over enemies but beneath the hero sprite.
+  drawSamuraiCutGuides(currentTime);
+  drawSamuraiCutSlashes(currentTime);
+
   // 3. Draw players
   for (const player of state.players) {
     const visualState = getHeroVisualState(player, currentTime);
@@ -5473,13 +5509,17 @@ function drawScene(timestamp) {
         const tdx = samuraiTrail.endX - samuraiTrail.startX, tdy = samuraiTrail.endY - samuraiTrail.startY, tLen = Math.hypot(tdx, tdy) || 1;
         emitDashDust(player.id, player.x, player.y + GAME_CONFIG.arena.playerRadius * 0.7, tdx / tLen, tdy / tLen, currentTime);
       }
-      for (let echo = 0; echo < 3; echo++) {
-        const fraction = [0.28, 0.54, 0.8][echo];
+      const ultimateDash = samuraiTrail.kind === 'afterimage-cut';
+      const echoFractions = ultimateDash ? [0.14, 0.29, 0.43, 0.57, 0.71, 0.86] : [0.28, 0.54, 0.8];
+      const echoAlphas = ultimateDash ? [0.42, 0.37, 0.32, 0.27, 0.22, 0.17] : [0.4, 0.25, 0.12];
+      const echoLifetime = ultimateDash ? Math.max(SAMURAI_DASH_AFTERIMAGE_MS, 280) : SAMURAI_DASH_AFTERIMAGE_MS;
+      for (let echo = 0; echo < echoFractions.length; echo++) {
+        const fraction = echoFractions[echo];
         const echoAge = trailAge - samuraiTrail.durationMs * fraction;
-        if (echoAge < 0 || echoAge >= SAMURAI_DASH_AFTERIMAGE_MS) continue;
+        if (echoAge < 0 || echoAge >= echoLifetime) continue;
         const x = samuraiTrail.startX + (samuraiTrail.endX - samuraiTrail.startX) * fraction;
         const y = samuraiTrail.startY + (samuraiTrail.endY - samuraiTrail.startY) * fraction;
-        context.save(); context.globalAlpha = [0.4, 0.25, 0.12][echo] * (1 - echoAge / SAMURAI_DASH_AFTERIMAGE_MS);
+        context.save(); context.globalAlpha = echoAlphas[echo] * (1 - echoAge / echoLifetime);
         drawCachedHero(context, heroSpriteCache, player, x, y, { ...visualState, hitFlash: false });
         context.restore();
       }
