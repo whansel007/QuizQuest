@@ -1428,7 +1428,7 @@ dialog.insight::backdrop { background: rgba(10, 12, 20, 0.45); }
   /* paper is a snapshot: rows opened for printing must not be caught mid-fade */
   *, *::before, *::after { animation: none !important; transition: none !important; }
   /* colour carries meaning here (keys, meters, heat), so keep it even with "background graphics" off */
-  .viz, .meter, .heat, .badge { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  .viz, .meter, .heat, .badge, .tb-fill, .tb-swatch { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
   .print-only { display: block; margin-bottom: 12px; }
   main { max-width: none; padding: 0; }
   .panel, .tile { break-inside: avoid; box-shadow: none; }
@@ -2914,7 +2914,6 @@ body:has(.teacher-app) { background: var(--bg); }
 .teacher-app.nav-collapsed nav#tabs.t-nav button { justify-content: center; padding: 9px 0; }
 .teacher-app.nav-collapsed .t-nav-label { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
 .teacher-app.nav-collapsed .t-account { flex-direction: column; padding-inline: 0; }
-.teacher-app.nav-collapsed .t-account .btn { padding-inline: 6px; font-size: 11px; }
 
 /* content: the full width beside the sidebar */
 .teacher-app main#main.main-teacher { width: 100%; max-width: none; min-width: 0; margin: 0; padding: 26px clamp(16px, 3vw, 40px) 40px; }
@@ -2983,7 +2982,12 @@ body:has(.teacher-app) { background: var(--bg); }
 .tb-name { overflow: hidden; font-weight: 700; font-size: 14px; text-overflow: ellipsis; white-space: nowrap; }
 .tb-track { position: relative; display: block; height: 14px; background: linear-gradient(90deg, transparent calc(50% - .5px), var(--viz-grid) calc(50% - .5px), var(--viz-grid) calc(50% + .5px), transparent calc(50% + .5px)); border-left: 1px solid var(--viz-axis); }
 .tb-fill { display: block; height: 100%; background: var(--series-1); border-radius: 0 4px 4px 0; }
-.tb-row.low-n .tb-fill { opacity: .45; }
+/* few first attempts: a striped bar in the same colour (clear in light and
+   dark mode, and it prints, which a faded bar barely does); the footnote's
+   swatch uses the same stripe */
+.tb-row.low-n .tb-fill, .tb-swatch { background: repeating-linear-gradient(135deg, var(--series-1) 0 3px, transparent 3px 6px); box-shadow: inset 0 0 0 1px var(--series-1); }
+.tb-few { display: block; margin-top: 1px; color: var(--muted); font-size: 11px; font-weight: 700; line-height: 1.2; }
+.tb-swatch { display: inline-block; width: 22px; height: 10px; margin-right: 6px; vertical-align: -1px; border-radius: 2px; }
 .tb-value { font-size: 13px; font-variant-numeric: tabular-nums; white-space: nowrap; text-align: right; }
 .tb-value b { font-size: 15px; }
 .tb-note { margin: 8px 0 0; }
