@@ -1626,10 +1626,10 @@ attemptId: attempt.id,
     return cached(`class|${params.classId}|${periodKey(p)}`, versionOfClass(params.classId), () => classAnalytics(db, params.classId, now(), p));
   });
 
-  // Open student reports for the class's course (the To review page)
-  route('GET', '/api/teacher/classes/:classId/reports', 'teacher', ({ user, params }) => ({
-    items: openReports(db, teacherClass(user, params.classId)),
-  }));
+  // Open student reports for one class (the To review page), and how many
+  // wait in this professor's other classes of the course
+  route('GET', '/api/teacher/classes/:classId/reports', 'teacher', ({ user, params }) =>
+    openReports(db, teacherClass(user, params.classId), user.id));
 
   // One question in detail (dashboard drill-down), for this class's answers
   route('GET', '/api/teacher/classes/:classId/questions/:qid/insights', 'teacher', ({ user, params, query }) => {

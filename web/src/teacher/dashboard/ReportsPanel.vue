@@ -2,7 +2,8 @@
 // ============================================================
 // Open student reports, on the dashboard itself: what the student said was
 // wrong with a question, and a reply box to resolve it without leaving the
-// page. Reports never say who sent them, only which class they came from.
+// page. Reports never say who sent them. The list is one class's (the
+// parent picks it); old reports whose class is unknown show for every class.
 // Resolving never edits a question or a mark; "Edit in Question bank" does
 // that. The same resolve call as the Question bank (ReportReview.vue).
 // ============================================================
@@ -15,7 +16,7 @@ import { usePaged } from '../../components/paged.js';
 import categories from '../../../../src/quiz/report-categories.json';
 
 const props = defineProps({
-  reports: { type: Array, required: true }, // analytics.reports: open ones, newest first
+  reports: { type: Array, required: true }, // GET .../reports items: this class's open ones, newest first
   timezone: { type: String, default: undefined },
 });
 const emit = defineEmits(['resolved', 'open-question', 'open-in-bank']);
@@ -38,7 +39,7 @@ const resolve = (r) => async () => {
 
 <template>
   <div>
-    <p class="small muted">What students said is wrong with a question, newest first, from every class taking this course. Reports never show who sent them. Resolving one doesn't change the question or anyone's marks; edit or withdraw the question in the Question bank if it needs it.</p>
+    <p class="small muted">What students in this class said is wrong with a question, newest first. Reports never show who sent them. Resolving one doesn't change the question or anyone's marks; edit or withdraw the question in the Question bank if it needs it.</p>
     <ul class="report-list">
       <li v-for="r in pages.items" :key="r.id" class="report-item">
         <div class="report-head">
@@ -48,7 +49,7 @@ const resolve = (r) => async () => {
         <p class="small muted report-meta">
           {{ when(r.at, timezone) }}
           <template v-if="r.topic"> · {{ r.topic }}</template>
-          · <b v-if="r.thisClass">this class</b><template v-else>{{ r.className || 'another class' }}</template>
+          <template v-if="!r.classKnown"> · <span title="Sent before reports recorded their class, so it shows for every class of the course">class not recorded</span></template>
           <template v-if="r.version"> · version {{ r.version }}</template>
         </p>
         <blockquote class="report-reason">{{ r.reason }}</blockquote>

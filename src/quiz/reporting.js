@@ -28,14 +28,26 @@ function studentReports(db, studentId, classId) {
     .sort((a, b) => b.at - a.at);
 }
 
-// Open student reports on the questions of a class's course, newest first,
-// for the professor's To review page. Like the Question bank, a report never
-// says who sent it: only which class it came from.
-function openReports(db, cls) {
-  const classNames = new Map(db.classes.filter((c) => c.courseId === cls.courseId).map((c) => [c.id, c.name]));
-  return db.questions
-    .filter((q) => q.courseId === cls.courseId)
-    .flatMap((q) => q.reports.filter((r) => !r.resolved).map((r) => {
+// A question's open reports that belong to one class: sent from that class,
+// or old reports whose class can't be worked out (those show for every class
+// of the course, so none is lost). Used by To review and the dashboard counts.
+function openReportsForClass(db, q, classId) {
+  return q.reports.filter((r) => {
+    if (r.resolved) return false;
+    const from = reportContext(db, q, r).classId;
+    return from === classId || from === null;
+  });
+}
+
+// The To review list for one class: its open reports, newest first, and how
+// many are waiting in the professor's other classes of the same course (so
+// the page can point there). Like the Question bank, a report never says who
+// sent it. Classes of the course taught by someone else are left out here;
+// the Question bank's Reported filter still shows every report.
+function openReports(db, cls, teacherId) {
+  const courseQs = db.questions.filter((q) => q.courseId === cls.courseId);
+  const items = courseQs
+    .flatMap((q) => openReportsForClass(db, q, cls.id).map((r) => {
       const context = reportContext(db, q, r);
       return {
         id: r.id,
@@ -46,11 +58,20 @@ function openReports(db, cls) {
         category: r.category || 'other',
         reason: r.reason,
         at: r.at,
-        thisClass: context.classId === cls.id,
-        className: classNames.get(context.classId) || null,
+        classKnown: context.classId !== null,
       };
     }))
     .sort((x, y) => y.at - x.at);
+  const otherClasses = db.classes
+    .filter((c) => c.courseId === cls.courseId && c.id !== cls.id && !c.archivedAt && c.teacherIds.includes(teacherId))
+    .map((c) => ({
+      id: c.id,
+      name: c.name,
+      // only reports sent from that class: the unplaced ones are already in this list
+      count: courseQs.reduce((n, q) => n + q.reports.filter((r) => !r.resolved && reportContext(db, q, r).classId === c.id).length, 0),
+    }))
+    .filter((c) => c.count);
+  return { items, otherClasses };
 }
 
-module.exports = { reportContext, studentReports, openReports };
+module.exports = { reportContext, studentReports, openReports, openReportsForClass };

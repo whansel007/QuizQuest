@@ -51,9 +51,20 @@ test('a professor reaches a student report from the dashboard and resolves it on
       await expect(mine).toBeVisible();
       // the category the student picked, and no student name or email
       await expect(mine.getByText('Typo or formatting problem')).toBeVisible();
-      await expect(mine.getByText('this class', { exact: true })).toBeVisible();
+      await expect(mine).not.toContainText('class not recorded');
       await expect(mine).not.toContainText(email);
       await expect(mine).not.toContainText('Review Report Student');
+    });
+
+    await test.step('another class does not list it, but points to it', async () => {
+      // the student is in Group A: Group C's list doesn't have the report...
+      await professorPage.getByLabel('Class', { exact: true }).selectOption({ label: 'Computing - Tutorial Group C' });
+      await expect(professorPage.getByRole('heading', { name: 'To review', exact: true })).toBeVisible();
+      await expect(professorPage.getByRole('listitem').filter({ hasText: reason })).toHaveCount(0);
+      // ...and says Group A has open reports; following that comes back to it
+      await professorPage.getByRole('button', { name: /^Computing - Tutorial Group A \(\d+\)$/ }).click();
+      await expect(professorPage.getByLabel('Class', { exact: true })).toHaveValue('cl-a');
+      await expect(professorPage.getByRole('listitem').filter({ hasText: reason })).toBeVisible();
     });
 
     await test.step('professor resolves it in place', async () => {

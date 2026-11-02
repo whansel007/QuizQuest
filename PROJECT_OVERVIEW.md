@@ -28,7 +28,7 @@ The prototype is built around one course at a time, with synthetic demo data (no
 
 ### For professors (7 tabs)
 - **Analytics**: what needs attention, accuracy by topic and by week, trends, commonly missed questions, time and accuracy per question (flags "possibly confusing" questions), question quality, when students practise, and a comparison between classes. Filter by period (7 days, 30 days, semester, all, custom), export to CSV, print, auto-refresh. Every rate shows how many answers it is based on, and first attempts are counted separately from retries.
-- **To review**: the professor's to-do list for a class: short answers waiting for a mark, and open student reports to answer and resolve. The sidebar shows how many are waiting; Analytics links here from Needs attention.
+- **To review**: the professor's to-do list for a class: short answers waiting for a mark, and that class's open student reports to answer and resolve (with a pointer to other classes that have some). The sidebar shows how many are waiting; Analytics links here from Needs attention.
 - **Classes & Roster**: create, rename and archive classes; manage the roster; issue `QQ-XXXXX` join codes with optional expiry and usage limits.
 - **Question bank**: review drafts, approve, reject, withdraw and republish questions; respond to student reports. Editing a published question creates a new version, so earlier attempts keep the version they answered.
 - **AI drafting**: upload PDF, PowerPoint (with speaker notes), Word, text, Markdown or CSV files. Text is extracted in the browser. Gemini writes a knowledge report the professor can edit, then drafts 1–10 questions of the chosen formats and style. A second, blinded Gemini request checks each draft before it reaches the review queue.
