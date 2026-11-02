@@ -101,8 +101,10 @@ tab; the class picker now lists both classes.
 
 - One student at a time; there is no bulk add or CSV import.
 - No invitations for people without an account.
-- Join codes are saved in plain text next to their hash, so professors can see
-  them again. A code's internal ID is also accepted in place of the code.
+- A join code is shown to the professor once, when it is generated, and the
+  server keeps only a hash of it. A database file or dump therefore holds no
+  code anybody could redeem, and a code's internal ID is not accepted in
+  place of the code. The cost: a professor who loses a code generates another.
 - Students can still join by code. Whether enrolment should be
   professor-only is an open decision.
 
