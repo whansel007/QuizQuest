@@ -211,7 +211,7 @@ const plainLabel = 'font-weight:400;color:inherit';
         <Field label="Model answer (shown to students after they answer)" v-slot="{ id }"><textarea :id="id" v-model="st.modelAnswer" rows="2"></textarea></Field>
         <Field label="Key points a good answer must cover (one per line, 1-6)" v-slot="{ id }"><textarea :id="id" v-model="st.keyPoints" rows="3" placeholder="One key point per line"></textarea></Field>
         <p v-if="st.answerMode==='numeric'" class="small muted">Numerical responses are checked locally against the answer and tolerance. Professor marking remains available.</p>
-        <p v-else class="small muted">{{ course.geminiEnabled ? 'Answers are graded by Gemini against these key points (provisional; you can override in Analytics → Answers to mark).' : 'Without Gemini, answers are graded by keyword coverage of these key points (provisional; you can override in Analytics → Answers to mark).' }}</p>
+        <p v-else class="small muted">{{ course.geminiEnabled ? 'Answers are graded by Gemini against these key points (provisional; you can override in To review → Answers to mark).' : 'Without Gemini, answers are graded by keyword coverage of these key points (provisional; you can override in To review → Answers to mark).' }}</p>
       </div>
       <!-- maths variation -->
       <div v-else-if="type === 'param'">

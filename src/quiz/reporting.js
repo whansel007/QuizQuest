@@ -28,4 +28,29 @@ function studentReports(db, studentId, classId) {
     .sort((a, b) => b.at - a.at);
 }
 
-module.exports = { reportContext, studentReports };
+// Open student reports on the questions of a class's course, newest first,
+// for the professor's To review page. Like the Question bank, a report never
+// says who sent it: only which class it came from.
+function openReports(db, cls) {
+  const classNames = new Map(db.classes.filter((c) => c.courseId === cls.courseId).map((c) => [c.id, c.name]));
+  return db.questions
+    .filter((q) => q.courseId === cls.courseId)
+    .flatMap((q) => q.reports.filter((r) => !r.resolved).map((r) => {
+      const context = reportContext(db, q, r);
+      return {
+        id: r.id,
+        questionId: q.id,
+        topic: db.topics.find((t) => t.id === q.topicId)?.name || null,
+        stem: context.stem,
+        version: context.version,
+        category: r.category || 'other',
+        reason: r.reason,
+        at: r.at,
+        thisClass: context.classId === cls.id,
+        className: classNames.get(context.classId) || null,
+      };
+    }))
+    .sort((x, y) => y.at - x.at);
+}
+
+module.exports = { reportContext, studentReports, openReports };

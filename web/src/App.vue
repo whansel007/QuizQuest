@@ -9,6 +9,7 @@ import LoginView from './LoginView.vue';
 import ReviewView from './teacher/ReviewView.vue';
 import GenerateView from './teacher/GenerateView.vue';
 import AnalyticsView from './teacher/AnalyticsView.vue';
+import ToReviewView from './teacher/ToReviewView.vue';
 import EvaluationView from './teacher/EvaluationView.vue';
 import SettingsView from './teacher/SettingsView.vue';
 import ClassManagementView from './teacher/ClassManagementView.vue';
@@ -26,7 +27,7 @@ import QuizQuestLogo from './components/QuizQuestLogo.vue';
 import TeacherNavIcon from './teacher/TeacherNavIcon.vue';
 
 const TABS = {
-  teacher: [['analytics', 'Analytics', AnalyticsView], ['classes', 'Classes & Roster', ClassManagementView], ['review', 'Question bank', ReviewView], ['generate', 'AI drafting', GenerateView], ['evaluation', 'Evaluation', EvaluationView], ['settings', 'Settings', SettingsView]],
+  teacher: [['analytics', 'Analytics', AnalyticsView], ['todo', 'To review', ToReviewView], ['classes', 'Classes & Roster', ClassManagementView], ['review', 'Question bank', ReviewView], ['generate', 'AI drafting', GenerateView], ['evaluation', 'Evaluation', EvaluationView], ['settings', 'Settings', SettingsView]],
   student: [['kingdom', 'Kingdom', KingdomView], ['practice', 'Practice', PracticeView], ['progress', 'My Progress', ProgressView], ['world', 'World', HeroLabView], ['pets', 'Summon', PetsView]],
 };
 
@@ -164,6 +165,8 @@ onUnmounted(() => {
       <nav id="tabs" class="t-nav">
         <button v-for="[id, label] in tabs" :key="id" type="button" :aria-current="current && current[0] === id ? 'page' : null" :title="navCollapsed ? label : null" @click="openTeacherTab(id)">
           <TeacherNavIcon :tab="id" /><span class="t-nav-label">{{ label }}</span>
+          <!-- answers to mark + open reports for the class in view; the page itself says how many -->
+          <span v-if="id === 'todo' && S.reviewCount" class="t-nav-count" aria-hidden="true">{{ S.reviewCount > 99 ? '99+' : S.reviewCount }}</span>
         </button>
       </nav>
       <div id="who" class="t-account d-flex align-items-center">

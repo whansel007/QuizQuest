@@ -38,7 +38,7 @@ The older server tests in `test/` still run with `pnpm test` (Node's built-in te
 - `e2e/teacher-views.spec.js`: the Analytics, Evaluation, Settings and AI drafting tabs open for a professor.
 - `e2e/raid-boss.spec.js`: two students share one raid boss; a correct answer damages it for the class and the reward is split.
 - `e2e/progress-reporting.spec.js`: practice changes the topic's correct/count figures; a student report reaches the professor and the student sees the resolution response.
-- `e2e/dashboard-reports.spec.js`: a student report appears on the professor's Analytics dashboard (reached from Needs attention) without the student's name, is resolved there, and the student sees the reply.
+- `e2e/to-review.spec.js`: a student report is counted under Needs attention on the Analytics dashboard, which links to the To review page; the report shows there without the student's name, is resolved in place, and the student sees the reply.
 - `e2e/team-room.spec.js`: two students create and join the same Campfire Defense room and see its membership.
 - `e2e/summon.spec.js`: the hero summon — a single pull that costs 50 coins, shows the prize and is written into the journal, and a ten-pull that shows all ten results.
 - `e2e/kingdom-build.spec.js`: a Kingdom building is built from the building list and the panel says it went up; the server refuses one the student cannot pay for.

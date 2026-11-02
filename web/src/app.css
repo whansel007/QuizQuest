@@ -3266,7 +3266,9 @@ body:has(.teacher-app) { background: var(--bg); }
 .teacher-app .dash-nav::-webkit-scrollbar { display: none; }
 .teacher-app .dash-nav .btn { flex: 0 0 auto; white-space: nowrap; }
 .dash-nav-short { display: none; }
-.dash-nav.compact .dash-nav-full { display: none; }
+/* the full label stays for screen readers: it is the button's name */
+.dash-nav.compact .dash-nav-full { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+.teacher-app .dash-nav .btn { position: relative; }
 .dash-nav.compact .dash-nav-short { display: inline; }
 
 /* Phones (below Bootstrap's sm): one-row-per-item tables become a stack of
@@ -3342,4 +3344,16 @@ body:has(.teacher-app) { background: var(--bg); }
     font-size: 16px;
   }
   .teacher-app input[type="checkbox"], .teacher-app input[type="radio"] { min-width: 20px; min-height: 20px; }
+}
+
+/* ---------- sidebar: the To review tab's count ---------- */
+.teacher-app nav#tabs.t-nav button { position: relative; }
+.teacher-app .t-nav-count {
+  margin-left: auto; min-width: 22px; padding: 1px 7px; border-radius: 99px;
+  background: var(--warn-soft); color: var(--warn); font-size: 12px; font-weight: 800; line-height: 18px; text-align: center;
+  font-variant-numeric: tabular-nums;
+}
+/* icons only: the count sits on the icon's corner */
+@media (min-width: 992px) {
+  .teacher-app.nav-collapsed .t-nav-count { position: absolute; top: 3px; right: 6px; min-width: 18px; padding: 0 5px; font-size: 12px; line-height: 16px; }
 }
