@@ -1950,7 +1950,7 @@ main#main.main-practice .practice-quiz-layout {
   margin: 0 auto;
   display: grid;
   grid-template-columns: minmax(360px, .94fr) minmax(420px, 1.06fr);
-  align-items: stretch;
+  align-items: start;
   gap: clamp(18px, 2vw, 30px);
 }
 main#main.main-practice .quiz-content-column {
@@ -1959,6 +1959,10 @@ main#main.main-practice .quiz-content-column {
   grid-template-rows: auto minmax(245px, 1fr) auto;
   align-content: stretch;
   gap: 13px;
+}
+main#main.main-practice .quiz-content-column.quiz-summary-layout {
+  grid-template-rows: auto auto;
+  align-content: start;
 }
 main#main.main-practice .quiz-content-column > .quiz-prompt-card,
 main#main.main-practice .quiz-content-column > .quiz-answers-card,
@@ -1977,7 +1981,6 @@ main#main.main-practice .timer.low { color: #F2BA55; }
 main#main.main-practice .quiz-prompt-card .stem { margin: 4px 0 0; color: #FBF2D8; font: 700 clamp(19px, 1.65vw, 25px)/1.35 Georgia, "Palatino Linotype", serif; }
 main#main.main-practice .quiz-section-kicker { margin-bottom: 10px; color: #AFC7F4; font: 700 10px/1.4 ui-monospace, "Cascadia Code", monospace; letter-spacing: .14em; }
 main#main.main-practice .quiz-answers-card { overflow-y: auto; }
-main#main.main-practice .quiz-answers-card .stem { color: #FBF2D8; }
 main#main.main-practice .quiz-answers-card .options { gap: 10px; }
 main#main.main-practice .quiz-answers-card .options button { min-height: 48px; padding: 12px 15px; border-radius: 9px; }
 main#main.main-practice .quiz-answers-card .options button .mark { display: block; margin: 4px 0 0 24px; }
@@ -1987,10 +1990,14 @@ main#main.main-practice .quiz-details-card > p { margin: 0; }
 main#main.main-practice .quiz-details-card .note { margin: 4px 0 0 !important; }
 main#main.main-practice .quiz-action-row { display: flex; align-items: center; flex-wrap: wrap; gap: 9px; margin-top: 8px; }
 main#main.main-practice .quiz-action-row .btn.primary { min-width: 150px; }
-main#main.main-practice .quiz-summary-card,
 main#main.main-practice .quiz-content-column > .quiz-details-card:only-child {
   grid-row: 1 / -1;
   align-self: center;
+  max-height: min(82svh, 850px);
+  overflow: auto;
+}
+main#main.main-practice .quiz-summary-card {
+  align-self: start;
   max-height: min(82svh, 850px);
   overflow: auto;
 }
@@ -1999,9 +2006,11 @@ main#main.main-practice .quiz-summary-card table { width: 100%; border-collapse:
 main#main.main-practice .quiz-summary-card td { padding: 5px 7px; border-bottom: 1px solid rgb(217 228 244 / 18%); }
 main#main.main-practice .quiz-feedback-card { padding: 12px; color: #FBF2D8; background: #203858; border-color: #8298BB; }
 main#main.main-practice .quiz-battle-stage {
-  position: relative;
+  position: sticky;
+  top: 16px;
   min-width: 0;
-  min-height: 600px;
+  height: clamp(480px, calc(100svh - 32px), 900px);
+  min-height: 0;
   overflow: hidden;
   isolation: isolate;
   border: 3px solid #17263F;
@@ -2091,7 +2100,7 @@ main#main.main-practice .battle-impact { animation: practice-impact .42s ease-ou
 @media (max-width: 900px) {
   main#main.main-practice .practice-quiz-layout { min-height: 0; grid-template-columns: minmax(0, 1fr); }
   main#main.main-practice .quiz-content-column { grid-template-rows: auto auto auto; }
-  main#main.main-practice .quiz-battle-stage { min-height: 560px; }
+  main#main.main-practice .quiz-battle-stage { position: relative; top: auto; height: auto; min-height: 560px; }
 }
 @media (max-width: 560px) {
   main#main.main-practice .quiz-battle-stage { min-height: 430px; }
@@ -2630,8 +2639,7 @@ main#main.main-practice .practice-hero::before {
 main#main.main-practice .practice-hero-kicker { color: #D6D8AE; }
 main#main.main-practice .practice-hero-caption { background: rgb(17 39 28 / 94%); border-color: #71875B; }
 
-/* Restore strong ink contrast for the repeated prompt inside the answer card. */
-main#main.main-practice .quiz-answers-card .stem { color: #20382C; }
+/* Keep secondary quiz text readable against the forest paper. */
 main#main.main-practice .quiz-answers-card .small,
 main#main.main-practice .quiz-details-card .small { color: #536A53; }
 
