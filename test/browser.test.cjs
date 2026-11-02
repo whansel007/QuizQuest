@@ -49,6 +49,18 @@ async function waitForAnswerControl(page) {
     return !!card.querySelector('.options button, [aria-label="Numeric answer"], [aria-label="Written answer"]');
   });
 }
+// The class picker is a <select>, so the class name lives in an <option> - and
+// Playwright never treats an <option> as visible, because a closed <select>
+// gives it no box on screen. What is on screen is the picker itself and the
+// entry it is showing, so that is what is checked: the picker offers the
+// class, and it is the class on show.
+async function expectClassShowing(page, cls) {
+  const picker = page.getByLabel('Class', { exact: true });
+  await picker.waitFor();
+  const offered = (await picker.locator('option').allTextContents()).map((text) => text.trim());
+  assert.deepEqual(offered, [cls.name], 'the picker offers exactly the class the student joined');
+  assert.equal(await picker.inputValue(), cls.id, 'the picker is showing the class the student joined');
+}
 
 test('student reports survive a failed submission and show a professor response in My Progress', async (t) => {
   const page = await pageFor(t, 'Student 01');
@@ -1071,10 +1083,10 @@ test('a student with no classes joins one with the code their professor generate
   await page.getByText(`Successfully enrolled in ${cls.name}!`).waitFor();
 
   // The class is theirs now, on every view that offers the picker.
-  await page.getByText(cls.name, { exact: false }).first().waitFor();
+  await expectClassShowing(page, cls);
   await page.locator('#tabs').getByRole('button', { name: 'My Progress', exact: true }).click();
   await page.getByRole('heading', { name: 'My Progress', exact: true }).waitFor();
-  await page.getByText(cls.name, { exact: false }).first().waitFor();
+  await expectClassShowing(page, cls);
 
   // The same code cannot be spent twice by the same student.
   await page.getByRole('button', { name: '+ Join Class' }).click();
