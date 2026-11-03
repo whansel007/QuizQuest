@@ -619,7 +619,7 @@ test('the material library lists the files of a topic, not only its notes', asyn
     srv.quiz.services.save();
   });
   await page.locator('#tabs').getByRole('button', { name: 'AI drafting' }).click();
-  await page.getByLabel('Weekly topic').selectOption('tp-net');
+  await page.getByLabel('Weekly topic', { exact: true }).selectOption('tp-net');
   await page.getByText('Material library · Notes, images & older files', { exact: true }).click();
   // The topic counts the file it uses and lists it.
   const heading = page.getByRole('heading', { name: /Week 2 · Networking basics/ });
@@ -991,7 +991,7 @@ test('weekly topics: narrow the dashboard, follow a next step, and add a topic f
   // a topic narrows every section, and the filter shows it
   await weeks.getByRole('button', { name: 'Show only Networking basics on the dashboard' }).click();
   await page.getByText('Showing Week 2 · Networking basics only', { exact: false }).waitFor();
-  assert.equal(await page.getByLabel('Weekly topic').inputValue(), 'tp-net');
+  assert.equal(await page.getByLabel('Weekly topic', { exact: true }).inputValue(), 'tp-net');
   await page.waitForFunction(() => document.querySelectorAll('#dash-topics tbody tr:not(.subrow)').length === 1);
   assert.deepEqual(await weeks.locator('tbody tr td:first-child').allInnerTexts(), ['2'], 'Weekly topics follows the topic filter');
   assert.equal(await page.getByText(/Weakest topic/).count(), 0, 'no "weakest topic" when only one topic is shown');
@@ -1010,7 +1010,7 @@ test('weekly topics: narrow the dashboard, follow a next step, and add a topic f
   // Source material's topic table follows its topic filter too
   await page.locator('#tabs').getByRole('button', { name: 'AI drafting', exact: true }).click();
   await page.getByRole('heading',{name:'Manage topics & learning outcomes',exact:true}).waitFor(); // always open
-  await page.getByLabel('Weekly topic').selectOption('tp-sec');
+  await page.getByLabel('Weekly topic', { exact: true }).selectOption('tp-sec');
   await page.getByRole('heading', { name: 'Upload Materials' }).waitFor();
   // The upload panel says what uploading a file actually does, so it cannot
   // be mistaken for the browser-side file inputs in the material library.
@@ -1031,7 +1031,7 @@ test('weekly topics: narrow the dashboard, follow a next step, and add a topic f
   await page.getByRole('button', { name: 'Add topic', exact: true }).click();
   await page.getByText('Added Week 4 · Operating systems', {exact:true}).waitFor();
   await page.getByRole('heading', { name: 'Upload Materials' }).waitFor();
-  assert.equal(await page.getByLabel('Weekly topic').inputValue(), srv.quiz.db.topics.find((x) => x.name === 'Operating systems').id);
+  assert.equal(await page.getByLabel('Weekly topic', { exact: true }).inputValue(), srv.quiz.db.topics.find((x) => x.name === 'Operating systems').id);
   assert.equal(srv.quiz.db.topics.find((x) => x.name === 'Operating systems').week, 4);
   // the new topic was never used, so it can be deleted again (keeps later tests unchanged)
   await page.getByRole('heading',{name:'Manage topics & learning outcomes',exact:true}).waitFor(); // always open
