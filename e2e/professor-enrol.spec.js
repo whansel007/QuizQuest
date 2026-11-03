@@ -19,7 +19,7 @@ test('a professor enrols a student by email and class name', async ({ page }) =>
 
   // The student has the class: practice is available.
   await student.reload();
-  await openTab(student, 'Practice');
+  await openTab(student, 'Quiz');
   await expect(student.getByRole('button', { name: 'Start practice' })).toBeVisible();
 });
 
