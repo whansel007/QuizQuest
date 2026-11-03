@@ -9,8 +9,8 @@ const os = require('node:os');
 const path = require('node:path');
 const { start } = require('../server');
 
-async function testServer() {
-  const srv = start(0, { dataFile: null });
+async function testServer(options = {}) {
+  const srv = start(0, { dataFile: null, ...options });
   const port = srv.httpServer.address().port;
   const base = `http://localhost:${port}`;
   const call = async (token, method, path, body = null) => {
@@ -33,7 +33,10 @@ async function testServer() {
 }
 
 test('Task 1A: Student registration and email login', async () => {
-  const { call, close } = await testServer();
+  const resetEmails = [];
+  const { call, close } = await testServer({
+    sendPasswordResetEmail: async (message) => resetEmails.push(message),
+  });
   try {
     // 1. Invalid registration inputs rejected
     const shortPass = await call(null, 'POST', '/api/auth/register', { name: 'Alice', email: 'alice@example.com', password: '123' });
@@ -63,17 +66,21 @@ test('Task 1A: Student registration and email login', async () => {
     const wrong = await call(null, 'POST', '/api/login', { email: 'alice@example.com', password: 'wrongPassword' });
     assert.equal(wrong.status, 401);
 
-    // 6. Forgot password answers, but never claims an email was sent
+    // 6. Forgot password sends a code through the injected mail adapter and
+    //    keeps the response generic so account existence is not disclosed.
     const fp = await call(null, 'POST', '/api/auth/forgot-password', { email: 'alice@example.com', redirectTo: 'http://localhost:5173' });
     assert.equal(fp.status, 200);
     assert.ok(fp.body.ok);
-    assert.ok(!/sent/i.test(fp.body.message), `must not claim an email was sent, got: ${fp.body.message}`);
+    assert.equal(resetEmails.length, 1);
+    assert.equal(resetEmails[0].email, 'alice@example.com');
+    assert.match(resetEmails[0].otp, /^\d{6}$/);
+    assert.match(fp.body.message, /if an account exists/i);
 
     // 7. An unauthenticated reset must NOT change any password. Naming an
     //    address is not proof of ownership, so this used to let anyone take
     //    over anyone else's account.
     const takeover = await call(null, 'POST', '/api/auth/reset-password', { email: 'alice@example.com', newPassword: 'attackerPassword999' });
-    assert.equal(takeover.status, 401);
+    assert.equal(takeover.status, 400);
     assert.equal(takeover.body.token, undefined);
 
     // The account still has its old password, so the takeover changed nothing.
@@ -84,8 +91,15 @@ test('Task 1A: Student registration and email login', async () => {
     const attacker = await call(null, 'POST', '/api/login', { email: 'alice@example.com', password: 'attackerPassword999' });
     assert.equal(attacker.status, 401);
 
+    // A valid one-time code lets the mailbox owner reset the password.
+    const reset = await call(null, 'POST', '/api/auth/reset-password', {
+      email: 'alice@example.com', otp: resetEmails[0].otp, newPassword: 'brandNewPassword456',
+    });
+    assert.equal(reset.status, 200);
+    assert.ok(reset.body.token);
+
     // 8. A signed-in caller changes their own password
-    const update = await call(stillMine.body.token, 'POST', '/api/auth/update-password', { newPassword: 'brandNewPassword456' });
+    const update = await call(reset.body.token, 'POST', '/api/auth/update-password', { newPassword: 'brandNewPassword789' });
     assert.equal(update.status, 200);
     assert.ok(update.body.token);
 
@@ -94,7 +108,7 @@ test('Task 1A: Student registration and email login', async () => {
     assert.equal(oldLogin.status, 401);
 
     // New password works
-    const newLogin = await call(null, 'POST', '/api/login', { email: 'alice@example.com', password: 'brandNewPassword456' });
+    const newLogin = await call(null, 'POST', '/api/login', { email: 'alice@example.com', password: 'brandNewPassword789' });
     assert.equal(newLogin.status, 200);
     assert.ok(newLogin.body.token);
 

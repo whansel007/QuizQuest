@@ -745,6 +745,7 @@ attemptId: attempt.id,
     if (newPassword.length > P.PASSWORD_MAX) fail(400, `Use a password of at most ${P.PASSWORD_MAX} characters.`);
 
     const currentToken = (req.headers.authorization || '').replace(/^Bearer\s+/i, '');
+    if (currentToken && tokens.get(currentToken)?.demo) fail(403, 'Sign in with your email and password before changing your password.');
     let target = currentToken ? authenticate(currentToken) : null;
     if (!target) {
       const reset = passwordResets.get(email);
