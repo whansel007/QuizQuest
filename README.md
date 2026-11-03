@@ -137,6 +137,54 @@ e2e/                  Playwright user journeys
 docs/                 Architecture, operations, workflows, audits, and UI guides
 ```
 
+## Third-party code and assets
+
+QuizQuest is built on other people's work. Here is all of it, so it can be
+credited properly.
+
+### Art and icons
+
+- **Hero Lab and World icons** - from [game-icons.net](https://game-icons.net/),
+  licensed **CC BY 3.0**. The authors of every icon the project ships are
+  listed per icon in
+  [`public/hero-lab/assets/icons/CREDITS.json`](public/hero-lab/assets/icons/CREDITS.json)
+  ("Icons made by {author}"), and the app shows the ones it uses under **Icon
+  credits** on the World page. The library licence, with the full list of
+  contributors, is in
+  [`public/hero-lab/game-icons.net.svg/icons/license.txt`](public/hero-lab/game-icons.net.svg/icons/license.txt).
+- **Character sprites** - the 32 cat sprites in
+  `public/hero-lab/assets/cat/` are the team's own, produced in **Canva** by
+  William Hansel and Nadya Elena Wahyudi (his sister). Canva's AI was only used to remove the background colour.
+- **Backgrounds and textures** - the storybook paper
+  (`public/hero-lab/assets/storybook-paper.svg`) and the forest clearing
+  (`public/hero-lab/assets/forest-clearing.svg`) are the team's own, drawn as
+  SVG.
+- **Fonts** - *Nunito* and *Pixelify Sans*, served from Google Fonts, and
+  *Fredoka* and *Nunito* bundled through Fontsource. All four are under the
+  **SIL Open Font License 1.1**.
+- **The Circle Tag game** (`/tag`) is the team's own earlier proof of concept,
+  not a third-party game.
+
+### Libraries
+
+| Library | Used for | Licence |
+|---|---|---|
+| [Vue](https://vuejs.org/) | the whole front end | MIT |
+| [Vite](https://vite.dev/) | the build | MIT |
+| [Socket.IO](https://socket.io/) | the multiplayer World | MIT |
+| [socket.io-client](https://socket.io/docs/v4/client/) | the World in the browser | MIT |
+| [axios](https://axios-http.com/) | API calls from the browser | MIT |
+| [@supabase/supabase-js](https://supabase.com/docs/reference/javascript/introduction) | the optional Supabase data store | MIT |
+| [Bootstrap](https://getbootstrap.com/) | the utility classes | MIT |
+| [pdf.js](https://mozilla.github.io/pdf.js/) | reading the text out of uploaded PDFs | Apache 2.0 |
+| [fflate](https://github.com/101arrowz/fflate) | unzipping those PDFs | MIT |
+| [Fontsource](https://fontsource.org/) | the bundled Nunito and Fredoka | OFL 1.1 |
+| [Playwright](https://playwright.dev/) | the end-to-end tests | Apache 2.0 |
+| [PGlite](https://pglite.dev/) | the tests' in-process PostgreSQL | Apache 2.0 |
+| [Vitest](https://vitest.dev/), [jsdom](https://github.com/jsdom/jsdom) | the unit tests | MIT / MIT |
+| [@vue/test-utils](https://test-utils.vuejs.org/) | the component unit tests | MIT |
+
+## Documentation
 ## Further documentation
 
 - [Codebase guide](docs/CODEBASE_GUIDE.md): architecture, workflows, API routes, persistence, security boundaries, and limitations.

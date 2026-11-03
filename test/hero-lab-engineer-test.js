@@ -17,20 +17,22 @@ test('Engineer skill places a turret through the normal room action', (t) => {
   const socket = { id: 'engineer-player', data: {}, emit: (event, payload) => events.push({ event, payload }) };
   const joined = room.join(socket, { heroId: 'engineer' });
   assert.equal(joined.ok, true);
-  const snapshot = room.snapshot();
-  const player = snapshot.players.find((candidate) => candidate.id === socket.id);
+  const player = room.snapshot().players.find((candidate) => candidate.id === socket.id);
   assert.equal(player.heroId, 'engineer');
 
-  // A turret may not stand within 110px of the campfire, and the snap search
-  // can only reach 60px past the aimed point. A target beside the fire is
-  // therefore refused outright, and the hero spawns on a ring around the fire
-  // at a random angle - so aiming to the side made this test fail about one
-  // run in seven. Aim away from the fire instead: the spot is then legal
-  // whatever angle the hero spawned on.
-  const awayX = player.x - snapshot.campfire.x;
-  const awayY = player.y - snapshot.campfire.y;
-  const fromFire = Math.hypot(awayX, awayY) || 1;
-  room.skill(socket, { x: player.x + (awayX / fromFire) * 100, y: player.y + (awayY / fromFire) * 100 });
+  // Place the target 250px from the campfire along the player's outward
+  // radial. The player spawns 105–145px from center, so this is always a
+  // valid spot within the Engineer's 220px placement range. An arbitrary
+  // +100px target can land inside the campfire exclusion radius depending on
+  // the randomized spawn angle, making placement correctly fail in CI.
+  const campfire = room.snapshot().campfire;
+  const dx = player.x - campfire.x;
+  const dy = player.y - campfire.y;
+  const distance = Math.hypot(dx, dy);
+  room.skill(socket, {
+    x: campfire.x + dx / distance * 250,
+    y: campfire.y + dy / distance * 250,
+  });
 
   const turret = room.snapshot().turrets.find((candidate) => candidate.ownerId === socket.id);
   assert.ok(turret, 'the skill creates an owned turret in the authoritative game state');
