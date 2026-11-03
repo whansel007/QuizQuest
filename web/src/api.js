@@ -213,7 +213,7 @@ export async function signIn(credentials) {
   }
 }
 
-// { name, email, password } -> a new student account, signed in
+// { name, email, password, role } -> a new student (default) or teacher account, signed in
 export async function signUp(details) {
   startSession(await api('POST', '/api/register', details));
 }
