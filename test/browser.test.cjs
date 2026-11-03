@@ -27,11 +27,14 @@ async function pageFor(t, name, viewport = { width: 1280, height: 900 }, options
   await page.getByRole('button', { name, exact: false }).click();
   await page.getByRole('button', { name: 'Log out', exact: true }).waitFor();
   if (name.startsWith('Prof.')) await page.locator('#tabs').getByRole('button', { name: 'Question bank', exact: true }).click();
-  else await openStudentTab(page, 'Practice'); // students land in their Kingdom
+  else await openStudentTab(page, 'Quiz'); // students land in their Kingdom
   return page;
 }
 // The Kingdom is immersive, so the student menu is tucked away: focusing a
 // tab brings it down (as it does for keyboard users), then it can be clicked.
+// The names are the ones the app shows (web/src/App.vue): Kingdom, Quiz, My
+// Progress, Campfire Run, Summon. Renaming a tab in the app means renaming it
+// here too, or every student test times out waiting for a tab that is gone.
 async function openStudentTab(page, name) {
   const tab = page.locator('#tabs').getByRole('button', { name, exact: true });
   await tab.focus();
@@ -261,7 +264,7 @@ test('the Konami debug menu exposes test accounts and fills the sign-in form', a
   await password.press('Enter');
   // students land in their Kingdom; signed in once the menu offers Log out
   await page.getByRole('button', { name: 'Log out', exact: true }).waitFor();
-  await openStudentTab(page, 'Practice');
+  await openStudentTab(page, 'Quiz');
   await page.getByRole('region', { name: 'Practice setup', exact: true }).waitFor();
 });
 test('an unavailable API shows a useful error and the debug account list can be retried', async (t) => {
@@ -301,7 +304,7 @@ test('hero lab picks a hero and hands off to the arena', async (t) => {
   await page.waitForURL(/\/hero-lab\/world\?heroId=sheriff/);
   const canvas = page.locator('canvas#world');
   await canvas.waitFor();
-  assert.equal(await canvas.getAttribute('aria-label'), 'Hero Lab World game arena');
+  assert.equal(await canvas.getAttribute('aria-label'), 'Campfire Run game arena');
   // the arena picks up the hero it was handed, rather than booting blind
   await page.waitForFunction(() => document.querySelector('#hero-name')?.textContent?.includes('Sheriff'));
   assert.deepEqual(errors, [], 'the arena starts without errors');
@@ -392,7 +395,7 @@ test('refreshing a timed quiz offers resume without resetting the server deadlin
   const s = srv.quiz.db.sessions.find((s) => s.id === sid);
   const served = s.items[0].servedAt;
   await page.reload();
-  await openStudentTab(page, 'Practice'); // students land in their Kingdom
+  await openStudentTab(page, 'Quiz'); // students land in their Kingdom
   await page.getByRole('button', { name: 'Resume practice' }).click();
   await page.locator('.quiz-head').waitFor();
   assert.equal(s.items[0].servedAt, served);
@@ -404,9 +407,9 @@ test('student and teacher screens fit 320px and 390px viewports', async (t) => {
     await page.setViewportSize({ width, height: 800 });
     // each tab, and what shows its page has opened
     const pages = {
-      Practice: () => page.getByRole('region', { name: 'Practice setup', exact: true }),
+      Quiz: () => page.getByRole('region', { name: 'Practice setup', exact: true }),
       'My Progress': () => page.getByRole('heading', { name: 'My Progress', exact: true }),
-      World: () => page.getByRole('heading', { name: 'The Clearing', exact: true }),
+      'Campfire Run': () => page.getByRole('heading', { name: 'Campfire Run', exact: true }),
       Kingdom: () => page.getByRole('heading', { name: /^Your Kingdom/ }),
       Summon: () => page.getByRole('heading', { name: 'Summon', exact: true }),
     };
@@ -1072,8 +1075,8 @@ test('a student with no classes joins one with the code their professor generate
   await page.getByLabel('Email', { exact: true }).press('Enter');
   await page.getByLabel('Password', { exact: true }).fill('longenough');
   await page.getByRole('button', { name: 'Sign in' }).click();
-  await page.locator('#tabs').getByRole('button', { name: 'Practice', exact: true }).waitFor();
-  await openStudentTab(page, 'Practice');
+  await page.locator('#tabs').getByRole('button', { name: 'Quiz', exact: true }).waitFor();
+  await openStudentTab(page, 'Quiz');
 
   // With no classes the picker still offers the way in.
   await page.getByText('No class enrolled').waitFor();

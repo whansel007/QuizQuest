@@ -697,7 +697,14 @@ attemptId: attempt.id,
       message: 'If an account exists for that address, a password reset code has been sent.',
     };
     if (!sendPasswordResetEmail && !hasPasswordResetEmailConfig()) {
-      fail(503, 'Password reset email is not configured. Please contact your QuizQuest administrator.');
+      // No mail service in this build, so no code can be delivered and none is
+      // issued. Saying a code "has been sent" would be a lie, so say what to
+      // do instead. The answer is the same for every address, so it still
+      // cannot be used to discover who has an account.
+      return {
+        ok: true,
+        message: 'Password recovery by email is not available in this build. Ask the project team to reset it for you.',
+      };
     }
     const address = req.socket?.remoteAddress || 'unknown';
     const recent = (passwordResetIpRequests.get(address) || []).filter((at) => now() - at < 15 * 60_000);
@@ -736,11 +743,25 @@ attemptId: attempt.id,
     return genericResponse;
   });
 
-  // A reset code proves control of the mailbox. It is short-lived, single-use,
-  // and attempt-limited; a plain email address is never enough to reset a password.
+  // Two ways in, and each has to prove something:
+  //   - a session token, which stands in for a signed-in person, and
+  //   - the six-digit code from the reset email, which proves control of the
+  //     mailbox. It is short-lived, single-use and attempt-limited.
+  // A plain email address is never enough. That used to let anyone who knew
+  // an address take over that account.
   const handleResetPassword = ({ req, body }) => {
+    const currentToken = (req.headers.authorization || '').replace(/^Bearer\s+/i, '');
+    const session = currentToken ? tokens.get(currentToken) : null;
+    // A demo session is handed out for no credential at all, so it proves
+    // nothing about who is holding it, and it must not change a password.
+    if (session?.demo) fail(403, 'A demo session cannot change a password.');
+
+    const otp = typeof body?.otp === 'string' ? body.otp.trim() : '';
+    if (!currentToken && !/^\d{6}$/.test(otp)) {
+      fail(401, 'Sign in to change your password, or enter the reset code from your email.');
+    }
+
     const newPassword = body?.newPassword || body?.password || '';
-    const email = P.normEmail(body?.email);
     if (typeof newPassword !== 'string' || newPassword.length < P.PASSWORD_MIN) fail(400, `Use a password of at least ${P.PASSWORD_MIN} characters.`);
     if (newPassword.length > P.PASSWORD_MAX) fail(400, `Use a password of at most ${P.PASSWORD_MAX} characters.`);
 
@@ -748,14 +769,16 @@ attemptId: attempt.id,
     if (currentToken && tokens.get(currentToken)?.demo) fail(403, 'Sign in with your email and password before changing your password.');
     let target = currentToken ? authenticate(currentToken) : null;
     if (!target) {
+      // No usable session, so the code from the reset email is the only proof.
+      const email = P.normEmail(body?.email);
       const reset = passwordResets.get(email);
-      if (!reset || typeof body?.otp !== 'string' || !/^\d{6}$/.test(body.otp)) fail(400, 'That code is invalid or expired. Request a new code and try again.');
+      if (!reset || !/^\d{6}$/.test(otp)) fail(400, 'That code is invalid or expired. Request a new code and try again.');
       if (reset.expires <= now() || reset.attempts >= 5) {
         passwordResets.delete(email);
         fail(400, 'That code is invalid or expired. Request a new code and try again.');
       }
       reset.attempts++;
-      const submitted = crypto.createHash('sha256').update(`${reset.salt}:${body.otp}`).digest();
+      const submitted = crypto.createHash('sha256').update(`${reset.salt}:${otp}`).digest();
       const expected = Buffer.from(reset.hash, 'hex');
       if (!crypto.timingSafeEqual(submitted, expected)) {
         if (reset.attempts >= 5) passwordResets.delete(email);
