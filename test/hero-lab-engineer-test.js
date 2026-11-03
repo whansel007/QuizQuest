@@ -63,4 +63,6 @@ test('the Engineer skill refuses a placement that would stand on the campfire', 
     'a refused placement broadcasts nothing');
   assert.ok(events.some(({ event }) => event === 'engineer_place_failed'),
     'the player is told the placement failed');
+  const skill = room.snapshot().players.find((candidate) => candidate.id === socket.id).abilities.skill;
+  assert.ok(!skill.remainingMs, 'a refused placement does not burn the skill cooldown');
 });
