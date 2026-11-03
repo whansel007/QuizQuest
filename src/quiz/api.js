@@ -765,8 +765,6 @@ attemptId: attempt.id,
     if (typeof newPassword !== 'string' || newPassword.length < P.PASSWORD_MIN) fail(400, `Use a password of at least ${P.PASSWORD_MIN} characters.`);
     if (newPassword.length > P.PASSWORD_MAX) fail(400, `Use a password of at most ${P.PASSWORD_MAX} characters.`);
 
-    const currentToken = (req.headers.authorization || '').replace(/^Bearer\s+/i, '');
-    if (currentToken && tokens.get(currentToken)?.demo) fail(403, 'Sign in with your email and password before changing your password.');
     let target = currentToken ? authenticate(currentToken) : null;
     if (!target) {
       // No usable session, so the code from the reset email is the only proof.

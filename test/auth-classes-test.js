@@ -80,7 +80,7 @@ test('Task 1A: Student registration and email login', async () => {
     //    address is not proof of ownership, so this used to let anyone take
     //    over anyone else's account.
     const takeover = await call(null, 'POST', '/api/auth/reset-password', { email: 'alice@example.com', newPassword: 'attackerPassword999' });
-    assert.equal(takeover.status, 400);
+    assert.equal(takeover.status, 401);
     assert.equal(takeover.body.token, undefined);
 
     // The account still has its old password, so the takeover changed nothing.
