@@ -115,9 +115,8 @@ test('hashes are salted and verify only the right password', () => {
 
 test('sign-up creates a student account that can sign in', async (t) => {
   const { quiz, call } = await boot(t);
-  // `role` is sent on purpose: self sign-up must never honour it, so a
-  // student cannot promote themselves just by asking.
-  const r = await call('POST', '/api/register', { name: ' New Student ', email: 'New@School.edu ', password: 'longenough', role: 'teacher' });
+  // no role sent: sign-up defaults to a student
+  const r = await call('POST', '/api/register', { name: ' New Student ', email: 'New@School.edu ', password: 'longenough' });
   assert.equal(r.status, 200);
   assert.ok(r.body.token);
   // a new student starts with the default town avatar colour and no hat or
@@ -132,11 +131,32 @@ test('sign-up creates a student account that can sign in', async (t) => {
   assert.equal(login.status, 200);
 });
 
-test('the /api/auth/register alias is a second door, and it also makes a student', async (t) => {
+test('the /api/auth/register alias is a second door with the same rules', async (t) => {
   const { call } = await boot(t);
-  const r = await call('POST', '/api/auth/register', { name: 'Alias', email: 'alias@school.edu', password: 'longenough', role: 'teacher' });
+  const r = await call('POST', '/api/auth/register', { name: 'Alias', email: 'alias@school.edu', password: 'longenough' });
   assert.equal(r.status, 201);
   assert.equal(r.body.user.role, 'student');
+  const teacher = await call('POST', '/api/auth/register', { name: 'Alias Prof', email: 'alias.prof@school.edu', password: 'longenough', role: 'teacher' });
+  assert.equal(teacher.status, 201);
+  assert.equal(teacher.body.user.role, 'teacher');
+});
+
+test('signing up as a teacher gives a private, empty course of their own', async (t) => {
+  const { quiz, call } = await boot(t);
+  const r = await call('POST', '/api/register', { name: 'Jane Prof', email: 'jane@school.edu', password: 'longenough', role: 'teacher' });
+  assert.equal(r.status, 200);
+  assert.equal(r.body.user.role, 'teacher');
+  const db = quiz.services.db;
+  const own = db.courses.filter((c) => c.teacherIds.includes(r.body.user.id));
+  assert.equal(own.length, 1);
+  assert.equal(own[0].title, "Jane Prof's course");
+  assert.equal(db.topics.filter((x) => x.courseId === own[0].id).length, 0, 'the course starts empty');
+  // other professors' courses stay out of reach
+  assert.equal((await call('GET', '/api/teacher/courses/c-comp/topics', null, r.body.token)).status, 404);
+  const login = await call('POST', '/api/login', { email: 'jane@school.edu', password: 'longenough' });
+  assert.equal(login.body.user.role, 'teacher');
+  // only the two roles exist
+  assert.equal((await call('POST', '/api/register', { name: 'X', email: 'x@school.edu', password: 'longenough', role: 'admin' })).status, 400);
 });
 
 test('sign-up rejects taken emails and bad input', async (t) => {
