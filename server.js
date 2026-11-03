@@ -91,7 +91,10 @@ function start(port, opts = {}) {
   const publicDir = path.join(__dirname, 'public');
   const heroLabDir = path.join(publicDir, 'hero-lab');
   const distDir = opts.distDir || path.join(__dirname, 'dist');
-  const TAG = { '/tag': path.join(publicDir, 'index.html'), '/client.js': path.join(publicDir, 'client.js') };
+  // The Circle Tag page lives in public/tag/. It loads "client.js" relative
+  // to the page, and the page is served at /tag, so the browser asks for
+  // /client.js - which is why that file is served from the root as well.
+  const TAG = { '/tag': path.join(publicDir, 'tag', 'index.html'), '/client.js': path.join(publicDir, 'tag', 'client.js') };
   const httpServer = http.createServer(async (req, res) => {
     // JSON API for the quiz app. A thrown error here must never take the
     // whole server (and everyone's game) down, so it becomes a 500.
