@@ -349,7 +349,9 @@ test('Guardian Shield Rush fan deals 1.0x damage and pushes enemies away', async
   // Let the radial push resolve, then confirm damage and displacement.
   await nextState(client, (state) => {
     const m = state.monsters.find((entry) => entry.id === monster.id);
-    return m && (m.hp < initialHp || m.x > initialX + 1);
+    // Damage is applied immediately; knockback is integrated over later
+    // ticks. Wait for both effects before asserting the final server state.
+    return m && m.hp < initialHp && m.x > initialX + 5;
   }, 2000);
   const pushed = server.heroLab.monsters.get(monster.id);
   assert.ok(pushed.hp < initialHp, 'the fan deals 1.0x attack damage');
@@ -890,8 +892,11 @@ test('Hero Lab server maintains campfire in the middle and spawns zombie monster
   assert.equal(stateWithCampfire.campfire.maxHp, 100);
 
   // Wait for zombie monster to spawn from outside
-  const stateWithMonster = await nextState(client, (state) => Array.isArray(state.monsters) && state.monsters.length > 0);
-  const zombie = stateWithMonster.monsters[0];
+  // Joining can also produce the persistent practice dummy, so wait for a
+  // wave-spawned zombie instead of accepting any monster in the snapshot.
+  const stateWithMonster = await nextState(client, (state) =>
+    Array.isArray(state.monsters) && state.monsters.some((monster) => monster.emoji === '🧟'));
+  const zombie = stateWithMonster.monsters.find((monster) => monster.emoji === '🧟');
   assert.equal(zombie.emoji, '🧟');
   const { Zombie } = await import('../public/hero-lab/enemies/zombie.js');
   const { GAME_CONFIG } = await import('../public/hero-lab/game-config.js');
