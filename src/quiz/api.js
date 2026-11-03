@@ -65,6 +65,29 @@ const TIMER_GRACE_MS = 3000;       // network slack before the server calls time
 const SEEDED_DEMO_USER_IDS = new Set(['t-a', 't-b', ...Array.from({ length: 12 }, (_, i) => `s-${String(i + 1).padStart(2, '0')}`)]);
 const isSeededDemoUser = (user) => SEEDED_DEMO_USER_IDS.has(user.id) && user.email?.endsWith('@quizquest.demo');
 
+async function sendPasswordResetEmailWithResend({ email, name, otp }) {
+  const apiKey = process.env.RESEND_API_KEY;
+  const from = process.env.PASSWORD_RESET_FROM || process.env.EMAIL_FROM;
+  if (!apiKey || !from) throw new Error('Set RESEND_API_KEY and PASSWORD_RESET_FROM to enable password reset email.');
+  const greeting = String(name || 'there').replace(/[&<>"']/g, (ch) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[ch]);
+  const response = await fetch('https://api.resend.com/emails', {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${apiKey}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      from,
+      to: [email],
+      subject: 'Your QuizQuest password reset code',
+      text: `Hello ${name || 'there'},\n\nYour QuizQuest password reset code is ${otp}. It expires in 10 minutes. If you did not request this, you can ignore this email.`,
+      html: `<div style="font-family:Arial,sans-serif;color:#23382f;max-width:520px;margin:auto;padding:28px;background:#fff8e4;border:2px solid #23382f;border-radius:12px"><h1 style="font-family:Georgia,serif;color:#254937">Reset your QuizQuest password</h1><p>Hello ${greeting},</p><p>Enter this code in QuizQuest to choose a new password:</p><p style="font-size:30px;letter-spacing:8px;font-weight:bold;background:#fbf2d8;padding:16px;text-align:center">${otp}</p><p>This code expires in 10 minutes. If you did not request a password reset, you can ignore this email.</p></div>`,
+    }),
+    signal: AbortSignal.timeout(10_000),
+  });
+  if (!response.ok) throw new Error(`Resend returned HTTP ${response.status}.`);
+}
+const hasPasswordResetEmailConfig = () => Boolean(
+  (process.env.RESEND_API_KEY && (process.env.PASSWORD_RESET_FROM || process.env.EMAIL_FROM)),
+);
+
 function syncPracticeNpc(session) {
   if (!session.npc) return false;
   const maxHp = Math.max(1, session.items.length) * PRACTICE_ATTACK_DAMAGE;
@@ -149,7 +172,7 @@ const csvCell = (v) => {
 
 // store: an already-loaded { db, save } (e.g. src/db/supabase-store.js);
 // otherwise the JSON file store (dataFile = null keeps it in memory).
-function createQuizApi({ dataFile = null, store = null, now = () => Date.now(), drafter = null, devMode = process.env.QUIZQUEST_DEV === '1', authoringAI = null, authoringDrafter = null } = {}) {
+function createQuizApi({ dataFile = null, store = null, now = () => Date.now(), drafter = null, devMode = process.env.QUIZQUEST_DEV === '1', authoringAI = null, authoringDrafter = null, sendPasswordResetEmail = null } = {}) {
   store = store || createStore(dataFile);
   const { db } = store;
   if (P.ensureDemoCredentials(db.users)) store.save();
@@ -176,6 +199,9 @@ function createQuizApi({ dataFile = null, store = null, now = () => Date.now(), 
   const authoring = createAuthoring({ db, ai: authoringAI || undefined, drafter: authoringDrafter || undefined, persist });
   const tokens = new Map(); // token -> { userId, expires }
   const loginFails = new Map(); // email -> { count, until }
+  const passwordResets = new Map(); // email -> { salt, hash, expires, attempts }
+  const passwordResetRequests = new Map(); // email -> last request time
+  const passwordResetIpRequests = new Map(); // address -> recent request times
   const grading = new Set(); // "sessionId:index" answers currently being graded
   const forcedSummons = new Map(); // seeded-demo-only visual fixtures; never persisted
 
@@ -644,32 +670,83 @@ attemptId: attempt.id,
     return [201, startSession(user)];
   });
 
-  route('POST', '/api/auth/forgot-password', null, ({ body }) => {
+  route('POST', '/api/auth/forgot-password', null, async ({ req, body }) => {
     const email = P.normEmail(body.email);
     if (!email || !EMAIL_RE.test(email)) fail(400, 'Enter a valid email address.');
-    // Always the same answer, so this cannot be used to discover who has an account.
-    return {
+    const genericResponse = {
       ok: true,
-      message: 'If an account exists for that address, password reset instructions have been sent.',
+      message: 'If an account exists for that address, a password reset code has been sent.',
     };
+    if (!sendPasswordResetEmail && !hasPasswordResetEmailConfig()) {
+      fail(503, 'Password reset email is not configured. Please contact your QuizQuest administrator.');
+    }
+    const address = req.socket?.remoteAddress || 'unknown';
+    const recent = (passwordResetIpRequests.get(address) || []).filter((at) => now() - at < 15 * 60_000);
+    if (recent.length >= 10) fail(429, 'Too many reset requests. Please wait 15 minutes and try again.');
+    recent.push(now());
+    passwordResetIpRequests.set(address, recent);
+    for (const [key, times] of passwordResetIpRequests) {
+      if (!times.some((at) => now() - at < 15 * 60_000)) passwordResetIpRequests.delete(key);
+    }
+    for (const [key, at] of passwordResetRequests) {
+      if (now() - at >= 60 * 60_000) passwordResetRequests.delete(key);
+    }
+    const previousRequest = passwordResetRequests.get(email) || 0;
+    if (now() - previousRequest < 60_000) {
+      return { ...genericResponse, retryAfterSeconds: Math.ceil((60_000 - (now() - previousRequest)) / 1000) };
+    }
+    passwordResetRequests.set(email, now());
+    const user = db.users.find((u) => u.email === email);
+    if (!user) return genericResponse;
+    const deliver = sendPasswordResetEmail || sendPasswordResetEmailWithResend;
+    const otp = String(crypto.randomInt(100000, 1000000));
+    const salt = crypto.randomBytes(16).toString('hex');
+    passwordResets.set(email, {
+      salt,
+      hash: crypto.createHash('sha256').update(`${salt}:${otp}`).digest('hex'),
+      expires: now() + 10 * 60_000,
+      attempts: 0,
+    });
+    try {
+      await deliver({ email, name: user.name, otp });
+    } catch (err) {
+      passwordResets.delete(email);
+      console.error('[auth] password reset email could not be sent:', err.message);
+      return genericResponse;
+    }
+    return genericResponse;
   });
 
-  // Completes a reset started by /api/auth/forgot-password. The recovery
-  // link proves control of the mailbox; this call exchanges it for a session.
+  // A reset code proves control of the mailbox. It is short-lived, single-use,
+  // and attempt-limited; a plain email address is never enough to reset a password.
   const handleResetPassword = ({ req, body }) => {
     const newPassword = body?.newPassword || body?.password || '';
     const email = P.normEmail(body?.email);
-    if (!newPassword || newPassword.length < P.PASSWORD_MIN) fail(400, `Use a password of at least ${P.PASSWORD_MIN} characters.`);
+    if (typeof newPassword !== 'string' || newPassword.length < P.PASSWORD_MIN) fail(400, `Use a password of at least ${P.PASSWORD_MIN} characters.`);
     if (newPassword.length > P.PASSWORD_MAX) fail(400, `Use a password of at most ${P.PASSWORD_MAX} characters.`);
 
-    // A signed-in caller may change their own password without a recovery link.
     const currentToken = (req.headers.authorization || '').replace(/^Bearer\s+/i, '');
     let target = currentToken ? authenticate(currentToken) : null;
-    if (!target && email) target = db.users.find((u) => u.email === email || `${u.id}@quizquest.edu` === email);
-    if (!target) fail(400, 'Could not identify the account. Please request a new reset link.');
+    if (!target) {
+      const reset = passwordResets.get(email);
+      if (!reset || typeof body?.otp !== 'string' || !/^\d{6}$/.test(body.otp)) fail(400, 'That code is invalid or expired. Request a new code and try again.');
+      if (reset.expires <= now() || reset.attempts >= 5) {
+        passwordResets.delete(email);
+        fail(400, 'That code is invalid or expired. Request a new code and try again.');
+      }
+      reset.attempts++;
+      const submitted = crypto.createHash('sha256').update(`${reset.salt}:${body.otp}`).digest();
+      const expected = Buffer.from(reset.hash, 'hex');
+      if (!crypto.timingSafeEqual(submitted, expected)) {
+        if (reset.attempts >= 5) passwordResets.delete(email);
+        fail(400, 'That code is invalid or expired. Request a new code and try again.');
+      }
+      target = db.users.find((u) => u.email === email);
+      passwordResets.delete(email);
+    }
+    if (!target) fail(400, 'That code is invalid or expired. Request a new code and try again.');
 
     target.passwordHash = P.hashPassword(newPassword);
-    // Changing a password ends every other session for that account.
     for (const [t, s] of tokens) if (s.userId === target.id) tokens.delete(t);
     save();
     return startSession(target);
