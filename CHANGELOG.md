@@ -30,6 +30,29 @@ this file is informal and human-edited.
   has been sent - it says plainly that recovery by email is not available in
   this build, and still answers the same way for every address, so it cannot
   be used to find out who has an account.
+
+  > **Corrected on 2026-11-03.** The paragraph above was written when this
+  > build had no mail service at all. A password reset by 6-digit email code
+  > has since been added, so "there is no way to prove someone controls a
+  > mailbox" is no longer true **when a mail service is configured**. The
+  > takeover hole is shut either way: a reset now needs either a session
+  > token or the code from the reset email, and an address on its own is
+  > never enough. `/api/auth/forgot-password` still answers the same way
+  > for every address, and where no mail service is configured it says
+  > recovery by email is unavailable rather than claiming a code was sent.
+- **The two password routes work again.** `POST /api/auth/reset-password`
+  and `POST /api/auth/update-password` were registered against a handler
+  name that no longer existed, so the server threw `ReferenceError:
+  handlePasswordChange is not defined` on start-up and every browser and
+  end-to-end test failed. The handler now accepts either a session token
+  (change your own password) or the 6-digit code from the reset email
+  (prove you control the mailbox), refuses a demo session with 403, and
+  refuses a request with neither with 401. `/api/auth/forgot-password`
+  only says a code "has been sent" when a mail service really sent one;
+  without one it says recovery by email is unavailable and asks the user to
+  contact the project team. A new test covers the code flow end to end: the
+  code is delivered, a wrong code changes nothing, the right code resets
+  the password, and the code cannot be replayed.
 - **A join code is no longer kept in the database.** The record stored the
   readable code next to its hash, so the JSON database file held working
   enrolment codes in the clear; and redemption also accepted the record's
@@ -88,15 +111,23 @@ Commit: `a19d1f7 feat: Implement Task 1 (Auth & Class Management) and Task 2 (Co
 > store, not an auth provider — and no mail service sends anything. The
 > bullets below say what actually shipped.
 
+> **Corrected again on 2026-11-03.** "No mail service sends anything" is now
+> wrong in one respect: a mail service can be configured
+> (`RESEND_API_KEY` + `PASSWORD_RESET_FROM`), and when it is, a 6-digit
+> password reset code really is sent. What was never true, and still is not,
+> is that a reset could be done with an address alone.
+
 - `POST /api/auth/register` — student self-registration, stored locally.
 - `POST /api/login` — replaced demo login with email + password; backward compatible
   with `{userId}` for 1-click demo.
-- `POST /api/auth/forgot-password` — answers for an address. No mail service is
-  connected, so nothing was ever sent; it now says so instead of claiming
-  otherwise.
+- `POST /api/auth/forgot-password` — answers for an address. With a mail
+  service configured it sends a 6-digit reset code; without one it says
+  recovery by email is unavailable. Either way the answer is the same for
+  every address, so it cannot be used to find out who has an account.
 - `POST /api/auth/reset-password`, `POST /api/auth/update-password` — change the
-  caller's own password. They used to change the password of whichever account
-  the address named — see [Unreleased] / Security.
+  caller's own password, proved by their session token, or prove control of
+  the mailbox with the reset code. They used to change the password of
+  whichever account the address named — see [Unreleased] / Security.
 - `web/src/LoginView.vue` — three tabs: Sign In / Create Account / Demo Accounts.
 
 ### Task 1B — Class Management
