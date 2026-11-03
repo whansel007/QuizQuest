@@ -83,6 +83,11 @@ const forward = ref(true); // slide direction
 const email = ref('');
 const password = ref('');
 const showPassword = ref(false);
+const role = ref('student'); // sign-up only: 'student' | 'teacher'
+const ROLES = [
+  { id: 'student', label: 'Student', hint: 'Practise, earn coins and build your kingdom' },
+  { id: 'teacher', label: 'Teacher', hint: 'Build a question bank and run your classes' },
+];
 const error = ref('');
 const busy = ref(false);
 const emailInput = ref(null);
@@ -152,7 +157,7 @@ async function register() {
   if (error.value) return;
   busy.value = true;
   try {
-    await signUp({ name: name.value.trim(), email: e, password: password.value });
+    await signUp({ name: name.value.trim(), email: e, password: password.value, role: role.value });
   } catch (err) {
     error.value = err.message;
   } finally {
@@ -282,7 +287,16 @@ const floaters = ['?', '★', '✓', 'A', '+', '!', '◆', '?'];
 
               <form v-else-if="step === 'signup'" key="signup" novalidate @submit.prevent="register">
                 <h2>Create your account</h2>
-                <p class="qq-sub">Students can sign up here. Teachers, ask the team for an account.</p>
+                <p class="qq-sub">Choose how you'll use QuizQuest.</p>
+                <fieldset class="qq-roles">
+                  <legend class="qq-label">I'm signing up as a</legend>
+                  <label v-for="r in ROLES" :key="r.id" class="qq-role" :class="{ on: role === r.id }">
+                    <input v-model="role" type="radio" name="signup-role" :value="r.id" @change="error = ''">
+                    <span class="qq-role-name">{{ r.label }}</span>
+                    <span class="qq-role-hint">{{ r.hint }}</span>
+                  </label>
+                </fieldset>
+                <p v-if="role === 'teacher'" class="qq-role-note">You'll get your own empty course to add topics, questions and classes.</p>
                 <label for="signup-name" class="qq-label">Name</label>
                 <input id="signup-name" ref="nameInput" v-model="name" class="qq-input" type="text" autocomplete="name" maxlength="60" @input="error = ''">
                 <label for="signup-email" class="qq-label">Email</label>
@@ -359,7 +373,7 @@ const floaters = ['?', '★', '✓', 'A', '+', '!', '◆', '?'];
             </Transition>
 
             <div class="qq-card-foot">
-              <p v-if="step === 'email' || step === 'password'" class="qq-register">Not registered yet? <button type="button" class="qq-inline-link" @click="toSignup">Create a student account</button></p>
+              <p v-if="step !== 'signup'" class="qq-register">Not registered yet? <button type="button" class="qq-inline-link" @click="toSignup">Create an account</button></p>
               <button type="button" class="qq-link" aria-label="Tools and version" title="Tools and version" @click="openTools">🔧</button>
             </div>
           </div>
@@ -430,6 +444,21 @@ const floaters = ['?', '★', '✓', 'A', '+', '!', '◆', '?'];
 .qq-story .qq-link { color: #254937; }
 .qq-story .qq-link:hover, .qq-story .qq-link:focus-visible { color: #23382F; background: rgb(242 186 85 / 30%); }
 .qq-story :is(button, a, input):focus-visible { outline: 3px solid #254937; outline-offset: 2px; }
+/* sign-up role picker: two paper cards; the chosen one turns campfire gold */
+.qq-roles { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; margin: 0 0 16px; padding: 0; border: 0; }
+.qq-roles legend { grid-column: 1 / -1; float: left; width: 100%; margin-bottom: 6px; padding: 0; }
+.qq-role { position: relative; display: grid; gap: 3px; margin: 0; padding: 11px 13px 12px; color: var(--qq-ink); background: var(--qq-field); border: 2px solid #7A6545; border-radius: 10px 8px 11px 9px; box-shadow: 0 3px 0 #C9BA93; cursor: pointer; transition: transform .12s ease, box-shadow .12s ease, background-color .12s ease; }
+.qq-role:hover { transform: translateY(-1px); box-shadow: 0 4px 0 #C9BA93; }
+.qq-role.on { background: #FBE3A6; border-color: #23382F; box-shadow: 0 3px 0 #7A6545; }
+.qq-role input { position: absolute; opacity: 0; pointer-events: none; }
+.qq-role:has(input:focus-visible) { outline: 3px solid #254937; outline-offset: 2px; }
+.qq-role-name { color: #254937; font: 700 18px/1.2 Georgia, 'Palatino Linotype', serif; }
+.qq-role-name::before { content: ''; display: inline-block; width: 12px; height: 12px; margin-right: 8px; vertical-align: 1px; border: 2px solid #7A6545; border-radius: 50%; background: var(--qq-field); }
+.qq-role.on .qq-role-name::before { border-color: #23382F; background: #254937; box-shadow: inset 0 0 0 2px #FBE3A6; }
+.qq-role-hint { color: var(--qq-muted); font-size: 13px; line-height: 1.35; }
+.qq-role-note { margin: -6px 0 14px; color: #3D5140; font-size: 13px; }
+@media (max-width: 420px) { .qq-roles { grid-template-columns: minmax(0, 1fr); } }
+@media (prefers-reduced-motion: reduce) { .qq-role, .qq-role:hover { transition: none; transform: none; } }
 /* the preview fills the right of the page; its curved edge bulges into the
    paper side, behind the form column's padding, never across the text */
 .qq-preview-side { position: absolute; z-index: 1; top: 0; right: 0; bottom: 0; width: 46%; filter: drop-shadow(-6px 0 14px rgb(35 56 47 / 28%)); pointer-events: none; }
