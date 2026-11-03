@@ -373,7 +373,7 @@ const floaters = ['?', '★', '✓', 'A', '+', '!', '◆', '?'];
             </Transition>
 
             <div class="qq-card-foot">
-              <p v-if="step !== 'signup'" class="qq-register">Not registered yet? <button type="button" class="qq-inline-link" @click="toSignup">Create a student account</button></p>
+              <p v-if="step !== 'signup'" class="qq-register">Not registered yet? <button type="button" class="qq-inline-link" @click="toSignup">Create an account</button></p>
               <button type="button" class="qq-link" aria-label="Tools and version" title="Tools and version" @click="openTools">🔧</button>
             </div>
           </div>
