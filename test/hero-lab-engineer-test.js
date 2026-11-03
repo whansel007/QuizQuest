@@ -44,3 +44,27 @@ test('Engineer skill places a turret through the normal room action', (t) => {
   assert.ok(remainingMs <= 18000 && remainingMs > 17900,
     'successful placement starts the 18-second skill cooldown');
 });
+
+test('the Engineer skill refuses a placement that would stand on the campfire', (t) => {
+  const events = [];
+  const room = createRoom({ io: makeIo(events), id: 'engineer-refuse-test', log: () => {} });
+  t.after(() => room.destroy());
+  const socket = { id: 'engineer-refuse-player', data: {}, emit: (event, payload) => events.push({ event, payload }) };
+  room.join(socket, { heroId: 'engineer' });
+  const campfire = room.snapshot().campfire;
+
+  // The fire is the one place a turret may never stand: the exclusion zone
+  // is wider than the snap search, so a placement aimed at the fire itself
+  // has nowhere legal to go and the game refuses it. This is the rule the
+  // placement test above has to aim around.
+  room.skill(socket, { x: campfire.x, y: campfire.y });
+
+  assert.equal(room.snapshot().turrets.find((candidate) => candidate.ownerId === socket.id), undefined,
+    'no turret is placed next to the campfire');
+  assert.equal(events.some(({ event }) => event === 'turret_deployed'), false,
+    'a refused placement broadcasts nothing');
+  assert.ok(events.some(({ event }) => event === 'engineer_place_failed'),
+    'the player is told the placement failed');
+  const skill = room.snapshot().players.find((candidate) => candidate.id === socket.id).abilities.skill;
+  assert.ok(!skill.remainingMs, 'a refused placement does not burn the skill cooldown');
+});
