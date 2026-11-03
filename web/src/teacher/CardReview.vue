@@ -7,9 +7,8 @@
 // view; a failed save keeps the card and says what happened.
 // ============================================================
 import { computed, onMounted, onUnmounted, ref, watch } from 'vue';
-import { api, setTab } from '../api.js';
+import { api } from '../api.js';
 import { toast } from '../ui.js';
-import AsyncButton from '../components/AsyncButton.vue';
 import QuestionDetails from './QuestionDetails.vue';
 import QuestionEditor from './QuestionEditor.vue';
 import ReportReview from './ReportReview.vue';
@@ -79,11 +78,6 @@ async function decide(kind) {
   card.value?.focus({ preventScroll: true });
 }
 
-async function regenerate() {
-  await api('POST', `/api/teacher/questions/${current.value.id}/regenerate`);
-  toast('Replacement queued. Your original draft is kept.');
-  setTab('generate');
-}
 function edit() {
   editorKey.value += 1;
   editing.value = true;
@@ -226,7 +220,6 @@ const cardStyle = computed(() => {
           </div>
           <div class="cr-secondary" role="group" aria-label="More actions for this question">
             <button class="btn small" type="button" :disabled="!!pending" @click="edit">Edit</button>
-            <AsyncButton v-if="course.authoringEnabled && current.generationId" class="btn small" :disabled="!!pending" :run="regenerate">Regenerate draft</AsyncButton>
             <button class="btn small" type="button" @click="emit('exit')">Back to list</button>
           </div>
         </div>

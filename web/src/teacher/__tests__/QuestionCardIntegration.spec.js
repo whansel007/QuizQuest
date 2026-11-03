@@ -17,8 +17,15 @@
    4. Clicking Edit opens the editor.
 */
 import { mount } from '@vue/test-utils';
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi, afterEach } from 'vitest';
 import QuestionCard from '../QuestionCard.vue';
+import CardReview from '../CardReview.vue';
+import { api } from '../../api.js';
+
+vi.mock('../../api.js', async (original) => ({ ...await original(), api: vi.fn(), rerender: vi.fn() }));
+vi.mock('../../ui.js', async (original) => ({ ...await original(), toast: vi.fn() }));
+const mountedReviews = [];
+afterEach(() => { mountedReviews.splice(0).forEach(wrapper => wrapper.unmount()); vi.clearAllMocks(); });
 
 const course = { id: 'c-1', topics: [{ id: 't-sec', name: 'Cybersecurity', week: 3 }], authoringEnabled: false };
 
@@ -51,9 +58,9 @@ function question(status, changes = {}) {
 }
 
 // Mount the card with the real children; only the editor is a stub.
-function mountCard(q) {
+function mountCard(q, overrides = {}) {
   return mount(QuestionCard, {
-    props: { q, course, passages: [] },
+    props: { q, course: { ...course, ...overrides }, passages: [] },
     global: {
       stubs: {
         QuestionEditor: { template: '<div>Editing this question</div>' },
@@ -66,6 +73,30 @@ function mountCard(q) {
 const buttons = (wrapper) => wrapper.findAll('button').map((b) => b.text());
 
 describe('QuestionCard Integration', () => {
+  it.each(['draft', 'rejected', 'published', 'withdrawn'])('never offers Regenerate for an AI-generated %s in the list', (status) => {
+    const wrapper = mountCard(question(status, { generationId: 'generation-1' }), { authoringEnabled: true });
+    expect(buttons(wrapper).some(name => /regenerate/i.test(name))).toBe(false);
+    expect(buttons(wrapper)).toContain('Edit');
+    if (['draft', 'rejected'].includes(status)) expect(buttons(wrapper)).toContain('Approve & publish');
+    if (status === 'draft') expect(buttons(wrapper)).toContain('Reject');
+    wrapper.unmount();
+  });
+
+  it.each([['Approve & publish', 'approve', 'published'], ['Deny', 'reject', 'rejected']])('card review keeps %s and Edit without Regenerate', async (label, action, status) => {
+    api.mockResolvedValueOnce({});
+    const wrapper = mount(CardReview, {
+      props: { queue: [question('draft', { generationId: 'generation-1' })], course: { ...course, authoringEnabled: true }, passages: [] },
+      global: { stubs: { QuestionEditor: { template: '<div>Editing this question</div>' } } },
+    });
+    mountedReviews.push(wrapper);
+    expect(buttons(wrapper).some(name => /regenerate/i.test(name))).toBe(false);
+    expect(buttons(wrapper)).toContain('Edit');
+    await wrapper.findAll('button').find(button => button.text().includes(label)).trigger('click');
+    await vi.waitFor(() => expect(wrapper.emitted('decided')?.[0]).toEqual([{ id: 'q-1', status }]));
+    expect(api).toHaveBeenCalledExactlyOnceWith('POST', '/api/teacher/questions/q-1/status', { action });
+    await wrapper.findAll('button').find(button => button.text() === 'Edit').trigger('click');
+    expect(wrapper.text()).toContain('Editing this question');
+  });
   // Verify that the question, its options and the correct answer are displayed.
   it('shows the question, its options and which one is correct', () => {
     const wrapper = mountCard(question('draft'));

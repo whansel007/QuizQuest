@@ -324,7 +324,7 @@ function download() {
   <div v-if="generation?.result.created?.length" class="panel">
     <h3>Review and publish</h3>
     <p>{{ generation.result.created.length }} of {{ generation.input.count }} questions saved as drafts. Review answers and explanations before approval; AI checks can miss errors.</p>
-    <p>Edit, reject or regenerate individual questions in the Question Bank. Approve &amp; publish makes approved questions available to students.</p>
+    <p>Edit or reject individual questions in the Question Bank. Approve &amp; publish makes approved questions available to students.</p>
     <p>Not the mix you wanted? Tick the drafts to change and rewrite them as Application or Conceptual questions. Your originals are kept.</p>
     <div class="actions"><button class="btn primary" @click="reviewDrafts()">Review drafts</button><button class="btn" @click="reviewDrafts(topic.id, true)">Rewrite drafts</button></div>
   </div>

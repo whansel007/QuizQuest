@@ -1,6 +1,6 @@
 <script setup>
 import { ref } from 'vue';
-import { api, rerender, setTab } from '../api.js';
+import { api, rerender } from '../api.js';
 import { toast } from '../ui.js';
 import AsyncButton from '../components/AsyncButton.vue';
 import QuestionEditor from './QuestionEditor.vue';
@@ -37,11 +37,6 @@ const setStatus = (a) => async () => {
   toast({ approve: 'Published', reject: 'Rejected', withdraw: 'Withdrawn from practice', republish: 'Published again' }[a]);
   rerender();
 };
-async function regenerate() {
-  await api('POST', `/api/teacher/questions/${q.id}/regenerate`);
-  toast('Replacement queued. Your original draft is kept.');
-  setTab('generate');
-}
 </script>
 
 <template>
@@ -75,7 +70,6 @@ async function regenerate() {
       <AsyncButton v-if="q.status === 'published'" class="btn bad" :run="setStatus('withdraw')">Withdraw</AsyncButton>
       <AsyncButton v-if="q.status === 'withdrawn'" class="btn" :run="setStatus('republish')">Publish again</AsyncButton>
       <button class="btn" @click="edit">Edit</button>
-      <AsyncButton v-if="course.authoringEnabled && q.generationId && ['draft','rejected'].includes(q.status)" class="btn" :run="regenerate">Regenerate draft</AsyncButton>
       <AsyncButton v-if="q.status === 'draft'" class="btn bad" :run="setStatus('reject')">Reject</AsyncButton>
     </div>
     <div>
