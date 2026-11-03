@@ -9,8 +9,8 @@ const os = require('node:os');
 const path = require('node:path');
 const { start } = require('../server');
 
-async function testServer() {
-  const srv = start(0, { dataFile: null });
+async function testServer(opts = {}) {
+  const srv = start(0, { dataFile: null, ...opts });
   const port = srv.httpServer.address().port;
   const base = `http://localhost:${port}`;
   const call = async (token, method, path, body = null) => {
@@ -125,6 +125,53 @@ test('Task 1A: Student registration and email login', async () => {
     // The same account, signed in with its own password, can still change it.
     const demoOwnChange = await call(demoStillOurs.body.token, 'POST', '/api/auth/update-password', { newPassword: 'demoOwnPassword456' });
     assert.equal(demoOwnChange.status, 200);
+  } finally {
+    await close();
+  }
+});
+
+test('Task 1A: A reset code from the email proves control of the mailbox', async () => {
+  const sent = [];
+  const { call, close } = await testServer({
+    sendPasswordResetEmail: async (message) => { sent.push(message); },
+  });
+  try {
+    const reg = await call(null, 'POST', '/api/auth/register', { name: 'Ola Warner', email: 'ola@example.com', password: 'securePassword123' });
+    assert.equal(reg.status, 201);
+
+    // Asking for a code delivers one.
+    const forgot = await call(null, 'POST', '/api/auth/forgot-password', { email: 'ola@example.com' });
+    assert.equal(forgot.status, 200);
+    assert.ok(forgot.body.ok);
+    assert.equal(sent.length, 1, 'the reset code is delivered to the address');
+    assert.equal(sent[0].email, 'ola@example.com');
+    const otp = sent[0].otp;
+    assert.match(otp, /^\d{6}$/, 'the code is six digits');
+
+    // The answer is the same for an address with no account, so the endpoint
+    // cannot be used to find out who has one.
+    const nobody = await call(null, 'POST', '/api/auth/forgot-password', { email: 'nobody@example.com' });
+    assert.equal(nobody.status, 200);
+    assert.equal(nobody.body.message, forgot.body.message, 'the same answer for every address');
+
+    // A wrong code changes nothing.
+    const wrong = await call(null, 'POST', '/api/auth/reset-password', { email: 'ola@example.com', otp: '000000', newPassword: 'attackerPassword999' });
+    assert.equal(wrong.status, 400);
+    const stillOld = await call(null, 'POST', '/api/login', { email: 'ola@example.com', password: 'securePassword123' });
+    assert.equal(stillOld.status, 200, 'the account still has its old password');
+
+    // The right code resets it.
+    const reset = await call(null, 'POST', '/api/auth/reset-password', { email: 'ola@example.com', otp, newPassword: 'brandNewPassword456' });
+    assert.equal(reset.status, 200);
+    assert.ok(reset.body.token);
+    const oldNow = await call(null, 'POST', '/api/login', { email: 'ola@example.com', password: 'securePassword123' });
+    assert.equal(oldNow.status, 401, 'the old password no longer works');
+    const newNow = await call(null, 'POST', '/api/login', { email: 'ola@example.com', password: 'brandNewPassword456' });
+    assert.equal(newNow.status, 200, 'the new password works');
+
+    // The code is single-use, so it cannot be replayed.
+    const replay = await call(null, 'POST', '/api/auth/reset-password', { email: 'ola@example.com', otp, newPassword: 'replayedPassword789' });
+    assert.equal(replay.status, 400);
   } finally {
     await close();
   }
