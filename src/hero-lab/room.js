@@ -24,6 +24,16 @@ const ARENA_CONFIG = {
   radius: GAME_CONFIG.arena.playerRadius,
   tickHz: GAME_CONFIG.arena.tickHz,
 };
+const PLAYER_EMOTES = Object.freeze({
+  'thumbs-up': '👍',
+  'thumbs-down': '👎',
+  wave: '👋',
+  heart: '❤️',
+  laugh: '😄',
+  question: '❓',
+});
+const PLAYER_EMOTE_DURATION_MS = 2400;
+const PLAYER_EMOTE_COOLDOWN_MS = 500;
 const MOVEMENT_KEYS = ['up', 'down', 'left', 'right'];
 const clamp = (value, min, max) => Math.min(max, Math.max(min, value));
 
@@ -1543,6 +1553,8 @@ function createRoom({ io, services = null, id, code = null, isDefault = false, m
       y: spawn.y,
       radius: ARENA_CONFIG.radius,
       aim: { x: 1, y: 0 },
+      emote: null,
+      emoteReadyAt: 0,
       keys: {},
       primaryHeld: false,
       rangerChargeStartedAt: 0,
@@ -1978,6 +1990,16 @@ function createRoom({ io, services = null, id, code = null, isDefault = false, m
     player.keys = Object.fromEntries(MOVEMENT_KEYS.map((key) => [key, input[key] === true]));
   }
 
+  function emote(socket, emoteId) {
+    const player = players.get(socket.id);
+    const glyph = Object.hasOwn(PLAYER_EMOTES, emoteId) ? PLAYER_EMOTES[emoteId] : null;
+    const now = Date.now();
+    if (!player || !glyph || now < player.emoteReadyAt) return;
+    player.emote = { glyph, until: now + PLAYER_EMOTE_DURATION_MS };
+    player.emoteReadyAt = now + PLAYER_EMOTE_COOLDOWN_MS;
+    broadcastState(now);
+  }
+
   function primaryHold(socket, held) {
     const player = players.get(socket.id);
     if (!player) return;
@@ -2149,7 +2171,8 @@ function createRoom({ io, services = null, id, code = null, isDefault = false, m
       // slow room ticks cannot time-expire the arrow short of the aim marker.
       maxDistance: Math.max(1, range - GAME_CONFIG.weaponMuzzleOffset),
       piercing: false, pierces: deadAim ? 0 : (clamp((chargeSeconds - spec.chargeMinS) / (spec.chargeMaxS - spec.chargeMinS), 0, 1) >= spec.pierceT ? 1 : 0),
-      knockback, color: GAME_CONFIG.heroFxColors.ranger.primary, shape: 'arrow', rotateToAim: true,
+      knockback, color: deadAim ? GAME_CONFIG.heroFxSecondary.ranger : GAME_CONFIG.heroFxColors.ranger.primary,
+      shape: 'arrow', rotateToAim: true,
       sourceAbility: 'weapon',
     });
     projectile.rangerArrow = true;
@@ -2873,8 +2896,9 @@ function createRoom({ io, services = null, id, code = null, isDefault = false, m
           .filter(([, expiresAt]) => expiresAt > now)
           .map(([ownerId, expiresAt]) => ({ ownerId, remainingMs: expiresAt - now })) : [],
       })),
-      players: [...players.values()].map(({ id, heroId, hero, name, emoji, x, y, aim, downed, disconnected, respawnRemainingMs, respawnDurationMs, respawnSpeedMultiplier, momentumActive, dawnWaiting, bubbleRush, dashState, wavesReached, wavesParticipated, samuraiStacks, samuraiAction }) => ({
+      players: [...players.values()].map(({ id, heroId, hero, name, emoji, x, y, aim, emote, downed, disconnected, respawnRemainingMs, respawnDurationMs, respawnSpeedMultiplier, momentumActive, dawnWaiting, bubbleRush, dashState, wavesReached, wavesParticipated, samuraiStacks, samuraiAction }) => ({
         id, heroId, name, emoji: hero.visual || emoji, type: hero.type, x: Math.round(x), y: Math.round(y), aim: { ...aim },
+        emote: emote && emote.until > now ? { glyph: emote.glyph, remainingMs: emote.until - now } : null,
         disconnected: Boolean(disconnected),
         wavesReached: wavesReached || 0, wavesParticipated: wavesParticipated || 0,
         samuraiStacks: heroId === 'samurai' ? samuraiStacks : 0,
@@ -3814,7 +3838,7 @@ function createRoom({ io, services = null, id, code = null, isDefault = false, m
     expiresAt,
     heroId: initialTrialHeroId,
     isDefault,
-    join, input, primaryHold, milestoneChoice, aim, fire, skill, ultimate,
+    join, input, emote, primaryHold, milestoneChoice, aim, fire, skill, ultimate,
     cancelTargeting, castBuffVote, leave,
     startRun: startRunBy,
     swapHero,

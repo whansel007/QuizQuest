@@ -1,10 +1,11 @@
 <script setup>
-import { toRefs } from 'vue';
+import { computed, toRefs } from 'vue';
 import HeroIcon from '../../HeroIcon.vue';
 
 
 const props = defineProps({ context: { type: Object, required: true } });
 const { workshopHeroes, workshopHero, previewWorkshopHero, workshopConfig, ownedHeroIds, heroesOfType, heroStars, trialStarting, startWorkshopTrial } = toRefs(props.context);
+const orderedWorkshopHeroes = computed(() => [...workshopHeroes.value].sort((a, b) => a.name.localeCompare(b.name, undefined, { sensitivity: 'base' })));
 </script>
 
 <template>
@@ -14,7 +15,7 @@ const { workshopHeroes, workshopHero, previewWorkshopHero, workshopConfig, owned
                   <h3 id="workshop-roster-title" class="roster-title">Member roster</h3>
                   <p class="roster-sub">Training Workshop · sign-in sheet</p>
                   <div class="roster-list" role="group" aria-label="Choose a hero to preview">
-                    <button v-for="(hero, index) in workshopHeroes" :key="hero.id" class="workshop-hero" :class="{ selected: workshopHero?.id === hero.id }" type="button" :aria-pressed="workshopHero?.id === hero.id" @click="previewWorkshopHero = hero">
+                    <button v-for="(hero, index) in orderedWorkshopHeroes" :key="hero.id" class="workshop-hero" :class="{ selected: workshopHero?.id === hero.id }" type="button" :aria-pressed="workshopHero?.id === hero.id" @click="previewWorkshopHero = hero">
                       <span class="member-no" aria-hidden="true">{{ String(index + 1).padStart(2, '0') }}</span>
                       <HeroIcon :hero="hero" :size="34" />
                       <b>{{ hero.name }}</b>

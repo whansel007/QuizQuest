@@ -49,6 +49,18 @@ async function waitForAnswerControl(page) {
     return !!card.querySelector('.options button, [aria-label="Numeric answer"], [aria-label="Written answer"]');
   });
 }
+// The class picker is a <select>, so the class name lives in an <option> - and
+// Playwright never treats an <option> as visible, because a closed <select>
+// gives it no box on screen. What is on screen is the picker itself and the
+// entry it is showing, so that is what is checked: the picker offers the
+// class, and it is the class on show.
+async function expectClassShowing(page, cls) {
+  const picker = page.getByLabel('Class', { exact: true });
+  await picker.waitFor();
+  const offered = (await picker.locator('option').allTextContents()).map((text) => text.trim());
+  assert.deepEqual(offered, [cls.name], 'the picker offers exactly the class the student joined');
+  assert.equal(await picker.inputValue(), cls.id, 'the picker is showing the class the student joined');
+}
 
 test('student reports survive a failed submission and show a professor response in My Progress', async (t) => {
   const page = await pageFor(t, 'Student 01');
@@ -629,7 +641,8 @@ test('dashboard: very low accuracy is flagged, commonly missed means under 60%, 
   // tests answer at random, so others may join it). One question opens
   // straight away; several go to their list.
   const lowest = attention.getByRole('button', { name: /\d+ questions? under 25% correct on first attempts/ });
-  const one = /^1 question /.test(await lowest.innerText());
+  // the card's own text (its icon and arrow are decoration)
+  const one = /^1 question /.test(await lowest.locator('.attention-text').innerText());
   await lowest.click();
   if (one) {
     const dialog = page.getByRole('dialog');
@@ -653,7 +666,7 @@ test('dashboard: very low accuracy is flagged, commonly missed means under 60%, 
   for (const line of firsts.filter((l) => l.includes(' · first attempts '))) assert.ok(Number(line.match(/first attempts (\d+)%/)[1]) < 60, line);
   // 50% is no longer "mostly right": the time table's groups use the 60% line
   const time = page.locator('#dash-time');
-  await time.getByRole('columnheader', { name: 'Correct (all answers)' }).waitFor();
+  await time.getByRole('columnheader', { name: 'Correct', exact: true }).waitFor();
   const https = time.locator('tr', { hasText: 'What does HTTPS add to HTTP?' });
   // 50% is under the 60% "mostly right" line, so this question is in a *wrong*
   // group. Which one depends on whether it lands above the slow threshold, so
@@ -767,43 +780,77 @@ test('dashboard: period filter, question detail, and a jump to the Question bank
   assert.equal(await page.getByLabel('Period').inputValue(), 'custom');
 });
 
-test('dashboard: marking keeps the page in place, background refreshes keep the charts, and a failed refresh says so', async (t) => {
-  // six free-response answers waiting for a mark (the demo data has none)
-  const db = srv.quiz.db;
-  const ids = Array.from({ length: 6 }, (_, i) => `at-mark-${i}`);
-  ids.forEach((id, i) => db.attempts.push({ id, sessionId: null, studentId: `s-0${i + 1}`, classId: 'cl-a', courseId: 'c-comp', questionId: 'q-x3', version: 1, topicId: 'tp-net', type: 'short', text: `marking answer ${i}`, correct: false, score: 0, ms: 20000, timedOut: false, first: true, context: 'practice', at: Date.now() - 1000 * (i + 1), needsReview: true }));
+// free-response answers waiting for a mark (the demo data has none), removed again after the test
+function pendingAnswers(t, db, prefix, count) {
+  const ids = Array.from({ length: count }, (_, i) => `${prefix}-${i}`);
+  ids.forEach((id, i) => db.attempts.push({ id, sessionId: null, studentId: `s-0${i + 1}`, classId: 'cl-a', courseId: 'c-comp', questionId: 'q-x3', version: 1, topicId: 'tp-net', type: 'short', text: `${prefix} answer ${i}`, correct: false, score: 0, ms: 20000, timedOut: false, first: true, context: 'practice', at: Date.now() - 1000 * (i + 1), needsReview: true }));
   t.after(() => { for (const id of ids) db.attempts.splice(db.attempts.findIndex((a) => a.id === id), 1); });
+  return ids;
+}
 
+test('to review: marking keeps the page in place and the sidebar count follows', async (t) => {
+  const db = srv.quiz.db;
+  pendingAnswers(t, db, 'at-mark', 6);
   const page = await pageFor(t, 'Prof. Demo A');
-  await page.locator('#tabs').getByRole('button', { name: 'Analytics', exact: true }).click();
-  // earlier tests may have left short answers of their own waiting
+  await page.locator('#tabs').getByRole('button', { name: 'To review', exact: true }).click();
+  // earlier tests may have left short answers or reports of their own
   const pending = () => db.attempts.filter((a) => a.classId === 'cl-a' && a.needsReview).length;
+  // the badge counts this class's open reports, as the page lists them
+  const openReports = () => require('../src/quiz/reporting').openReports(db, db.classes.find((c) => c.id === 'cl-a'), 't-a').items.length;
   const n = pending();
   await page.getByRole('heading', { name: `Answers to mark (${n})` }).waitFor();
-  await page.getByRole('button', { name: 'Show learning outcomes for Data representation' }).click();
-  const outcome = page.getByText('Convert between binary, decimal and hexadecimal', { exact: true });
-  await outcome.waitFor();
-  const line = await page.locator('#dash-trends path.line').first().elementHandle();
+  const badge = page.locator('#tabs .t-nav-count');
+  assert.equal(await badge.innerText(), String(n + openReports()));
 
-  // marking removes the answer in place: no reload, the open topic stays open
-  const marking = page.locator('#dash-marking');
+  // marking removes the answer in place, keeps keyboard focus on the list, and the badge follows
+  const marking = page.locator('#review-marking');
   await marking.getByRole('button', { name: 'Mark not correct' }).first().click();
   await page.getByRole('heading', { name: `Answers to mark (${n - 1})` }).waitFor();
-  assert.equal(await outcome.isVisible(), true, 'open topic survives marking');
   assert.equal(await page.evaluate(() => document.activeElement?.textContent), `Answers to mark (${n - 1})`);
+  await page.waitForFunction((want) => document.querySelector('#tabs .t-nav-count')?.textContent === want, String(n - 1 + openReports()));
+  assert.equal(pending(), n - 1);
+  // the dashboard keeps only the count, and links here
+  await page.locator('#tabs').getByRole('button', { name: 'Analytics', exact: true }).click();
+  await page.getByRole('heading', { name: 'Needs attention' }).waitFor();
+  assert.equal(await page.getByRole('heading', { name: /^Answers to mark/ }).count(), 0, 'no marking list on the dashboard');
+  await page.getByRole('button', { name: `${n - 1} answers waiting for your mark` }).click();
+  await page.getByRole('heading', { name: 'To review', exact: true }).waitFor();
+});
+
+test('dashboard: background refreshes keep the charts, and a failed refresh says so', async (t) => {
+  const db = srv.quiz.db;
+  const ids = pendingAnswers(t, db, 'at-refresh', 2);
+  const page = await pageFor(t, 'Prof. Demo A');
+  // a fake clock, so the 30-second auto-refresh can be moved along; the
+  // reload keeps the sign-in (it lives in the tab) and starts the app's
+  // timers on that clock
+  await page.clock.install();
+  await page.reload();
+  await page.locator('#tabs').getByRole('button', { name: 'Analytics', exact: true }).click();
+  await page.getByRole('heading', { name: 'Needs attention' }).waitFor();
+  const line = await page.locator('#dash-trends path.line').first().elementHandle();
+  // a co-teacher marks an answer elsewhere: the next refresh picks it up
+  const markElsewhere = (id) => page.evaluate(async (attemptId) => {
+    const res = await fetch(`/api/teacher/attempts/${attemptId}/mark`, { method: 'POST', headers: { 'content-type': 'application/json', authorization: 'Bearer ' + sessionStorage.getItem('qq-token') }, body: JSON.stringify({ correct: false }) });
+    if (!res.ok) throw new Error('mark failed: ' + res.status);
+  }, id);
+
+  await markElsewhere(ids[0]);
+  await page.clock.fastForward('00:31');
   // the background refresh changed "awaiting marking", so that tile glows; the charts were not redrawn
   await page.locator('.tile.pulse').filter({ hasText: 'awaiting marking' }).waitFor();
   assert.equal(await line.evaluate((e) => e.isConnected), true, 'background refresh keeps the chart');
 
   // a failed background refresh is reported, and "Try now" recovers
   await page.route('**/analytics?**', (r) => r.abort());
-  await marking.getByRole('button', { name: 'Mark not correct' }).first().click();
+  await markElsewhere(ids[1]);
+  await page.clock.fastForward('00:31');
   const stale = page.getByRole('status').filter({ hasText: "Couldn't refresh" });
   await stale.waitFor();
   await page.unroute('**/analytics?**');
   await stale.getByRole('button', { name: 'Try now' }).click();
   await stale.waitFor({ state: 'detached' });
-  assert.equal(ids.filter((id) => db.attempts.find((a) => a.id === id).needsReview).length, 4);
+  assert.equal(ids.filter((id) => db.attempts.find((a) => a.id === id).needsReview).length, 0);
 
   // a new period redraws the charts
   await page.getByLabel('Period').selectOption('30d');
@@ -837,14 +884,7 @@ test('dashboard: printing shows every row and open topic, and charts are one tab
   assert.equal(await page.locator('.heat-cell[tabindex], .viz .hit[tabindex]').count(), 0, 'no per-point tab stops');
 });
 
-test('dashboard: a refused or failed period never locks the page, and marks already made stand', async (t) => {
-  const db = srv.quiz.db;
-  const ids = ['at-race-0', 'at-race-1'];
-  ids.forEach((id, i) => db.attempts.push({ id, sessionId: null, studentId: `s-0${i + 1}`, classId: 'cl-a', courseId: 'c-comp', questionId: 'q-x3', version: 1, topicId: 'tp-net', type: 'short', text: `race answer ${i}`, correct: false, score: 0, ms: 20000, timedOut: false, first: true, context: 'practice', at: Date.now() - 1000 * (i + 1), needsReview: true }));
-  t.after(() => {
-    for (const id of ids) db.attempts.splice(db.attempts.findIndex((a) => a.id === id), 1);
-  });
-
+test('dashboard: a refused or failed period never locks the page', async (t) => {
   const page = await pageFor(t, 'Prof. Demo A');
   // a custom range the server would refuse (over 366 days), saved by an older version, is ignored
   await page.evaluate(() => localStorage.setItem('qq-dashboard', JSON.stringify({ range: 'custom', from: '2024-01-01', to: '2026-01-01' })));
@@ -865,11 +905,16 @@ test('dashboard: a refused or failed period never locks the page, and marks alre
   await page.getByRole('button', { name: 'Apply' }).click();
   await page.getByText('Pick at most 366 days.').waitFor();
   assert.notEqual(JSON.parse(await page.evaluate(() => localStorage.getItem('qq-dashboard'))).from, '2023-01-01', 'not saved');
+});
 
-  // a co-teacher marked this one while the list was open: their mark stands
-  const item = page.locator('.marking-item').filter({ hasText: 'race answer 0' });
+test('to review: an answer a co-teacher marked while the list was open keeps their mark', async (t) => {
+  const db = srv.quiz.db;
+  const [raceId] = pendingAnswers(t, db, 'at-race', 2);
+  const page = await pageFor(t, 'Prof. Demo A');
+  await page.locator('#tabs').getByRole('button', { name: 'To review', exact: true }).click();
+  const item = page.locator('.marking-item').filter({ hasText: 'at-race answer 0' });
   await item.waitFor();
-  const raced = db.attempts.find((a) => a.id === 'at-race-0');
+  const raced = db.attempts.find((a) => a.id === raceId);
   Object.assign(raced, { needsReview: false, correct: true, score: 1 });
   await item.getByRole('button', { name: 'Mark not correct' }).click();
   await page.getByText('Someone else already marked this answer, so their mark stands.').waitFor();
@@ -1038,10 +1083,10 @@ test('a student with no classes joins one with the code their professor generate
   await page.getByText(`Successfully enrolled in ${cls.name}!`).waitFor();
 
   // The class is theirs now, on every view that offers the picker.
-  await page.getByText(cls.name, { exact: false }).first().waitFor();
+  await expectClassShowing(page, cls);
   await page.locator('#tabs').getByRole('button', { name: 'My Progress', exact: true }).click();
   await page.getByRole('heading', { name: 'My Progress', exact: true }).waitFor();
-  await page.getByText(cls.name, { exact: false }).first().waitFor();
+  await expectClassShowing(page, cls);
 
   // The same code cannot be spent twice by the same student.
   await page.getByRole('button', { name: '+ Join Class' }).click();

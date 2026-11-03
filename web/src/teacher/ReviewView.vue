@@ -180,13 +180,16 @@ async function rewriteSelected() {
       </div>
 
       <div v-if="S.qReviewMode === 'cards'" class="bank-cards">
-        <label class="field bank-topic" style="max-width: 360px">Topic
-          <select v-model="S.topicId" aria-label="Filter by topic">
-            <option value="">All topics ({{ questions.length }})</option>
-            <option v-for="t in topics" :key="t.id" :value="t.id">{{ topicLabel(t) }} ({{ t.count }})</option>
-          </select>
-        </label>
-        <CardReview :queue="cardQueue" :course="course" :passages="passages" :scoped="!!S.topicId" @decided="onDecided" @exit="setMode('list')" />
+        <CardReview :queue="cardQueue" :course="course" :passages="passages" :scoped="!!S.topicId" @decided="onDecided" @exit="setMode('list')">
+          <template #picker>
+            <label class="field bank-topic">Topic
+              <select v-model="S.topicId" aria-label="Filter by topic">
+                <option value="">All topics ({{ questions.length }})</option>
+                <option v-for="t in topics" :key="t.id" :value="t.id">{{ topicLabel(t) }} ({{ t.count }})</option>
+              </select>
+            </label>
+          </template>
+        </CardReview>
       </div>
 
       <div v-else class="bank-layout">
@@ -268,7 +271,7 @@ async function rewriteSelected() {
 .rewrite-bar .field { margin: 0; }
 .bank-cards { display: grid; gap: 12px; }
 .bank-topic { margin: 0; }
-@media (max-width: 1000px) {
+@media (max-width: 991.98px) {
   .bank-layout { grid-template-columns: minmax(0, 1fr); }
   .bank-filters { position: static; }
   .bank-status { grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); }

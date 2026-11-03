@@ -41,7 +41,7 @@ const frac = (r) => (r.n ? `${pct(r.accuracy)} (${r.correct}/${r.n})` : '-');
     <p v-else-if="!rows" class="muted small">Loading…</p>
     <!-- one column per class, so many topics read down the page instead of scrolling sideways -->
     <div v-else class="table-wrap">
-      <table class="dash-table compare-table">
+      <table class="dash-table compare-table sticky-first">
         <thead>
           <tr>
             <th scope="col"></th>

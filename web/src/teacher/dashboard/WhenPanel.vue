@@ -49,28 +49,37 @@ function onKey(e) {
   <div>
     <p class="small muted">Answers submitted per day of the week and time of day ({{ timezone.replaceAll('_', ' ') }} time). Useful for timing reminders and quizzes.<template v-if="busiest"> Busiest: <b>{{ busiest }}</b>.</template></p>
     <p v-if="!total" class="muted small">No answers in this period.</p>
-    <div v-else class="viz">
+    <div v-else class="viz heat-viz">
       <div class="heat" role="img" :aria-label="`Answers by day and time. Busiest: ${busiest}. Arrow keys move between cells.`" tabindex="0"
         @focus="onFocus" @blur="active = null" @keydown="onKey">
         <div></div>
-        <div v-for="b in blocks" :key="b.from" class="heat-col">{{ hh(b.from) }}</div>
+        <!-- "00:00" when the grid has room, just "00" when it is narrow (see .heat-viz in app.css) -->
+        <div v-for="b in blocks" :key="b.from" class="heat-col"><span class="heat-col-full">{{ hh(b.from) }}</span><span class="heat-col-short" aria-hidden="true">{{ String(b.from).padStart(2, '0') }}</span></div>
         <template v-for="(row, d) in when.counts" :key="d">
           <div class="heat-row">{{ DAYS[d] }}</div>
+          <!-- a tap keeps its count on screen; only a mouse moving off a cell clears it -->
           <div v-for="(n, b) in row" :key="b" class="heat-cell"
             :class="{ active: active && active.d === d && active.b === b }"
-            @pointerenter="active = { d, b }" @pointerleave="active = null">
+            @pointerenter="active = { d, b }" @click="active = { d, b }"
+            @pointerleave="(e) => { if (e.pointerType === 'mouse') active = null; }">
             <span class="fill" :style="{ opacity: shade(n) }"></span>
           </div>
         </template>
       </div>
       <div class="heat-foot">
-        <span class="small muted no-print" aria-live="polite">{{ active ? describe(active.d, active.b) : 'Hover a cell, or tab here and use the arrow keys, for its count.' }}</span>
+        <!-- the hint and a cell's count sit in the same spot, and the hint only
+             turns invisible, so the line keeps its height and the page doesn't
+             jump while the mouse moves over the grid -->
+        <span class="heat-readout small muted no-print">
+          <span class="heat-readout-hint" :class="{ off: active }"><span class="hint-hover">Hover a cell, or tab here and use the arrow keys, for its count.</span><span class="hint-touch">Tap a cell for its count.</span></span>
+          <span class="heat-readout-value" aria-live="polite">{{ active ? describe(active.d, active.b) : '' }}</span>
+        </span>
         <span class="heat-scale small muted">0 <span class="ramp"></span> {{ max }}</span>
       </div>
       <details class="viz-table">
         <summary>Show as a table</summary>
         <div class="table-wrap">
-          <table class="dash-table">
+          <table class="dash-table sticky-first">
             <thead><tr><th>Day</th><th v-for="b in blocks" :key="b.from">{{ blockLabel(b) }}</th></tr></thead>
             <tbody>
               <tr v-for="(row, d) in when.counts" :key="d"><td>{{ DAYS[d] }}</td><td v-for="(n, b) in row" :key="b" class="num">{{ n }}</td></tr>

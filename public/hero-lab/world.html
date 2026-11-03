@@ -3,11 +3,11 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-  <title>Hero Lab World</title>
+  <title>Campfire Run | QuizQuest</title>
   <link rel="stylesheet" href="/hero-lab/hud.css">
 </head>
 <body>
-  <canvas id="world" width="1920" height="1080" aria-label="Hero Lab World game arena"></canvas>
+  <canvas id="world" width="1920" height="1080" aria-label="Campfire Run game arena"></canvas>
   <div id="overload-flash" aria-hidden="true"></div>
   <aside id="hero-hud" aria-label="Party">
     <div class="party-head"><span class="hud-kicker">PARTY</span><span id="party-count"></span></div>
@@ -68,7 +68,7 @@
     <strong>Defend the campfire!</strong>
     <div class="briefing-tip"><span aria-hidden="true">🟢</span><span>Stand in the green ring to heal.</span></div>
     <div class="briefing-tip"><span aria-hidden="true">🏃</span><span>Keep moving: +20% damage while you move.</span></div>
-    <div class="briefing-tip"><span aria-hidden="true">🎮</span><span class="desktop-input-help">Click fire | E skill | Q ultimate | WASD move</span><span class="touch-input-help">Left stick moves · hold an ability and drag to aim</span></div>
+    <div class="briefing-tip"><span aria-hidden="true">🎮</span><span class="desktop-input-help">Click fire | E skill | Q ultimate | WASD move | Z emotes</span><span class="touch-input-help">Left stick moves · hold an ability and drag to aim · tap 👋 to emote</span></div>
     <small class="desktop-dismiss-help">Press any key or click to close · Press I any time to see this again.</small><small class="touch-dismiss-help">Tap to close · Open Information any time to see this again.</small>
   </section>
   <aside id="bottom-left-hud">
@@ -105,6 +105,9 @@
     <button id="info-button" type="button" aria-expanded="false" aria-controls="stats-panel">
       <span class="ability-circle info-circle">I</span><span>Information</span>
     </button>
+    <button id="emote-button" type="button" aria-haspopup="dialog" aria-expanded="false" aria-controls="emote-menu" title="Choose an emote (Z)">
+      <span aria-hidden="true">👋</span><span>Emote <kbd>Z</kbd></span>
+    </button>
     <section id="stats-panel" hidden aria-label="Hero information">
       <section id="howto-card" class="info-card" aria-label="How to play">
         <div class="info-card-head">
@@ -114,7 +117,7 @@
         <p id="howto-lead">Defend the campfire!</p>
         <div class="briefing-tip"><span aria-hidden="true">🟢</span><span>Stand in the green ring to heal.</span></div>
         <div class="briefing-tip"><span aria-hidden="true">🏃</span><span>Keep moving: +20% damage while you move.</span></div>
-        <div class="briefing-tip"><span aria-hidden="true">🎮</span><span class="desktop-input-help">Click fire | E skill | Q ultimate | WASD move</span><span class="touch-input-help">Left stick moves · hold an ability and drag to aim</span></div>
+        <div class="briefing-tip"><span aria-hidden="true">🎮</span><span class="desktop-input-help">Click fire | E skill | Q ultimate | WASD move | Z emotes</span><span class="touch-input-help">Left stick moves · hold an ability and drag to aim · tap 👋 to emote</span></div>
       </section>
       <section id="stats-card" class="info-card" aria-label="Current hero stats">
         <strong>Current stats</strong>
@@ -143,6 +146,21 @@
     </div>
   </section>
   <div id="targeting-hint" hidden>Hold Ultimate, drag to a target, release to confirm · tap the arena if needed · Esc to cancel <button id="targeting-cancel" type="button">Cancel</button></div>
+  <section id="emote-menu" hidden role="dialog" aria-modal="true" aria-label="Choose an emote">
+    <div class="emote-wheel-panel">
+      <strong>Send an emote</strong>
+      <div class="emote-wheel">
+        <button type="button" class="emote-choice" data-emote="thumbs-up" style="--emote-angle: 0deg" aria-label="Thumbs up" title="Thumbs up (1)">👍<kbd>1</kbd></button>
+        <button type="button" class="emote-choice" data-emote="thumbs-down" style="--emote-angle: 60deg" aria-label="Thumbs down" title="Thumbs down (2)">👎<kbd>2</kbd></button>
+        <button type="button" class="emote-choice" data-emote="wave" style="--emote-angle: 120deg" aria-label="Wave" title="Wave (3)">👋<kbd>3</kbd></button>
+        <button type="button" class="emote-choice" data-emote="heart" style="--emote-angle: 180deg" aria-label="Heart" title="Heart (4)">❤️<kbd>4</kbd></button>
+        <button type="button" class="emote-choice" data-emote="laugh" style="--emote-angle: 240deg" aria-label="Laugh" title="Laugh (5)">😄<kbd>5</kbd></button>
+        <button type="button" class="emote-choice" data-emote="question" style="--emote-angle: 300deg" aria-label="Question" title="Question (6)">❓<kbd>6</kbd></button>
+        <button type="button" id="emote-close" aria-label="Close emotes" title="Close (Esc)">×</button>
+      </div>
+      <small>Press 1–6 or use the arrow keys</small>
+    </div>
+  </section>
   <div id="targeting-reticle" hidden aria-hidden="true"><span></span></div>
   <div id="move-stick" class="virtual-stick" aria-hidden="true">
     <span class="virtual-stick-base"><span class="virtual-stick-knob"></span></span>

@@ -1,4 +1,4 @@
-# Campfire Defense: Hero Guide
+# Campfire Run: Hero Guide
 
 The World is a co-op arena game in QuizQuest. Pick one of the ten heroes below, survive waves of monsters, and keep the campfire alive. The run ends when the campfire reaches 0 HP.
 
@@ -179,4 +179,4 @@ From the repository root, run `npm run dev`, then open `http://localhost:5173/he
 - [`src/hero-lab/world.js`](../../src/hero-lab/world.js): authoritative combat server and student-session kingdom bonus application.
 - [`HOW_THIS_WORKS.md`](./HOW_THIS_WORKS.md): plain-language implementation notes and playtest guide.
 
-The former Class World's quiz gathering and raid backend remains in `src/world/world.js` for quiz functionality. The student navigation now opens Campfire Defense as **World**.
+The former Class World's quiz gathering and raid backend remains in `src/world/world.js` for quiz functionality. The student navigation opens Campfire Run in the **Campfire Run** tab.
