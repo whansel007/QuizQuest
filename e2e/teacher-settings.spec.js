@@ -1,18 +1,18 @@
 // teacher-settings.spec.js
-// E2E tests for the professor's Settings tab: the subject guidance, the
-// semester dates and the per-class trading switch are saved on the server,
-// and every test puts back what it found.
+// E2E tests for the professor's Settings tab: the subject guidance and the
+// semester dates are saved on the server, and every test puts back what it
+// found.
+//
+// The per-class settings - the trading switch, the analytics time zone and
+// the trade log - moved to the class management page, where each class
+// carries its own. They are tested in class-settings.spec.js.
 //
 // The server these tests run against is a throwaway one with its own seeded
 // data file, so nothing in the repository's data is touched. Still, each
 // test reads the current value first and writes it back at the end, so a
 // test never leaves the course in a state it did not find.
 import { test, expect } from '@playwright/test';
-import { signIn, openTab, apiToken, TEACHER } from './helpers.js';
-
-// The one class of the demo course these tests touch.
-const CLASS_ID = 'cl-a';
-const CLASS_NAME = 'Computing - Tutorial Group A';
+import { signIn, openTab, teacherCourse, TEACHER } from './helpers.js';
 
 // How long a poll that asks the server for the course may wait.
 //
@@ -23,37 +23,6 @@ const CLASS_NAME = 'Computing - Tutorial Group A';
 // helper was still trying, and report a failure for a value that was about
 // to arrive. Every poll that asks the server gets this budget instead.
 const POLL_TIMEOUT = 30_000;
-
-// The professor's own course, as the server holds it, so a test can check
-// what was really stored instead of trusting the toast.
-// Playwright's request context does not resolve a relative URL against the
-// page, so the URL is made absolute first.
-async function teacherCourse(page) {
-  const url = new URL('/api/teacher/courses', page.url()).href;
-  const headers = { Authorization: `Bearer ${await apiToken(page)}` };
-  // The server closes connections it has kept open for a few seconds, so a
-  // request can land on one the server has just dropped and never be
-  // answered. A timeout and another try keep that from hanging the test.
-  let response;
-  for (let attempt = 0; attempt < 3; attempt++) {
-    try {
-      response = await page.request.get(url, { headers, timeout: 8000 });
-      break;
-    } catch (err) {
-      if (attempt === 2) throw err;
-    }
-  }
-  expect(response.ok(), `the course list comes back: ${response.status()}`).toBe(true);
-  const courses = await response.json();
-  expect(courses.length, 'the professor has a course').toBeGreaterThan(0);
-  return courses[0];
-}
-
-// The trading switch of one class, as the server holds it.
-async function tradingOnServer(page) {
-  const course = await teacherCourse(page);
-  return course.classes.find((c) => c.id === CLASS_ID).settings.tradingEnabled;
-}
 
 // Sign in as the professor. The sign-in changes nothing until it is through,
 // so a click that never lands on a busy machine is simply tried again rather
@@ -88,15 +57,6 @@ async function clickTab(page, name) {
 async function openSettings(page) {
   await clickTab(page, 'Settings');
   await expect(page.getByLabel('Subject guidance for AI drafting')).toBeVisible({ timeout: 30_000 });
-}
-
-// The trading switch of one class. Every class has a switch with the same
-// name, so it is scoped to the panel of the class the test means.
-function tradingCheckbox(page) {
-  return page
-    .locator('.panel')
-    .filter({ has: page.getByRole('heading', { name: CLASS_NAME }) })
-    .getByRole('checkbox', { name: 'Allow resource trading between classmates' });
 }
 
 test('should save the subject guidance and the semester dates, and put them back', async ({ page }) => {
@@ -173,38 +133,6 @@ test('should save the subject guidance and the semester dates, and put them back
     promptConfig: originalGuidance,
     semester: originalStart ? { start: originalStart } : null,
   });
-});
-
-test('should turn classmate trading off for a class and back on again', async ({ page }) => {
-  // the page is loaded twice here, once more than the other tests need
-  test.slow();
-  await signInTeacher(page);
-  await openSettings(page);
-
-  const trading = tradingCheckbox(page);
-  await expect(trading).toBeVisible();
-  // whatever the class starts with, the test puts it back at the end
-  const wasEnabled = await trading.isChecked();
-
-  if (wasEnabled) await trading.uncheck();
-  else await trading.check();
-  await expect(page.locator('#toast')).toHaveText('Saved');
-  await expect.poll(() => tradingOnServer(page), { timeout: POLL_TIMEOUT }).toBe(!wasEnabled);
-
-  // a fresh page proves the switch was stored, not just drawn
-  await page.reload();
-  await expect(page.getByRole('button', { name: 'Log out' })).toBeVisible();
-  await openSettings(page);
-  const tradingAgain = tradingCheckbox(page);
-  await expect(tradingAgain).toBeVisible();
-  if (wasEnabled) await expect(tradingAgain).not.toBeChecked();
-  else await expect(tradingAgain).toBeChecked();
-
-  // and back to what the class had
-  if (wasEnabled) await tradingAgain.check();
-  else await tradingAgain.uncheck();
-  await expect(page.locator('#toast')).toHaveText('Saved');
-  await expect.poll(() => tradingOnServer(page), { timeout: POLL_TIMEOUT }).toBe(wasEnabled);
 });
 
 test('should use the semester dates from Settings on the Analytics dashboard', async ({ page }) => {

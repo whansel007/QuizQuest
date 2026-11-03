@@ -1,14 +1,17 @@
 <script setup>
 // ============================================================
-// Settings: subject guidance, coverage, semester dates, class toggles, trade log
+// Settings: subject guidance, coverage and semester dates.
+// The per-class settings (trading, analytics time zone, trade log)
+// moved to the class management page, where each class carries its
+// own: Classes & Roster -> a class -> Class Settings.
 // ============================================================
 import { ref, onMounted, useId } from 'vue';
-import { api, rerender } from '../api.js';
-import { toast, when, fmtBundle, action } from '../ui.js';
+import { api } from '../api.js';
+import { toast } from '../ui.js';
 import Heading from '../components/Heading.vue';
 import AsyncButton from '../components/AsyncButton.vue';
 import CoursePicker from './CoursePicker.vue';
-import { loadCourses, currentCourse, RES } from './courses.js';
+import { loadCourses, currentCourse } from './courses.js';
 
 const error = ref('');
 const loaded = ref(false);
@@ -18,7 +21,6 @@ const guidance = ref('');
 const target = ref(1);
 // "This semester" on Analytics runs from the start to the end (or to today)
 const semester = ref({ start: '', end: '' });
-const classTrades = ref({});
 onMounted(async () => {
   try {
     courses.value = await loadCourses(true);
@@ -28,8 +30,6 @@ onMounted(async () => {
       guidance.value = c.promptConfig;
       target.value = c.coverageTarget;
       semester.value = { start: c.semester?.start || '', end: c.semester?.end || '' };
-      const lists = await Promise.all(c.classes.map((cl) => api('GET', `/api/teacher/classes/${cl.id}/trades`)));
-      classTrades.value = Object.fromEntries(c.classes.map((cl, i) => [cl.id, lists[i]]));
     }
     loaded.value = true;
   } catch (err) {
@@ -50,37 +50,6 @@ async function save() {
   await loadCourses(true);
 }
 
-const toggle = (cl, key) => action(async (e) => {
-  const box = e.target;
-  try {
-    await api('PUT', `/api/teacher/classes/${cl.id}/settings`, { [key]: box.checked });
-  } catch (err) {
-    box.checked = !box.checked; // failed: show the setting as it really is
-    throw err;
-  }
-  toast('Saved');
-  rerender();
-});
-const toggles = (cl) => [
-  ['Allow resource trading between classmates', 'tradingEnabled', cl.settings.tradingEnabled, 'Students post offers to the whole class (no private targeting), with limits on open offers, size and daily trades. Turning this off refunds every open offer.'],
-];
-// Time zone for the Analytics dashboard's days and weeks (default Singapore)
-const DEFAULT_TZ = 'Asia/Singapore';
-const ZONES = typeof Intl.supportedValuesOf === 'function' ? Intl.supportedValuesOf('timeZone') : [DEFAULT_TZ, 'UTC'];
-const zoneOf = (cl) => cl.settings.timezone || DEFAULT_TZ;
-const zonesFor = (cl) => [...new Set([zoneOf(cl), DEFAULT_TZ, ...ZONES])].sort();
-const setZone = (cl) => action(async (e) => {
-  const select = e.target;
-  try {
-    await api('PUT', `/api/teacher/classes/${cl.id}/settings`, { timezone: select.value });
-  } catch (err) {
-    select.value = zoneOf(cl); // failed: show the setting as it really is
-    throw err;
-  }
-  toast('Saved');
-  rerender();
-});
-const statusClass = (t) => 'badge ' + (t.status === 'accepted' ? 'published' : t.status === 'open' ? 'draft' : 'plain');
 const targetId = useId();
 </script>
 
@@ -109,36 +78,12 @@ const targetId = useId();
           <AsyncButton class="btn primary" :run="saveSemester">{{ semester.start ? 'Save dates' : 'Clear dates' }}</AsyncButton>
         </form>
       </div>
-      <div v-for="cl in course.classes" :key="cl.id" class="panel">
-        <h3>{{ cl.name }}</h3>
-        <label v-for="[label, key, checked, help] in toggles(cl)" :key="key" style="font-weight: 400; color: inherit; margin: 8px 0">
-          <input type="checkbox" :checked="checked" @change="toggle(cl, key)($event)" /> <b>{{ label }}</b>
-          <div class="small muted" style="margin-left: 24px">{{ help }}</div>
-        </label>
-        <div class="row" style="margin: 12px 0 2px">
-          <label :for="'tz-' + cl.id" style="margin: 0"><b>Time zone for analytics</b></label>
-          <select :id="'tz-' + cl.id" style="width: auto" :value="zoneOf(cl)" @change="setZone(cl)($event)">
-            <option v-for="z in zonesFor(cl)" :key="z" :value="z">{{ z.replace(/_/g, ' ') }}</option>
-          </select>
-        </div>
-        <div class="small muted">Decides when a "day" and a "week" start on the Analytics dashboard, so an answer at 7am counts on the right day.</div>
-        <details style="margin-top: 10px">
-          <summary>Trade log ({{ classTrades[cl.id].length }})</summary>
-          <div v-if="classTrades[cl.id].length" class="table-wrap">
-            <table>
-              <tbody>
-                <tr v-for="t in classTrades[cl.id]" :key="t.id">
-                  <td class="small muted">{{ when(t.createdAt) }}</td>
-                  <td>{{ t.from }}</td>
-                  <td>{{ `${fmtBundle(t.give, RES)} for ${fmtBundle(t.want, RES)}` }}</td>
-                  <td><span :class="statusClass(t)">{{ t.status }}</span></td>
-                  <td>{{ t.acceptedByName || '' }}</td>
-                </tr>
-              </tbody>
-            </table>
-          </div>
-          <p v-else class="small muted">No trades yet.</p>
-        </details>
+      <div class="panel">
+        <h3>Per-class settings</h3>
+        <p class="small muted">
+          Trading, the analytics time zone and the trade log now live with the class they belong to:
+          <b>Classes &amp; Roster</b> → pick a class → <b>Class Settings</b>.
+        </p>
       </div>
     </template>
   </template>

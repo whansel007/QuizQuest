@@ -23,7 +23,10 @@ test('the Evaluation tab opens the evaluation page', async ({ page }) => {
 test('the Settings tab opens the course settings', async ({ page }) => {
   await signIn(page, TEACHER);
   await openTab(page, 'Settings');
-  await expect(page.getByRole('heading', { name: 'Settings' })).toBeVisible();
+  // exact: the page also carries a "Per-class settings" heading, which
+  // points the professor at the class management page. Without exact the
+  // name matches both headings and the locator is ambiguous.
+  await expect(page.getByRole('heading', { name: 'Settings', exact: true })).toBeVisible();
 });
 
 test('the AI drafting tab opens for a professor', async ({ page }) => {
