@@ -20,7 +20,19 @@ test('Engineer skill places a turret through the normal room action', (t) => {
   const player = room.snapshot().players.find((candidate) => candidate.id === socket.id);
   assert.equal(player.heroId, 'engineer');
 
-  room.skill(socket, { x: player.x + 100, y: player.y });
+  // Place the target 250px from the campfire along the player's outward
+  // radial. The player spawns 105–145px from center, so this is always a
+  // valid spot within the Engineer's 220px placement range. An arbitrary
+  // +100px target can land inside the campfire exclusion radius depending on
+  // the randomized spawn angle, making placement correctly fail in CI.
+  const campfire = room.snapshot().campfire;
+  const dx = player.x - campfire.x;
+  const dy = player.y - campfire.y;
+  const distance = Math.hypot(dx, dy);
+  room.skill(socket, {
+    x: campfire.x + dx / distance * 250,
+    y: campfire.y + dy / distance * 250,
+  });
 
   const turret = room.snapshot().turrets.find((candidate) => candidate.ownerId === socket.id);
   assert.ok(turret, 'the skill creates an owned turret in the authoritative game state');

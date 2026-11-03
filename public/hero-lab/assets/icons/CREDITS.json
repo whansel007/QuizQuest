@@ -385,5 +385,88 @@
       "hero": "ranger",
       "slot": "talent"
     }
+  },
+  "candidateIconsNote": "Alternates shown on the icon preview page (public/hero-lab/icon-preview.html) but not used in the game. They are CC BY 3.0 icons from game-icons.net like the chosen ones, and are credited here for the same reason: the licence asks for an author for every icon. Modified the same way - the library background rect removed and the silhouette fill set to currentColor; viewBox is unchanged (0 0 512 512).",
+  "candidateIcons": {
+    "candidates/fast-arrow.svg": {
+      "originalFile": "fast-arrow.svg",
+      "license": "CC BY 3.0",
+      "ability": "Wind Arrow",
+      "author": "lorc",
+      "originalPath": "game-icons.net.svg/icons/ffffff/000000/1x1/lorc/fast-arrow.svg",
+      "hero": "fairy",
+      "slot": "primary",
+      "status": "alternate"
+    },
+    "candidates/feather.svg": {
+      "originalFile": "feather.svg",
+      "license": "CC BY 3.0",
+      "ability": "Wind Arrow",
+      "author": "lorc",
+      "originalPath": "game-icons.net.svg/icons/ffffff/000000/1x1/lorc/feather.svg",
+      "hero": "fairy",
+      "slot": "primary",
+      "status": "alternate"
+    },
+    "candidates/tornado.svg": {
+      "originalFile": "tornado.svg",
+      "license": "CC BY 3.0",
+      "ability": "Gale Burst",
+      "author": "lorc",
+      "originalPath": "game-icons.net.svg/icons/ffffff/000000/1x1/lorc/tornado.svg",
+      "hero": "fairy",
+      "slot": "skill",
+      "status": "alternate"
+    },
+    "candidates/push.svg": {
+      "originalFile": "push.svg",
+      "license": "CC BY 3.0",
+      "ability": "Gale Burst",
+      "author": "delapouite",
+      "originalPath": "game-icons.net.svg/icons/ffffff/000000/1x1/delapouite/push.svg",
+      "hero": "fairy",
+      "slot": "skill",
+      "status": "alternate"
+    },
+    "candidates/divided-spiral.svg": {
+      "originalFile": "divided-spiral.svg",
+      "license": "CC BY 3.0",
+      "ability": "Vortex Orb",
+      "author": "lorc",
+      "originalPath": "game-icons.net.svg/icons/ffffff/000000/1x1/lorc/divided-spiral.svg",
+      "hero": "fairy",
+      "slot": "ultimate",
+      "status": "alternate"
+    },
+    "candidates/whirlpool-shuriken.svg": {
+      "originalFile": "whirlpool-shuriken.svg",
+      "license": "CC BY 3.0",
+      "ability": "Vortex Orb",
+      "author": "darkzaitzev",
+      "originalPath": "game-icons.net.svg/icons/ffffff/000000/1x1/darkzaitzev/whirlpool-shuriken.svg",
+      "hero": "fairy",
+      "slot": "ultimate",
+      "status": "alternate"
+    },
+    "candidates/curled-leaf.svg": {
+      "originalFile": "curled-leaf.svg",
+      "license": "CC BY 3.0",
+      "ability": "Windswept",
+      "author": "lorc",
+      "originalPath": "game-icons.net.svg/icons/ffffff/000000/1x1/lorc/curled-leaf.svg",
+      "hero": "fairy",
+      "slot": "talent",
+      "status": "alternate"
+    },
+    "candidates/snail.svg": {
+      "originalFile": "snail.svg",
+      "license": "CC BY 3.0",
+      "ability": "Windswept",
+      "author": "lorc",
+      "originalPath": "game-icons.net.svg/icons/ffffff/000000/1x1/lorc/snail.svg",
+      "hero": "fairy",
+      "slot": "talent",
+      "status": "alternate"
+    }
   }
 }
