@@ -326,9 +326,10 @@ credited properly.
 ### Art and icons
 
 - **Hero Lab and World icons** - from [game-icons.net](https://game-icons.net/),
-  licensed **CC BY 3.0**. The authors of every icon used are listed per icon in
+  licensed **CC BY 3.0**. The authors of every icon the project ships are
+  listed per icon in
   [`public/hero-lab/assets/icons/CREDITS.json`](public/hero-lab/assets/icons/CREDITS.json)
-  ("Icons made by {author}"), and the app shows the same list under **Icon
+  ("Icons made by {author}"), and the app shows the ones it uses under **Icon
   credits** on the World page. The library licence, with the full list of
   contributors, is in
   [`public/hero-lab/game-icons.net.svg/icons/license.txt`](public/hero-lab/game-icons.net.svg/icons/license.txt).
