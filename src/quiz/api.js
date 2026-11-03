@@ -771,8 +771,8 @@ attemptId: attempt.id,
     return startSession(target);
   };
 
-  route('POST', '/api/auth/reset-password', null, handlePasswordChange);
-  route('POST', '/api/auth/update-password', null, handlePasswordChange);
+  route('POST', '/api/auth/reset-password', null, handleResetPassword);
+  route('POST', '/api/auth/update-password', null, handleResetPassword);
 
   route('POST', '/api/logout', 'any', ({ token }) => {
     tokens.delete(token);
