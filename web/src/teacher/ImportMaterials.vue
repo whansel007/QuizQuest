@@ -15,6 +15,19 @@ const replaceInput = ref(null), replaceTarget = ref(''), useAi = ref(false), con
 const failures = ref([]), active = ref(null), retryTarget = ref('');
 const verified = ref(false);
 const locked = computed(() => loading.value || !verified.value || busy.value || props.disabled);
+const dragDepth = ref(0);
+watch(locked, () => { dragDepth.value = 0; });
+function dragEnter(event) {
+  if (!locked.value && Array.from(event.dataTransfer?.types || []).includes('Files')) dragDepth.value++;
+}
+function dragOver(event) {
+  if (event.dataTransfer) event.dataTransfer.dropEffect = locked.value ? 'none' : 'copy';
+}
+function dropFiles(event) {
+  dragDepth.value = 0;
+  const files = Array.from(event.dataTransfer?.files || []);
+  if (files.length && !locked.value) return choose({ target: { files, value: '' } });
+}
 const originals = new Map();
 const expanded = ref(true), regionId = useId();
 const preferenceKey = key + ':expanded';
@@ -262,7 +275,7 @@ async function save(onlyId = '') {
     await stash();
     message.value = done < queue.length
       ? `Upload stopped: ${done} of ${queue.length} excerpts saved. Click Upload files to finish, or Remove the file.`
-      : pendingFiles.value ? `${pendingFiles.value} file(s) still need attention. Saved files are kept above.` : 'Upload complete. You do not need to upload these files again.';
+      : pendingFiles.value ? `${pendingFiles.value} file(s) still need attention. Saved files are kept below.` : 'Upload complete. You do not need to upload these files again.';
     await sync();
     if (done) emit('saved');
   } catch (e) {
@@ -278,23 +291,6 @@ async function save(onlyId = '') {
 }
 </script>
 <template>
-  <section v-if="verified && savedFiles.length" class="panel saved-materials" aria-label="Successfully uploaded files">
-    <h3 class="saved-heading"><button type="button" class="saved-toggle" :aria-expanded="expanded" :aria-controls="regionId" @click="setExpanded(!expanded)">
-      <span class="grow">Successfully Uploaded Files <span class="badge published">{{ savedFiles.length }}</span><span v-if="warningCount" class="warning-summary small">{{ warningCount }} file(s) have extraction notes · {{ warningSummary }}</span></span>
-      <span class="small">{{ expanded ? 'Hide files' : 'Show files' }}</span><span aria-hidden="true">{{ expanded ? '⌃' : '⌄' }}</span>
-    </button></h3>
-    <div :id="regionId" class="saved-region" :class="{ expanded }" :inert="!expanded" :aria-hidden="!expanded">
-      <div class="saved-inner">
-        <article v-for="file in savedFiles" :key="file.id" class="material-row" :aria-label="file.name">
-          <div class="grow"><strong class="file-name">{{ file.name }}</strong><div class="small muted"><span class="badge published">Uploaded</span> · {{ file.total }} excerpt(s) saved</div>
-            <details v-if="file.note" class="small file-warning"><summary>Extraction notes — file saved</summary><p>{{ file.note }}</p><p>Check unread diagrams and AI descriptions in the report. Replace this file to read it again.</p></details>
-            <details class="small"><summary>View extracted text</summary><p v-for="p in pages.filter(p => fileKey(p) === file.id)" :key="p.id" class="extracted-text">{{ p.text }}</p></details>
-          </div>
-          <div class="material-actions"><button class="btn small" :disabled="locked || pending.some(f => f.replacement === file.id)" :aria-label="'Replace ' + file.name" @click="replaceFile(file.id)">Replace</button><button class="btn small" :disabled="locked || pending.some(f => f.replacement === file.id)" :aria-label="'Remove ' + file.name" @click="removeFile(file.id)">Remove</button></div>
-        </article>
-      </div>
-    </div>
-  </section>
   <section class="panel upload-materials" aria-label="Upload materials">
     <h3>Upload Materials</h3>
     <p class="small muted">PDF, PowerPoint, Word, TXT, Markdown or CSV · Up to 100 MB each, 20 files at once. Uploaded files are kept with this topic and are what the knowledge report is built from; a note typed in by hand or a scanned image goes in the material library instead.</p>
@@ -302,7 +298,11 @@ async function save(onlyId = '') {
     <p v-if="!pendingFiles && !busy" class="small muted">{{ savedFiles.length ? 'Add another lecture file to this topic.' : 'Choose lecture files to get started.' }}</p>
     <input ref="fileInput" aria-label="Lecture files" type="file" multiple :accept="ACCEPT" :disabled="locked" style="display:none" @change="choose" />
     <input ref="replaceInput" aria-label="Replacement lecture file" type="file" :accept="ACCEPT" :disabled="locked" style="display:none" @change="choose($event,replaceTarget,retryTarget)" />
-    <button class="btn" :disabled="locked" @click="fileInput.click()">Choose files</button>
+    <div class="upload-dropzone" :class="{ 'drag-over': dragDepth > 0, locked }" @dragenter.prevent="dragEnter" @dragover.prevent="dragOver" @dragleave.prevent="dragDepth = Math.max(0, dragDepth - 1)" @drop.prevent="dropFiles">
+      <svg class="upload-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 16V3m-5 5 5-5 5 5M4 15v5a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-5" /></svg>
+      <span class="small muted" aria-live="polite">{{ dragDepth ? 'Drop lecture files here' : 'Drag and drop lecture files here, or' }}</span>
+      <button type="button" class="btn upload-choose" :disabled="locked" @click="fileInput.click()">Choose files</button>
+    </div>
     <details v-if="course.geminiEnabled" class="small upload-options"><summary>Image processing options</summary><label><input v-model="useAi" type="checkbox" :disabled="locked" /> Describe images with AI</label><p class="muted">Sends large pictures and scanned pages to Google Gemini (up to 40 per file). Check descriptions and unread diagrams in your report.</p></details>
     <p v-if="loading" role="status">Checking uploaded files…</p>
     <p v-if="message" class="small upload-message" role="status">{{ message }} <button v-if="busy && controller" class="btn small" @click="cancel">Cancel</button></p>
@@ -320,9 +320,36 @@ async function save(onlyId = '') {
     <label v-if="pending.length" class="small"><input v-model="confirmed" type="checkbox" :disabled="busy || disabled" /> This is authorised course material without student personal data.</label>
     <button v-if="pending.length" class="btn primary" :disabled="locked || !confirmed" @click="save()">Upload files</button>
   </section>
+  <section v-if="verified && savedFiles.length" class="panel saved-materials" aria-label="Successfully uploaded files">
+    <h3 class="saved-heading"><button type="button" class="saved-toggle" :aria-expanded="expanded" :aria-controls="regionId" @click="setExpanded(!expanded)">
+      <span class="grow">Successfully Uploaded Files <span class="badge published">{{ savedFiles.length }}</span><span v-if="warningCount" class="warning-summary small">{{ warningCount }} file(s) have extraction notes · {{ warningSummary }}</span></span>
+      <span class="small">{{ expanded ? 'Hide files' : 'Show files' }}</span><span aria-hidden="true">{{ expanded ? '⌃' : '⌄' }}</span>
+    </button></h3>
+    <div :id="regionId" class="saved-region" :class="{ expanded }" :inert="!expanded" :aria-hidden="!expanded">
+      <div class="saved-inner">
+        <article v-for="file in savedFiles" :key="file.id" class="material-row" :aria-label="file.name">
+          <div class="grow"><strong class="file-name">{{ file.name }}</strong><div class="small muted"><span class="badge published">Uploaded</span> · {{ file.total }} excerpt(s) saved</div>
+            <details v-if="file.note" class="small file-warning"><summary>Extraction notes — file saved</summary><p>{{ file.note }}</p><p>Check unread diagrams and AI descriptions in the report. Replace this file to read it again.</p></details>
+            <details class="small"><summary>View extracted text</summary><p v-for="p in pages.filter(p => fileKey(p) === file.id)" :key="p.id" class="extracted-text">{{ p.text }}</p></details>
+          </div>
+          <div class="material-actions"><button class="btn small" :disabled="locked || pending.some(f => f.replacement === file.id)" :aria-label="'Replace ' + file.name" @click="replaceFile(file.id)">Replace</button><button class="btn small" :disabled="locked || pending.some(f => f.replacement === file.id)" :aria-label="'Remove ' + file.name" @click="removeFile(file.id)">Remove</button></div>
+        </article>
+      </div>
+    </div>
+  </section>
 </template>
 
 <style scoped>
+.upload-dropzone { display: flex; justify-content: center; align-items: center; flex-wrap: wrap; gap: 12px; padding: 20px 16px; border: 1px dashed var(--muted); border-radius: 10px; background: var(--bg); text-align: center; }
+.upload-icon { width: 24px; height: 24px; flex-shrink: 0; color: var(--muted); }
+.upload-dropzone:not(.locked):hover, .upload-dropzone.drag-over, .upload-dropzone:focus-within { border-color: var(--accent); background: var(--accent-soft); }
+.upload-dropzone:focus-within { outline: 2px solid var(--accent); outline-offset: 2px; }
+.upload-dropzone .upload-choose { background: var(--panel); border-color: var(--accent); color: var(--accent); font-weight: 600; }
+.upload-dropzone .upload-choose:hover:not(:disabled) { background: var(--accent); color: var(--accent-ink); }
+.upload-dropzone.drag-over .upload-icon { color: var(--accent); }
+@media (max-width: 575.98px) { .upload-dropzone { gap: 10px; padding: 16px; } .upload-dropzone > span { flex-basis: calc(100% - 34px); text-align: left; } }
+.upload-dropzone.drag-over .muted { color: var(--ink); }
+.upload-dropzone.locked { opacity: .65; }
 .saved-materials { padding: 0; overflow: hidden; }
 .saved-heading { margin: 0; }
 .saved-toggle { width: 100%; display: flex; align-items: center; gap: 12px; text-align: left; padding: 16px 18px; border: 0; background: transparent; color: var(--ink); font: inherit; cursor: pointer; }
@@ -342,6 +369,6 @@ async function save(onlyId = '') {
 summary { cursor: pointer; }
 .upload-options, .upload-message { margin: 12px 0; }
 .extracted-text { white-space: pre-wrap; overflow-wrap: anywhere; max-height: 240px; overflow: auto; }
-@media (max-width: 540px) { .material-row { flex-direction: column; gap: 8px; } .saved-toggle { flex-wrap: wrap; gap: 8px; } .saved-toggle > .grow { flex-basis: 100%; } }
+@media (max-width: 575.98px) { .material-row { flex-direction: column; gap: 8px; } .saved-toggle { flex-wrap: wrap; gap: 8px; } .saved-toggle > .grow { flex-basis: 100%; } }
 @media (prefers-reduced-motion: reduce) { .saved-region { transition: none; } }
 </style>

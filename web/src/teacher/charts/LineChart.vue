@@ -30,11 +30,11 @@ const props = defineProps({
 const el = ref(null);
 const width = useWidth(el);
 const M = { top: 10, right: 14, bottom: 26, left: 40 };
-const LABEL_GAP = 13; // px between stacked end labels
+const LABEL_GAP = 14; // px between stacked end labels
 const LABEL_CHARS = 24;
 const endLabels = computed(() => props.series.length > 1 && width.value >= 460);
-// room on the right for the names (about 6.5px per character at 11px)
-const right = computed(() => (endLabels.value ? Math.min(170, 18 + 6.5 * Math.max(...props.series.map((s) => shortLabel(s.name, LABEL_CHARS).length))) : M.right));
+// room on the right for the names (about 7.1px per character at 12px)
+const right = computed(() => (endLabels.value ? Math.min(185, 18 + 7.1 * Math.max(...props.series.map((s) => shortLabel(s.name, LABEL_CHARS).length))) : M.right));
 const plotW = computed(() => Math.max(60, width.value - M.left - right.value));
 const plotH = computed(() => props.height - M.top - M.bottom);
 const band = computed(() => plotW.value / Math.max(1, props.rows.length));

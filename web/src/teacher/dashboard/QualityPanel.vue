@@ -19,7 +19,7 @@ const frac = (r) => `${pct(r.accuracy)} (${r.correct}/${r.n})`;
 </script>
 
 <template>
-  <!-- three checks as cards side by side; a check with issues spans the row for its table -->
+  <!-- three checks as full-width cards, one under the other -->
   <div class="quality-checks">
     <section class="quality-check" :class="{ wide: tags.issues.length }">
     <h4>Tags</h4>
@@ -28,14 +28,14 @@ const frac = (r) => `${pct(r.accuracy)} (${r.correct}/${r.n})`;
       {{ tags.issues.length ? '⚠' : '✓' }} {{ tags.complete }} of {{ tags.total }} questions are fully tagged{{ tags.issues.length ? '.' : ' - nothing to fix.' }}
     </div>
     <div v-if="tags.issues.length" class="table-wrap">
-      <table class="dash-table">
+      <table class="dash-table stack">
         <thead><tr><th>Question</th><th>Status</th><th>Missing or invalid</th><th></th></tr></thead>
         <tbody>
           <tr v-for="q in tagPages.items" :key="q.questionId">
-            <td class="q">{{ q.stem }}</td>
-            <td><span :class="'badge ' + q.status">{{ q.status }}</span></td>
-            <td>{{ q.missing.join(', ') }}</td>
-            <td><button class="btn small" @click="emit('open-in-bank', q.questionId)">Fix in Question bank</button></td>
+            <td class="q stack-head">{{ q.stem }}</td>
+            <td data-label="Status"><span :class="'badge ' + q.status">{{ q.status }}</span></td>
+            <td class="stack-block" data-label="Missing or invalid">{{ q.missing.join(', ') }}</td>
+            <td class="stack-action"><button class="btn small" @click="emit('open-in-bank', q.questionId)">Fix in Question bank</button></td>
           </tr>
         </tbody>
       </table>
@@ -48,15 +48,15 @@ const frac = (r) => `${pct(r.accuracy)} (${r.correct}/${r.n})`;
     <p class="small muted">Compares each question's difficulty tag with how students actually did (at least {{ quality.difficultyCheck.minN }} confirmed first attempts; retries come after the explanation, so they don't count): "easy" questions under {{ pct(quality.difficultyCheck.easyBelow) }} correct, or "hard" ones over {{ pct(quality.difficultyCheck.hardAbove) }} correct. Re-tagging keeps adaptive practice and reports honest.</p>
     <div v-if="!quality.difficulty.length" class="note good">✓ No mismatches in this period.</div>
     <div v-else class="table-wrap">
-      <table class="dash-table">
+      <table class="dash-table stack">
         <thead><tr><th>Question</th><th>Topic</th><th>Tagged</th><th>First-attempt correct</th><th>Looks</th></tr></thead>
         <tbody>
           <tr v-for="q in difficultyPages.items" :key="q.questionId">
-            <td class="q"><button class="linklike" @click="emit('open-question', q.questionId)">{{ q.stem }}</button></td>
-            <td class="label">{{ q.topic }}</td>
-            <td>{{ q.tagged }}</td>
-            <td class="num">{{ frac(q.accuracy) }}</td>
-            <td><span class="badge draft">⚠ {{ q.verdict }}</span></td>
+            <td class="q stack-head"><button class="linklike" @click="emit('open-question', q.questionId)">{{ q.stem }}</button></td>
+            <td class="label" data-label="Topic">{{ q.topic }}</td>
+            <td data-label="Tagged">{{ q.tagged }}</td>
+            <td class="num" data-label="First-attempt correct">{{ frac(q.accuracy) }}</td>
+            <td data-label="Looks"><span class="badge draft">⚠ {{ q.verdict }}</span></td>
           </tr>
         </tbody>
       </table>
@@ -69,13 +69,13 @@ const frac = (r) => `${pct(r.accuracy)} (${r.correct}/${r.n})`;
     <p class="small muted">Wrong options picked by under {{ pct(quality.unused.maxShare) }} of answers (questions with at least {{ quality.unused.minAnswers }} answers to the current version). An option nobody picks doesn't test anything: a more plausible distractor makes the question more useful. True/false questions are left out.</p>
     <div v-if="!quality.unusedOptions.length" class="note good">✓ Every wrong option is being chosen sometimes.</div>
     <div v-else class="table-wrap">
-      <table class="dash-table">
+      <table class="dash-table stack">
         <thead><tr><th>Question</th><th>Rarely chosen</th><th>Answers</th></tr></thead>
         <tbody>
           <tr v-for="q in unusedPages.items" :key="q.questionId">
-            <td class="q"><button class="linklike" @click="emit('open-question', q.questionId)">{{ q.stem }}</button></td>
-            <td>{{ q.options.map((o) => `"${o.text}" (${o.count})`).join(', ') }}</td>
-            <td class="num">{{ q.answered }}</td>
+            <td class="q stack-head"><button class="linklike" @click="emit('open-question', q.questionId)">{{ q.stem }}</button></td>
+            <td class="stack-block" data-label="Rarely chosen">{{ q.options.map((o) => `"${o.text}" (${o.count})`).join(', ') }}</td>
+            <td class="num" data-label="Answers">{{ q.answered }}</td>
           </tr>
         </tbody>
       </table>

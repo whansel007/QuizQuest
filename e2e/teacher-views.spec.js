@@ -14,10 +14,10 @@ test('the Analytics tab opens the dashboard for the course', async ({ page }) =>
   await expect(page.getByRole('button', { name: 'Print report' })).toBeVisible();
 });
 
-test('the Evaluation tab opens the prototype questionnaire', async ({ page }) => {
+test('the Evaluation tab opens the evaluation page', async ({ page }) => {
   await signIn(page, TEACHER);
   await openTab(page, 'Evaluation');
-  await expect(page.getByRole('heading', { name: 'Prototype evaluation' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Evaluation', exact: true })).toBeVisible();
 });
 
 test('the Settings tab opens the course settings', async ({ page }) => {

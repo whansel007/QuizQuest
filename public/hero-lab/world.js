@@ -72,6 +72,7 @@ let heroSpritesDisabled = false;
 const heroOffsets = new Map();
 const heroFacing = new Map();
 const heroUltimateLook = new Map();
+const shortUltimateLooksUntil = new Map();
 const heroTransformStarts = new Map();
 const heroPreviousPositions = new Map();
 const heroHitFlashStarts = new Map();
@@ -352,6 +353,10 @@ const joinBriefing = document.querySelector('#join-briefing');
 const infoButton = document.querySelector('#info-button');
 const statsPanel = document.querySelector('#stats-panel');
 const infoCloseButton = document.querySelector('#info-close');
+const emoteButton = document.querySelector('#emote-button');
+const emoteMenu = document.querySelector('#emote-menu');
+const emoteClose = document.querySelector('#emote-close');
+const emoteChoices = [...document.querySelectorAll('.emote-choice[data-emote]')];
 const buffVote = document.querySelector('#buff-vote');
 const buffCards = document.querySelector('#buff-cards');
 const targetingHint = document.querySelector('#targeting-hint');
@@ -463,12 +468,12 @@ const codeToKey = {
 };
 let me = null;
 let state = { players: [], projectiles: [], monsters: [], campfire: null, wave: null };
+let emoteFocusIndex = 0;
 let debugTurretRanges = false;
 const turretVisualState = new Map();
 const rangerMeatThrows = new Map();
 const rangerMeatLandings = [];
 const rangerChargeVisuals = new Map();
-const rangerDeadAimStreaks = [];
 const rangerDeadAimMuzzleUntil = new Map();
 const rangerUltimateFlashAt = new Map();
 const rangerWolfBiteFx = [];
@@ -2259,12 +2264,14 @@ socket.on('ability_used', (event) => {
       return;
     }
     if (event.heroId === 'fairy') {
+      shortUltimateLooksUntil.set(event.playerId, performance.now() + 500);
       if (effectToggles.sound) {
         playSound('fairyWhoosh', { volume: event.playerId === me ? 1 : 0.65 });
         fairyTravelSoundStops.set(event.playerId, startSoundLoop('fairyTravel', { volume: 0.35 }));
       }
       return;
     }
+    if (event.heroId === 'engineer') shortUltimateLooksUntil.set(event.playerId, performance.now() + 500);
     playSound('ultimateCast', { volume: event.playerId === me ? 1 : 0.65 });
     shakeCamera(SHAKE_ULTIMATE_TRAUMA, 'major');
     return;
@@ -2371,9 +2378,6 @@ socket.on('weapon_fired', (event) => {
       const muzzleY = shooter.y + shooter.aim.y * (GAME_CONFIG.weaponMuzzleOffset + 18);
       if (deadAim) {
         rangerDeadAimMuzzleUntil.set(event.playerId, now + GAME_CONFIG.heroes.ranger.ranger.feedback.deadAimMuzzleMs);
-        rangerDeadAimStreaks.push({ x: muzzleX, y: muzzleY, dx: shooter.aim.x, dy: shooter.aim.y,
-          range: GAME_CONFIG.heroes.ranger.ranger.ultRange, startedAt: now,
-          durationMs: GAME_CONFIG.heroes.ranger.ranger.feedback.deadAimStreakMs });
       }
       if (!prefersReducedMotion && effectiveQuality() !== 'low' && effectToggles.burst) {
         const count = engineerFeedbackParticleCount(deadAim ? 10 : 5);
@@ -2844,7 +2848,7 @@ socket.on('area_effect', (effect) => {
   }
   const rangerDeadAimBlast = effect.sourceHeroId === 'ranger' && effect.sourceAbility === 'ultimate';
   if (effectToggles.sound) playSound(rangerDeadAimBlast ? 'explosion' : effect.sourceAbility === 'ultimate' ? 'ultimateCast' : 'explosion');
-  const burstColors = rangerDeadAimBlast ? ['#FFF8D8', '#FFD75E', '#F0DDA0', '#8BE04E'] : null;
+  const burstColors = rangerDeadAimBlast ? ['#FFF8D8', '#FFD75E', '#B9F96D', '#8BE04E', '#35A853'] : null;
   const rangerBurstCount = !rangerDeadAimBlast || prefersReducedMotion || !effectToggles.burst ? 0
     : effectiveQuality() === 'low' ? 6 : effectiveQuality() === 'medium' ? 16 : 32;
   for (let i = 0; i < (rangerDeadAimBlast ? rangerBurstCount : 20); i++) {
@@ -3216,8 +3220,68 @@ function onPointerMove(event) {
   }, delay);
 }
 
+function openEmoteMenu() {
+  if (!me || !emoteMenu.hidden) return;
+  releaseKeys();
+  emoteMenu.hidden = false;
+  emoteButton.setAttribute('aria-expanded', 'true');
+  emoteFocusIndex = 0;
+  emoteChoices[emoteFocusIndex]?.focus({ preventScroll: true });
+}
+
+function closeEmoteMenu() {
+  if (emoteMenu.hidden) return;
+  emoteMenu.hidden = true;
+  emoteButton.setAttribute('aria-expanded', 'false');
+  emoteButton.focus({ preventScroll: true });
+}
+
+function sendEmote(emoteId) {
+  if (!emoteChoices.some((choice) => choice.dataset.emote === emoteId)) return;
+  socket.emit('emote', emoteId);
+  closeEmoteMenu();
+}
+
+function onEmoteMenuKeyDown(event) {
+  const count = emoteChoices.length;
+  const digit = Number(event.key);
+  if (digit >= 1 && digit <= count) {
+    event.preventDefault();
+    sendEmote(emoteChoices[digit - 1].dataset.emote);
+    return;
+  }
+  if (event.code === 'Escape' || event.code === 'KeyZ') {
+    event.preventDefault();
+    closeEmoteMenu();
+    return;
+  }
+  const direction = ['ArrowRight', 'ArrowDown'].includes(event.code) ? 1
+    : ['ArrowLeft', 'ArrowUp'].includes(event.code) ? -1 : 0;
+  if (direction) {
+    event.preventDefault();
+    emoteFocusIndex = (emoteFocusIndex + direction + count) % count;
+    emoteChoices[emoteFocusIndex]?.focus({ preventScroll: true });
+    return;
+  }
+  if (event.code === 'Tab') {
+    const focusables = [...emoteChoices, emoteClose];
+    const currentIndex = focusables.indexOf(document.activeElement);
+    const nextIndex = event.shiftKey
+      ? (currentIndex <= 0 ? focusables.length - 1 : currentIndex - 1)
+      : (currentIndex < 0 || currentIndex === focusables.length - 1 ? 0 : currentIndex + 1);
+    event.preventDefault();
+    focusables[nextIndex]?.focus({ preventScroll: true });
+  }
+}
+
+emoteButton.addEventListener('click', openEmoteMenu);
+emoteClose.addEventListener('click', closeEmoteMenu);
+emoteMenu.addEventListener('click', (event) => { if (event.target === emoteMenu) closeEmoteMenu(); });
+emoteChoices.forEach((choice) => choice.addEventListener('click', () => sendEmote(choice.dataset.emote)));
+
 function onKeyDown(event) {
   if (!me || event.target.closest?.('input, textarea, select')) return;
+  if (!emoteMenu.hidden) { onEmoteMenuKeyDown(event); return; }
   const key = codeToKey[event.code];
   if (key) {
     if (!keys[key]) {
@@ -3229,6 +3293,9 @@ function onKeyDown(event) {
     activateAbility('skill');
   } else if (event.code === 'KeyQ' && !event.repeat) {
     activateAbility('ultimate');
+  } else if (event.code === 'KeyZ' && !event.repeat) {
+    event.preventDefault();
+    openEmoteMenu();
   } else if (event.code === 'KeyI' && !event.repeat) {
     toggleStats();
   } else if (event.code === 'Escape' && !event.repeat) {
@@ -4148,6 +4215,45 @@ function releasePointerControls(event) {
 // advances exactly one interval per drawn frame and never falls behind the
 // clock, so a long stall (GC, tab restore) resyncs instead of bursting.
 let nextFrameAt = -1;
+const playerEmoteAnimations = new Map();
+function drawPlayerEmote(player, time) {
+  const emote = player.emote;
+  if (!emote?.glyph || emote.remainingMs <= 0) {
+    playerEmoteAnimations.delete(player.id);
+    return;
+  }
+  let animation = playerEmoteAnimations.get(player.id);
+  if (!animation || animation.glyph !== emote.glyph) {
+    animation = { glyph: emote.glyph, startedAt: time };
+    playerEmoteAnimations.set(player.id, animation);
+  }
+  const popProgress = Math.max(0, Math.min(1, (time - animation.startedAt) / 180));
+  const popEase = 1 - (1 - popProgress) ** 3;
+  const alpha = Math.min(1, emote.remainingMs / 350) * popEase;
+  const float = Math.sin(time * 0.006) * 2;
+  const x = player.x;
+  const y = -64 - float + (1 - popEase) * 14;
+  context.save();
+  context.translate(x, player.y);
+  context.scale(0.84 + popEase * 0.16, 0.84 + popEase * 0.16);
+  context.globalAlpha = alpha;
+  context.fillStyle = '#FBF2D8';
+  context.strokeStyle = '#1D3329';
+  context.lineWidth = 3;
+  // Paint the tail first so the bubble's fill and outline sit cleanly over it.
+  context.beginPath();
+  context.moveTo(-3, y + 18); context.lineTo(2, y + 27); context.lineTo(9, y + 18);
+  context.closePath(); context.fill(); context.stroke();
+  context.beginPath();
+  context.roundRect(-25, y - 23, 50, 42, 13);
+  context.fill(); context.stroke();
+  context.fillStyle = '#1D3329';
+  context.font = '25px system-ui, sans-serif';
+  context.textAlign = 'center'; context.textBaseline = 'middle';
+  context.fillText(emote.glyph, 0, y - 2);
+  context.restore();
+}
+
 function draw(timestamp) {
   requestAnimationFrame(draw);
   if (FRAME_CAP_FPS > 0) {
@@ -4198,7 +4304,10 @@ function getHeroVisualState(player, now) {
   const ultActive = Boolean(!downed && !runEnded && (heroDebugUltimate && player.id === me
     || (heroId === 'sheriff' && player.ultimateFlash)
     || (heroId === 'guardian' && player.guardianCharging)
-    || (heroId === 'pilot' && player.mech)));
+    || (heroId === 'pilot' && player.mech)
+    || (heroId === 'samurai' && ['cutting-dash', 'afterimage-cut'].includes(player.samuraiAction?.kind))
+    || (heroId === 'ranger' && player.deadAimArrows > 0)
+    || ((heroId === 'fairy' || heroId === 'engineer') && now < (shortUltimateLooksUntil.get(player.id) || 0))));
   const priorUltimate = heroUltimateLook.get(player.id) || false;
   if (priorUltimate !== ultActive) {
     heroTransformStarts.set(player.id, now);
@@ -4336,7 +4445,6 @@ function drawRangerWolves(now) {
     context.font = '900 10px system-ui, sans-serif';
     context.fillStyle = '#fff';
     context.textAlign = 'center';
-    if (arriving) context.fillText('ARRIVING', 0, -25);
     const feedback = GAME_CONFIG.heroes.ranger.ranger.feedback;
     if (!arriving && wolf.expiresAt > 0) {
       const serverNow = (state.serverTime || Date.now()) + (now - stateReceivedAt);
@@ -4373,24 +4481,6 @@ function drawRangerWolfBiteFx(now) {
   }
 }
 
-function drawRangerDeadAimStreaks(now) {
-  for (let i = rangerDeadAimStreaks.length - 1; i >= 0; i--) {
-    const streak = rangerDeadAimStreaks[i];
-    const progress = (now - streak.startedAt) / streak.durationMs;
-    if (progress >= 1) { rangerDeadAimStreaks.splice(i, 1); continue; }
-    const length = streak.range * Math.min(1, progress * 3 + 0.08);
-    // Tapered arrow wake: needle-thin at the bow, fullest just behind the
-    // arrowhead, so it reads as speed rather than a solid bar.
-    if (length < 1) continue;
-    context.save(); context.translate(streak.x, streak.y); context.rotate(Math.atan2(streak.dy, streak.dx));
-    context.globalAlpha = (1 - progress) * (prefersReducedMotion ? 0.55 : 0.9);
-    context.fillStyle = '#5A3E0C'; crescentPath(length, 18, 0, 0.82); context.fill();
-    context.fillStyle = '#FFF2CC'; crescentPath(length, 10, 0, 0.82); context.fill();
-    context.fillStyle = '#F0DDA0'; crescentPath(length, 3, 0, 0.82); context.fill();
-    context.restore();
-  }
-}
-
 function rangerAimEndpoint(player, range, target = window.lastPointerWorld) {
   const center = { x: player.x, y: player.y };
   const pointer = target || { x: center.x + (player.aim?.x || 1) * range, y: center.y + (player.aim?.y || 0) * range };
@@ -4409,11 +4499,11 @@ function drawRangerAimGuides() {
   if (player.rangerCharging) {
     range = config.rangeMin + (config.rangeMax - config.rangeMin) * progress;
     width = config.feedback.aimLineWidthMinPx + progress * config.feedback.aimLineWidthMaxPx;
-    color = HERO_FX_COLORS.ranger.primary;
+    color = HERO_FX_SECONDARY.ranger;
   } else if (player.deadAimArrows > 0) {
     range = config.ultRange;
     width = 1.5;
-    color = HERO_FX_COLORS.ranger.primary;
+    color = HERO_FX_SECONDARY.ranger;
   } else return;
   const end = rangerAimEndpoint(player, range);
   context.save(); context.globalAlpha = player.deadAimArrows > 0 ? 0.5 : 0.48; context.lineCap = 'round';
@@ -4497,12 +4587,17 @@ function drawRangerCombatFeedback(player, now) {
       context.beginPath(); context.arc(0, 0, ringRadius, 0, Math.PI * 2); context.stroke();
       context.lineWidth = 5; context.strokeStyle = '#FFF2CC';
       context.beginPath(); context.arc(0, 0, ringRadius, 0, Math.PI * 2); context.stroke();
-      context.lineWidth = flash ? 7 : 5; context.strokeStyle = flash ? '#fff' : HERO_FX_COLORS.ranger.primary;
+      context.lineWidth = flash ? 7 : 5; context.strokeStyle = flash ? '#fff' : HERO_FX_SECONDARY.ranger;
       context.beginPath(); context.arc(0, 0, ringRadius, -Math.PI / 2,
         -Math.PI / 2 + Math.PI * 2 * progress); context.stroke();
+      const chargeLabel = `${Math.round(progress * 100)}%`;
       context.font = '900 11px system-ui, sans-serif'; context.textAlign = 'center'; context.textBaseline = 'middle';
-      context.lineWidth = 3; context.strokeStyle = '#17251b'; context.fillStyle = '#fff7dc';
-      context.strokeText(`${Math.round(progress * 100)}%`, 0, 0); context.fillText(`${Math.round(progress * 100)}%`, 0, 0);
+      const labelWidth = context.measureText(chargeLabel).width + 12;
+      const labelY = -ringRadius - 12;
+      context.fillStyle = '#17251b'; context.strokeStyle = HERO_FX_SECONDARY.ranger; context.lineWidth = 2;
+      context.beginPath(); context.roundRect(-labelWidth / 2, labelY - 9, labelWidth, 18, 9); context.fill(); context.stroke();
+      context.fillStyle = '#e4ffdb';
+      context.fillText(chargeLabel, 0, labelY);
       context.restore();
     }
   } else {
@@ -4519,14 +4614,14 @@ function drawRangerCombatFeedback(player, now) {
       context.beginPath(); context.arc(center.x + Math.cos(angle) * 22, center.y - 101 + Math.sin(angle) * 6, 4, 0, Math.PI * 2);
       context.fillStyle = '#303728'; context.fill();
       context.beginPath(); context.arc(center.x + Math.cos(angle) * 22, center.y - 101 + Math.sin(angle) * 6, 2.5, 0, Math.PI * 2);
-      context.fillStyle = HERO_FX_COLORS.ranger.primary; context.fill();
+      context.fillStyle = HERO_FX_SECONDARY.ranger; context.fill();
     }
     context.restore();
     if (player.id === me && window.lastPointerWorld) {
       const end = rangerAimEndpoint(player, config.ultRange);
       context.save(); context.globalAlpha = 1; context.fillStyle = '#17202bf2'; context.strokeStyle = '#303728'; context.lineWidth = 6;
       context.beginPath(); context.arc(end.x, end.y, 21, 0, Math.PI * 2); context.fill(); context.stroke();
-      context.strokeStyle = '#ffd75e'; context.lineWidth = 3;
+      context.strokeStyle = HERO_FX_SECONDARY.ranger; context.lineWidth = 3;
       context.beginPath(); context.arc(end.x, end.y, 21, 0, Math.PI * 2); context.stroke();
       context.font = '900 11px system-ui, sans-serif'; context.textAlign = 'center'; context.textBaseline = 'middle';
       context.lineWidth = 3; context.strokeStyle = '#17202b'; context.fillStyle = '#fff2cc';
@@ -4780,6 +4875,71 @@ function crescentPath(len, thickness, bow = 0, peak = 0.5) {
 }
 const SAMURAI_MARK_LEN = Math.hypot(40, 32), SAMURAI_MARK_TILT = Math.atan2(-32, 40);
 
+function drawSamuraiCutGuides(now) {
+  const fx = HERO_FX_COLORS.samurai.primary;
+  const serverNow = (state.serverTime || Date.now()) + (now - stateReceivedAt);
+  for (const player of state.players || []) {
+    const action = player.samuraiAction;
+    if (player.heroId !== 'samurai' || action?.phase !== 'sheathe') continue;
+    const delayStart = action.startedAt + action.durationMs;
+    const progress = Math.max(0, Math.min(1, (serverNow - delayStart) / Math.max(1, action.cutAt - delayStart)));
+    const begin = -action.cutPad;
+    const finish = action.distance + action.cutPad;
+    const sx = action.startX + action.direction.x * begin;
+    const sy = action.startY + action.direction.y * begin;
+    const ex = action.startX + action.direction.x * finish;
+    const ey = action.startY + action.direction.y * finish;
+    const len = Math.hypot(ex - sx, ey - sy);
+    if (len < 1) continue;
+    const alpha = (0.15 + 0.25 * progress) * (player.id === me ? 1 : 0.5);
+    const tileLength = 21;
+    context.save();
+    context.translate(sx, sy);
+    context.rotate(Math.atan2(ey - sy, ex - sx));
+    context.globalAlpha = alpha;
+    for (let tileX = 0, tile = 0; tileX < len; tileX += tileLength, tile += 1) {
+      const width = Math.min(tileLength, len - tileX);
+      const centerT = (tileX + width / 2) / len;
+      // A sine envelope makes the cut band taper at both ends and swell in
+      // the middle, while the adjacent blocks retain the alternating look.
+      const tileHeight = Math.max(3, action.width * Math.sin(Math.PI * centerT));
+      context.fillStyle = '#17202B';
+      context.fillRect(tileX, -(tileHeight + 5) / 2, width, tileHeight + 5);
+      context.fillStyle = tile % 2 ? '#6E5BD0' : fx;
+      context.fillRect(tileX, -tileHeight / 2, width, tileHeight);
+    }
+    context.globalAlpha = alpha * 0.9;
+    context.strokeStyle = '#E6DFFF';
+    context.lineWidth = 2;
+    context.beginPath(); context.moveTo(0, 0); context.lineTo(len, 0); context.stroke();
+    context.restore();
+  }
+}
+
+function drawSamuraiCutSlashes(now) {
+  const fx = HERO_FX_COLORS.samurai.primary;
+  const slashMs = SAMURAI_SLASH_FADE_MS;
+  for (let i = samuraiSlashEffects.length - 1; i >= 0; i--) {
+    const slash = samuraiSlashEffects[i], age = now - slash.startedAt;
+    if (age >= slashMs) { samuraiSlashEffects.splice(i, 1); continue; }
+    const grow = Math.min(1, age / SAMURAI_SLASH_GROW_MS);
+    const fade = age <= SAMURAI_SLASH_GROW_MS ? 1 : 1 - (age - SAMURAI_SLASH_GROW_MS) / (slashMs - SAMURAI_SLASH_GROW_MS);
+    const width = 2 + (slash.width - 2) * grow;
+    const dx = slash.endX - slash.startX, dy = slash.endY - slash.startY, len = Math.hypot(dx, dy);
+    if (len < 1) continue;
+    // Afterimage Cut: a tapered crescent slash, shown between the enemy and
+    // player draw passes so it reads as striking through the arena.
+    const bow = width * 0.1, reach = len * (0.4 + 0.6 * grow);
+    context.save(); context.translate(slash.startX, slash.startY); context.rotate(Math.atan2(dy, dx));
+    context.globalAlpha = 0.16 * fade; context.fillStyle = fx; context.beginPath(); context.roundRect(0, -width / 2, len, width, width / 2); context.fill();
+    context.globalAlpha = 0.6 * fade; crescentPath(reach, width * 0.8, bow, 0.56); context.fill();
+    context.globalAlpha = 0.7 * fade; context.fillStyle = '#DCD5FF'; crescentPath(reach, width * 0.45, bow, 0.56); context.fill();
+    context.globalAlpha = 0.95 * fade; context.fillStyle = '#fff'; crescentPath(reach, Math.max(2, width * 0.16), bow, 0.56); context.fill();
+    context.globalAlpha = 0.45 * fade * grow; crescentPath(len, Math.max(2, width * 0.1), -width * 0.22, 0.44); context.fill();
+    context.restore();
+  }
+}
+
 function drawSamuraiWorldEffects(now) {
   const fx = HERO_FX_COLORS.samurai.primary;
   const slashMs = SAMURAI_SLASH_FADE_MS;
@@ -4801,49 +4961,10 @@ function drawSamuraiWorldEffects(now) {
     const toY = trail.startY + (trail.endY - trail.startY) * progress;
     const fade = age <= trail.durationMs ? 0.95 : Math.max(0, 1 - (age - trail.durationMs) / SAMURAI_DASH_AFTERIMAGE_MS);
     if (fade > 0) drawBlade(fromX, fromY, toX, toY, trail.kind === 'afterimage-cut' ? 11 : 8, fade, true);
-    if (age > trail.durationMs + SAMURAI_DASH_AFTERIMAGE_MS) samuraiDashTrails.delete(playerId);
+    const afterimageLifetime = trail.kind === 'afterimage-cut' ? Math.max(SAMURAI_DASH_AFTERIMAGE_MS, 280) : SAMURAI_DASH_AFTERIMAGE_MS;
+    if (age > trail.durationMs + afterimageLifetime) samuraiDashTrails.delete(playerId);
   }
   const serverNow = (state.serverTime || Date.now()) + (now - stateReceivedAt);
-  for (const player of state.players || []) {
-    const action = player.samuraiAction;
-    if (player.heroId !== 'samurai' || action?.phase !== 'sheathe') continue;
-    const delayStart = action.startedAt + action.durationMs;
-    const progress = Math.max(0, Math.min(1, (serverNow - delayStart) / Math.max(1, action.cutAt - delayStart)));
-    const begin = -action.cutPad;
-    const finish = action.distance + action.cutPad;
-    const sx = action.startX + action.direction.x * begin;
-    const sy = action.startY + action.direction.y * begin;
-    const ex = action.startX + action.direction.x * finish;
-    const ey = action.startY + action.direction.y * finish;
-    const alpha = (0.15 + 0.25 * progress) * (player.id === me ? 1 : 0.5);
-    context.save(); context.setLineDash([12, 9]); context.lineCap = 'butt';
-    context.globalAlpha = alpha; context.strokeStyle = '#17202B'; context.lineWidth = action.width + 5;
-    context.beginPath(); context.moveTo(sx, sy); context.lineTo(ex, ey); context.stroke();
-    context.globalAlpha = alpha; context.strokeStyle = fx; context.lineWidth = action.width;
-    context.beginPath(); context.moveTo(sx, sy); context.lineTo(ex, ey); context.stroke();
-    context.setLineDash([]); context.globalAlpha = alpha * 0.9; context.strokeStyle = '#E6DFFF'; context.lineWidth = 2;
-    context.beginPath(); context.moveTo(sx, sy); context.lineTo(ex, ey); context.stroke(); context.restore();
-  }
-  for (let i = samuraiSlashEffects.length - 1; i >= 0; i--) {
-    const slash = samuraiSlashEffects[i], age = now - slash.startedAt;
-    if (age >= slashMs) { samuraiSlashEffects.splice(i, 1); continue; }
-    const grow = Math.min(1, age / SAMURAI_SLASH_GROW_MS);
-    const fade = age <= SAMURAI_SLASH_GROW_MS ? 1 : 1 - (age - SAMURAI_SLASH_GROW_MS) / (slashMs - SAMURAI_SLASH_GROW_MS);
-    const width = 2 + (slash.width - 2) * grow;
-    const dx = slash.endX - slash.startX, dy = slash.endY - slash.startY, len = Math.hypot(dx, dy);
-    if (len < 1) continue;
-    // Afterimage Cut: one sweeping crescent (violet body, lavender edge, white
-    // core) bowed inside the cut band, over a faint band showing the true
-    // cut width, plus a thin counter-arc for a second, quicker stroke.
-    const bow = width * 0.1, reach = len * (0.4 + 0.6 * grow);
-    context.save(); context.translate(slash.startX, slash.startY); context.rotate(Math.atan2(dy, dx));
-    context.globalAlpha = 0.16 * fade; context.fillStyle = fx; context.beginPath(); context.roundRect(0, -width / 2, len, width, width / 2); context.fill();
-    context.globalAlpha = 0.6 * fade; crescentPath(reach, width * 0.8, bow, 0.56); context.fill();
-    context.globalAlpha = 0.7 * fade; context.fillStyle = '#DCD5FF'; crescentPath(reach, width * 0.45, bow, 0.56); context.fill();
-    context.globalAlpha = 0.95 * fade; context.fillStyle = '#fff'; crescentPath(reach, Math.max(2, width * 0.16), bow, 0.56); context.fill();
-    context.globalAlpha = 0.45 * fade * grow; crescentPath(len, Math.max(2, width * 0.1), -width * 0.22, 0.44); context.fill();
-    context.restore();
-  }
   for (let i = samuraiHitMarks.length - 1; i >= 0; i--) {
     const mark = samuraiHitMarks[i], progress = (now - mark.startedAt) / SAMURAI_HIT_MARK_MS;
     if (progress >= 1) { samuraiHitMarks.splice(i, 1); continue; }
@@ -5087,7 +5208,6 @@ function drawScene(timestamp) {
   drawRangerMeatThrows(currentTime);
   drawRangerWolves(currentTime);
   drawRangerWolfBiteFx(currentTime);
-  drawRangerDeadAimStreaks(currentTime);
   drawRangerMeatPlacementGhost();
   drawTurrets(currentTime);
   drawEngineerEffects(currentTime);
@@ -5148,8 +5268,8 @@ function drawScene(timestamp) {
     const fairyGale = effect.sourceHeroId === 'fairy' && effect.sourceAbility === 'skill';
     const rangerDeadAimFx = effect.sourceHeroId === 'ranger' && effect.sourceAbility === 'ultimate';
     const danger = effect.kind === 'enemy';
-    const stroke = rangerDeadAimFx ? '#FFF2CC' : fairyFx ? HERO_FX_COLORS.fairy.primary : electroStun ? HERO_FX_COLORS.electromancer.primary : danger ? AREA_COLORS.enemyStroke : AREA_COLORS.playerStroke;
-    const fillColor = rangerDeadAimFx ? '#F0DDA0' : fairyFx ? HERO_FX_COLORS.fairy.primary : electroStun ? HERO_FX_COLORS.electromancer.primary : danger ? AREA_COLORS.enemyFill : AREA_COLORS.playerFill;
+    const stroke = rangerDeadAimFx ? HERO_FX_SECONDARY.ranger : fairyFx ? HERO_FX_COLORS.fairy.primary : electroStun ? HERO_FX_COLORS.electromancer.primary : danger ? AREA_COLORS.enemyStroke : AREA_COLORS.playerStroke;
+    const fillColor = rangerDeadAimFx ? '#FFD75E' : fairyFx ? HERO_FX_COLORS.fairy.primary : electroStun ? HERO_FX_COLORS.electromancer.primary : danger ? AREA_COLORS.enemyFill : AREA_COLORS.playerFill;
     context.save();
     if (effect.phase === 'telegraph') {
       // The Bombardier's ultimate marker fills like a clock hand sweeping
@@ -5208,10 +5328,12 @@ function drawScene(timestamp) {
       context.fillStyle = '#FFD75E';
       context.beginPath(); context.arc(effect.x, effect.y, effect.radius * (1 - progress * 0.45), 0, Math.PI * 2); context.fill();
       context.globalAlpha = 1 - progress;
-      context.strokeStyle = '#FFF8D8'; context.lineWidth = 5;
+      context.strokeStyle = '#23472F'; context.lineWidth = 7;
       context.beginPath(); context.arc(effect.x, effect.y, ringRadius, 0, Math.PI * 2); context.stroke();
       context.globalAlpha = (1 - progress) * 0.85;
-      context.strokeStyle = '#8BE04E'; context.lineWidth = 2;
+      context.strokeStyle = HERO_FX_SECONDARY.ranger; context.lineWidth = 4;
+      context.beginPath(); context.arc(effect.x, effect.y, ringRadius, 0, Math.PI * 2); context.stroke();
+      context.strokeStyle = '#FFD75E'; context.lineWidth = 2;
       context.beginPath(); context.arc(effect.x, effect.y, ringRadius * 0.72, 0, Math.PI * 2); context.stroke();
       const burst = emojiGlyph('💥', 48 * (1 - progress * 0.45));
       context.globalAlpha = 1 - progress;
@@ -5289,6 +5411,10 @@ function drawScene(timestamp) {
     context.restore();
   }
 
+  // Keep the cut guide and slash over enemies but beneath the hero sprite.
+  drawSamuraiCutGuides(currentTime);
+  drawSamuraiCutSlashes(currentTime);
+
   // 3. Draw players
   for (const player of state.players) {
     const visualState = getHeroVisualState(player, currentTime);
@@ -5305,6 +5431,7 @@ function drawScene(timestamp) {
       context.fillStyle = '#fff'; context.font = 'bold 12px sans-serif';
       context.fillText(`${Math.ceil(player.respawnRemainingMs / 1000)}s${player.respawnSpeedMultiplier > 1 ? ` · x${player.respawnSpeedMultiplier}` : ''}`, player.x, player.y + 40);
       context.restore();
+      drawPlayerEmote(player, currentTime);
       continue;
     }
     const targetMomentumAlpha = player.momentumActive ? 1 : 0;
@@ -5395,13 +5522,17 @@ function drawScene(timestamp) {
         const tdx = samuraiTrail.endX - samuraiTrail.startX, tdy = samuraiTrail.endY - samuraiTrail.startY, tLen = Math.hypot(tdx, tdy) || 1;
         emitDashDust(player.id, player.x, player.y + GAME_CONFIG.arena.playerRadius * 0.7, tdx / tLen, tdy / tLen, currentTime);
       }
-      for (let echo = 0; echo < 3; echo++) {
-        const fraction = [0.28, 0.54, 0.8][echo];
+      const ultimateDash = samuraiTrail.kind === 'afterimage-cut';
+      const echoFractions = ultimateDash ? [0.14, 0.29, 0.43, 0.57, 0.71, 0.86] : [0.28, 0.54, 0.8];
+      const echoAlphas = ultimateDash ? [0.42, 0.37, 0.32, 0.27, 0.22, 0.17] : [0.4, 0.25, 0.12];
+      const echoLifetime = ultimateDash ? Math.max(SAMURAI_DASH_AFTERIMAGE_MS, 280) : SAMURAI_DASH_AFTERIMAGE_MS;
+      for (let echo = 0; echo < echoFractions.length; echo++) {
+        const fraction = echoFractions[echo];
         const echoAge = trailAge - samuraiTrail.durationMs * fraction;
-        if (echoAge < 0 || echoAge >= SAMURAI_DASH_AFTERIMAGE_MS) continue;
+        if (echoAge < 0 || echoAge >= echoLifetime) continue;
         const x = samuraiTrail.startX + (samuraiTrail.endX - samuraiTrail.startX) * fraction;
         const y = samuraiTrail.startY + (samuraiTrail.endY - samuraiTrail.startY) * fraction;
-        context.save(); context.globalAlpha = [0.4, 0.25, 0.12][echo] * (1 - echoAge / SAMURAI_DASH_AFTERIMAGE_MS);
+        context.save(); context.globalAlpha = echoAlphas[echo] * (1 - echoAge / echoLifetime);
         drawCachedHero(context, heroSpriteCache, player, x, y, { ...visualState, hitFlash: false });
         context.restore();
       }
@@ -5436,7 +5567,7 @@ function drawScene(timestamp) {
       context.save();
       context.translate(center.x, center.y - 76);
       context.fillStyle = 'rgba(44, 31, 13, 0.94)';
-      context.strokeStyle = '#ffd75e';
+      context.strokeStyle = HERO_FX_SECONDARY.ranger;
       context.lineWidth = 2;
       context.beginPath();
       context.roundRect(-62, -13, 124, 26, 13);
@@ -5543,6 +5674,8 @@ function drawScene(timestamp) {
         context.textAlign = 'center'; context.fillText(`+${Math.round(label.bonus * 100)}%`, center.x, center.y - 42 - ARENA_TUNING.momentum.readyRisePx * progress); context.restore();
       }
     }
+    // Social bubbles belong above hero-specific badges such as Samurai stacks.
+    drawPlayerEmote(player, currentTime);
   }
 
   for (const monster of state.monsters || []) {

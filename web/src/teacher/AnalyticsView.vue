@@ -1,6 +1,6 @@
 <script setup>
 // ============================================================
-// Analytics dashboard (+ free-response marking)
+// Analytics dashboard (marking and student reports are on To review)
 // ------------------------------------------------------------
 // One filter row (class, weekly topic, period) scopes everything below
 // it; the Weekly topics table always lists every topic of the course. While new
@@ -17,7 +17,6 @@ import { ref, computed, nextTick, watch, onMounted, onUnmounted } from 'vue';
 import { S, api, setTab, rerender, periodQuery, dashQuery, dashPrefs, saveDashPrefs, customPeriodError } from '../api.js';
 import { pct, secs, toast, when, clockTime } from '../ui.js';
 import Meter from '../components/Meter.vue';
-import AsyncButton from '../components/AsyncButton.vue';
 import Pager from '../components/Pager.vue';
 import { usePaged, printing } from '../components/paged.js';
 import ClassPicker from './ClassPicker.vue';
@@ -32,6 +31,7 @@ import WhenPanel from './dashboard/WhenPanel.vue';
 import ContextsPanel from './dashboard/ContextsPanel.vue';
 import QualityPanel from './dashboard/QualityPanel.vue';
 import ComparePanel from './dashboard/ComparePanel.vue';
+import { refreshReviewCount } from './review-count.js';
 import { loadCourses, syncTopic, topicLabel } from './courses.js';
 import { downloadCsv, pctCell, secCell } from './csv.js';
 
@@ -46,8 +46,7 @@ const courses = ref([]);
 const classes = ref([]);
 const courseOfClass = new Map(); // so links into other tabs open the right course
 const a = ref(null);
-const marking = ref([]); // the newest answers waiting for a mark
-const markingTotal = ref(0); // all of them (the list above may be capped)
+const markingTotal = ref(0); // answers waiting for a mark (Needs attention links to To review)
 const updatedAt = ref(null);
 const stamp = ref(0); // bumps on every load, so side panels reload too
 const auto = ref(dashPrefs().auto !== false);
@@ -76,12 +75,12 @@ async function load({ quiet = false } = {}) {
     // a newly chosen topic opens with its learning outcomes showing
     if (analytics.topicId && analytics.topicId !== a.value?.topicId) openTopics.value = new Set([analytics.topicId]);
     a.value = analytics;
-    marking.value = queue.items;
     markingTotal.value = queue.total;
     error.value = '';
     refreshFailedAt.value = null;
     updatedAt.value = Date.now();
     stamp.value++;
+    refreshReviewCount();
     return true;
   } catch (err) {
     if (mine !== seq) return;
@@ -236,27 +235,6 @@ const period = computed(() => {
 });
 
 const frac = (r) => (r && r.n ? `${pct(r.accuracy)} (${r.correct}/${r.n})` : '-');
-// The marked answer leaves the list at once and the numbers refresh in
-// the background: no reload, so scroll position, open topics and pages stay.
-const sliding = ref(false); // only a marked answer slides out, not a page turn
-// If a co-teacher (or another tab) marked it first, their mark stands.
-const mark = (m, correct) => async () => {
-  let taken = false;
-  try {
-    await api('POST', `/api/teacher/attempts/${m.attemptId}/mark`, { correct, expectPending: true });
-  } catch (err) {
-    if (err.status !== 409) throw err;
-    taken = true;
-  }
-  sliding.value = true;
-  setTimeout(() => (sliding.value = false), 400);
-  marking.value = marking.value.filter((x) => x.attemptId !== m.attemptId);
-  markingTotal.value = Math.max(0, markingTotal.value - 1);
-  toast(taken ? 'Someone else already marked this answer, so their mark stands.' : `Marked ${correct ? 'correct' : 'not correct'}`, taken);
-  await nextTick(); // the clicked button is gone: keep keyboard focus nearby
-  document.querySelector(marking.value.length ? '#dash-marking h3' : '#dash-overview h3')?.focus({ preventScroll: true });
-  load({ quiet: true });
-};
 // ---- the weekly topic the dashboard is narrowed to ('' = all)
 const course = computed(() => courses.value.find((c) => c.id === courseOfClass.get(S.classId)));
 const topic = computed(() => course.value?.topics.find((t) => t.id === a.value?.topicId) || null);
@@ -282,6 +260,8 @@ function toBank({ focus = null, filter = null } = {}) {
   setTab('review');
 }
 const openInBank = (id) => toBank({ focus: id });
+// answers to mark and open student reports live on their own page
+const goReview = () => setTab('todo');
 function draftFor(topicId, outcomeId) {
   S.courseId = courseId.value || S.courseId;
   S.draftTarget = { topicId, outcomeId };
@@ -340,31 +320,73 @@ watch([trendPanel, whenPanel], ([left, right]) => {
 onUnmounted(() => { trendRo?.disconnect(); cancelAnimationFrame(trendFrame); });
 
 // ---- Overview: first-attempt accuracy per topic, weakest first. Topics on
-// fewer than minN confirmed first attempts are drawn lighter and say so.
+// fewer than minN confirmed first attempts, none included, are striped and
+// tagged ("few answers", "no answers") and listed after the others: those
+// with a few answers weakest first, then those with none. So a topic on 0 of
+// 1 can't top a "weakest first" list, and an unanswered topic still shows.
 const topicBars = computed(() => {
   if (!a.value) return [];
   const minN = a.value.minN || 1;
   const rows = a.value.byTopic.map((t) => ({
     id: t.topicId, name: t.name, n: t.first.n || 0, correct: t.first.correct || 0,
-    accuracy: t.first.n ? t.first.accuracy : null, lowN: t.first.n > 0 && t.first.n < minN,
+    accuracy: t.first.n ? t.first.accuracy : null, none: !t.first.n, lowN: !t.first.n || t.first.n < minN,
   }));
-  return rows.filter((r) => r.accuracy !== null).sort((x, y) => x.accuracy - y.accuracy || y.n - x.n);
+  const weakestFirst = (x, y) => x.accuracy - y.accuracy || y.n - x.n;
+  return [
+    ...rows.filter((r) => !r.lowN).sort(weakestFirst),
+    ...rows.filter((r) => r.lowN && !r.none).sort(weakestFirst),
+    ...rows.filter((r) => r.none),
+  ];
 });
-// topics nobody has answered yet: one line of chips instead of empty bars
-const unansweredTopics = computed(() => (a.value?.byTopic || []).filter((t) => !t.first.n).map((t) => ({ id: t.topicId, name: t.name })));
-const barLabel = (r) => `${r.name}: ${pct(r.accuracy)} correct on first attempts (${r.correct} of ${r.n})${r.lowN ? ', few answers so far' : ''}. Show only this topic.`;
+// "0–2" for the footnote, from the threshold
+const fewRange = computed(() => `0–${Math.max(1, (a.value?.minN || 1) - 1)}`);
+const barLabel = (r) => r.none
+  ? `${r.name}: no first attempts yet. Show only this topic.`
+  : `${r.name}: ${pct(r.accuracy)} correct on first attempts (${r.correct} of ${r.n})${r.lowN ? ', few answers so far' : ''}. Show only this topic.`;
 
-// in page order (the section bar marks the last one scrolled past)
+// in page order (the section bar marks the last one scrolled past).
+// [id, label, short label]: the bar stays one row, and where the full labels
+// don't fit it shows the short ones (each a word of the full label, which
+// stays in the button as screen-reader text, so it is still the button's name).
+// No aria-label: that would make "Weekly topics" match getByLabel('Weekly
+// topic') and other label lookups meant for the form fields.
 const sections = computed(() => [
-  ['dash-overview', 'Overview'],
-  ...(markingTotal.value ? [['dash-marking', 'To mark']] : []),
-  ['dash-weeks', 'Weekly topics'],
-  ['dash-trends', 'Trends'],
-  ['dash-topics', 'Topics and questions'],
-  ['dash-missed', 'Commonly missed'],
-  ['dash-quality', 'Question quality'],
-  ...(sameCourseClasses.value >= 2 ? [['dash-compare', 'Compare classes']] : []),
+  ['dash-overview', 'Overview', 'Overview'],
+  ['dash-weeks', 'Weekly topics', 'Weekly'],
+  ['dash-trends', 'Trends', 'Trends'],
+  ['dash-topics', 'Topics and questions', 'Topics'],
+  ['dash-missed', 'Commonly missed', 'Missed'],
+  ['dash-quality', 'Question quality', 'Quality'],
+  ...(sameCourseClasses.value >= 2 ? [['dash-compare', 'Compare classes', 'Compare']] : []),
 ]);
+// Measured rather than set by a breakpoint, because the buttons come and go
+// ("To mark", "Student reports") and the sidebar can be collapsed. Taking the
+// class off, measuring and putting it back happens in one frame, so the
+// labels never visibly flicker.
+let navRo = null;
+let navFrame = 0;
+function fitNav() {
+  cancelAnimationFrame(navFrame);
+  navFrame = requestAnimationFrame(() => {
+    const nav = navEl.value;
+    if (!nav) return;
+    nav.classList.remove('compact');
+    if (nav.scrollWidth > nav.clientWidth + 1) nav.classList.add('compact');
+  });
+}
+watch(navEl, (nav) => {
+  navRo?.disconnect();
+  if (!nav || typeof ResizeObserver === 'undefined') return;
+  navRo = new ResizeObserver(fitNav);
+  navRo.observe(nav);
+  fitNav();
+});
+watch(() => sections.value.map(([id]) => id).join(), () => nextTick(fitNav));
+onMounted(() => document.fonts?.ready.then(fitNav)); // web fonts change the label widths
+onUnmounted(() => {
+  navRo?.disconnect();
+  cancelAnimationFrame(navFrame);
+});
 
 // ---- "needs attention": the few things worth acting on, each linked
 const VERY_LOW = 0.25; // first-attempt accuracy that is flagged on its own
@@ -392,11 +414,11 @@ const attention = computed(() => {
   if (!a.value) return [];
   const out = [];
   const plural = (n, one, many = one + 's') => `${n} ${n === 1 ? one : many}`;
-  if (markingTotal.value) out.push({ icon: '✎', text: `${plural(markingTotal.value, 'answer')} waiting for your mark`, go: () => goTo('dash-marking') });
+  if (markingTotal.value) out.push({ icon: '✎', text: `${plural(markingTotal.value, 'answer')} waiting for your mark`, go: goReview });
   const drafts = a.value.overview.topics.filter((t) => !a.value.topicId || t.topicId === a.value.topicId).reduce((n, t) => n + t.questions.draft, 0);
   if (drafts) out.push({ icon: '✎', text: `${plural(drafts, 'drafted question')} waiting for your review`, go: () => goTopic({ topicId: a.value.topicId || '', tab: 'review', filter: 'draft' }) });
   if (a.value.tags.issues.length) out.push({ icon: '⚠', text: `${plural(a.value.tags.issues.length, 'question')} missing tags`, go: () => goTo('dash-quality') });
-  if (a.value.openReports) out.push({ icon: '⚑', text: `${plural(a.value.openReports, 'open student report')}`, go: () => toBank({ filter: 'reported' }) });
+  if (a.value.openReports) out.push({ icon: '⚑', text: `${plural(a.value.openReports, 'open student report')}`, go: goReview });
   const confusing = a.value.time.questions.filter((q) => q.confusing).length;
   // a single question opens straight away; several go to their list
   const flagged = a.value.time.questions.filter((q) => q.confusing);
@@ -507,7 +529,6 @@ function toggleTopic(id) {
 }
 
 // ---- long lists are paged (the charts and CSV exports still use everything)
-const markingPages = usePaged(() => marking.value, 5);
 
 
 // "commonly missed": under the same line as "often wrong", worst first
@@ -601,7 +622,7 @@ function missedCsv() {
           <button class="btn" @click="printReport">Print report</button>
         </div>
         <nav ref="navEl" class="dash-nav" aria-label="Dashboard sections" :style="{ top: barHeight + 'px' }">
-          <button v-for="[id, label] in sections" :key="id" class="btn small" :data-section="id" :aria-current="currentSection === id ? 'location' : null" @click="goTo(id)">{{ label }}</button>
+          <button v-for="[id, label, short] in sections" :key="id" class="btn small" :data-section="id" :aria-current="currentSection === id ? 'location' : null" @click="goTo(id)"><span class="dash-nav-full">{{ label }}</span><span class="dash-nav-short" aria-hidden="true">{{ short }}</span></button>
         </nav>
       </div>
       <p v-if="noSemester" class="note small no-print">
@@ -673,50 +694,36 @@ function missedCsv() {
                   <button type="button" class="tb-row" :class="{ 'low-n': r.lowN }" :aria-label="barLabel(r)" :title="barLabel(r)" @click="focusTopic(r.id)">
                     <span class="tb-name">{{ r.name }}</span>
                     <span class="tb-track" aria-hidden="true">
-                      <span class="tb-fill" :style="{ width: Math.max(2, r.accuracy * 100) + '%' }"></span>
+                      <span class="tb-fill" :style="{ width: Math.max(2, (r.accuracy || 0) * 100) + '%' }"></span>
                     </span>
-                    <span class="tb-value"><b>{{ pct(r.accuracy) }}</b> <span class="muted">{{ r.correct }}/{{ r.n }}</span></span>
+                    <!-- the tag is for sighted readers: barLabel already says it -->
+                    <span class="tb-value"><b>{{ r.none ? '–' : pct(r.accuracy) }}</b> <span class="muted">{{ r.correct }}/{{ r.n }}</span><span v-if="r.lowN" class="tb-few" aria-hidden="true">{{ r.none ? 'no answers' : 'few answers' }}</span></span>
                   </button>
                 </li>
               </ol>
-              <div v-if="unansweredTopics.length" class="tb-unanswered">
-                <span class="small muted">No first attempts yet:</span>
-                <button v-for="t in unansweredTopics" :key="t.id" type="button" class="tb-chip" :aria-label="`${t.name}: no first attempts yet. Show only this topic.`" @click="focusTopic(t.id)">{{ t.name }}</button>
-              </div>
-              <p v-if="topicBars.some((r) => r.lowN)" class="small muted tb-note">Lighter bars rest on fewer than {{ a.minN }} first attempts, so read them with care.</p>
+              <p v-if="topicBars.some((r) => r.lowN)" class="small muted tb-note"><span class="tb-swatch" aria-hidden="true"></span>Only {{ fewRange }} answers so far — one more could change these a lot.</p>
             </div>
             <div class="span-5 panel attention">
               <h4>Needs attention</h4>
-              <ul v-if="attention.length">
+              <!-- a two-column grid of equal cards; an odd last card spans the row.
+                   With enough items the grid fills the panel's height (fill). -->
+              <ul v-if="attention.length" class="attention-grid" :class="{ odd: attention.length % 2, fill: attention.length > 4 }">
                 <li v-for="(item, i) in attention" :key="i">
-                  <span class="icon" aria-hidden="true">{{ item.icon }}</span>
-                  <button v-if="item.go" class="linklike" @click="item.go">{{ item.text }}</button>
-                  <span v-else>{{ item.text }}</span>
+                  <button v-if="item.go" type="button" class="attention-card" @click="item.go">
+                    <span class="icon" aria-hidden="true">{{ item.icon }}</span>
+                    <span class="attention-text">{{ item.text }}</span>
+                    <span class="attention-go" aria-hidden="true">›</span>
+                  </button>
+                  <div v-else class="attention-card">
+                    <span class="icon" aria-hidden="true">{{ item.icon }}</span>
+                    <span class="attention-text">{{ item.text }}</span>
+                  </div>
                 </li>
               </ul>
               <p v-else class="small" style="margin: 0">✓ Nothing needs attention right now.</p>
             </div>
           </div>
         </section>
-
-        <div v-if="marking.length" id="dash-marking" class="panel no-print" style="border-color: var(--warn)">
-          <h3 tabindex="-1">Answers to mark ({{ markingTotal }})</h3>
-          <p class="small muted">Free-response answers get a provisional automatic mark. Confirm or change it; marking an answer correct pays the usual first-correct coins. Answers are shown without student names. This list covers every period.</p>
-          <p v-if="markingTotal > marking.length" class="small">Showing the newest {{ marking.length }} of {{ markingTotal }}; older ones appear as you mark these.</p>
-          <TransitionGroup tag="div" :name="sliding ? 'marked' : 'none'" class="marking-list">
-            <div v-for="m in markingPages.items" :key="m.attemptId" class="marking-item">
-              <div style="font-weight: 600">{{ m.stem }}</div>
-              <div class="small muted">Key points: {{ m.keyPoints.map((k, i) => (m.coveredPoints.includes(i) ? `✓ ${k}` : `○ ${k}`)).join(' · ') }}</div>
-              <div class="panel" style="background: var(--bg); margin: 6px 0; padding: 10px; white-space: pre-wrap">{{ m.text || '(blank)' }}</div>
-              <div class="row">
-                <span class="small">Auto ({{ m.method }}): <b>{{ m.autoCorrect ? 'correct' : 'not correct' }}</b> · {{ pct(m.score) }} of key points</span>
-                <AsyncButton class="btn small good" :run="mark(m, true)">Mark correct</AsyncButton>
-                <AsyncButton class="btn small bad" :run="mark(m, false)">Mark not correct</AsyncButton>
-              </div>
-            </div>
-          </TransitionGroup>
-          <Pager :paged="markingPages" label="Answers to mark pages" noun="answers" />
-        </div>
 
         <!-- WEEKLY TOPICS -->
         <section id="dash-weeks" class="t-section">
@@ -765,7 +772,7 @@ function missedCsv() {
             <details class="viz-table">
               <summary>Show the chart data as a table</summary>
               <div class="table-wrap">
-                <table class="dash-table">
+                <table class="dash-table sticky-first">
                   <thead>
                     <tr>
                       <th>{{ per === 'week' ? 'Week' : 'Day' }}</th>
@@ -799,44 +806,44 @@ function missedCsv() {
             <p class="small muted">First attempts are a student's first ever answer to a question; retries are later answers (often after seeing the explanation). Answers awaiting marking are not counted in accuracy. Open a topic to see its learning outcomes and how many published questions cover each; times based on fewer than {{ a.trend.lowN }} answers are shown lighter.</p>
             <div class="table-wrap">
               <!-- one Questions column for topics and outcomes, so coverage reads down a single line -->
-              <table class="dash-table by-topic-table">
+              <table class="dash-table by-topic-table stack">
                 <thead><tr><th></th><th v-for="(h, i) in ['Topic', 'Questions', 'First-attempt accuracy', 'Retry accuracy', 'Awaiting marking', 'Students', 'Median / p75 time', 'Timeouts']" :key="i">{{ h }}</th></tr></thead>
                 <tbody>
                   <template v-for="t in a.byTopic" :key="t.topicId">
                     <tr class="topic-row">
-                      <td style="width: 1%">
+                      <td class="stack-lead" style="width: 1%">
                         <button class="btn small" :aria-expanded="openTopics.has(t.topicId) ? 'true' : 'false'" :aria-label="`${openTopics.has(t.topicId) ? 'Hide' : 'Show'} learning outcomes for ${t.name}`" @click="toggleTopic(t.topicId)">{{ openTopics.has(t.topicId) ? '▾' : '▸' }}</button>
                       </td>
-                      <td class="label"><b>{{ t.name }}</b></td>
-                      <td class="q-cell">
+                      <td class="label stack-head"><b>{{ t.name }}</b></td>
+                      <td class="q-cell" data-label="Questions">
                         <span class="q-pill" :class="{ none: !topicPublished(t) }">{{ topicPublished(t) || 'None' }} published</span>
                         <span v-if="topicGaps(t) && topicPublished(t)" class="q-gap" :title="`${topicGaps(t)} learning outcome${topicGaps(t) === 1 ? ' has' : 's have'} no published questions`">⚠ {{ topicGaps(t) }} {{ topicGaps(t) === 1 ? 'gap' : 'gaps' }}</span>
                       </td>
-                      <td class="num acc-cell">{{ frac(t.first) }}<Meter v-if="t.first.n" :value="t.first.accuracy" /></td>
-                      <td class="num">{{ frac(t.retry) }}</td>
-                      <td class="num">{{ t.awaitingMarking }}</td>
-                      <td class="num">{{ t.students }}</td>
-                      <td class="num">{{ t.first.n || t.retry.n ? `${secs(t.medianMs)} / ${secs(t.p75Ms)}` : '-' }}</td>
-                      <td class="num">{{ t.timeouts }}</td>
+                      <td class="num acc-cell" data-label="First-attempt accuracy">{{ frac(t.first) }}<Meter v-if="t.first.n" :value="t.first.accuracy" /></td>
+                      <td class="num" data-label="Retry accuracy">{{ frac(t.retry) }}</td>
+                      <td class="num" data-label="Awaiting marking">{{ t.awaitingMarking }}</td>
+                      <td class="num" data-label="Students">{{ t.students }}</td>
+                      <td class="num" data-label="Median / p75 time">{{ t.first.n || t.retry.n ? `${secs(t.medianMs)} / ${secs(t.p75Ms)}` : '-' }}</td>
+                      <td class="num" data-label="Timeouts">{{ t.timeouts }}</td>
                     </tr>
                     <!-- on paper every topic is open -->
                     <tr v-for="(o, oi) in printing || openTopics.has(t.topicId) ? t.outcomes : []" :key="o.outcomeId" class="subrow" :class="{ first: oi === 0, last: oi === t.outcomes.length - 1 }">
                       <td></td>
-                      <td class="label small">{{ o.text }}</td>
-                      <td class="q-cell">
+                      <td class="label small stack-head">{{ o.text }}</td>
+                      <td class="q-cell" data-label="Questions">
                         <span v-if="o.published" class="q-pill">{{ o.published }} published</span>
                         <span v-else class="q-none">
                           <span class="q-pill none">None yet</span>
                           <button class="btn small q-draft no-print" :aria-label="`Draft questions for: ${o.text}`" @click="draftFor(t.topicId, o.outcomeId)">Draft</button>
                         </span>
                       </td>
-                      <td class="num small acc-cell">{{ frac(o.first) }}<Meter v-if="o.first.n" :value="o.first.accuracy" /></td>
-                      <td class="num small">{{ frac(o.retry) }}</td>
-                      <td class="num small">{{ o.awaitingMarking }}</td>
-                      <td class="num small">{{ o.students }}</td>
+                      <td class="num small acc-cell" data-label="First-attempt accuracy">{{ frac(o.first) }}<Meter v-if="o.first.n" :value="o.first.accuracy" /></td>
+                      <td class="num small" data-label="Retry accuracy">{{ frac(o.retry) }}</td>
+                      <td class="num small" data-label="Awaiting marking">{{ o.awaitingMarking }}</td>
+                      <td class="num small" data-label="Students">{{ o.students }}</td>
                       <!-- times resting on only a few answers are shown lighter, as in Trends -->
-                      <td class="num small" :class="{ 'low-n': o.timedAnswers && o.timedAnswers < a.trend.lowN }" :title="o.timedAnswers && o.timedAnswers < a.trend.lowN ? `Based on only ${o.timedAnswers} answer${o.timedAnswers === 1 ? '' : 's'}, so read it with care` : null">{{ o.timedAnswers ? `${secs(o.medianMs)} / ${secs(o.p75Ms)}` : '-' }}</td>
-                      <td class="num small">{{ o.timeouts }}</td>
+                      <td class="num small" data-label="Median / p75 time" :class="{ 'low-n': o.timedAnswers && o.timedAnswers < a.trend.lowN }" :title="o.timedAnswers && o.timedAnswers < a.trend.lowN ? `Based on only ${o.timedAnswers} answer${o.timedAnswers === 1 ? '' : 's'}, so read it with care` : null">{{ o.timedAnswers ? `${secs(o.medianMs)} / ${secs(o.p75Ms)}` : '-' }}</td>
+                      <td class="num small" data-label="Timeouts">{{ o.timeouts }}</td>
                     </tr>
                   </template>
                 </tbody>
@@ -865,24 +872,24 @@ function missedCsv() {
                 <template v-else>Showing all {{ a.time.questions.length }} questions, the groups to act on first. Bars mark the slow line (time) and the {{ pct(a.time.maxAccuracy) }} line (correct).</template>
               </p>
               <div class="table-wrap">
-                <table class="dash-table">
-                  <thead><tr><th>Question</th><th>Group</th><th>Topic</th><th>Students</th><th>Answers</th><th>Average time</th><th>Median</th><th>Correct (all answers)</th></tr></thead>
+                <table class="dash-table stack">
+                  <thead><tr><th>Question</th><th>Group</th><th>Topic</th><th>Students</th><th>Answers</th><th>Average</th><th>Median</th><th>Correct</th></tr></thead>
                   <tbody>
                     <tr v-for="q in timePages.items" :key="q.questionId">
-                      <td class="q">
+                      <td class="q stack-head">
                         <button class="linklike" @click="openQuestion(q.questionId)">{{ q.stem }}</button>
                         <span class="badge plain">{{ q.type }}</span>
                       </td>
-                      <td class="label small"><span v-if="q.zone === 'reread'" class="badge draft">⚠ {{ ZONES[q.zone].label }}</span><template v-else>{{ ZONES[q.zone].label }}</template></td>
-                      <td class="label">{{ q.topic }}</td>
-                      <td class="num">{{ q.students }}</td>
-                      <td class="num">{{ q.n }}</td>
-                      <td class="num">
+                      <td class="label small" data-label="Group"><span v-if="q.zone === 'reread'" class="badge draft">⚠ {{ ZONES[q.zone].label }}</span><template v-else>{{ ZONES[q.zone].label }}</template></td>
+                      <td class="label" data-label="Topic">{{ q.topic }}</td>
+                      <td class="num" data-label="Students">{{ q.students }}</td>
+                      <td class="num" data-label="Answers">{{ q.n }}</td>
+                      <td class="num" data-label="Average time">
                         <b>{{ secs(q.meanMs) }}</b>
                         <span class="cell-bar" aria-hidden="true"><span :style="{ width: barPct(q.meanMs, timeMaxMs) }"></span><i v-if="a.time.slowMs !== null" :style="{ left: barPct(a.time.slowMs, timeMaxMs) }"></i></span>
                       </td>
-                      <td class="num">{{ secs(q.medianMs) }}</td>
-                      <td class="num">
+                      <td class="num" data-label="Median">{{ secs(q.medianMs) }}</td>
+                      <td class="num" data-label="Correct (all answers)">
                         {{ frac(q.accuracy) }}
                         <span v-if="q.accuracy.n" class="cell-bar" aria-hidden="true"><span :style="{ width: barPct(q.accuracy.accuracy, 1) }"></span><i :style="{ left: barPct(a.time.maxAccuracy, 1) }"></i></span>
                       </td>
@@ -914,7 +921,7 @@ function missedCsv() {
                 </div>
                 <div class="small muted">{{ `${q.topic} · first attempts ${frac(q.first)} · retries ${frac(q.retry)}` }}</div>
                 <div v-if="q.topWrong" class="small">Most chosen wrong answer: <b>"{{ q.topWrong.option }}"</b> ({{ q.topWrong.count }}x)</div>
-                <div v-if="q.openReports" class="small" style="color: var(--bad)">⚑ {{ q.openReports }} open student report(s) - see Question bank → Reported</div>
+                <div v-if="q.openReports" class="small" style="color: var(--bad)">⚑ {{ q.openReports }} open student report(s) - <button class="linklike" @click="goReview">see To review</button></div>
               </div>
               <Pager :paged="missedPages" label="Commonly missed questions pages" noun="questions" />
             </template>

@@ -158,18 +158,20 @@ export class Projectile {
       context.lineCap = 'round';
       context.lineJoin = 'round';
       if (deadAim) {
-        context.strokeStyle = '#543923';
-        context.lineWidth = 17;
+        context.fillStyle = '#23472F';
+        context.strokeStyle = '#183A27';
+        context.lineWidth = 4;
         context.beginPath();
-        context.moveTo(-57, 0);
-        context.lineTo(-12, 0);
-        context.stroke();
-        context.strokeStyle = 'rgba(255, 205, 75, 0.92)';
-        context.lineWidth = 11;
+        context.moveTo(52, 0); context.lineTo(14, -22); context.lineTo(18, -7);
+        context.lineTo(-48, -7); context.lineTo(-48, 7); context.lineTo(18, 7); context.lineTo(14, 22);
+        context.closePath(); context.fill(); context.stroke();
+        context.fillStyle = this.color || '#8BE04E';
         context.beginPath();
-        context.moveTo(-57, 0);
-        context.lineTo(-12, 0);
-        context.stroke();
+        context.moveTo(43, 0); context.lineTo(14, -16); context.lineTo(18, -3);
+        context.lineTo(-44, -3); context.lineTo(-44, 3); context.lineTo(18, 3); context.lineTo(14, 16);
+        context.closePath(); context.fill();
+        context.strokeStyle = '#FFF2CC'; context.lineWidth = 2;
+        context.beginPath(); context.moveTo(-38, 0); context.lineTo(15, 0); context.stroke();
       } else {
         const charge = Math.max(0, Math.min(1, this.rangerChargeT || 0));
         const tailLength = 8 + charge * 16;
@@ -187,10 +189,12 @@ export class Projectile {
         context.stroke();
       }
       const charge = Math.max(0, Math.min(1, this.rangerChargeT || 0));
-      context.font = `${deadAim ? 56 : 22 + 22 * charge}px "Segoe UI Emoji", sans-serif`;
-      context.textAlign = 'center';
-      context.textBaseline = 'middle';
-      context.fillText('➡️', deadAim ? 10 : 2, 0);
+      if (!deadAim) {
+        context.font = `${22 + 22 * charge}px "Segoe UI Emoji", sans-serif`;
+        context.textAlign = 'center';
+        context.textBaseline = 'middle';
+        context.fillText('➡️', 2, 0);
+      }
       context.restore();
       context.restore();
       return;

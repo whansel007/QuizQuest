@@ -28,7 +28,7 @@ test('a student sees completed practice reflected in topic progress', async ({ p
   expect(baseline.topics.every((topic) => topic.n === 0)).toBe(true);
   expect(baseline.sessions).toHaveLength(0);
 
-  await openTab(student, 'Practice');
+  await openTab(student, 'Quiz');
   await student.getByLabel('Length', { exact: true }).selectOption('5');
   await student.getByRole('button', { name: 'Start practice', exact: true }).click();
   // The length of the session is read off the counter instead of being
@@ -126,7 +126,7 @@ test('a professor resolves a student report and the student refreshes to see the
     // trip broke: the student's report, the professor's reply, or the
     // student's refresh.
     await test.step('student submits a report', async () => {
-      await openTab(studentPage, 'Practice');
+      await openTab(studentPage, 'Quiz');
       await studentPage.getByLabel('Length', { exact: true }).selectOption('5');
       await studentPage.getByRole('button', { name: 'Start practice', exact: true }).click();
       await answerCurrentQuestion(studentPage);

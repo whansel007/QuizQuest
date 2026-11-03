@@ -122,7 +122,7 @@ onUnmounted(() => { alive = false; });
       <section class="panel progress-sessions" aria-labelledby="pg-sessions">
         <h3 id="pg-sessions" class="pg-heading">Recent sessions</h3>
         <p v-if="!progress.sessions.length" class="muted">No completed practice sessions yet.</p>
-        <div v-else class="progress-table">
+        <div v-else class="progress-table pg-scroll" tabindex="0" aria-label="Recent sessions, scrollable">
           <table>
             <caption class="small muted">Your five most recently completed practice sessions. Pending marks are excluded from confirmed scores.</caption>
             <thead><tr><th scope="col">Completed</th><th scope="col">Confirmed score</th><th scope="col">Awaiting marking</th></tr></thead>
@@ -138,6 +138,7 @@ onUnmounted(() => { alive = false; });
         <label for="report-status">Report status</label>
         <select id="report-status" v-model="filter"><option value="all">All reports</option><option value="pending">Awaiting review</option><option value="resolved">Resolved</option></select>
         <p v-if="!shown.total" class="muted">{{ reports.length ? 'No reports match this status.' : 'You have not reported any questions in this class.' }}</p>
+        <div v-else class="pg-scroll pg-report-list" tabindex="0" aria-label="My question reports, scrollable">
         <article v-for="report in shown.items" :key="report.id" class="pg-report" :class="{ resolved: report.resolved }">
           <div class="row"><b class="pg-report-state">{{ report.resolved ? 'Resolved' : 'Awaiting review' }}</b><span class="small muted">{{ when(report.at) }} · {{ report.topic }}<template v-if="report.version"> · v{{ report.version }}</template></span></div>
           <p>{{ report.stem }}</p>
@@ -146,6 +147,7 @@ onUnmounted(() => { alive = false; });
           <p v-if="report.resolutionNote" class="note small"><b>Professor response:</b> {{ report.resolutionNote }}</p>
           <p v-else-if="report.resolved" class="small muted">Your professor marked this report resolved without an additional response.</p>
         </article>
+        </div>
         <Pager :paged="shown" label="My question reports pages" noun="reports" />
       </section>
     </div>
@@ -200,8 +202,13 @@ caption { text-align: left; padding-bottom: 8px; }
 .pg-bank { margin: 0; padding: 6px 10px; color: #3d5140; background: #eef4e3; border-radius: 8px; font-size: 13px; }
 
 /* 3 + 4. sessions and reports */
-.pg-columns { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; align-items: start; }
-.pg-columns > .panel { min-width: 0; margin: 0; }
+/* side by side, both panels share one fixed height; longer lists scroll inside */
+.pg-columns { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; align-items: stretch; }
+.pg-columns > .panel { min-width: 0; height: 460px; margin: 0; display: flex; flex-direction: column; }
+.pg-scroll { flex: 1 1 auto; min-height: 0; overflow-y: auto; padding-right: 4px; scrollbar-width: thin; scrollbar-color: #82936a transparent; }
+.pg-scroll:focus-visible { outline: 3px solid #f2ba55; outline-offset: 2px; }
+.pg-report-list > .pg-report:first-child { margin-top: 0; }
+.progress-table thead th { position: sticky; top: 0; z-index: 1; }
 .progress-table table { width: 100%; border-collapse: collapse; }
 .progress-table th { color: #254937; background: #e8f0dc; }
 .progress-table :is(th, td) { padding: 9px 10px; text-align: left; }
@@ -211,7 +218,11 @@ caption { text-align: left; padding-bottom: 8px; }
 .pg-report.resolved { border-left-color: #4c7c3a; }
 .pg-report p { margin: 6px 0 0; }
 .pg-report-state { color: #254937; }
-@media (max-width: 1100px) { .pg-columns { grid-template-columns: minmax(0, 1fr); } }
+/* stacked: nothing to balance against, so each panel only caps its height */
+@media (max-width: 1100px) {
+  .pg-columns { grid-template-columns: minmax(0, 1fr); }
+  .pg-columns > .panel { height: auto; max-height: 460px; }
+}
 @media (max-width: 600px) {
   .pg-hero { grid-template-columns: minmax(0, 1fr); justify-items: start; padding: 18px; }
   .pg-score { width: 112px; height: 112px; }
