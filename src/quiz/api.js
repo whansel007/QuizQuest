@@ -625,18 +625,24 @@ attemptId: attempt.id,
     return user;
   }
 
-  function startSession(user) {
+  function startSession(user, { demo = false } = {}) {
     for (const [t, s] of tokens) if (s.expires < now()) tokens.delete(t); // forget expired sessions
     const token = crypto.randomBytes(24).toString('hex');
-    tokens.set(token, { userId: user.id, expires: now() + TOKEN_TTL });
+    // Remember how the session was earned. The demo sign-in needs no
+    // credential at all, so a session it hands out proves nothing about who
+    // is holding it, and it must not be allowed to change a password.
+    tokens.set(token, { userId: user.id, expires: now() + TOKEN_TTL, demo });
     return { token, user: publicUser(user) };
   }
 
   route('POST', '/api/login', null, ({ body }) => {
     let user;
-    if (body.userId !== undefined) user = db.users.find((u) => u.id === body.userId && isSeededDemoUser(u)) || fail(400, 'Unknown demo user.');
-    else user = checkPassword(body);
-    return startSession(user);
+    let demo = false;
+    if (body.userId !== undefined) {
+      user = db.users.find((u) => u.id === body.userId && isSeededDemoUser(u)) || fail(400, 'Unknown demo user.');
+      demo = true;
+    } else user = checkPassword(body);
+    return startSession(user, { demo });
   });
 
   // Self sign-up always makes a student. Teacher accounts are created by
@@ -752,8 +758,8 @@ attemptId: attempt.id,
     return startSession(target);
   };
 
-  route('POST', '/api/auth/reset-password', null, handleResetPassword);
-  route('POST', '/api/auth/update-password', null, handleResetPassword);
+  route('POST', '/api/auth/reset-password', null, handlePasswordChange);
+  route('POST', '/api/auth/update-password', null, handlePasswordChange);
 
   route('POST', '/api/logout', 'any', ({ token }) => {
     tokens.delete(token);
