@@ -31,7 +31,7 @@ export async function registerStudent(page, { name, email, password = 'longenoug
   const offline = page.getByRole('alert').filter({ hasText: 'Could not reach the server' });
   const already = page.getByText('An account with this email already exists. Sign in instead.');
   const answered = done.or(already).or(offline);
-  await page.getByRole('button', { name: 'Create a student account' }).click();
+  await page.getByRole('button', { name: 'Create an account' }).click();
   await page.getByRole('textbox', { name: 'Name' }).fill(name);
   await page.getByRole('textbox', { name: 'Email' }).fill(email);
   await page.locator('#signup-password').fill(password);

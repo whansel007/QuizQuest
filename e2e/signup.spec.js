@@ -44,7 +44,7 @@ test('should refuse an email that already has an account', async ({ page }) => {
 
 test('should ask for a longer password', async ({ page }) => {
   await page.goto('/');
-  await page.getByRole('button', { name: 'Create a student account' }).click();
+  await page.getByRole('button', { name: 'Create an account' }).click();
   await page.getByRole('textbox', { name: 'Name' }).fill('Short Pass');
   await page.getByRole('textbox', { name: 'Email' }).fill('short.pass@example.com');
   await page.locator('#signup-password').fill('abc');
