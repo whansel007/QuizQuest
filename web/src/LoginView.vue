@@ -4,7 +4,7 @@
 // (students only; teacher accounts are set up by the team). Synthetic test
 // accounts are available from Tools after entering the Konami code.
 import { ref, computed, watch, nextTick, onMounted, onBeforeUnmount } from 'vue';
-import { api, signIn, signUp } from './api.js';
+import { api, signIn, signUp, resetPassword } from './api.js';
 import QuizQuestLogo from './components/QuizQuestLogo.vue';
 import LoginPreview from './components/LoginPreview.vue';
 import LoginCampfire from './components/LoginCampfire.vue';
@@ -76,7 +76,7 @@ function enterDebugCode(event) {
 // ---- the form ----
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const PASSWORD_MIN = 8; // same as the server's passwords.js
-const step = ref('email'); // 'email' | 'password' | 'signup'
+const step = ref('email'); // 'email' | 'password' | 'signup' | 'forgot' | 'reset'
 const name = ref('');
 const nameInput = ref(null);
 const forward = ref(true); // slide direction
@@ -87,10 +87,14 @@ const error = ref('');
 const busy = ref(false);
 const emailInput = ref(null);
 const passwordInput = ref(null);
+const resetOtp = ref('');
+const resetPasswordInput = ref('');
+const resetConfirmInput = ref('');
+const resetOtpInput = ref(null);
 const initial = computed(() => (email.value.trim()[0] || '?').toUpperCase());
 
 function focusStep() {
-  const el = ({ email: emailInput, password: passwordInput, signup: nameInput })[step.value].value;
+  const el = ({ email: emailInput, password: passwordInput, signup: nameInput, forgot: emailInput, reset: resetOtpInput })[step.value].value;
   if (!el) return;
   // The card slides in before the field is focused, so the user may already
   // be typing in one of the fields. Never pull the focus away from them.
@@ -154,6 +158,60 @@ async function register() {
   } finally {
     busy.value = false;
   }
+}
+function toForgotPassword() {
+  error.value = '';
+  password.value = '';
+  resetOtp.value = '';
+  resetPasswordInput.value = '';
+  resetConfirmInput.value = '';
+  forward.value = true;
+  step.value = 'forgot';
+}
+async function sendResetCode() {
+  error.value = '';
+  const e = email.value.trim();
+  if (!EMAIL_RE.test(e)) {
+    error.value = "That doesn't look like an email address.";
+    return;
+  }
+  busy.value = true;
+  try {
+    const response = await api('POST', '/api/auth/forgot-password', { email: e });
+    resetNotice.value = response.retryAfterSeconds
+      ? `A code was requested recently. Wait about ${response.retryAfterSeconds} seconds before requesting another.`
+      : response.message;
+    forward.value = true;
+    step.value = 'reset';
+  } catch (err) {
+    error.value = err.message;
+  } finally {
+    busy.value = false;
+  }
+}
+async function finishPasswordReset() {
+  error.value = '';
+  if (!/^\d{6}$/.test(resetOtp.value.trim())) error.value = 'Enter the 6-digit code from your email.';
+  else if (resetPasswordInput.value.length < PASSWORD_MIN) error.value = `Use a password of at least ${PASSWORD_MIN} characters.`;
+  else if (resetPasswordInput.value !== resetConfirmInput.value) error.value = 'Those passwords do not match.';
+  if (error.value) return;
+  busy.value = true;
+  try {
+    await resetPassword({ email: email.value.trim(), otp: resetOtp.value.trim(), newPassword: resetPasswordInput.value });
+  } catch (err) {
+    error.value = err.message;
+    resetOtp.value = '';
+    resetOtpInput.value?.focus();
+  } finally {
+    busy.value = false;
+  }
+}
+const resetNotice = ref('');
+function backToSignIn() {
+  error.value = '';
+  resetNotice.value = '';
+  forward.value = false;
+  step.value = 'password';
 }
 // "Fill form" on the test accounts page
 function fill(address) {
@@ -243,7 +301,7 @@ const floaters = ['?', '★', '✓', 'A', '+', '!', '◆', '?'];
                 <button type="button" class="qq-link" @click="back">Already have an account? Sign in</button>
               </form>
 
-              <form v-else key="password" novalidate @submit.prevent="submit">
+              <form v-else-if="step === 'password'" key="password" novalidate @submit.prevent="submit">
                 <button type="button" class="qq-chip" :aria-label="`Change email (${email.trim()})`" @click="back">
                   <span class="qq-avatar" aria-hidden="true">{{ initial }}</span>
                   <span class="qq-chip-email">{{ email.trim() }}</span>
@@ -264,11 +322,44 @@ const floaters = ['?', '★', '✓', 'A', '+', '!', '◆', '?'];
                   {{ busy ? 'Signing in…' : 'Sign in' }}
                   <span v-if="!busy" class="qq-arrow" aria-hidden="true">→</span>
                 </button>
+                <button type="button" class="qq-link qq-forgot-link" @click="toForgotPassword">Forgot your password?</button>
+              </form>
+
+              <form v-else-if="step === 'forgot'" key="forgot" novalidate @submit.prevent="sendResetCode">
+                <h2>Find your account</h2>
+                <p class="qq-sub">We’ll email a one-time code if this address has a QuizQuest account.</p>
+                <label for="reset-email" class="qq-label">Email</label>
+                <input id="reset-email" ref="emailInput" v-model="email" class="qq-input" type="email" autocomplete="email" placeholder="you@school.edu" @input="error = ''">
+                <p v-if="error" class="qq-error" role="alert">{{ error }}</p>
+                <button type="submit" class="qq-btn" :disabled="busy">
+                  <span v-if="busy" class="qq-spinner" aria-hidden="true" />
+                  {{ busy ? 'Sending code…' : 'Email me a code' }}
+                  <span v-if="!busy" class="qq-arrow" aria-hidden="true">→</span>
+                </button>
+                <button type="button" class="qq-link" @click="backToSignIn">Back to sign in</button>
+              </form>
+
+              <form v-else key="reset" novalidate @submit.prevent="finishPasswordReset">
+                <h2>Choose a new password</h2>
+                <p class="qq-sub" role="status">{{ resetNotice }}</p>
+                <label for="reset-otp" class="qq-label">6-digit email code</label>
+                <input id="reset-otp" ref="resetOtpInput" v-model="resetOtp" class="qq-input qq-otp" type="text" inputmode="numeric" autocomplete="one-time-code" maxlength="6" placeholder="123456" @input="resetOtp = resetOtp.replace(/\D/g, '').slice(0, 6); error = ''">
+                <label for="reset-password" class="qq-label">New password</label>
+                <input id="reset-password" ref="resetNewPasswordInput" v-model="resetPasswordInput" class="qq-input" type="password" autocomplete="new-password" :placeholder="`At least ${PASSWORD_MIN} characters`" @input="error = ''">
+                <label for="reset-confirm" class="qq-label">Confirm new password</label>
+                <input id="reset-confirm" ref="resetConfirmPasswordInput" v-model="resetConfirmInput" class="qq-input" type="password" autocomplete="new-password" @input="error = ''">
+                <p v-if="error" class="qq-error" role="alert">{{ error }}</p>
+                <button type="submit" class="qq-btn" :disabled="busy">
+                  <span v-if="busy" class="qq-spinner" aria-hidden="true" />
+                  {{ busy ? 'Resetting password…' : 'Reset password' }}
+                  <span v-if="!busy" class="qq-arrow" aria-hidden="true">→</span>
+                </button>
+                <button type="button" class="qq-link" :disabled="busy" @click="toForgotPassword">Send a new code</button>
               </form>
             </Transition>
 
             <div class="qq-card-foot">
-              <p v-if="step !== 'signup'" class="qq-register">Not registered yet? <button type="button" class="qq-inline-link" @click="toSignup">Create a student account</button></p>
+              <p v-if="step === 'email' || step === 'password'" class="qq-register">Not registered yet? <button type="button" class="qq-inline-link" @click="toSignup">Create a student account</button></p>
               <button type="button" class="qq-link" aria-label="Tools and version" title="Tools and version" @click="openTools">🔧</button>
             </div>
           </div>
@@ -325,6 +416,7 @@ const floaters = ['?', '★', '✓', 'A', '+', '!', '◆', '?'];
 .qq-story .qq-progress span::after { background: #F2BA55; }
 .qq-story .qq-input { color: var(--qq-ink); background: var(--qq-field); border: 2px solid #7A6545; border-radius: 9px; }
 .qq-story .qq-input:focus { border-color: var(--qq-ink); box-shadow: 0 0 0 4px rgb(242 186 85 / 55%); }
+.qq-story .qq-otp { max-width: 210px; font-family: 'Cascadia Code', Consolas, monospace; font-size: 22px; font-weight: 700; letter-spacing: 0.28em; text-align: center; }
 .qq-story .qq-btn { color: #23382F; background: #F2BA55; border: 3px solid #23382F; border-radius: 10px 9px 11px 9px; box-shadow: 0 4px 0 #7A6545; text-shadow: none; }
 .qq-story .qq-btn::before { display: none; }
 .qq-story .qq-btn:hover:not(:disabled) { background: #F7C96E; box-shadow: 0 5px 0 #7A6545; transform: translateY(-1px); }
