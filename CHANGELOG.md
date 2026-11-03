@@ -30,6 +30,17 @@ this file is informal and human-edited.
   has been sent - it says plainly that recovery by email is not available in
   this build, and still answers the same way for every address, so it cannot
   be used to find out who has an account.
+- **A join code is no longer kept in the database.** The record stored the
+  readable code next to its hash, so the JSON database file held working
+  enrolment codes in the clear; and redemption also accepted the record's
+  own id, which is stored in the clear as the primary key, so the id was a
+  second way in - removing the plaintext on its own would have changed
+  nothing. Only the hash is kept now: the readable code is returned once,
+  when it is generated, the list returns the code's id instead of the code,
+  redemption takes the code and not the id, and a data file written before
+  this change has its stored codes dropped the first time the server
+  starts. A teacher who loses a code generates another one - the page says
+  so where the code is shown.
 
 ### Added
 - **CI workflow** — `.github/workflows/test.yml` runs all four suites on every push

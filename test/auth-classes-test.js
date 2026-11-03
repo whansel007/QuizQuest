@@ -4,6 +4,9 @@
 
 const test = require('node:test');
 const assert = require('node:assert/strict');
+const fs = require('node:fs');
+const os = require('node:os');
+const path = require('node:path');
 const { start } = require('../server');
 
 async function testServer() {
@@ -158,13 +161,21 @@ test('Task 1B: Class creation, join codes, student redemption and roster', async
     const rawCode = codeRes.body.code;
     const codeId = codeRes.body.id;
     assert.ok(rawCode.startsWith('QQ-'));
+    // 12 characters from a 32-character alphabet: the code has to be long
+    // enough that a hash of it cannot be searched backwards.
+    assert.match(rawCode, /^QQ-[23456789ABCDEFGHJKLMNPQRSTUVWXYZ]{12}$/, 'the join code is 12 characters long');
     assert.match(codeId, /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i, 'join code id is a valid UUID');
 
     // 3. Professor lists join codes
+    // The readable code is not in the list and never was stored: only a
+    // hash of it is kept, and the code is long enough (32^12) and random
+    // enough that a database dump holds no code that anybody could redeem.
+    // The id identifies the code, and is what Revoke uses.
     const codesList = await call(tToken, 'GET', `/api/classes/${classId}/join-codes`);
     assert.equal(codesList.status, 200);
     assert.equal(codesList.body.length, 1);
-    assert.equal(codesList.body[0].code, rawCode, 'listing includes the readable join code');
+    assert.equal(codesList.body[0].code, undefined, 'the listing does not carry the readable join code');
+    assert.equal(codesList.body[0].id, codeId);
     assert.equal(codesList.body[0].usageLimit, 5);
 
     // 4. Student redeems join code (can omit QQ- prefix or use lowercase)
@@ -183,11 +194,19 @@ test('Task 1B: Class creation, join codes, student redemption and roster', async
     assert.equal(roster.status, 200);
     assert.ok(roster.body.some((m) => m.id === sId));
 
-    // 7. Another student redeems via codeId fallback
+    // 7. The code's id is an identifier, not a credential
+    // The id is stored in the clear as the row's primary key, so accepting
+    // it would hand anybody who reads the database a working enrolment
+    // code - which is the whole reason only the hash is kept.
     const s2Reg = await call(null, 'POST', '/api/auth/register', { name: 'Charlie', email: 'charlie@example.com', password: 'password123' });
     const joinViaId = await call(s2Reg.body.token, 'POST', '/api/classes/join', { code: codeId });
-    assert.equal(joinViaId.status, 200);
-    assert.ok(joinViaId.body.ok);
+    assert.equal(joinViaId.status, 404, 'the id alone does not enrol anybody');
+    assert.equal(joinViaId.body.ok, undefined);
+
+    // ...but the real code still does.
+    const joinWithCode = await call(s2Reg.body.token, 'POST', '/api/classes/join', { code: rawCode });
+    assert.equal(joinWithCode.status, 200);
+    assert.ok(joinWithCode.body.ok);
 
     // 8. Professor removes student from class
     const removeRes = await call(tToken, 'DELETE', `/api/classes/${classId}/members/${sId}`);
@@ -293,5 +312,135 @@ test('Task 2: Passage soft-archival and metadata editing', async () => {
     assert.equal(restoredList.body.length, initialCount);
   } finally {
     await close();
+  }
+});
+
+test('A join code is never written to the database file', async () => {
+  // The JSON-file store writes the whole database out, so a readable join
+  // code kept in a record would land on the disk. This is the test that
+  // fails on the old code, where the record held the code next to its
+  // hash.
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'qq-joincodes-'));
+  const dataFile = path.join(dir, 'db.json');
+  const srv = start(0, { dataFile });
+  const port = srv.httpServer.address().port;
+  const base = `http://localhost:${port}`;
+  const call = async (token, method, p, body = null) => {
+    const opts = { method, headers: {} };
+    if (token) opts.headers.Authorization = `Bearer ${token}`;
+    if (body) {
+      opts.headers['Content-Type'] = 'application/json';
+      opts.body = JSON.stringify(body);
+    }
+    const res = await fetch(base + p, opts);
+    let data;
+    try {
+      data = await res.json();
+    } catch {
+      data = null;
+    }
+    return { status: res.status, body: data };
+  };
+  try {
+    const tToken = (await call(null, 'POST', '/api/login', { userId: 't-a' })).body.token;
+    const cls = (await call(tToken, 'POST', '/api/classes', { courseId: 'c-comp', name: 'File Store Class' })).body;
+    const codeRes = await call(tToken, 'POST', `/api/classes/${cls.id}/join-codes`, { usageLimit: 5, expiresInDays: 7 });
+    assert.equal(codeRes.status, 201);
+    const rawCode = codeRes.body.code;
+    assert.ok(rawCode.startsWith('QQ-'));
+
+    // The store writes a little after the change, so give it a moment.
+    await new Promise((r) => setTimeout(r, 800));
+
+    const written = fs.readFileSync(dataFile, 'utf8');
+    assert.ok(!written.includes(rawCode), 'the readable join code is not in the database file');
+    assert.ok(!written.includes(rawCode.replace(/^QQ-/, '').toLowerCase()), 'the readable join code is not in the database file in any casing');
+
+    const stored = JSON.parse(written);
+    const rec = (stored.classJoinCodes || []).find((c) => c.id === codeRes.body.id);
+    assert.ok(rec, 'the join code record was written to the file');
+    assert.equal(rec.code, undefined, 'the stored record holds no readable code');
+    assert.ok(rec.codeHash, 'the stored record holds the hash of the code');
+
+    // No record anywhere in the file holds a readable code.
+    for (const c of stored.classJoinCodes || []) {
+      assert.equal(c.code, undefined, 'no join code record holds a readable code');
+    }
+  } finally {
+    await new Promise((r) => srv.httpServer.close(r));
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test('A data file written by an older build has its readable join codes dropped on load', async () => {
+  // The fix promises that a database file written before it has its stored
+  // readable codes dropped the first time the server starts. Nothing else
+  // holds that promise in place: without this test the whole cleanup could
+  // be deleted and the rest of the suite would stay green.
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'qq-stalecode-'));
+  const dataFile = path.join(dir, 'db.json');
+  const boot = async () => {
+    const srv = start(0, { dataFile });
+    const port = srv.httpServer.address().port;
+    const base = `http://localhost:${port}`;
+    const call = async (token, method, p, body = null) => {
+      const opts = { method, headers: {} };
+      if (token) opts.headers.Authorization = `Bearer ${token}`;
+      if (body) {
+        opts.headers['Content-Type'] = 'application/json';
+        opts.body = JSON.stringify(body);
+      }
+      const res = await fetch(base + p, opts);
+      let data;
+      try {
+        data = await res.json();
+      } catch {
+        data = null;
+      }
+      return { status: res.status, body: data };
+    };
+    return { srv, call, close: () => new Promise((r) => srv.httpServer.close(r)) };
+  };
+
+  let codeId;
+  let rawCode;
+  try {
+    // A server writes the file, and a code is generated through the API.
+    const first = await boot();
+    try {
+      const tToken = (await first.call(null, 'POST', '/api/login', { userId: 't-a' })).body.token;
+      const cls = (await first.call(tToken, 'POST', '/api/classes', { courseId: 'c-comp', name: 'Stale Code Class' })).body;
+      const codeRes = await first.call(tToken, 'POST', `/api/classes/${cls.id}/join-codes`, { usageLimit: 5 });
+      assert.equal(codeRes.status, 201);
+      codeId = codeRes.body.id;
+      rawCode = codeRes.body.code;
+      await new Promise((r) => setTimeout(r, 800));
+    } finally {
+      await first.close();
+    }
+
+    // Now write the file the way an older build wrote it: the record holds
+    // the readable code next to its hash.
+    const stored = JSON.parse(fs.readFileSync(dataFile, 'utf8'));
+    const rec = (stored.classJoinCodes || []).find((c) => c.id === codeId);
+    assert.ok(rec, 'the join code record is in the file');
+    rec.code = rawCode;
+    fs.writeFileSync(dataFile, JSON.stringify(stored));
+    assert.ok(fs.readFileSync(dataFile, 'utf8').includes(rawCode), 'the file holds the readable code, as an older build wrote it');
+
+    // The next server start drops it, in memory and on the disk.
+    const second = await boot();
+    try {
+      const inMemory = second.srv.quiz.db.classJoinCodes.find((c) => c.id === codeId);
+      assert.ok(inMemory, 'the join code record survives the reload');
+      assert.equal(inMemory.code, undefined, 'the server drops the stale readable code on load');
+      assert.ok(inMemory.codeHash, 'the hash of the code is still there');
+      await new Promise((r) => setTimeout(r, 800));
+      assert.ok(!fs.readFileSync(dataFile, 'utf8').includes(rawCode), 'the stale readable code is gone from the file too');
+    } finally {
+      await second.close();
+    }
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
   }
 });

@@ -53,7 +53,7 @@ const handleJoin = action(async () => {
     <div v-if="showJoinModal" class="join-class-overlay" @click.self="showJoinModal = false">
       <div class="join-class-card" role="dialog" aria-modal="true" aria-labelledby="join-class-title">
         <h3 id="join-class-title">Join a Class</h3>
-        <p class="small muted">Enter the enrolment code given by your professor (e.g. QQ-ABC12).</p>
+        <p class="small muted">Enter the enrolment code given by your professor (e.g. QQ-7K4M2X9PQWTB).</p>
 
         <form @submit.prevent="handleJoin($event)">
           <div class="join-class-field">
@@ -62,7 +62,7 @@ const handleJoin = action(async () => {
               id="join-code-input"
               v-model="joinCode"
               type="text"
-              placeholder="e.g. QQ-9X4K2"
+              placeholder="e.g. QQ-7K4M2X9PQWTB"
               class="join-class-code"
               required
             />

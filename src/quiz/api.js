@@ -176,6 +176,19 @@ function createQuizApi({ dataFile = null, store = null, now = () => Date.now(), 
   store = store || createStore(dataFile);
   const { db } = store;
   if (P.ensureDemoCredentials(db.users)) store.save();
+  // A join code is the credential, so it must not be kept. Older versions
+  // of the app stored the readable code next to its hash, so a data file
+  // left over from before the fix still carries one: drop it here, once,
+  // at load time, and the next write takes it out of the file for good.
+  // The hash is enough to redeem the code, so nothing is lost.
+  let staleCodesDropped = 0;
+  for (const rec of db.classJoinCodes || []) {
+    if (rec && rec.code !== undefined) {
+      delete rec.code;
+      staleCodesDropped += 1;
+    }
+  }
+  if (staleCodesDropped) store.save();
   // Every change goes through save(), so counting saves tells us whether
   // the data has changed (used to cache dashboard numbers). A save can say
   // what it touched, so one class practising doesn't keep throwing away
@@ -767,16 +780,34 @@ attemptId: attempt.id,
   });
 
   // ---------------- class management (Task 1B) ----------------
-  // Join codes are unpredictable and stored hashed, so the database never
-  // holds a usable code and probing cannot enumerate valid ones.
+  // A join code is a credential, so two things have to hold.
+  //
+  // One: the readable code is never kept. The record holds only a SHA-256
+  // hash of it, the readable code goes back to the teacher once, when it is
+  // generated, and it is not kept anywhere else - not in the database, and
+  // not in the record's id either, which is an identifier and not a
+  // credential.
+  //
+  // Two: a hash is not a secret if the code can be guessed. A SHA-256 over a
+  // short code can be searched backwards - the whole 5-character space was
+  // recovered from a hash in about 100 seconds on one core - so the code
+  // itself is long enough that searching it is not worth doing, and it is
+  // drawn with a CSPRNG rather than Math.random, which is not random
+  // enough to be a credential. 32^12 is about 1.15e18 codes.
+  const JOIN_CODE_LENGTH = 12;
+  const JOIN_CODE_CHARS = '23456789ABCDEFGHJKLMNPQRSTUVWXYZ'; // no 0/O/1/I
   const hashJoinCode = (rawCode) =>
     crypto.createHash('sha256').update(String(rawCode).trim().toUpperCase()).digest('hex');
 
-  function generateJoinCode() {
-    const chars = '23456789ABCDEFGHJKLMNPQRSTUVWXYZ'; // no 0/O/1/I
-    let code = 'QQ-';
-    for (let i = 0; i < 5; i++) code += chars.charAt(Math.floor(Math.random() * chars.length));
-    return code;
+  function generateJoinCode(isTaken) {
+    for (let attempt = 0; attempt < 100; attempt += 1) {
+      let code = 'QQ-';
+      for (let i = 0; i < JOIN_CODE_LENGTH; i += 1) code += JOIN_CODE_CHARS.charAt(crypto.randomInt(JOIN_CODE_CHARS.length));
+      // Two live codes with the same hash would make one of them
+      // unrevocable, so never hand out the same code twice.
+      if (!isTaken || !isTaken(code)) return code;
+    }
+    fail(500, 'Could not generate a join code. Please try again.');
   }
 
   route('GET', '/api/classes', 'any', ({ user }) => {
@@ -902,16 +933,23 @@ attemptId: attempt.id,
 
   route('POST', '/api/classes/:classId/join-codes', 'teacher', ({ user, params, body }) => {
     const cls = teacherClass(user, params.classId);
-    const rawCode = generateJoinCode();
-    const codeHash = hashJoinCode(rawCode);
     const expiresInDays = Number(body?.expiresInDays);
     const expiresAt = Number.isInteger(expiresInDays) && expiresInDays > 0 ? now() + expiresInDays * 86400000 : null;
     const usageLimit = Number.isInteger(body?.usageLimit) && body.usageLimit > 0 ? body.usageLimit : null;
     db.classJoinCodes = db.classJoinCodes || [];
+    const rawCode = generateJoinCode((candidate) =>
+      db.classJoinCodes.some((c) => c.codeHash === hashJoinCode(candidate)),
+    );
+    const codeHash = hashJoinCode(rawCode);
     const rec = {
       id: crypto.randomUUID(),
       classId: cls.id,
-      code: rawCode,
+      // Only the hash of the code is kept. The readable code goes back to
+      // the teacher in the response below, once, and is never written to
+      // the database. The code is long enough (32^12) and drawn with a
+      // CSPRNG, so searching the space of hashes is not worth doing
+      // either - a database file or a database dump holds no code that
+      // anybody could redeem.
       codeHash,
       expiresAt,
       usageLimit,
@@ -928,11 +966,12 @@ attemptId: attempt.id,
   route('GET', '/api/classes/:classId/join-codes', 'teacher', ({ user, params }) => {
     const cls = teacherClass(user, params.classId);
     db.classJoinCodes = db.classJoinCodes || [];
+    // No code comes back: the teacher saw it once, when it was generated.
+    // The id is here so each row can be told apart and revoked.
     return db.classJoinCodes
       .filter((c) => c.classId === cls.id)
       .map((c) => ({
         id: c.id,
-        code: c.code || null,
         expiresAt: c.expiresAt,
         usageLimit: c.usageLimit,
         usageCount: c.usageCount,
@@ -953,7 +992,10 @@ attemptId: attempt.id,
 
   // Redemption is checked and applied in one pass: an unknown, revoked,
   // expired or exhausted code never creates an enrolment.
-  // Supports QQ-XXXXX, prefix-less XXXXX, and fallback by code ID.
+  // Supports the code with or without its QQ- prefix. The code's own id is
+  // NOT a way in: the id is stored in the clear as the row's primary key,
+  // so accepting it would hand anybody who reads the database a working
+  // enrolment code - which is exactly what storing only the hash is for.
   route('POST', '/api/classes/join', 'student', ({ user, body }) => {
     const raw = (body?.code || '').trim();
     if (!raw) fail(400, 'Please enter a join code.');
@@ -966,18 +1008,7 @@ attemptId: attempt.id,
 
     const codeRecord = db.classJoinCodes.find((c) => {
       if (c.revoked) return false;
-      if (c.codeHash === rawHashed || c.codeHash === prefixedHashed) return true;
-      if (c.code && (c.code.toUpperCase() === norm || c.code.toUpperCase() === withPrefix)) return true;
-      if (c.id) {
-        const idUpper = c.id.toUpperCase();
-        if (
-          idUpper === norm ||
-          idUpper === `CODE-${norm.replace(/^CODE-?/i, '')}` ||
-          idUpper.replace(/^CODE-?/i, '') === norm.replace(/^CODE-?/i, '')
-        )
-          return true;
-      }
-      return false;
+      return c.codeHash === rawHashed || c.codeHash === prefixedHashed;
     });
 
     if (!codeRecord) fail(404, 'Invalid or revoked join code.');
