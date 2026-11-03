@@ -18,7 +18,7 @@ test('should successfully log in a student with valid credentials', async ({ pag
   await expect(page.getByRole('button', { name: 'Log out' })).toBeVisible();
   await expect(page.locator('#tabs').getByRole('button', { name: 'Kingdom', exact: true })).toHaveAttribute('aria-current', 'page');
   // students land in their Kingdom, so open the practice tab to reach the setup
-  await openTab(page, 'Practice');
+  await openTab(page, 'Quiz');
   await expect(page.getByRole('button', { name: 'Start practice' })).toBeVisible();
 });
 
@@ -29,7 +29,9 @@ test('should log a professor in to the question bank', async ({ page }) => {
   await page.locator('#login-password').fill('quizquest');
   await page.getByRole('button', { name: 'Sign in' }).click();
   await expect(page.getByText('Prof. Demo A')).toBeVisible();
-  await expect(page.getByRole('button', { name: 'Question bank' })).toBeVisible();
+  // The dashboard's new "Edit in Question bank" button also contains the
+  // words, so the tab is named exactly or the locator finds two buttons.
+  await expect(page.getByRole('button', { name: 'Question bank', exact: true })).toBeVisible();
 });
 
 test('should show an error for a wrong password', async ({ page }) => {

@@ -5,12 +5,12 @@
 import { test, expect } from '@playwright/test';
 import { signIn, openTab, STUDENT } from './helpers.js';
 
-test('the World tab picks a hero and opens a lobby with a room code', async ({ page }) => {
+test('the Campfire Run tab picks a hero and opens a lobby with a room code', async ({ page }) => {
   // It waits for the server to hand out a room code: give it room.
   test.slow();
   await signIn(page, STUDENT);
-  await openTab(page, 'World');
-  await expect(page.getByRole('heading', { name: 'The Clearing', exact: true })).toBeVisible();
+  await openTab(page, 'Campfire Run');
+  await expect(page.getByRole('heading', { name: 'Campfire Run', exact: true })).toBeVisible();
   await expect(page.getByRole('region', { name: 'Choose your hero', exact: true })).toBeVisible();
 
   // Only the heroes the student owns can be picked.
@@ -20,7 +20,7 @@ test('the World tab picks a hero and opens a lobby with a room code', async ({ p
   await expect(hero).toHaveAttribute('aria-pressed', 'true');
 
   await page.getByRole('button', { name: 'HOST LOBBY', exact: true }).click();
-  const frame = page.frameLocator('iframe[title="Campfire Defense"]');
+  const frame = page.frameLocator('iframe[title="Campfire Run"]');
   // The room code is static markup in the arena document
   // (public/hero-lab/world.html:41), so until that document is parsed the
   // locator matches nothing at all and the failure reads "element(s) not

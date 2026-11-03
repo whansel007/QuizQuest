@@ -4,7 +4,7 @@
   "private": true,
   "main": "server.js",
   "scripts": {
-    "dev": "nodemon scripts/dev.js",
+    "dev": "node scripts/dev.js",
     "build": "vite build",
     "start": "node --env-file-if-exists=.env server.js",
     "test": "node --test test/*-test.js",
@@ -23,7 +23,6 @@
     "axios": "^1.20.0",
     "bootstrap": "5.3.8",
     "fflate": "0.8.2",
-    "nodemon": "^3.1.14",
     "pdfjs-dist": "^6.4.299",
     "socket.io": "^4.8.1",
     "socket.io-client": "^4.8.4",

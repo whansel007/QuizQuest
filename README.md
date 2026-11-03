@@ -35,7 +35,7 @@ pets, kingdom buildings and loot in a co-op multiplayer World.
 | Layer | Technology |
 |---|---|
 | Frontend | Vue 3, built with Vite; axios for API calls |
-| Backend | Node.js 22.13+ (`http` module), Socket.IO for the World |
+| Backend | Node.js 22.19+ (`http` module), Socket.IO for the World |
 | Database | Supabase (PostgreSQL), or a local JSON file when Supabase isn't set up |
 | AI (optional) | Gemini 3.5 Flash-Lite; configurable Gemini 3.1 Flash-Lite fallback |
 | Other | pdf.js (PDF text extraction), Playwright and PGlite (tests) |
@@ -45,7 +45,7 @@ coins and access checks all happen on the server.
 
 ## Quick start
 
-Requires **Node.js 22.13 or newer** and **pnpm** (run `corepack enable` once to get the
+Requires **Node.js 22.19 or newer** and **pnpm** (run `corepack enable` once to get the
 version pinned in `package.json`). Use pnpm only: `pnpm-lock.yaml` is the single lockfile.
 
 ```bash
@@ -94,6 +94,13 @@ leaves the server.
 New users can sign up from **Create a student account** on the login page.
 Students only — teacher accounts are created by the team, so nobody can
 promote themselves by signing up.
+
+Password reset uses a 6-digit code sent by email. To enable it, set
+`RESEND_API_KEY` and `PASSWORD_RESET_FROM` in the server's `.env` file (the
+sender domain must be verified in Resend). Codes expire after 10 minutes and
+are limited to five attempts. The server stores only a salted hash of each
+code; requests are limited to one per email address per minute. If email is
+not configured, the page explains that password reset is unavailable.
 
 ## Using Supabase (optional)
 

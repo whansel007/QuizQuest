@@ -65,6 +65,29 @@ const TIMER_GRACE_MS = 3000;       // network slack before the server calls time
 const SEEDED_DEMO_USER_IDS = new Set(['t-a', 't-b', ...Array.from({ length: 12 }, (_, i) => `s-${String(i + 1).padStart(2, '0')}`)]);
 const isSeededDemoUser = (user) => SEEDED_DEMO_USER_IDS.has(user.id) && user.email?.endsWith('@quizquest.demo');
 
+async function sendPasswordResetEmailWithResend({ email, name, otp }) {
+  const apiKey = process.env.RESEND_API_KEY;
+  const from = process.env.PASSWORD_RESET_FROM || process.env.EMAIL_FROM;
+  if (!apiKey || !from) throw new Error('Set RESEND_API_KEY and PASSWORD_RESET_FROM to enable password reset email.');
+  const greeting = String(name || 'there').replace(/[&<>"']/g, (ch) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[ch]);
+  const response = await fetch('https://api.resend.com/emails', {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${apiKey}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      from,
+      to: [email],
+      subject: 'Your QuizQuest password reset code',
+      text: `Hello ${name || 'there'},\n\nYour QuizQuest password reset code is ${otp}. It expires in 10 minutes. If you did not request this, you can ignore this email.`,
+      html: `<div style="font-family:Arial,sans-serif;color:#23382f;max-width:520px;margin:auto;padding:28px;background:#fff8e4;border:2px solid #23382f;border-radius:12px"><h1 style="font-family:Georgia,serif;color:#254937">Reset your QuizQuest password</h1><p>Hello ${greeting},</p><p>Enter this code in QuizQuest to choose a new password:</p><p style="font-size:30px;letter-spacing:8px;font-weight:bold;background:#fbf2d8;padding:16px;text-align:center">${otp}</p><p>This code expires in 10 minutes. If you did not request a password reset, you can ignore this email.</p></div>`,
+    }),
+    signal: AbortSignal.timeout(10_000),
+  });
+  if (!response.ok) throw new Error(`Resend returned HTTP ${response.status}.`);
+}
+const hasPasswordResetEmailConfig = () => Boolean(
+  (process.env.RESEND_API_KEY && (process.env.PASSWORD_RESET_FROM || process.env.EMAIL_FROM)),
+);
+
 function syncPracticeNpc(session) {
   if (!session.npc) return false;
   const maxHp = Math.max(1, session.items.length) * PRACTICE_ATTACK_DAMAGE;
@@ -149,10 +172,23 @@ const csvCell = (v) => {
 
 // store: an already-loaded { db, save } (e.g. src/db/supabase-store.js);
 // otherwise the JSON file store (dataFile = null keeps it in memory).
-function createQuizApi({ dataFile = null, store = null, now = () => Date.now(), drafter = null, devMode = process.env.QUIZQUEST_DEV === '1', authoringAI = null, authoringDrafter = null } = {}) {
+function createQuizApi({ dataFile = null, store = null, now = () => Date.now(), drafter = null, devMode = process.env.QUIZQUEST_DEV === '1', authoringAI = null, authoringDrafter = null, sendPasswordResetEmail = null } = {}) {
   store = store || createStore(dataFile);
   const { db } = store;
   if (P.ensureDemoCredentials(db.users)) store.save();
+  // A join code is the credential, so it must not be kept. Older versions
+  // of the app stored the readable code next to its hash, so a data file
+  // left over from before the fix still carries one: drop it here, once,
+  // at load time, and the next write takes it out of the file for good.
+  // The hash is enough to redeem the code, so nothing is lost.
+  let staleCodesDropped = 0;
+  for (const rec of db.classJoinCodes || []) {
+    if (rec && rec.code !== undefined) {
+      delete rec.code;
+      staleCodesDropped += 1;
+    }
+  }
+  if (staleCodesDropped) store.save();
   // Every change goes through save(), so counting saves tells us whether
   // the data has changed (used to cache dashboard numbers). A save can say
   // what it touched, so one class practising doesn't keep throwing away
@@ -176,6 +212,9 @@ function createQuizApi({ dataFile = null, store = null, now = () => Date.now(), 
   const authoring = createAuthoring({ db, ai: authoringAI || undefined, drafter: authoringDrafter || undefined, persist });
   const tokens = new Map(); // token -> { userId, expires }
   const loginFails = new Map(); // email -> { count, until }
+  const passwordResets = new Map(); // email -> { salt, hash, expires, attempts }
+  const passwordResetRequests = new Map(); // email -> last request time
+  const passwordResetIpRequests = new Map(); // address -> recent request times
   const grading = new Set(); // "sessionId:index" answers currently being graded
   const forcedSummons = new Map(); // seeded-demo-only visual fixtures; never persisted
 
@@ -599,18 +638,24 @@ attemptId: attempt.id,
     return user;
   }
 
-  function startSession(user) {
+  function startSession(user, { demo = false } = {}) {
     for (const [t, s] of tokens) if (s.expires < now()) tokens.delete(t); // forget expired sessions
     const token = crypto.randomBytes(24).toString('hex');
-    tokens.set(token, { userId: user.id, expires: now() + TOKEN_TTL });
+    // Remember how the session was earned. The demo sign-in needs no
+    // credential at all, so a session it hands out proves nothing about who
+    // is holding it, and it must not be allowed to change a password.
+    tokens.set(token, { userId: user.id, expires: now() + TOKEN_TTL, demo });
     return { token, user: publicUser(user) };
   }
 
   route('POST', '/api/login', null, ({ body }) => {
     let user;
-    if (body.userId !== undefined) user = db.users.find((u) => u.id === body.userId && isSeededDemoUser(u)) || fail(400, 'Unknown demo user.');
-    else user = checkPassword(body);
-    return startSession(user);
+    let demo = false;
+    if (body.userId !== undefined) {
+      user = db.users.find((u) => u.id === body.userId && isSeededDemoUser(u)) || fail(400, 'Unknown demo user.');
+      demo = true;
+    } else user = checkPassword(body);
+    return startSession(user, { demo });
   });
 
   // Self sign-up as a student (the default) or a teacher. Sign-up is open to
@@ -639,32 +684,105 @@ attemptId: attempt.id,
   // 201 because Task 1A's API documentation specifies "created".
   route('POST', '/api/auth/register', null, ({ body }) => [201, register(body)]);
 
-  route('POST', '/api/auth/forgot-password', null, ({ body }) => {
+  route('POST', '/api/auth/forgot-password', null, async ({ req, body }) => {
     const email = P.normEmail(body.email);
     if (!email || !EMAIL_RE.test(email)) fail(400, 'Enter a valid email address.');
-    // Always the same answer, so this cannot be used to discover who has an account.
-    return {
+    const genericResponse = {
       ok: true,
-      message: 'If an account exists for that address, password reset instructions have been sent.',
+      message: 'If an account exists for that address, a password reset code has been sent.',
     };
+    if (!sendPasswordResetEmail && !hasPasswordResetEmailConfig()) {
+      // No mail service in this build, so no code can be delivered and none is
+      // issued. Saying a code "has been sent" would be a lie, so say what to
+      // do instead. The answer is the same for every address, so it still
+      // cannot be used to discover who has an account.
+      return {
+        ok: true,
+        message: 'Password recovery by email is not available in this build. Ask the project team to reset it for you.',
+      };
+    }
+    const address = req.socket?.remoteAddress || 'unknown';
+    const recent = (passwordResetIpRequests.get(address) || []).filter((at) => now() - at < 15 * 60_000);
+    if (recent.length >= 10) fail(429, 'Too many reset requests. Please wait 15 minutes and try again.');
+    recent.push(now());
+    passwordResetIpRequests.set(address, recent);
+    for (const [key, times] of passwordResetIpRequests) {
+      if (!times.some((at) => now() - at < 15 * 60_000)) passwordResetIpRequests.delete(key);
+    }
+    for (const [key, at] of passwordResetRequests) {
+      if (now() - at >= 60 * 60_000) passwordResetRequests.delete(key);
+    }
+    const previousRequest = passwordResetRequests.get(email) || 0;
+    if (now() - previousRequest < 60_000) {
+      return { ...genericResponse, retryAfterSeconds: Math.ceil((60_000 - (now() - previousRequest)) / 1000) };
+    }
+    passwordResetRequests.set(email, now());
+    const user = db.users.find((u) => u.email === email);
+    if (!user) return genericResponse;
+    const deliver = sendPasswordResetEmail || sendPasswordResetEmailWithResend;
+    const otp = String(crypto.randomInt(100000, 1000000));
+    const salt = crypto.randomBytes(16).toString('hex');
+    passwordResets.set(email, {
+      salt,
+      hash: crypto.createHash('sha256').update(`${salt}:${otp}`).digest('hex'),
+      expires: now() + 10 * 60_000,
+      attempts: 0,
+    });
+    try {
+      await deliver({ email, name: user.name, otp });
+    } catch (err) {
+      passwordResets.delete(email);
+      console.error('[auth] password reset email could not be sent:', err.message);
+      return genericResponse;
+    }
+    return genericResponse;
   });
 
-  // Completes a reset started by /api/auth/forgot-password. The recovery
-  // link proves control of the mailbox; this call exchanges it for a session.
+  // Two ways in, and each has to prove something:
+  //   - a session token, which stands in for a signed-in person, and
+  //   - the six-digit code from the reset email, which proves control of the
+  //     mailbox. It is short-lived, single-use and attempt-limited.
+  // A plain email address is never enough. That used to let anyone who knew
+  // an address take over that account.
   const handleResetPassword = ({ req, body }) => {
+    const currentToken = (req.headers.authorization || '').replace(/^Bearer\s+/i, '');
+    const session = currentToken ? tokens.get(currentToken) : null;
+    // A demo session is handed out for no credential at all, so it proves
+    // nothing about who is holding it, and it must not change a password.
+    if (session?.demo) fail(403, 'A demo session cannot change a password.');
+
+    const otp = typeof body?.otp === 'string' ? body.otp.trim() : '';
+    if (!currentToken && !/^\d{6}$/.test(otp)) {
+      fail(401, 'Sign in to change your password, or enter the reset code from your email.');
+    }
+
     const newPassword = body?.newPassword || body?.password || '';
-    const email = P.normEmail(body?.email);
-    if (!newPassword || newPassword.length < P.PASSWORD_MIN) fail(400, `Use a password of at least ${P.PASSWORD_MIN} characters.`);
+    if (typeof newPassword !== 'string' || newPassword.length < P.PASSWORD_MIN) fail(400, `Use a password of at least ${P.PASSWORD_MIN} characters.`);
     if (newPassword.length > P.PASSWORD_MAX) fail(400, `Use a password of at most ${P.PASSWORD_MAX} characters.`);
 
-    // A signed-in caller may change their own password without a recovery link.
-    const currentToken = (req.headers.authorization || '').replace(/^Bearer\s+/i, '');
     let target = currentToken ? authenticate(currentToken) : null;
-    if (!target && email) target = db.users.find((u) => u.email === email || `${u.id}@quizquest.edu` === email);
-    if (!target) fail(400, 'Could not identify the account. Please request a new reset link.');
+    if (!target) {
+      // No usable session, so the code from the reset email is the only proof.
+      const email = P.normEmail(body?.email);
+      const reset = passwordResets.get(email);
+      if (!reset || !/^\d{6}$/.test(otp)) fail(400, 'That code is invalid or expired. Request a new code and try again.');
+      if (reset.expires <= now() || reset.attempts >= 5) {
+        passwordResets.delete(email);
+        fail(400, 'That code is invalid or expired. Request a new code and try again.');
+      }
+      reset.attempts++;
+      const submitted = crypto.createHash('sha256').update(`${reset.salt}:${otp}`).digest();
+      const expected = Buffer.from(reset.hash, 'hex');
+      if (!crypto.timingSafeEqual(submitted, expected)) {
+        if (reset.attempts >= 5) passwordResets.delete(email);
+        fail(400, 'That code is invalid or expired. Request a new code and try again.');
+      }
+      target = db.users.find((u) => u.email === email);
+      passwordResets.delete(email);
+    }
+    if (!target) fail(400, 'That code is invalid or expired. Request a new code and try again.');
 
     target.passwordHash = P.hashPassword(newPassword);
-    // Changing a password ends every other session for that account.
     for (const [t, s] of tokens) if (s.userId === target.id) tokens.delete(t);
     save();
     return startSession(target);
@@ -679,16 +797,34 @@ attemptId: attempt.id,
   });
 
   // ---------------- class management (Task 1B) ----------------
-  // Join codes are unpredictable and stored hashed, so the database never
-  // holds a usable code and probing cannot enumerate valid ones.
+  // A join code is a credential, so two things have to hold.
+  //
+  // One: the readable code is never kept. The record holds only a SHA-256
+  // hash of it, the readable code goes back to the teacher once, when it is
+  // generated, and it is not kept anywhere else - not in the database, and
+  // not in the record's id either, which is an identifier and not a
+  // credential.
+  //
+  // Two: a hash is not a secret if the code can be guessed. A SHA-256 over a
+  // short code can be searched backwards - the whole 5-character space was
+  // recovered from a hash in about 100 seconds on one core - so the code
+  // itself is long enough that searching it is not worth doing, and it is
+  // drawn with a CSPRNG rather than Math.random, which is not random
+  // enough to be a credential. 32^12 is about 1.15e18 codes.
+  const JOIN_CODE_LENGTH = 12;
+  const JOIN_CODE_CHARS = '23456789ABCDEFGHJKLMNPQRSTUVWXYZ'; // no 0/O/1/I
   const hashJoinCode = (rawCode) =>
     crypto.createHash('sha256').update(String(rawCode).trim().toUpperCase()).digest('hex');
 
-  function generateJoinCode() {
-    const chars = '23456789ABCDEFGHJKLMNPQRSTUVWXYZ'; // no 0/O/1/I
-    let code = 'QQ-';
-    for (let i = 0; i < 5; i++) code += chars.charAt(Math.floor(Math.random() * chars.length));
-    return code;
+  function generateJoinCode(isTaken) {
+    for (let attempt = 0; attempt < 100; attempt += 1) {
+      let code = 'QQ-';
+      for (let i = 0; i < JOIN_CODE_LENGTH; i += 1) code += JOIN_CODE_CHARS.charAt(crypto.randomInt(JOIN_CODE_CHARS.length));
+      // Two live codes with the same hash would make one of them
+      // unrevocable, so never hand out the same code twice.
+      if (!isTaken || !isTaken(code)) return code;
+    }
+    fail(500, 'Could not generate a join code. Please try again.');
   }
 
   route('GET', '/api/classes', 'any', ({ user }) => {
@@ -814,16 +950,23 @@ attemptId: attempt.id,
 
   route('POST', '/api/classes/:classId/join-codes', 'teacher', ({ user, params, body }) => {
     const cls = teacherClass(user, params.classId);
-    const rawCode = generateJoinCode();
-    const codeHash = hashJoinCode(rawCode);
     const expiresInDays = Number(body?.expiresInDays);
     const expiresAt = Number.isInteger(expiresInDays) && expiresInDays > 0 ? now() + expiresInDays * 86400000 : null;
     const usageLimit = Number.isInteger(body?.usageLimit) && body.usageLimit > 0 ? body.usageLimit : null;
     db.classJoinCodes = db.classJoinCodes || [];
+    const rawCode = generateJoinCode((candidate) =>
+      db.classJoinCodes.some((c) => c.codeHash === hashJoinCode(candidate)),
+    );
+    const codeHash = hashJoinCode(rawCode);
     const rec = {
       id: crypto.randomUUID(),
       classId: cls.id,
-      code: rawCode,
+      // Only the hash of the code is kept. The readable code goes back to
+      // the teacher in the response below, once, and is never written to
+      // the database. The code is long enough (32^12) and drawn with a
+      // CSPRNG, so searching the space of hashes is not worth doing
+      // either - a database file or a database dump holds no code that
+      // anybody could redeem.
       codeHash,
       expiresAt,
       usageLimit,
@@ -840,11 +983,12 @@ attemptId: attempt.id,
   route('GET', '/api/classes/:classId/join-codes', 'teacher', ({ user, params }) => {
     const cls = teacherClass(user, params.classId);
     db.classJoinCodes = db.classJoinCodes || [];
+    // No code comes back: the teacher saw it once, when it was generated.
+    // The id is here so each row can be told apart and revoked.
     return db.classJoinCodes
       .filter((c) => c.classId === cls.id)
       .map((c) => ({
         id: c.id,
-        code: c.code || null,
         expiresAt: c.expiresAt,
         usageLimit: c.usageLimit,
         usageCount: c.usageCount,
@@ -865,7 +1009,10 @@ attemptId: attempt.id,
 
   // Redemption is checked and applied in one pass: an unknown, revoked,
   // expired or exhausted code never creates an enrolment.
-  // Supports QQ-XXXXX, prefix-less XXXXX, and fallback by code ID.
+  // Supports the code with or without its QQ- prefix. The code's own id is
+  // NOT a way in: the id is stored in the clear as the row's primary key,
+  // so accepting it would hand anybody who reads the database a working
+  // enrolment code - which is exactly what storing only the hash is for.
   route('POST', '/api/classes/join', 'student', ({ user, body }) => {
     const raw = (body?.code || '').trim();
     if (!raw) fail(400, 'Please enter a join code.');
@@ -878,18 +1025,7 @@ attemptId: attempt.id,
 
     const codeRecord = db.classJoinCodes.find((c) => {
       if (c.revoked) return false;
-      if (c.codeHash === rawHashed || c.codeHash === prefixedHashed) return true;
-      if (c.code && (c.code.toUpperCase() === norm || c.code.toUpperCase() === withPrefix)) return true;
-      if (c.id) {
-        const idUpper = c.id.toUpperCase();
-        if (
-          idUpper === norm ||
-          idUpper === `CODE-${norm.replace(/^CODE-?/i, '')}` ||
-          idUpper.replace(/^CODE-?/i, '') === norm.replace(/^CODE-?/i, '')
-        )
-          return true;
-      }
-      return false;
+      return c.codeHash === rawHashed || c.codeHash === prefixedHashed;
     });
 
     if (!codeRecord) fail(404, 'Invalid or revoked join code.');

@@ -218,6 +218,10 @@ export async function signUp(details) {
   startSession(await api('POST', '/api/register', details));
 }
 
+export async function resetPassword(details) {
+  startSession(await api('POST', '/api/auth/reset-password', details));
+}
+
 function startSession(r) {
   S.token = r.token;
   try {

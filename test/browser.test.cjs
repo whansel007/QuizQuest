@@ -27,11 +27,14 @@ async function pageFor(t, name, viewport = { width: 1280, height: 900 }, options
   await page.getByRole('button', { name, exact: false }).click();
   await page.getByRole('button', { name: 'Log out', exact: true }).waitFor();
   if (name.startsWith('Prof.')) await page.locator('#tabs').getByRole('button', { name: 'Question bank', exact: true }).click();
-  else await openStudentTab(page, 'Practice'); // students land in their Kingdom
+  else await openStudentTab(page, 'Quiz'); // students land in their Kingdom
   return page;
 }
 // The Kingdom is immersive, so the student menu is tucked away: focusing a
 // tab brings it down (as it does for keyboard users), then it can be clicked.
+// The names are the ones the app shows (web/src/App.vue): Kingdom, Quiz, My
+// Progress, Campfire Run, Summon. Renaming a tab in the app means renaming it
+// here too, or every student test times out waiting for a tab that is gone.
 async function openStudentTab(page, name) {
   const tab = page.locator('#tabs').getByRole('button', { name, exact: true });
   await tab.focus();
@@ -48,6 +51,18 @@ async function waitForAnswerControl(page) {
     if (!card) return false;
     return !!card.querySelector('.options button, [aria-label="Numeric answer"], [aria-label="Written answer"]');
   });
+}
+// The class picker is a <select>, so the class name lives in an <option> - and
+// Playwright never treats an <option> as visible, because a closed <select>
+// gives it no box on screen. What is on screen is the picker itself and the
+// entry it is showing, so that is what is checked: the picker offers the
+// class, and it is the class on show.
+async function expectClassShowing(page, cls) {
+  const picker = page.getByLabel('Class', { exact: true });
+  await picker.waitFor();
+  const offered = (await picker.locator('option').allTextContents()).map((text) => text.trim());
+  assert.deepEqual(offered, [cls.name], 'the picker offers exactly the class the student joined');
+  assert.equal(await picker.inputValue(), cls.id, 'the picker is showing the class the student joined');
 }
 
 test('student reports survive a failed submission and show a professor response in My Progress', async (t) => {
@@ -249,7 +264,7 @@ test('the Konami debug menu exposes test accounts and fills the sign-in form', a
   await password.press('Enter');
   // students land in their Kingdom; signed in once the menu offers Log out
   await page.getByRole('button', { name: 'Log out', exact: true }).waitFor();
-  await openStudentTab(page, 'Practice');
+  await openStudentTab(page, 'Quiz');
   await page.getByRole('region', { name: 'Practice setup', exact: true }).waitFor();
 });
 test('an unavailable API shows a useful error and the debug account list can be retried', async (t) => {
@@ -289,7 +304,7 @@ test('hero lab picks a hero and hands off to the arena', async (t) => {
   await page.waitForURL(/\/hero-lab\/world\?heroId=sheriff/);
   const canvas = page.locator('canvas#world');
   await canvas.waitFor();
-  assert.equal(await canvas.getAttribute('aria-label'), 'Hero Lab World game arena');
+  assert.equal(await canvas.getAttribute('aria-label'), 'Campfire Run game arena');
   // the arena picks up the hero it was handed, rather than booting blind
   await page.waitForFunction(() => document.querySelector('#hero-name')?.textContent?.includes('Sheriff'));
   assert.deepEqual(errors, [], 'the arena starts without errors');
@@ -380,7 +395,7 @@ test('refreshing a timed quiz offers resume without resetting the server deadlin
   const s = srv.quiz.db.sessions.find((s) => s.id === sid);
   const served = s.items[0].servedAt;
   await page.reload();
-  await openStudentTab(page, 'Practice'); // students land in their Kingdom
+  await openStudentTab(page, 'Quiz'); // students land in their Kingdom
   await page.getByRole('button', { name: 'Resume practice' }).click();
   await page.locator('.quiz-head').waitFor();
   assert.equal(s.items[0].servedAt, served);
@@ -392,9 +407,9 @@ test('student and teacher screens fit 320px and 390px viewports', async (t) => {
     await page.setViewportSize({ width, height: 800 });
     // each tab, and what shows its page has opened
     const pages = {
-      Practice: () => page.getByRole('region', { name: 'Practice setup', exact: true }),
+      Quiz: () => page.getByRole('region', { name: 'Practice setup', exact: true }),
       'My Progress': () => page.getByRole('heading', { name: 'My Progress', exact: true }),
-      World: () => page.getByRole('heading', { name: 'The Clearing', exact: true }),
+      'Campfire Run': () => page.getByRole('heading', { name: 'Campfire Run', exact: true }),
       Kingdom: () => page.getByRole('heading', { name: /^Your Kingdom/ }),
       Summon: () => page.getByRole('heading', { name: 'Summon', exact: true }),
     };
@@ -607,7 +622,7 @@ test('the material library lists the files of a topic, not only its notes', asyn
     srv.quiz.services.save();
   });
   await page.locator('#tabs').getByRole('button', { name: 'AI drafting' }).click();
-  await page.getByLabel('Weekly topic').selectOption('tp-net');
+  await page.getByLabel('Weekly topic', { exact: true }).selectOption('tp-net');
   await page.getByText('Material library · Notes, images & older files', { exact: true }).click();
   // The topic counts the file it uses and lists it.
   const heading = page.getByRole('heading', { name: /Week 2 · Networking basics/ });
@@ -979,7 +994,7 @@ test('weekly topics: narrow the dashboard, follow a next step, and add a topic f
   // a topic narrows every section, and the filter shows it
   await weeks.getByRole('button', { name: 'Show only Networking basics on the dashboard' }).click();
   await page.getByText('Showing Week 2 · Networking basics only', { exact: false }).waitFor();
-  assert.equal(await page.getByLabel('Weekly topic').inputValue(), 'tp-net');
+  assert.equal(await page.getByLabel('Weekly topic', { exact: true }).inputValue(), 'tp-net');
   await page.waitForFunction(() => document.querySelectorAll('#dash-topics tbody tr:not(.subrow)').length === 1);
   assert.deepEqual(await weeks.locator('tbody tr td:first-child').allInnerTexts(), ['2'], 'Weekly topics follows the topic filter');
   assert.equal(await page.getByText(/Weakest topic/).count(), 0, 'no "weakest topic" when only one topic is shown');
@@ -998,7 +1013,7 @@ test('weekly topics: narrow the dashboard, follow a next step, and add a topic f
   // Source material's topic table follows its topic filter too
   await page.locator('#tabs').getByRole('button', { name: 'AI drafting', exact: true }).click();
   await page.getByRole('heading',{name:'Manage topics & learning outcomes',exact:true}).waitFor(); // always open
-  await page.getByLabel('Weekly topic').selectOption('tp-sec');
+  await page.getByLabel('Weekly topic', { exact: true }).selectOption('tp-sec');
   await page.getByRole('heading', { name: 'Upload Materials' }).waitFor();
   // The upload panel says what uploading a file actually does, so it cannot
   // be mistaken for the browser-side file inputs in the material library.
@@ -1019,7 +1034,7 @@ test('weekly topics: narrow the dashboard, follow a next step, and add a topic f
   await page.getByRole('button', { name: 'Add topic', exact: true }).click();
   await page.getByText('Added Week 4 · Operating systems', {exact:true}).waitFor();
   await page.getByRole('heading', { name: 'Upload Materials' }).waitFor();
-  assert.equal(await page.getByLabel('Weekly topic').inputValue(), srv.quiz.db.topics.find((x) => x.name === 'Operating systems').id);
+  assert.equal(await page.getByLabel('Weekly topic', { exact: true }).inputValue(), srv.quiz.db.topics.find((x) => x.name === 'Operating systems').id);
   assert.equal(srv.quiz.db.topics.find((x) => x.name === 'Operating systems').week, 4);
   // the new topic was never used, so it can be deleted again (keeps later tests unchanged)
   await page.getByRole('heading',{name:'Manage topics & learning outcomes',exact:true}).waitFor(); // always open
@@ -1041,7 +1056,7 @@ test('a student with no classes joins one with the code their professor generate
   const auth = { 'content-type': 'application/json', authorization: `Bearer ${teacher.token}` };
   const [cls] = await fetch(`${base}/api/classes`, { headers: auth }).then((r) => r.json());
   const { code } = await fetch(`${base}/api/classes/${cls.id}/join-codes`, { method: 'POST', headers: auth, body: '{}' }).then((r) => r.json());
-  assert.match(code, /^QQ-[2-9A-HJ-NP-Z]{5}$/, 'the generated code has the shape the student form advertises');
+  assert.match(code, /^QQ-[2-9A-HJ-NP-Z]{12}$/, 'the generated code has the shape the student form advertises');
 
   // A brand-new account, enrolled in nothing at all.
   const email = `joiner.${Date.now()}@example.com`;
@@ -1060,8 +1075,8 @@ test('a student with no classes joins one with the code their professor generate
   await page.getByLabel('Email', { exact: true }).press('Enter');
   await page.getByLabel('Password', { exact: true }).fill('longenough');
   await page.getByRole('button', { name: 'Sign in' }).click();
-  await page.locator('#tabs').getByRole('button', { name: 'Practice', exact: true }).waitFor();
-  await openStudentTab(page, 'Practice');
+  await page.locator('#tabs').getByRole('button', { name: 'Quiz', exact: true }).waitFor();
+  await openStudentTab(page, 'Quiz');
 
   // With no classes the picker still offers the way in.
   await page.getByText('No class enrolled').waitFor();
@@ -1071,10 +1086,10 @@ test('a student with no classes joins one with the code their professor generate
   await page.getByText(`Successfully enrolled in ${cls.name}!`).waitFor();
 
   // The class is theirs now, on every view that offers the picker.
-  await page.getByText(cls.name, { exact: false }).first().waitFor();
+  await expectClassShowing(page, cls);
   await page.locator('#tabs').getByRole('button', { name: 'My Progress', exact: true }).click();
   await page.getByRole('heading', { name: 'My Progress', exact: true }).waitFor();
-  await page.getByText(cls.name, { exact: false }).first().waitFor();
+  await expectClassShowing(page, cls);
 
   // The same code cannot be spent twice by the same student.
   await page.getByRole('button', { name: '+ Join Class' }).click();

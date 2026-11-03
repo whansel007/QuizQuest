@@ -25,7 +25,11 @@ const rosterLoading = ref(false);
 // Join codes state
 const joinCodes = ref([]);
 const codesLoading = ref(false);
+// The code itself is shown once, when it is generated: the server keeps
+// only a hash of it, so it cannot be shown again later. Its id is kept
+// here too, so the banner can be matched to its row when it is revoked.
 const newlyGeneratedCode = ref(null);
+const newlyGeneratedCodeId = ref(null);
 
 // Create Class Modal
 const showCreateModal = ref(false);
@@ -174,6 +178,7 @@ const handleGenerateCode = action(async () => {
   });
 
   newlyGeneratedCode.value = res.code;
+  newlyGeneratedCodeId.value = res.id;
   showGenerateCodeModal.value = false;
   toast(`New join code generated: ${res.code}`);
   await loadClassDetails(selectedClass.value);
@@ -189,7 +194,12 @@ const handleRevokeCode = (code) => action(async () => {
   // longer works. The banner goes when the code it names is the one that
   // dies; a code revoked from the list that is not the banner's leaves the
   // banner alone, because that one is still good.
-  if (newlyGeneratedCode.value === code.code) newlyGeneratedCode.value = null;
+  // The banner is matched by the code's id, not by the code itself: the
+  // server keeps only a hash of the code, so the list never carries it.
+  if (newlyGeneratedCodeId.value === code.id) {
+    newlyGeneratedCode.value = null;
+    newlyGeneratedCodeId.value = null;
+  }
   toast('Join code revoked.');
   await loadClassDetails(selectedClass.value);
   await loadData();
@@ -327,9 +337,13 @@ function copyToClipboard(text) {
         <div class="row" style="justify-content: space-between; align-items: center;">
           <div>
             <b style="color: var(--good);">New Join Code Generated:</b>
-            <span class="code-badge-large">{{ newlyGeneratedCode }}</span>
+            <span class="code-badge-large" :data-code-id="newlyGeneratedCodeId">{{ newlyGeneratedCode }}</span>
+            <span class="small muted" style="margin-left: 8px;">id {{ newlyGeneratedCodeId ? newlyGeneratedCodeId.slice(0, 8) : '' }}</span>
             <p class="small muted" style="margin: 4px 0 0;">
               Share this code with your students. They can redeem it on their student practice dashboard to enroll!
+              <br />
+              <b>Copy it now — it is shown only once.</b> The server keeps a hash of the code, not the code
+              itself, so it cannot be shown again. If you lose it, generate another one.
             </p>
           </div>
           <button class="btn good" @click="copyToClipboard(newlyGeneratedCode)">
@@ -430,7 +444,7 @@ function copyToClipboard(text) {
         <div class="row" style="justify-content: space-between; align-items: center; margin-bottom: 14px;">
           <div>
             <h3 style="margin-bottom: 2px;">Enrolment Join Codes</h3>
-            <p class="muted small">Students enter these unpredictable codes to self-enroll in this class.</p>
+            <p class="muted small">Students enter these codes to self-enroll in this class.</p>
           </div>
           <button class="btn primary small" @click="showGenerateCodeModal = true">
             + Generate Join Code
@@ -456,19 +470,11 @@ function copyToClipboard(text) {
               </tr>
             </thead>
             <tbody>
-              <tr v-for="c in joinCodes" :key="c.id">
+              <tr v-for="c in joinCodes" :key="c.id" :data-code-id="c.id">
                 <td>
                   <div style="display: flex; align-items: center; gap: 8px;">
-                    <code class="code-badge-table">{{ c.code || c.id }}</code>
-                    <button
-                      v-if="c.code && !c.revoked && !c.isExpired"
-                      type="button"
-                      class="btn small"
-                      style="padding: 2px 8px; font-size: 11px;"
-                      @click="copyToClipboard(c.code)"
-                    >
-                      Copy
-                    </button>
+                    <code class="code-badge-table">QQ-••••••••••••</code>
+                    <span class="small muted" :title="`Code id ${c.id}`">{{ c.id.slice(0, 8) }}</span>
                   </div>
                 </td>
                 <td>{{ c.usageCount }} / {{ c.usageLimit ? c.usageLimit : '∞' }}</td>
@@ -491,6 +497,11 @@ function copyToClipboard(text) {
               </tr>
             </tbody>
           </table>
+          <p class="small muted" style="margin: 10px 0 0;">
+            A code is shown once, on the banner above, when it is generated. The server keeps only a hash of it,
+            so it cannot be shown again — the id beside each row is what identifies a code, and what the
+            Revoke button uses. The banner shows the id too, so a code and its row can be matched up.
+          </p>
         </div>
       </div>
     </template>

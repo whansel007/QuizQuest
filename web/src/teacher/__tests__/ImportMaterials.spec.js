@@ -41,13 +41,42 @@ beforeEach(() => {
 afterEach(() => wrapper?.unmount());
 
 describe('lecture upload state and disclosure', () => {
-  it('shows a compact empty state, deduplicates selections and moves saved files to the top', async () => {
+  it('reads dropped files through the chooser flow and deduplicates across both methods', async () => {
+    await open();
+    const zone = wrapper.get('.upload-dropzone');
+    const dataTransfer = { types: ['Files'], files: [new File(['Lecture text'], 'new.txt')] };
+    await zone.trigger('dragenter', { dataTransfer });
+    expect(zone.classes()).toContain('drag-over');
+    await zone.trigger('drop', { dataTransfer });
+    await vi.waitFor(() => expect(button('Choose files').attributes('disabled')).toBeUndefined());
+    expect(zone.classes()).not.toContain('drag-over');
+    expect(extractFile).toHaveBeenCalledTimes(1);
+    await choose();
+    expect(wrapper.findAll('.upload-materials article')).toHaveLength(1);
+    await upload();
+    expect(server).toHaveLength(1);
+  });
+  it('rejects oversized batches and ignores drops while locked', async () => {
+    await open();
+    const zone = wrapper.get('.upload-dropzone');
+    await zone.trigger('drop', { dataTransfer: { files: Array.from({ length: 21 }, () => new File(['text'], 'notes.txt')) } });
+    await flushPromises();
+    expect(wrapper.text()).toContain('Choose up to 20 files at once.');
+    expect(extractFile).not.toHaveBeenCalled();
+    await wrapper.setProps({ disabled: true });
+    await zone.trigger('dragenter', { dataTransfer: { types: ['Files'] } });
+    await zone.trigger('drop', { dataTransfer: { files: [new File(['text'], 'notes.txt')] } });
+    expect(zone.classes()).not.toContain('drag-over');
+    expect(extractFile).not.toHaveBeenCalled();
+  });
+  it('shows a compact empty state, deduplicates selections and keeps saved files below uploading', async () => {
     await open(); expect(wrapper.find('.saved-materials').exists()).toBe(false);
     await choose(); await choose(); expect(wrapper.findAll('.upload-materials article')).toHaveLength(1);
     await upload(); expect(wrapper.findAll('.saved-materials article')).toHaveLength(1);
     expect(wrapper.findAll('.upload-materials article')).toHaveLength(0);
     expect(wrapper.get('.saved-toggle').attributes('aria-expanded')).toBe('true');
     expect(server).toHaveLength(1);
+    expect(wrapper.findAll('section').map(section => section.attributes('aria-label'))).toEqual(['Upload materials', 'Successfully uploaded files']);
   });
   it('keeps extraction/AI warnings on saved files and visible in the collapsed header', async () => {
     server = [stored()]; recovery = [stored('lecture.txt', { fileNote: 'AI description stopped early. Diagrams were not read.' })];
