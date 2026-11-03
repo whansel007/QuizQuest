@@ -532,11 +532,21 @@ test('respawn selects a separated point on the campfire ring', async (t) => {
     const candidate = state.players.find((entry) => entry.id === firstId);
     return candidate && !candidate.downed;
   });
-  const revived = respawn.players.find((candidate) => candidate.id === firstId);
-  const teammate = respawn.players.find((candidate) => candidate.id === secondId);
+  // The state broadcast rounds every coordinate to a whole pixel, so a
+  // distance measured from it can read a pixel below what the server
+  // guaranteed - which is how this test failed on CI. Measure the ring and
+  // the separation where the game actually keeps them, on the room's own
+  // values, and check separately that the client is shown the same spot.
+  const revived = server.heroLab.players.get(firstId);
+  const teammate = server.heroLab.players.get(secondId);
   const radius = Math.hypot(revived.x - respawn.campfire.x, revived.y - respawn.campfire.y);
-  assert.ok(radius >= RESPAWN_RING_MIN && radius <= RESPAWN_RING_MAX);
-  assert.ok(Math.hypot(revived.x - teammate.x, revived.y - teammate.y) >= RESPAWN_MIN_SEPARATION);
+  assert.ok(radius >= RESPAWN_RING_MIN && radius <= RESPAWN_RING_MAX,
+    `the hero respawned ${radius.toFixed(1)}px from the fire, outside the ${RESPAWN_RING_MIN}-${RESPAWN_RING_MAX}px ring`);
+  assert.ok(Math.hypot(revived.x - teammate.x, revived.y - teammate.y) >= RESPAWN_MIN_SEPARATION,
+    'the hero respawned on top of the teammate');
+  const shown = respawn.players.find((candidate) => candidate.id === firstId);
+  assert.ok(Math.hypot(shown.x - revived.x, shown.y - revived.y) <= 1,
+    'the broadcast shows the spot the hero actually respawned at');
 });
 
 test('Electromancer Chain Lightning refunds stunned hits and enforces the five-second lockout', async (t) => {

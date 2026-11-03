@@ -235,7 +235,9 @@ test('the sign-up form does not steal the focus from the field being typed in', 
   // Slow the slide right down, so the focus lands while the card is still
   // moving in and the app still has its eye on the name field.
   await page.addStyleTag({ content: '.qq-step-enter-active { transition-duration: 2s !important; }' });
-  await page.getByRole('button', { name: 'Create a student account' }).click();
+  // The link reads "Create an account" - the sign-up form now takes a role,
+  // so it is not the student's account alone.
+  await page.getByRole('button', { name: 'Create an account' }).click();
   const name = page.locator('#signup-name');
   const password = page.locator('#signup-password');
   await name.waitFor({ state: 'attached' });
