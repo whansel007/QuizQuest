@@ -27,7 +27,7 @@ test('should create a student account and sign the student in', async ({ page })
   await expect(page.getByRole('button', { name: 'Join a class in Practice', exact: true })).toBeVisible();
   // students land in their Kingdom, so open the practice tab, which says how
   // to join a class
-  await openTab(page, 'Practice');
+  await openTab(page, 'Quiz');
   await expect(page.getByRole('heading', { name: 'Join a class to begin', exact: true })).toBeVisible();
 });
 

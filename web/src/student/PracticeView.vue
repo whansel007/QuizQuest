@@ -3,7 +3,7 @@
 // STUDENT: practice home (start/resume a session, progress); the
 // session itself runs in QuizRunner.vue.
 // ============================================================
-import { ref, computed, nextTick, onMounted, onUnmounted } from 'vue';
+import { ref, computed, watch, nextTick, onMounted, onUnmounted } from 'vue';
 import { S, api, setTab } from '../api.js';
 import { action } from '../ui.js';
 import Field from '../components/Field.vue';
@@ -28,6 +28,36 @@ const home = computed(() => store.home);
 const cls = computed(() => home.value.classes.find((c) => c.id === S.classId));
 const resumable = computed(() => home.value.resumable?.find((s) => s.classId === S.classId));
 const avatarVisual = computed(() => S.me?.avatarVisual || { color: S.me?.avatarColor || TOWN_AVATAR_DEFAULT_COLOR, hat: null, accessory: null });
+
+// Topic picker. Only topics with published questions can be chosen. The
+// browser remembers the topics left OUT per class, so a topic the
+// professor adds later starts included.
+const topics = computed(() => cls.value?.topics || []);
+const pickable = computed(() => topics.value.filter((t) => t.questions > 0));
+const excluded = ref(new Set());
+const excludedKey = () => `qq-practice-excluded:${S.me?.id}:${S.classId}`;
+function loadExcluded() {
+  let saved = [];
+  try { saved = JSON.parse(localStorage.getItem(excludedKey()) || '[]'); } catch { /* storage blocked or bad value: start with everything */ }
+  excluded.value = new Set(Array.isArray(saved) ? saved : []);
+}
+function saveExcluded() {
+  try { localStorage.setItem(excludedKey(), JSON.stringify([...excluded.value])); } catch { /* fine: the choice just isn't remembered */ }
+}
+const chosen = computed(() => pickable.value.filter((t) => !excluded.value.has(t.id)));
+const allChosen = computed(() => chosen.value.length === pickable.value.length);
+function toggleTopic(id) {
+  const next = new Set(excluded.value);
+  if (next.has(id)) next.delete(id); else next.add(id);
+  excluded.value = next;
+  saveExcluded();
+}
+function chooseAll(on) {
+  excluded.value = new Set(on ? [] : pickable.value.map((t) => t.id));
+  saveExcluded();
+}
+const topicLabel = (t) => (t.week ? `Week ${t.week} · ${t.name}` : t.name);
+watch(() => S.classId, loadExcluded, { immediate: true });
 
 onMounted(async () => {
   try {
@@ -74,7 +104,12 @@ async function enterBattle(load) {
 }
 const onResume = action(() => enterBattle(() => loadSession(resumable.value.id)));
 const onStart = action(() => enterBattle(async () => {
-  const r = await api('POST', '/api/student/sessions', { classId: S.classId, length: Number(length.value), timerSec: Number(timer.value), accommodation: Number(acc.value) });
+  if (!chosen.value.length) throw new Error('Choose at least one topic to practise.');
+  const r = await api('POST', '/api/student/sessions', {
+    classId: S.classId, length: Number(length.value), timerSec: Number(timer.value), accommodation: Number(acc.value),
+    // all topics: let the server cover the whole course, including topics that gain questions later
+    ...(allChosen.value ? {} : { topicIds: chosen.value.map((t) => t.id) }),
+  });
   return loadSession(r.id);
 }));
 </script>
@@ -134,6 +169,26 @@ const onStart = action(() => enterBattle(async () => {
                 </select>
               </Field>
             </div>
+            <fieldset v-if="topics.length" class="practice-topics">
+              <legend class="practice-kicker">TOPICS TO PRACTISE</legend>
+              <div class="practice-topics-head">
+                <span class="practice-topics-count" aria-live="polite">{{ chosen.length }} of {{ pickable.length }} chosen</span>
+                <p v-if="!chosen.length" class="practice-topics-hint" role="status">Choose at least one topic to start practising.</p>
+                <div class="practice-topics-actions">
+                  <button class="btn small" type="button" :disabled="allChosen" @click="chooseAll(true)">Select all</button>
+                  <button class="btn small" type="button" :disabled="!chosen.length" @click="chooseAll(false)">Select none</button>
+                </div>
+              </div>
+              <ul class="practice-topic-list">
+                <li v-for="t in topics" :key="t.id">
+                  <label class="practice-topic" :class="{ on: t.questions && !excluded.has(t.id), empty: !t.questions }">
+                    <input type="checkbox" :checked="t.questions > 0 && !excluded.has(t.id)" :disabled="!t.questions" @change="toggleTopic(t.id)" />
+                    <span class="practice-topic-name" :title="topicLabel(t)">{{ topicLabel(t) }}</span>
+                    <span class="practice-topic-meta">{{ t.questions ? `${t.questions} question${t.questions === 1 ? '' : 's'}` : 'No questions yet' }}</span>
+                  </label>
+                </li>
+              </ul>
+            </fieldset>
           </section>
           <section v-if="resumable" class="panel practice-resume-card">
             <div>
@@ -144,7 +199,7 @@ const onStart = action(() => enterBattle(async () => {
           </section>
         </div>
         <footer class="practice-actions">
-          <button class="btn primary" @click="onStart">Start practice</button>
+          <button class="btn primary" :disabled="topics.length > 0 && !chosen.length" @click="onStart">Start practice</button>
           <button class="btn" @click="setTab('progress')">View my progress</button>
         </footer>
       </template>
@@ -197,4 +252,45 @@ const onStart = action(() => enterBattle(async () => {
 @keyframes wipe-fade-out { from { opacity: 1; } to { opacity: 0; } }
 /* back to the Kingdom: tucked at the end of the coins/resources row */
 .practice-return { margin-left: auto; white-space: nowrap; }
+
+/* Topic picker: paper slips on a dashed rule, in the page's forest-parchment palette */
+.practice-topics { min-width: 0; margin: 0; padding: 16px 0 0; border: 0; border-top: 2px dashed rgb(83 106 83 / 38%); }
+.practice-topics legend { float: left; width: 100%; margin: 0 0 8px; padding: 0; }
+.practice-topics-head { clear: both; display: flex; align-items: center; flex-wrap: wrap; gap: 8px 12px; margin-bottom: 10px; }
+.practice-topics-count { color: #536A53; font-size: 14px; font-weight: 700; }
+.practice-topics-actions { display: flex; gap: 8px; margin-left: auto; }
+.practice-topic-list { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; margin: 0; padding: 0 0 4px; list-style: none; }
+.practice-topic {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: center;
+  column-gap: 10px;
+  min-height: 52px;
+  margin: 0;
+  padding: 8px 11px;
+  color: #20382C;
+  background: #DCE5D1;
+  border: 2px solid #82936A;
+  border-radius: 10px 8px 11px 9px;
+  box-shadow: 0 3px 0 #536A4E;
+  font-size: 14px;
+  cursor: pointer;
+  transition: transform .12s ease, box-shadow .12s ease, background-color .12s ease;
+}
+.practice-topic:hover { background: #EAF0DE; transform: translateY(-1px); box-shadow: 0 4px 0 #536A4E; }
+.practice-topic.on { background: #F0E2AC; border-color: #B5944A; box-shadow: 0 3px 0 #785D2B; }
+.practice-topic.empty { color: #77816C; background: #D2D8C2; border-style: dashed; border-color: #A1AA8C; box-shadow: none; cursor: not-allowed; transform: none; }
+.practice-topic input { grid-row: span 2; width: 20px; height: 20px; margin: 0; accent-color: #3E6B4A; cursor: inherit; }
+.practice-topic input:focus-visible { outline: 3px solid #D5B96C; outline-offset: 2px; }
+.practice-topic-name { overflow: hidden; font-weight: 700; line-height: 1.25; text-overflow: ellipsis; white-space: nowrap; }
+.practice-topic-meta { color: #536A53; font-size: 12px; font-weight: 600; }
+.practice-topic.empty .practice-topic-meta { color: #77816C; }
+.practice-topics-hint { margin: 0; color: #713C36 !important; font-size: 14px; font-weight: 700; }
+@media (max-width: 760px) {
+  .practice-topic-list { grid-template-columns: minmax(0, 1fr); }
+  .practice-topics-actions { margin-left: 0; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .practice-topic, .practice-topic:hover { transition: none; transform: none; }
+}
 </style>

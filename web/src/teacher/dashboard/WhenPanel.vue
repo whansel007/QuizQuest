@@ -67,9 +67,12 @@ function onKey(e) {
         </template>
       </div>
       <div class="heat-foot">
-        <span class="small muted no-print" aria-live="polite">
-          <template v-if="active">{{ describe(active.d, active.b) }}</template>
-          <template v-else><span class="hint-hover">Hover a cell, or tab here and use the arrow keys, for its count.</span><span class="hint-touch">Tap a cell for its count.</span></template>
+        <!-- the hint and a cell's count sit in the same spot, and the hint only
+             turns invisible, so the line keeps its height and the page doesn't
+             jump while the mouse moves over the grid -->
+        <span class="heat-readout small muted no-print">
+          <span class="heat-readout-hint" :class="{ off: active }"><span class="hint-hover">Hover a cell, or tab here and use the arrow keys, for its count.</span><span class="hint-touch">Tap a cell for its count.</span></span>
+          <span class="heat-readout-value" aria-live="polite">{{ active ? describe(active.d, active.b) : '' }}</span>
         </span>
         <span class="heat-scale small muted">0 <span class="ramp"></span> {{ max }}</span>
       </div>

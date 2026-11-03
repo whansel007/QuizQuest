@@ -1,5 +1,5 @@
 <script setup>
-// Student-facing entry point for the campfire defense game.
+// Student-facing entry point for Campfire Run.
 // The signed-in user's kingdom upgrades are applied by the authoritative game server.
 //
 // Layout: the pre-lobby World page is a forest clearing with camp controls,
@@ -41,6 +41,7 @@ const previewHero = ref(null);
 const rosterError = ref('');
 const loadingRoster = ref(true);
 const heroes = computed(() => roster.value?.catalog.heroes || []);
+const orderedHeroes = computed(() => [...heroes.value].sort((a, b) => a.name.localeCompare(b.name, undefined, { sensitivity: 'base' })));
 const ownsHero = (id) => roster.value?.inventory.heroes.includes(id) || debugUnlockedHeroes.value.includes(id) || false;
 // Building levels live on their own endpoint (/api/student/kingdom); the home
 // payload does not carry a kingdom block, so reading levels from `roster` left
@@ -205,7 +206,7 @@ onUnmounted(() => window.removeEventListener('message', returnToSelection));
         <section class="panel room-entry" aria-label="Room entry">
           <div class="room-join-block">
             <button class="kingdom-return" type="button" @click="wipeTo('kingdom')"><span aria-hidden="true">←</span> Back to Kingdom</button>
-            <h1 class="room-title">The Clearing</h1>
+            <h1 class="room-title">Campfire Run</h1>
             <p class="room-intro">Choose a hero and defend the campfire. Move with WASD; E is your skill and Q your ultimate.</p>
             <span class="panel-kicker">JOIN A PARTY</span>
             <div class="room-actions">
@@ -309,9 +310,9 @@ onUnmounted(() => window.removeEventListener('message', returnToSelection));
 
         <section class="hero-selector" aria-label="Choose your hero">
           <div class="roster-heading"><strong>Choose an adventurer</strong></div>
-          <div class="hero-roster-grid" :style="{ '--hero-cols': heroes.length }">
+          <div class="hero-roster-grid" :style="{ '--hero-cols': orderedHeroes.length }">
             <button
-              v-for="hero in heroes"
+              v-for="hero in orderedHeroes"
               :key="hero.id"
               class="hero-chip"
               :class="[`rarity-${heroRarity(hero)}`, { selected: selectedHero?.id === hero.id, locked: !ownsHero(hero.id) }]"
@@ -345,7 +346,7 @@ onUnmounted(() => window.removeEventListener('message', returnToSelection));
         ref="gameFrame"
         class="hero-lab-frame"
         :src="gameUrl"
-        title="Campfire Defense"
+        title="Campfire Run"
         allow="gamepad; clipboard-write"
         tabindex="0"
         @load="focusGame"
@@ -518,11 +519,12 @@ onUnmounted(() => window.removeEventListener('message', returnToSelection));
 .hero-stat-grid b { color: var(--camp-pine); font-size: .85rem; line-height: 1; }
 .hero-stat-grid small { color: #75806c; font-size: .5rem; font-weight: 900; }
 .hero-talent-panel { display: grid; align-content: center; gap: 7px; min-width: 0; padding-left: 16px; border-left: 2px solid #716247; }
-.talent-row { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; gap: 12px; align-items: center; }
-.talent-text { display: grid; gap: 1px; min-width: 0; }
+.talent-row { display: grid; grid-template-columns: 56px minmax(0, 1fr) 36px; gap: 12px; align-items: center; }
+.talent-row > .talent-badge-host { display: grid; width: 56px; height: 56px; place-items: center; align-self: center; }
+.talent-text { display: grid; align-content: center; align-self: center; gap: 1px; min-width: 0; }
 .talent-name { color: #304b38; font-size: 1.15rem; line-height: 1.2; }
 .talent-desc { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden; color: #637064; font-size: .86rem; line-height: 1.3; }
-.talent-key { display: grid; place-items: center; min-width: 32px; min-height: 32px; padding: 4px 8px; color: #fff7df; background: #456b53; border: 1px solid #2d4937; border-radius: 7px; font-size: .75rem; font-weight: 900; }
+.talent-key { display: grid; place-items: center; justify-self: end; align-self: center; min-width: 32px; min-height: 32px; padding: 4px 8px; color: #fff7df; background: #456b53; border: 1px solid #2d4937; border-radius: 7px; font-size: .75rem; font-weight: 900; }
 .forest-scene {
   position: relative;
   z-index: 0;

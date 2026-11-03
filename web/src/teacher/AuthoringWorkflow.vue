@@ -304,16 +304,21 @@ function download() {
   <div v-if="report?.reportSourceId" class="panel">
     <h3>Assessment configuration</h3>
     <p>Questions are filed under <b>{{ topicLabel(topic) }}</b>.</p>
-    <label for="assessment-outcome">Learning outcome</label><textarea id="assessment-outcome" v-model="config.learningOutcome" maxlength="2000" rows="3" :disabled="running" placeholder="What should students be able to explain, evaluate or do?" />
+    <div class="assessment-grid">
+    <label for="assessment-outcome">Learning outcome</label><div class="assessment-content"><textarea id="assessment-outcome" v-model="config.learningOutcome" maxlength="2000" rows="2" :disabled="running" placeholder="What should students be able to explain, evaluate or do?" />
     <div v-if="topic.outcomes.length" class="row small outcome-picks"><span class="muted">This topic's outcomes:</span><button v-for="o in topic.outcomes" :key="o.id" type="button" class="btn small" :aria-pressed="config.learningOutcome === o.text ? 'true' : 'false'" :disabled="running" @click="config.learningOutcome = o.text">{{ o.text }}</button></div>
     <p v-if="usingSuggestion" class="small muted">Suggested from the report's learning objectives. Edit as needed; a new outcome is added to this topic.</p>
+    </div>
     <label for="assessment-style">Assessment Style</label><select id="assessment-style" v-model="config.assessmentStyle" :disabled="running"><option value="conceptual">Conceptual</option><option value="application">Application</option><option value="both">Both</option></select>
-    <p>Choose quantities for each question type. Up to 10 questions per assessment; reuse this report for further assessments.</p>
-    <div class="row top"><label v-for="type in types" :key="type">{{ typeLabels[type] }}<input v-model.number="config.quantities[type]" :aria-label="typeLabels[type] + ' quantity'" type="number" min="0" max="10" step="1" :disabled="running" :aria-invalid="badCount(type) || total > 10 ? 'true' : undefined" aria-describedby="quantity-total" style="max-width:100px" /></label></div>
+    <span id="question-quantities-label" class="configuration-label">Question quantities</span><div class="assessment-content" role="group" aria-labelledby="question-quantities-label">
+    <p class="small muted">Choose quantities for each question type. Up to 10 questions per assessment; reuse this report for further assessments.</p>
+    <div class="question-quantities"><label v-for="type in types" :key="type"><span>{{ typeLabels[type] }}</span><input v-model.number="config.quantities[type]" :aria-label="typeLabels[type] + ' quantity'" type="number" min="0" max="10" step="1" :disabled="running" :aria-invalid="badCount(type) || total > 10 ? 'true' : undefined" aria-describedby="quantity-total" /></label></div>
     <p class="small muted">MCQ has one correct option; Multi-select has multiple correct options. Short Answer accepts text or numerical responses.</p>
     <p id="quantity-total" :class="{ 'count-problem': countProblem }">{{ total }} question{{ total === 1 ? '' : 's' }} in total<template v-if="countProblem"> · {{ countProblem }}</template></p>
     <button class="btn primary" :disabled="!!generateBlocked" @click="generate">Generate questions</button>
     <p v-if="generateBlocked" class="small muted" role="status">{{ generateBlocked }}</p>
+    </div>
+    </div>
   </div>
   <div v-for="warning in generation?.result.warnings || []" :key="warning" class="note warn" role="alert">{{ warning }}</div>
   <div v-if="generation?.result.created?.length" class="panel">
@@ -327,6 +332,22 @@ function download() {
 </template>
 
 <style scoped>
+.assessment-grid { display: grid; grid-template-columns: minmax(0, 1fr); gap: 10px; align-items: start; }
+.assessment-grid > label, .configuration-label { margin: 0; padding-top: 0; }
+.configuration-label { font-size: 13px; font-weight: 600; color: var(--muted); }
+.assessment-content { min-width: 0; }
+.assessment-content > :first-child { margin-top: 0; }
+.assessment-content > :last-child { margin-bottom: 0; }
+.assessment-grid textarea, .assessment-grid select { width: 100%; margin: 0; }
+.assessment-grid textarea { min-height: 64px; resize: vertical; }
+.assessment-content > p { margin: 0 0 12px; }
+.assessment-content .outcome-picks { gap: 6px; margin-top: 6px; }
+.question-quantities + p { margin-top: 10px; }
+.question-quantities { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+.question-quantities label { display: flex; flex-direction: column; gap: 6px; margin: 0; min-width: 0; }
+.question-quantities label span { line-height: 1.4; }
+.question-quantities input { width: 100%; height: 40px; margin: 0; }
+@media (min-width: 768px) { .assessment-grid { grid-template-columns: minmax(0, 4fr) minmax(0, 21fr); gap: 16px 20px; } .question-quantities { grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 16px; } }
 .workflow-head { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
 .workflow-head p { margin: 0; }
 .workflow-steps { display: flex; flex-wrap: wrap; gap: 6px; list-style: none; padding: 0; margin: 10px 0 16px; }

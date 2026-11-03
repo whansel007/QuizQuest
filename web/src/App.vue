@@ -9,6 +9,7 @@ import LoginView from './LoginView.vue';
 import ReviewView from './teacher/ReviewView.vue';
 import GenerateView from './teacher/GenerateView.vue';
 import AnalyticsView from './teacher/AnalyticsView.vue';
+import ToReviewView from './teacher/ToReviewView.vue';
 import EvaluationView from './teacher/EvaluationView.vue';
 import SettingsView from './teacher/SettingsView.vue';
 import ClassManagementView from './teacher/ClassManagementView.vue';
@@ -26,8 +27,8 @@ import QuizQuestLogo from './components/QuizQuestLogo.vue';
 import TeacherNavIcon from './teacher/TeacherNavIcon.vue';
 
 const TABS = {
-  teacher: [['analytics', 'Analytics', AnalyticsView], ['classes', 'Classes & Roster', ClassManagementView], ['review', 'Question bank', ReviewView], ['generate', 'AI drafting', GenerateView], ['evaluation', 'Evaluation', EvaluationView], ['settings', 'Settings', SettingsView]],
-  student: [['kingdom', 'Kingdom', KingdomView], ['practice', 'Practice', PracticeView], ['progress', 'My Progress', ProgressView], ['world', 'World', HeroLabView], ['pets', 'Summon', PetsView]],
+  teacher: [['analytics', 'Analytics', AnalyticsView], ['todo', 'To review', ToReviewView], ['classes', 'Classes & Roster', ClassManagementView], ['review', 'Question bank', ReviewView], ['generate', 'AI drafting', GenerateView], ['evaluation', 'Evaluation', EvaluationView], ['settings', 'Settings', SettingsView]],
+  student: [['kingdom', 'Kingdom', KingdomView], ['practice', 'Quiz', PracticeView], ['progress', 'My Progress', ProgressView], ['world', 'Campfire Run', HeroLabView], ['pets', 'Summon', PetsView]],
 };
 
 const ready = ref(false);
@@ -86,8 +87,8 @@ function onTopFocusOut(event) {
   showStudentNav();
 }
 
-// Moving between the Kingdom and its game screens (Practice/Duel, the World's
-// hero selector, Summon) uses the storybook screen wipe; other tabs switch
+// Moving between the Kingdom and its game screens (Quiz/Duel, the Campfire
+// Run hero selector, Summon) uses the storybook screen wipe; other tabs switch
 // at once.
 const WIPE_FROM_KINGDOM = new Set(['practice', 'world', 'pets']);
 function openStudentTab(id) {
@@ -139,7 +140,7 @@ onUnmounted(() => {
 </script>
 
 <template>
-  <!-- signed out: the sign-in page fills the screen, with its own logo and footer -->
+  <!-- signed out: the sign-in page fills the screen, with its own logo -->
   <LoginView v-if="ready && !S.me" :key="'login' + S.viewKey" />
   <!-- teachers: a calm workspace with a collapsible sidebar and full-width pages -->
   <div v-else-if="ready && teacherActive" class="teacher-app" :class="{ 'nav-collapsed': navCollapsed, 'drawer-open': drawerOpen }">
@@ -164,20 +165,18 @@ onUnmounted(() => {
       <nav id="tabs" class="t-nav">
         <button v-for="[id, label] in tabs" :key="id" type="button" :aria-current="current && current[0] === id ? 'page' : null" :title="navCollapsed ? label : null" @click="openTeacherTab(id)">
           <TeacherNavIcon :tab="id" /><span class="t-nav-label">{{ label }}</span>
+          <!-- answers to mark + open reports for the class in view; the page itself says how many -->
+          <span v-if="id === 'todo' && S.reviewCount" class="t-nav-count" aria-hidden="true">{{ S.reviewCount > 99 ? '99+' : S.reviewCount }}</span>
         </button>
       </nav>
       <div id="who" class="t-account d-flex align-items-center">
         <span class="t-avatar" aria-hidden="true">{{ (S.me.name || '?').trim().charAt(0).toUpperCase() }}</span>
         <span class="t-account-name">{{ S.me.name }}</span>
-        <AccountMenu />
+        <AccountMenu icon />
       </div>
     </aside>
     <main id="main" class="main-teacher">
       <component :is="current[2]" :key="current[0] + ':' + S.viewKey + ':' + S.token" />
-      <footer class="t-footer">
-        Demo build with synthetic users and demo course content only. Do not enter real student data.
-        · <a href="/tag">Circle Tag (the original multiplayer experiment)</a>
-      </footer>
     </main>
   </div>
   <template v-else-if="ready">
@@ -224,10 +223,6 @@ onUnmounted(() => {
     @focus="showStudentNav"
     @click="onTopPointerEnter"
   >▾</button>
-  <footer :class="{ 'footer-student': studentActive }">
-    Demo build with synthetic users and demo course content only. Do not enter real student data.
-    · <a href="/tag">Circle Tag (the original multiplayer experiment)</a>
-  </footer>
   </template>
   <ScreenWipe />
   <div id="toast" role="status" aria-live="polite" :class="{ show: toastState.show, bad: toastState.bad }">{{ toastState.msg }}</div>

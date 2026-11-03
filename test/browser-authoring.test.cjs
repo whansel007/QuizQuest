@@ -156,15 +156,18 @@ test('PDF/PPTX upload, saved Markdown editing, preview/download, generation and 
   await disclosure.focus(); await page.keyboard.press('Enter');
   assert.equal(await disclosure.getAttribute('aria-expanded'), 'false');
   await page.keyboard.press('Tab');
-  assert.equal(await page.evaluate(() => document.activeElement.textContent), 'Choose files');
+  assert.equal(await page.evaluate(() => !!document.activeElement.closest('.saved-region')), false);
   await page.keyboard.press('Shift+Tab');
   await page.keyboard.press('Space');
   assert.equal(await disclosure.getAttribute('aria-expanded'), 'true');
-  for (const width of [390, 768, 1280]) {
+  for (const width of [375, 576, 767, 768, 1024, 1440]) {
     await page.setViewportSize({ width, height: 900 });
     await page.emulateMedia({ reducedMotion: 'reduce' });
     assert.ok(await page.locator('.saved-region').evaluate(el => parseFloat(getComputedStyle(el).transitionDuration) <= 0.001));
     assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);
+    const uploadBox = await page.locator('.upload-materials').boundingBox();
+    const savedBox = await page.locator('.saved-materials').boundingBox();
+    assert.ok(uploadBox.y + uploadBox.height <= savedBox.y, 'upload interface precedes saved files');
     await page.screenshot({ path: `tmp/drafting-uploads-${width}.png`, fullPage: true });
   }
   assert.ok(srv.quiz.db.passages.filter(p=>p.importHash).every(p=>p.topicId==='tp-data'),'uploads go into the selected weekly topic');
@@ -260,6 +263,36 @@ test('PDF/PPTX upload, saved Markdown editing, preview/download, generation and 
   await page.getByRole('spinbutton',{name:'Short Answer quantity',exact:true}).fill('1');
   await page.getByRole('spinbutton',{name:'Multi-select quantity',exact:true}).fill('1');
   assert.equal(await page.getByRole('spinbutton').count(),4);
+  // Quantity labels and controls share equal columns, including the mobile wrap.
+  for (const width of [375, 576, 767, 768, 1024, 1440]) {
+    await page.setViewportSize({ width, height: 900 });
+    const layout = await page.locator('.question-quantities').evaluate(el => {
+      const boxes = [...el.querySelectorAll('input')].map(input => {
+        const box = input.getBoundingClientRect(), label = input.previousElementSibling.getBoundingClientRect();
+        return { x: box.x, y: box.y, width: box.width, labelX: label.x, labelBottom: label.bottom };
+      });
+      const grid = el.closest('.assessment-grid');
+      const tracks = getComputedStyle(grid).gridTemplateColumns.split(' ').map(parseFloat);
+      const controls = [grid.querySelector('textarea'), grid.querySelector('select'), el];
+      const starts = controls.map(control => control.getBoundingClientRect().x);
+      return { boxes, tracks, starts, overflow: document.documentElement.scrollWidth > innerWidth };
+    });
+    assert.equal(layout.overflow, false);
+    if (width >= 768) {
+      assert.equal(layout.tracks.length, 2);
+      assert.ok(Math.abs(layout.tracks[0] / (layout.tracks[0] + layout.tracks[1]) - .16) < .005);
+    } else assert.equal(layout.tracks.length, 1);
+    assert.ok(layout.starts.every(x => Math.abs(x - layout.starts[0]) < 1));
+    for (const box of layout.boxes) {
+      assert.ok(Math.abs(box.width - layout.boxes[0].width) < 1);
+      assert.ok(Math.abs(box.x - box.labelX) < 1);
+      assert.ok(box.y >= box.labelBottom);
+    }
+    assert.equal(layout.boxes[0].y, layout.boxes[1].y);
+    if (width < 768) assert.ok(layout.boxes[2].y > layout.boxes[0].y);
+    else assert.equal(layout.boxes[0].y, layout.boxes[3].y);
+  }
+  await page.setViewportSize({ width: 1280, height: 900 });
   assert.equal(await page.getByRole('spinbutton',{name:'Numeric answer quantity',exact:true}).count(),0);
   assert.equal(await page.getByRole('spinbutton',{name:'Maths variation quantity',exact:true}).count(),0);
   // questions are filed under the selected weekly topic (the first one by default)

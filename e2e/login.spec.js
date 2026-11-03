@@ -18,7 +18,7 @@ test('should successfully log in a student with valid credentials', async ({ pag
   await expect(page.getByRole('button', { name: 'Log out' })).toBeVisible();
   await expect(page.locator('#tabs').getByRole('button', { name: 'Kingdom', exact: true })).toHaveAttribute('aria-current', 'page');
   // students land in their Kingdom, so open the practice tab to reach the setup
-  await openTab(page, 'Practice');
+  await openTab(page, 'Quiz');
   await expect(page.getByRole('button', { name: 'Start practice' })).toBeVisible();
 });
 
