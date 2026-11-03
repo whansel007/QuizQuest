@@ -418,9 +418,14 @@ onUnmounted(() => window.removeEventListener('message', returnToSelection));
   pointer-events: none;
 }
 .world-sides .panel { margin: 0; padding: 15px 16px; }
+/* app.css gives every .panel `overflow-wrap: anywhere`, which splits a word
+   across lines ("Guardia n", "Work shop") and, because it also lowers the
+   min-content size, lets a grid track be squeezed under the longest word it
+   holds. break-word keeps the word whole without shrinking the track. */
 .panel {
   position: relative;
   z-index: 1;
+  overflow-wrap: break-word;
   color: var(--camp-ink);
   background-color: #fbf2d8;
   background-image: url('/hero-lab/assets/storybook-paper.svg'), linear-gradient(135deg, #fff8e4, #f1e6c7);
@@ -479,7 +484,10 @@ onUnmounted(() => window.removeEventListener('message', returnToSelection));
 .hero-lab-page :deep(.btn:focus-visible), .hero-lab-page .btn:focus-visible,
 .hero-lab-page .hero-chip:focus-visible { outline: 3px solid #f2ba55; outline-offset: 3px; }
 .kingdom-preview { display: grid; align-content: stretch; gap: 7px; }
-.kingdom-tiles { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); grid-template-rows: repeat(2, minmax(0, 1fr)); gap: 7px; min-height: 0; }
+/* A tile name is a single word ("Library", "Workshop"): 70px is the narrowest
+   track that still holds the longest name beside the 40px icon, so a narrow
+   panel cannot squeeze a name into two halves. */
+.kingdom-tiles { display: grid; grid-template-columns: repeat(2, minmax(70px, 1fr)); grid-template-rows: repeat(2, minmax(0, 1fr)); gap: 7px; min-height: 0; }
 .kingdom-tile {
   display: grid;
   justify-items: center;
@@ -516,7 +524,8 @@ onUnmounted(() => window.removeEventListener('message', returnToSelection));
 .hero-stat-grid .stat-attack { background: #f8e4d1; border-color: #d6ae86; }
 .hero-stat-grid .stat-defense { background: #e1eaf1; border-color: #a8bdcb; }
 .hero-stat-grid .stat-speed { background: #eee5f2; border-color: #c2accb; }
-.hero-stat-grid b { color: var(--camp-pine); font-size: .85rem; line-height: 1; }
+/* the stat is one number: keep "155" whole instead of stacking a 1 over a 5 */
+.hero-stat-grid b { color: var(--camp-pine); font-size: .85rem; line-height: 1; white-space: nowrap; }
 .hero-stat-grid small { color: #75806c; font-size: .5rem; font-weight: 900; }
 .hero-talent-panel { display: grid; align-content: center; gap: 7px; min-width: 0; padding-left: 16px; border-left: 2px solid #716247; }
 .talent-row { display: grid; grid-template-columns: 56px minmax(0, 1fr) 36px; gap: 12px; align-items: center; }
@@ -616,7 +625,7 @@ onUnmounted(() => window.removeEventListener('message', returnToSelection));
 @keyframes spark-rise { 0%, 100% { opacity: .35; transform: translateY(5px); } 50% { opacity: 1; transform: translateY(-8px); } }
 @keyframes firefly { from { opacity: .22; transform: translate(0, 6px) scale(.75); } to { opacity: 1; transform: translate(8px, -9px) scale(1.25); } }
 @media (max-width: 1100px) {
-  .hero-lab-page { height: auto; min-height: 100svh; overflow: visible; }
+  .hero-lab-page { height: auto; min-height: 100svh; overflow: visible; --hero-art-size: 369px; }
   .room-entry, .hero-preview { height: auto; max-height: none; overflow: visible; }
   .kingdom-preview { height: auto; max-height: none; overflow: visible; grid-template-rows: auto auto; }
   .world-sides {
@@ -629,6 +638,10 @@ onUnmounted(() => window.removeEventListener('message', returnToSelection));
   .room-entry, .kingdom-preview { grid-row: auto; }
   .forest-scene { grid-area: scene; }
   .hero-preview { grid-row: auto; margin-left: 0; }
+  /* The clearing has a row of its own now, and that row is shorter than the
+     hero sprite, so the panel above sliced the sprite's head off. Scale the
+     sprite down to the row it has to live in. */
+  .hero-preview-art > .hero-icon { transform: translate(var(--preview-emoji-x, 0), var(--preview-emoji-y, 0)) scale(.72); }
 }
 @media (max-height: 820px) and (min-width: 1101px) {
   .hero-lab-page { height: 100%; min-height: 0; overflow: hidden; }
@@ -658,6 +671,10 @@ onUnmounted(() => window.removeEventListener('message', returnToSelection));
   }
   .forest-scene { min-height: 420px; grid-template-columns: 1fr 1fr; }
   .hero-spotlight { margin-left: 0; }
+  /* The name and the talent share one narrow row on a phone, so each half
+     gets about 90px and every word in them breaks. Stack the halves. */
+  .hero-preview { grid-template-columns: minmax(0, 1fr); }
+  .hero-talent-panel { border-left: 0; border-top: 2px solid #716247; padding-left: 0; padding-top: 10px; }
   .campfire-art { width: clamp(150px, 31vw, 230px); }
   .hero-preview-art { width: clamp(240px, 48vw, 340px); }
   .hero-preview-art > .hero-icon { transform: translate(var(--preview-emoji-x, 0), var(--preview-emoji-y, 0)) scale(.5); }
