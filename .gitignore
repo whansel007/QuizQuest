@@ -11,3 +11,6 @@ playwright-report/
 .workbuddy-ai
 # Local agent notes - personal, not shared with the team
 memory/
+# A commercial textbook that was never a project asset - kept out of the
+# repository and the submission zip on purpose.
+docs/Pandas.pdf
