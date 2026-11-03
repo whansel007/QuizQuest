@@ -6,8 +6,8 @@
 // ============================================================
 import { ref, onMounted, computed } from 'vue';
 import { api } from '../api.js';
-import { toast, action } from '../ui.js';
-import { loadCourses } from './courses.js';
+import { toast, when, fmtBundle, action } from '../ui.js';
+import { loadCourses, RES } from './courses.js';
 import Heading from '../components/Heading.vue';
 import Field from '../components/Field.vue';
 
@@ -47,6 +47,23 @@ const showArchived = ref(false);
 const displayedClasses = computed(() => {
   if (showArchived.value) return classes.value;
   return classes.value.filter((c) => !c.archivedAt);
+});
+
+// Search. The grid can hold every class the professor owns, across every
+// course, so the settings of one class can be a long way down the list: the
+// search box narrows the cards to the class the professor is looking for.
+const classSearch = ref('');
+const matchesSearch = (c) => `${c.name} ${c.courseTitle || ''}`.toLowerCase().includes(classSearch.value.trim().toLowerCase());
+const filteredClasses = computed(() => {
+  if (!classSearch.value.trim()) return displayedClasses.value;
+  return displayedClasses.value.filter(matchesSearch);
+});
+// An archived class is hidden until it is asked for, so a search that only
+// matches archived classes would come back empty and say nothing. The count
+// lets the page say where the class went.
+const archivedMatches = computed(() => {
+  if (!classSearch.value.trim() || showArchived.value) return 0;
+  return classes.value.filter((c) => c.archivedAt && matchesSearch(c)).length;
 });
 
 async function loadData() {
@@ -96,6 +113,83 @@ async function loadClassDetails(cls) {
     rosterLoading.value = false;
     codesLoading.value = false;
   }
+}
+
+// ---- Class settings: trading, analytics time zone, trade log ----
+// These used to live on the Settings page, one panel per class. They belong
+// with the class they are about, so they sit here now: a third sub-tab of
+// the class the professor is looking at.
+
+const classTrades = ref([]);
+const tradesLoading = ref(false);
+const showTradeLog = ref(false);
+
+// Time zone for the Analytics dashboard's days and weeks (default Singapore)
+const DEFAULT_TZ = 'Asia/Singapore';
+const ZONES = typeof Intl.supportedValuesOf === 'function' ? Intl.supportedValuesOf('timeZone') : [DEFAULT_TZ, 'UTC'];
+const zoneOf = (cl) => cl?.settings?.timezone || DEFAULT_TZ;
+const zonesFor = (cl) => [...new Set([zoneOf(cl), DEFAULT_TZ, ...ZONES])].sort();
+
+// The server sends the whole settings object back, so one write updates the
+// card on the grid and the panel above at the same time. Nothing is refetched
+// and rerender() is not called: a rerender remounts this view and would throw
+// the professor back to the class list, losing where they were.
+function applySettings(classId, settings) {
+  const c = classes.value.find((x) => x.id === classId);
+  if (c) c.settings = settings;
+  if (selectedClass.value && selectedClass.value.id === classId) selectedClass.value.settings = settings;
+}
+
+const toggleTrading = (cl) => action(async (e) => {
+  const box = e.target;
+  try {
+    const settings = await api('PUT', `/api/teacher/classes/${cl.id}/settings`, { tradingEnabled: box.checked });
+    applySettings(cl.id, settings);
+  } catch (err) {
+    box.checked = !box.checked; // failed: show the setting as it really is
+    throw err;
+  }
+  toast('Saved');
+});
+
+const setZone = (cl) => action(async (e) => {
+  const select = e.target;
+  try {
+    const settings = await api('PUT', `/api/teacher/classes/${cl.id}/settings`, { timezone: select.value });
+    applySettings(cl.id, settings);
+  } catch (err) {
+    select.value = zoneOf(cl); // failed: show the setting as it really is
+    throw err;
+  }
+  toast('Saved');
+});
+
+const statusClass = (t) => 'badge ' + (t.status === 'accepted' ? 'published' : t.status === 'open' ? 'draft' : 'plain');
+
+async function loadTrades(cls) {
+  tradesLoading.value = true;
+  try {
+    classTrades.value = await api('GET', `/api/teacher/classes/${cls.id}/trades`);
+  } catch (err) {
+    toast(err.message, true);
+  } finally {
+    tradesLoading.value = false;
+  }
+}
+
+// The sub-tabs: the roster, the join codes, and the class settings. The
+// trade log starts closed and its list is fetched when the tab is opened, so
+// a professor who only wants the roster does not pay for it.
+function setActiveTab(tab) {
+  activeTab.value = tab;
+  showTradeLog.value = false;
+  if (tab === 'settings' && selectedClass.value) loadTrades(selectedClass.value);
+}
+
+// Open a class straight on its settings, from its card on the grid.
+async function openClassSettings(cls) {
+  await selectClassToManage(cls);
+  setActiveTab('settings');
 }
 
 const handleCreateClass = action(async () => {
@@ -224,14 +318,34 @@ function copyToClipboard(text) {
 
     <!-- MAIN VIEW: CLASSES OVERVIEW -->
     <template v-if="!selectedClass">
-      <div class="panel row" style="justify-content: space-between; align-items: center;">
-        <span class="muted small">
-          Showing {{ displayedClasses.length }} {{ showArchived ? 'total' : 'active' }} classes
-        </span>
-        <label style="display: flex; align-items: center; gap: 8px; font-weight: 500; cursor: pointer;">
-          <input v-model="showArchived" type="checkbox" />
-          Show archived classes
-        </label>
+      <div class="panel">
+        <div class="row" style="justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px;">
+          <span class="muted small">
+            Showing {{ displayedClasses.length }} {{ showArchived ? 'total' : 'active' }} classes
+          </span>
+          <label style="display: flex; align-items: center; gap: 8px; font-weight: 500; cursor: pointer;">
+            <input v-model="showArchived" type="checkbox" />
+            Show archived classes
+          </label>
+        </div>
+        <div class="row top" style="margin-top: 12px; align-items: center; gap: 10px;">
+          <input
+            v-model="classSearch"
+            type="search"
+            class="grow"
+            placeholder="Search classes by name or course"
+            aria-label="Search classes"
+            autocomplete="off"
+          />
+          <span v-if="classSearch.trim()" class="small muted" style="white-space: nowrap;">
+            {{ filteredClasses.length }} match{{ filteredClasses.length === 1 ? '' : 'es' }}
+          </span>
+          <button v-if="classSearch.trim()" class="btn small" @click="classSearch = ''">Clear</button>
+        </div>
+        <p v-if="archivedMatches" class="small muted" style="margin: 8px 0 0;">
+          {{ archivedMatches }} archived class{{ archivedMatches === 1 ? ' matches' : 'es match' }} too — tick
+          "Show archived classes" to see {{ archivedMatches === 1 ? 'it' : 'them' }}.
+        </p>
       </div>
 
       <form class="panel" aria-label="Enrol a student" @submit.prevent="enrolStudent(enrolClassName)($event)">
@@ -253,7 +367,7 @@ function copyToClipboard(text) {
 
       <div class="classes-grid">
         <div
-          v-for="c in displayedClasses"
+          v-for="c in filteredClasses"
           :key="c.id"
           class="panel class-card"
           :class="{ archived: c.archivedAt }"
@@ -274,12 +388,16 @@ function copyToClipboard(text) {
           <div class="class-stats-row">
             <span class="stat-pill">👥 {{ c.memberCount }} {{ c.memberCount === 1 ? 'Student' : 'Students' }}</span>
             <span class="stat-pill">🔑 {{ c.activeCodesCount }} Active {{ c.activeCodesCount === 1 ? 'Code' : 'Codes' }}</span>
+            <span class="stat-pill">🤝 Trading {{ c.settings?.tradingEnabled ? 'on' : 'off' }}</span>
           </div>
 
-          <div class="row" style="margin-top: 16px; justify-content: space-between;">
-            <button class="btn small primary" @click="selectClassToManage(c)">
-              Manage Roster & Codes →
-            </button>
+          <div class="row" style="margin-top: 16px; justify-content: space-between; flex-wrap: wrap; gap: 8px;">
+            <div class="row" style="gap: 8px; flex-wrap: wrap;">
+              <button class="btn small primary" @click="selectClassToManage(c)">
+                Manage Roster & Codes →
+              </button>
+              <button class="btn small" @click="openClassSettings(c)">Settings</button>
+            </div>
             <button
               class="btn small"
               :class="c.archivedAt ? 'good' : 'bad'"
@@ -289,6 +407,13 @@ function copyToClipboard(text) {
             </button>
           </div>
         </div>
+      </div>
+
+      <div v-if="!filteredClasses.length" class="panel empty-state">
+        <p class="muted">
+          <template v-if="classSearch.trim()">No class matches "{{ classSearch.trim() }}".</template>
+          <template v-else>You have no classes yet. Create one to get started.</template>
+        </p>
       </div>
     </template>
 
@@ -318,16 +443,23 @@ function copyToClipboard(text) {
           <button
             type="button"
             :class="['sub-tab-btn', { active: activeTab === 'roster' }]"
-            @click="activeTab = 'roster'"
+            @click="setActiveTab('roster')"
           >
             Student Roster ({{ roster.length }})
           </button>
           <button
             type="button"
             :class="['sub-tab-btn', { active: activeTab === 'codes' }]"
-            @click="activeTab = 'codes'"
+            @click="setActiveTab('codes')"
           >
             Join Codes ({{ joinCodes.filter((c) => !c.revoked && !c.isExpired).length }})
+          </button>
+          <button
+            type="button"
+            :class="['sub-tab-btn', { active: activeTab === 'settings' }]"
+            @click="setActiveTab('settings')"
+          >
+            Class Settings
           </button>
         </div>
       </div>
@@ -502,6 +634,66 @@ function copyToClipboard(text) {
             so it cannot be shown again — the id beside each row is what identifies a code, and what the
             Revoke button uses. The banner shows the id too, so a code and its row can be matched up.
           </p>
+        </div>
+      </div>
+
+      <!-- TAB 3: CLASS SETTINGS -->
+      <div v-if="activeTab === 'settings'" class="panel" role="region" aria-label="Class settings">
+        <h3>Class settings</h3>
+        <p class="muted small">How {{ selectedClass.name }} behaves for its students.</p>
+
+        <label style="font-weight: 400; color: inherit; margin: 12px 0; display: block;">
+          <input
+            type="checkbox"
+            :checked="!!selectedClass.settings?.tradingEnabled"
+            @change="toggleTrading(selectedClass)($event)"
+          />
+          <b>Allow resource trading between classmates</b>
+          <div class="small muted" style="margin-left: 24px">
+            Students post offers to the whole class (no private targeting), with limits on open offers, size
+            and daily trades. Turning this off refunds every open offer.
+          </div>
+        </label>
+
+        <div class="row" style="margin: 12px 0 2px">
+          <label :for="'tz-' + selectedClass.id" style="margin: 0"><b>Time zone for analytics</b></label>
+          <select
+            :id="'tz-' + selectedClass.id"
+            style="width: auto"
+            :value="zoneOf(selectedClass)"
+            @change="setZone(selectedClass)($event)"
+          >
+            <option v-for="z in zonesFor(selectedClass)" :key="z" :value="z">{{ z.replace(/_/g, ' ') }}</option>
+          </select>
+        </div>
+        <div class="small muted">
+          Decides when a "day" and a "week" start on the Analytics dashboard, so an answer at 7am counts on
+          the right day.
+        </div>
+
+        <div class="row" style="margin-top: 16px; align-items: center; gap: 10px; flex-wrap: wrap;">
+          <button class="btn small" @click="showTradeLog = !showTradeLog">
+            {{ showTradeLog ? 'Hide trade log' : 'View trade log' }} ({{ classTrades.length }})
+          </button>
+          <span class="small muted">The last 40 trades in this class.</span>
+        </div>
+
+        <div v-if="showTradeLog" style="margin-top: 10px">
+          <div v-if="tradesLoading" class="muted small">Loading trade log…</div>
+          <div v-else-if="!classTrades.length" class="small muted">No trades yet.</div>
+          <div v-else class="table-wrap">
+            <table>
+              <tbody>
+                <tr v-for="t in classTrades" :key="t.id">
+                  <td class="small muted">{{ when(t.createdAt) }}</td>
+                  <td>{{ t.from }}</td>
+                  <td>{{ `${fmtBundle(t.give, RES)} for ${fmtBundle(t.want, RES)}` }}</td>
+                  <td><span :class="statusClass(t)">{{ t.status }}</span></td>
+                  <td>{{ t.acceptedByName || '' }}</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
         </div>
       </div>
     </template>

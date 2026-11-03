@@ -165,6 +165,32 @@ export async function apiToken(page) {
   return token;
 }
 
+// The professor's own course, as the server holds it, so a test can check
+// what was really stored instead of trusting the toast.
+//
+// Playwright's request context does not resolve a relative URL against the
+// page, so the URL is made absolute first. The server closes connections it
+// has kept open for a few seconds, so a request can land on one the server
+// has just dropped and never be answered: a timeout and another try keep
+// that from hanging the test.
+export async function teacherCourse(page) {
+  const url = new URL('/api/teacher/courses', page.url()).href;
+  const headers = { Authorization: `Bearer ${await apiToken(page)}` };
+  let response;
+  for (let attempt = 0; attempt < 3; attempt++) {
+    try {
+      response = await page.request.get(url, { headers, timeout: 8000 });
+      break;
+    } catch (err) {
+      if (attempt === 2) throw err;
+    }
+  }
+  expect(response.ok(), `the course list comes back: ${response.status()}`).toBe(true);
+  const courses = await response.json();
+  expect(courses.length, 'the professor has a course').toBeGreaterThan(0);
+  return courses[0];
+}
+
 // The question bank seeds exactly one draft question, and approving it (which
 // the publish test does) takes it out of the review list. A CI retry replays
 // a test against the same server and the same data, so a test that needs a

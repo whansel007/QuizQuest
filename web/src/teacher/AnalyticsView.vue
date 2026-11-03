@@ -639,7 +639,7 @@ function missedCsv() {
         <button class="linklike no-print" @click="focusTopic('')">Show all topics</button>
       </p>
       <div class="row small muted no-print dash-status" style="margin: -6px 0 10px">
-        <span class="grow">Updated {{ clock(updatedAt) }} · days and weeks in {{ a.timezone.replaceAll('_', ' ') }} time (change in Settings)</span>
+        <span class="grow">Updated {{ clock(updatedAt) }} · days and weeks in {{ a.timezone.replaceAll('_', ' ') }} time (change in Classes &amp; Roster)</span>
         <span role="status" class="stale">
           <template v-if="refreshFailedAt">
             ⚠ Couldn't refresh at {{ clock(refreshFailedAt) }}, so these numbers may be out of date.{{ auto ? ' Trying again shortly.' : '' }}
