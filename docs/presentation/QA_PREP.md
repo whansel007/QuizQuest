@@ -2,16 +2,16 @@
 
 > **Internal copy.** The two rows in section 4 that describe the unauthenticated demo endpoints — passwordless `{userId}` sign-in and the public `GET /api/demo-users` — are kept here for the team Q&A and are omitted from the shipped copy of this file.
 
-Working document for the final presentation. Every answer below is true of the code as it is on **3 Nov 2026**.
+Working document for the final presentation. Every answer below is true of the code as it is on **4 Nov 2026**. **Line numbers are against `origin/main` at `c4e1956` (4 Nov 2026)** — re-run `grep -n` after any merge, because a merge moves the lines out from under your fingers.
 
-**Two code states exist. Say which one you are in.**
+**One code state exists, and it is the live one.** The Render service **redeploys from `origin/main` automatically**, so "merged but not deployed yet" is not a state this app can be in.
 
 | State | Where | What it has |
 |---|---|---|
-| **A — mainline** | `origin/main` (the code we ship) | `web/src/teacher/ClassManagementView.vue` is 925 lines, **three sub-tabs: "Student Roster (N)", "Join Codes (N)" and "Class Settings"**, a search box on the class grid, and a "Settings" button on every class card. `SettingsView.vue` is 90 lines and keeps only course-wide settings. |
-| **B — deployed** | the live Render deployment | The deployed app has not been rebuilt since PR #51 merged, so the class search box and the "Class Settings" tab are **not on the live site yet**. |
+| **A — mainline** | `origin/main` (the code we ship) | `web/src/teacher/ClassManagementView.vue` is 1010 lines, **three sub-tabs: "Student Roster (N)", "Join Codes (N)" and "Class Settings"**, a search box on the class grid, and a "Settings" button on every class card. `SettingsView.vue` is 90 lines and keeps only course-wide settings. |
+| **B — deployed** | the live Render deployment | The same code. The deployment redeploys from `main` on its own, and the live bundle (checked 4 Nov 2026) carries the class search box and the "Class Settings" tab. |
 
-PR #51 (`feature/class-settings-in-class-management`, tip `022e09f`, includes `2781e75`) **is merged into `origin/main`** as `22fcf74` — the code is on main, and the only difference between A and B is that the live site has not been rebuilt. If the professor asks where the per-class settings went, the honest answer is: *"they were moved out of Settings into the class's own page — that is merged into main, and it goes live at the next redeploy."*
+PR #51 (`feature/class-settings-in-class-management`, tip `022e09f`, includes `2781e75`) **is merged into `origin/main`** as `22fcf74` **and it is live**. If the professor asks where the per-class settings went, the honest answer is: *"they were moved out of Settings into the class's own page — that is merged into main, and the live site is already running it."*
 
 **Ownership (Section 7 "Who do what?"):** William Hansel — gamification and rewards · Xavier Lee — AI question drafting and adaptive quiz sessions · Kai Cong — student progress tracking and question reporting · **Marxel — user accounts, class management, learning content upload** · Ho Zhi Yang — professor analytics dashboard · Jasper Wong — question bank management.
 
@@ -22,6 +22,8 @@ PR #51 (`feature/class-settings-in-class-management`, tip `022e09f`, includes `2
 (`460e5b8`, on `main`). It no longer appears on a question card. If the professor
 asks whether AI drafts can be re-rolled, the answer is now **no**: the professor
 edits the draft by hand instead.
+
+**Also merged on 4 Nov, and live:** three more PRs went into `main` — **#58** (an archived class can no longer be enrolled into or given a join code; classes are archived, never deleted), **#59** (a class can be renamed and its description cleared, and a duplicate class name is refused), and **#60** (the Material library: archive and restore a passage, edit its title and learning outcome, and tick "Show archived material" — archived material is left out of the knowledge report). All three are on `main` and on the live site.
 
 **The app name is QuizQuest.** "Prince William's Quest" is the **team** name
 (Section 7, G7), confirmed by William on 3 Nov at 8:22 PM. Do not mix them up if
@@ -37,43 +39,43 @@ the professor says the team name out loud. There is also **no student tab named
 
 **Answer:** It is entirely custom, and deliberately so. There is no call to `supabase.auth` or `signInWithPassword` anywhere in `src/`, `web/` or `server.js` — a password is hashed with `scryptSync` and a random 16-byte salt and stored as `scrypt$<saltHex>$<hashHex>`, verification is `scryptSync` plus `crypto.timingSafeEqual`, and a session is a 24-byte random token in an in-memory `Map` with an 8-hour TTL. We wrote it ourselves because auth is plumbing, not a feature, and the rubric says so.
 
-**Proves it:** `src/quiz/passwords.js:20-24` (hash), `:26-33` (verify + timing-safe compare), `src/quiz/api.js:213` (`const tokens = new Map()`), `src/quiz/api.js:55` (`TOKEN_TTL = 8 * 3600 * 1000`).
+**Proves it:** `src/quiz/passwords.js:20-24` (hash), `:26-33` (verify + timing-safe compare), `src/quiz/api.js:217` (`const tokens = new Map()`), `src/quiz/api.js:59` (`TOKEN_TTL = 8 * 3600 * 1000`).
 
 ### Q2. "Is the password reset actually working, or is it a mock?"
 
 **Answer:** It exists and it is real, but it depends on a mail provider. Without `RESEND_API_KEY` and `PASSWORD_RESET_FROM`/`EMAIL_FROM` set, the endpoint refuses outright and says *"Password recovery by email is not available in this build. Ask the project team to reset it for you."* — it does not pretend to have sent a code. With them, a 6-digit OTP goes out via Resend, is stored as a SHA-256 hash with a salt, expires in 10 minutes, and every session for that user is killed after the reset.
 
-**Proves it:** `src/quiz/api.js:687-739` (route, 10 requests per IP per 15 min, 1 per email per 60 s), `:694-703` (the honest refusal), `:747-792` (max 5 code attempts, sessions killed), `src/quiz/passwords.js:18` (demo password constant).
+**Proves it:** `src/quiz/api.js:710-746` (route, 10 requests per IP per 15 min, 1 per email per 60 s), `:724-728` (the honest refusal), `:773-815` (max 5 code attempts, sessions killed), `src/quiz/passwords.js:18` (demo password constant).
 
 ### Q3. "Where did the per-class settings go? I can't find them on the Settings page."
 
-**Answer:** I moved them — the branch is merged into main now (PR #51), and the deployed app picks it up at the next redeploy. The trading switch, the analytics time zone and the trade log now live on the class's own page: Classes & Roster → the class card's "Settings" button → the third sub-tab "Class Settings". The Settings page keeps only course-wide settings and points at the new home. Each write toasts "Saved" and the class card gains a "🤝 Trading on/off" pill.
+**Answer:** I moved them — the branch is merged into main (PR #51) **and it is live**: the Render service redeploys from `main` on its own, so the live site already runs the new code. The trading switch, the analytics time zone and the trade log now live on the class's own page: Classes & Roster → the class card's "Settings" button → the third sub-tab "Class Settings". The Settings page keeps only course-wide settings and points at the new home. Each write toasts "Saved" and the class card gains a "🤝 Trading on/off" pill.
 
-**Proves it:** `origin/main` (PR #51, branch `feature/class-settings-in-class-management`, tip `022e09f`), `web/src/teacher/ClassManagementView.vue:333-343` (search box), `:399` (Settings button), `:459-462` (third sub-tab), `:641-642` (`role="region" aria-label="Class settings"`), `web/src/teacher/SettingsView.vue:4-6` (the pointer).
+**Proves it:** `origin/main` (PR #51, branch `feature/class-settings-in-class-management`, tip `022e09f`), `web/src/teacher/ClassManagementView.vue:374-381` (search box), `:441` (Settings button), `:502-507` (third sub-tab), `:685-686` (`role="region" aria-label="Class settings"`), `web/src/teacher/SettingsView.vue:4-6` (the pointer).
 
 ### Q4. "How does a student actually get into a class? Walk me through the join code."
 
-**Answer:** The professor generates a code from the "Join Codes" sub-tab; it is 12 characters drawn from a 32-symbol alphabet with `crypto.randomInt` — about 1.15 × 10¹⁸ possibilities — and it is shown exactly once with a "Copy it now — it is shown only once" banner. Only the SHA-256 hash is written to the record, so the readable code is never in the database. The student pastes it on the Quiz tab, My Progress or the Campfire Run screen, and the redemption is atomic: unknown, revoked, expired or exhausted codes create no enrolment at all.
+**Answer:** The professor generates a code from the "Join Codes" sub-tab; it is 12 characters drawn from a 32-symbol alphabet with `crypto.randomInt` — about 1.15 × 10¹⁸ possibilities — and it is shown exactly once with a "Copy it now — it is shown only once" banner. Only the SHA-256 hash is written to the record, so the readable code is never in the database. The student pastes it on the **Quiz** tab or **My Progress** — both carry the class picker (`web/src/student/PracticeView.vue:135`, `web/src/student/ProgressView.vue:63`) — and the redemption is atomic: unknown, revoked, expired or exhausted codes create no enrolment at all.
 
-**Proves it:** `src/quiz/api.js:814-828` (length, alphabet, `crypto.randomInt`), `:957-980` (only `codeHash` stored, raw code returned once), `:1031-1042` (each refusal before the enrolment is written), `web/src/student/ClassPicker.vue:20-36`.
+**Proves it:** `src/quiz/api.js:840-854` (length, alphabet, `crypto.randomInt`), `:1018-1038` (only `codeHash` stored, raw code returned once in the response), `:1074-1098` (each refusal before the enrolment is written), `web/src/student/ClassPicker.vue:20-36` (the join handler, reached from `web/src/student/PracticeView.vue:135` and `web/src/student/ProgressView.vue:63` — the Campfire Run tab renders no class picker, so it has no join-code UI).
 
 ### Q5. "Could someone guess a join code, or brute-force your passwords?"
 
 **Answer:** Guessing a code is not practical — 32¹² with a CSPRNG, and only the hash is stored, so there is nothing to attack but the live redemption endpoint. Passwords are the other story and I will be straight about it: login is locked per email after 5 wrong passwords for 15 minutes, and the reset endpoint is throttled per IP and per email, but **registration and join-code redemption have no rate limit at all**. The real weakness is the classroom channel: a code pasted into a class chat is a bearer credential for that class.
 
-**Proves it:** `src/quiz/api.js:59-60` (`LOGIN_MAX_FAILS = 5`, `LOGIN_LOCK_MS = 15 * 60 * 1000`), `:629-637` (the lock), `:680` (register route, no limiter), `:1016` (join route, no limiter), `:800-813` (the design note on why 12 characters).
+**Proves it:** `src/quiz/api.js:63-64` (`LOGIN_MAX_FAILS = 5`, `LOGIN_LOCK_MS = 15 * 60 * 1000`), `:647-652` (the lock), `:703` (register route, no limiter), `:1074` (join route, no limiter), `:826-839` (the design note on why 12 characters).
 
 ### Q6. "How do you stop one professor from reading another professor's classes?"
 
-**Answer:** Two layers. Every route declares the role it requires — the route table stores the role and the dispatcher compares it to the signed-in user's role, returning 401 then 403 — and then ownership is checked per class: a teacher asking for a class they do not own gets a **404, not a 403**, so ids of other classes cannot be probed for existence. A teacher who signs up gets a private empty course of their own, so they only ever see their own classes.
+**Answer:** Two layers. Every route declares the role it requires — the route table stores the role and the dispatcher compares it to the signed-in user's role, returning 401 then 403 — and then ownership is checked per class: a teacher asking for a class they do not own gets a **404, not a 403**, so ids of other classes cannot be probed for existence. Professor accounts are provisioned by the team, not self-signed-up: a sign-up that asks for the teacher role is **refused outright** rather than quietly demoted, so nobody can hand themselves a professor session. A teacher only ever sees their own classes.
 
-**Proves it:** `src/quiz/api.js:594-598` (`route(method, pattern, role, handler)`), `:2616-2623` (401 / 403), `:222-227` (`teacherClass` 404s on a class you do not own), `:676` (new teacher gets a private course), `web/src/App.vue:29-32` and `:42` (the tab bar is built from the same role string).
+**Proves it:** `src/quiz/api.js:612-616` (`route(method, pattern, role, handler)`), `:2683-2687` (401 / 403), `:230-231` (`teacherClass` 404s on a class you do not own), `:690-692` (a sign-up asking for the teacher role is refused), `web/src/App.vue:29-32` and `:42` (the tab bar is built from the same role string).
 
 ### Q7. "What happens when a professor deletes a class? Can students still see their history?"
 
 **Answer:** Classes are archived, never deleted. It is a toggle endpoint — archive sets `archivedAt`, restore clears it — and the comment in the code says why: *"Classes are archived, never deleted: quiz attempts and history stay intact."* Archived classes drop out of the grid until "Show archived classes" is ticked, and the counter line switches from "Showing N active classes" to "Showing N total classes".
 
-**Proves it:** `src/quiz/api.js:894-900` (the toggle and the comment), `web/src/teacher/ClassManagementView.vue:385` (Archived badge), `:324` (the counter line), `:215-218` (the archive/restore handler and its toasts).
+**Proves it:** `src/quiz/api.js:936-942` (the toggle and the comment), `web/src/teacher/ClassManagementView.vue:427` (Archived badge), `:366` (the counter line), `:257-260` (the archive/restore handler and its toasts).
 
 ### Q8. "Where is the data actually stored? Is it a real database?"
 
@@ -85,9 +87,9 @@ the professor says the team name out loud. There is also **no student tab named
 
 ### Two more that can land on you, because Section 7 also gives you learning content upload
 
-**"Where do the slides go when I upload them?"** — The file never leaves the professor's browser until the text does: PPTX/DOCX are unzipped with fflate and parsed with DOMParser, PDFs with pdfjs-dist, and only the extracted text is POSTed to the server as passages. The server refuses an upload without the personal-data confirmation flag, caps each excerpt at 100,000 characters, and is idempotent via a SHA-256 key. (`web/src/teacher/import-materials.js:1`, `web/src/teacher/pdf.js:1-12`, `src/quiz/api.js:1296-1306`.)
+**"Where do the slides go when I upload them?"** — The file never leaves the professor's browser until the text does: PPTX/DOCX are unzipped with fflate and parsed with DOMParser, PDFs with pdfjs-dist, and only the extracted text is POSTed to the server as passages. The server refuses an upload without the personal-data confirmation flag, caps each excerpt at 100,000 characters, and is idempotent via a SHA-256 key. Uploaded material can be **archived** from the Material library and **restored** later, and archived material is left out of the knowledge report — the report is built from the live library only. (`web/src/teacher/import-materials.js:1`, `web/src/teacher/pdf.js:1-12`, `src/quiz/api.js:1356-1363`, `src/quiz/authoring.js:288`, `web/src/teacher/MaterialLibrary.vue:308`.)
 
-**"Can a student get into someone else's class?"** — No: redemption requires the student role, the class must exist and not be archived, and the enrolment is checked before it is written. A duplicate enrolment is refused with "You are already enrolled in this class." (`src/quiz/api.js:1016-1043`.)
+**"Can a student get into someone else's class?"** — No: redemption requires the student role, the class must exist and not be archived, and the enrolment is checked before it is written. A duplicate enrolment is refused with "You are already enrolled in this class." (`src/quiz/api.js:1074-1098`.)
 
 ---
 
@@ -103,7 +105,7 @@ the professor says the team name out loud. There is also **no student tab named
 | "The site took ages to open — why?" | The Render free instance sleeps. The first request returned 503 with `Retry-After: 5` and the warm-up took about 55 seconds, so we wake it before recording. | William |
 | "Which external APIs do you call?" | Two, both server-side only: Google Gemini (`generativelanguage.googleapis.com`, key in the `x-goog-api-key` header, two Flash-Lite model IDs allowed) for drafting and image description, and Resend for the password-reset email when it is configured. | William (hand the AI questions to Xavier) |
 
-**Evidence:** `web/src/student/KingdomView.vue:535`, `web/src/student/PetsView.vue:311-312`, `web/src/App.vue:31` and `web/src/student/HeroLabView.vue:209` (the tab is Campfire Run), `e2e/raid-boss.spec.js:7-12`, `vite.config.mjs:9-12`, `server.js:327`, `docs/PROTOTYPE.md:83`, `src/quiz/gemini.js:4` and `:152`.
+**Evidence:** `web/src/student/KingdomView.vue:544-553` (the building list: Castle, Garden, Tower, Library, Workshop), `web/src/student/PetsView.vue:315-319` (**Summon ×1** and **×10** with their coin costs) and `:311` (the **History** button), `web/src/App.vue:31` and `web/src/student/HeroLabView.vue:209` (the tab is Campfire Run), `e2e/raid-boss.spec.js:7-12`, `vite.config.mjs:9-12`, `server.js:322`/`:330` (one process listening on `PORT`, default 3000), `docs/PROTOTYPE.md:83`, `src/quiz/gemini.js:4` and `:152`.
 
 ### Xavier — AI drafting, adaptive quiz
 
@@ -127,7 +129,7 @@ the professor says the team name out loud. There is also **no student tab named
 | "What can I do to a question?" | Approve & publish, Reject, Withdraw, Publish again, Edit — toasts "Published", "Rejected", "Withdrawn from practice", "Published again". The "Regenerate draft" button was **removed on 3 Nov** (Xavier's call): manual editing does the same job better, and the button created functionality nobody wanted. | Jasper |
 | "What do the badges on a card mean?" | Status, type (MCQ / True/False / Short Answer / Multi-select), difficulty, style (Conceptual / Application), version and origin ("AI draft"). | Jasper |
 
-**Evidence:** `web/src/teacher/ReviewView.vue:76-80` (filters), `web/src/teacher/QuestionCard.vue:54-59` (badges) and `:74-79` (actions), `src/quiz/generator.js:543-559`, `e2e/question-editor.spec.js:8`, `e2e/question-bank.spec.js:7`.
+**Evidence:** `web/src/teacher/ReviewView.vue:76-80` (filters), `web/src/teacher/QuestionCard.vue:49-54` (badges) and `:69-73` (actions), `src/quiz/generator.js:543-559`, `e2e/question-editor.spec.js:8`, `e2e/question-bank.spec.js:7`.
 
 ### Zhi Yang — analytics dashboard
 
@@ -151,7 +153,7 @@ the professor says the team name out loud. There is also **no student tab named
 | "Can the professor reply to the student?" | Yes — the report round trip includes the professor's reply, and it is covered by an end-to-end test. | Kai Cong |
 | "How does a professor see one student's activity in a class?" | The roster table has "Questions Attempted" and "Last Active" columns, and a student's name expands to show "Classes with you:" with an "Add to class" control. | Kai Cong, or Marxel for the roster itself |
 
-**Evidence:** `web/src/student/ProgressView.vue:85`, `:95`, `:102`, `:123`, `:136`, `web/src/teacher/ToReviewView.vue:169`, `e2e/progress-reporting.spec.js:5`, `e2e/to-review.spec.js:7`, `web/src/teacher/ClassManagementView.vue:520-521` (roster columns).
+**Evidence:** `web/src/student/ProgressView.vue:85`, `:95`, `:102`, `:123`, `:136`, `web/src/teacher/ToReviewView.vue:169`, `e2e/progress-reporting.spec.js:5`, `e2e/to-review.spec.js:7`, `web/src/teacher/ClassManagementView.vue:564-565` (roster columns).
 
 ---
 
@@ -164,13 +166,13 @@ It helps a lecturer turn one week of lecture material into practice that is aime
 Two: the professor who owns the classes, and the student enrolled in one. The professor's job is content and classes; the student's is practice, coins and progression. The role string on the account decides which of the two tab sets the app renders, so a student literally cannot see the Classes & Roster tab. (`web/src/App.vue:29-32`, `:42`.)
 
 **G3. Why this stack?**
-Vue 3 single-file components with Vite for the build, plain `axios` for HTTP, and a dependency-free Node HTTP server that serves the API, the sockets and the built SPA from one process — so a student session, a professor session and the real-time arena all come from the same origin with no CORS or proxy in production. Playwright drives the browser tests. (`vite.config.mjs:9-21`, `web/src/api.js:101-105`, `server.js:93`/`:115`/`:327`, `playwright.config.js`.)
+Vue 3 single-file components with Vite for the build, plain `axios` for HTTP, and a dependency-free Node HTTP server that serves the API, the sockets and the built SPA from one process — so a student session, a professor session and the real-time arena all come from the same origin with no CORS or proxy in production. Playwright drives the browser tests. (`vite.config.mjs:9-21`, `web/src/api.js:109-113`, `server.js:93`/`:118`/`:322`/`:330`, `playwright.config.js`.)
 
 **G4. Why a real backend instead of localStorage?**
-Because the interesting rules are access rules. "Which classes may this teacher read", "may this student enrol in this class", "is this join code still valid" are all decisions that have to be made where the data is, not in the browser. The server enforces every one of them — the store file even says so: *"access rules are enforced in api.js instead"*. A localStorage app could not support two roles on one screen, and it could not support a professor and a student in separate browser tabs, which is how we demo it. (`src/quiz/store.js:5-7`, `src/quiz/api.js:222-227`, `:594-598`, `:2616-2623`.)
+Because the interesting rules are access rules. "Which classes may this teacher read", "may this student enrol in this class", "is this join code still valid" are all decisions that have to be made where the data is, not in the browser. The server enforces every one of them — the store file even says so: *"access rules are enforced in api.js instead"*. A localStorage app could not support two roles on one screen, and it could not support a professor and a student in separate browser tabs, which is how we demo it. (`src/quiz/store.js:5-7`, `src/quiz/api.js:230-231`, `:612-616`, `:2683-2687`.)
 
 **G5. What makes this more than a CRUD app?**
-Four things that are logic, not screens: the join-code redemption with its atomic refusal rules and hash-only storage; the adaptive session that mixes general coverage with weak topics (`weakShare: 0.3`); the AI drafting pipeline where a saved knowledge report becomes the sole source and each candidate is independently verified; and the per-class settings endpoint, which refuses an unknown time zone and refunds every open trade when trading is switched off. (`src/quiz/api.js:1031-1042`, `:1120-1137`, `src/quiz/adaptive.js:19`, `src/quiz/authoring.js:554`/`:593-594`.)
+Four things that are logic, not screens: the join-code redemption with its atomic refusal rules and hash-only storage; the adaptive session that mixes general coverage with weak topics (`weakShare: 0.3`); the AI drafting pipeline where a saved knowledge report becomes the sole source and each candidate is independently verified; and the per-class settings endpoint, which refuses an unknown time zone and refunds every open trade when trading is switched off. (`src/quiz/api.js:1074-1098`, `:1180-1196`, `src/quiz/adaptive.js:19`, `src/quiz/authoring.js:554`/`:593-594`.)
 
 **G6. How is the data stored?**
 One JSON file by default (`data/db.json` or `QUIZ_DATA_FILE`), held in memory and flushed 250 ms after a change; set `SUPABASE_URL` and the same code path runs against Supabase Postgres, where only id/name/role are promoted to real columns and everything else lives in a `extra` jsonb column. RLS is on for every table with no policies, so the browser keys read nothing. (`src/quiz/store.js:19-31`, `server.js:329-341`, `src/db/schema.js:11-12` and `:22-25`, `supabase/migrations/20261007000000_quizquest_init.sql:14-18`.)
@@ -179,28 +181,28 @@ One JSON file by default (`data/db.json` or `QUIZ_DATA_FILE`), held in memory an
 Three layers: Playwright end-to-end specs for user journeys, Node integration tests that drive the API directly (registration, the reset code, class creation, join codes, redemption, the roster, and the rule that a join code is never written to the database file), and browser tests that drive the AI authoring flow and the upload extractor against synthetic fixtures. (`e2e/`, `test/auth-classes-test.js`, `test/auth-test.js`, `test/browser-authoring.test.cjs`, `test/browser-guard-rails.test.cjs`, `test/browser-import.test.cjs`, `test/browser-question-editor.test.cjs`, `test/browser.test.cjs`.)
 
 **G8. How much testing is there?**
-Four commands, and the counts are in `package.json`: **43 Node test files** (`pnpm test`), **13 vitest spec files** (`pnpm test:unit`), **43 end-to-end tests across 18 spec files** (`pnpm test:e2e`; 19 files in `e2e/` including `helpers.js`) and **five browser suites** (`pnpm test:browser`, which runs `test/browser*.test.cjs`). Before PR #51 merged it was 40 across 17, so the class-settings work is **+3 net**: `e2e/class-settings.spec.js` adds 4 tests covering the search box, the archived-match counter, the trading switch and the time zone plus trade log, but the trading test moved out of `teacher-settings.spec.js` (3 became 2). Add the Node integration suites and the browser suites and it is a few hundred assertions. (`e2e/class-settings.spec.js:69`, `:99`, `:132`, `:165`.)
+Four commands, and the counts are in `package.json`: **44 Node test files** (`pnpm test`, 462 tests), **13 vitest spec files** (`pnpm test:unit`), **46 end-to-end tests across 19 spec files** (`pnpm test:e2e`; 20 files in `e2e/` including `helpers.js`) and **five browser suites** (`pnpm test:browser`, which runs `test/browser*.test.cjs`). The class-settings work was **+3 net** over the 40 across 17 it replaced, and since then the archived-class guard rails and the material library added one more spec and three more tests. `e2e/class-settings.spec.js` covers the search box, the archived-match counter, the trading switch and the time zone plus trade log, but the trading test moved out of `teacher-settings.spec.js` (3 became 2). Add the Node integration suites and the browser suites and it is a few hundred assertions. (`e2e/class-settings.spec.js:89`, `:119`, `:152`, `:185`.)
 
 **G9. How did you handle responsive design?**
 The stylesheet has 63 media-query blocks — including width breakpoints at 1199/1100/1023/900/899/820/640/420 px — so the layout reflows from the 575 px (xs) width the professor will check up to wide desktop. Grids (48 uses) and flex (61 uses) do the work, and the page declares `width=device-width` with `viewport-fit=cover`. The professor tests from the iPhone 6 breakpoint to the XL breakpoint, so that range is the range we tuned for. (`web/src/app.css:91-1106`, `web/index.html:5`, Briefing p12 FAQ 17.)
 
 **G10. What about accessibility?**
-`aria-label` is used in 55 of the web source files; the moved class panel is a real landmark (`role="region" aria-label="Class settings"`), the search box is labelled "Search classes", the file inputs are labelled "Lecture files" and "Replacement lecture file", collapsible sections carry `aria-expanded`, and page headings take focus (`tabindex="-1"`) so a route change moves the reader to the title. Motion is respected: `prefers-reduced-motion: reduce` is honoured in 10 places, which is also why Playwright runs with `reducedMotion: 'reduce'`. (`web/src/teacher/ClassManagementView.vue:641-642`, `web/src/teacher/ImportMaterials.vue:299-300`, `web/src/teacher/ToReviewView.vue:136`, `web/src/app.css:220`/`:1024`/`:1056`, `playwright.config.js:58`.)
+`aria-label` is used in 55 of the web source files; the moved class panel is a real landmark (`role="region" aria-label="Class settings"`), the search box is labelled "Search classes", the file inputs are labelled "Lecture files" and "Replacement lecture file", collapsible sections carry `aria-expanded`, and page headings take focus (`tabindex="-1"`) so a route change moves the reader to the title. Motion is respected: `prefers-reduced-motion: reduce` is honoured in 10 places, which is also why Playwright runs with `reducedMotion: 'reduce'`. (`web/src/teacher/ClassManagementView.vue:685-686`, `web/src/teacher/ImportMaterials.vue:299-300`, `web/src/App.vue:148`/`:158` and `web/src/teacher/ClassManagementView.vue:576` (the `aria-expanded` on the drawer toggle, the sidebar collapse button and a roster row), `web/src/teacher/ToReviewView.vue:136` (the page heading that takes focus), `web/src/app.css:220`/`:1024`/`:1056`, `playwright.config.js:56`.)
 
 **G11. What did you do about security?**
-Passwords are scrypt-hashed and compared in constant time, with a dummy hash used for unknown emails so a wrong email costs the same as a wrong password. Login locks an email after 5 wrong passwords for 15 minutes; the reset endpoint is throttled per IP and per email. Join codes are CSPRNG-generated and only their SHA-256 hash is stored. Every route declares a required role and the dispatcher enforces it, then ownership is checked and returns 404 rather than 403 so ids cannot be probed. There are no cookies at all — the token is a Bearer header read from `sessionStorage` — so there is no CSRF surface. The honest gaps are in section 4. (`src/quiz/passwords.js:26-38`, `src/quiz/api.js:59-60`, `:632`, `:814-828`, `:222-227`, `:2616-2623`, `web/src/api.js:16-22`/`:101-105`.)
+Passwords are scrypt-hashed and compared in constant time, with a dummy hash used for unknown emails so a wrong email costs the same as a wrong password. Login locks an email after 5 wrong passwords for 15 minutes; the reset endpoint is throttled per IP and per email. Join codes are CSPRNG-generated and only their SHA-256 hash is stored. Every route declares a required role and the dispatcher enforces it, then ownership is checked and returns 404 rather than 403 so ids cannot be probed. There are no cookies at all — the token is a Bearer header read from `sessionStorage` — so there is no CSRF surface. The honest gaps are in section 4. (`src/quiz/passwords.js:26-38`, `src/quiz/api.js:63-64`, `:647`, `:840-854`, `:230-231`, `:2683-2687`, `web/src/api.js:16-22`/`:109-113`.)
 
 **G12. What about performance?**
 The heavy file work is client-side and lazy: pdfjs-dist is dynamically imported so it stays out of the main bundle, and the browser test asserts that uploading alone uses zero inference. The server is deliberately small — one process, in-memory tokens, a JSON file flushed 250 ms after a change — which is honest for a single-process demo but not for load. I will not claim load numbers we did not measure; `scryptSync` in particular blocks the event loop on every login and every hash. (`web/src/teacher/pdf.js:1-12`, `test/browser-authoring.test.cjs:136-152`, `src/quiz/store.js:17`, `src/quiz/passwords.js:22`.)
 
 **G13. Where does AI fit, and what if it is wrong?**
-AI only drafts. The drafter reads the professor's saved knowledge report — the slides are not sent — verifies each candidate independently, and writes the survivors with status `draft`. Nothing is published without a human pressing "Approve & publish". If the report cannot support the requested style, the app says so in plain words instead of quietly substituting easier questions, and the whole app still works without a key on the legacy manual drafting screen. (`src/quiz/authoring.js:554`/`:593-594`/`:565-569`, `src/quiz/generator.js:543-559`, `web/src/teacher/QuestionCard.vue:74`.)
+AI only drafts. The drafter reads the professor's saved knowledge report — the slides are not sent — verifies each candidate independently, and writes the survivors with status `draft`. Nothing is published without a human pressing "Approve & publish". If the report cannot support the requested style, the app says so in plain words instead of quietly substituting easier questions, and the whole app still works without a key on the legacy manual drafting screen. (`src/quiz/authoring.js:554`/`:593-594`/`:565-569`, `src/quiz/generator.js:543-559`, `web/src/teacher/QuestionCard.vue:69`.)
 
 **G14. What would you do next?**
-In order: move authentication onto Supabase Auth with email verification and MFA; add real rate limiting to registration and join-code redemption; write an audit trail for enrolment, removal, archive and code revocation; add an admin role-change screen; and run the app on Postgres as the primary store with real RLS policies instead of the JSON stand-in. (`src/quiz/api.js:665-679`, `:1016-1043`, `supabase/migrations/20261007000000_quizquest_init.sql:14-18`.)
+In order: move authentication onto Supabase Auth with email verification and MFA; add real rate limiting to registration and join-code redemption; write an audit trail for enrolment, removal, archive and code revocation; add an admin role-change screen; and run the app on Postgres as the primary store with real RLS policies instead of the JSON stand-in. (`src/quiz/api.js:685-702`, `:1074-1098`, `supabase/migrations/20261007000000_quizquest_init.sql:14-18`.)
 
 **G15. Why should we believe the demo data?**
-Because the demo accounts are seeded, not hand-made: `t-a`, `t-b` and `s-01`–`s-12`, all on `@quizquest.demo` addresses. If the live instance looks thin, the fix is to move the seeded material onto the account that still works — the course, its topics, its classes and the student enrolments all exist on the live project already, and reassigning them is a **data** change, not a code change. `pnpm db:reset --confirm` against the Render Supabase project does the same job but heavier: it deletes every row and re-seeds from scratch, and it takes `t-a` back from whoever owns it now, so it needs that person's nod first. (`src/quiz/api.js:65-66`, `src/quiz/seed.js:103`/`:120-129`, `README.md:83`.)
+Because the demo accounts are seeded, not hand-made: `t-a`, `t-b` and `s-01`–`s-12`, all on `@quizquest.demo` addresses. If the live instance looks thin, the fix is to move the seeded material onto the account that still works — the course, its topics, its classes and the student enrolments all exist on the live project already, and reassigning them is a **data** change, not a code change. `pnpm db:reset --confirm` against the Render Supabase project does the same job but heavier: it deletes every row and re-seeds from scratch, and it takes `t-a` back from whoever owns it now, so it needs that person's nod first. (`src/quiz/api.js:69-70`, `src/quiz/seed.js:103`/`:120-129`, `README.md:85`.)
 
 ---
 
@@ -210,18 +212,18 @@ Give the honest one-liner, then stop. Do not improvise a claim.
 
 | Question | Honest answer to give |
 |---|---|
-| "Do you verify student email addresses?" | Not yet. Registration stores the email exactly as typed and the account is usable immediately, so email verification is on our list. (`src/quiz/api.js:665-679`) |
+| "Do you verify student email addresses?" | Not yet. Registration stores the email exactly as typed and the account is usable immediately, so email verification is on our list. (`src/quiz/api.js:685-702`) |
 | "Do you use Supabase Auth / do you have MFA?" | No. Authentication is our own scrypt-plus-token implementation; MFA is not built. We treat auth as plumbing, which is also how the rubric counts it. |
-| "How do you change someone's role?" | You cannot. The role is chosen at signup and is immutable — there is no admin screen, no invite and no approval flow. A new teacher simply gets a private empty course. (`src/quiz/api.js:665-676`) |
-| "Is signup rate limited?" | No, and neither is join-code redemption. Login and password reset are limited; those two endpoints are not. That is a known gap, not an oversight we would defend. (`src/quiz/api.js:680`, `:1016`) |
-| "Can we reset a password right now?" | Only if a mail provider is configured. Otherwise the endpoint says "Password recovery by email is not available in this build. Ask the project team to reset it for you." — it never fakes sending a code. (`src/quiz/api.js:694-703`) |
-| "Does the session survive a server restart?" | No. Tokens live only in the server's memory, so a restart signs everyone out; the token also lives in `sessionStorage`, so closing the tab signs you out. (`src/quiz/api.js:213`, `web/src/api.js:16-22`) |
-| "Is the class-settings search live on the deployed app?" | The code is — it is merged into `main` — but the deployed app has not been rebuilt yet, so the live site still has no search box and no "Class Settings" tab until the next redeploy. |
+| "How do you change someone's role?" | You cannot. The role is fixed at signup and is immutable — there is no admin screen, no invite and no approval flow. A sign-up can only create a student: a request for the professor role is refused, and professor accounts are provisioned by the team. (`src/quiz/api.js:685-692`) |
+| "Is signup rate limited?" | No, and neither is join-code redemption. Login and password reset are limited; those two endpoints are not. That is a known gap, not an oversight we would defend. (`src/quiz/api.js:703`, `:1053`) |
+| "Can we reset a password right now?" | Only if a mail provider is configured. Otherwise the endpoint says "Password recovery by email is not available in this build. Ask the project team to reset it for you." — it never fakes sending a code. (`src/quiz/api.js:724-728`) |
+| "Does the session survive a server restart?" | No. Tokens live only in the server's memory, so a restart signs everyone out; the token also lives in `sessionStorage`, so closing the tab signs you out. (`src/quiz/api.js:217`, `web/src/api.js:16-22`) |
+| "Is the class-settings search live on the deployed app?" | Yes. It is merged into `main`, the deployment redeploys from `main` on its own, and the live bundle (checked 4 Nov 2026) already carries the search box and the "Class Settings" tab. |
 | "Is this a production database?" | Not by default. It is one JSON file with no concurrency control; Supabase Postgres is the intended store and is used when `SUPABASE_URL` is set. RLS is on with no policies, so the browser keys read nothing. (`src/quiz/store.js:5-7`, `server.js:329-341`) |
 | "Is there an audit log?" | No. Enrolment, removal, archive and code revocation are not recorded anywhere a professor can read. |
-| "Can the professor set the participation-points rule?" | Not in the UI. The API writes `participationEnabled` but there is no switch for it on the Settings page or in the Class Settings tab. (`src/quiz/api.js:1132`) |
-| "Are the demo accounts a security hole?" | Yes, and we will say so: every seeded account shares the same published demo password (see README.md, Demo sign-in), and a seeded account can also be signed into with no password at all by sending `{userId}` to `POST /api/login`. It is limited to the synthetic ids `t-a`, `t-b`, `s-01`–`s-12`, and a demo session cannot change a password. (`src/quiz/api.js:65-66`, `:652-658`, `src/quiz/passwords.js:18`) |
-| "Who can see the list of demo accounts?" | Anyone — `GET /api/demo-users` is unauthenticated. It only lists seeded synthetic accounts, but it is reachable in production. (`src/quiz/api.js:609-621`) |
+| "Can the professor set the participation-points rule?" | Not in the UI. The API writes `participationEnabled` but there is no switch for it on the Settings page or in the Class Settings tab. (`src/quiz/api.js:1192`) |
+| "Are the demo accounts a security hole?" | Yes, and we will say so: every seeded account shares the same published demo password (see README.md, Demo sign-in), and a seeded account can also be signed into with no password at all by sending `{userId}` to `POST /api/login`. It is limited to the synthetic ids `t-a`, `t-b`, `s-01`–`s-12`, and a demo session cannot change a password. (`src/quiz/api.js:69-70`, `:673`, `src/quiz/passwords.js:18`) |
+| "Who can see the list of demo accounts?" | Anyone — `GET /api/demo-users` is unauthenticated. It only lists seeded synthetic accounts, but it is reachable in production. (`src/quiz/api.js:627`) |
 | "Is the file upload covered by end-to-end tests?" | Not by Playwright — there is no upload or authoring spec in `e2e/`. That path is covered by the Node browser tests instead, including one that asserts uploading alone uses zero inference. (`test/browser-authoring.test.cjs:136-152`) |
 
 ---
@@ -249,10 +251,10 @@ Three honest deflections, in order of preference:
 - Login lock: 5 wrong passwords per email, 15 minutes.
 - Password reset = 6-digit OTP, 10-min expiry, SHA-256 hashed, needs Resend keys.
 - Reset throttles: 10 per IP / 15 min, 1 per email / 60 s.
-- Roles: `student`, `teacher` — set at signup, never changed.
+- Roles: `student`, `teacher` — set at signup and never changed; a sign-up can only create a student.
 - Route table carries the required role; dispatcher returns 401 then 403.
 - Ownership failures return 404, not 403, so ids cannot be probed.
-- New teacher gets a private empty course automatically.
+- Professor accounts are provisioned by the team; a sign-up that asks for the teacher role is refused, so nobody can promote themselves.
 - Student tabs: Kingdom, Quiz, My Progress, Campfire Run, Summon.
 - Teacher tabs: Analytics, To review, Classes & Roster, Question bank, AI drafting, Evaluation, Settings.
 - Join code: 12 chars from a 32-symbol alphabet, `crypto.randomInt`.
@@ -267,7 +269,7 @@ Three honest deflections, in order of preference:
 - Default store: one JSON file; Supabase Postgres when `SUPABASE_URL` is set.
 - RLS on, no policies — browser keys read nothing.
 - Users table promotes id/name/role; the rest sits in `extra` jsonb.
-- 43 e2e tests / 18 specs on main (40 / 17 before PR #51 merged; class-settings adds 4 but the trading test moved out of teacher-settings, so +3 net).
+- 46 e2e tests / 19 specs on main (43 / 18 after PR #51, which was +3 net; +3 more since, incl. the material-library spec).
 - e2e engines: chromium, firefox, webkit on 4173-4175; 60 s test timeout.
 - Adaptive split: 70% general / 30% weak (`weakShare: 0.3`).
 - AI never publishes: drafts are `status: 'draft'`, `publishedVersion: null`.
@@ -296,4 +298,4 @@ Three honest deflections, in order of preference:
 
 ### Reference files
 
-`src/quiz/api.js` (2651 lines, every route) · `src/quiz/passwords.js` · `src/quiz/store.js` · `src/quiz/time.js` · `src/quiz/adaptive.js` · `src/quiz/authoring.js` · `src/quiz/generator.js` · `src/quiz/gemini.js` · `src/db/schema.js` · `server.js` · `web/src/App.vue` · `web/src/api.js` · `web/src/teacher/ClassManagementView.vue` · `web/src/teacher/SettingsView.vue` · `web/src/teacher/AnalyticsView.vue` · `web/src/teacher/ToReviewView.vue` · `web/src/teacher/ReviewView.vue` · `web/src/teacher/QuestionCard.vue` · `web/src/teacher/QuestionEditor.vue` · `web/src/teacher/AuthoringWorkflow.vue` · `web/src/teacher/ImportMaterials.vue` · `web/src/teacher/import-materials.js` · `web/src/student/ProgressView.vue` · `web/src/student/ClassPicker.vue` · `web/src/student/HeroLabView.vue` · `e2e/` (18 specs, 43 tests) · `test/auth-classes-test.js` · `test/auth-test.js` · `test/browser-authoring.test.cjs` · `test/browser-guard-rails.test.cjs` · `test/browser-import.test.cjs` · `test/browser-question-editor.test.cjs` · `test/browser.test.cjs` · `supabase/migrations/20261007000000_quizquest_init.sql` · `knowledge/Project Q and A (dark).pdf` · `knowledge/IS216 - Group Project Briefing (dark).pdf`
+`src/quiz/api.js` (2716 lines, every route — `origin/main` at `c4e1956`) · `src/quiz/passwords.js` · `src/quiz/store.js` · `src/quiz/time.js` · `src/quiz/adaptive.js` · `src/quiz/authoring.js` · `src/quiz/generator.js` · `src/quiz/gemini.js` · `src/db/schema.js` · `server.js` · `web/src/App.vue` · `web/src/api.js` · `web/src/teacher/ClassManagementView.vue` · `web/src/teacher/SettingsView.vue` · `web/src/teacher/AnalyticsView.vue` · `web/src/teacher/ToReviewView.vue` · `web/src/teacher/ReviewView.vue` · `web/src/teacher/QuestionCard.vue` · `web/src/teacher/QuestionEditor.vue` · `web/src/teacher/AuthoringWorkflow.vue` · `web/src/teacher/ImportMaterials.vue` · `web/src/teacher/import-materials.js` · `web/src/student/ProgressView.vue` · `web/src/student/ClassPicker.vue` · `web/src/student/HeroLabView.vue` · `e2e/` (19 specs, 46 tests) · `test/auth-classes-test.js` · `test/auth-test.js` · `test/browser-authoring.test.cjs` · `test/browser-guard-rails.test.cjs` · `test/browser-import.test.cjs` · `test/browser-question-editor.test.cjs` · `test/browser.test.cjs` · `supabase/migrations/20261007000000_quizquest_init.sql` · `knowledge/Project Q and A (dark).pdf` · `knowledge/IS216 - Group Project Briefing (dark).pdf`
