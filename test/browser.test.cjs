@@ -52,6 +52,15 @@ async function waitForAnswerControl(page) {
     return !!card.querySelector('.options button, [aria-label="Numeric answer"], [aria-label="Written answer"]');
   });
 }
+// The material library is a disclosure under AI drafting. Clicking its
+// summary opens it - or closes it when it is already open, which is what
+// happens after a save: the view remounts, and the library stays open where
+// the professor left it. So the summary is only clicked when it is shut.
+async function openMaterialLibrary(page) {
+  const summary = page.getByText('Material library · Notes, images & older files', { exact: true });
+  const library = page.locator('details.panel').filter({ has: summary });
+  if ((await library.getAttribute('open')) === null) await summary.click();
+}
 // The class picker is a <select>, so the class name lives in an <option> - and
 // Playwright never treats an <option> as visible, because a closed <select>
 // gives it no box on screen. What is on screen is the picker itself and the
@@ -541,7 +550,7 @@ test('kingdom builds drop new blocks in place and the summon reveal hands over t
 test('PDF upload extracts text locally and saves reviewed source material', async (t) => {
   const page = await pageFor(t, 'Prof. Demo A');
   await page.locator('#tabs').getByRole('button', { name: 'AI drafting' }).click();
-  await page.getByText('Material library · Notes, images & older files',{exact:true}).click();
+  await openMaterialLibrary(page);
   // This panel reads the file in the browser and saves a note. The upload
   // panel above is the one that uploads to the server, so the two must not
   // be mistaken for each other.
@@ -573,7 +582,7 @@ test('PDF upload extracts text locally and saves reviewed source material', asyn
 test('"Add material" creates a new topic with a typed learning outcome', async (t) => {
   const page = await pageFor(t, 'Prof. Demo A');
   await page.locator('#tabs').getByRole('button', { name: 'AI drafting' }).click();
-  await page.getByText('Material library · Notes, images & older files',{exact:true}).click();
+  await openMaterialLibrary(page);
   const panel = page.locator('.panel', { has: page.getByRole('heading', { name: 'Add notes or transcribe images', exact: true }) });
   await panel.getByLabel('Title').fill('Cloud notes');
   await panel.getByLabel('Topic', { exact: true }).selectOption({ label: '+ New topic…' });
@@ -597,7 +606,7 @@ test('"Add material" creates a new topic with a typed learning outcome', async (
   assert.deepEqual(topic.outcomes.map((o) => o.text), ['Explain what cloud computing offers']);
   assert.ok(srv.quiz.db.passages.some((p) => p.title === 'Cloud notes' && p.topicId === topic.id && p.outcomeId === topic.outcomes[0].id));
   // the new outcome is now offered in the list
-  await page.getByText('Material library · Notes, images & older files',{exact:true}).click();
+  await openMaterialLibrary(page);
   await page.locator('.panel', { has: page.getByRole('heading', { name: 'Add notes or transcribe images', exact: true }) }).getByLabel('Learning outcome', { exact: true }).locator('option', { hasText: 'Explain what cloud computing offers' }).waitFor({ state: 'attached' });
 });
 
@@ -625,7 +634,7 @@ test('the material library lists the files of a topic, not only its notes', asyn
   });
   await page.locator('#tabs').getByRole('button', { name: 'AI drafting' }).click();
   await page.getByLabel('Weekly topic', { exact: true }).selectOption('tp-net');
-  await page.getByText('Material library · Notes, images & older files', { exact: true }).click();
+  await openMaterialLibrary(page);
   // The topic counts the file it uses and lists it.
   const heading = page.getByRole('heading', { name: /Week 2 · Networking basics/ });
   await heading.waitFor();
