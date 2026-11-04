@@ -510,9 +510,16 @@ test('demo resource editor uses the catalog, saves balances, and rejects invalid
 
 test('kingdom: builds cost resources, repeat requests are idempotent', async () => {
   const t = await login('s-02');
+  // The supplies a seeded session hands out are a bundle drawn at random, so
+  // the balances a test starts from are not fixed. Set the two resources this
+  // test is about: enough wood for one library, and no crystals at all.
+  const wood0 = await call(t, 'POST', '/api/student/debug/resources', { resource: 'wood', balance: 10 });
+  assert.equal(wood0.status, 200, 'the demo resource editor sets the wood');
+  const crystal0 = await call(t, 'POST', '/api/student/debug/resources', { resource: 'crystal', balance: 0 });
+  assert.equal(crystal0.status, 200, 'the demo resource editor clears the crystals');
   const k0 = (await call(t, 'GET', '/api/student/kingdom')).body;
   const wood = k0.resources.wood;
-  assert.ok(wood >= 5, 'seeded sessions gave wood');
+  assert.ok(wood >= 5, 'the student has wood to spend');
   const rid = 'build-request-001';
   const a = await call(t, 'POST', '/api/student/kingdom/build', { building: 'library', requestId: rid });
   const b = await call(t, 'POST', '/api/student/kingdom/build', { building: 'library', requestId: rid });
@@ -528,6 +535,11 @@ test('trading: escrow, swap, limits, class isolation, and the professor off swit
   const s7 = await login('s-07');
   await giveTower('s-04', s4);
   await giveTower('s-05', s5);
+  // The supplies a seeded session hands out are a bundle drawn at random, so
+  // the balances this test starts from are not fixed. Top up the two
+  // resources the trade moves: s-04 offers the wood, s-05 hands over the herb.
+  assert.equal((await call(s4, 'POST', '/api/student/debug/resources', { resource: 'wood', balance: 10 })).status, 200);
+  assert.equal((await call(s5, 'POST', '/api/student/debug/resources', { resource: 'herb', balance: 10 })).status, 200);
   const res = (id) => db().inventory.find((i) => i.studentId === id).resources;
   const before4 = { ...res('s-04') };
   const before5 = { ...res('s-05') };
