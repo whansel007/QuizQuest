@@ -157,6 +157,12 @@ e2e/                  Playwright user journeys
 docs/                 Architecture, operations, workflows, audits, and UI guides
 ```
 
+## Use of AI tools
+
+AI tools were used to generate skeleton code and the synthetic demo data
+(seeded users, courses and questions). The team reviewed, adapted and tested
+the AI-generated work, and is responsible for all submitted work.
+
 ## Third-party code and assets
 
 QuizQuest is built on other people's work. Here is all of it, so it can be
