@@ -94,6 +94,14 @@ onMounted(loadData);
 async function selectClassToManage(cls) {
   selectedClass.value = cls;
   newlyGeneratedCode.value = null;
+  // The trade log belongs to the class it was fetched for. A professor who
+  // opens the Settings tab on one class and then picks another from the grid
+  // would otherwise still be looking at the first class's trades under the
+  // second class's name, so the list is dropped and refetched for the class
+  // that was just chosen.
+  classTrades.value = [];
+  showTradeLog.value = false;
+  if (activeTab.value === 'settings') loadTrades(cls);
   await loadClassDetails(cls);
 }
 

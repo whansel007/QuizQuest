@@ -173,3 +173,63 @@ test('the password reset says outright when email recovery is unavailable', asyn
     await close();
   }
 });
+
+test('an archived class starts no new practice session', async () => {
+  const { call, close } = await testServer();
+  try {
+    const teacher = (await call(null, 'POST', '/api/login', { userId: 't-a' })).body.token;
+    const student = (await call(null, 'POST', '/api/login', { userId: 's-01' })).body.token;
+
+    // The seeded student is enrolled in cl-a and can start a session.
+    const before = await call(student, 'POST', '/api/student/sessions', { classId: 'cl-a', length: 5, timerSec: 0 });
+    assert.equal(before.status, 201);
+
+    // The professor archives the class. Archiving is not deleting: the
+    // attempts and the history stay.
+    const archived = await call(teacher, 'POST', '/api/classes/cl-a/archive');
+    assert.equal(archived.status, 200);
+    assert.equal(archived.body.archived, true);
+
+    // An archived class is closed. It takes no new students, so it must
+    // start no new practice either - otherwise a student who kept the app
+    // open on a stale tab can keep making attempts in a closed class.
+    const after = await call(student, 'POST', '/api/student/sessions', { classId: 'cl-a', length: 5, timerSec: 0 });
+    assert.equal(after.status, 404);
+
+    // The session the student already had carries on: that work was
+    // legitimate when it was started.
+    const resumed = await call(student, 'GET', '/api/student/classes/cl-a/progress');
+    assert.equal(resumed.status, 200);
+
+    // Restoring the class opens it again.
+    const restored = await call(teacher, 'POST', '/api/classes/cl-a/archive');
+    assert.equal(restored.body.archived, false);
+    const reopened = await call(student, 'POST', '/api/student/sessions', { classId: 'cl-a', length: 5, timerSec: 0 });
+    assert.equal(reopened.status, 201);
+  } finally {
+    await close();
+  }
+});
+
+test('a join code cannot be generated for an archived class', async () => {
+  const { call, close } = await testServer();
+  try {
+    const teacher = (await call(null, 'POST', '/api/login', { userId: 't-a' })).body.token;
+
+    const live = await call(teacher, 'POST', '/api/classes/cl-a/join-codes', { usageLimit: 10, expiresInDays: 7 });
+    assert.equal(live.status, 201);
+
+    const archived = await call(teacher, 'POST', '/api/classes/cl-a/archive');
+    assert.equal(archived.body.archived, true);
+
+    // An archived class takes no new students, so a code for one could never
+    // be redeemed. Handing it out anyway is the bug: the professor would
+    // show a code in the demo and the student who tried it would get
+    // nothing.
+    const dead = await call(teacher, 'POST', '/api/classes/cl-a/join-codes', { usageLimit: 10, expiresInDays: 7 });
+    assert.equal(dead.status, 409);
+    assert.match(dead.body.error, /archived/i);
+  } finally {
+    await close();
+  }
+});
