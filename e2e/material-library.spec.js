@@ -42,8 +42,12 @@ async function openLibrary(page) {
   const topic = page.getByRole('combobox', { name: 'Weekly topic' });
   await expect(topic).toBeVisible();
   await topic.selectOption(TOPIC_ID);
+  // The library is the disclosure whose own summary says "Material library".
+  // Its summaries and its rows are disclosures too, so the summary is
+  // picked out directly instead of by "any summary inside it".
+  const summary = page.locator('details.panel > summary', { hasText: 'Material library' });
+  await expect(summary).toHaveCount(1);
   const library = page.locator('details.panel').filter({ hasText: 'Material library' });
-  const summary = library.locator('summary');
   if ((await library.getAttribute('open')) === null) await summary.click();
   await expect(page.getByRole('checkbox', { name: 'Show archived material' })).toBeVisible();
 }
@@ -52,6 +56,15 @@ async function openLibrary(page) {
 // its buttons.
 function row(page, title) {
   return page.getByText(title, { exact: true }).locator('xpath=ancestor::details[1]');
+}
+
+// Open one passage's row, so its buttons can be clicked. The row keeps its
+// open state when the list is reloaded, so this only opens a closed row.
+async function openRow(page, title) {
+  const r = row(page, title);
+  if ((await r.getAttribute('open')) === null) await r.locator('summary').click();
+  await expect(r.getByRole('button', { name: 'Edit metadata' })).toBeVisible();
+  return r;
 }
 
 test('a professor archives a note, shows the archived material, restores it and edits its title', async ({ page }) => {
@@ -65,7 +78,7 @@ test('a professor archives a note, shows the archived material, restores it and 
   await expect(note).toBeVisible();
 
   // Archive it. The buttons are inside the passage's own disclosure.
-  await row(page, title).locator('summary').click();
+  await openRow(page, title);
   await row(page, title).getByRole('button', { name: 'Archive passage' }).click();
   await expect(page.getByText(`Archived "${title}".`)).toBeVisible();
   await expect(page.getByText(title, { exact: true })).toHaveCount(0);
@@ -76,14 +89,17 @@ test('a professor archives a note, shows the archived material, restores it and 
   await expect(row(page, title).locator('.badge')).toHaveText('archived');
 
   // And it can be restored.
-  await row(page, title).locator('summary').click();
+  await openRow(page, title);
   await row(page, title).getByRole('button', { name: 'Restore passage' }).click();
   await expect(page.getByText(`Restored "${title}".`)).toBeVisible();
+  // Saving remounts the view, so the row starts closed again.
+  await openRow(page, title);
   await expect(row(page, title).locator('.badge')).toHaveCount(0);
-  await expect(row(page, title).getByRole('button', { name: 'Archive passage' })).toHaveCount(0);
+  await expect(row(page, title).getByRole('button', { name: 'Restore passage' })).toHaveCount(0);
+  await expect(row(page, title).getByRole('button', { name: 'Archive passage' })).toBeVisible();
 
   // Edit the metadata: the modal opens on the note's own title.
-  await row(page, title).locator('summary').click();
+  await openRow(page, title);
   await row(page, title).getByRole('button', { name: 'Edit metadata' }).click();
   const modal = page.locator('.modal-card');
   await expect(modal.getByRole('heading', { name: 'Edit material' })).toBeVisible();
