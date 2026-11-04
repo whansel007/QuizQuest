@@ -12,19 +12,20 @@ Date note: **16 Nov 2026 is the normal Week 13 presentation.** Week 1 Monday = 2
 
 ## 0. Read this before you walk in: which build is on screen
 
-The live site **auto-redeploys from `origin/main`**. As of 4 Nov 2026, 09:22 the live bundle carries PR #51 and PR #56 (`origin/main` = `051fdbe`); it was re-checked at 10:45 and the bundle was unchanged (`/assets/index-CZtQRtdb.js`). Confirm on the day with `curl -s https://quizquest-4phd.onrender.com/ | grep -o '/assets/index-[^"]*\.js'` and then grep that bundle for `Class settings` — 1 hit = new build, 0 = old build. Fallback if 0: use the older-build line in §4.
+The live site **auto-redeploys from `origin/main`**. As of 4 Nov 2026, 22:00 the live bundle is `/assets/index-ClFWelFb.js` and it carries **PR #51, #56, #59 and #60** — every feature in this script is on the deployed build, including the class card's **Rename** button and the Material Library's **Archive passage**, **Restore passage**, **Edit metadata** and **Show archived material**. Confirm on the day with `curl -s https://quizquest-4phd.onrender.com/ | grep -o '/assets/index-[^"]*\.js'` and then grep that bundle for `Class settings` — 1 hit = new build, 0 = old build. Fallback if 0: use the older-build line in §4.
 
 | Thing | Where it lives | Verified |
 |---|---|---|
 | Live deployment | `https://quizquest-4phd.onrender.com` | live curl, 4 Nov 2026 |
 | Live bundle contains "Class Management", "Classes & Roster", "To review", "Campfire Run" | yes | same curl |
 | Live bundle contains "Search classes by name or course" and "Class settings" | **yes — 1 and 2 occurrences** | same curl, 4 Nov 2026 |
+| Live bundle contains "Rename Class", "Archive passage", "Show archived material" and "Edit metadata" | **yes — 1 hit each** | live bundle grep, 4 Nov 2026 22:00 |
 | Per-class settings move + class search bar | commit `2781e75` ("Move the per-class settings to the class management page"), **merged to main as PR #51** (merge commit `22fcf74`) — in the code **and live** | `git log --oneline -1 origin/main -- web/src/teacher/ClassManagementView.vue` |
 | Live teacher account | `prof.b@quizquest.demo` only — `prof.a` returns 401 and is absent from `/api/demo-users` | live check, 4 Nov 2026 |
 | Live data under that account | 1 course ("Intro to Statistics (demo)"), 1 class ("Statistics - Tutorial Group B"), 2 students, 0 active join codes | live `GET /api/teacher/courses` + `GET /api/classes`, 4 Nov 2026 |
 | Gemini on the live instance | `geminiEnabled: true`, `authoringEnabled: true`, `gemini-3.5-flash-lite` | live `GET /api/teacher/courses`, 4 Nov 2026 |
 
-Do **not** grep for "Trading on" — the template interpolates `'on'`/`'off'`, so that string never appears in a bundle. The only two valid markers are "Search classes by name or course" and "Class settings".
+Do **not** grep for "Trading on" — the template interpolates `'on'`/`'off'`, so that string never appears in a bundle. The valid markers are "Search classes by name or course", "Class settings", "Rename Class", "Archive passage", "Show archived material" and "Edit metadata".
 
 **The bundle name is not a fact — it changes on every redeploy.** Find out which build is live, and whether it carries the class-settings move, with:
 
