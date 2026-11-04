@@ -2,10 +2,10 @@
 
 **Deliverable:** the demo video linked on slide 1 of the slides and uploaded inside the "Final Project Deliverables" zip.
 **Format the brief requires:** maximum 12 minutes, at least 720p (ideally 1080p), uploaded to YouTube as **unlisted or public** (Briefing p03). This script lands at **4:24**, so there is room to breathe.
-**Never in frame:** login, sign-up, registration, password entry, the "Test accounts" page, or any credential. Sign in before you press record (Q&A p11 rule 2 and rule 3: *"DO NOT demo about log-in/out, user registration functions"*).
+**Never in frame:** login, sign-up, registration, password entry, the "Test accounts" page, or any credential. Sign in before you press record (Q&A p11 rules 1 and 2: *"DO NOT demo about log-in/out, user registration functions"*).
 **Narration rule:** describe the app and the user's journey. No file names, no code, no API names.
 
-Everything below was checked against the code and against the live deployment on **3 Nov 2026**. Where a claim could be checked, the source is cited inline.
+Everything below was checked against the code and against the live deployment on **4 Nov 2026**. Where a claim could be checked, the source is cited inline.
 
 ---
 
@@ -49,7 +49,7 @@ narration between segments.
 
 ## 0. Facts of record (check these the day you film, not from memory)
 
-| Thing | State on 3 Nov 2026 | How to re-check |
+| Thing | State on 4 Nov 2026 | How to re-check |
 |---|---|---|
 | Live URL | `https://quizquest-4phd.onrender.com` — answers 200 | `curl -s -o /dev/null -w "%{http_code}" https://quizquest-4phd.onrender.com/` |
 | Live bundle | the hash changes on every redeploy, so it is not a fact of record — read it on the day | `curl -s https://quizquest-4phd.onrender.com/ \| grep -o '/assets/index-[^"]*\.js'` |
@@ -62,7 +62,7 @@ narration between segments.
 
 ### Blockers, in the order they bite
 
-**B1 — the live data is too thin for the Analytics and roster shots.** With one class of two students and zero attempts, the dashboard reads "No answers yet" (`web/src/teacher/analyticsView.vue:656`) and the roster table has two rows.
+**B1 — the live data is too thin for the Analytics and roster shots.** With one class of two students and zero attempts, the dashboard reads "No answers yet" (`web/src/teacher/AnalyticsView.vue:656`) and the roster table has two rows.
 
 **What is actually on the live project (checked on 4 Nov 2026, not guessed):**
 
@@ -109,20 +109,20 @@ somebody presents an area they do not own.
 
 ### 1.1 Deploy and verify
 
-- [ ] **Latest `main` is live.** William owns the push and the Render deploy. After it lands, confirm the live bundle hash changed and still contains the current tab names — `curl -s https://quizquest-4phd.onrender.com/ | grep -o '/assets/index-[^"]*\.js'`, then grep that file for `Campfire Run` and `To review`. If the bundle still says "Practice" or "World", you are filming an old build.
+- [ ] **Latest `main` is live.** The Render service **redeploys from `main` on its own** — a merge into `main` *is* the deploy; nobody has to press anything. Confirm the live bundle hash changed and still contains the current tab names — `curl -s https://quizquest-4phd.onrender.com/ | grep -o '/assets/index-[^"]*\.js'`, then grep that file for `Campfire Run` and `To review`. If the bundle still says "Practice" or "World", you are filming an old build.
 - [ ] **PR #51 merged and redeployed?** It is merged (`22fcf74`); this checks the deploy, so Shot 9 can be filmed the new way. `curl -s <live bundle> | grep -c "Search classes by name or course"` — **0 means the old way, 1+ means the new way**. Do not narrate a feature the audience cannot see.
 - [ ] **The instance is awake.** Free Render instances sleep. Open the live URL and `/api/demo-users` several minutes before you record, then click through every tab you will film once so the assets are cached.
-- [ ] **The app must not be restarted during filming.** Sessions live in server memory (`src/quiz/api.js:213`, TTL 8 h at `:55`) — a restart signs everyone out mid-take. The brief also says the deployed app must be left running and not restarted (`Briefing p03`).
+- [ ] **The app must not be restarted during filming.** Sessions live in server memory (`src/quiz/api.js:217`, TTL 8 h at `:59`) — a restart signs everyone out mid-take. The brief also says the deployed app must be left running and not restarted (`Briefing p03`).
 
 ### 1.2 The demo account and the data
 
-- [ ] **You can sign in as the demo professor.** Use the account and password from the group chat. Do not type them in front of the camera, and do not paste the password into this file, a slide, or any tracked file. The seeded accounts' shared default is in `README.md` § "Demo sign-in" on `origin/main`.
+- [ ] **You can sign in as the demo professor.** Use the account and password from the group chat. Do not type them in front of the camera, and do not paste the password into this file, a slide, or any tracked file. The seeded accounts' shared default is in `README.md` § "Demo sign-in" on `origin/main`. **Re-check that table on the day:** it lists `prof.a@quizquest.demo` *or* `prof.b@quizquest.demo`, but `prof.a` is currently absent from the live picker, so the README can be ahead of the data — `curl -s https://quizquest-4phd.onrender.com/api/demo-users` tells you which account the live instance actually offers.
 - [ ] **Reseeded (B1)?** If yes, sign in as the seeded "Prof. Demo A" and confirm you see "Intro to Computing (demo)", both Computing classes, and six students in Group A. If no, you are on "Intro to Statistics (demo)" with one class and two students — then follow the **minimum path** in section 5.3.
 - [ ] **The class and the roster are seeded.** The roster shot needs students with attempts and a last-active date; the join-code shot needs a class you can open.
 - [ ] **A draft question is waiting in the Question bank.** The seed puts one there (`src/quiz/seed.js:161-165`), and Shot 6's Generate step adds more. Filter "Needs review" (`web/src/teacher/ReviewView.vue:76`).
-- [ ] **One student report is open for the professor** (seeded on q-n2, `src/quiz/seed.js:163`), or a student will create one on camera for Shot 17.
+- [ ] **One student report is open for the professor** (seeded on q-n2, `src/quiz/seed.js:164`), or a student will create one on camera for Shot 17.
 - [ ] **A student account is signed in too**, in a **separate browser window** — sign-in is per browser tab (`README.md`, "Demo sign-in" section: *"Sign-in is per browser tab"*).
-- [ ] **The student has coins for a Summon pull.** A single pull costs 50 and a ten-pull 500 (`e2e/summon.spec.js:83`, `:116`). Top them up from the student's own debug chip: the **🔧 "Tools and version"** button → **"Coin balance"** (`web/src/components/DebugMenu.vue:145`, `:160`). The endpoint only answers for the synthetic `@quizquest.demo` accounts (`src/quiz/api.js:1851`).
+- [ ] **The student has coins for a Summon pull.** A single pull costs 50 and a ten-pull 500 (`e2e/summon.spec.js:83`, `:116`). Top them up from the student's own debug chip: the **🔧 "Tools and version"** button → **"Coin balance"** (`web/src/components/DebugMenu.vue:145`, `:160`). The endpoint only answers for the synthetic `@quizquest.demo` accounts (`src/quiz/api.js:1891`).
 
 ### 1.3 Browser and screen
 
@@ -131,9 +131,9 @@ somebody presents an area they do not own.
 - [ ] **Browser zoom 100%**, window maximised, one screen. The app is a single-page shell with no router, so the URL never changes and the recording will read as one long page.
 - [ ] **Professor sidebar expanded.** Its collapsed state is remembered in `localStorage['qq-teacher-nav-collapsed']` (`web/src/App.vue:111`) — set it expanded before you record.
 - [ ] **Know the student nav.** On Kingdom, Campfire Run and Summon the tab bar slides away 1.6 s after your pointer leaves the top 18 px of the window (`web/src/App.vue:64`, `:67`). Move the mouse to the very top edge before every tab click, or the tab you want is not there.
-- [ ] **Console visible and clean.** The professor's mandatory rule is *"Open your web pages in inspector mode at 575px (xs) and show JavaScript console"* (Q&A p11). Before filming: DevTools → Console → walk every tab you will show and confirm **no red errors**. Then close DevTools for the video. Keep it open in a second window for the live Q&A.
-- [ ] **B-roll for insurance (separate file, not in the 4:24 cut):** record 10 s of the class grid at **575 px** in DevTools with the Console panel open and empty. It is your responsive-design evidence for the 18% styling band and your answer to the inspector rule.
-- [ ] **The GitHub tab is open in its own window** (Q&A p11 rule 5: *"Prepare to show your github page in browser"*). Do not film it in the video.
+- [ ] **Console visible and clean.** The professor's mandatory rule is *"Open your web pages in inspector mode at 575px (xs) and show JavaScript console"* (Q&A p11 rule 3). Before filming: DevTools → Console → walk every tab you will show and confirm **no red errors**. Then close DevTools for the video. Keep it open in a second window for the live Q&A.
+- [ ] **B-roll for insurance (separate file, not in the 4:24 cut):** record 10 s of the class grid at **575 px** in DevTools with the Console panel open and empty. It is your responsive-design evidence for the 18% styling band and your answer to the inspector rule. **Optional:** you can drop it in as a 10 s insert after Shot 9, but it does not have to be in the cut — the live demo shows the same 575 px check with the console open at beat D12 of the run of show.
+- [ ] **The GitHub tab is open in its own window** (Q&A p11 rule 4: *"Prepare to show your github page in browser"*). Do not film it in the video.
 
 ### 1.4 Recording gear
 
@@ -171,9 +171,9 @@ Planned runtime **4:24** (264 s) inside the brief's 12-minute cap. Timecodes are
 | 11 | 2:44–2:58 (14 s) | Class detail · **Join Codes (N)** | **+ Generate Join Code** → set a limit and expiry → **Generate Code** → the green **New Join Code Generated:** banner → **Copy Code** | "Join Codes is the self-enrolment side. The professor sets a usage limit and an expiry, generates a code — and the code is shown exactly once. After that the list shows only a masked version, with usage, expiry and status." | [MARXEL] |
 | 12 | 2:58–3:16 (18 s) | Student tab **Quiz** | **Length** 5 · **Timer** Untimed · tick a topic → **Start practice** → answer one question → let the verdict and explanation show → **Report a problem** on it | "This is the student's Quiz tab. The student sets the length, the timer, and any extra time, picks the topics, and starts. Each question is answered in a running session with feedback straight away. A student can flag a question they think is wrong." | [XAVIER LEE] |
 | 13 | 3:16–3:30 (14 s) | Student tab **My Progress** | **See results** → the **Session complete** summary → **View my progress** → scroll the four sections | "The summary shows what was right and the coins earned. My Progress carries it forward: your practice indicator, how you're doing by topic, your recent sessions, and any question reports you've sent." | [KAI CONG] |
-| 14 | 3:30–3:40 (10 s) | Student tab **Kingdom** | Open **Your buildings**; open one building panel | "Practice pays out in the Kingdom: the town grows as you earn, and the building list opens the castle, garden, tower, library and workshop." | [WILLIAM HANSEL] |
+| 14 | 3:30–3:40 (10 s) | Student tab **Kingdom** | Open **Buildings**; open one building panel | "Practice pays out in the Kingdom: the town grows as you earn, and the building list opens the castle, garden, tower, library and workshop." | [WILLIAM HANSEL] |
 | 15 | 3:40–3:50 (10 s) | Student tab **Campfire Run** | Pick a hero → **HOST LOBBY** → show the four-letter room code | "Campfire Run is the shared one. Pick a hero, host a lobby, and you get a four-letter room code — a classmate joins with that code and you're in the same run." | [WILLIAM HANSEL] |
-| 16 | 3:50–3:58 (8 s) | Student tab **Summon** | One pull → the prize → open **History** | "Summon spends coins on heroes and resources — fifty a pull — and every pull is written into the Summoner's Journal." | [WILLIAM HANSEL] |
+| 16 | 3:50–3:58 (8 s) | Student tab **Summon** | One pull → the prize → open **History** | "Summon spends coins on heroes and resources — fifty a pull — and every pull is written into the History log." | [WILLIAM HANSEL] |
 | 17 | 3:58–4:14 (16 s) | Professor tab **To review** | **Open student reports (N)** → open the report → read the reason → type the reply → resolve it | "A student can flag a question they think is wrong, straight from the practice screen. The professor sees it on To review — the reason, and no student identity — and answers it. The student sees the reply on My Progress." | [KAI CONG] |
 | 18 | 4:14–4:24 (10 s) | Professor tab **Analytics**, static | Scroll to the top of the dashboard and hold; the end card sits in the lower third | "That's QuizQuest: professors turn lecture material into review-ready questions in minutes, and students get practice that focuses on their weaker topics. It's live now. Thank you." | [TEAM] |
 
@@ -206,7 +206,7 @@ The seven recordings are joined here. Each cut is a hard splice between two take
 
 **Cut discipline.** Every splice is on a change of screen, never mid-action. Leave the shot's last frame still for a beat before you stop recording. If a take has a stumble, cut around it — do not retake a whole block for one word.
 
-**Also record, but do not use in the cut:** the 575 px responsive clip with the console open (section 1.3), and a clean, still frame of each professor screen for the slide deck.
+**Also record, but do not use in the cut:** a clean, still frame of each professor screen for the slide deck. The 575 px responsive clip with the console open (section 1.3) is insurance — it can go in as a 10 s insert after Shot 9 if you want the inspector rule on video, and the live demo shows the same check at beat D12 either way.
 
 ---
 
@@ -222,7 +222,7 @@ The seven recordings are joined here. Each cut is a hard splice between two take
 | 6 | Shows the professor setting the learning outcome and the mix by hand — this is where the AI is steered, not where it runs free. |
 | 7 | The single most important governance shot: drafts are never live until a human publishes them. The bank and the Approve & publish button are Jasper Wong's task 3. |
 | 8 | Class management is Marxel's task 1 and the entry point to everything a teacher does with a class. |
-| 9 | The per-class settings now belong to the class, with a search bar to find it — the exact request that came down to Marxel. |
+| 9 | The per-class settings now belong to the class, with a search bar to find it — the exact request that came down to Marxel. If the day-of bundle grep returns 0, film the same three controls from the Settings tab instead (see the Shot 9 note). |
 | 10 | The roster is the artefact a professor actually uses on day one: who is in the class, how active they are. |
 | 11 | Shows the self-enrolment path end to end, including the one-time code, which is the honest security story. |
 | 12 | The student journey, and the adaptive loop starting. One answered question with its verdict is enough; the session summary follows. The adaptive session is Xavier Lee's task 5. |
@@ -294,13 +294,14 @@ One short caption per shot, burned in or delivered as a sidecar `.srt`. These ar
 | 7 | Drafts wait in the bank until the professor publishes |
 | 8 | Classes and Roster: one card per class group |
 | 9 | Search a class, then open its settings |
+| 9 (older build only) | The class's own settings: trading, time zone, trade log |
 | 10 | The roster: attempts, last active, and who is in it |
 | 11 | Join codes are shown once, then masked |
 | 12 | The student picks length, timer and topics, then starts |
 | 13 | The session summary, then My Progress |
 | 14 | Practice pays out in the Kingdom |
 | 15 | Campfire Run: host a lobby and share the code |
-| 16 | Coins are spent in the Summoner's Journal |
+| 16 | Coins are spent, and every pull is logged in History |
 | 17 | The professor answers a student's question report |
 | 18 | QuizQuest — live at quizquest-4phd.onrender.com |
 

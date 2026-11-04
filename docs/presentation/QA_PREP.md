@@ -200,7 +200,7 @@ AI only drafts. The drafter reads the professor's saved knowledge report — the
 In order: move authentication onto Supabase Auth with email verification and MFA; add real rate limiting to registration and join-code redemption; write an audit trail for enrolment, removal, archive and code revocation; add an admin role-change screen; and run the app on Postgres as the primary store with real RLS policies instead of the JSON stand-in. (`src/quiz/api.js:665-679`, `:1016-1043`, `supabase/migrations/20261007000000_quizquest_init.sql:14-18`.)
 
 **G15. Why should we believe the demo data?**
-Because the demo accounts are seeded, not hand-made: `t-a`, `t-b` and `s-01`–`s-12`, all on `@quizquest.demo` addresses. If the live instance looks thin, the fix is to re-seed it — `pnpm db:reset --confirm` against the Render Supabase project — which restores the seeded course with its topics, classes and 12 student enrolments. (`src/quiz/api.js:65-66`, `src/quiz/seed.js:103`/`:120-129`, `README.md:83`.)
+Because the demo accounts are seeded, not hand-made: `t-a`, `t-b` and `s-01`–`s-12`, all on `@quizquest.demo` addresses. If the live instance looks thin, the fix is to move the seeded material onto the account that still works — the course, its topics, its classes and the student enrolments all exist on the live project already, and reassigning them is a **data** change, not a code change. `pnpm db:reset --confirm` against the Render Supabase project does the same job but heavier: it deletes every row and re-seeds from scratch, and it takes `t-a` back from whoever owns it now, so it needs that person's nod first. (`src/quiz/api.js:65-66`, `src/quiz/seed.js:103`/`:120-129`, `README.md:83`.)
 
 ---
 
