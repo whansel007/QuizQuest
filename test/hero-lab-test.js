@@ -757,8 +757,14 @@ test('signed-in kingdom bonuses are capped at three levels and sum Garden HP per
     assert.equal(player.buildingBonuses.attackPercent, BUILDING_BONUS_PER_LEVEL * BUILDING_LEVEL_CAP);
     assert.equal(player.buildingBonuses.campfireMaxHpPercent, BUILDING_BONUS_PER_LEVEL * BUILDING_LEVEL_CAP);
   }
-  assert.equal(shared.players.find((entry) => entry.id === playerIds[0]).attack, 16 * 1.3);
-  assert.equal(shared.players.find((entry) => entry.id === playerIds[1]).attack, 12 * 1.3);
+  // The server rounds the broadcast attack to a tenth, so 12 * 1.3 comes back
+  // as 15.6 rather than the float artefact 15.600000000000001. Compare with a
+  // tolerance instead of exact equality so the float representation of the
+  // expected value cannot fail the assertion.
+  const closeTo = (actual, expected, message) =>
+    assert.ok(Math.abs(actual - expected) < 1e-9, `${message}: got ${actual}, expected ${expected}`);
+  closeTo(shared.players.find((entry) => entry.id === playerIds[0]).attack, 16 * 1.3, 'electromancer attack');
+  closeTo(shared.players.find((entry) => entry.id === playerIds[1]).attack, 12 * 1.3, 'sheriff attack');
 });
 
 test('projectile onHit return value controls removal and a piercing projectile can hit another target', async (t) => {
@@ -882,7 +888,9 @@ test('enemy projectiles use server-side defense when they hit a hero', async (t)
   const bullet = new EnemyProjectile({ x: player.x, y: player.y, speed: 0, damage: 10 });
   server.heroLab.projectiles.set('test-enemy-projectile', bullet);
   const after = await nextState(client, (state) => state.players.find((candidate) => candidate.id === clientId)?.hp < before);
-  const expected = Math.round(before - 10 * (1 - player.hero.defense / 100));
+  // Health is broadcast rounded to a tenth, so the expected value has to be
+  // rounded the same way: 100 HP against 55% defense leaves 95.5, not 96.
+  const expected = Math.round((before - 10 * (1 - player.hero.defense / 100)) * 10) / 10;
   assert.equal(after.players.find((candidate) => candidate.id === clientId).hp, expected,
     'the server applies percentage defense before broadcasting the new health');
   assert.ok(!after.projectiles.some((projectile) => projectile.id === 'test-enemy-projectile'));
