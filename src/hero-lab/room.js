@@ -1353,8 +1353,11 @@ function createRoom({ io, services = null, id, code = null, isDefault = false, m
     player.respawnRemainingMs = player.respawnDurationMs;
     player.respawnSpeedMultiplier = 1;
     player.respawnStartedAt = now;
-    player.x = campfire.x;
-    player.y = campfire.y;
+    // Keep the downed marker at the same safe ring location the hero will
+    // return to, rather than placing it in the campfire until the timer ends.
+    player.respawnPoint = chooseRespawnPoint(player.id);
+    player.x = player.respawnPoint.x;
+    player.y = player.respawnPoint.y;
     if (player.respawnSolo) {
       const hpBefore = campfire.hp;
       campfire.hp = Math.max(0, campfire.hp - campfire.maxHp * GAME_CONFIG.arenaTuning.respawn.soloCampfireCost);
@@ -1393,9 +1396,10 @@ function createRoom({ io, services = null, id, code = null, isDefault = false, m
   function respawnPlayer(player, now) {
     player.downed = false;
     player.keys = {};
-    const selected = chooseRespawnPoint(player.id);
+    const selected = player.respawnPoint || chooseRespawnPoint(player.id);
     player.x = selected.x;
     player.y = selected.y;
+    player.respawnPoint = null;
     // Re-derive first so the respawn HP fraction uses the current max HP.
     recomputeHeroStats(player, now);
     player.hero.hp = Math.max(1, player.hero.maxHp * GAME_CONFIG.arenaTuning.respawn.respawnHpFraction);
@@ -1570,6 +1574,7 @@ function createRoom({ io, services = null, id, code = null, isDefault = false, m
       sheriffBlastRefunds: new Map(),
       dawnWaiting: false,
       downed: false,
+      respawnPoint: null,
       disconnected: false,
       disconnectAt: 0,
       joinedAt: now,
