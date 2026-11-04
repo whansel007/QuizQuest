@@ -73,9 +73,10 @@
 - Create a class from a course; it appears on the grid as a card with the student count and the live join-code count on it.
 - **Manage Roster & Codes** → **Join Codes (N)** → **+ Generate Join Code** → a 12-character code from a cryptographically secure random source; the server stores only a hash, so the readable code is shown exactly once — *"Copy it now — it is shown only once."*
 - **Student Roster (N)** lists the **Enrolled Students** with their **Questions Attempted** and **Last Active** columns; a professor can also enrol a student by email, and a class is archived rather than deleted so the history stays intact.
-- Each class now carries its own **Class Settings** tab — the trading switch, the analytics time zone and the trade log. *(Merged into `main` as PR #51; the live build picks it up at the next redeploy — check the bundle before you promise the click.)*
+- Each class now carries its own **Class Settings** tab — the trading switch, the analytics time zone and the trade log. *(Merged into `main` as PR #51, and **live on the deployed build**.)*
+- The class card carries three actions: **Manage Roster & Codes →**, **Settings** and **Rename**. **Rename** opens a *Rename Class* modal where the name is capped at 80 characters and the description at 300, and the description can be cleared outright.
 
-**Speaker note (Marxel, 0:25)** — "Class management is mine. You pick the course, name the class, and it appears on the grid as a card with the student count and the live join-code count on it. Then Manage Roster and Codes gives you Generate Join Code — twelve characters from a cryptographically secure random source — and the readable code is shown exactly once, because the server only keeps a hash of it. The Student Roster tab lists the enrolled students with their questions attempted and last active, and a class is archived rather than deleted, so the history stays intact."
+**Speaker note (Marxel, 0:25)** — "Class management is mine. You pick the course, name the class, and it appears on the grid as a card with the student count and the live join-code count on it. Then Manage Roster and Codes gives you Generate Join Code — twelve characters from a cryptographically secure random source — and the readable code is shown exactly once, because the server only keeps a hash of it. The Student Roster tab lists the enrolled students with their questions attempted and last active, and a class is archived rather than deleted, so the history stays intact. Each card also has Settings and Rename on it."
 
 #### 4b · Learning content upload
 
@@ -83,10 +84,11 @@
 - The file is read **in the professor's browser**: PPTX/DOCX are unzipped and parsed there, PDFs are read with PDF.js there. Only the extracted text is sent to the server.
 - Nothing leaves the page until the professor ticks **"This is authorised course material without student personal data."** and presses **Upload files**.
 - A slide that is only a picture is uploaded as a marked placeholder rather than invented text.
+- The extracted text lands in the **Material Library**, where each passage can be **archived** — the row stays, because published questions still cite it, but it leaves the active list and the knowledge report — **restored**, and given new **metadata**: title, weekly topic and learning outcome. The passage text itself is deliberately not editable; only the metadata around it is. A **Show archived material** checkbox brings the archived rows back.
 
-**Speaker note (Marxel, 0:20)** — "Upload is my other half. The file is read in the professor's browser, not on our server. A PowerPoint is unzipped and the text is pulled out of every slide; a PDF is read in the browser too. Nothing leaves the page until you tick the box that says this is authorised course material without student personal data and press Upload files — the server only ever receives text."
+**Speaker note (Marxel, 0:20)** — "Upload is my other half. The file is read in the professor's browser, not on our server. A PowerPoint is unzipped and the text is pulled out of every slide; a PDF is read in the browser too. Nothing leaves the page until you tick the box that says this is authorised course material without student personal data and press Upload files — the server only ever receives text. The text lands in the material library, where each passage can be archived and restored, and where I can edit its title, topic and learning outcome."
 
-**Question we will be asked** — *"Where did the per-class settings go?"* — "I moved them out of the Settings page onto the class's own Class Settings tab. That's PR #51 and it is merged into `main`; the deployed app picks it up at the next redeploy."
+**Question we will be asked** — *"Where did the per-class settings go?"* — "I moved them out of the Settings page onto the class's own Class Settings tab. That's PR #51 and it is merged into `main` and live on the deployed build."
 
 ---
 
@@ -187,12 +189,12 @@
 - At **575 px** — the extra-small breakpoint — the class grid collapses to one column and the student progress page stacks into a single column.
 - The browser **Console** stays open and **empty** through the whole demo: no errors, no warnings.
 - 63 media-query blocks in one stylesheet, with width breakpoints from 1199 px down to 420 px, and `width=device-width` with `viewport-fit=cover`.
-- **The test suite:** `pnpm test` — **43** Node test files · `pnpm test:browser` — **5** browser suites · `pnpm test:unit` — **13** vitest spec files (11 Vue component specs under `web/src`, 2 module specs under `src/quiz`) · `pnpm test:e2e` — **43** end-to-end tests across **18** Playwright spec files.
+- **The test suite:** `pnpm test` — **44** Node test files · `pnpm test:browser` — **5** browser suites · `pnpm test:unit` — **13** vitest spec files (11 Vue component specs under `web/src`, 2 module specs under `src/quiz`) · `pnpm test:e2e` — **46** end-to-end tests across **19** Playwright spec files.
 - One rule the code enforces and we are happy to be asked about: **a join code is never written to the database file — only its hash is.**
 
-> **Counted on `origin/main`, not from memory.** `git ls-tree -r origin/main --name-only -- test | grep -cE '^test/[^/]+-test\.js$'` → 43; `git ls-tree -r origin/main --name-only -- e2e | grep -cE 'spec\.js$'` → 18, and `grep -cE '^[[:space:]]*test\('` across those specs → 43. The unit count is 13 because `vitest.config.mjs` includes both `src/**/__tests__/*.spec.js` and `web/src/**/__tests__/*.spec.js`. The Node and unit numbers moved when PRs #55 and #56 merged, so `PRESENTATION_RUN_OF_SHOW.md` and `QA_PREP.md` still carry the 3 Nov figures (41 and 11) — **<OWNER: reconcile the three documents before the room>**.
+> **Counted on `origin/main` @ `7d8cacf`, not from memory.** `git ls-tree -r origin/main --name-only -- test | grep -cE '^test/[^/]+-test\.js$'` → 44; `git ls-tree -r origin/main --name-only -- e2e | grep -cE 'spec\.js$'` → 19, and `grep -cE "^[[:space:]]*test(\.(only|skip|fixme))?\s*\(\s*['\"\`]"` across those specs → 46. The unit count is 13 because `vitest.config.mjs` includes both `src/**/__tests__/*.spec.js` and `web/src/**/__tests__/*.spec.js`. The browser count is 5 — the `test/browser*.test.cjs` files `pnpm test:browser` runs. **All three documents now carry these figures:** this deck, `PRESENTATION_RUN_OF_SHOW.md` and `QA_PREP.md`.
 
-**Speaker note (Marxel, 0:35)** — "Responsiveness and testing. At 575 pixels — the extra-small breakpoint — the class grid collapses to one column and the progress page stacks into a single column, and the console stays open and empty through the whole demo: no errors, no warnings. The stylesheet has sixty-three media-query blocks. On testing: forty-three Node test files, five browser suites, thirteen unit spec files, and forty-three end-to-end tests across eighteen Playwright spec files — each one driving a real browser against a real server. And there's one rule the code enforces that we're happy to be asked about: a join code is never written to the database file. Only its hash is."
+**Speaker note (Marxel, 0:35)** — "Responsiveness and testing. At 575 pixels — the extra-small breakpoint — the class grid collapses to one column and the progress page stacks into a single column, and the console stays open and empty through the whole demo: no errors, no warnings. The stylesheet has sixty-three media-query blocks. On testing: forty-four Node test files, five browser suites, thirteen unit spec files, and forty-six end-to-end tests across nineteen Playwright spec files — each one driving a real browser against a real server. And there's one rule the code enforces that we're happy to be asked about: a join code is never written to the database file. Only its hash is."
 
 **Question we will be asked** — *"How do you know it works?"* — "Four layers, all runnable from the `package.json` scripts: Node integration tests, browser suites, unit specs and Playwright end-to-end tests — including one that asserts a join code is never written to the database file."
 
@@ -331,18 +333,18 @@ Cut in this order, and never touch a teammate's feature slide: (1) slide 12's re
 
 - [ ] **Slide 1 — demo video link:** the deck carries `{{VIDEO_LINK}}` until the video is uploaded. `pnpm submit --video-link "<url>"` swaps the real URL in, and it refuses to build if slide 1 has no link.
 - [ ] **Slide 1 — confirm the live URL still resolves** and that the instance wakes; check for a 503 with a `Retry-After` header before you walk in.
-- [ ] **Slide 4a — screenshot:** `<PASTE SCREENSHOT HERE>` — the class grid with the new class card.
-- [ ] **Slide 4b — screenshot:** `<PASTE SCREENSHOT HERE>` — the upload panel with the confirmation checkbox.
-- [ ] **Slide 5a — screenshot:** `<PASTE SCREENSHOT HERE>` — the AI drafting workflow.
-- [ ] **Slide 6 — screenshot:** `<PASTE SCREENSHOT HERE>` — a question card with the action buttons.
-- [ ] **Slide 8 — screenshot:** `<PASTE SCREENSHOT HERE>` — the Analytics topic table.
-- [ ] **Slide 9 — screenshot:** `<PASTE SCREENSHOT HERE>` — the Kingdom, the Summon banner and the Campfire Run lobby.
-- [ ] **Slide 10 — screenshot:** `<PASTE SCREENSHOT HERE>` — the third-party credits table from `README.md`.
-- [ ] **Slide 11 — screenshot:** `<PASTE SCREENSHOT HERE>` — the 575 px class grid with the Console open and empty.
-- [ ] **Slide 12 — screenshot:** `<PASTE SCREENSHOT HERE>` — the GitHub repository page.
+- [ ] **Slide 4a — screenshot:** paste the **Classes & Roster** grid, at least two class cards visible, so the card shows the student count, the join-code count and the three actions — **Manage Roster & Codes →**, **Settings**, **Rename**. The *Rename Class* modal open on top of it is the better shot: it is the newest button on that card.
+- [ ] **Slide 4b — screenshot:** paste the **upload panel** with the **"This is authorised course material without student personal data."** checkbox ticked. If there is room, a second shot of the **Material Library** row with **Edit metadata**, **Archive passage** and the **Show archived material** checkbox visible is worth more than the upload panel alone.
+- [ ] **Slide 5a — screenshot:** paste the **AI drafting workflow** — the six steps with **Knowledge report** and **Configure questions** on screen.
+- [ ] **Slide 6 — screenshot:** paste one **question card** with **Approve & publish**, **Reject** and **Withdraw** visible, and the status **Needs review** readable.
+- [ ] **Slide 8 — screenshot:** paste the **Analytics topic table**, weakest topic first, with **Needs attention** and **Print report** visible.
+- [ ] **Slide 9 — screenshot:** three shots — the **Kingdom**, the **Summon** banner with its rarity stars, and the **Campfire Run** lobby with the four-character room code.
+- [ ] **Slide 10 — screenshot:** paste the **third-party credits table** from `README.md`.
+- [ ] **Slide 11 — screenshot:** paste the **class grid at 575 px** — one column, DevTools on the right with the **Console** tab open and empty.
+- [ ] **Slide 12 — screenshot:** paste the **GitHub repository page** — README on page one, the folder list, the recent commit history.
 - [ ] **Demo run sheet — each owner:** `<OWNER: confirm the time>` on the beat you own.
-- [x] **Test counts:** reconciled across all three documents on 4 Nov 2026 — **43** Node test files (453 cases, 452 pass, 1 skipped, 0 fail), **13** vitest spec files, **43** end-to-end tests across **18** Playwright spec files, **5** browser suites. All three documents now say the same thing.
-- [ ] **Slide 4a — the Class Settings tab may not be on the live build yet** (PR #51 is merged into `main`; the deployed bundle may be older). Check the bundle before you promise the click, and use the fallback line in `PRESENTATION_RUN_OF_SHOW.md` if it is not there.
+- [x] **Test counts:** reconciled across all three documents on 4 Nov 2026 and re-verified against `origin/main` @ `7d8cacf` — **44** Node test files (462 cases, 461 pass, 1 skipped, 0 fail), **13** vitest spec files, **46** end-to-end tests across **19** Playwright spec files, **5** browser suites. All three documents now say the same thing.
+- [x] **Slide 4a — the Class Settings tab is on the live build.** PR #51 is merged into `main` and the deployed bundle carries **Class Settings** and **Search classes by name or course**. Play the search-and-Settings clicks as normal. Keep the fallback line in `PRESENTATION_RUN_OF_SHOW.md` in your pocket, and confirm the bundle hash on the day (§0 of the run of show) before you walk in.
 - [ ] **Nothing that looks like a credential goes on any slide.** Demo accounts and their shared password are in `README.md` → *Demo sign-in*. Never write the password on a slide, never read it aloud from the screen.
 
 ---
@@ -356,7 +358,7 @@ Straight from the professor's rules, applied to these slides:
 3. **Do not use the old tab names.** The student tabs are **Kingdom, Quiz, My Progress, Campfire Run, Summon**. The professor tabs are **Analytics, To review, Classes & Roster, Question bank, AI drafting, Evaluation, Settings**. There is no "Practice" tab and no "World" tab, and there is no screen called Campfire Defense.
 4. **Do not say "70% of your questions were the ones you got wrong".** It is **70% general coverage and 30% focused on weak topics** — the other way round is an easy catch.
 5. **Do not claim the deployed site is always instantly up.** It is a free Render instance that sleeps; the first request can be a 503.
-6. **Do not claim the per-class settings move is still on a branch.** It is merged into `main` as PR #51; what is missing is the redeploy.
+6. **Do not claim the per-class settings move is still on a branch.** It is merged into `main` as PR #51 and it is **live on the deployed build** — the bundle carries the *Class Settings* tab and the *Search classes by name or course* box.
 7. **Do not present third-party code as ours.** Slide 10 names the libraries and the licences, and `README.md` carries the full list.
 
 ---
