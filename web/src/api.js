@@ -213,7 +213,9 @@ export async function signIn(credentials) {
   }
 }
 
-// { name, email, password, role } -> a new student (default) or teacher account, signed in
+// { name, email, password } -> a new student account, signed in.
+// A public sign-up never makes a professor: those accounts are set up by
+// the team, so there is no role to choose here.
 export async function signUp(details) {
   startSession(await api('POST', '/api/register', details));
 }

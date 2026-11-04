@@ -137,26 +137,36 @@ test('the /api/auth/register alias is a second door with the same rules', async 
   assert.equal(r.status, 201);
   assert.equal(r.body.user.role, 'student');
   const teacher = await call('POST', '/api/auth/register', { name: 'Alias Prof', email: 'alias.prof@school.edu', password: 'longenough', role: 'teacher' });
-  assert.equal(teacher.status, 201);
-  assert.equal(teacher.body.user.role, 'teacher');
+  assert.equal(teacher.status, 403, 'the alias refuses a teacher sign-up exactly like /api/register');
+  assert.equal(teacher.body.user, undefined, 'no session is handed out');
 });
 
-test('signing up as a teacher gives a private, empty course of their own', async (t) => {
+test('self sign-up cannot mint a professor account', async (t) => {
   const { quiz, call } = await boot(t);
+  // The role is the caller's to send, but never the caller's to win: a
+  // professor account is created by the team, not by asking for one.
   const r = await call('POST', '/api/register', { name: 'Jane Prof', email: 'jane@school.edu', password: 'longenough', role: 'teacher' });
-  assert.equal(r.status, 200);
-  assert.equal(r.body.user.role, 'teacher');
+  assert.equal(r.status, 403);
+  assert.equal(r.body.token, undefined, 'no session is handed out');
+  assert.match(r.body.error, /team/i, 'the answer says who to ask');
   const db = quiz.services.db;
-  const own = db.courses.filter((c) => c.teacherIds.includes(r.body.user.id));
-  assert.equal(own.length, 1);
-  assert.equal(own[0].title, "Jane Prof's course");
-  assert.equal(db.topics.filter((x) => x.courseId === own[0].id).length, 0, 'the course starts empty');
-  // other professors' courses stay out of reach
-  assert.equal((await call('GET', '/api/teacher/courses/c-comp/topics', null, r.body.token)).status, 404);
-  const login = await call('POST', '/api/login', { email: 'jane@school.edu', password: 'longenough' });
-  assert.equal(login.body.user.role, 'teacher');
+  assert.equal(db.users.filter((u) => u.email === 'jane@school.edu').length, 0, 'no account is created');
+  assert.equal(db.courses.length, 2, 'no course of their own is created');
+  // the refused address is still free afterwards
+  const retry = await call('POST', '/api/register', { name: 'Jane Student', email: 'jane@school.edu', password: 'longenough' });
+  assert.equal(retry.status, 200);
+  assert.equal(retry.body.user.role, 'student');
+  // a professor's own course stays out of reach
+  assert.equal((await call('GET', '/api/teacher/courses/c-comp/topics', null, retry.body.token)).status, 403);
   // only the two roles exist
   assert.equal((await call('POST', '/api/register', { name: 'X', email: 'x@school.edu', password: 'longenough', role: 'admin' })).status, 400);
+});
+
+test('a sign-up that names the student role is still a student', async (t) => {
+  const { call } = await boot(t);
+  const r = await call('POST', '/api/register', { name: 'Explicit', email: 'explicit@school.edu', password: 'longenough', role: 'student' });
+  assert.equal(r.status, 200);
+  assert.equal(r.body.user.role, 'student');
 });
 
 test('sign-up rejects taken emails and bad input', async (t) => {
