@@ -846,9 +846,21 @@ async function renderIconCredits() {
     if (!response.ok) throw new Error(`HTTP ${response.status}`);
     const credits = await response.json();
     const byAuthor = new Map();
+    // Three groups are credited: the hero ability icons the game uses, the
+    // alternates from the icon preview page, and the team buff icons the run
+    // HUD shows. Each entry names the author of its artwork.
+    const credit = (author, text) => {
+      if (!byAuthor.has(author)) byAuthor.set(author, []);
+      byAuthor.get(author).push(text);
+    };
     for (const entry of Object.values(credits.icons || {})) {
-      if (!byAuthor.has(entry.author)) byAuthor.set(entry.author, []);
-      byAuthor.get(entry.author).push(`${entry.hero} ${entry.slot} (${entry.originalFile})`);
+      credit(entry.author, `${entry.hero} ${entry.slot} (${entry.originalFile})`);
+    }
+    for (const entry of Object.values(credits.candidateIcons || {})) {
+      credit(entry.author, `${entry.hero} ${entry.slot} alternate (${entry.originalFile})`);
+    }
+    for (const entry of Object.values(credits.buffIcons || {})) {
+      credit(entry.author, `team buff ${entry.label} (${entry.originalFile})`);
     }
     list.replaceChildren(...[...byAuthor.entries()].map(([author, items]) => {
       const item = document.createElement('li');

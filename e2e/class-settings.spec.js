@@ -8,13 +8,14 @@
 // Every test that changes a setting reads the value first and writes it back
 // at the end, so a test never leaves the class in a state it did not find.
 import { test, expect } from '@playwright/test';
-import { signIn, openTab, teacherCourse, TEACHER } from './helpers.js';
+import { signIn, openTab, teacherCourse, apiToken, TEACHER } from './helpers.js';
 
 // The one class of the demo course these tests touch.
 const CLASS_ID = 'cl-a';
 const CLASS_NAME = 'Computing - Tutorial Group A';
 // A second class of the same course: it shares the course, not the name, so
 // the search can tell the two apart.
+const OTHER_CLASS_ID = 'cl-c';
 const OTHER_CLASS_NAME = 'Computing - Tutorial Group C';
 const COURSE_TITLE = 'Intro to Computing (demo)';
 
@@ -35,6 +36,25 @@ async function tradingOnServer(page) {
 async function zoneOnServer(page) {
   const course = await teacherCourse(page);
   return course.classes.find((c) => c.id === CLASS_ID).settings.timezone;
+}
+
+// The trades of one class, as the server holds them. The professor may only
+// read the log of a class he teaches, so the request goes out with his own
+// token.
+async function tradesOnServer(page, classId) {
+  const url = new URL(`/api/teacher/classes/${classId}/trades`, page.url()).href;
+  const headers = { Authorization: `Bearer ${await apiToken(page)}` };
+  let response;
+  for (let attempt = 0; attempt < 3; attempt++) {
+    try {
+      response = await page.request.get(url, { headers, timeout: 8000 });
+      break;
+    } catch (err) {
+      if (attempt === 2) throw err;
+    }
+  }
+  expect(response.ok(), `the trade log comes back: ${response.status()}`).toBe(true);
+  return response.json();
 }
 
 // Sign in as the professor and open the class management tab.
@@ -197,4 +217,37 @@ test('the class settings hold the analytics time zone and the trade log', async 
   // and it can be put away again
   await page.getByRole('button', { name: 'Hide trade log' }).click();
   await expect(page.getByRole('button', { name: /View trade log/ })).toBeVisible();
+});
+
+test('the trade log belongs to the class that is open, not to the one before it', async ({ page }) => {
+  test.slow();
+  await openClassManagement(page);
+  await openClassSettings(page, CLASS_NAME);
+
+  // The log is the one of the class that is open. The count on the button is
+  // read from the server, so the test says what it means rather than what the
+  // seed happens to hold today.
+  const firstTrades = await tradesOnServer(page, CLASS_ID);
+  const tradeLog = page.getByRole('button', { name: /trade log/i });
+  await expect(tradeLog).toHaveText(`View trade log (${firstTrades.length})`);
+
+  // open it: the log of this class is on screen
+  await tradeLog.click();
+  await expect(page.getByRole('button', { name: 'Hide trade log' })).toBeVisible();
+  await expect(page.getByText('No trades yet.').or(page.locator('.table-wrap'))).toBeVisible();
+
+  // back to the grid, and take the other class of the same course
+  await page.getByRole('button', { name: /Back to all classes/ }).click();
+  await expect(page.locator('.class-card').first()).toBeVisible();
+  const other = page.locator('.class-card').filter({ hasText: OTHER_CLASS_NAME });
+  await expect(other).toHaveCount(1);
+  await other.getByRole('button', { name: /Manage Roster & Codes/ }).click();
+  await expect(classSettings(page)).toBeVisible();
+
+  // The log is now the new class's: the old one is closed, and the count on
+  // the button is the new class's count. Without the reset the first class's
+  // trades would still be on screen, under the second class's name.
+  const otherTrades = await tradesOnServer(page, OTHER_CLASS_ID);
+  await expect(page.getByRole('button', { name: /trade log/i })).toHaveText(`View trade log (${otherTrades.length})`);
+  await expect(page.getByRole('button', { name: 'Hide trade log' })).toHaveCount(0);
 });

@@ -386,7 +386,7 @@
       "slot": "talent"
     }
   },
-  "candidateIconsNote": "Alternates shown on the icon preview page (public/hero-lab/icon-preview.html) but not used in the game. They are CC BY 3.0 icons from game-icons.net like the chosen ones, and are credited here for the same reason: the licence asks for an author for every icon. Modified the same way - the library background rect removed and the silhouette fill set to currentColor; viewBox is unchanged (0 0 512 512).",
+  "candidateIconsNote": "Alternates shown on the icon preview page (public/hero-lab/icon-preview.html) but not used in the game. They are CC BY 3.0 icons from game-icons.net like the chosen ones, and are credited here for the same reason: the licence asks for an author for every icon. Modified the same way - the library background rect removed and the silhouette fill set to currentColor; viewBox is unchanged (0 0 512 512). The ones under candidates/ are copies; the ones under preview/ are shown straight from the vendored library copy and are not modified.",
   "candidateIcons": {
     "candidates/fast-arrow.svg": {
       "originalFile": "fast-arrow.svg",
@@ -467,6 +467,274 @@
       "hero": "fairy",
       "slot": "talent",
       "status": "alternate"
+    },
+    "preview/darkzaitzev/flying-shuriken.svg": {
+      "originalFile": "flying-shuriken.svg",
+      "license": "CC BY 3.0",
+      "ability": "Shuriken",
+      "author": "darkzaitzev",
+      "originalPath": "game-icons.net.svg/icons/ffffff/000000/1x1/darkzaitzev/flying-shuriken.svg",
+      "hero": "samurai",
+      "slot": "primary",
+      "status": "alternate"
+    },
+    "preview/lorc/shuriken-aperture.svg": {
+      "originalFile": "shuriken-aperture.svg",
+      "license": "CC BY 3.0",
+      "ability": "Shuriken",
+      "author": "lorc",
+      "originalPath": "game-icons.net.svg/icons/ffffff/000000/1x1/lorc/shuriken-aperture.svg",
+      "hero": "samurai",
+      "slot": "primary",
+      "status": "alternate"
+    },
+    "preview/lorc/quick-slash.svg": {
+      "originalFile": "quick-slash.svg",
+      "license": "CC BY 3.0",
+      "ability": "Cutting Dash",
+      "author": "lorc",
+      "originalPath": "game-icons.net.svg/icons/ffffff/000000/1x1/lorc/quick-slash.svg",
+      "hero": "samurai",
+      "slot": "skill",
+      "status": "alternate"
+    },
+    "preview/lorc/saber-slash.svg": {
+      "originalFile": "saber-slash.svg",
+      "license": "CC BY 3.0",
+      "ability": "Cutting Dash",
+      "author": "lorc",
+      "originalPath": "game-icons.net.svg/icons/ffffff/000000/1x1/lorc/saber-slash.svg",
+      "hero": "samurai",
+      "slot": "skill",
+      "status": "alternate"
+    },
+    "preview/skoll/crescent-blade.svg": {
+      "originalFile": "crescent-blade.svg",
+      "license": "CC BY 3.0",
+      "ability": "Afterimage Cut",
+      "author": "skoll",
+      "originalPath": "game-icons.net.svg/icons/ffffff/000000/1x1/skoll/crescent-blade.svg",
+      "hero": "samurai",
+      "slot": "ultimate",
+      "status": "alternate"
+    },
+    "preview/lorc/crescent-blade.svg": {
+      "originalFile": "crescent-blade.svg",
+      "license": "CC BY 3.0",
+      "ability": "Afterimage Cut",
+      "author": "lorc",
+      "originalPath": "game-icons.net.svg/icons/ffffff/000000/1x1/lorc/crescent-blade.svg",
+      "hero": "samurai",
+      "slot": "ultimate",
+      "status": "alternate"
+    },
+    "preview/lorc/skull-signet.svg": {
+      "originalFile": "skull-signet.svg",
+      "license": "CC BY 3.0",
+      "ability": "Kill Count",
+      "author": "lorc",
+      "originalPath": "game-icons.net.svg/icons/ffffff/000000/1x1/lorc/skull-signet.svg",
+      "hero": "samurai",
+      "slot": "talent",
+      "status": "alternate"
+    },
+    "preview/sbed/death-skull.svg": {
+      "originalFile": "death-skull.svg",
+      "license": "CC BY 3.0",
+      "ability": "Kill Count",
+      "author": "sbed",
+      "originalPath": "game-icons.net.svg/icons/ffffff/000000/1x1/sbed/death-skull.svg",
+      "hero": "samurai",
+      "slot": "talent",
+      "status": "alternate"
+    },
+    "preview/delapouite/bow-string.svg": {
+      "originalFile": "bow-string.svg",
+      "license": "CC BY 3.0",
+      "ability": "Charge Bow",
+      "author": "delapouite",
+      "originalPath": "game-icons.net.svg/icons/ffffff/000000/1x1/delapouite/bow-string.svg",
+      "hero": "ranger",
+      "slot": "primary",
+      "status": "alternate"
+    },
+    "preview/lorc/bowman.svg": {
+      "originalFile": "bowman.svg",
+      "license": "CC BY 3.0",
+      "ability": "Charge Bow",
+      "author": "lorc",
+      "originalPath": "game-icons.net.svg/icons/ffffff/000000/1x1/lorc/bowman.svg",
+      "hero": "ranger",
+      "slot": "primary",
+      "status": "alternate"
+    },
+    "preview/skoll/ham-shank.svg": {
+      "originalFile": "ham-shank.svg",
+      "license": "CC BY 3.0",
+      "ability": "Meat and Wolf",
+      "author": "skoll",
+      "originalPath": "game-icons.net.svg/icons/ffffff/000000/1x1/skoll/ham-shank.svg",
+      "hero": "ranger",
+      "slot": "skill",
+      "status": "alternate"
+    },
+    "preview/delapouite/steak.svg": {
+      "originalFile": "steak.svg",
+      "license": "CC BY 3.0",
+      "ability": "Meat and Wolf",
+      "author": "delapouite",
+      "originalPath": "game-icons.net.svg/icons/ffffff/000000/1x1/delapouite/steak.svg",
+      "hero": "ranger",
+      "slot": "skill",
+      "status": "alternate"
+    },
+    "preview/lorc/crosshair-arrow.svg": {
+      "originalFile": "crosshair-arrow.svg",
+      "license": "CC BY 3.0",
+      "ability": "Dead Aim",
+      "author": "lorc",
+      "originalPath": "game-icons.net.svg/icons/ffffff/000000/1x1/lorc/crosshair-arrow.svg",
+      "hero": "ranger",
+      "slot": "ultimate",
+      "status": "alternate"
+    },
+    "preview/lorc/arrowhead.svg": {
+      "originalFile": "arrowhead.svg",
+      "license": "CC BY 3.0",
+      "ability": "Dead Aim",
+      "author": "lorc",
+      "originalPath": "game-icons.net.svg/icons/ffffff/000000/1x1/lorc/arrowhead.svg",
+      "hero": "ranger",
+      "slot": "ultimate",
+      "status": "alternate"
+    },
+    "preview/lorc/wolf-head.svg": {
+      "originalFile": "wolf-head.svg",
+      "license": "CC BY 3.0",
+      "ability": "Pack Hunter",
+      "author": "lorc",
+      "originalPath": "game-icons.net.svg/icons/ffffff/000000/1x1/lorc/wolf-head.svg",
+      "hero": "ranger",
+      "slot": "talent",
+      "status": "alternate"
+    },
+    "preview/lorc/claw-slashes.svg": {
+      "originalFile": "claw-slashes.svg",
+      "license": "CC BY 3.0",
+      "ability": "Pack Hunter",
+      "author": "lorc",
+      "originalPath": "game-icons.net.svg/icons/ffffff/000000/1x1/lorc/claw-slashes.svg",
+      "hero": "ranger",
+      "slot": "talent",
+      "status": "alternate"
+    }
+  },
+  "buffIconsNote": "The team buff icons the run HUD shows are served straight from the vendored game-icons.net library copy rather than copied into assets/icons/. The library licence file lists Zeromancer's icons as CC0 and every other contributor's as CC BY 3.0.",
+  "buffIcons": {
+    "maxHp": {
+      "label": "Vitality",
+      "author": "zeromancer",
+      "originalFile": "heart-plus.svg",
+      "originalPath": "game-icons.net.svg/icons/ffffff/000000/1x1/zeromancer/heart-plus.svg",
+      "license": "CC0 1.0"
+    },
+    "attack": {
+      "label": "Attack",
+      "author": "lorc",
+      "originalFile": "crossed-swords.svg",
+      "originalPath": "game-icons.net.svg/icons/ffffff/000000/1x1/lorc/crossed-swords.svg",
+      "license": "CC BY 3.0"
+    },
+    "defense": {
+      "label": "Defense",
+      "author": "sbed",
+      "originalFile": "shield.svg",
+      "originalPath": "game-icons.net.svg/icons/ffffff/000000/1x1/sbed/shield.svg",
+      "license": "CC BY 3.0"
+    },
+    "speed": {
+      "label": "Fleet Footed",
+      "author": "darkzaitzev",
+      "originalFile": "running-ninja.svg",
+      "originalPath": "game-icons.net.svg/icons/ffffff/000000/1x1/darkzaitzev/running-ninja.svg",
+      "license": "CC BY 3.0"
+    },
+    "campfire": {
+      "label": "Campfire Heart",
+      "author": "lorc",
+      "originalFile": "campfire.svg",
+      "originalPath": "game-icons.net.svg/icons/ffffff/000000/1x1/lorc/campfire.svg",
+      "license": "CC BY 3.0"
+    },
+    "thorns": {
+      "label": "Thorns Fire",
+      "author": "lorc",
+      "originalFile": "thorny-vine.svg",
+      "originalPath": "game-icons.net.svg/icons/ffffff/000000/1x1/lorc/thorny-vine.svg",
+      "license": "CC BY 3.0"
+    },
+    "scavenger": {
+      "label": "Scavenger",
+      "author": "zeromancer",
+      "originalFile": "heart-plus.svg",
+      "originalPath": "game-icons.net.svg/icons/ffffff/000000/1x1/zeromancer/heart-plus.svg",
+      "license": "CC0 1.0"
+    },
+    "overcharge": {
+      "label": "Overcharge",
+      "author": "willdabeast",
+      "originalFile": "chain-lightning.svg",
+      "originalPath": "game-icons.net.svg/icons/ffffff/000000/1x1/willdabeast/chain-lightning.svg",
+      "license": "CC BY 3.0"
+    },
+    "rally": {
+      "label": "Rally",
+      "author": "caro-asercion",
+      "originalFile": "french-horn.svg",
+      "originalPath": "game-icons.net.svg/icons/ffffff/000000/1x1/caro-asercion/french-horn.svg",
+      "license": "CC BY 3.0"
+    },
+    "glass-cannon": {
+      "label": "Glass Cannon",
+      "author": "lorc",
+      "originalFile": "cannon.svg",
+      "originalPath": "game-icons.net.svg/icons/ffffff/000000/1x1/lorc/cannon.svg",
+      "license": "CC BY 3.0"
+    },
+    "second-wind": {
+      "label": "Second Wind",
+      "author": "lorc",
+      "originalFile": "whirlwind.svg",
+      "originalPath": "game-icons.net.svg/icons/ffffff/000000/1x1/lorc/whirlwind.svg",
+      "license": "CC BY 3.0"
+    },
+    "life-steal": {
+      "label": "Life Steal",
+      "author": "lorc",
+      "originalFile": "marrow-drain.svg",
+      "originalPath": "game-icons.net.svg/icons/ffffff/000000/1x1/lorc/marrow-drain.svg",
+      "license": "CC BY 3.0"
+    },
+    "ricochet": {
+      "label": "Ricochet",
+      "author": "lorc",
+      "originalFile": "return-arrow.svg",
+      "originalPath": "game-icons.net.svg/icons/ffffff/000000/1x1/lorc/return-arrow.svg",
+      "license": "CC BY 3.0"
+    },
+    "volatile": {
+      "label": "Volatile Heroes",
+      "author": "lorc",
+      "originalFile": "bright-explosion.svg",
+      "originalPath": "game-icons.net.svg/icons/ffffff/000000/1x1/lorc/bright-explosion.svg",
+      "license": "CC BY 3.0"
+    },
+    "powder-keg": {
+      "label": "Powder Keg",
+      "author": "darkzaitzev",
+      "originalFile": "smoke-bomb.svg",
+      "originalPath": "game-icons.net.svg/icons/ffffff/000000/1x1/darkzaitzev/smoke-bomb.svg",
+      "license": "CC BY 3.0"
     }
   }
 }

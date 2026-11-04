@@ -17,6 +17,10 @@
 // DEMO AUTH: /api/login lets you pick a synthetic user with no
 // password. That is for the prototype only - the real build would use
 // Supabase Auth, with teacher status assigned by an admin.
+//
+// ROLES: a public sign-up always makes a student. Teacher accounts are
+// created by the team (seed data / database), so nobody can promote
+// themselves by asking for a different role at the sign-up form.
 // ============================================================
 
 const crypto = require('crypto');
@@ -235,7 +239,15 @@ function createQuizApi({ dataFile = null, store = null, now = () => Date.now(), 
     if (!isEnrolled(user.id, classId)) fail(404, 'Not found.');
     return db.classes.find((c) => c.id === classId);
   };
-  const studentSession = (user, sid) => db.sessions.find((s) => s.id === sid && s.studentId === user.id) || fail(404, 'Not found.');
+  const studentSession = (user, sid) => {
+    const s = db.sessions.find((x) => x.id === sid && x.studentId === user.id) || fail(404, 'Not found.');
+    // Owning a session is not enough to use it: a student who was removed
+    // from the class must not keep answering its questions through a
+    // session id they still hold. Every other class-scoped student route
+    // checks the enrolment too (see studentClass above).
+    if (!isEnrolled(user.id, s.classId)) fail(404, 'Not found.');
+    return s;
+  };
 
   // in week order, so every list and chart shows the course as it is taught
   const topicsOf = (courseId) => T.sortTopics(db.topics.filter((t) => t.courseId === courseId));
@@ -344,6 +356,12 @@ function createQuizApi({ dataFile = null, store = null, now = () => Date.now(), 
       .filter((q) => q.courseId === course.id && q.status !== 'rejected')
       .map((q) => ({ id: q.id, stem: q.versions.at(-1).stem }));
     const original = ignoreId && db.questions.find((q) => q.id === ignoreId);
+    // A source deleted after the question was written is still a source the
+    // question cites: its own history keeps that id valid, and the source
+    // list shows it as "Source removed" rather than hiding it. Without this,
+    // deleting the material a draft cites leaves that draft impossible to
+    // publish.
+    for (const id of original?.versions.at(-1)?.sourceIds || []) allowed.add(id);
     const result = validateQuestion(body, { allowedSourceIds: allowed, requireSource: original?.origin === 'ai', existingStems, ignoreId });
     if (original?.origin === 'ai' && result.q.type === 'mcq' && result.q.options.length !== 4)
       result.errors.push('AI MCQs require exactly four options.');
@@ -659,22 +677,27 @@ attemptId: attempt.id,
     return startSession(user, { demo });
   });
 
-  // Self sign-up as a student (the default) or a teacher. Sign-up is open to
-  // both roles in this prototype. A new teacher gets a private, empty course
-  // of their own: teachers only ever see courses that list them, so they
-  // cannot reach another professor's classes, questions or students.
+  // Self sign-up always makes a student. Teacher accounts are created by the
+  // team (seed data / database), so nobody can promote themselves: a sign-up
+  // that asks for the teacher role is refused outright rather than quietly
+  // demoted, so the caller is never handed a professor session it did not
+  // earn. The role field is still accepted as "student", because that is
+  // what the form sends.
   function register(body) {
     const name = str(body.name, NAME_MAX, 'Name');
-    const role = body.role === undefined ? 'student' : body.role;
-    if (role !== 'student' && role !== 'teacher') fail(400, 'Choose whether you are signing up as a student or a teacher.');
+    if (body.role !== undefined && body.role !== 'student' && body.role !== 'teacher') {
+      fail(400, 'That is not a valid role.');
+    }
+    if (body.role === 'teacher') {
+      fail(403, 'Professor accounts are set up by the team. Sign up as a student, or ask the team for a professor account.');
+    }
     const email = P.normEmail(body.email);
     if (!EMAIL_RE.test(email) || email.length > 254) fail(400, 'Enter a valid email address.');
     if (typeof body.password !== 'string' || body.password.length < P.PASSWORD_MIN) fail(400, `Use a password of at least ${P.PASSWORD_MIN} characters.`);
     if (body.password.length > P.PASSWORD_MAX) fail(400, `Use a password of at most ${P.PASSWORD_MAX} characters.`);
     if (db.users.some((u) => u.email === email)) fail(409, 'An account with this email already exists. Sign in instead.');
-    const user = { id: newId(role === 'teacher' ? 't' : 's'), name, role, email, passwordHash: P.hashPassword(body.password), createdAt: now() };
+    const user = { id: newId('s'), name, role: 'student', email, passwordHash: P.hashPassword(body.password), createdAt: now() };
     db.users.push(user);
-    if (role === 'teacher') db.courses.push({ id: newId('c'), title: `${name}'s course`, teacherIds: [user.id], coverageTarget: 4, promptConfig: '' });
     save({ analytics: false });
     return startSession(user);
   }
@@ -696,9 +719,12 @@ attemptId: attempt.id,
       // No mail service in this build, so no code can be delivered and none is
       // issued. Saying a code "has been sent" would be a lie, so say what to
       // do instead. The answer is the same for every address, so it still
-      // cannot be used to discover who has an account.
+      // cannot be used to discover who has an account. canReset: false tells
+      // the sign-in page not to slide into the "enter your code" form, which
+      // would promise an email that never arrives.
       return {
         ok: true,
+        canReset: false,
         message: 'Password recovery by email is not available in this build. Ask the project team to reset it for you.',
       };
     }
@@ -885,9 +911,25 @@ attemptId: attempt.id,
 
   route('PATCH', '/api/classes/:classId', 'teacher', ({ user, params, body }) => {
     const cls = teacherClass(user, params.classId);
-    if (body.name !== undefined) cls.name = str(body.name, 80, 'Class name');
+    if (body.name !== undefined) {
+      const name = str(body.name, 80, 'Class name');
+      // A class is found by its name when a student is enrolled into it, so
+      // two classes of the same name cannot be told apart. The enrol route
+      // refuses that case and tells the professor to rename one, so the
+      // rename refuses it too - this is the way out of that message, and it
+      // must not put the professor back in it.
+      const clash = db.classes.find(
+        (c) =>
+          c.id !== cls.id &&
+          c.teacherIds.includes(user.id) &&
+          c.name.trim().toLowerCase() === name.toLowerCase(),
+      );
+      if (clash) fail(409, `You already have a class named "${name}". Give this one a different name.`);
+      cls.name = name;
+    }
     if (body.description !== undefined)
-      cls.description = typeof body.description === 'string' ? str(body.description, 300, 'Description') : '';
+      // A description is optional, so an empty one is how it is cleared.
+      cls.description = typeof body.description === 'string' ? body.description.trim().slice(0, 300) : '';
     save();
     return cls;
   });
@@ -951,8 +993,24 @@ attemptId: attempt.id,
 
   route('POST', '/api/classes/:classId/join-codes', 'teacher', ({ user, params, body }) => {
     const cls = teacherClass(user, params.classId);
-    const expiresInDays = Number(body?.expiresInDays);
-    const expiresAt = Number.isInteger(expiresInDays) && expiresInDays > 0 ? now() + expiresInDays * 86400000 : null;
+    // An archived class is closed: it takes no new students, and the join
+    // route refuses an archived class outright. A code generated for one
+    // could therefore never be redeemed, so say so here rather than hand out
+    // a code that is dead on arrival.
+    if (cls.archivedAt) fail(409, 'This class is archived. Restore it before generating a join code.');
+    // Expiry is a whole number of days, and no further out than ten years.
+    // A bigger number overflows the date range: the expiry becomes an
+    // invalid Date, and writing that out breaks the whole store rather
+    // than just this code. Left out (null) means the code never expires.
+    const asked = body?.expiresInDays;
+    let expiresAt = null;
+    if (asked !== undefined && asked !== null && asked !== '') {
+      const days = Number(asked);
+      if (!Number.isInteger(days) || days < 1 || days > 3650) {
+        fail(400, 'Expiry must be a whole number of days between 1 and 3650.');
+      }
+      expiresAt = now() + days * 86400000;
+    }
     const usageLimit = Number.isInteger(body?.usageLimit) && body.usageLimit > 0 ? body.usageLimit : null;
     db.classJoinCodes = db.classJoinCodes || [];
     const rawCode = generateJoinCode((candidate) =>
@@ -1015,7 +1073,9 @@ attemptId: attempt.id,
   // so accepting it would hand anybody who reads the database a working
   // enrolment code - which is exactly what storing only the hash is for.
   route('POST', '/api/classes/join', 'student', ({ user, body }) => {
-    const raw = (body?.code || '').trim();
+    // The code is a string, so anything else is simply not a code. Calling
+    // .trim() on a number used to throw and answer 500 instead of 400.
+    const raw = typeof body?.code === 'string' ? body.code.trim() : '';
     if (!raw) fail(400, 'Please enter a join code.');
     db.classJoinCodes = db.classJoinCodes || [];
 
@@ -1966,6 +2026,11 @@ return studentProgress(db, user.id, cl);
   // ---------------- student: practice sessions ----------------
   route('POST', '/api/student/sessions', 'student', ({ user, body }) => {
     const cl = studentClass(user, body.classId);
+    // An archived class is closed: it takes no new students, so it starts no
+    // new practice either. A session the student already has carries on -
+    // that work was legitimate when it was started, and archiving a class
+    // mid-session should not throw it away.
+    if (cl.archivedAt) fail(404, 'Class not found or archived.');
     if (!SESSION_LENGTHS.includes(body.length)) fail(400, 'Pick a session length from the list.');
     if (!TIMERS.includes(body.timerSec)) fail(400, 'Pick a timer from the list.');
     const mult = ACCOMMODATION.includes(body.accommodation) ? body.accommodation : 1;
