@@ -49,7 +49,7 @@ const { resolveTags, AI_DRAFT_FORMATS } = require('./assessment');
 const T = require('./topics');
 const R = require('./rewards');
 const E = require('./economy');
-const { SESSION_RESOURCES } = require('./seed');
+const { sessionResources } = require('./seed');
 const { AVATAR_COSMETIC_BY_ID, AVATAR_COSMETIC_CATALOG } = require('../../config/avatar-cosmetics');
 const { avatarVisual, wardrobeState, wardrobeView, legacyColorItem } = require('./avatar');
 const P = require('./passwords');
@@ -527,7 +527,7 @@ attemptId: attempt.id,
       end.resources = E.grantResources(
         db,
         user.id,
-        SESSION_RESOURCES,
+        sessionResources(),
         'Completed a practice session',
         `sessionres:${s.id}`,
         s.completedAt,

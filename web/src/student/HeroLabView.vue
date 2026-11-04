@@ -160,6 +160,8 @@ function returnToSelection(event) {
     inGame.value = false;
     gameUrl.value = '';
     roomError.value = data.message || 'Could not join that room.';
+  } else if (data.type === 'hero-lab-return-kingdom') {
+    wipeTo('kingdom');
   } else if (data.type === 'hero-lab-game-over') {
     inGame.value = false;
     gameUrl.value = '';

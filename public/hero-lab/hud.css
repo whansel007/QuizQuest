@@ -201,6 +201,9 @@ body[data-mode="workshop-trial"] #waiting-banner { display: none !important; }
 #info-button { display: flex; align-items: center; gap: .45rem; padding: .3rem .7rem .3rem .3rem; color: var(--hud-text); background: var(--hud-panel); border: 2px solid var(--hud-ink); border-radius: 99px; box-shadow: 0 3px 0 var(--hud-ink); font: 800 .8rem Nunito, 'Trebuchet MS', sans-serif; cursor: pointer; }
 #info-button:hover { background: var(--hud-panel-raised); }
 #info-button .info-circle { --btn-size: 28px; --btn-outline-width: 2px; color: var(--hud-ink); background: var(--hud-gold); font: 900 .9rem var(--hud-serif); box-shadow: none; }
+#kingdom-exit { display: flex; align-items: center; gap: .45rem; min-height: 38px; padding: .3rem .7rem; color: var(--hud-text); background: var(--hud-panel); border: 2px solid var(--hud-ink); border-radius: 99px; box-shadow: 0 3px 0 var(--hud-ink); font: 800 .8rem Nunito, 'Trebuchet MS', sans-serif; cursor: pointer; }
+#kingdom-exit:hover, #kingdom-exit:focus-visible { background: var(--hud-panel-raised); }
+#kingdom-exit > span:first-child { display: grid; place-items: center; width: 1.55rem; height: 1.55rem; color: var(--hud-ink); background: var(--hud-gold); border-radius: 50%; font-size: 1rem; line-height: 1; }
 #emote-button { display: flex; align-items: center; gap: .4rem; min-height: 38px; padding: .25rem .7rem; color: var(--hud-text); background: var(--hud-panel); border: 2px solid var(--hud-ink); border-radius: 99px; box-shadow: 0 3px 0 var(--hud-ink); font: 800 .8rem Nunito, 'Trebuchet MS', sans-serif; cursor: pointer; }
 #emote-button:hover { background: var(--hud-panel-raised); }
 #emote-button > span:first-child { font-size: 1.2rem; }
@@ -510,6 +513,8 @@ body[data-mode="workshop-trial"] #waiting-banner { display: none !important; }
   #settings-button svg { width: 16px; height: 16px; }
   #info-button { gap: .35rem; padding: .22rem .55rem .22rem .22rem; font-size: .72rem; }
   #info-button .info-circle { --btn-size: 24px; font-size: .8rem; }
+  #kingdom-exit { min-height: 38px; padding: .22rem .55rem; font-size: .72rem; }
+  #kingdom-exit > span:first-child { width: 1.35rem; height: 1.35rem; }
   #emote-button { min-height: 32px; padding: .2rem .55rem; font-size: .72rem; }
   #start-run { min-height: 34px; padding: .35rem .75rem; font-size: .74rem; }
   #bottom-left-hud { bottom: calc(7.5rem + env(safe-area-inset-bottom)); left: max(.55rem, env(safe-area-inset-left)); }

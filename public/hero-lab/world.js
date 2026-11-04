@@ -1297,7 +1297,7 @@ function drawConfetti(currentTime) {
 
 function returnToKingdom() {
   if (embedded) {
-    window.parent.postMessage({ type: 'hero-lab-game-over' }, location.origin);
+    window.parent.postMessage({ type: 'hero-lab-return-kingdom' }, location.origin);
   } else location.replace('/hero-lab');
 }
 
@@ -1462,6 +1462,7 @@ document.querySelector('#run-again').addEventListener('click', () => {
 });
 document.querySelector('#return-kingdom').addEventListener('click', returnToKingdom);
 document.querySelector('#session-stop').addEventListener('click', returnToKingdom);
+document.querySelector('#kingdom-exit').addEventListener('click', returnToKingdom);
 document.querySelector('#session-keep-going').addEventListener('click', () => { sessionSummary.hidden = true; });
 shakeSetting.checked = settings.screenShake;
 shakeIntensitySetting.value = String(settings.shakeIntensity);

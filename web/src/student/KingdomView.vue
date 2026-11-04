@@ -175,6 +175,7 @@ const plots = computed(() => Object.keys(k.value.catalog.buildings).map((id) => 
 }));
 const townPlot = computed(() => townTarget.value && townTarget.value !== 'castle' ? plots.value.find((p) => p.id === townTarget.value) : null);
 const castleLevel = computed(() => k.value?.castleLevel || 0);
+const coinBalance = computed(() => Number(homeData.value?.wallet?.balance || 0).toLocaleString());
 const heroesOfType = (type) => ownedHeroes.value.filter((hero) => hero.type === type);
 const haveText = computed(() => {
   const res = Object.fromEntries(Object.entries(k.value?.resources || {}).filter(([, v]) => v > 0));
@@ -563,7 +564,13 @@ const castlePanelContext = reactive({
           <em :class="{ ready: p.affordable }">Lv {{ p.lvl }}/{{ buildingCap(p.id) }}<template v-if="p.affordable"> · ready</template></em>
         </button>
       </section>
-      <div class="town-hud town-level">Castle · {{ k.castleLevel }} / {{ BUILDING_LEVEL_CAP }}</div>
+      <div class="town-hud town-economy">
+        <div class="town-level">Castle · {{ k.castleLevel }} / {{ BUILDING_LEVEL_CAP }}</div>
+        <div class="town-balances" role="group" aria-label="Your coins and Kingdom resources">
+          <span class="town-balance" :aria-label="`${coinBalance} coins`" title="Coins">🪙 {{ coinBalance }}</span>
+          <span v-for="(resource, id) in R" :key="id" class="town-balance" :aria-label="`${resource.name}: ${k.resources[id] || 0}`" :title="resource.name">{{ resource.emoji }} {{ k.resources[id] || 0 }}</span>
+        </div>
+      </div>
 
       <div class="town-hud town-actions">
         <button class="hud-btn" type="button" title="Emotes (Z)" @click="town?.openEmotes()">Emote <kbd>Z</kbd></button>
@@ -669,7 +676,10 @@ const castlePanelContext = reactive({
 .kingdom-screen .town-list-entry em { color: #5f6d58; font: 800 .72rem ui-monospace, monospace; font-style: normal; white-space: nowrap; }
 .kingdom-screen .town-list-entry em.ready { color: #254937; }
 .kingdom-screen .town-list-entry:hover, .kingdom-screen .town-list-entry:focus-visible { border-color: #23382f; outline: 2px solid #f2ba55; outline-offset: 1px; }
-.kingdom-screen .town-level { top: 18px; right: 18px; padding: 9px 14px; color: #23382f; background: #f2ba55; border: 3px solid #23382f; border-radius: 9px; box-shadow: 0 4px 0 #7a6545; font-weight: 900; pointer-events: none; }
+.kingdom-screen .town-economy { top: 18px; right: 18px; display: flex; align-items: center; gap: 6px; pointer-events: none; }
+.kingdom-screen .town-level { padding: 9px 14px; color: #23382f; background: #f2ba55; border: 3px solid #23382f; border-radius: 9px; box-shadow: 0 4px 0 #7a6545; font-weight: 900; white-space: nowrap; }
+.kingdom-screen .town-balances { display: flex; align-items: center; gap: 4px; }
+.kingdom-screen .town-balance { display: inline-flex; align-items: center; gap: 4px; padding: 7px 8px; color: #23382f; background: rgb(251 242 216 / 96%); border: 2px solid #23382f; border-radius: 7px; box-shadow: 0 3px 0 #7a6545; font: 800 .78rem/1 Nunito, Trebuchet MS, sans-serif; white-space: nowrap; }
 .kingdom-screen .town-actions { left: 18px; bottom: 16px; display: flex; gap: 8px; }
 .kingdom-screen .town-controls-hud { right: 18px; bottom: 16px; display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 4px 14px; max-width: min(560px, 60vw); padding: 9px 14px; color: #fff8e4; background: rgb(35 56 47 / 90%); border-radius: 9px; font: 700 .8rem/1.3 Nunito, Trebuchet MS, sans-serif; pointer-events: none; }
 .kingdom-screen .town-controls-hud kbd { padding: 1px 5px; color: #23382f; background: #f2ba55; border: 1px solid #23382f; border-radius: 4px; font: 800 .68rem ui-monospace, monospace; }
@@ -994,7 +1004,10 @@ const castlePanelContext = reactive({
   .kingdom-screen .town-title span:last-child { display: block; font-size: 14px; }
   .kingdom-screen .town-title-dot { display: none; }
   .kingdom-screen .town-list { top: 118px; left: 10px; }
-  .kingdom-screen .town-level { top: 10px; right: 10px; padding: 6px 9px; font-size: .78rem; }
+  .kingdom-screen .town-economy { top: 130px; right: 10px; left: 10px; flex-wrap: wrap; justify-content: flex-end; gap: 4px; }
+  .kingdom-screen .town-level { padding: 6px 9px; font-size: .78rem; }
+  .kingdom-screen .town-balances { flex-wrap: wrap; justify-content: flex-end; gap: 2px; }
+  .kingdom-screen .town-balance { gap: 3px; padding: 5px 6px; font-size: .7rem; }
   .kingdom-screen .town-actions { left: 10px; right: 10px; bottom: 10px; flex-wrap: wrap; }
   .kingdom-screen .town-intro { bottom: 62px; padding: 14px 16px; }
   .kingdom-screen .town-intro h2 { font-size: 20px; }
@@ -1048,7 +1061,8 @@ const castlePanelContext = reactive({
   .kingdom-screen .town-title-hud .scene-kicker { font-size: .58rem; }
   .kingdom-screen .town-title { font-size: 16px; }
   .kingdom-screen .town-title span:last-child { display: none; }
-  .kingdom-screen .town-level { top: max(8px, env(safe-area-inset-top)); right: max(8px, env(safe-area-inset-right)); padding: 5px 8px; }
+  .kingdom-screen .town-economy { top: max(130px, calc(env(safe-area-inset-top) + 122px)); right: max(8px, env(safe-area-inset-right)); left: max(8px, env(safe-area-inset-left)); }
+  .kingdom-screen .town-level { padding: 5px 8px; }
   .kingdom-screen .town-actions { right: max(8px, env(safe-area-inset-right)); left: max(8px, env(safe-area-inset-left)); justify-content: center; gap: 6px; }
   .kingdom-screen .town-actions .hud-btn { flex: 1 1 0; justify-content: center; padding: 6px 8px; font-size: .78rem; }
   .kingdom-screen .town-controls-hud { bottom: calc(68px + env(safe-area-inset-bottom)); }
@@ -1060,7 +1074,7 @@ const castlePanelContext = reactive({
   .kingdom-screen .town-title { margin-bottom: 5px; font-size: 16px; }
   .kingdom-screen .town-title-hud .scene-kicker { display: none; }
   .kingdom-screen .town-title-actions .hud-btn { min-height: 38px; }
-  .kingdom-screen .town-level { top: max(8px, env(safe-area-inset-top)); right: max(8px, env(safe-area-inset-right)); }
+  .kingdom-screen .town-economy { top: max(8px, env(safe-area-inset-top)); right: max(8px, env(safe-area-inset-right)); }
   .kingdom-screen .town-actions { bottom: max(6px, env(safe-area-inset-bottom)); left: max(8px, env(safe-area-inset-left)); }
   .kingdom-screen .town-actions .hud-btn { min-height: 40px; }
   .kingdom-screen .town-controls-hud { right: max(8px, env(safe-area-inset-right)); bottom: max(8px, env(safe-area-inset-bottom)); left: auto; width: min(370px, 45vw); }
