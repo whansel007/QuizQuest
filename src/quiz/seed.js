@@ -98,6 +98,11 @@ function seed(now = Date.now()) {
   // the demo semester began eight weeks ago, so "This semester" has data
   const semesterStart = new Date(now - 8 * 7 * 86400000).toISOString().slice(0, 10);
   const rand = mulberry32(42);
+  // The three supplies a practice session hands out are drawn from their own
+  // stream. Drawing them from `rand` would shift every value that follows it,
+  // so seeding a session's bundle would quietly change the seeded answers,
+  // timings and class comparisons.
+  const resourceRand = mulberry32(4242);
   const db = {
     schema: SCHEMA,
     users: [
@@ -194,7 +199,7 @@ function seed(now = Date.now()) {
         }
         session.completedAt = t;
         award(db, studentId, REWARDS.sessionComplete, 'Completed a practice session', `session:${session.id}`, t);
-        grantResources(db, studentId, sessionResources(rand), 'Completed a practice session', `sessionres:${session.id}`, t);
+        grantResources(db, studentId, sessionResources(resourceRand), 'Completed a practice session', `sessionres:${session.id}`, t);
         db.sessions.push(session);
       }
     }
