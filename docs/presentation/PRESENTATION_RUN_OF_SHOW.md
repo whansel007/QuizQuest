@@ -6,7 +6,7 @@ Presenter reading this script: **Marxel Angelo Ramesh** (`HULKMARXEL`). Wherever
 
 **Q&A comes first.** The professor's rule 5 is "Q&A happens at the front, before the demo — not at the end", so the room opens with the team answering and the deck follows. The run of show below is 3:00 of Q&A, then 18:15 of speaking, then the closing line. The closing beat stays at the end — that is the end of the *presentation*, and Q&A is before it.
 
-Date note: 16 Nov is the make-up slot in `knowledge/DEADLINES.md`. Confirm the slot with the teaching team before the room; the script does not change either way.
+Date note: **16 Nov 2026 is the normal Week 13 presentation.** Week 1 Monday = 24 Aug 2026, so Week 12 Friday = 13 Nov, Week 13 Monday = 16 Nov and Week 14 Monday = 23 Nov. The make-up slot, if Week 13 is affected, is **Week 14 Monday 23 Nov 2026**. `knowledge/DEADLINES.md` lists its make-up row as "Week 14 Monday 16 Nov" — that row is off by one week and needs fixing. Confirm the slot with the teaching team before the room; the script does not change either way.
 
 ---
 
@@ -36,7 +36,36 @@ Then search that bundle for `Class settings`. That one command decides which ver
 
 **Consequence for the run of show:** the class search box and the Class Settings tab are on the live build, so beat D1 plays the search-and-Settings clicks. Everything else in the script is on `main` and is safe to say on the record.
 
-Fix the data **before Friday 6 Nov, not on the day**: `pnpm db:reset --confirm` is a **local** script — run it from a machine that has the live project's `SUPABASE_URL` and `SUPABASE_SECRET_KEY` in `.env`, with the Render service stopped, then redeploy so the server reloads the reseeded data. Confirm afterwards with `GET /api/teacher/courses` that "Intro to Computing (demo)" and its three topics are back. It re-seeds the demo and restores Prof. Demo A with that course and **two classes** — "Computing - Tutorial Group A" with **six** students (s-01 to s-06) and "Computing - Tutorial Group C" with **four** (s-09 to s-12) — plus the practice history that fills the Analytics dashboard (`src/quiz/seed.js:97-135`, and the seeded sessions/attempts at `src/quiz/seed.js:177-192`). Without it the roster is two students and the Analytics slide reads "No answers yet". A reseed also reverts any demo password changed since the seed and takes `t-a` back from whoever owns it now, so get the team lead's nod first and re-check the sign-in afterwards.
+Fix the data **before Friday 6 Nov, not on the day**. There are two ways, and they are
+not equally safe:
+
+**Option 1 — move the content (preferred).** The demo material already exists on the
+live project, but it sits under `t-a`, and `t-a` is no longer a demo account: it is
+**Ho Zhi Yang's own account**, with his real email address and his own password.
+Reassigning that course and its two classes to `t-b` (`prof.b@quizquest.demo`, which
+still works) is a **data change, not a code change**, it is reversible, and it takes
+nobody's login away. `scripts/fix-demo-teacher.js` reports the current state of the
+row and, with `--confirm`, can change one field on one row. Move the course and the
+classes the same way and the roster and the Analytics slide both have something to
+show.
+
+**Option 2 — a full reseed (heavier).** `pnpm db:reset --confirm` is a **local**
+script — run it from a machine that has the live project's `SUPABASE_URL` and
+`SUPABASE_SECRET_KEY` in `.env`, with the Render service stopped, then redeploy so
+the server reloads the reseeded data. Confirm afterwards with
+`GET /api/teacher/courses` that "Intro to Computing (demo)" and its three topics are
+back. It re-seeds the demo and restores Prof. Demo A with that course and **two
+classes** — "Computing - Tutorial Group A" with **six** students (s-01 to s-06) and
+"Computing - Tutorial Group C" with **four** (s-09 to s-12) — plus the practice
+history that fills the Analytics dashboard (`src/quiz/seed.js:97-135`, and the seeded
+sessions/attempts at `src/quiz/seed.js:177-192`). Without one of these the roster is
+two students and the Analytics slide reads "No answers yet".
+
+**A reseed takes `t-a` back from whoever owns it now** — it reverts any demo
+password changed since the seed and overwrites the account's email — so it would
+leave Ho Zhi Yang unable to sign in with his own login. It also **deletes every row
+in the project** and cannot be undone. If it is going to be used, it needs **Ho Zhi
+Yang's explicit nod first**, and the sign-in has to be re-checked afterwards.
 
 ---
 
@@ -140,7 +169,7 @@ Then:
 
 > "Upload is my part, and here's the bit that matters: the file is read in the professor's browser, not on our server. When you drop in a PowerPoint, the page unzips it and pulls the text out of every slide, tables included. When you drop in a PDF, we read the pages in the browser too.
 >
-> Nothing is sent anywhere until you tick the box that says this is authorised course material with no student personal data, and press Upload files. The server only ever receives text."
+> Nothing is sent anywhere until you tick the box that says "This is authorised course material without student personal data" and press Upload files. The server only ever receives text."
 
 *(If you have the seconds: PDF, PowerPoint, Word, text, Markdown and CSV, up to twenty files at a time and a hundred megabytes each — and if a slide is only a picture, the app says so rather than inventing text. That last part is the honest bit: an unreadable page is uploaded as a marked placeholder, and a file with no readable text at all is refused with "No readable text found." — `web/src/teacher/ImportMaterials.vue:202,205`.)*
 
@@ -148,15 +177,15 @@ Then:
 
 > "Now my other area: class management. You pick the course, name the class, and it appears on the grid as a card. Then you press Manage Roster and Codes and generate a join code — and here's the security bit, the part I'd defend in Q&A: a fixed QQ- prefix plus twelve random characters drawn from a 32-symbol alphabet with a cryptographically secure random source — about 1.15 × 10¹⁸ combinations — and we only store a hash of it, so the readable code is shown exactly once and can never be read back out of the database. You'll see all of that live in a moment."
 
-*(The rest of the class story — the student redeeming the code in their Quiz tab, the roster columns, enrolling by email, and archiving a class rather than deleting it — is said out loud in the live beat D1, not twice. Strings as they appear on screen: toast `Class "NAME" created successfully!`; banner `New Join Code Generated:` with `Copy it now — it is shown only once.`; table row `QQ-••••••••••••`; roster heading `Enrolled Students`; card stats `👥 N Student(s)` and `🔑 N Active Code(s)` — `web/src/teacher/ClassManagementView.vue:111,339,346,476,275-276`.)*
+*(The rest of the class story — the student redeeming the code in their Quiz tab, the roster columns, enrolling by email, and archiving a class rather than deleting it — is said out loud in the live beat D1, not twice. Strings as they appear on screen: toast `Class "NAME" created successfully!`; banner `New Join Code Generated:` with `Copy it now — it is shown only once.`; table row `QQ-••••••••••••`; roster heading `Enrolled Students`; card stats `👥 N Students` and `🔑 N Active Codes` (the count is 1 → "Student"/"Code", otherwise plural) — `web/src/teacher/ClassManagementView.vue:205,471,477,608,490,389-390`.)*
 
 ### Slide 12 — per-class settings and the class search (12:30–12:45) — Marxel
 
 > "The last thing I changed: each class used to keep its settings in one long list on the Settings page, so a professor with eight classes had to hunt for the right one. I moved them. The trading switch, the analytics time zone and the trade log now live in the class's own Class Settings tab, and I added a search box on the class grid so you can find a class by name or course. In that same change, the card also shows a trading on or off pill, so you can see the state without opening anything.
 >
-> One thing I want to be straight about: that change is merged into main as PR 51, but the deployed build has not been rebuilt yet, so on the live site today the Settings page still has the per-class panels."
+> And to be straight about where it is: that change is merged into main and live, so the live Settings page no longer has the per-class panels — what you are looking at now is the new version."
 
-*(The move is commit `2781e75`, merged to `main` as PR #51 (merge commit `22fcf74`). The deployed bundle is still the older build — see §0.)*
+*(The move is commit `2781e75`, merged to `main` as PR #51 (merge commit `22fcf74`), and it is live — see §0.)*
 
 ### Slide 13 — opening the live demo (12:45)
 
@@ -170,11 +199,11 @@ Then:
 
 ### Slide 15 — the stack, the third-party credits and who built what (19:55–20:45) — hand to William Hansel
 
-> "On the stack: the app is Vue and Vite on the front, Bootstrap for the utility classes, Socket.IO for the live Campfire Run, pdf.js and fflate for reading your lecture files, and Playwright for the end-to-end tests. The game icons come from game-icons.net. All of it is credited in the README with the licences, and our own art is credited too. We haven't presented anyone else's library as our work.
+> "On the stack: the app is Vue and Vite on the front, Bootstrap for the utility classes, Socket.IO for the live Campfire Run, pdf.js and fflate for reading your lecture files, and Playwright for the end-to-end tests. The game icons come from game-icons.net. On third-party code: every one of those — Vue, Vite, Bootstrap, Socket.IO, pdf.js, fflate and Playwright — has a row in the README's library table with its licence, and our own art is credited too. We haven't presented anyone else's library as our work.
 >
 > Here's who built what."
 
-*(The library list and every licence are in `README.md:140-186` on `origin/main`. William hands to you for the closing paragraph below.)*
+*(The library list and every licence are in `README.md:173-191` — the table under "### Libraries" in the README that ships in the zip. William hands to you for the closing paragraph below.)*
 
 ### Closing 30 seconds — what each of us contributed (20:45–21:15)
 
@@ -228,8 +257,8 @@ Everything below happens with the app already signed in. **The sign-in page must
 - Sign a **student** in in a second tab — `student02@quizquest.demo`. That student is on "Computing - Tutorial Group A", carries the seeded practice history, so My progress has real numbers and Networking basics is the weak topic. The seven student steps all happen in that tab.
 - If you can, sign a **second student** in a third tab — the Campfire Run lobby needs two players to be worth showing.
 - Open the GitHub repository `github.com/whansel007/QuizQuest` in a **separate browser tab** (mandatory beat D14). Signing in is per tab, so the app tabs keep their sessions.
-- Open DevTools, dock it to the right, leave the **Console** tab selected, and turn on the device toolbar set to **575 px (xs)**.
-- Mute the app's sound (the student header has a mute toggle; `web/src/components/SoundToggle.vue:11-13`).
+- Open DevTools, dock it to the right and leave the **Console** tab selected — but leave the device toolbar **switched off** (desktop width). You engage the 575 px viewport yourself, live, at beat D12.
+- Turn the sound off **before you sign in**: in the demo tab's console run `localStorage.setItem('hero-lab-settings', JSON.stringify({ muted: true }))` and reload. (The on-screen mute button only exists on the student header — `web/src/App.vue:202` — and the live demo is the professor's screens.)
 - Wake the Render instance before you start — the free instance sleeps and the first request can take the best part of a minute.
 
 ### Order, length and words
@@ -238,7 +267,7 @@ Beats D5 to D11 are the seven steps of the team's agreed running order (William'
 
 | Beat | Time | Owner | What you do — what the audience sees | What you say |
 |---|---|---|---|---|
-| **D1** | 0:00–0:40 | Marxel | Land on **Classes & Roster**. DevTools is docked right with the **Console** tab open and empty — no errors, no warnings. One slow scroll of the class grid. Press **+ Create Class** → the "Create New Class Group" modal (Course, Class Name, Description) → type a real class name → **Create Class**. The app opens the new class. Then **Manage Roster & Codes →** → sub-tab **Join Codes (N)** → **+ Generate Join Code** → set a usage limit and an expiry → **Generate Code**. The green banner appears with the code. Then sub-tab **Student Roster (N)** → heading **Enrolled Students**. *Conditional:* if the deployed app has been rebuilt, type one class name into the class search box; otherwise skip it. | "This is the professor's home screen. Every class is a card, with the student count and the live join-code count on it. Create a class: pick the course, name the class, and it opens straight into that class. Now the join code — twelve characters, random, and it is shown exactly once, because we only keep a hash of it. If this leaks I revoke it and generate another; I can't read the old one back out of the database even if I wanted to." |
+| **D1** | 0:00–0:40 | Marxel | Land on **Classes & Roster**. DevTools is docked right with the **Console** tab open and empty — no errors, no warnings. One slow scroll of the class grid. Type one class name into **Search classes by name or course**. Press **+ Create Class** → the "Create New Class Group" modal (Course, Class Name, Description) → type a real class name → **Create Class**. The app opens the new class. Then **Manage Roster & Codes →** → sub-tab **Join Codes (N)** → **+ Generate Join Code** → set a usage limit and an expiry → **Generate Code**. The green banner appears with the code. Then sub-tab **Student Roster (N)** → heading **Enrolled Students**. | "This is the professor's home screen. Every class is a card, with the student count and the live join-code count on it — and there is a search box, so you can find a class by name or course. Create a class: pick the course, name the class, and it opens straight into that class. Now the join code — twelve random characters after a fixed prefix, and it is shown exactly once, because we only keep a hash of it. If this leaks I revoke it and generate another; I can't read the old one back out of the database even if I wanted to." |
 | **D2** | 0:40–1:00 | Marxel | On the professor side, open the material import for the course, drop in the lecture file, tick **This is authorised course material without student personal data.**, press **Upload files**. The text lands in the material library and the course's knowledge report has it. | "Upload: the file is read in my browser, not on our server. Nothing leaves the page until I tick the confirmation and press Upload files — the server only ever receives text." |
 | **D3** | 1:00–2:00 | Jasper Wong | Open **Question bank**. The status filter reads **Needs review**. Open the seeded draft, read the stem and its source, then press **Approve & publish** — the card turns published and leaves Needs review. Then open **To review** and mark one short answer waiting for you. | "Nothing reaches a student until a professor approves it. Here is a drafted question sitting in Needs review. I read it — the answer and the source both hold up — and I press Approve & publish. And here are the short answers waiting for my mark." |
 | **D4** | 2:00–3:00 | Ho Zhi Yang | Open **Analytics**. The topic table is weakest first. Show **Needs attention**, click a topic to focus it, then press **Print report**. | "First-attempt accuracy per topic, weakest first — so the first row is the topic that actually failed. Needs attention lists the few things worth acting on, and the whole thing prints." |
@@ -249,22 +278,22 @@ Beats D5 to D11 are the seven steps of the team's agreed running order (William'
 | **D9** | 4:40–5:05 | William Hansel | **Summon**. The pull buttons — **Summon ×1** with the coin cost beside it. Press it; the reveal lands on a hero with its rarity stars. | "Summon — one pull for coins. The stars under the name are the rarity, and every pull is logged, so the journal shows the coin history." |
 | **D10** | 5:05–5:35 | William Hansel | Back on **Kingdom**. Walk with WASD to a building, press **E** to open it, then **Upgrade** with the resource cost beside it. Press **Z** for the emote wheel and pick one. Walk up to a hero and press **E** to greet. | "Buildings upgrade with the resources you earn — wood, crystal and herbs — and the castle grows with them. Press Z for emotes, and E beside a hero to greet." |
 | **D11** | 5:35–6:00 | William Hansel | **Campfire Run**. Choose an adventurer, press **HOST LOBBY**, show the four-character room code, then join from the second student tab. | "Campfire Run is the shared room: pick your hero, host or join with the room code, and two students are in one lobby on one server." |
-| **D12** | 6:00–6:15 | Marxel | **MANDATORY BEAT A — DevTools.** On the professor tab, resize to **575 px**, Console tab visible. Scroll the class grid so it reflows to one column while the console stays clean. | "Now the responsive check, at 575 pixels — the extra-small breakpoint. The grid collapses to one column and the sidebar goes away. The console is open the whole time and it is empty: no errors, no warnings." |
-| **D13** | 6:15–6:30 | Marxel | On the student tab, resize to **575 px**, the **Console** still visible. Show **My Progress** stacking into one column. The console stays empty. | "The student side at the same width. The progress page stacks into a single column, and the console is still empty." |
+| **D12** | 6:00–6:15 | Marxel | **MANDATORY BEAT A — DevTools.** On the professor tab, **toggle the device toolbar on and set it to 575 px**, Console tab visible. Show the class grid reflowing to one column and the professor sidebar collapsing into the top bar (below 992 px it opens as a drawer from the menu button). Tick **Show archived classes** and show the counter change. The console stays clean the whole time. | "Now the responsive check. At 575 pixels — the extra-small breakpoint — the class grid collapses to a single column and the professor sidebar collapses into the top bar. The console is open the whole time and it is empty: no errors, no warnings." |
+| **D13** | 6:15–6:30 | Marxel | On the student tab, open that tab's own DevTools, toggle its device toolbar on at **575 px**, the **Console** visible. Show **My Progress** stacking into one column. The console stays empty. | "The student side at the same width. The progress page stacks into a single column, and the console is still empty." |
 | **D14** | 6:30–6:50 | Marxel | **MANDATORY BEAT B — GitHub.** Switch to the GitHub tab. Show the repo page: the README on page one with the deployed-app URL, the folders, the recent commit history. | "And this is the repository. The README has the deployed-app URL on page one, the setup and run instructions, the test instructions and the demo accounts. Every commit is there with who wrote it." |
 
-### The class search box — decide before you walk in
+### The class search box — the one thing that depends on the bundle
 
-This is the one action inside beat D1 that the deployed build may not have. Check the live bundle for the string `Class settings` (§0) before you walk in.
+The search box and the **Class Settings** tab are live (PR #51 merged 3 Nov 2026; the live bundle carries them — §0), so beat D1 plays the search-and-Settings clicks. Confirm the bundle hash on the day (§0): if `Class settings` comes back 0, you are on an older build and you use the fallback below.
 
-**If the deployed app has been rebuilt** — the search box and the Class Settings tab are live:
+**Normal case — the live build (this is what you should expect):**
 
 > Type a class name in the **Search classes** box on the grid, press **Settings** on the class card, and land on the **Class Settings** sub-tab. Say:
 > "Search for the class by name or course, press Settings on the card, and the trading switch, the analytics time zone and the trade log are right here on the class itself. This used to be one long list on the Settings page."
 
-**If the deployed build is still the older one** (the state today): skip the search-and-Settings clicks — in D1 tick the box "if the deployed app has been rebuilt, type one class name into the class search box; otherwise skip it" — and say this instead. Do not pretend the buttons exist:
+**Fallback — only if the day-of bundle grep returns 0:** skip the search-and-Settings clicks and say this instead. Do not pretend the buttons exist:
 
-> "The newest thing I've done is merged into the main branch, but the deployed build hasn't been rebuilt yet. I've moved the trading switch, the analytics time zone and the trade log off the Settings page and onto each class's own Class Settings tab, and I've added a search box on the class grid so you can find the class by name. That's PR 51 — it's in main — but what you're seeing here is the before picture. The screenshots of the after picture are on the slide."
+> "The newest thing I've done is merged into the main branch and deployed, but what you're seeing here is an older build. I've moved the trading switch, the analytics time zone and the trade log off the Settings page and onto each class's own Class Settings tab, and I've added a search box on the class grid so you can find the class by name. That's PR 51 — it's in main — but what you're seeing here is the before picture. The screenshots of the after picture are on the slide."
 
 ### If the demo breaks
 
@@ -285,8 +314,8 @@ Have the recorded video open in another tab as the fallback, and say: "Let me sh
 4. Do not call the accounts work a feature. Section 7 task 1 gets described as **class management and role control** — creating classes, join codes, rosters, archiving — not as authentication.
 5. Do not say "70% of your questions were the ones you got wrong". The app is about **70% general coverage and 30% focused on weak topics** (`src/quiz/adaptive.js:19`; the app's own copy says the same). Getting this backwards is an easy catch.
 6. Do not take questions at the end. **Q&A is at the front, before the demo** — do not hold questions back to the end of the deck.
-7. Do not claim the per-class settings move is still on a branch. It is merged into `main` as PR 51 (§0); what is missing is the **redeploy**, not the merge.
-8. Do not promise a feature that is not on the live site. The deployed build has no class search box and no Class Settings tab (§0).
+7. Do not claim the per-class settings move is still on a branch, or still waiting for a deploy. It is merged into `main` as PR 51 **and it is live** (§0) — the site redeploys from `main` automatically, so nothing is pending on your side.
+8. Do not promise a feature you have not confirmed on the live site. The class search box and the Class Settings tab **are** live (§0) — but **check the bundle hash on the day** (§0) and never assert a build you have not confirmed yourself.
 
 **From what we verified in the code:**
 
@@ -318,29 +347,33 @@ Honesty rules for this beat: claim only what is in Section 7, and only the flow 
 
 | When | Length | What you rehearse | Pass condition |
 |---|---|---|---|
-| Day before, evening | 25 min | The whole deck out loud, no stopping, no notes except this file. Time it. | Between 13:00 and 14:30. If you are over 14:30, cut in the order in §1: slide 12 first, then slide 2, slide 3 and slide 14 — never a teammate's feature slide. |
-| Day before, evening | 15 min | The demo only, three times in a row: D1→D11 — class management and upload, then the seven student steps in the agreed order — then the two 575 px beats, then the GitHub beat. Use the real app, at the real URL if it is merged, otherwise a local build of `feature/class-settings-in-class-management`. | You can do D3 and D6 without looking at the script. |
+| Day before, evening | 25 min | The whole deck out loud, no stopping, no notes except this file. Time it. | **11:00 or under** — the slide budget is 655 s = 10:55, and the whole speaking block (slides + demo beats + closing) has to fit **18:15**. If the deck runs over 11:00, cut in the order in §1: slide 12 first, then slide 2, slide 3 and slide 14 — never a teammate's feature slide. |
+| Day before, evening | 15 min | The demo only, three times in a row: D1→D11 — class management and upload, then the seven student steps in the agreed order — then the two 575 px beats, then the GitHub beat. Use the real app at the live URL — the class-settings change is merged and deployed, and the site redeploys from `main` on its own. | You can do D3 and D6 without looking at the script. |
 | Morning of | 10 min | Slides 1, 2 and 3 only, standing up, then the demo D1→D11 once. | The first three slides come out cold. |
+
+Rehearse in the order the room hears it: the **Q&A answers first** — they open the session, because the professor's rule 5 puts Q&A at the front — then the **slides**, then the **live demo beats**, then the **closing line**.
 
 ### Pre-flight on the day (do these in order, 20 minutes before)
 
-- [ ] `pnpm db:reset --confirm` on the deployed instance if the demo data is thin — you need more than one class and a roster with students in it.
-- [ ] **Confirm which professor account you are signed in as**, and open `GET /api/teacher/courses` to see which course it lists. **After a reseed, sign in as Prof. Demo A (`prof.a@quizquest.demo`)** — that account owns "Intro to Computing (demo)" with its three topics and the two Computing classes. **Without a reseed, `prof.b@quizquest.demo` is the account that works**, and it lists "Intro to Statistics (demo)" with one topic. The course in the response tells you which account you are on — check it before the room, not in front of the class.
+- [ ] **Confirm the slot and the room.** 16 Nov 2026 is the normal **Week 13** presentation; the make-up slot is **Week 14, Monday 23 Nov 2026**. Check the time and the venue with the teaching team before the room.
+- [ ] **Data check — do this before Friday 6 Nov, not on the day.** `pnpm db:reset --confirm` is a **local** script, not a remote one: run it from a machine that has the live project's `SUPABASE_URL` and `SUPABASE_SECRET_KEY` in `.env`, with the Render service stopped, then redeploy so the server reloads the reseeded data. You need more than one class and a roster with students in it. A reseed also reverts any demo password changed since the seed and takes `t-a` back from whoever owns it now — get the team lead's nod first, then re-check the sign-in.
+- [ ] **Confirm which professor account you are signed in as**, and open `GET /api/teacher/courses` to see which course it lists. **After a reseed, sign in as Prof. Demo A (`prof.a@quizquest.demo`)** — that account owns "Intro to Computing (demo)" with its three topics and the two Computing classes. **Without a reseed, `prof.b@quizquest.demo` is the account that works**, and it lists "Intro to Statistics (demo)" with one topic. A reseed puts `t-a` back, so the account that signs in can change after it — read the course in the response before the room, not in front of the class.
+- [ ] **Check the live app URL on the README's page one** — `https://quizquest-4phd.onrender.com`. It has to open and land on the professor's class grid. If it 404s or shows the old build, stop and fix it before the room.
 - [ ] Wake the instance: open the site several minutes early. The free instance sleeps.
 - [ ] Sign the professor in, land on Classes & Roster, then **leave the tab there**.
 - [ ] Open the GitHub tab: `github.com/whansel007/QuizQuest`.
-- [ ] Open DevTools, dock right, Console tab, device toolbar at 575 px. Confirm the console is empty on the class page.
-- [ ] Decide the D1 conditional now: check whether the live bundle contains `Class settings`. It does not today, so the search-and-Settings clicks are skipped and the fallback line in §4 is used instead.
-- [ ] Mute the app's sound. Turn off the browser's "offer to save passwords" popup. Close every other tab and app that can steal focus.
+- [ ] Open DevTools, dock it to the right and leave the **Console** tab selected — but leave the device toolbar **switched off** (desktop width). You engage the 575 px viewport yourself, live, at beat D12. Confirm the console is empty on the class page.
+- [ ] **Confirm the live build before you walk in:** `curl -s https://quizquest-4phd.onrender.com/ | grep -o '/assets/index-[^"]*\.js'`, then grep that bundle for `Class settings`. One or two hits = the current build, so D1 plays the search-and-Settings clicks; zero hits = an older build, so you use the fallback line in §4. The site redeploys from `main` on its own, so the hash can change between now and the day.
+- [ ] **Turn the sound off before you sign in**: in the demo tab's console run `localStorage.setItem('hero-lab-settings', JSON.stringify({ muted: true }))` and reload. (The on-screen mute button only exists on the student header — `web/src/App.vue:202` — and the live demo is the professor's screens.) Turn off the browser's "offer to save passwords" popup. Close every other tab and app that can steal focus.
 - [ ] Zoom 100%, window maximised, 1920×1080.
 - [ ] Rehearse the Q&A answers below once each, out loud.
 
 ### The five questions you must be able to answer in one sentence each
 
-1. **"Where did the per-class settings go?"** — "They were moved out of the Settings page into the class's own page. That's PR 51 and it is merged into main; what isn't done yet is the redeploy, so the live site is still running the older build."
-2. **"Why does a join code look like that?"** — "Twelve characters from a cryptographically secure random source, about 10^18 combinations, and only a hash is stored, so the code is shown once and can't be read back out of the database."
+1. **"Where did the per-class settings go?"** — "They were moved out of the Settings page into the class's own page. That's PR 51, it's merged into main and it's live — the site redeploys from main on its own, so the live site is already running the new build."
+2. **"Why does a join code look like that?"** — "Twelve random characters after a fixed QQ- prefix, drawn from a 32-symbol alphabet by a cryptographically secure random source — about 1.15 × 10¹⁸ combinations — and only a hash is stored, so the code is shown once and can't be read back out of the database."
 3. **"Is the AI allowed to publish a question?"** — "No. Drafts sit in the Question bank under Needs review until a professor presses Approve & publish."
-4. **"What did you use AI/LLM for?"** — Name the parts: boilerplate, test scaffolding, refactoring help, and the report/question prompts written by Xavier against the professor's own material. The disclosure is being finished now and it goes into the README inside the submission zip — the draft sits in `knowledge/README.txt`, which is gitignored and does not ship, so it has to be pasted into the README before the zip is built.
+4. **"What did you use AI/LLM for?"** — Name the parts: boilerplate, test scaffolding, refactoring help, and the report/question prompts written by Xavier against the professor's own material. The full disclosure is in the README's **AI use** section — one row per team member, with every AI-assisted piece of work listed — and it is in the submission zip. **Do not say "the README has it" unless the team has pasted it there:** the draft is `knowledge/README.txt`, which is gitignored and does not ship, so the section has to be added to the README before the zip is built.
 5. **"How do you know it works?"** — "Forty-three end-to-end tests across eighteen spec files drive a real browser against a real server, on top of forty-three Node test files, five browser suites and thirteen unit spec files — including a test that asserts a join code is never written to the database file."
 
 ### Q&A framing
