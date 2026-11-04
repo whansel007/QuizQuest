@@ -230,3 +230,55 @@ test('an archived class leaves the grid and can be restored', async ({ page }) =
   await card.getByRole('button', { name: 'Archive', exact: true }).click();
   await expect(page.locator('#toast')).toContainText(`Class "${name}" archived.`);
 });
+
+test('a professor renames a class, and the new name is the one students join by', async ({ page }) => {
+  test.slow();
+  await openClassManagement(page);
+  const name = `E2E Class ${crypto.randomUUID().slice(0, 8)}`;
+  await createClass(page, name);
+
+  // --- the rename form, opened from the class the professor is looking at ---
+  await page.getByRole('button', { name: 'Rename', exact: true }).click();
+  const modal = page.locator('.modal-card');
+  await expect(modal.getByRole('heading', { name: 'Rename Class' })).toBeVisible();
+  // the form starts with the class as it is
+  await expect(modal.getByLabel('Class Name')).toHaveValue(name);
+
+  const renamed = `${name} (evening)`;
+  await modal.getByLabel('Class Name').fill(renamed);
+  await modal.getByLabel('Description (Optional)').fill('Thursday 2pm lab');
+  await modal.getByRole('button', { name: 'Save', exact: true }).click();
+  await expect(page.locator('#toast')).toContainText(`Class renamed to "${renamed}"`);
+
+  // the new name is on the class the professor is looking at...
+  await expect(page.getByRole('heading', { name: renamed, level: 2, exact: true })).toBeVisible();
+
+  // ...and on its card
+  await page.getByRole('button', { name: '← Back to all classes' }).click();
+  const card = page.locator('.class-card').filter({ hasText: renamed });
+  await expect(card).toHaveCount(1);
+  await expect(card.getByRole('heading', { level: 3 })).toHaveText(renamed);
+
+  // --- a name another of the professor's classes already has is refused ---
+  // A student is enrolled into a class by its name, so two classes of the
+  // same name cannot be told apart. The professor is told that, rather than
+  // being left with two classes that cannot be told apart.
+  await card.getByRole('button', { name: 'Rename', exact: true }).click();
+  await expect(modal.getByRole('heading', { name: 'Rename Class' })).toBeVisible();
+  await modal.getByLabel('Class Name').fill('Computing - Tutorial Group A');
+  await modal.getByRole('button', { name: 'Save', exact: true }).click();
+  await expect(page.locator('#toast')).toContainText(/already have a class named/i);
+  // the form stays open, with the name the professor typed in it
+  await expect(modal).toBeVisible();
+  await expect(modal.getByLabel('Class Name')).toHaveValue('Computing - Tutorial Group A');
+  await modal.getByRole('button', { name: 'Cancel', exact: true }).click();
+
+  // the class still has the name it had
+  await expect(card.getByRole('heading', { level: 3 })).toHaveText(renamed);
+
+  // --- and the class is put away at the end, for the reason given in the
+  // test above: an active class the professor owns stays in the list that
+  // the roster's "add to another class" dropdown is built from.
+  await card.getByRole('button', { name: 'Archive', exact: true }).click();
+  await expect(page.locator('#toast')).toContainText(`Class "${renamed}" archived.`);
+});
