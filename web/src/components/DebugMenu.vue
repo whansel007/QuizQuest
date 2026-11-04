@@ -1,8 +1,8 @@
 <script setup>
 import { nextTick, onMounted, onUnmounted, ref } from 'vue';
-import { api } from '../api.js';
+import { api, S } from '../api.js';
 import { loadHome, store, updateBalances } from '../student/home.js';
-import { DEBUG_TUNING } from '../../../config/tuning.js';
+import { BUILDING_LEVEL_CAP, DEBUG_TUNING } from '../../../config/tuning.js';
 import packageJson from '../../../package.json';
 
 const enabled = ref(false);
@@ -21,6 +21,8 @@ const maxRooms = ref(0);
 const roomsError = ref('');
 const summonScenario = ref('epic-and-duplicates');
 const summonQueued = ref('');
+const kingdomLevel = ref(0);
+const kingdomNotice = ref('');
 const appVersion = packageJson.version;
 const resources = () => Object.entries(store.home?.catalog.resources || {});
 const code = ['ArrowUp', 'ArrowUp', 'ArrowDown', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'ArrowLeft', 'ArrowRight', 'b', 'a', 'Enter'];
@@ -103,6 +105,24 @@ async function queueSummonPreview() {
   } catch (err) { error.value = err.message; }
 }
 
+async function setKingdomLevel() {
+  error.value = '';
+  kingdomNotice.value = '';
+  try {
+    const result = await api('POST', '/api/student/debug/kingdom', { level: Number(kingdomLevel.value) });
+    window.dispatchEvent(new CustomEvent('qq-debug-kingdom-updated', { detail: result }));
+    kingdomNotice.value = `All buildings set to level ${result.castleLevel}.`;
+  } catch (err) { error.value = err.message; }
+}
+
+async function replayKingdomIntro() {
+  const student = S.me?.id || S.me?.email || 'student';
+  try { localStorage.removeItem(`qq-kingdom-intro-seen:${student}`); } catch { /* storage may be blocked */ }
+  open.value = false;
+  await nextTick();
+  window.dispatchEvent(new Event('qq-replay-kingdom-intro'));
+}
+
 function adjustWallet(amount) { return setWalletBalance(Math.max(DEBUG_TUNING.minimumBalance, Math.min(DEBUG_TUNING.maximumBalance, balance.value + amount))); }
 function adjustResource(resource, amount) { return setResourceBalance(resource, Math.max(DEBUG_TUNING.minimumBalance, Math.min(DEBUG_TUNING.maximumBalance, Number(resourceBalances.value[resource]) + amount))); }
 
@@ -176,6 +196,17 @@ onUnmounted(() => window.removeEventListener('keydown', konami, true));
           <button class="btn" type="button" @click="setResourceBalance(resource, DEBUG_TUNING.minimumBalance)">Reset to 0</button>
         </div>
       </form>
+      <section class="debug-rooms">
+        <strong>Kingdom playtesting</strong>
+        <label for="debug-kingdom-level">Set all buildings to</label>
+        <select id="debug-kingdom-level" v-model.number="kingdomLevel">
+          <option :value="0">Unbuilt (level 0)</option>
+          <option v-for="level in BUILDING_LEVEL_CAP" :key="level" :value="level">Level {{ level }}</option>
+        </select>
+        <button class="btn" type="button" @click="setKingdomLevel">Set all building levels</button>
+        <p v-if="kingdomNotice" class="muted small">{{ kingdomNotice }}</p>
+        <button class="btn" type="button" @click="replayKingdomIntro">Replay first kingdom hint</button>
+      </section>
       <p v-if="saved" class="small">Balance updated.</p>
       <p v-if="error" class="note bad small">{{ error }}</p>
       <section class="debug-rooms">

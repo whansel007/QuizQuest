@@ -2816,6 +2816,8 @@ main#main.main-progress {
 }
 main#main.main-progress :is(h2, h3) { color: #fff8e4; }
 main#main.main-progress > .small.muted { color: #d5e3d0; }
+main#main.main-progress .page-heading .btn:not(.primary),
+main#main.main-progress .page-heading select { color: #23382f; }
 main#main.main-progress .pg-columns > .panel { color: #254937; }
 /* the page ink is cream for the forest background; fields sit on paper */
 main#main.main-progress .pg-columns :is(select, select option) { color: #23382f; }
