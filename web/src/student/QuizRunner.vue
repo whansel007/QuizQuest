@@ -96,6 +96,11 @@ let turn = 0;
 async function showQuestion() {
   // A double-clicked "Next" (or held Enter) would run this twice; only
   // the latest call may draw, and any previous timer is stopped first.
+  // The practice view scrolls inside main on desktop and the window on some
+  // smaller layouts, so reset both before loading the next question.
+  const main = document.getElementById('main');
+  if (main) main.scrollTop = 0;
+  if (window.scrollY) window.scrollTo(0, 0);
   const mine = ++turn;
   clearInterval(countdown);
   form.value?.destroy();
@@ -310,7 +315,7 @@ onUnmounted(() => {
             <button class="btn primary" @click="retryAnswer">Retry answer</button>
           </template>
           <template v-else-if="feedback?.kind === 'result'">
-            <ResultBlock :r="feedback.r" :correct-text="feedback.r.attack ? `Correct! Your cat-ball hero used ${feedback.r.attack.move}.` : 'Correct!'" />
+            <ResultBlock :r="feedback.r" :correct-text="'Correct!'" />
             <div class="quiz-action-row">
               <button ref="nextBtn" class="btn primary" :disabled="isAnimatingTurn" @click="onNext">{{ isAnimatingTurn ? 'Battling…' : feedback.r.done ? 'See results' : 'Next question →' }}</button>
               <button class="btn small" :disabled="isAnimatingTurn" @click="(reportOpen = true), (reportDone = '')">Report a problem</button>

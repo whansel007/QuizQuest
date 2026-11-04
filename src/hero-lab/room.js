@@ -36,6 +36,7 @@ const PLAYER_EMOTE_DURATION_MS = 2400;
 const PLAYER_EMOTE_COOLDOWN_MS = 500;
 const MOVEMENT_KEYS = ['up', 'down', 'left', 'right'];
 const clamp = (value, min, max) => Math.min(max, Math.max(min, value));
+const roundToTenth = (value) => Math.round((Number(value) + Number.EPSILON) * 10) / 10;
 
 function pointSegmentDistanceSquared(pointX, pointY, startX, startY, endX, endY) {
   const dx = endX - startX, dy = endY - startY;
@@ -825,8 +826,8 @@ function createRoom({ io, services = null, id, code = null, isDefault = false, m
     const reached = player?.wavesReached || 0;
     return {
       victory, reason, wavesReached: reached, wavesCleared: participated,
-      kills: player?.kills || 0, damageDealt: Math.round(player?.damageDealt || 0),
-      bonusDamage: Math.round(player?.bonusDamage || 0),
+      kills: player?.kills || 0, damageDealt: roundToTenth(player?.damageDealt || 0),
+      bonusDamage: roundToTenth(player?.bonusDamage || 0),
       attackBonusPercent: Math.round((player?.hero.buildingBonuses?.attackPercent || 0) * 100),
       attackBonusBuilding: player?.hero.type === 'magic' ? 'Library' : 'Workshop',
       campfireBonusPercent: Math.round((player?.hero.buildingBonuses?.campfireMaxHpPercent || 0) * 100),
@@ -2823,7 +2824,7 @@ function createRoom({ io, services = null, id, code = null, isDefault = false, m
         wave: waveNumber,
         remainingMs: breakPhaseEndsAt ? Math.max(0, breakPhaseEndsAt - now) : 0,
       } : null,
-      boss: (() => { const boss = [...monsters.values()].find((monster) => monster.isBoss); return boss ? { hp: Math.max(0, Math.round(boss.hp)), maxHp: boss.maxHp, name: 'Brute King' } : null; })(),
+      boss: (() => { const boss = [...monsters.values()].find((monster) => monster.isBoss); return boss ? { hp: Math.max(0, roundToTenth(boss.hp)), maxHp: roundToTenth(boss.maxHp), name: 'Brute King' } : null; })(),
       gameEnded,
       dawn: dawnWave ? { wave: dawnWave, decisionsRemaining: dawnPending.size } : null,
       serverTime: now,
@@ -2868,15 +2869,15 @@ function createRoom({ io, services = null, id, code = null, isDefault = false, m
         x: campfire.x,
         y: campfire.y,
         radius: campfire.radius,
-        hp: Math.max(0, Math.round(campfire.hp)),
-        maxHp: campfire.maxHp,
+        hp: Math.max(0, roundToTenth(campfire.hp)),
+        maxHp: roundToTenth(campfire.maxHp),
       },
       monsters: [...monsters.values()].map((monster) => ({
         id: monster.id,
         x: Math.round(monster.x * 10) / 10,
         y: Math.round(monster.y * 10) / 10,
-        hp: Math.max(0, Math.round(monster.hp)),
-        maxHp: monster.maxHp,
+        hp: Math.max(0, roundToTenth(monster.hp)),
+        maxHp: roundToTenth(monster.maxHp),
         radius: monster.radius,
         emoji: monster.emoji,
         type: monster.type,
@@ -2939,8 +2940,8 @@ function createRoom({ io, services = null, id, code = null, isDefault = false, m
         towerLevel: hero.towerLevel ?? 0,
         towerMultiplier: hero.towerMultiplier ?? 1,
         overchargeShots: players.get(id)?.overchargeShots || 0,
-        hp: Math.max(0, Math.round(hero.hp)), maxHp: hero.maxHp,
-        attack: hero.attack, defense: hero.defense, speed: hero.speed,
+        hp: Math.max(0, roundToTenth(hero.hp)), maxHp: roundToTenth(hero.maxHp),
+        attack: roundToTenth(hero.attack), defense: roundToTenth(hero.defense), speed: roundToTenth(hero.speed),
         abilities: Object.fromEntries(Object.entries(hero.cooldowns).map(([key, cooldown]) => [key, {
           name: key === 'weapon' ? hero.weaponName : key === 'skill' ? hero.skillName : hero.ultimateName,
           durationMs: cooldown.durationMs,
@@ -3694,7 +3695,7 @@ function createRoom({ io, services = null, id, code = null, isDefault = false, m
       bytesSent: bytesSent(),
       lastTickAt,
       uptimeS: Math.round((Date.now() - createdAt) / 1000),
-      campfire: { hp: Math.round(campfire.hp), maxHp: campfire.maxHp },
+      campfire: { hp: roundToTenth(campfire.hp), maxHp: roundToTenth(campfire.maxHp) },
     };
   }
 

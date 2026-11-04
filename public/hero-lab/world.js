@@ -696,7 +696,7 @@ void profiler.start().then((debugEnabled) => {
     const local = state.players.find((candidate) => candidate.id === me);
     const out = towerTools.querySelector('[data-tower-readout]');
     if (!local) { out.textContent = ''; return; }
-    out.textContent = `Lv${local.towerLevel ?? 0} ×${Number(local.towerMultiplier ?? 1).toFixed(2)} · HP ${Math.round(local.maxHp)} · ATK ${Number(local.attack).toFixed(1)} · DEF ${Number(local.defense).toFixed(1)} · SPD ${Number(local.speed).toFixed(1)}`;
+    out.textContent = `Lv${local.towerLevel ?? 0} ×${Number(local.towerMultiplier ?? 1).toFixed(2)} · HP ${formatStat(local.maxHp)} · ATK ${formatStat(local.attack)} · DEF ${formatStat(local.defense)} · SPD ${formatStat(local.speed)}`;
   }, 500);
 });
 let heroDebugUltimate = false;
@@ -1297,7 +1297,7 @@ function drawConfetti(currentTime) {
 
 function returnToKingdom() {
   if (embedded) {
-    window.parent.postMessage({ type: 'hero-lab-game-over' }, location.origin);
+    window.parent.postMessage({ type: 'hero-lab-return-kingdom' }, location.origin);
   } else location.replace('/hero-lab');
 }
 
@@ -1389,14 +1389,14 @@ function showRunResult(result) {
   document.querySelector('#run-result-message').textContent = `${result.wavesCleared || 0} waves cleared · ${result.rewardCoins || 0} placeholder coins${result.victory ? ' claimed' : ' earned'}.`;
   runResultStats.replaceChildren();
   const upgradeLines = result.attackBonusPercent > 0
-    ? [`Your ${result.attackBonusBuilding || 'Kingdom'} +${result.attackBonusPercent}% base attack bonus dealt ${result.bonusDamage || 0} extra damage`]
-    : [`Kingdom attack bonus: 0% · Extra damage: ${result.bonusDamage || 0}`];
+    ? [`Your ${result.attackBonusBuilding || 'Kingdom'} +${result.attackBonusPercent}% base attack bonus dealt ${formatStat(result.bonusDamage || 0)} extra damage`]
+    : [`Kingdom attack bonus: 0% · Extra damage: ${formatStat(result.bonusDamage || 0)}`];
   if (result.campfireBonusPercent > 0) upgradeLines.push(`Garden +${result.campfireBonusPercent}% base campfire HP per player`);
   if (result.towerBonusPercent > 0) upgradeLines.push(`Tower Lv${result.towerLevel}: buffs +${result.towerBonusPercent}% on your hero`);
   const statTiles = [
     ['Waves reached', result.wavesReached || 0, 'waves'],
     ['Enemies defeated', result.kills || 0, 'kills'],
-    ['Damage dealt', result.damageDealt || 0, 'damage'],
+    ['Damage dealt', formatStat(result.damageDealt || 0), 'damage'],
     ['Personal best', `${personalBest} waves`, 'best'],
   ];
   for (const [label, value, kind] of statTiles) {
@@ -1462,6 +1462,7 @@ document.querySelector('#run-again').addEventListener('click', () => {
 });
 document.querySelector('#return-kingdom').addEventListener('click', returnToKingdom);
 document.querySelector('#session-stop').addEventListener('click', returnToKingdom);
+document.querySelector('#kingdom-exit').addEventListener('click', returnToKingdom);
 document.querySelector('#session-keep-going').addEventListener('click', () => { sessionSummary.hidden = true; });
 shakeSetting.checked = settings.screenShake;
 shakeIntensitySetting.value = String(settings.shakeIntensity);
@@ -1865,7 +1866,7 @@ function addDamageNumber({ x, y, damage, sourceId, targetId, bonus = false, colo
   const existing = damageNumberMerge.get(mergeKey);
   if (existing && now - existing.lastHitAt <= mergeWindow) {
     existing.value += damage;
-    existing.text = `-${Math.round(existing.value)}`;
+    existing.text = `-${formatStat(existing.value)}`;
     existing.glyph = textGlyph(existing.text, existing.color, 13 * existing.scale);
     existing.lastHitAt = now;
     existing.color = bonus ? '#ffe34f' : (color || '#fff');
@@ -1875,7 +1876,7 @@ function addDamageNumber({ x, y, damage, sourceId, targetId, bonus = false, colo
     return;
   }
   const entryColor = bonus ? '#ffe34f' : (color || '#fff');
-  const entry = { x, y, startY: y, value: damage, text: `-${Math.round(damage)}`, startedAt: now, lastHitAt: now,
+  const entry = { x, y, startY: y, value: damage, text: `-${formatStat(damage)}`, startedAt: now, lastHitAt: now,
     sourceId, targetId, mergeKey, bonus, alpha: 1, color: entryColor, scale: bonus ? ARENA_TUNING.damageNumbers.bonusScale : 1, glyph: null };
   entry.glyph = textGlyph(entry.text, entryColor, 13 * entry.scale);
   damageTexts.push(entry);
@@ -3502,7 +3503,7 @@ function renderPlayerList(room) {
     } else {
       const value = document.createElement('span');
       value.className = 'roster-hp-value';
-      value.textContent = `${entry.hp || 0}/${entry.maxHp || 0}`;
+      value.textContent = `${formatStat(entry.hp || 0)}/${formatStat(entry.maxHp || 0)}`;
       status.append(value);
     }
     row.append(status);
@@ -3795,7 +3796,7 @@ function updateHud(timestamp = performance.now()) {
     const ratio = Math.max(0, Math.min(1, fire.hp / Math.max(1, fire.maxHp)));
     setHudStyle(campfireFill, 'width', `${ratio * 100}%`);
     setHudStyle(campfireFill, 'backgroundColor', ratio > 0.5 ? '#8DB872' : ratio > 0.25 ? '#F2BA55' : '#E0807B');
-    setHudText(campfireValue, `${fire.hp} / ${fire.maxHp}`);
+    setHudText(campfireValue, `${formatStat(fire.hp)} / ${formatStat(fire.maxHp)}`);
     setHeartbeat(ratio < ARENA_TUNING.lowHp.threshold);
   }
   const boss = state.boss;
@@ -3803,7 +3804,7 @@ function updateHud(timestamp = performance.now()) {
   if (boss) {
     const ratio = Math.max(0, Math.min(1, boss.hp / Math.max(1, boss.maxHp)));
     setHudStyle(bossHealthFill, 'width', `${ratio * 100}%`);
-    setHudText(bossHealthValue, `${boss.name} · ${boss.hp} / ${boss.maxHp}`);
+    setHudText(bossHealthValue, `${boss.name} · ${formatStat(boss.hp)} / ${formatStat(boss.maxHp)}`);
   }
   if (!player) return;
 
@@ -3811,13 +3812,13 @@ function updateHud(timestamp = performance.now()) {
   const hpRatio = player.maxHp > 0 ? Math.max(0, Math.min(1, player.hp / player.maxHp)) : 0;
   setHudStyle(healthFill, 'width', `${hpRatio * 100}%`);
   setHudStyle(healthFill, 'background', hpRatio <= .25 ? '#ef5350' : hpRatio <= .55 ? '#ffb74d' : '#64d985');
-  const maxHpAttr = String(player.maxHp);
-  const hpAttr = String(player.hp);
+  const maxHpAttr = formatStat(player.maxHp);
+  const hpAttr = formatStat(player.hp);
   if (healthTrack.getAttribute('aria-valuemax') !== maxHpAttr || healthTrack.getAttribute('aria-valuenow') !== hpAttr) {
     healthTrack.setAttribute('aria-valuemax', maxHpAttr);
     healthTrack.setAttribute('aria-valuenow', hpAttr);
   }
-  setHudText(healthValue, `${player.hp} / ${player.maxHp}`);
+  setHudText(healthValue, `${formatStat(player.hp)} / ${formatStat(player.maxHp)}`);
   setHudHidden(lowHpVignette, hpRatio >= ARENA_TUNING.lowHp.threshold);
   const pulseDuration = `${1000 / ARENA_TUNING.lowHp.pulseHz}ms`;
   if (lowHpVignette.style.getPropertyValue('--low-hp-pulse-duration') !== pulseDuration) {
@@ -4631,13 +4632,18 @@ function drawRangerCombatFeedback(player, now) {
     context.restore();
     if (player.id === me && window.lastPointerWorld) {
       const end = rangerAimEndpoint(player, config.ultRange);
-      context.save(); context.globalAlpha = 1; context.fillStyle = '#17202bf2'; context.strokeStyle = '#303728'; context.lineWidth = 6;
-      context.beginPath(); context.arc(end.x, end.y, 21, 0, Math.PI * 2); context.fill(); context.stroke();
+      context.save(); context.globalAlpha = 1; context.strokeStyle = '#303728'; context.lineWidth = 6;
+      context.beginPath(); context.arc(end.x, end.y, 21, 0, Math.PI * 2); context.stroke();
       context.strokeStyle = HERO_FX_SECONDARY.ranger; context.lineWidth = 3;
       context.beginPath(); context.arc(end.x, end.y, 21, 0, Math.PI * 2); context.stroke();
+      const chargeLabel = `×${player.deadAimArrows}`;
       context.font = '900 11px system-ui, sans-serif'; context.textAlign = 'center'; context.textBaseline = 'middle';
-      context.lineWidth = 3; context.strokeStyle = '#17202b'; context.fillStyle = '#fff2cc';
-      context.strokeText(`×${player.deadAimArrows}`, end.x, end.y); context.fillText(`×${player.deadAimArrows}`, end.x, end.y);
+      const labelWidth = context.measureText(chargeLabel).width + 12;
+      const labelY = -21 - 12;
+      context.fillStyle = '#17251b'; context.strokeStyle = HERO_FX_SECONDARY.ranger; context.lineWidth = 2;
+      context.beginPath(); context.roundRect(end.x - labelWidth / 2, end.y + labelY - 9, labelWidth, 18, 9); context.fill(); context.stroke();
+      context.fillStyle = '#e4ffdb';
+      context.fillText(chargeLabel, end.x, end.y + labelY);
       context.restore();
     }
   }

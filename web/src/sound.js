@@ -186,11 +186,12 @@ const CUES = {
     hiss(c, out, t, { dur: 0.05, peak: 0.05, filter: 'highpass', freq: 2400 });
     return 0.13;
   },
-  // the enemy's hit on a wrong answer: a low, muffled thump
+  // the enemy's hit on a wrong answer: a clear thump with a short impact crack
   enemyHit(c, out, t) {
-    tone(c, out, t, { type: 'sine', freq: 150, to: 70, dur: 0.18, peak: 0.16 });
-    hiss(c, out, t, { dur: 0.1, peak: 0.05, filter: 'lowpass', freq: 700 });
-    return 0.2;
+    tone(c, out, t, { type: 'sine', freq: 180, to: 65, dur: 0.2, peak: 0.22 });
+    hiss(c, out, t, { dur: 0.075, peak: 0.09, filter: 'highpass', freq: 1500, to: 4200, attack: 0.002 });
+    hiss(c, out, t, { dur: 0.1, peak: 0.055, filter: 'lowpass', freq: 700 });
+    return 0.22;
   },
   // arriving at the Summon sky: a gentle rising twinkle
   summonArrive(c, out, t) {

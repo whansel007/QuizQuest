@@ -26,7 +26,7 @@
 const crypto = require('crypto');
 const { HERO_CLASSES } = require('../../public/hero-lab/hero-list.js');
 const {
-  DEBUG_TUNING, ROOM_MAX_ACTIVE, TOWN_AVATAR_COLOR_MAX_LIGHTNESS,
+  BUILDING_LEVEL_CAP, DEBUG_TUNING, ROOM_MAX_ACTIVE, TOWN_AVATAR_COLOR_MAX_LIGHTNESS,
   TOWN_AVATAR_COLOR_MIN_LIGHTNESS, TOWN_AVATAR_DEFAULT_COLOR,
   TOWN_AVATAR_MIN_GRASS_DISTANCE, TOWN_GRASS_COLOR, SUMMON_HISTORY_PAGE_SIZE,
 } = require('../../config/tuning.js');
@@ -49,7 +49,7 @@ const { resolveTags, AI_DRAFT_FORMATS } = require('./assessment');
 const T = require('./topics');
 const R = require('./rewards');
 const E = require('./economy');
-const { SESSION_RESOURCES } = require('./seed');
+const { sessionResources } = require('./seed');
 const { AVATAR_COSMETIC_BY_ID, AVATAR_COSMETIC_CATALOG } = require('../../config/avatar-cosmetics');
 const { avatarVisual, wardrobeState, wardrobeView, legacyColorItem } = require('./avatar');
 const P = require('./passwords');
@@ -527,7 +527,7 @@ attemptId: attempt.id,
       end.resources = E.grantResources(
         db,
         user.id,
-        SESSION_RESOURCES,
+        sessionResources(),
         'Completed a practice session',
         `sessionres:${s.id}`,
         s.completedAt,
@@ -621,6 +621,7 @@ attemptId: attempt.id,
       ready: true,
       demoAccounts: db.users.filter(isSeededDemoUser).length,
       heroLabHeroes: Object.keys(HERO_CLASSES),
+      debugKingdomLevels: true,
     }));
   }
 
@@ -1934,6 +1935,17 @@ attemptId: attempt.id,
       reason: `Debug ${E.RESOURCES[resource].name} adjustment`, refKey: `debug-resource:${user.id}:${newId('debug')}`, at: now() });
     save();
     return { resources: { ...current } };
+  });
+  route('POST', '/api/student/debug/kingdom', 'student', ({ user, body }) => {
+    if (!isSeededDemoUser(user)) fail(403, 'Debug tools are only available for synthetic demo accounts.');
+    const level = Number(body?.level);
+    if (!Number.isInteger(level) || level < 0 || level > BUILDING_LEVEL_CAP) {
+      fail(400, `Building level must be a whole number from 0 to ${BUILDING_LEVEL_CAP}.`);
+    }
+    const kingdom = E.kingdom(db, user.id);
+    kingdom.buildings = Object.fromEntries(Object.keys(E.BUILDINGS).map((building) => [building, level]));
+    save({ analytics: false });
+    return { buildings: kingdom.buildings, castleLevel: E.castleLevel(kingdom) };
   });
   route('POST', '/api/student/debug/force-next-summon', 'student', ({ user, body }) => {
     if (!isSeededDemoUser(user)) fail(403, 'Debug tools are only available for synthetic demo accounts.');

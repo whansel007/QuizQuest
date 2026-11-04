@@ -39,12 +39,17 @@ function supportsCurrentHeroLab(status) {
     && status.heroLabHeroes.includes('engineer');
 }
 
+function supportsDebugKingdomLevels(status) {
+  return status?.debugKingdomLevels === true;
+}
+
 async function isDemoApiReady(port) {
   try {
     const health = await fetch(`http://127.0.0.1:${port}/api/dev-ready`, { signal: AbortSignal.timeout(1000) });
     if (!health.ok) return false;
     const status = await health.json();
-    if (status.ready !== true || !status.demoAccounts || !supportsCurrentHeroLab(status)) return false;
+    if (status.ready !== true || !status.demoAccounts || !supportsCurrentHeroLab(status)
+      || !supportsDebugKingdomLevels(status)) return false;
     const response = await fetch(`http://127.0.0.1:${port}/api/demo-users`, { signal: AbortSignal.timeout(1000) });
     return response.ok && hasSeededDemoAccounts(await response.json());
   } catch {
@@ -107,6 +112,11 @@ async function waitForApi(child, port, timeoutMs = 15000) {
       }
       if (!supportsCurrentHeroLab(status)) {
         lastError = 'the dev server does not include the current Hero Lab roster';
+        await new Promise((resolve) => setTimeout(resolve, 250));
+        continue;
+      }
+      if (!supportsDebugKingdomLevels(status)) {
+        lastError = 'the dev server does not include the latest debug tools';
         await new Promise((resolve) => setTimeout(resolve, 250));
         continue;
       }

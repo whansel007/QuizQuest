@@ -34,6 +34,8 @@ let alive = true;
 
 onMounted(async () => {
   window.addEventListener('keydown', onTownKeydown);
+  window.addEventListener('qq-debug-kingdom-updated', onDebugKingdomUpdated);
+  window.addEventListener('qq-replay-kingdom-intro', replayFirstIntro);
   try {
     homeData.value = await loadHome();
     if (S.classId) {
@@ -50,6 +52,8 @@ onMounted(async () => {
 onUnmounted(() => {
   alive = false;
   window.removeEventListener('keydown', onTownKeydown);
+  window.removeEventListener('qq-debug-kingdom-updated', onDebugKingdomUpdated);
+  window.removeEventListener('qq-replay-kingdom-intro', replayFirstIntro);
   clearTimeout(radioTimer);
 });
 
@@ -171,6 +175,7 @@ const plots = computed(() => Object.keys(k.value.catalog.buildings).map((id) => 
 }));
 const townPlot = computed(() => townTarget.value && townTarget.value !== 'castle' ? plots.value.find((p) => p.id === townTarget.value) : null);
 const castleLevel = computed(() => k.value?.castleLevel || 0);
+const coinBalance = computed(() => Number(homeData.value?.wallet?.balance || 0).toLocaleString());
 const heroesOfType = (type) => ownedHeroes.value.filter((hero) => hero.type === type);
 const haveText = computed(() => {
   const res = Object.fromEntries(Object.entries(k.value?.resources || {}).filter(([, v]) => v > 0));
@@ -195,6 +200,13 @@ function maybeStartIntro() {
   let seen = false;
   try { seen = localStorage.getItem(introKey()) === '1'; } catch { /* storage blocked: show it this time */ }
   if (!seen) openIntro();
+}
+function onDebugKingdomUpdated(event) {
+  if (k.value && event.detail) k.value = { ...k.value, ...event.detail };
+}
+function replayFirstIntro() {
+  try { localStorage.removeItem(introKey()); } catch { /* storage blocked */ }
+  void openIntro();
 }
 async function openIntro() {
   listOpen.value = false;
@@ -552,7 +564,13 @@ const castlePanelContext = reactive({
           <em :class="{ ready: p.affordable }">Lv {{ p.lvl }}/{{ buildingCap(p.id) }}<template v-if="p.affordable"> · ready</template></em>
         </button>
       </section>
-      <div class="town-hud town-level">Castle · {{ k.castleLevel }} / {{ BUILDING_LEVEL_CAP }}</div>
+      <div class="town-hud town-economy">
+        <div class="town-level">Castle · {{ k.castleLevel }} / {{ BUILDING_LEVEL_CAP }}</div>
+        <div class="town-balances" role="group" aria-label="Your coins and Kingdom resources">
+          <span class="town-balance" :aria-label="`${coinBalance} coins`" title="Coins">🪙 {{ coinBalance }}</span>
+          <span v-for="(resource, id) in R" :key="id" class="town-balance" :aria-label="`${resource.name}: ${k.resources[id] || 0}`" :title="resource.name">{{ resource.emoji }} {{ k.resources[id] || 0 }}</span>
+        </div>
+      </div>
 
       <div class="town-hud town-actions">
         <button class="hud-btn" type="button" title="Emotes (Z)" @click="town?.openEmotes()">Emote <kbd>Z</kbd></button>
@@ -658,7 +676,10 @@ const castlePanelContext = reactive({
 .kingdom-screen .town-list-entry em { color: #5f6d58; font: 800 .72rem ui-monospace, monospace; font-style: normal; white-space: nowrap; }
 .kingdom-screen .town-list-entry em.ready { color: #254937; }
 .kingdom-screen .town-list-entry:hover, .kingdom-screen .town-list-entry:focus-visible { border-color: #23382f; outline: 2px solid #f2ba55; outline-offset: 1px; }
-.kingdom-screen .town-level { top: 18px; right: 18px; padding: 9px 14px; color: #23382f; background: #f2ba55; border: 3px solid #23382f; border-radius: 9px; box-shadow: 0 4px 0 #7a6545; font-weight: 900; pointer-events: none; }
+.kingdom-screen .town-economy { top: 18px; right: 18px; display: flex; align-items: center; gap: 6px; pointer-events: none; }
+.kingdom-screen .town-level { padding: 9px 14px; color: #23382f; background: #f2ba55; border: 3px solid #23382f; border-radius: 9px; box-shadow: 0 4px 0 #7a6545; font-weight: 900; white-space: nowrap; }
+.kingdom-screen .town-balances { display: flex; align-items: center; gap: 4px; }
+.kingdom-screen .town-balance { display: inline-flex; align-items: center; gap: 4px; padding: 7px 8px; color: #23382f; background: rgb(251 242 216 / 96%); border: 2px solid #23382f; border-radius: 7px; box-shadow: 0 3px 0 #7a6545; font: 800 .78rem/1 Nunito, Trebuchet MS, sans-serif; white-space: nowrap; }
 .kingdom-screen .town-actions { left: 18px; bottom: 16px; display: flex; gap: 8px; }
 .kingdom-screen .town-controls-hud { right: 18px; bottom: 16px; display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 4px 14px; max-width: min(560px, 60vw); padding: 9px 14px; color: #fff8e4; background: rgb(35 56 47 / 90%); border-radius: 9px; font: 700 .8rem/1.3 Nunito, Trebuchet MS, sans-serif; pointer-events: none; }
 .kingdom-screen .town-controls-hud kbd { padding: 1px 5px; color: #23382f; background: #f2ba55; border: 1px solid #23382f; border-radius: 4px; font: 800 .68rem ui-monospace, monospace; }
@@ -730,16 +751,16 @@ const castlePanelContext = reactive({
 .kingdom-screen .board-sign { padding: 7px 16px 9px; color: #23382f; background: #fff3d0; border: 2px solid #4b3425; box-shadow: 3px 4px 0 #4b3425; transform: rotate(-1deg); }
 .kingdom-screen .board-sign .scene-kicker { color: #6b5847; }
 .kingdom-screen .board-sign h3 { margin: 2px 0 0; color: #254937; font-size: 24px; }
-.kingdom-screen .radio-station { display: grid; grid-template-columns: auto auto; grid-template-rows: auto auto; align-items: center; gap: 4px 10px; }
-.kingdom-screen .radio-set { grid-row: span 2; width: 104px; height: auto; overflow: visible; filter: drop-shadow(2px 3px 0 #4b3425); }
+.kingdom-screen .radio-station { display: grid; width: min(360px,100%); min-width: 0; grid-template-columns: minmax(0,1fr) 104px; grid-template-rows: auto auto; grid-template-areas: "tune radio" "status radio"; align-items: center; gap: 4px 10px; }
+.kingdom-screen .radio-set { grid-area: radio; grid-row: auto; align-self: center; width: 104px; height: auto; overflow: visible; filter: drop-shadow(2px 3px 0 #4b3425); }
 .kingdom-screen .radio-waves { opacity: 0; }
-.kingdom-screen .radio-tune { display: inline-flex; align-items: center; gap: 7px; min-height: 40px; padding: 6px 13px; color: #23382f; background: #f2ba55; border: 2px solid #23382f; border-radius: 8px 10px 7px 9px; box-shadow: 0 3px 0 #4b3425; font: 800 .86rem Nunito,Trebuchet MS,sans-serif; cursor: pointer; }
+.kingdom-screen .radio-tune { grid-area: tune; display: inline-flex; justify-content: center; align-items: center; gap: 7px; width: 100%; min-width: 0; min-height: 40px; padding: 6px 8px; color: #23382f; background: #f2ba55; border: 2px solid #23382f; border-radius: 8px 10px 7px 9px; box-shadow: 0 3px 0 #4b3425; font: 800 .86rem Nunito,Trebuchet MS,sans-serif; cursor: pointer; }
 .kingdom-screen .radio-tune svg { width: 18px; height: 18px; }
 .kingdom-screen .radio-tune:hover:not(:disabled), .kingdom-screen .radio-tune:focus-visible { outline: 3px solid #fff3d0; outline-offset: 2px; }
 .kingdom-screen .radio-tune:active:not(:disabled) { transform: translateY(2px); box-shadow: 0 1px 0 #4b3425; }
 .kingdom-screen .radio-tune:disabled { cursor: wait; background: #e8d3a3; }
 .kingdom-screen .radio-tuning .radio-tune svg { animation: radio-spin .8s linear infinite; }
-.kingdom-screen .radio-status { max-width: 30ch; color: #fff3d0; font-size: .8rem; font-weight: 700; }
+.kingdom-screen .radio-status { grid-area: status; max-width: 100%; color: #fff3d0; font-size: .8rem; font-weight: 700; }
 .kingdom-screen .radio-tuning .radio-set { animation: radio-lift .65s ease-in-out infinite alternate; }
 .kingdom-screen .radio-tuning .radio-needle { animation: radio-sweep .65s ease-in-out infinite alternate; }
 .kingdom-screen .radio-tuning .radio-knob { transform-origin: 74px 64px; animation: radio-spin .65s linear infinite; }
@@ -907,7 +928,12 @@ const castlePanelContext = reactive({
 .kingdom-screen .wardrobe-catalog { overflow: auto; padding: clamp(16px,2vw,30px); background: #fff8e4; border: 2px solid #9b8157; box-shadow: inset 0 0 0 4px #f1e6c7; }
 .kingdom-screen .wardrobe-catalog h3 { margin-top: 10px; font-size: 25px; }
 .kingdom-screen .wardrobe-catalog p { max-width: 640px; }
-.kingdom-screen .wardrobe-swatches { justify-content: flex-start; max-width: 480px; margin: 20px 0; }
+.kingdom-screen .wardrobe-swatches { display: grid; grid-template-columns: repeat(6, 38px); justify-content: flex-start; gap: 10px; max-width: 480px; margin: 20px 0; }
+.kingdom-screen .wardrobe-swatches .avatar-swatch { position: relative; width: 38px; height: 38px; padding: 0; appearance: none; background: linear-gradient(145deg, color-mix(in srgb, var(--swatch-color) 68%, white), var(--swatch-color) 58%, color-mix(in srgb, var(--swatch-color) 72%, #35291e)); border: 2px solid #57412f; border-radius: 50%; box-shadow: inset 0 2px 3px rgb(255 255 255 / 60%), inset 0 -3px 4px rgb(35 56 47 / 24%), 0 2px 0 #7a6545; cursor: pointer; transition: transform .14s ease, box-shadow .14s ease; }
+.kingdom-screen .wardrobe-swatches .avatar-swatch:hover:not(:disabled) { transform: translateY(-2px); box-shadow: inset 0 2px 3px rgb(255 255 255 / 65%), inset 0 -3px 4px rgb(35 56 47 / 24%), 0 4px 0 #7a6545; }
+.kingdom-screen .wardrobe-swatches .avatar-swatch[aria-pressed="true"] { border-color: #23382f; box-shadow: 0 0 0 3px #fff8e4, 0 0 0 5px #23382f, inset 0 2px 3px rgb(255 255 255 / 60%), inset 0 -3px 4px rgb(35 56 47 / 24%); }
+.kingdom-screen .wardrobe-swatches .avatar-swatch:focus-visible { outline: 3px solid #8062a9; outline-offset: 5px; }
+.kingdom-screen .wardrobe-swatches .avatar-swatch:disabled { cursor: wait; opacity: .65; }
 .kingdom-screen .wardrobe-current { display: flex; align-items: center; gap: 7px; color: #5f6d58; font-size: .85rem; }
 .kingdom-screen .wardrobe-current code { padding: 3px 7px; border: 1px solid rgb(35 56 47 / 35%); border-radius: 5px; font: 800 .75rem ui-monospace,monospace; box-shadow: 0 1px 2px rgb(35 56 47 / 18%); }
 /* Castle dressing room: wallpaper, wainscot, sconces and a standing mirror. */
@@ -952,7 +978,7 @@ const castlePanelContext = reactive({
 .kingdom-screen .wardrobe-status { color:#53654f; font-size:.82rem; }.kingdom-screen .wardrobe-error { padding:8px 10px; color:#812e2d; background:#f8e3e1; border-left:3px solid #812e2d; font-size:.85rem; }
 .kingdom-screen .wardrobe-purse { width:fit-content; padding:5px 9px; color:#254937; background:#e8f0de; border:1px solid #687553; font-size:.8rem; font-weight:900; }
 .kingdom-screen .wardrobe-shortfall { display:grid; min-height:29px; align-content:center; color:#812e2d; font:800 .58rem/1.2 Nunito,sans-serif; text-align:center; }
-.kingdom-screen .wardrobe-swatches { grid-template-columns:repeat(6,minmax(30px,38px)); gap:10px; margin:10px 0; }
+.kingdom-screen .wardrobe-swatches { grid-template-columns:repeat(6,38px); gap:10px; margin:10px 0; }
 .kingdom-screen .theme-garden .panel-head { border-bottom-color: #8062a9; }
 .kingdom-screen .theme-tower .panel-level { color: #4a3d63; }
 
@@ -978,7 +1004,10 @@ const castlePanelContext = reactive({
   .kingdom-screen .town-title span:last-child { display: block; font-size: 14px; }
   .kingdom-screen .town-title-dot { display: none; }
   .kingdom-screen .town-list { top: 118px; left: 10px; }
-  .kingdom-screen .town-level { top: 10px; right: 10px; padding: 6px 9px; font-size: .78rem; }
+  .kingdom-screen .town-economy { top: 130px; right: 10px; left: 10px; flex-wrap: wrap; justify-content: flex-end; gap: 4px; }
+  .kingdom-screen .town-level { padding: 6px 9px; font-size: .78rem; }
+  .kingdom-screen .town-balances { flex-wrap: wrap; justify-content: flex-end; gap: 2px; }
+  .kingdom-screen .town-balance { gap: 3px; padding: 5px 6px; font-size: .7rem; }
   .kingdom-screen .town-actions { left: 10px; right: 10px; bottom: 10px; flex-wrap: wrap; }
   .kingdom-screen .town-intro { bottom: 62px; padding: 14px 16px; }
   .kingdom-screen .town-intro h2 { font-size: 20px; }
@@ -1032,7 +1061,8 @@ const castlePanelContext = reactive({
   .kingdom-screen .town-title-hud .scene-kicker { font-size: .58rem; }
   .kingdom-screen .town-title { font-size: 16px; }
   .kingdom-screen .town-title span:last-child { display: none; }
-  .kingdom-screen .town-level { top: max(8px, env(safe-area-inset-top)); right: max(8px, env(safe-area-inset-right)); padding: 5px 8px; }
+  .kingdom-screen .town-economy { top: max(130px, calc(env(safe-area-inset-top) + 122px)); right: max(8px, env(safe-area-inset-right)); left: max(8px, env(safe-area-inset-left)); }
+  .kingdom-screen .town-level { padding: 5px 8px; }
   .kingdom-screen .town-actions { right: max(8px, env(safe-area-inset-right)); left: max(8px, env(safe-area-inset-left)); justify-content: center; gap: 6px; }
   .kingdom-screen .town-actions .hud-btn { flex: 1 1 0; justify-content: center; padding: 6px 8px; font-size: .78rem; }
   .kingdom-screen .town-controls-hud { bottom: calc(68px + env(safe-area-inset-bottom)); }
@@ -1044,7 +1074,7 @@ const castlePanelContext = reactive({
   .kingdom-screen .town-title { margin-bottom: 5px; font-size: 16px; }
   .kingdom-screen .town-title-hud .scene-kicker { display: none; }
   .kingdom-screen .town-title-actions .hud-btn { min-height: 38px; }
-  .kingdom-screen .town-level { top: max(8px, env(safe-area-inset-top)); right: max(8px, env(safe-area-inset-right)); }
+  .kingdom-screen .town-economy { top: max(8px, env(safe-area-inset-top)); right: max(8px, env(safe-area-inset-right)); }
   .kingdom-screen .town-actions { bottom: max(6px, env(safe-area-inset-bottom)); left: max(8px, env(safe-area-inset-left)); }
   .kingdom-screen .town-actions .hud-btn { min-height: 40px; }
   .kingdom-screen .town-controls-hud { right: max(8px, env(safe-area-inset-right)); bottom: max(8px, env(safe-area-inset-bottom)); left: auto; width: min(370px, 45vw); }

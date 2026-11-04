@@ -2083,7 +2083,7 @@ main#main.main-practice .battle-enemy-sprite.defeated { filter: grayscale(1); op
 main#main.main-practice .battle-damage { position: absolute; z-index: 5; color: #FFF8E4; font: 900 34px/1 Nunito, "Trebuchet MS", sans-serif; text-shadow: 0 2px 0 #1B3154, 0 0 14px #1B3154; animation: battle-damage-float .9s ease-out both; pointer-events: none; }
 main#main.main-practice .enemy-damage { top: 20%; left: 44%; }
 main#main.main-practice .player-damage { top: 24%; right: 4%; color: #FFD8E6; }
-main#main.main-practice .battle-turn-label { position: absolute; z-index: 4; left: 50%; bottom: 3%; transform: translateX(-50%); color: #1B3154; font: 800 12px/1.2 ui-monospace, "Cascadia Code", monospace; letter-spacing: .08em; text-align: center; text-transform: uppercase; }
+main#main.main-practice .battle-turn-label { position: absolute; z-index: 4; left: 50%; bottom: 3%; transform: translate(-50%, 3px); color: #1B3154; font: 800 12px/1.2 ui-monospace, "Cascadia Code", monospace; letter-spacing: .08em; text-align: center; text-transform: uppercase; }
 main#main.main-practice .hero-attack { animation: practice-hero-dash .62s cubic-bezier(.2,.8,.25,1) both; }
 main#main.main-practice .enemy-attack { animation: practice-enemy-dash .62s cubic-bezier(.2,.8,.25,1) both; }
 main#main.main-practice .battle-impact { animation: practice-impact .42s ease-out both; }
@@ -2816,6 +2816,8 @@ main#main.main-progress {
 }
 main#main.main-progress :is(h2, h3) { color: #fff8e4; }
 main#main.main-progress > .small.muted { color: #d5e3d0; }
+main#main.main-progress .page-heading .btn:not(.primary),
+main#main.main-progress .page-heading select { color: #23382f; }
 main#main.main-progress .pg-columns > .panel { color: #254937; }
 /* the page ink is cream for the forest background; fields sit on paper */
 main#main.main-progress .pg-columns :is(select, select option) { color: #23382f; }

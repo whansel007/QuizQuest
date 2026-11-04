@@ -10,8 +10,14 @@
 const { award, inventory, REWARDS } = require('./rewards');
 const { grantResources, createTrade } = require('./economy');
 
-// Resources for finishing a practice session (also used by api.js)
-const SESSION_RESOURCES = { wood: 2, herb: 1 };
+// Practice sessions award three supplies, with each unit drawn independently
+// so different runs produce bundles students can trade.
+const SESSION_RESOURCE_TYPES = ['wood', 'crystal', 'herb'];
+function sessionResources(rand = Math.random) {
+  const bundle = { wood: 0, crystal: 0, herb: 0 };
+  for (let i = 0; i < 3; i++) bundle[SESSION_RESOURCE_TYPES[Math.floor(rand() * SESSION_RESOURCE_TYPES.length)]]++;
+  return Object.fromEntries(Object.entries(bundle).filter(([, count]) => count > 0));
+}
 
 const DAY = 86400000;
 const SCHEMA = 2; // bump when the data shape changes; store.js re-seeds old files
@@ -188,7 +194,7 @@ function seed(now = Date.now()) {
         }
         session.completedAt = t;
         award(db, studentId, REWARDS.sessionComplete, 'Completed a practice session', `session:${session.id}`, t);
-        grantResources(db, studentId, SESSION_RESOURCES, 'Completed a practice session', `sessionres:${session.id}`, t);
+        grantResources(db, studentId, sessionResources(rand), 'Completed a practice session', `sessionres:${session.id}`, t);
         db.sessions.push(session);
       }
     }
@@ -217,4 +223,4 @@ function seed(now = Date.now()) {
   return db;
 }
 
-module.exports = { seed, SCHEMA, SESSION_RESOURCES };
+module.exports = { seed, SCHEMA, sessionResources };
