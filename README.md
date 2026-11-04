@@ -1,6 +1,8 @@
 # QuizQuest
 
-QuizQuest is a gamified learning platform prototype for course question authoring, student practice, progress review, and cooperative class gameplay. Professors manage courses and classes, review and publish questions, and inspect reports and analytics. Students practise from published questions, track topic progress, and use earned rewards in the Kingdom and World.
+QuizQuest is a gamified learning platform prototype for course question authoring, student practice, progress review, and cooperative class gameplay. Professors manage courses and classes, review and publish questions, and inspect reports and analytics. Students practise from published questions, track topic progress, and use earned rewards in the Kingdom and Campfire Run.
+
+**Deployed app:** [quizquest-4phd.onrender.com](https://quizquest-4phd.onrender.com)
 
 **Repository:** [github.com/whansel007/QuizQuest](https://github.com/whansel007/QuizQuest)
 
@@ -13,7 +15,7 @@ QuizQuest is a gamified learning platform prototype for course question authorin
 - **AI-assisted authoring:** extract text from lecture materials in the browser, create and edit a saved knowledge report, draft questions from that report, and review candidates before publishing. AI output remains a draft until a professor approves it.
 - **Student learning:** adaptive practice, session resume, feedback, topic progress, and reports awaiting professor review. Unconfirmed short-answer grades do not count as confirmed progress.
 - **Professor tools:** marking, question and class analytics, evaluation views, and optional participation points.
-- **Class game and rewards:** a real-time cooperative World, raid boss and resource gathering, plus pets, a class market, and a buildable Kingdom.
+- **Class game and rewards:** a real-time cooperative Campfire Run, plus pets, a class market, and a buildable Kingdom. The co-op raid boss has no screen of its own; it is exercised at the protocol level in the end-to-end tests.
 - **Experiments:** `/hero-lab` is a separate real-time game prototype; `/tag` is the original Circle Tag experiment.
 
 ## Architecture
@@ -52,7 +54,7 @@ With no Supabase configuration, application data is stored in `data/db.json`. Th
 | Professor | `prof.a@quizquest.demo` or `prof.b@quizquest.demo` | `quizquest` |
 | Student | `student01@quizquest.demo` through `student12@quizquest.demo` | `quizquest` |
 
-The **Test accounts** link on the sign-in page lists seeded demo identities. Sign-in is per browser tab. Try two student accounts in separate tabs and open **World** to see cooperative play.
+The **Test accounts** link on the sign-in page lists seeded demo identities. Sign-in is per browser tab. Try two student accounts in separate tabs and open **Campfire Run** to see cooperative play.
 
 Students can create accounts from the sign-in page. Professor accounts are provisioned by the team; student registration cannot grant a professor role. Passwords are stored as server-side scrypt hashes. Sessions are held in server memory and expire after eight hours, so a server restart signs users out. Optional password-reset email uses Resend; see [`.env.example`](.env.example).
 
@@ -99,7 +101,7 @@ Set `SUPABASE_URL` and `SUPABASE_SECRET_KEY` in `.env`, then run `pnpm dev`. On 
 
 Playwright browser engines may need installing with `pnpm exec playwright install chromium firefox webkit`. Browser and end-to-end test servers use isolated temporary JSON stores; they do not use your configured Supabase project or `data/db.json`. The GitHub Actions workflow runs syntax, Node, Vitest, browser, and three-engine end-to-end jobs. The tests use synthetic fixtures and do not require live Gemini or Supabase credentials.
 
-End-to-end cases cover login and signup, practice, question authoring/review, class enrollment, reporting, Kingdom building, and World play (see `e2e/`). To run one journey, use `pnpm exec playwright test e2e/login.spec.js`. Add new journeys in `e2e/<feature>.spec.js`; shared login and navigation helpers are in `e2e/helpers.js`.
+End-to-end cases cover login and signup, practice, question authoring/review, class enrollment, reporting, Kingdom building, and Campfire Run play (see `e2e/`). To run one journey, use `pnpm exec playwright test e2e/login.spec.js`. Add new journeys in `e2e/<feature>.spec.js`; shared login and navigation helpers are in `e2e/helpers.js`.
 
 ## AI authoring at a glance
 
@@ -140,16 +142,16 @@ docs/                 Architecture, operations, workflows, audits, and UI guides
 ## Third-party code and assets
 
 QuizQuest is built on other people's work. Here is all of it, so it can be
-credited properly.
+credited properly. QuizQuest's own licence is in [`LICENSE`](LICENSE).
 
 ### Art and icons
 
 - **Hero Lab and World icons** - from [game-icons.net](https://game-icons.net/),
-  licensed **CC BY 3.0**. The authors of every icon the project ships are
+  licensed **CC BY 3.0**. The authors of every icon the project uses are
   listed per icon in
   [`public/hero-lab/assets/icons/CREDITS.json`](public/hero-lab/assets/icons/CREDITS.json)
-  ("Icons made by {author}"), and the app shows the ones it uses under **Icon
-  credits** on the World page. The library licence, with the full list of
+  ("Icons made by {author}"), and the app lists them under **Icon credits**
+  in the Hero Lab arena settings. The library licence, with the full list of
   contributors, is in
   [`public/hero-lab/game-icons.net.svg/icons/license.txt`](public/hero-lab/game-icons.net.svg/icons/license.txt).
 - **Character sprites** - the 32 cat sprites in
@@ -161,7 +163,10 @@ credited properly.
   SVG.
 - **Fonts** - *Nunito* and *Pixelify Sans*, served from Google Fonts, and
   *Fredoka* and *Nunito* bundled through Fontsource. All four are under the
-  **SIL Open Font License 1.1**.
+  **SIL Open Font License 1.1**. The licence text of the two bundled
+  families is in [`web/public/fonts/`](web/public/fonts) (`OFL-Fredoka.txt`
+  and `OFL-Nunito.txt`); the families served from Google Fonts carry their
+  licence from Google Fonts.
 - **The Circle Tag game** (`/tag`) is the team's own earlier proof of concept,
   not a third-party game.
 
@@ -171,21 +176,25 @@ credited properly.
 |---|---|---|
 | [Vue](https://vuejs.org/) | the whole front end | MIT |
 | [Vite](https://vite.dev/) | the build | MIT |
+| [@vitejs/plugin-vue](https://github.com/vitejs/vite-plugin-vue) | the Vite plugin that compiles the `.vue` components | MIT |
 | [Socket.IO](https://socket.io/) | the multiplayer World | MIT |
 | [socket.io-client](https://socket.io/docs/v4/client/) | the World in the browser | MIT |
 | [axios](https://axios-http.com/) | API calls from the browser | MIT |
 | [@supabase/supabase-js](https://supabase.com/docs/reference/javascript/introduction) | the optional Supabase data store | MIT |
 | [Bootstrap](https://getbootstrap.com/) | the utility classes | MIT |
 | [pdf.js](https://mozilla.github.io/pdf.js/) | reading the text out of uploaded PDFs | Apache 2.0 |
-| [fflate](https://github.com/101arrowz/fflate) | unzipping those PDFs | MIT |
+| [fflate](https://github.com/101arrowz/fflate) | unzipping uploaded PowerPoint and Word files | MIT |
 | [Fontsource](https://fontsource.org/) | the bundled Nunito and Fredoka | OFL 1.1 |
 | [Playwright](https://playwright.dev/) | the end-to-end tests | Apache 2.0 |
 | [PGlite](https://pglite.dev/) | the tests' in-process PostgreSQL | Apache 2.0 |
 | [Vitest](https://vitest.dev/), [jsdom](https://github.com/jsdom/jsdom) | the unit tests | MIT / MIT |
 | [@vue/test-utils](https://test-utils.vuejs.org/) | the component unit tests | MIT |
 
+The BM25 ranking in [`src/quiz/retrieval.js`](src/quiz/retrieval.js) follows
+Robertson & Zaragoza, *The Probabilistic Relevance Framework: BM25 and Beyond*
+(2009).
+
 ## Documentation
-## Further documentation
 
 - [Codebase guide](docs/CODEBASE_GUIDE.md): architecture, workflows, API routes, persistence, security boundaries, and limitations.
 - [Prototype and deployment guide](docs/PROTOTYPE.md): local operation, Supabase, hosting, features, and prototype constraints.
