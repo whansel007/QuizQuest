@@ -976,6 +976,11 @@ attemptId: attempt.id,
 
   route('POST', '/api/classes/:classId/join-codes', 'teacher', ({ user, params, body }) => {
     const cls = teacherClass(user, params.classId);
+    // An archived class is closed: it takes no new students, and the join
+    // route refuses an archived class outright. A code generated for one
+    // could therefore never be redeemed, so say so here rather than hand out
+    // a code that is dead on arrival.
+    if (cls.archivedAt) fail(409, 'This class is archived. Restore it before generating a join code.');
     // Expiry is a whole number of days, and no further out than ten years.
     // A bigger number overflows the date range: the expiry becomes an
     // invalid Date, and writing that out breaks the whole store rather
@@ -1993,6 +1998,11 @@ return studentProgress(db, user.id, cl);
   // ---------------- student: practice sessions ----------------
   route('POST', '/api/student/sessions', 'student', ({ user, body }) => {
     const cl = studentClass(user, body.classId);
+    // An archived class is closed: it takes no new students, so it starts no
+    // new practice either. A session the student already has carries on -
+    // that work was legitimate when it was started, and archiving a class
+    // mid-session should not throw it away.
+    if (cl.archivedAt) fail(404, 'Class not found or archived.');
     if (!SESSION_LENGTHS.includes(body.length)) fail(400, 'Pick a session length from the list.');
     if (!TIMERS.includes(body.timerSec)) fail(400, 'Pick a timer from the list.');
     const mult = ACCOMMODATION.includes(body.accommodation) ? body.accommodation : 1;
