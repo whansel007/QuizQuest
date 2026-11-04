@@ -24,6 +24,7 @@ const { retrieve } = require('../src/quiz/retrieval');
 
 let srv;
 let base;
+let testNow = null;
 const db = () => srv.quiz.db;
 
 async function call(token, method, path, body) {
@@ -68,6 +69,21 @@ function correctSubmission(item) {
   }
 }
 
+function incorrectSubmission(item) {
+  const q = db().questions.find((x) => x.id === item.qid);
+  const v = q.versions.find((x) => x.v === item.v);
+  switch (v.type) {
+    case 'param': return { choice: item.instance.answerIndex === 0 ? 1 : 0 };
+    case 'multi': {
+      const wrong = v.options.findIndex((_, index) => !v.answerIndexes.includes(index));
+      return { choices: [wrong] };
+    }
+    case 'numeric': return { value: String(Number(v.answer) + 1) };
+    case 'short': return { text: 'deliberately incorrect response' };
+    default: return { choice: v.answerIndex === 0 ? 1 : 0 };
+  }
+}
+
 // Play a whole session; pick(item) returns the submission
 async function playSession(token, classId, length, pick) {
   const s = await call(token, 'POST', '/api/student/sessions', { classId, length, timerSec: 0 });
@@ -90,13 +106,13 @@ const PGLITE = process.env.QQ_STORE === 'pglite';
 let pg = null;
 let pgLog = null;
 test.before(async () => {
-  let opts = { dataFile: null, debugMode: true };
+  let opts = { dataFile: null, debugMode: true, now: () => testNow ?? Date.now() };
   if (PGLITE) {
     const { openPglite, pgliteAdapter, quiet } = require('./support/pglite');
     const { createSyncedStore } = require('../src/db/supabase-store');
     pg = await openPglite();
     pgLog = quiet();
-    opts = { store: await createSyncedStore({ adapter: pgliteAdapter(pg), logger: pgLog, saveDelay: 20 }), debugMode: true };
+    opts = { store: await createSyncedStore({ adapter: pgliteAdapter(pg), logger: pgLog, saveDelay: 20 }), debugMode: true, now: () => testNow ?? Date.now() };
   }
   srv = start(0, opts);
   await new Promise((r) => srv.httpServer.once('listening', r));
@@ -510,15 +526,21 @@ test('demo resource editor uses the catalog, saves balances, and rejects invalid
 
 test('kingdom: builds cost resources, repeat requests are idempotent', async () => {
   const t = await login('s-02');
+  // Seeded practice rewards are capped and may leave this account with too
+  // little wood; set a known balance for the build/idempotency assertions.
+  assert.equal((await call(t, 'POST', '/api/student/debug/resources', { resource: 'wood', balance: 20 })).status, 200);
   const k0 = (await call(t, 'GET', '/api/student/kingdom')).body;
   const wood = k0.resources.wood;
-  assert.ok(wood >= 5, 'seeded sessions gave wood');
+  assert.equal(wood, 20, 'the test starts with a known wood balance');
   const rid = 'build-request-001';
   const a = await call(t, 'POST', '/api/student/kingdom/build', { building: 'library', requestId: rid });
   const b = await call(t, 'POST', '/api/student/kingdom/build', { building: 'library', requestId: rid });
   assert.equal(a.body.buildings.library, 1);
   assert.equal(b.body.buildings.library, 1);
   assert.equal(b.body.resources.wood, wood - 5);
+  // The seeded practice history can grant crystals, so make the resource
+  // precondition explicit before checking that Tower construction is denied.
+  assert.equal((await call(t, 'POST', '/api/student/debug/resources', { resource: 'crystal', balance: 0 })).status, 200);
   assert.equal((await call(t, 'POST', '/api/student/kingdom/build', { building: 'tower', requestId: 'build-request-002' })).status, 400, 'no crystals yet');
 });
 
@@ -528,6 +550,12 @@ test('trading: escrow, swap, limits, class isolation, and the professor off swit
   const s7 = await login('s-07');
   await giveTower('s-04', s4);
   await giveTower('s-05', s5);
+  // Seeded practice rewards vary by student; give each side a known trade
+  // balance so this test covers escrow and swaps rather than seed outcomes.
+  for (const [token, resource, balance] of [[s4, 'wood', 20], [s5, 'herb', 20]]) {
+    const result = await call(token, 'POST', '/api/student/debug/resources', { resource, balance });
+    assert.equal(result.status, 200);
+  }
   const res = (id) => db().inventory.find((i) => i.studentId === id).resources;
   const before4 = { ...res('s-04') };
   const before5 = { ...res('s-05') };
@@ -564,7 +592,7 @@ test('participation points: off by default, opt-in, capped, CSV-safe export', as
   assert.equal(db().participation.length, 0, 'nothing recorded while disabled');
   await call(prof, 'PUT', '/api/teacher/classes/cl-b/settings', { participationEnabled: true });
   for (let i = 0; i < 4; i++) await playSession(t, 'cl-b', 5, () => ({ choice: 0 }));
-  assert.equal(db().participation.filter((p) => p.studentId === 's-07').length, 3, 'weekly cap of 3');
+  assert.equal(db().participation.filter((p) => p.studentId === 's-07').length, 2, 'the first session used one of the three daily reward slots');
   db().users.find((u) => u.id === 's-07').name = '=HYPERLINK("x")'; // formula injection attempt
   const csv = await call(prof, 'GET', '/api/teacher/classes/cl-b/participation.csv');
   assert.equal(csv.status, 200);
@@ -681,6 +709,143 @@ test('a maths template that fails to generate is skipped, not a stuck session', 
     await call(t, 'POST', `/api/student/sessions/${s.body.id}/answer`, { index: st.body.question.index, choice: 0 });
   }
   q.versions[0].constraint = saved;
+});
+
+test('retune v2 scales session payouts through 25 questions and awards one resource type', async () => {
+  const R = require('../src/quiz/rewards');
+  const published = db().questions.filter((question) => question.courseId === 'c-comp' && question.status === 'published');
+  let added = 0;
+  for (let index = 0; published.length + added < 25; index++) {
+    const source = published[index % published.length];
+    const id = `retune-v2-test-${index}`;
+    db().questions.push({ ...source, id, versions: source.versions.map((version) => ({ ...version })) });
+    added++;
+  }
+  const priorCoinCap = R.REWARDS.dailyCap;
+  R.REWARDS.dailyCap = 1_000_000;
+  const cases = [
+    { studentId: 's-10', length: 5, coins: 10, units: 2 },
+    { studentId: 's-11', length: 10, coins: 20, units: 3 },
+    { studentId: 's-12', length: 25, coins: 50, units: 6 },
+  ];
+  try {
+    for (const item of cases) {
+      const token = await login(item.studentId);
+      const played = await playSession(token, 'cl-c', item.length, (question) => incorrectSubmission(question));
+      const session = db().sessions.find((entry) => entry.id === played.id);
+      const earn = db().ledger.find((entry) => entry.refKey === `session:${played.id}`);
+      const resourceEarn = db().resourceLog.find((entry) => entry.refKey === `sessionres:${played.id}`);
+      assert.equal(session.items.length, item.length, `${item.length}-question session was fully served`);
+      const nonBlankCount = session.items.filter((entry) => entry.result && !entry.result.blank && !entry.result.timedOut).length;
+      assert.equal(earn.amount, item.coins, `${item.length}-question payout: ${session.items.length} items, ${nonBlankCount} nonblank answers, session reward ${session.endRewards.sessionBonus?.coins}`);
+      assert.equal(Object.values(session.endRewards.sessionBonus.resources).reduce((sum, units) => sum + units, 0), item.units);
+      assert.equal(Object.keys(resourceEarn.delta).length, 1, 'a session bundle uses one resource type');
+    }
+  } finally {
+    R.REWARDS.dailyCap = priorCoinCap;
+  }
+});
+
+test('retune v2 lets a classmate without a Tower accept a posted trade', async () => {
+  const maker = await login('s-10');
+  const recipient = await login('s-11');
+  await giveTower('s-10', maker);
+  await call(maker, 'POST', '/api/student/debug/resources', { resource: 'wood', balance: 5 });
+  await call(recipient, 'POST', '/api/student/debug/resources', { resource: 'herb', balance: 3 });
+  const posted = await call(maker, 'POST', '/api/student/classes/cl-c/trades', {
+    give: { wood: 2 }, want: { herb: 1 }, requestId: 'no-tower-acceptance-001',
+  });
+  assert.equal(posted.status, 201);
+  assert.equal(db().kingdoms.find((entry) => entry.studentId === 's-11')?.buildings.tower || 0, 0);
+  const accepted = await call(recipient, 'POST', `/api/student/trades/${posted.body.id}/accept`, { requestId: 'no-tower-acceptance-002' });
+  assert.equal(accepted.status, 200);
+});
+
+test('retune v2 grants weekly rhythm bonuses on the second and third local practice days', async () => {
+  const token = await login('s-09');
+  const originalNow = testNow;
+  try {
+    for (const [day, tier] of [['2026-11-02', null], ['2026-11-03', 1], ['2026-11-04', 2]]) {
+      testNow = new Date(`${day}T12:00:00+08:00`).getTime();
+      const played = await playSession(token, 'cl-c', 5, (question) => correctSubmission(question));
+      const session = db().sessions.find((entry) => entry.id === played.id);
+      if (tier === null) assert.equal(session.endRewards.weeklyBonus, null);
+      else {
+        assert.equal(session.endRewards.weeklyBonus.tier, tier);
+        assert.equal(session.endRewards.weeklyBonus.coins, 15);
+        assert.equal(Object.values(session.endRewards.weeklyBonus.resources).reduce((sum, units) => sum + units, 0), 2);
+        const refKey = `weekly:s-09:2026-11-02:tier${tier}`;
+        assert.ok(db().ledger.find((entry) => entry.refKey === refKey)?.capExempt);
+        assert.ok(db().resourceLog.find((entry) => entry.refKey === refKey)?.capExempt);
+      }
+    }
+  } finally { testNow = originalNow; }
+});
+
+test('reward pace is professor-controlled, scales only future session resources, and defaults to standard', async () => {
+  const E = require('../src/quiz/economy');
+  const originalNow = testNow;
+  testNow = new Date('2026-11-10T12:00:00+08:00').getTime();
+  const teacher = await login('t-a');
+  const otherTeacher = await login('t-b');
+  const student = await login('s-10');
+  const cls = db().classes.find((entry) => entry.id === 'cl-c');
+  assert.equal(cls.settings.rewardPace, 'standard');
+  const originalResourceLog = structuredClone(db().resourceLog);
+  try {
+    const invalid = await call(teacher, 'PUT', '/api/teacher/classes/cl-c/settings', { rewardPace: 'extreme' });
+    assert.equal(invalid.status, 400);
+    const forbidden = await call(otherTeacher, 'PUT', '/api/teacher/classes/cl-c/settings', { rewardPace: 'boost' });
+    assert.equal(forbidden.status, 404);
+    const studentClasses = await call(student, 'GET', '/api/classes');
+    assert.equal(Object.hasOwn(studentClasses.body[0].settings, 'rewardPace'), false);
+
+    const relaxed = await call(teacher, 'PUT', '/api/teacher/classes/cl-c/settings', { rewardPace: 'relaxed' });
+    assert.equal(relaxed.status, 200);
+    const relaxedSession = await playSession(student, 'cl-c', 5, (question) => incorrectSubmission(question));
+    const relaxedBonus = relaxedSession.results.at(-1).sessionBonus;
+    assert.equal(Object.values(relaxedBonus.resources).reduce((sum, units) => sum + units, 0), 2);
+    assert.equal(relaxedBonus.resourceUnits, 2);
+
+    // A pace change affects sessions created after the change, not sessions
+    // that were already in progress.
+    const inFlight = await call(student, 'POST', '/api/student/sessions', { classId: 'cl-c', length: 5, timerSec: 0 });
+    assert.equal(inFlight.status, 201);
+    const boost = await call(teacher, 'PUT', '/api/teacher/classes/cl-c/settings', { rewardPace: 'boost' });
+    assert.equal(boost.status, 200);
+    let inFlightResult;
+    for (;;) {
+      const state = await call(student, 'GET', `/api/student/sessions/${inFlight.body.id}`);
+      if (state.body.done) break;
+      const session = db().sessions.find((entry) => entry.id === inFlight.body.id);
+      const item = session.items[state.body.question.index];
+      const answered = await call(student, 'POST', `/api/student/sessions/${inFlight.body.id}/answer`, {
+        index: state.body.question.index,
+        ...incorrectSubmission(item),
+      });
+      if (answered.body.done) inFlightResult = answered.body;
+    }
+    assert.equal(inFlightResult.sessionBonus.resourceUnits, 2);
+    assert.equal(db().sessions.find((entry) => entry.id === inFlight.body.id).rewardPace, 'relaxed');
+
+    const boostSession = await playSession(student, 'cl-c', 5, (question) => incorrectSubmission(question));
+    const boostBonus = boostSession.results.at(-1).sessionBonus;
+    assert.equal(Object.values(boostBonus.resources).reduce((sum, units) => sum + units, 0), 3);
+    assert.equal(boostBonus.resourceUnits, 3);
+
+    // The setting change doesn't rewrite past session payouts or ledger entries.
+    const priorSessionLog = db().resourceLog.find((entry) => entry.refKey === `sessionres:${relaxedSession.id}`);
+    assert.equal(Object.values(priorSessionLog.delta).reduce((sum, units) => sum + units, 0), 2);
+    assert.deepEqual(db().resourceLog.slice(0, originalResourceLog.length), originalResourceLog);
+
+    // The cap follows the class pace: a boosted session can still earn after
+    // the standard daily allowance has already been used.
+    db().resourceLog.push({ id: 'pace-cap-seed', studentId: 's-11', kind: 'earn', delta: { wood: 60 }, reason: 'test', refKey: 'pace-cap-seed', at: testNow });
+    const boostedStudent = await login('s-11');
+    const afterCap = await playSession(boostedStudent, 'cl-c', 5, (question) => incorrectSubmission(question));
+    assert.equal(Object.values(afterCap.results.at(-1).sessionBonus.resources).reduce((sum, units) => sum + units, 0), 3);
+    assert.equal(E.RESOURCE_DAILY_CAP, 60);
+  } finally { testNow = originalNow; }
 });
 
 // ---------------- Supabase schema (QQ_STORE=pglite only) ----------------

@@ -122,13 +122,16 @@ const wardrobeCanSave = computed(() => (!wardrobeHat.value || wardrobeOwnedIds.v
 const wardrobeEquipped = ref({ hatId: null, accessoryId: null, colorId: null });
 function wardrobePrice(item) {
   if (!item?.cost || !item.currency) return 'Free';
-  return `${item.cost} ${R.value?.[item.currency]?.name || item.currency}`;
+  return `${item.cost} ${item.currency === 'coins' ? 'coins' : R.value?.[item.currency]?.name || item.currency}`;
+}
+function wardrobeHave(item) {
+  return item?.currency === 'coins' ? Number(homeData.value?.wallet?.balance || 0) : Number(wardrobeResources.value[item?.currency] || 0);
 }
 function wardrobeCanAfford(item) {
-  return !item?.cost || (wardrobeResources.value[item.currency] || 0) >= item.cost;
+  return !item?.cost || wardrobeHave(item) >= item.cost;
 }
 function wardrobeShortfall(item) {
-  const have = wardrobeResources.value[item.currency] || 0;
+  const have = wardrobeHave(item);
   return `Need ${wardrobePrice(item)} · have ${have}`;
 }
 const castleInfoOpen = ref(false);
@@ -236,6 +239,7 @@ async function loadWardrobe() {
     wardrobeCatalog.value = data.catalog || [];
     wardrobeOwnedIds.value = data.ownedIds || [];
     wardrobeResources.value = data.resources || wardrobeResources.value;
+    homeData.value.wallet = data.wallet || homeData.value.wallet;
     if (k.value && data.resources) k.value.resources = data.resources;
     wardrobeEquipped.value = data.equipped || { hatId: null, accessoryId: null, colorId: null };
     if (S.me) { S.me.avatarColor = data.avatarVisual?.color || S.me.avatarColor; S.me.avatarVisual = data.avatarVisual; }
@@ -257,6 +261,7 @@ async function claimWardrobeCosmetic(item) {
     wardrobeCatalog.value = data.catalog || wardrobeCatalog.value;
     wardrobeOwnedIds.value = data.ownedIds || wardrobeOwnedIds.value;
     wardrobeResources.value = data.resources || wardrobeResources.value;
+    homeData.value.wallet = data.wallet || homeData.value.wallet;
     if (k.value && data.resources) k.value.resources = data.resources;
     wardrobeEquipped.value = data.equipped || wardrobeEquipped.value;
     wardrobeHat.value = selectedHat;
@@ -565,11 +570,11 @@ const castlePanelContext = reactive({
         </button>
       </section>
       <div class="town-hud town-economy">
-        <div class="town-level">Castle · {{ k.castleLevel }} / {{ BUILDING_LEVEL_CAP }}</div>
         <div class="town-balances" role="group" aria-label="Your coins and Kingdom resources">
           <span class="town-balance" :aria-label="`${coinBalance} coins`" title="Coins">🪙 {{ coinBalance }}</span>
           <span v-for="(resource, id) in R" :key="id" class="town-balance" :aria-label="`${resource.name}: ${k.resources[id] || 0}`" :title="resource.name">{{ resource.emoji }} {{ k.resources[id] || 0 }}</span>
         </div>
+        <div class="town-level">Castle · {{ k.castleLevel }} / {{ BUILDING_LEVEL_CAP }}</div>
       </div>
 
       <div class="town-hud town-actions">

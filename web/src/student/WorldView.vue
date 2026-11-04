@@ -395,7 +395,6 @@ onUnmounted(() => {
               <li v-for="f in feed" :key="f.id">{{ f.text }}</li>
             </ul>
           </div>
-          <p class="small muted">Everyone here is in your class. Co-op only: answer correctly near the boss to help defeat it together. Coins follow the usual rules (first correct answer per question, daily cap).</p>
         </div>
       </div>
     </template>

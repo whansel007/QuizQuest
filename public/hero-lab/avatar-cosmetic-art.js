@@ -227,6 +227,42 @@ function drawTricorn(g) {
   inked(g, C.gold, () => g.arc(24, 2, 4, 0, Math.PI * 2), 3);
 }
 
+// Placeholder art for the new coin catalog entries. These simple branded
+// vectors make the items usable while final bespoke art is pending.
+function drawMoonlitOwlCap(g) {
+  inked(g, C.lavender, () => { g.moveTo(-37, 25); g.quadraticCurveTo(-38, -12, 0, -22); g.quadraticCurveTo(38, -12, 37, 25); g.quadraticCurveTo(0, 32, -37, 25); g.closePath(); });
+  inked(g, C.lilac, () => { g.moveTo(-38, -4); g.lineTo(-47, -19); g.lineTo(-24, -12); g.moveTo(38, -4); g.lineTo(47, -19); g.lineTo(24, -12); g.closePath(); });
+  for (const x of [-13, 13]) {
+    inked(g, C.gold, () => g.arc(x, 6, 10, 0, Math.PI * 2), 3.5);
+    inked(g, C.page, () => g.arc(x, 6, 4, 0, Math.PI * 2), 2.5);
+  }
+  line(g, C.gold, 3.5, () => { g.moveTo(-5, 18); g.lineTo(0, 23); g.lineTo(5, 18); });
+  line(g, C.page, 3, () => { g.moveTo(-35, 27); g.quadraticCurveTo(0, 34, 35, 27); });
+}
+
+function drawRaincloudBonnet(g) {
+  inked(g, C.blue, () => { g.moveTo(-37, 25); g.quadraticCurveTo(-42, -4, -22, -14); g.quadraticCurveTo(0, -26, 22, -14); g.quadraticCurveTo(42, -4, 37, 25); g.quadraticCurveTo(0, 32, -37, 25); g.closePath(); });
+  inked(g, C.page, () => { g.arc(-17, 10, 16, Math.PI, 0); g.arc(0, 0, 19, Math.PI, 0); g.arc(18, 10, 16, Math.PI, 0); g.closePath(); });
+  line(g, C.blue, 4, () => { g.moveTo(-39, 26); g.quadraticCurveTo(0, 34, 39, 26); });
+  for (const x of [-22, 0, 22]) inked(g, C.gold, () => g.arc(x, 39, 3.5, 0, Math.PI * 2), 2.5);
+}
+
+function drawCometHood(g) {
+  inked(g, C.pine, () => { g.moveTo(-38, 27); g.quadraticCurveTo(-42, -10, -4, -29); g.quadraticCurveTo(15, -39, 35, -31); g.quadraticCurveTo(19, -18, 19, 1); g.quadraticCurveTo(23, 16, 38, 27); g.quadraticCurveTo(0, 34, -38, 27); g.closePath(); });
+  line(g, C.gold, 4, () => { g.moveTo(-32, 24); g.quadraticCurveTo(0, 31, 33, 24); });
+  inked(g, C.page, () => starPath(g, 7, -7, 13, 5), 3.5);
+  inked(g, C.gold, () => starPath(g, -19, 8, 6, 2.5), 2.5);
+  line(g, C.blue, 3, () => { g.moveTo(-30, -5); g.quadraticCurveTo(-16, -20, -2, -21); });
+}
+
+function drawFlyingPagePin(g) {
+  pinBacking(g);
+  inked(g, C.page, () => { g.moveTo(-20, -24); g.lineTo(7, -24); g.lineTo(22, -9); g.lineTo(22, 24); g.lineTo(-20, 24); g.closePath(); });
+  line(g, C.goldDeep, 3.5, () => { g.moveTo(7, -23); g.lineTo(7, -8); g.lineTo(21, -8); });
+  line(g, C.blue, 3, () => { g.moveTo(-11, -8); g.lineTo(1, -8); g.moveTo(-11, 1); g.lineTo(13, 1); g.moveTo(-11, 10); g.lineTo(13, 10); });
+  line(g, C.rose, 3, () => { g.moveTo(-9, 19); g.quadraticCurveTo(2, 15, 15, 19); });
+}
+
 // --- pins --------------------------------------------------------------------
 
 function drawStarPin(g) {
@@ -297,6 +333,10 @@ export const COSMETIC_ART = Object.freeze({
   hat_flower_crown: art('hat', 'head', 0.62, drawFlowerCrown, { offsetY: 0.02 }),
   hat_acorn_cap: art('hat', 'head', 0.4, drawAcornCap),
   hat_tricorn: art('hat', 'head', 0.52, drawTricorn),
+  hat_moonlit_owl: art('hat', 'head', 0.48, drawMoonlitOwlCap),
+  hat_storybook_crown: art('hat', 'head', 0.44, drawCrown),
+  hat_raincloud_bonnet: art('hat', 'head', 0.5, drawRaincloudBonnet),
+  hat_comet_hood: art('hat', 'head', 0.5, drawCometHood),
   accessory_star_pin: art('accessory', 'badge', 0.28, drawStarPin),
   accessory_leaf_pin: art('accessory', 'badge', 0.28, drawLeafPin),
   accessory_heart_pin: art('accessory', 'badge', 0.28, drawHeartPin),
@@ -304,6 +344,8 @@ export const COSMETIC_ART = Object.freeze({
   accessory_mushroom_pin: art('accessory', 'badge', 0.28, drawMushroomPin),
   accessory_feather_pin: art('accessory', 'badge', 0.28, drawFeatherPin),
   accessory_firefly_pin: art('accessory', 'badge', 0.28, drawFireflyPin),
+  accessory_sunburst_badge: art('accessory', 'badge', 0.28, drawStarPin),
+  accessory_flying_page: art('accessory', 'badge', 0.28, drawFlyingPagePin),
 });
 
 export function cosmeticArt(id, slot) {

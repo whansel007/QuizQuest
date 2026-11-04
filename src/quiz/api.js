@@ -29,6 +29,11 @@ const {
   BUILDING_LEVEL_CAP, DEBUG_TUNING, ROOM_MAX_ACTIVE, TOWN_AVATAR_COLOR_MAX_LIGHTNESS,
   TOWN_AVATAR_COLOR_MIN_LIGHTNESS, TOWN_AVATAR_DEFAULT_COLOR,
   TOWN_AVATAR_MIN_GRASS_DISTANCE, TOWN_GRASS_COLOR, SUMMON_HISTORY_PAGE_SIZE,
+  SESSION_RESOURCES_SINGLE_TYPE, SESSION_SCALING_ENABLED, SESSION_BASE_COINS, SESSION_BASE_RESOURCES,
+  SESSION_BONUS_COINS_PER_BLOCK, SESSION_BONUS_RESOURCES_PER_BLOCK,
+  SESSION_DAILY_LIMIT_ENABLED, MAX_REWARDED_SESSIONS_PER_DAY, WEEKLY_RHYTHM_ENABLED,
+  WEEKLY_TIER1_COINS, WEEKLY_TIER1_RESOURCES, WEEKLY_TIER2_COINS, WEEKLY_TIER2_RESOURCES,
+  TRADE_ACCEPT_WITHOUT_TOWER, REWARD_PACE_ENABLED, REWARD_PACE_MULTIPLIERS,
 } = require('../../config/tuning.js');
 const { createStore } = require('./store');
 const { validateQuestion } = require('./validate');
@@ -38,7 +43,7 @@ const { studentProgress } = require('./progress');
 const { reportContext, studentReports, openReports } = require('./reporting');
 const reportCategories = require('./report-categories.json');
 const { classAnalytics, courseComparison, questionInsights, parsePeriod, isValidTimeZone } = require('./analytics');
-const { localIso, APP_TZ } = require('./time');
+const { localIso, APP_TZ, dayKey, weekKey } = require('./time');
 const { courseEvaluation } = require('./evaluation');
 const { TYPES, TYPE_LABELS, studentView, newInstance, instantiate, gradeSync, isEmpty } = require('./formats');
 const { grade } = require('./grading');
@@ -57,7 +62,7 @@ const P = require('./passwords');
 const BODY_LIMIT = 100 * 1024;     // bytes, default per request
 const PASSAGE_LIMIT = 100000;      // characters per passage (PDF chapters)
 const TOKEN_TTL = 8 * 3600 * 1000;
-const SESSION_LENGTHS = [5, 8, 10, 15];
+const SESSION_LENGTHS = [5, 8, 10, 15, 20, 25];
 const PRACTICE_ATTACK_DAMAGE = 10;
 const TIMERS = [0, 30, 60, 90];    // seconds per question; 0 = untimed
 const LOGIN_MAX_FAILS = 5;         // wrong passwords per email...
@@ -427,6 +432,23 @@ function createQuizApi({ dataFile = null, store = null, now = () => Date.now(), 
     return { balance: R.balance(db, studentId), earnedToday: R.earnedOnDay(db, studentId, now()), dailyCap: R.REWARDS.dailyCap };
   }
 
+  function weeklyPractice(studentId, at = now()) {
+    const wk = weekKey(at);
+    const days = new Set(db.sessions
+      .filter((s) => s.studentId === studentId && s.completedAt && s.endRewards?.rewarded && weekKey(s.completedAt) === wk)
+      .map((s) => dayKey(s.completedAt)));
+    return {
+      practiceDays: Math.min(3, days.size),
+      tier1Earned: db.ledger.some((entry) => entry.studentId === studentId && entry.refKey === `weekly:${studentId}:${wk}:tier1`),
+      tier2Earned: db.ledger.some((entry) => entry.studentId === studentId && entry.refKey === `weekly:${studentId}:${wk}:tier2`),
+    };
+  }
+
+  function randomResourceBundle(units) {
+    const types = Object.keys(E.RESOURCES);
+    return { [types[crypto.randomInt(types.length)]]: units };
+  }
+
   // ============================================================
   // SERVICES shared by HTTP routes and the multiplayer world
   // ============================================================
@@ -517,24 +539,73 @@ attemptId: attempt.id,
   // Close a practice session: completion coins, kingdom supplies and
   // (if the class opted in) a participation point - each paid once.
   function finishSession(s, user) {
+    if (s.endRewards) return s.endRewards;
     s.completedAt = now();
     const end = {};
-    if (s.items.length >= R.REWARDS.minSessionForBonus) {
+    const qualifies = s.items.length >= R.REWARDS.minSessionForBonus;
+    const rewardedEarlierToday = db.sessions.filter((other) => other.id !== s.id
+      && other.studentId === user.id && other.endRewards?.rewarded
+      && dayKey(other.completedAt) === dayKey(s.completedAt)).length;
+    const rewarded = qualifies && (!SESSION_DAILY_LIMIT_ENABLED || rewardedEarlierToday < MAX_REWARDED_SESSIONS_PER_DAY);
+    if (rewarded) {
       const cls = db.classes.find((c) => c.id === s.classId);
-      const r = R.award(db, user.id, R.REWARDS.sessionComplete, 'Completed a practice session', `session:${s.id}`, s.completedAt);
+      const nonBlankAnswered = s.items.filter((item) => item.result && !item.result.blank && !item.result.timedOut).length;
+      const bonusBlocks = SESSION_SCALING_ENABLED
+        ? Math.min(4, Math.floor(Math.max(0, nonBlankAnswered - 5) / 5))
+        : 0;
+      const sessionCoins = SESSION_SCALING_ENABLED
+        ? SESSION_BASE_COINS + bonusBlocks * SESSION_BONUS_COINS_PER_BLOCK
+        : R.REWARDS.sessionComplete;
+      const sessionResourceUnits = SESSION_SCALING_ENABLED
+        ? SESSION_BASE_RESOURCES + bonusBlocks * SESSION_BONUS_RESOURCES_PER_BLOCK
+        : 3;
+      const rewardPace = REWARD_PACE_ENABLED
+        ? (REWARD_PACE_MULTIPLIERS[s.rewardPace] ? s.rewardPace : 'standard')
+        : 'standard';
+      const resourceMultiplier = REWARD_PACE_ENABLED ? REWARD_PACE_MULTIPLIERS[rewardPace] : 1;
+      const paidResourceUnits = Math.max(1, Math.round(sessionResourceUnits * resourceMultiplier));
+      const resourceDailyCap = Math.round(E.RESOURCE_DAILY_CAP * resourceMultiplier);
+      const r = R.award(db, user.id, sessionCoins, 'Completed a practice session', `session:${s.id}`, s.completedAt);
       s.coins += r.granted;
       if (!r.duplicate) end.bonus = { reason: 'Completed a practice session', granted: r.granted, capped: r.capped };
       end.resources = E.grantResources(
         db,
         user.id,
-        sessionResources(),
+        sessionResources(Math.random, paidResourceUnits, SESSION_RESOURCES_SINGLE_TYPE),
         'Completed a practice session',
         `sessionres:${s.id}`,
         s.completedAt,
+        { dailyCap: resourceDailyCap },
       ).granted;
       end.participation = E.awardParticipation(db, { cls, studentId: user.id, session: s, now: s.completedAt });
+      end.sessionBonus = { coins: r.granted, resources: end.resources, resourceUnits: paidResourceUnits };
+
+      if (WEEKLY_RHYTHM_ENABLED) {
+        const wk = weekKey(s.completedAt);
+        const practiceDays = new Set(db.sessions
+          .filter((other) => other.id !== s.id && other.studentId === user.id && other.endRewards?.rewarded
+            && weekKey(other.completedAt) === wk)
+          .map((other) => dayKey(other.completedAt)));
+        practiceDays.add(dayKey(s.completedAt));
+        const tier = practiceDays.size === 2 ? 1 : practiceDays.size === 3 ? 2 : null;
+        if (tier) {
+          const key = `weekly:${user.id}:${wk}:tier${tier}`;
+          const coins = tier === 1 ? WEEKLY_TIER1_COINS : WEEKLY_TIER2_COINS;
+          const units = tier === 1 ? WEEKLY_TIER1_RESOURCES : WEEKLY_TIER2_RESOURCES;
+          const coinResult = R.award(db, user.id, coins, `weekly_rhythm_tier${tier}`, key, s.completedAt, { capExempt: true });
+          const resources = E.grantResources(db, user.id, randomResourceBundle(units), `weekly_rhythm_tier${tier}`, key, s.completedAt, { capExempt: true }).granted;
+          if (!coinResult.duplicate) end.weeklyBonus = { tier, coins: coinResult.granted, resources };
+        }
+      }
     }
-    s.endRewards = { resources: end.resources || null, participation: end.participation || null };
+    s.endRewards = {
+      resources: end.resources || null,
+      participation: end.participation || null,
+      sessionBonus: end.sessionBonus || null,
+      weeklyBonus: end.weeklyBonus || null,
+      rewarded,
+    };
+    end.weeklyPractice = weeklyPractice(user.id, s.completedAt);
     return end;
   }
 
@@ -865,7 +936,7 @@ attemptId: attempt.id,
           courseTitle: db.courses.find((x) => x.id === c.courseId)?.title || '',
           description: c.description || '',
           archivedAt: c.archivedAt || null,
-          settings: c.settings,
+          settings: { ...c.settings, ...(REWARD_PACE_ENABLED ? {} : { rewardPace: undefined }) },
           memberCount: db.enrolments.filter((e) => e.classId === c.id).length,
           activeCodesCount: (db.classJoinCodes || []).filter(
             (cd) => cd.classId === c.id && !cd.revoked && (!cd.expiresAt || cd.expiresAt > now()),
@@ -883,7 +954,7 @@ attemptId: attempt.id,
           courseId: c.courseId,
           courseTitle: db.courses.find((x) => x.id === c.courseId)?.title || '',
           description: c.description || '',
-          settings: c.settings,
+          settings: Object.fromEntries(Object.entries(c.settings || {}).filter(([key]) => key !== 'rewardPace')),
         };
       })
       .filter(Boolean);
@@ -899,7 +970,7 @@ attemptId: attempt.id,
       name,
       description,
       teacherIds: [user.id],
-      settings: { tradingEnabled: true, participation: { enabled: false }, timezone: 'Asia/Singapore' },
+      settings: { tradingEnabled: true, participation: { enabled: false }, timezone: 'Asia/Singapore', rewardPace: 'standard' },
       archivedAt: null,
       createdBy: user.id,
       createdAt: now(),
@@ -1182,6 +1253,7 @@ attemptId: attempt.id,
     const cls = teacherClass(user, params.classId);
     // validate everything before changing anything
     if (body.timezone !== undefined && !isValidTimeZone(body.timezone)) fail(400, 'Unknown time zone.');
+    if (body.rewardPace !== undefined && (!REWARD_PACE_ENABLED || !Object.hasOwn(REWARD_PACE_MULTIPLIERS, body.rewardPace))) fail(400, 'Choose a valid reward pace.');
     if (typeof body.tradingEnabled === 'boolean') {
       cls.settings.tradingEnabled = body.tradingEnabled;
       if (!body.tradingEnabled) {
@@ -1193,6 +1265,13 @@ attemptId: attempt.id,
     if (typeof body.participationEnabled === 'boolean') cls.settings.participation = { enabled: body.participationEnabled };
     // the time zone the dashboard uses for "today", days and weeks
     if (body.timezone !== undefined) cls.settings.timezone = body.timezone;
+    if (body.rewardPace !== undefined) {
+      const oldPace = cls.settings.rewardPace || 'standard';
+      if (oldPace !== body.rewardPace) {
+        cls.settings.rewardPace = body.rewardPace;
+        console.info(`[reward-pace] class=${cls.id} teacher=${user.id} from=${oldPace} to=${body.rewardPace} at=${new Date(now()).toISOString()}`);
+      }
+    }
     save();
     return cls.settings;
   });
@@ -1990,6 +2069,7 @@ attemptId: attempt.id,
       .filter(Boolean);
     return {
       classes,
+      weeklyPractice: weeklyPractice(user.id),
       resumable: classes
         .map((cl) => {
           const s = db.sessions.findLast((s) => s.studentId === user.id && s.classId === cl.id && !s.completedAt);
@@ -2055,6 +2135,9 @@ return studentProgress(db, user.id, cl);
       createdAt: now(),
       timerSec: Math.round(body.timerSec * mult),
       mode: plan.mode,
+      rewardPace: REWARD_PACE_ENABLED && REWARD_PACE_MULTIPLIERS[cl.settings?.rewardPace]
+        ? cl.settings.rewardPace
+        : 'standard',
       plan: { weakTopicIds: plan.weakTopicIds, notes: plan.notes },
       items: plan.questionIds.map((qid) => ({
         qid,
@@ -2171,21 +2254,30 @@ return studentProgress(db, user.id, cl);
     s.coins += out.coins;
     if (out.result.correct) s.npc.hp = Math.max(0, s.npc.hp - PRACTICE_ATTACK_DAMAGE);
     s.cursor++;
-    let extras = {};
-    if (s.cursor >= s.items.length) {
-      extras = finishSession(s, user);
-      if (extras.bonus) out.result.rewards.push(extras.bonus);
-    }
     const inv = R.inventory(db, user.id);
     const pet = R.PETS.find((p) => p.id === inv.equippedPet);
+    // Record this answer before closing the session so finishSession sees the
+    // final nonblank answer when it computes length-based completion rewards.
     item.result = {
       index,
       ...out.result,
       npc: { ...s.npc },
       attack: out.result.correct ? { pet: pet.emoji, move: pet.move, damage: PRACTICE_ATTACK_DAMAGE } : null,
+      done: false,
+    };
+    let extras = {};
+    if (s.cursor >= s.items.length) {
+      extras = finishSession(s, user);
+      if (extras.bonus) out.result.rewards.push(extras.bonus);
+    }
+    item.result = {
+      ...item.result,
       done: !!s.completedAt,
       resources: extras.resources,
       participation: extras.participation,
+      sessionBonus: extras.sessionBonus,
+      weeklyBonus: extras.weeklyBonus,
+      weeklyPractice: extras.weeklyPractice,
     };
     save();
     return item.result;
@@ -2212,6 +2304,9 @@ return studentProgress(db, user.id, cl);
       notes: s.plan.notes,
       wallet: wallet(user.id),
       resources: end.resources || null,
+      sessionBonus: end.sessionBonus || null,
+      weeklyBonus: end.weeklyBonus || null,
+      weeklyPractice: weeklyPractice(user.id, s.completedAt),
       participation: end.participation || null,
       provisional: s.items.filter((i) => i.result.provisional).length,
       feedbackGiven: !!s.feedback,
@@ -2500,7 +2595,7 @@ return studentProgress(db, user.id, cl);
 
   route('GET', '/api/student/castle/wardrobe', 'student', ({ user }) => {
     const inventory = wardrobeInventory(user);
-    return { ...wardrobeView(user, inventory), resources: { ...E.resources(db, user.id) } };
+    return { ...wardrobeView(user, inventory), resources: { ...E.resources(db, user.id) }, wallet: wallet(user.id) };
   });
 
   // Wardrobe ownership, loadout, request receipts, and resource balances share
@@ -2522,14 +2617,17 @@ return studentProgress(db, user.id, cl);
         repairedLog = true;
       }
       if (repairedLog) save({ analytics: false });
-      return { ok: true, cosmeticId, owned: true, alreadyOwned: Boolean(prior.alreadyOwned), repeated: true, ...wardrobeView(user, inventory), resources: { ...E.resources(db, user.id) } };
+      return { ok: true, cosmeticId, owned: true, alreadyOwned: Boolean(prior.alreadyOwned), repeated: true, ...wardrobeView(user, inventory), resources: { ...E.resources(db, user.id) }, wallet: wallet(user.id) };
     }
     const alreadyOwned = state.ownedCosmetics.includes(cosmeticId);
     const refKey = `wardrobe:${user.id}:${rid}`;
     const priorSpend = db.resourceLog.find((entry) => entry.refKey === refKey);
+    const priorCoinSpend = db.ledger.find((entry) => entry.refKey === refKey);
     if (priorSpend && (priorSpend.studentId !== user.id || priorSpend.kind !== 'cosmetic' || priorSpend.cosmeticId !== cosmeticId))
       fail(409, 'This wardrobe request was already used for another purchase.');
-    if (alreadyOwned && !priorSpend) return { ok: true, cosmeticId, owned: true, alreadyOwned: true, ...wardrobeView(user, inventory), resources: { ...E.resources(db, user.id) } };
+    if (priorCoinSpend && (priorCoinSpend.studentId !== user.id || priorCoinSpend.kind !== 'spend' || priorCoinSpend.meta?.cosmeticId !== cosmeticId))
+      fail(409, 'This wardrobe request was already used for another purchase.');
+    if (alreadyOwned && !priorSpend && !priorCoinSpend) return { ok: true, cosmeticId, owned: true, alreadyOwned: true, ...wardrobeView(user, inventory), resources: { ...E.resources(db, user.id) }, wallet: wallet(user.id) };
 
     let chargeCurrency = item.currency;
     let chargeAmount = item.cost;
@@ -2538,14 +2636,25 @@ return studentProgress(db, user.id, cl);
       if (loggedCost.length !== 1 || loggedCost[0][1] >= 0) fail(409, 'This wardrobe purchase receipt is invalid.');
       chargeCurrency = loggedCost[0][0];
       chargeAmount = -loggedCost[0][1];
+    } else if (priorCoinSpend) {
+      chargeCurrency = 'coins';
+      chargeAmount = -priorCoinSpend.amount;
     }
 
     if (chargeAmount > 0) {
-      if (!Object.hasOwn(E.RESOURCES, chargeCurrency) || !Number.isSafeInteger(chargeAmount) || chargeAmount < 0) fail(400, 'That cosmetic has an invalid price.');
-      const resources = E.resources(db, user.id);
-      if ((resources[chargeCurrency] || 0) < chargeAmount) fail(400, `You need ${chargeAmount} ${E.RESOURCES[chargeCurrency].name.toLowerCase()} to add this cosmetic.`);
-      resources[chargeCurrency] = (resources[chargeCurrency] || 0) - chargeAmount;
-      if (!priorSpend) db.resourceLog.push({ id: newId('rl'), studentId: user.id, kind: 'cosmetic', delta: { [chargeCurrency]: -chargeAmount }, reason: `Wardrobe: ${item.name}`, refKey, at: now(), cosmeticId });
+      if (!Number.isSafeInteger(chargeAmount) || chargeAmount < 0) fail(400, 'That cosmetic has an invalid price.');
+      if (chargeCurrency === 'coins') {
+        if (!priorCoinSpend) {
+          const paid = R.spend(db, user.id, chargeAmount, `Wardrobe: ${item.name}`, refKey, now(), { cosmeticId });
+          if (!paid.ok) fail(400, `You need ${chargeAmount} coins to add this cosmetic.`);
+        }
+      } else {
+        if (!Object.hasOwn(E.RESOURCES, chargeCurrency)) fail(400, 'That cosmetic has an invalid price.');
+        const resources = E.resources(db, user.id);
+        if ((resources[chargeCurrency] || 0) < chargeAmount) fail(400, `You need ${chargeAmount} ${E.RESOURCES[chargeCurrency].name.toLowerCase()} to add this cosmetic.`);
+        resources[chargeCurrency] = (resources[chargeCurrency] || 0) - chargeAmount;
+        if (!priorSpend) db.resourceLog.push({ id: newId('rl'), studentId: user.id, kind: 'cosmetic', delta: { [chargeCurrency]: -chargeAmount }, reason: `Wardrobe: ${item.name}`, refKey, at: now(), cosmeticId });
+      }
     }
 
     const ownedIds = alreadyOwned ? state.ownedCosmetics : [...state.ownedCosmetics, cosmeticId];
@@ -2554,7 +2663,7 @@ return studentProgress(db, user.id, cl);
       requests: { ...state.requests, [rid]: { cosmeticId, alreadyOwned, refKey: chargeAmount > 0 ? refKey : null, currency: chargeCurrency, cost: chargeAmount } },
     };
     save({ analytics: false });
-    return { ok: true, cosmeticId, owned: true, alreadyOwned, ...wardrobeView(user, inventory), resources: { ...E.resources(db, user.id) } };
+    return { ok: true, cosmeticId, owned: true, alreadyOwned, ...wardrobeView(user, inventory), resources: { ...E.resources(db, user.id) }, wallet: wallet(user.id) };
   });
 
   route('PUT', '/api/student/castle/wardrobe/loadout', 'student', ({ user, body }) => {
@@ -2605,7 +2714,7 @@ return studentProgress(db, user.id, cl);
   // ---------------- student: trading ----------------
   route('GET', '/api/student/classes/:classId/trades', 'student', ({ user, params }) => {
     const cls = studentClass(user, params.classId);
-    if (E.kingdom(db, user.id).buildings.tower < 1) fail(403, 'Build the Tower to level 1 to unlock class trading.');
+    if (!TRADE_ACCEPT_WITHOUT_TOWER && E.kingdom(db, user.id).buildings.tower < 1) fail(403, 'Build the Tower to level 1 to unlock class trading.');
     const list = db.trades.filter((t) => t.classId === cls.id);
     if (!cls.settings.tradingEnabled) return { enabled: false, unlocked: true, limits: E.TRADE, resources: E.resources(db, user.id), market: [], mine: [], history: [] };
     const openNotes = list.filter((t) => t.status === 'open').sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
@@ -2625,7 +2734,8 @@ return studentProgress(db, user.id, cl);
       unlocked: true,
       limits: E.TRADE,
       resources: E.resources(db, user.id),
-      market: openNotes.filter((t) => t.fromId !== user.id && isEnrolled(t.fromId, cls.id) && E.kingdom(db, t.fromId).buildings.tower >= 1).map(view),
+      market: openNotes.filter((t) => t.fromId !== user.id && isEnrolled(t.fromId, cls.id)
+        && (TRADE_ACCEPT_WITHOUT_TOWER || E.kingdom(db, t.fromId).buildings.tower >= 1)).map(view),
       mine: openNotes.filter((t) => t.fromId === user.id).map(view),
       history: list
         .filter((t) => t.status !== 'open' && (t.fromId === user.id || t.acceptedBy === user.id))
@@ -2650,9 +2760,9 @@ return studentProgress(db, user.id, cl);
     const replay = t.status === 'accepted' && t.acceptedBy === user.id && t.acceptRequestId === rid;
     const cls = replay ? db.classes.find((x) => x.id === t.classId) || fail(404, 'Not found.') : studentClass(user, t.classId);
     if (!replay) {
-      if (E.kingdom(db, user.id).buildings.tower < 1) fail(403, 'Build the Tower to level 1 to unlock class trading.');
+      if (!TRADE_ACCEPT_WITHOUT_TOWER && E.kingdom(db, user.id).buildings.tower < 1) fail(403, 'Build the Tower to level 1 to unlock class trading.');
       if (!isEnrolled(t.fromId, cls.id)) fail(409, 'This offer is no longer available because its creator left the class.');
-      if (E.kingdom(db, t.fromId).buildings.tower < 1) fail(409, 'This offer is no longer available because its creator no longer has an active Tower.');
+      if (!TRADE_ACCEPT_WITHOUT_TOWER && E.kingdom(db, t.fromId).buildings.tower < 1) fail(409, 'This offer is no longer available because its creator no longer has an active Tower.');
     }
     const r = E.acceptTrade(db, { cls, trade: t, studentId: user.id, requestId: rid, now: now() });
     if (!r.ok) fail(409, r.error);

@@ -11,7 +11,10 @@ import FormattedText from '../components/FormattedText.vue';
 import ResultBlock from './ResultBlock.vue';
 import ReportForm from './ReportForm.vue';
 import AvatarPreview from './AvatarPreview.vue';
-import { TOWN_AVATAR_DEFAULT_COLOR } from '../../../config/tuning.js';
+import {
+  TOWN_AVATAR_DEFAULT_COLOR, WEEKLY_RHYTHM_ENABLED,
+  WEEKLY_TIER1_COINS, WEEKLY_TIER1_RESOURCES, WEEKLY_TIER2_COINS,
+} from '../../../config/tuning.js';
 import { playCue } from '../sound.js';
 import { wipeTo } from '../transitions.js';
 
@@ -19,6 +22,7 @@ const props = defineProps({ sid: { type: String, required: true }, initial: { ty
 const sid = props.sid;
 const home = store.home;
 const avatarVisual = computed(() => S.me?.avatarVisual || { color: S.me?.avatarColor || TOWN_AVATAR_DEFAULT_COLOR, hat: null, accessory: null });
+const weeklyLine = (progress) => `This week: ${progress?.practiceDays || 0} of 3 practice days (2 days: +${WEEKLY_TIER1_COINS} coins and ${WEEKLY_TIER1_RESOURCES} resources; 3 days: +${WEEKLY_TIER2_COINS} more)`;
 const notes = props.initial.notes;
 
 // --- battle stage (persists across questions) ---
@@ -249,7 +253,10 @@ onUnmounted(() => {
           <div class="quiz-section-kicker">SESSION COMPLETE</div>
           <h2>{{ summary.npc.hp <= 0 ? 'The Fog of Confusion is defeated! 🎉' : 'Session complete' }}</h2>
           <p>{{ summary.correct }} of {{ summary.total }} correct · +{{ summary.coins }} 🪙 this session · balance {{ summary.wallet.balance }} 🪙</p>
+          <p v-if="summary.sessionBonus" class="small muted">Session bonus: {{ summary.sessionBonus.coins }} coins, {{ summary.sessionBonus.resourceUnits }} resources</p>
           <p v-if="summary.resources && Object.keys(summary.resources).length">Kingdom supplies: +{{ fmtBundle(summary.resources, home.catalog.resources) }}</p>
+          <p v-if="summary.weeklyBonus" class="small muted">Weekly bonus unlocked: {{ summary.weeklyBonus.coins }} coins, {{ fmtBundle(summary.weeklyBonus.resources, home.catalog.resources) }}</p>
+          <p v-if="WEEKLY_RHYTHM_ENABLED" class="small muted">{{ weeklyLine(summary.weeklyPractice) }}</p>
           <p v-if="summary.provisional" class="small muted">{{ summary.provisional }} written answer(s) have a provisional mark that your professor may review.</p>
           <table>
             <tbody>

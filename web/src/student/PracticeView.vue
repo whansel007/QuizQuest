@@ -14,7 +14,7 @@ import ResourceBadge from './ResourceBadge.vue';
 import QuizRunner from './QuizRunner.vue';
 import { wipeTo } from '../transitions.js';
 import AvatarPreview from './AvatarPreview.vue';
-import { TOWN_AVATAR_DEFAULT_COLOR } from '../../../config/tuning.js';
+import { TOWN_AVATAR_DEFAULT_COLOR, WEEKLY_RHYTHM_ENABLED, WEEKLY_TIER1_COINS, WEEKLY_TIER1_RESOURCES, WEEKLY_TIER2_COINS } from '../../../config/tuning.js';
 
 const error = ref('');
 const loaded = ref(false);
@@ -28,6 +28,7 @@ const home = computed(() => store.home);
 const cls = computed(() => home.value.classes.find((c) => c.id === S.classId));
 const resumable = computed(() => home.value.resumable?.find((s) => s.classId === S.classId));
 const avatarVisual = computed(() => S.me?.avatarVisual || { color: S.me?.avatarColor || TOWN_AVATAR_DEFAULT_COLOR, hat: null, accessory: null });
+const weeklyLine = (progress) => `This week: ${progress?.practiceDays || 0} of 3 practice days (2 days: +${WEEKLY_TIER1_COINS} coins and ${WEEKLY_TIER1_RESOURCES} resources; 3 days: +${WEEKLY_TIER2_COINS} more)`;
 
 // Topic picker. Only topics with published questions can be chosen. The
 // browser remembers the topics left OUT per class, so a topic the
@@ -152,6 +153,7 @@ const onStart = action(() => enterBattle(async () => {
                 <p class="small muted">Choose your pace. Your cat-ball hero joins every practice round.</p>
               </div>
             </div>
+            <p v-if="WEEKLY_RHYTHM_ENABLED" class="small muted">{{ weeklyLine(home.weeklyPractice) }}</p>
             <div class="practice-fields">
               <Field v-slot="{ id }" label="Length">
                 <select :id="id" v-model="length">

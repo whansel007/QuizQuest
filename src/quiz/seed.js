@@ -13,9 +13,10 @@ const { grantResources, createTrade } = require('./economy');
 // Practice sessions award three supplies, with each unit drawn independently
 // so different runs produce bundles students can trade.
 const SESSION_RESOURCE_TYPES = ['wood', 'crystal', 'herb'];
-function sessionResources(rand = Math.random) {
+function sessionResources(rand = Math.random, units = 3, singleType = false) {
   const bundle = { wood: 0, crystal: 0, herb: 0 };
-  for (let i = 0; i < 3; i++) bundle[SESSION_RESOURCE_TYPES[Math.floor(rand() * SESSION_RESOURCE_TYPES.length)]]++;
+  if (singleType) bundle[SESSION_RESOURCE_TYPES[Math.floor(rand() * SESSION_RESOURCE_TYPES.length)]] = units;
+  else for (let i = 0; i < units; i++) bundle[SESSION_RESOURCE_TYPES[Math.floor(rand() * SESSION_RESOURCE_TYPES.length)]]++;
   return Object.fromEntries(Object.entries(bundle).filter(([, count]) => count > 0));
 }
 
@@ -123,9 +124,9 @@ function seed(now = Date.now()) {
         { id: 'lo-stats-1', text: 'Compute and compare measures of centre' }] },
     ],
     classes: [
-      { id: 'cl-a', courseId: 'c-comp', name: 'Computing - Tutorial Group A', teacherIds: ['t-a'], settings: { tradingEnabled: true, participation: { enabled: false } } },
-      { id: 'cl-b', courseId: 'c-stats', name: 'Statistics - Tutorial Group B', teacherIds: ['t-b'], settings: { tradingEnabled: true, participation: { enabled: false } } },
-      { id: 'cl-c', courseId: 'c-comp', name: 'Computing - Tutorial Group C', teacherIds: ['t-a'], settings: { tradingEnabled: true, participation: { enabled: false } } },
+      { id: 'cl-a', courseId: 'c-comp', name: 'Computing - Tutorial Group A', teacherIds: ['t-a'], settings: { tradingEnabled: true, participation: { enabled: false }, rewardPace: 'standard' } },
+      { id: 'cl-b', courseId: 'c-stats', name: 'Statistics - Tutorial Group B', teacherIds: ['t-b'], settings: { tradingEnabled: true, participation: { enabled: false }, rewardPace: 'standard' } },
+      { id: 'cl-c', courseId: 'c-comp', name: 'Computing - Tutorial Group C', teacherIds: ['t-a'], settings: { tradingEnabled: true, participation: { enabled: false }, rewardPace: 'standard' } },
     ],
     enrolments: [
       ...['01', '02', '03', '04', '05', '06'].map((n) => ({ classId: 'cl-a', studentId: 's-' + n })),

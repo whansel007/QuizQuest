@@ -7,7 +7,11 @@
     { "id": "hat_acorn_cap", "name": "Acorn cap", "description": "Borrowed from the tallest oak in the forest.", "renderValue": "🌰", "anchor": "head", "currency": "wood", "cost": 5, "sortOrder": 5 },
     { "id": "hat_flower_crown", "name": "Flower crown", "description": "Woven from the first blooms of the garden.", "renderValue": "🌼", "anchor": "head", "currency": "herb", "cost": 5, "sortOrder": 6 },
     { "id": "hat_wizard", "name": "Starry wizard hat", "description": "Quietly hums whenever you get an answer right.", "renderValue": "🪄", "anchor": "head", "currency": "crystal", "cost": 4, "sortOrder": 7 },
-    { "id": "hat_tricorn", "name": "Captain's tricorn", "description": "For charting a course across the lake.", "renderValue": "⚓", "anchor": "head", "currency": "wood", "cost": 10, "sortOrder": 8 }
+    { "id": "hat_tricorn", "name": "Captain's tricorn", "description": "For charting a course across the lake.", "renderValue": "⚓", "anchor": "head", "currency": "wood", "cost": 10, "sortOrder": 8 },
+    { "id": "hat_moonlit_owl", "name": "Moonlit owl cap", "description": "Placeholder art: an owl keeps watch over the night path.", "renderValue": "🦉", "anchor": "head", "currency": "coins", "cost": 150, "sortOrder": 9 },
+    { "id": "hat_storybook_crown", "name": "Storybook crown", "description": "Placeholder art: a crown from a well-loved tale.", "renderValue": "👑", "anchor": "head", "currency": "coins", "cost": 250, "sortOrder": 10 },
+    { "id": "hat_raincloud_bonnet", "name": "Raincloud bonnet", "description": "Placeholder art: a soft cloud for rainy-day reading.", "renderValue": "☁️", "anchor": "head", "currency": "coins", "cost": 100, "sortOrder": 11 },
+    { "id": "hat_comet_hood", "name": "Comet hood", "description": "Placeholder art: a small comet crossing the evening sky.", "renderValue": "☄️", "anchor": "head", "currency": "coins", "cost": 200, "sortOrder": 12 }
   ],
   "accessories": [
     { "id": "accessory_star_pin", "name": "Star pin", "description": "A little badge for a bright idea.", "renderValue": "⭐", "anchor": "badge", "sortOrder": 1 },
@@ -16,6 +20,8 @@
     { "id": "accessory_moon_pin", "name": "Moon pin", "description": "Glows faintly over the night garden.", "renderValue": "🌙", "anchor": "badge", "currency": "crystal", "cost": 2, "sortOrder": 4 },
     { "id": "accessory_mushroom_pin", "name": "Mushroom pin", "description": "Picked from a ring of forest toadstools.", "renderValue": "🍄", "anchor": "badge", "currency": "herb", "cost": 4, "sortOrder": 5 },
     { "id": "accessory_feather_pin", "name": "Feather pin", "description": "A blue feather from a friendly jay.", "renderValue": "🪶", "anchor": "badge", "currency": "wood", "cost": 4, "sortOrder": 6 },
-    { "id": "accessory_firefly_pin", "name": "Firefly jar pin", "description": "A tiny jar from the magical archive.", "renderValue": "✨", "anchor": "badge", "currency": "crystal", "cost": 3, "sortOrder": 7 }
+    { "id": "accessory_firefly_pin", "name": "Firefly jar pin", "description": "A tiny jar from the magical archive.", "renderValue": "✨", "anchor": "badge", "currency": "crystal", "cost": 3, "sortOrder": 7 },
+    { "id": "accessory_sunburst_badge", "name": "Sunburst badge", "description": "Placeholder art: a sunny badge for a bright idea.", "renderValue": "🌞", "anchor": "badge", "currency": "coins", "cost": 120, "sortOrder": 8 },
+    { "id": "accessory_flying_page", "name": "Flying page pin", "description": "Placeholder art: a page caught on a friendly breeze.", "renderValue": "📖", "anchor": "badge", "currency": "coins", "cost": 180, "sortOrder": 9 }
   ]
 }

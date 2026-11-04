@@ -6,6 +6,43 @@ export const DEBUG_TUNING = Object.freeze({
   largeAdjustment: 1_000,
 });
 
+// Retune v2 acceptance ranges for the 15-week economy simulation. These are
+// reporting targets only; they do not alter server payouts.
+export const SIM_TARGETS = Object.freeze({
+  typeA: Object.freeze({ progressMin: 60, progressMax: 80, earliestCompletionWeek: 14 }),
+  typeB: Object.freeze({ completionWeekMin: 11, completionWeekMax: 14 }),
+  typeC: Object.freeze({ completionWeekMin: 8, completionWeekMax: 11 }),
+  typeD: Object.freeze({ progressMin: 40, progressMax: 65, pointsBelowTypeAMin: 12 }),
+  typeADailyCoinCapHitMaxPct: 5,
+  tradingBlockedTypeWeekReductionPct: 40,
+});
+
+// Economy retune v2. Each rule has its own switch so the server can restore
+// the previous behavior without editing payout logic.
+export const COMMON_PRIZE_UNITS_ENABLED = true;
+export const COMMON_PRIZE_UNITS = 2;
+export const SESSION_RESOURCES_SINGLE_TYPE = true;
+export const SESSION_SCALING_ENABLED = true;
+export const SESSION_BASE_COINS = 10;
+export const SESSION_BASE_RESOURCES = 2;
+export const SESSION_BONUS_COINS_PER_BLOCK = 10;
+export const SESSION_BONUS_RESOURCES_PER_BLOCK = 1;
+export const DAILY_COIN_CAP_ENABLED = true;
+export const DAILY_COIN_CAP = 200;
+export const SESSION_DAILY_LIMIT_ENABLED = true;
+export const MAX_REWARDED_SESSIONS_PER_DAY = 3;
+export const WEEKLY_RHYTHM_ENABLED = true;
+export const WEEKLY_TIER1_COINS = 15;
+export const WEEKLY_TIER1_RESOURCES = 2;
+export const WEEKLY_TIER2_COINS = 15;
+export const WEEKLY_TIER2_RESOURCES = 2;
+export const TRADE_ACCEPT_WITHOUT_TOWER = true;
+export const TRADE_LIMIT_ENABLED = true;
+export const MAX_TRADES_PER_DAY = 8;
+export const REWARD_PACE_ENABLED = true;
+export const REWARD_PACE_MULTIPLIERS = Object.freeze({ relaxed: 0.75, standard: 1.0, boost: 1.5 });
+export const RESOURCE_DAILY_CAP = 60;
+
 export const ELECTRO_STUN_PROJECTILE_SCALE = 1.6;
 export const ELECTRO_STUN_RADIUS_SCALE = 1.5;
 

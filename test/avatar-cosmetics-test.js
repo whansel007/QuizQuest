@@ -40,7 +40,7 @@ test('catalog keeps existing prices and gives new items a valid provisional pric
   assert.ok(added.some((item) => item.slot === 'hat') && added.some((item) => item.slot === 'accessory'));
   for (const item of added) {
     assert.match(item.id, item.slot === 'hat' ? /^hat_[a-z_]+$/ : /^accessory_[a-z_]+$/);
-    assert.ok(['wood', 'crystal', 'herb'].includes(item.currency), `${item.id} currency`);
+    assert.ok(['wood', 'crystal', 'herb', 'coins'].includes(item.currency), `${item.id} currency`);
     assert.ok(Number.isSafeInteger(item.cost) && item.cost > 0, `${item.id} cost`);
     assert.ok(item.name && item.description, `${item.id} copy`);
   }
@@ -145,4 +145,19 @@ test('new catalog cosmetics can be bought and equipped, and the saved look is re
   assert.equal(wrongSlot.status, 400, 'a pin cannot be worn as a hat');
   const fake = await call(token, 'POST', '/api/student/castle/wardrobe/purchase', { cosmeticId: 'hat_not_real', requestId: 'fake-1' });
   assert.equal(fake.status, 400, 'IDs outside the catalog are rejected');
+});
+
+test('coin-priced placeholder cosmetics are charged once and can be equipped', async () => {
+  const token = await login('s-05');
+  const catalog = (await call(token, 'GET', '/api/student/castle/wardrobe')).body.catalog;
+  const item = catalog.find((entry) => entry.id === 'hat_moonlit_owl');
+  assert.equal(item.currency, 'coins');
+  assert.equal(item.cost, 150);
+  await call(token, 'POST', '/api/student/debug/wallet', { balance: 500 });
+  const first = await call(token, 'POST', '/api/student/castle/wardrobe/purchase', { cosmeticId: item.id, requestId: 'coin-cosmetic-001' });
+  const retry = await call(token, 'POST', '/api/student/castle/wardrobe/purchase', { cosmeticId: item.id, requestId: 'coin-cosmetic-001' });
+  assert.equal(first.status, 200);
+  assert.equal(retry.status, 200);
+  assert.equal(retry.body.wallet.balance, 350, 'retry does not charge twice');
+  assert.equal((await call(token, 'PUT', '/api/student/castle/wardrobe/loadout', { hatId: item.id })).status, 200);
 });

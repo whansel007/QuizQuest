@@ -10,6 +10,7 @@ import { toast, when, fmtBundle, action } from '../ui.js';
 import { loadCourses, RES } from './courses.js';
 import Heading from '../components/Heading.vue';
 import Field from '../components/Field.vue';
+import { REWARD_PACE_ENABLED, REWARD_PACE_MULTIPLIERS, SESSION_BASE_RESOURCES } from '../../../config/tuning.js';
 
 const loading = ref(false);
 const error = ref('');
@@ -183,6 +184,27 @@ const setZone = (cl) => action(async (e) => {
     applySettings(cl.id, settings);
   } catch (err) {
     select.value = zoneOf(cl); // failed: show the setting as it really is
+    throw err;
+  }
+  toast('Saved');
+});
+
+const rewardPaceOptions = Object.entries(REWARD_PACE_MULTIPLIERS).map(([value, multiplier]) => ({
+  value,
+  label: `${value[0].toUpperCase()}${value.slice(1)}`,
+  description: `${Math.max(1, Math.round(SESSION_BASE_RESOURCES * multiplier))} resources for a 5-question session`,
+}));
+
+const setRewardPace = (cl) => action(async (e) => {
+  const input = e.target;
+  const previous = cl.settings?.rewardPace || 'standard';
+  try {
+    const settings = await api('PUT', `/api/teacher/classes/${cl.id}/settings`, { rewardPace: input.value });
+    applySettings(cl.id, settings);
+  } catch (err) {
+    input.checked = false;
+    const previousInput = Array.from(document.getElementsByName(`reward-pace-${cl.id}`)).find((candidate) => candidate.value === previous);
+    if (previousInput) previousInput.checked = true;
     throw err;
   }
   toast('Saved');
@@ -698,6 +720,26 @@ function copyToClipboard(text) {
             and daily trades. Turning this off refunds every open offer.
           </div>
         </label>
+
+        <fieldset v-if="REWARD_PACE_ENABLED" style="margin: 18px 0 12px; border: 0; padding: 0">
+          <legend style="font-weight: 700">Reward pace</legend>
+          <label
+            v-for="option in rewardPaceOptions"
+            :key="option.value"
+            style="font-weight: 400; color: inherit; margin: 8px 0; display: block"
+          >
+            <input
+              type="radio"
+              :name="'reward-pace-' + selectedClass.id"
+              :value="option.value"
+              :checked="(selectedClass.settings?.rewardPace || 'standard') === option.value"
+              @change="setRewardPace(selectedClass)($event)"
+            />
+            <b>{{ option.label }}</b>
+            <span class="small muted"> — {{ option.description }}</span>
+          </label>
+          <div class="small muted">Boost is useful in revision weeks.</div>
+        </fieldset>
 
         <div class="row" style="margin: 12px 0 2px">
           <label :for="'tz-' + selectedClass.id" style="margin: 0"><b>Time zone for analytics</b></label>

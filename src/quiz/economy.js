@@ -12,6 +12,7 @@
 
 const crypto = require('crypto');
 const { inventory } = require('./rewards');
+const { TRADE_LIMIT_ENABLED, MAX_TRADES_PER_DAY, RESOURCE_DAILY_CAP: CONFIG_RESOURCE_DAILY_CAP } = require('../../config/tuning.js');
 // local days/weeks (app time zone, Singapore by default), not UTC
 const { dayKey, weekKey } = require('./time');
 
@@ -20,7 +21,7 @@ const RESOURCES = {
   crystal: { name: 'Crystal', emoji: '💎' },
   herb: { name: 'Herb', emoji: '🌿' },
 };
-const RESOURCE_DAILY_CAP = 60; // units earned per local day (see time.js)
+const RESOURCE_DAILY_CAP = CONFIG_RESOURCE_DAILY_CAP; // units earned per local day (see time.js)
 
 // Each building has 3 levels; cost of reaching level 1, 2, 3
 const BUILDINGS = {
@@ -30,7 +31,7 @@ const BUILDINGS = {
   tower: { name: 'Tower', emoji: '🗼', costs: [{ crystal: 4 }, { crystal: 7, wood: 4 }, { crystal: 10, wood: 6, herb: 6 }] },
 };
 
-const TRADE = { maxOpenPerStudent: 3, maxUnitsPerSide: 20, maxCompletedPerDay: 5 };
+const TRADE = { maxOpenPerStudent: 3, maxUnitsPerSide: 20, maxCompletedPerDay: TRADE_LIMIT_ENABLED ? MAX_TRADES_PER_DAY : 5 };
 const PARTICIPATION = { minQuestions: 5, weeklyCap: 3 };
 
 const newId = (p) => p + '-' + crypto.randomUUID().slice(0, 8);
@@ -67,15 +68,15 @@ function earnedToday(db, studentId, now) {
   const d = dayKey(now);
   let n = 0;
   for (const e of db.resourceLog) {
-    if (e.studentId === studentId && e.kind === 'earn' && dayKey(e.at) === d) n += Object.values(e.delta).reduce((a, b) => a + b, 0);
+    if (e.studentId === studentId && e.kind === 'earn' && !e.capExempt && dayKey(e.at) === d) n += Object.values(e.delta).reduce((a, b) => a + b, 0);
   }
   return n;
 }
 
 // Grant resources, capped per day, once per refKey. Returns the granted bundle.
-function grantResources(db, studentId, b, reason, refKey, now = Date.now()) {
+function grantResources(db, studentId, b, reason, refKey, now = Date.now(), { capExempt = false, dailyCap = RESOURCE_DAILY_CAP } = {}) {
   if (db.resourceLog.some((e) => e.refKey === refKey)) return { granted: {}, duplicate: true };
-  let room = Math.max(0, RESOURCE_DAILY_CAP - earnedToday(db, studentId, now));
+  let room = capExempt ? Object.values(b).reduce((a, n) => a + n, 0) : Math.max(0, dailyCap - earnedToday(db, studentId, now));
   const granted = {};
   for (const [k, v] of Object.entries(b)) {
     const g = Math.min(v, room);
@@ -84,6 +85,7 @@ function grantResources(db, studentId, b, reason, refKey, now = Date.now()) {
   }
   apply(resources(db, studentId), granted, 1);
   log(db, studentId, 'earn', granted, reason, refKey, now);
+  if (capExempt) db.resourceLog[db.resourceLog.length - 1].capExempt = true;
   return { granted, capped: Object.values(granted).reduce((a, x) => a + x, 0) < Object.values(b).reduce((a, x) => a + x, 0) };
 }
 

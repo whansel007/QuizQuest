@@ -239,7 +239,7 @@ onUnmounted(() => window.removeEventListener('message', returnToSelection));
 
         <section class="panel kingdom-preview" aria-label="Camp upgrades for this run">
           <div class="kingdom-head">
-            <span class="panel-kicker">CAMP BUFFS</span>
+            <span class="panel-kicker">BUILDINGS BUFFS</span>
           </div>
           <div class="kingdom-tiles">
             <div

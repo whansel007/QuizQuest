@@ -18,6 +18,10 @@ const crypto = require('crypto');
 const { dayKey } = require('./time');
 const { GAME_CONFIG } = require('../../public/hero-lab/game-config.js');
 const { HEROES } = require('../../public/hero-lab/hero-list.js');
+const {
+  COMMON_PRIZE_UNITS_ENABLED, COMMON_PRIZE_UNITS,
+  DAILY_COIN_CAP_ENABLED, DAILY_COIN_CAP,
+} = require('../../config/tuning.js');
 
 const REWARDS = {
   firstCorrect: 10,       // first time a student gets a given question right
@@ -26,7 +30,7 @@ const REWARDS = {
   milestone: 30,          // topic practice indicator reaches the target (once per topic)
   milestoneAccuracy: 0.8,
   milestoneMinN: 5,
-  dailyCap: 150,          // max coins EARNED per local day (purchases don't count; see time.js)
+  dailyCap: DAILY_COIN_CAP_ENABLED ? DAILY_COIN_CAP : 150, // earned coins per local day; gifts/refunds/purchases are outside this cap
   eggCost: 50,
   duplicateRefund: 20,    // drawing a pet you already own refunds this much
 };
@@ -49,7 +53,10 @@ const ITEMS = [
 ];
 // Disclosed to students before they spend anything. Out of 1000.
 const EGG_ODDS = { common: 600, rare: 300, epic: 100 };
-const HERO_SUMMON = GAME_CONFIG.heroSummon;
+const HERO_SUMMON = {
+  ...GAME_CONFIG.heroSummon,
+  commonResourceAmount: COMMON_PRIZE_UNITS_ENABLED ? COMMON_PRIZE_UNITS : GAME_CONFIG.heroSummon.commonResourceAmount,
+};
 const HERO_CATALOG = HEROES.map(({ id, name, emoji, type, maxHp, attack, defense, speed, weaponName, skillName, ultimateName, talent }) => ({
   id, name, emoji, type, rarity: HERO_SUMMON.rarities[id], hp: maxHp, attack, defense, speed, weapon: weaponName, skill: skillName, ultimate: ultimateName,
   // Talent text/icon come from game-config.js so the World page never hardcodes them.
@@ -67,20 +74,20 @@ function earnedOnDay(db, studentId, when) {
   const d = dayKey(when);
   let total = 0;
   for (const t of db.ledger) {
-    if (t.studentId === studentId && t.kind === 'earn' && dayKey(t.at) === d) total += t.amount;
+    if (t.studentId === studentId && t.kind === 'earn' && !t.capExempt && dayKey(t.at) === d) total += t.amount;
   }
   return total;
 }
 
 // Pay out coins, respecting refKey uniqueness and the daily cap.
 // Returns { granted, capped, duplicate }.
-function award(db, studentId, amount, reason, refKey, now = Date.now()) {
+function award(db, studentId, amount, reason, refKey, now = Date.now(), { capExempt = false } = {}) {
   if (db.ledger.some((t) => t.refKey === refKey)) return { granted: 0, capped: false, duplicate: true };
-  const room = Math.max(0, REWARDS.dailyCap - earnedOnDay(db, studentId, now));
+  const room = capExempt ? amount : Math.max(0, REWARDS.dailyCap - earnedOnDay(db, studentId, now));
   const granted = Math.min(amount, room);
   // Still record a zero-value entry so the refKey is "used" and an
   // explanation shows up in the student's history.
-  db.ledger.push({ id: 'tx-' + crypto.randomUUID().slice(0, 8), studentId, kind: 'earn', amount: granted, reason: granted < amount ? reason + ' (daily cap reached)' : reason, refKey, at: now });
+  db.ledger.push({ id: 'tx-' + crypto.randomUUID().slice(0, 8), studentId, kind: 'earn', amount: granted, reason: granted < amount ? reason + ' (daily cap reached)' : reason, refKey, at: now, ...(capExempt ? { capExempt: true } : {}) });
   return { granted, capped: granted < amount, duplicate: false };
 }
 
