@@ -233,3 +233,79 @@ test('a join code cannot be generated for an archived class', async () => {
     await close();
   }
 });
+
+test('a class can be renamed, and its description cleared', async () => {
+  const { call, close } = await testServer();
+  try {
+    const teacher = (await call(null, 'POST', '/api/login', { userId: 't-a' })).body.token;
+
+    // The name is the one a student joins the class by.
+    const renamed = await call(teacher, 'PATCH', '/api/classes/cl-a', { name: 'Computing - Tutorial A (evening)' });
+    assert.equal(renamed.status, 200);
+    assert.equal(renamed.body.name, 'Computing - Tutorial A (evening)');
+
+    // The list the professor sees holds the new name too.
+    const list = await call(teacher, 'GET', '/api/classes');
+    assert.equal(list.body.find((c) => c.id === 'cl-a').name, 'Computing - Tutorial A (evening)');
+
+    // A description is optional, so an empty one is how it is cleared. It
+    // used to come back as 400 "Description is required." instead.
+    const cleared = await call(teacher, 'PATCH', '/api/classes/cl-a', { description: '' });
+    assert.equal(cleared.status, 200);
+    assert.equal(cleared.body.description, '');
+
+    // And one can be set.
+    const described = await call(teacher, 'PATCH', '/api/classes/cl-a', { description: 'Thursday 2pm lab' });
+    assert.equal(described.status, 200);
+    assert.equal(described.body.description, 'Thursday 2pm lab');
+  } finally {
+    await close();
+  }
+});
+
+test('a class cannot take the name of another of the professor\'s classes', async () => {
+  const { call, close } = await testServer();
+  try {
+    const teacher = (await call(null, 'POST', '/api/login', { userId: 't-a' })).body.token;
+
+    // A student is enrolled into a class by its name, so two classes of the
+    // same name cannot be told apart. The enrol route refuses that and says
+    // "Rename one first" - so the rename has to refuse it as well, or it
+    // would put the professor back in the same dead end.
+    const clash = await call(teacher, 'PATCH', '/api/classes/cl-a', { name: 'Computing - Tutorial Group C' });
+    assert.equal(clash.status, 409);
+    assert.match(clash.body.error, /already have a class named/i);
+
+    // The name it had is untouched.
+    const list = await call(teacher, 'GET', '/api/classes');
+    assert.equal(list.body.find((c) => c.id === 'cl-a').name, 'Computing - Tutorial Group A');
+
+    // A name of its own is fine.
+    const ok = await call(teacher, 'PATCH', '/api/classes/cl-a', { name: 'Computing - Tutorial Group A2' });
+    assert.equal(ok.status, 200);
+    assert.equal(ok.body.name, 'Computing - Tutorial Group A2');
+
+    // An empty name is not a name.
+    const empty = await call(teacher, 'PATCH', '/api/classes/cl-a', { name: '   ' });
+    assert.equal(empty.status, 400);
+  } finally {
+    await close();
+  }
+});
+
+test('a professor cannot rename a class of another professor', async () => {
+  const { call, close } = await testServer();
+  try {
+    const other = (await call(null, 'POST', '/api/login', { userId: 't-b' })).body.token;
+
+    // cl-a belongs to t-a. t-b must not be able to rename it - and must not
+    // be able to learn that it exists either, so it is a 404.
+    const denied = await call(other, 'PATCH', '/api/classes/cl-a', { name: 'Mine now' });
+    assert.equal(denied.status, 404);
+
+    const list = await call(other, 'GET', '/api/classes');
+    assert.equal(list.body.find((c) => c.id === 'cl-a'), undefined);
+  } finally {
+    await close();
+  }
+});

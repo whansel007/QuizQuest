@@ -42,6 +42,22 @@ const showGenerateCodeModal = ref(false);
 const codeUsageLimit = ref(20);
 const codeExpiresDays = ref(14);
 
+// Rename Class Modal
+// A student joins a class by its name, so a professor sometimes has to
+// change it - and when two classes share a name the server says "Rename
+// one first" and offers no way to do it. This is that way.
+const showRenameModal = ref(false);
+const renamingClass = ref(null);
+const renameName = ref('');
+const renameDescription = ref('');
+
+function openRenameFor(cls) {
+  renamingClass.value = cls;
+  renameName.value = cls.name || '';
+  renameDescription.value = cls.description || '';
+  showRenameModal.value = true;
+}
+
 // Filter
 const showArchived = ref(false);
 const displayedClasses = computed(() => {
@@ -217,6 +233,24 @@ const handleCreateClass = action(async () => {
   await loadData();
   const c = classes.value.find((x) => x.id === created.id);
   if (c) selectClassToManage(c);
+});
+
+// Rename a class: the name a student joins it by, and the description on
+// the card. The server refuses a name another of the professor's classes
+// already has - two classes of the same name cannot be told apart when a
+// student is enrolled into one.
+const handleRename = action(async () => {
+  const cls = renamingClass.value;
+  if (!cls) return;
+  const name = renameName.value.trim();
+  if (!name) throw new Error('Class name is required.');
+  const res = await api('PATCH', `/api/classes/${cls.id}`, {
+    name,
+    description: renameDescription.value,
+  });
+  showRenameModal.value = false;
+  toast(`Class renamed to "${res.name}".`);
+  await loadData();
 });
 
 const handleArchiveClass = (cls) => action(async () => {
@@ -405,6 +439,7 @@ function copyToClipboard(text) {
                 Manage Roster & Codes →
               </button>
               <button class="btn small" @click="openClassSettings(c)">Settings</button>
+              <button class="btn small" @click="openRenameFor(c)">Rename</button>
             </div>
             <button
               class="btn small"
@@ -437,6 +472,7 @@ function copyToClipboard(text) {
             <span class="muted small">{{ selectedClass.courseTitle }} · ID: {{ selectedClass.id }}</span>
           </div>
           <div class="row">
+            <button class="btn small" @click="openRenameFor(selectedClass)">Rename</button>
             <button
               class="btn small"
               :class="selectedClass.archivedAt ? 'good' : 'bad'"
@@ -746,6 +782,47 @@ function copyToClipboard(text) {
           <div class="row" style="justify-content: flex-end; gap: 8px;">
             <button type="button" class="btn" @click="showCreateModal = false">Cancel</button>
             <button type="submit" class="btn primary">Create Class</button>
+          </div>
+        </form>
+      </div>
+    </div>
+
+    <!-- MODAL: RENAME CLASS -->
+    <div v-if="showRenameModal" class="modal-overlay" @click.self="showRenameModal = false">
+      <div class="modal-card">
+        <h3>Rename Class</h3>
+        <p class="small muted">
+          A student joins a class by its name, so this is the name the class is found by. Two of your classes
+          cannot share one name.
+        </p>
+
+        <form @submit.prevent="handleRename($event)">
+          <div class="field" style="margin-bottom: 14px;">
+            <label for="rename-class-name">Class Name</label>
+            <input
+              id="rename-class-name"
+              v-model="renameName"
+              type="text"
+              maxlength="80"
+              placeholder="e.g. Computing - Tutorial Group D"
+              required
+            />
+          </div>
+
+          <div class="field" style="margin-bottom: 18px;">
+            <label for="rename-class-desc">Description (Optional)</label>
+            <textarea
+              id="rename-class-desc"
+              v-model="renameDescription"
+              rows="3"
+              maxlength="300"
+              placeholder="e.g. Thursday 2pm tutorial lab session"
+            />
+          </div>
+
+          <div class="row" style="justify-content: flex-end; gap: 8px;">
+            <button type="button" class="btn" @click="showRenameModal = false">Cancel</button>
+            <button type="submit" class="btn primary">Save</button>
           </div>
         </form>
       </div>

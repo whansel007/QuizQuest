@@ -910,9 +910,25 @@ attemptId: attempt.id,
 
   route('PATCH', '/api/classes/:classId', 'teacher', ({ user, params, body }) => {
     const cls = teacherClass(user, params.classId);
-    if (body.name !== undefined) cls.name = str(body.name, 80, 'Class name');
+    if (body.name !== undefined) {
+      const name = str(body.name, 80, 'Class name');
+      // A class is found by its name when a student is enrolled into it, so
+      // two classes of the same name cannot be told apart. The enrol route
+      // refuses that case and tells the professor to rename one, so the
+      // rename refuses it too - this is the way out of that message, and it
+      // must not put the professor back in it.
+      const clash = db.classes.find(
+        (c) =>
+          c.id !== cls.id &&
+          c.teacherIds.includes(user.id) &&
+          c.name.trim().toLowerCase() === name.toLowerCase(),
+      );
+      if (clash) fail(409, `You already have a class named "${name}". Give this one a different name.`);
+      cls.name = name;
+    }
     if (body.description !== undefined)
-      cls.description = typeof body.description === 'string' ? str(body.description, 300, 'Description') : '';
+      // A description is optional, so an empty one is how it is cleared.
+      cls.description = typeof body.description === 'string' ? body.description.trim().slice(0, 300) : '';
     save();
     return cls;
   });
