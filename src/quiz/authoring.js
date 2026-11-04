@@ -285,7 +285,7 @@ function createAuthoring({ db, persist, ai = gemini.generateJson, drafter }) {
       // callers can still analyse manually entered sources.
       if (reportBased && raw.materialIds !== undefined && !Array.isArray(raw.materialIds)) error(400, 'Choose attached file excerpts.');
       const listed = reportBased && raw.materialIds !== undefined ? raw.materialIds : null;
-      const material = reportBased && db.passages.filter((p) => p.courseId === c.id && p.origin !== 'report' && p.attached !== false
+      const material = reportBased && db.passages.filter((p) => p.courseId === c.id && p.origin !== 'report' && p.attached !== false && !p.archivedAt
         && (listed === null || listed.includes(p.id))
         && (topicId === undefined || p.topicId === topicId));
       if (reportBased && raw.materialIds && hash([...raw.materialIds].sort()) !== hash(material.map((p) => p.id).sort()))
