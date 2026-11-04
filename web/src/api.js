@@ -80,6 +80,14 @@ export const S = reactive({
   focusQuestionId: null, // Question bank scrolls to (and highlights) this question once
   focusRewrite: false, // Question bank brings its rewrite toolbar into view once
   draftTarget: null, // AI drafting opens with this { topicId, outcomeId } once
+  // Source material library: show the archived material too. Kept here
+  // because saving material remounts the view, and the professor should not
+  // have to tick the box again.
+  showArchivedMaterial: false,
+  // The material library is a disclosure inside AI drafting. Saving material
+  // remounts the view, so the open state is kept here and the library stays
+  // open where the professor left it.
+  materialLibraryOpen: false,
   // bump to remount the current view (replaces the old rerender())
   viewKey: 0,
 });

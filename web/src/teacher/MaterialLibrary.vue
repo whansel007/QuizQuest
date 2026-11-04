@@ -27,14 +27,26 @@ const loaded = ref(false);
 const courses = ref([]);
 const course = ref(null);
 const passages = ref([]);
+// Archived material is kept - questions still cite it - but it is out of the
+// library and out of what the AI drafts from until the professor asks for it.
+// The toggle lives in the shared state: saving material remounts this view,
+// and the professor should not have to tick it again.
 const tags = reactive({ topicId: null, outcomeId: null, topicName: '', topicWeek: null, outcomeText: '' });
+// One place that loads the list, so the archived toggle and the refresh
+// button always load the same thing.
+async function loadPassages() {
+  passages.value = await api(
+    'GET',
+    `/api/teacher/courses/${course.value.id}/passages${S.showArchivedMaterial ? '?includeArchived=true' : ''}`,
+  );
+}
 onMounted(async () => {
   try {
     courses.value = await loadCourses();
     course.value = currentCourse();
     syncTopic(course.value);
     if (course.value) {
-      passages.value = await api('GET', `/api/teacher/courses/${course.value.id}/passages`);
+      await loadPassages();
       Object.assign(tags, initialTags(course.value, { topicId: S.topicId }));
     }
     loaded.value = true;
@@ -178,13 +190,60 @@ const deletePassage = (p) => async () => {
   toast('Passage deleted');
   rerender();
 };
+
+// Archive a passage: the row stays, because questions cite it, but it leaves
+// the library and stops being used for new drafts. Restoring brings it back.
+const setArchived = (p, archived) => async () => {
+  await api('POST', `/api/teacher/passages/${p.id}/archive`, { archived });
+  toast(archived ? `Archived "${p.title}".` : `Restored "${p.title}".`);
+  await loadPassages();
+  emit('changed');
+};
+
+// Edit metadata: the title, the topic and the learning outcome it belongs
+// to. The passage text itself is not editable - questions and reports were
+// written from it.
+const showEditModal = ref(false);
+const editingPassage = ref(null);
+const editTitle = ref('');
+const editTags = reactive({ topicId: null, outcomeId: null, topicName: '', topicWeek: null, outcomeText: '' });
+function openEditFor(p) {
+  editingPassage.value = p;
+  editTitle.value = p.title || '';
+  Object.assign(editTags, { topicId: p.topicId ?? null, outcomeId: p.outcomeId ?? null, topicName: '', topicWeek: null, outcomeText: '' });
+  showEditModal.value = true;
+}
+const handleEdit = action(async () => {
+  const p = editingPassage.value;
+  if (!p) return;
+  const title = editTitle.value.trim();
+  if (!title) throw new Error('Title is required.');
+  const body = { title };
+  // A passage with no topic yet is given one here; the server refuses a
+  // topic and outcome that do not belong together.
+  if (editTags.topicId) {
+    body.topicId = editTags.topicId;
+    body.outcomeId = editTags.outcomeId;
+  }
+  const res = await api('PATCH', `/api/teacher/passages/${p.id}`, body);
+  showEditModal.value = false;
+  toast(`Saved "${res.title}".`);
+  await loadPassages();
+  emit('changed');
+});
 const plainLabel = 'font-weight:400;color:inherit;margin:10px 0';
 
 // ---- weekly topics: which topic's material is shown and uploaded to
 const topic = computed(() => course.value?.topics.find((t) => t.id === S.topicId) || null);
 async function refresh() {
-  passages.value = await api('GET', `/api/teacher/courses/${course.value.id}/passages`);
+  await loadPassages();
 }
+// The toggle reloads the list: with archived material shown, the archived
+// passages come back too, each marked, so they can be restored.
+const toggleArchived = action(async (e) => {
+  S.showArchivedMaterial = e.target.checked;
+  await loadPassages();
+});
 
 // Uploaded lecture files are listed once per file, collapsed. Versions that
 // were replaced or removed stay stored (questions may cite them) but are
@@ -245,6 +304,9 @@ const partLabel = (f, p) => p.title.split(f.legacy ? ' — ' : ' · ').slice(1).
         <button class="btn" @click="refresh">Refresh material library</button>
       </div>
       <button v-else class="btn small" @click="refresh">Refresh material library</button>
+      <label class="small muted lib-toggle">
+        <input type="checkbox" :checked="S.showArchivedMaterial" @change="toggleArchived" /> Show archived material
+      </label>
       <p v-if="!embedded" class="small muted t-readable">Lecture files are uploaded in <button class="linklike" @click="setTab('generate')">AI drafting</button>, where each topic's knowledge report is built. Here you can see every topic's material, add notes, and transcribe scans or diagrams.</p>
 
       <div class="t-grid material-grid">
@@ -289,9 +351,18 @@ const partLabel = (f, p) => p.title.split(f.legacy ? ' — ' : ' · ').slice(1).
               </details>
             </details>
             <details v-for="p in manual(t.id)" :key="p.id" style="margin: 8px 0">
-              <summary><b>{{ p.title }}</b> <span class="small muted">{{ `· ${t.outcomes.find((o) => o.id === p.outcomeId)?.text || 'no learning outcome'} · ${p.text.length} chars${p.origin && p.origin !== 'paste' ? ' · from ' + p.origin : ''} · cited by ${p.usedBy} question(s)` }}</span></summary>
+              <summary>
+                <b>{{ p.title }}</b>
+                <span v-if="p.archivedAt" class="badge draft">archived</span>
+                <span class="small muted">{{ `· ${t.outcomes.find((o) => o.id === p.outcomeId)?.text || 'no learning outcome'} · ${p.text.length} chars${p.origin && p.origin !== 'paste' ? ' · from ' + p.origin : ''} · cited by ${p.usedBy} question(s)` }}</span>
+              </summary>
               <p class="small" style="white-space: pre-wrap; margin-top: 6px; max-height: 240px; overflow: auto">{{ p.text }}</p>
-              <AsyncButton class="btn small bad" :run="deletePassage(p)">Delete passage</AsyncButton>
+              <div class="row" style="margin-top: 6px">
+                <button class="btn small" type="button" @click="openEditFor(p)">Edit metadata</button>
+                <AsyncButton v-if="!p.archivedAt" class="btn small" :run="setArchived(p, true)">Archive passage</AsyncButton>
+                <AsyncButton v-else class="btn small" :run="setArchived(p, false)">Restore passage</AsyncButton>
+                <AsyncButton class="btn small bad" :run="deletePassage(p)">Delete passage</AsyncButton>
+              </div>
             </details>
           </div>
           <div v-if="!shownTopics.length && !unsorted.length" class="t-empty">No material yet. Add notes here, or upload lecture files in AI drafting.</div>
@@ -362,12 +433,40 @@ const partLabel = (f, p) => p.title.split(f.legacy ? ' — ' : ' · ').slice(1).
           </div>
         </section>
       </div>
+
+      <!-- MODAL: EDIT MATERIAL METADATA -->
+      <div v-if="showEditModal" class="modal-overlay" @click.self="showEditModal = false">
+        <div class="modal-card">
+          <h3>Edit material</h3>
+          <p class="small muted">
+            The title, the weekly topic and the learning outcome this material belongs to. The text itself is not
+            changed - questions and reports were written from it.
+          </p>
+
+          <form @submit.prevent="handleEdit($event)">
+            <div class="field" style="margin-bottom: 14px;">
+              <label for="edit-passage-title">Title</label>
+              <input id="edit-passage-title" v-model="editTitle" type="text" maxlength="120" required />
+            </div>
+
+            <div class="row top" style="margin-bottom: 18px;">
+              <TopicOutcomeFields v-model:topic-id="editTags.topicId" v-model:outcome-id="editTags.outcomeId" :course="course" />
+            </div>
+
+            <div class="row" style="justify-content: flex-end; gap: 8px;">
+              <button type="button" class="btn" @click="showEditModal = false">Cancel</button>
+              <button type="submit" class="btn primary">Save</button>
+            </div>
+          </form>
+        </div>
+      </div>
     </template>
   </template>
 </template>
 
 <style scoped>
 .material-grid { margin-top: 6px; }
+.lib-toggle { display: flex; align-items: center; gap: 6px; margin: 6px 0; }
 .lib-topic-head { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 8px; margin-bottom: 6px; }
 .lib-topic-head h4 { margin: 0 4px 0 0; font-size: 16px; }
 .lib-actions { display: flex; flex-wrap: wrap; gap: 6px; margin-left: auto; }
