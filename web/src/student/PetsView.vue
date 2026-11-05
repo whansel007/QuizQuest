@@ -557,6 +557,14 @@ onUnmounted(() => {
   .summon-actions .story-button { width:100%; min-width:0; }
   .summon-secondary-actions .story-button { min-height:44px; }
 }
+/* small phones: names and the title fit whole instead of breaking mid-word */
+@media (max-width:420px) {
+  .featured-many .featured-info h3, .featured-info h3 { font-size:clamp(15px, 4.6vw, 19px); overflow-wrap:normal; }
+}
+@media (max-width:360px) {
+  .summon-page-title h1 { font-size:21px; }
+  .summon-page-title>span { font-size:19px; }
+}
 /* History and Details: a full-screen sheet with a sticky header and its own scroll */
 @media (max-width:600px) {
   .story-modal-shade { place-items:stretch; padding:0; }

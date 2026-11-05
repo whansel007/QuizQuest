@@ -85,9 +85,15 @@ function touchDpr() {
 function viewSize() {
   return { w: canvas.clientWidth || innerWidth, h: canvas.clientHeight || innerHeight };
 }
+// Touch devices step the resolution down when drawn frames fall behind the
+// frame cap (see sampleTouchFrame): 100% -> 75% -> 50% of the capped DPR,
+// never below 1 CSS px per canvas px.
+const TOUCH_RESOLUTION_STEPS = [1, 0.75, 0.5];
+let touchResolutionStep = 0;
+let touchForcedLowEffects = false; // set by sampleTouchFrame at the lowest resolution step
 // Rasterize close to the displayed viewport while keeping world coordinates fixed.
 function arenaRenderScale() {
-  if (touchMode) return touchDpr();
+  if (touchMode) return Math.max(1, touchDpr() * TOUCH_RESOLUTION_STEPS[touchResolutionStep]);
   const fit = Math.min(innerWidth / ARENA_WIDTH, innerHeight / ARENA_HEIGHT);
   return Math.min(1, Math.max(0.4, fit));
 }
@@ -1217,6 +1223,7 @@ function registerKill(now) {
 function isMassKillWindow(now) { return now < massKillUntil; }
 
 function effectiveQuality() {
+  if (touchMode && touchForcedLowEffects) return 'low';
   return settings.effectsQuality === 'auto' ? autoQualityLevel : settings.effectsQuality;
 }
 applyEffectsQuality();
@@ -4325,6 +4332,41 @@ function draw(timestamp) {
   const drawMs = performance.now() - startedAt;
   profiler.recordFrame(timestamp || performance.now(), drawMs);
   sampleAdaptiveQuality(drawMs);
+  if (touchMode) sampleTouchFrame(timestamp || performance.now(), drawMs);
+}
+
+// Touch devices (Stage 6): the canvas is rastered off the main thread, so the
+// draw time alone misses a slow GPU. When the interval between drawn frames
+// stays well behind FRAME_CAP_FPS, lower the resolution one step, and once at
+// the lowest step also drop the effects to Low (even when the player chose
+// Medium). Good frames for twice ADAPTIVE_RESTORE_MS bring one step back.
+const touchFrameIntervals = [];
+let lastTouchFrameAt = 0;
+let touchGoodMs = 0;
+var touchFrameStats = { frames: 0, drawMsTotal: 0, drawMsMax: 0, controlsMs: 0, since: performance.now() };
+if (touchDebug) window.__heroLabFrameStats = touchFrameStats;
+function sampleTouchFrame(now, drawMs) {
+  touchFrameStats.frames += 1; touchFrameStats.drawMsTotal += drawMs; touchFrameStats.drawMsMax = Math.max(touchFrameStats.drawMsMax, drawMs);
+  const interval = lastTouchFrameAt ? now - lastTouchFrameAt : 0;
+  lastTouchFrameAt = now;
+  if (!interval || interval > 500) return; // first frame, or back from the background
+  touchFrameIntervals.push(interval);
+  if (touchFrameIntervals.length < ADAPTIVE_SAMPLE_FRAMES) return;
+  const avg = touchFrameIntervals.reduce((sum, value) => sum + value, 0) / touchFrameIntervals.length;
+  touchFrameIntervals.length = 0;
+  const budget = 1000 / (FRAME_CAP_FPS || 60);
+  if (avg > budget * 1.15) {
+    touchGoodMs = 0;
+    if (touchResolutionStep < TOUCH_RESOLUTION_STEPS.length - 1) { touchResolutionStep += 1; resizeArenaRaster(); }
+    else if (!touchForcedLowEffects) { touchForcedLowEffects = true; applyEffectsQuality(); }
+  } else if (avg < budget * 1.05 && (touchResolutionStep > 0 || touchForcedLowEffects)) {
+    touchGoodMs += ADAPTIVE_SAMPLE_FRAMES * avg;
+    if (touchGoodMs >= ADAPTIVE_RESTORE_MS * 2) {
+      touchGoodMs = 0;
+      if (touchForcedLowEffects) { touchForcedLowEffects = false; applyEffectsQuality(); }
+      else { touchResolutionStep -= 1; resizeArenaRaster(); }
+    }
+  }
 }
 
 // Adaptive quality (STEP 2H). When the average draw time over the last
@@ -5073,7 +5115,9 @@ function drawScene(timestamp) {
   context.setLineDash([]);
   if (touchMode) {
     updateTouchCamera(dt);
+    const controlsStartedAt = touchDebug ? performance.now() : 0;
     tickTouchControls(currentTime);
+    if (touchDebug) touchFrameStats.controlsMs += performance.now() - controlsStartedAt;
     const view = viewSize();
     context.fillStyle = '#2F5E3E';
     context.fillRect(0, 0, view.w, view.h);
@@ -5922,7 +5966,11 @@ function drawScene(timestamp) {
     context.drawImage(g.canvas, dtObj.x - g.w / 2, dtObj.y - g.h / 2, g.w, g.h);
   }
   drawSamuraiWorldEffects(currentTime);
-  if (touchMode) drawTouchAim(currentTime);
+  if (touchMode) {
+    const aimStartedAt = touchDebug ? performance.now() : 0;
+    drawTouchAim(currentTime);
+    if (touchDebug) touchFrameStats.controlsMs += performance.now() - aimStartedAt;
+  }
   context.globalAlpha = 1;
   context.restore();
   context.setTransform(1, 0, 0, 1, 0, 0);
@@ -5998,7 +6046,7 @@ function localPlayer() { return state.players?.find((candidate) => candidate.id 
 function haptic() { if (hapticsOn) navigator.vibrate?.(MOBILE_HAPTIC_MS); }
 const clampToArena = (point) => ({ x: Math.max(0, Math.min(ARENA_WIDTH, point.x)), y: Math.max(0, Math.min(ARENA_HEIGHT, point.y)) });
 function abilityAimSpec(player, slot) {
-  const mech = player?.heroId === 'pilot' && Boolean(player?.mechActive);
+  const mech = player?.heroId === 'pilot' && Boolean(player?.mech);
   return (mech && ABILITY_AIM_MECH.pilot?.[slot]) || ABILITY_AIM[player?.heroId]?.[slot] || { type: 'dir', range: 400 };
 }
 // Tap = auto-aim: nearest enemy (or lobby dummy) in range, else the last aim,

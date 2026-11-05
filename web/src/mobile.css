@@ -38,7 +38,9 @@ body { overflow-wrap: break-word; }
 }
 
 @media (max-width: 768px) {
-  #app :where(p, li, dd, dt, td, th, h1, h2, h3, h4, label, figcaption, blockquote) { overflow-wrap: anywhere; }
+  /* student pages only, and never table cells: "anywhere" also lets a table
+     column shrink to one letter, which would hurt the professor's tables */
+  #app :where(main.main-student, .s-drawer) :where(p, li, dd, dt, h1, h2, h3, h4, label, figcaption, blockquote) { overflow-wrap: anywhere; }
   /* formulas and code blocks scroll inside themselves */
   #app :where(pre, .katex-display, .math-block, table.md-table) { max-width: 100%; overflow-x: auto; -webkit-overflow-scrolling: touch; }
 }
