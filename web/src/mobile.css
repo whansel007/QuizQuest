@@ -49,7 +49,11 @@ body { overflow-wrap: break-word; }
   #app :where(input:not([type]), input[type="text"], input[type="email"], input[type="password"], input[type="number"], input[type="search"], input[type="date"], input[type="tel"], input[type="url"], select) { min-height: 44px; }
   #app :where(input[type="checkbox"], input[type="radio"]) { min-width: 22px; min-height: 22px; }
   /* a checkbox's label is its tap target */
-  #app :where(label:has(> input[type="checkbox"], > input[type="radio"])) { display: inline-flex; align-items: center; gap: .45em; min-height: 44px; }
+  #app :where(label:has(> input[type="checkbox"], > input[type="radio"]):not(main.main-student label)) { display: inline-flex; align-items: center; gap: .45em; min-height: 44px; }
+  /* student pages (F8/F11): specificity (0,1,2), above a bare `label {}` rule
+     but below any component class, so a component that lays out its own
+     checkbox label (the quiz topic chips) keeps its layout on touch too */
+  :where(#app main.main-student) label:has(> input[type="checkbox"], > input[type="radio"]) { display: inline-flex; align-items: center; gap: .45em; min-height: 44px; }
   #app :where(input[type="file"]) { min-height: 44px; }
   /* rules elsewhere pin these at 40-42 px; on touch they get the full 44 */
   .teacher-app nav#tabs.t-nav button { min-height: 44px; }

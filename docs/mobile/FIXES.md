@@ -356,3 +356,58 @@ and 1180x820, and sweeping 700 to 1100 px in 8 px steps, it checks:
 On the old code the sweep fails at 988 px.
 
 **Screenshots:** `F7-before.png` and `F7-after.png` (988x1000).
+
+---
+
+## F8: quiz topic chips are one size, with counts as "N Q(s)"
+
+**Status before:** partly fixed. On `main`, a teammate's commit `71f9383` had already given
+every chip the same 56 px height in a fixed two-column grid, with the name and "N questions"
+truncated on two lines. Three things were still missing:
+- the auto-fill grid, the 64 px config constant and the "N Q(s)" count at the right;
+- a 2-line clamp for long names (they were cut to one line);
+- **on touch devices, the chip grid was not applied at all.** The checkbox and texts were
+  laid out by a generic flex rule, so the count ran on right after the name instead of
+  sitting in its right-aligned column.
+
+**Root cause:**
+- The words "N questions" on a second line (`web/src/student/PracticeView.vue:187`, before
+  the fix) made chips wrap and stretch before the teammate's fix. They still truncated the
+  name to one line.
+- On touch, `web/src/mobile.css:52` (before this fix):
+  `#app :where(label:has(> input[type="checkbox"])) { display: inline-flex }`. The `#app`
+  sits outside `:where()`, so this "zero-specificity" default carries ID specificity
+  (1,0,0) and beats every component's own label layout, including `.practice-topic`.
+
+**Fix:**
+- `TOPIC_CHIP_HEIGHT_PX = 64` in `web/src/mobile-config.js`, applied as `--topic-chip-h`.
+- The list is `grid-template-columns: repeat(auto-fill, minmax(min(100%, 220px), 1fr))`.
+- Each chip is a grid: `22px | minmax(0, 1fr) | minmax(56px, auto)`, made up of:
+  - a 22 px checkbox;
+  - the name, clamped to 2 lines with an ellipsis;
+  - the count "N Q(s)" (nowrap, right-aligned, tabular figures) at every width.
+- The chip has `title` = the full topic name for desktop hover. Screen readers get the full
+  "N questions" from visually hidden text, and the abbreviation is `aria-hidden`.
+  - **Assumption:** an `aria-label` on a plain `<span>` is not announced by screen
+    readers (ARIA does not allow naming generic elements), so hidden text carries the
+    brief's "N questions" label instead.
+- Topics with no questions show "0 Q(s)" (spoken as "No questions yet").
+- The selected state still changes only colours. The border stays 2 px, and the "empty"
+  dashed border is the same width.
+- **mobile.css:** on student pages the checkbox-label default now has specificity (0,1,2).
+  That is above a bare `label {}` rule and below any component class. The professor pages
+  keep the old rule untouched.
+
+**Test:** `tests/mobile/quiz-topics.spec.mjs`:
+- **Sweep:** 320 to 1440 px in 8 px steps, with touch and with a mouse. At every width it
+  checks:
+  - all chips are the same width (within 0.5 px of sub-pixel grid rounding);
+  - all are exactly 64 px tall;
+  - nothing overflows a chip;
+  - the count reads `N Q(s)`, is uncut and sits at the right edge.
+- **Toggle check:** at 360x740, 768x1024 and 1280x800, clearing and re-choosing a topic
+  leaves every chip's size unchanged.
+- **Accessibility:** the `title` and the spoken "N questions" are present.
+- All passed 3 times in a row.
+
+**Screenshots:** `F8-before.png` and `F8-after.png` (topic list at 375 px, touch).

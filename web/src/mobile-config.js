@@ -83,3 +83,7 @@ export const SCENE_CAMPFIRE_MIN_PX = 110;
 export const SCENE_SIDE_GAP_PX = 16;
 // where the logs meet the ground in the campfire drawing (viewBox 220 x 220)
 export const CAMPFIRE_BASE_RATIO = 193 / 220;
+
+// Quiz topic chips (docs/mobile/FIXES.md, F8): one fixed height for every
+// chip, so a long topic name or count can never stretch one of them.
+export const TOPIC_CHIP_HEIGHT_PX = 64;
