@@ -1,7 +1,9 @@
 // F6 (docs/mobile/FIXES.md): on the Campfire Run entry page the campfire is
 // centred in the clearing S, the hero stands on the same baseline, fully
 // inside S and clear of the hero selector, and choosing another hero never
-// moves the campfire.
+// moves the campfire. When S is narrower than 480 px (phones in portrait,
+// e.g. an iPhone 6 at 375 x 667) the campfire is hidden and the hero stands
+// alone, centred, so the two never overlap.
 //
 // Run: npm run test:mobile -- campfire-scene
 import { test, expect } from '@playwright/test';
@@ -28,7 +30,9 @@ function measureScene() {
     if (r.bottom > scene.top && r.top < scene.bottom && r.bottom < selector.top) top = Math.max(top, r.bottom + 12);
   }
   const S = { left: scene.left, right: scene.right, top, bottom: Math.min(scene.bottom, selector.top - 12) };
-  const fire = rect(document.querySelector('[data-testid="scene-campfire"] .campfire-art'));
+  const fireEl = document.querySelector('[data-testid="scene-campfire"]');
+  const fireShown = getComputedStyle(fireEl).display !== 'none';
+  const fire = rect(fireEl.querySelector('.campfire-art'));
   // the hero's visible extent: the opaque pixels of its sprite canvas
   const canvas = document.querySelector('.hero-preview-art canvas.hero-icon');
   const c = rect(canvas);
@@ -41,10 +45,10 @@ function measureScene() {
   }
   const sx = c.width / canvas.width, sy = c.height / canvas.height;
   const hero = { left: c.left + minX * sx, right: c.left + (maxX + 1) * sx, top: c.top + minY * sy, bottom: c.top + (maxY + 1) * sy };
-  return { S, selectorTop: selector.top, fire: { left: fire.left, right: fire.right, top: fire.top, bottom: fire.bottom, width: fire.width, height: fire.height }, hero, vw: document.documentElement.clientWidth };
+  return { S, fireShown, selectorTop: selector.top, fire: { left: fire.left, right: fire.right, top: fire.top, bottom: fire.bottom, width: fire.width, height: fire.height }, hero, vw: document.documentElement.clientWidth };
 }
 
-for (const [w, h] of [[360, 640], [412, 915], [960, 1440], [768, 1024], [667, 375], [1024, 768], [1280, 800], [1440, 900]]) {
+for (const [w, h] of [[375, 667], [360, 640], [412, 915], [960, 1440], [768, 1024], [667, 375], [1024, 768], [1280, 800], [1440, 900]]) {
   test(`F6: campfire centred, hero on its baseline and inside the clearing @ ${w}x${h}`, async ({ browser }) => {
     const { context, page } = await newStudentPage(browser, w, h);
     await openCampfireRun(page);
@@ -57,6 +61,18 @@ for (const [w, h] of [[360, 640], [412, 915], [960, 1440], [768, 1024], [667, 37
     const m = await page.evaluate(measureScene);
     const sw = m.S.right - m.S.left;
     const sCentre = (m.S.left + m.S.right) / 2;
+    // phones: the campfire is hidden and the hero stands alone, centred, on the ground line
+    if (sw < 480) {
+      expect(m.fireShown, 'campfire hidden on a narrow clearing').toBe(false);
+      expect(Math.abs((m.hero.left + m.hero.right) / 2 - sCentre), 'hero centred').toBeLessThanOrEqual(sw * 0.06);
+      expect(Math.abs(m.hero.bottom - m.S.bottom), `hero feet ${m.hero.bottom} vs ground ${m.S.bottom}`).toBeLessThanOrEqual(4);
+      expect(m.hero.top, 'hero top inside S').toBeGreaterThanOrEqual(m.S.top - 0.5);
+      expect(m.hero.left).toBeGreaterThanOrEqual(0);
+      expect(m.hero.right).toBeLessThanOrEqual(m.vw + 0.5);
+      await context.close();
+      return;
+    }
+    expect(m.fireShown, 'campfire shown').toBe(true);
     const fireCentre = (m.fire.left + m.fire.right) / 2;
     expect(Math.abs(fireCentre - sCentre), `campfire centre ${fireCentre} vs S centre ${sCentre}`).toBeLessThanOrEqual(sw * 0.02);
     const fireBase = m.fire.top + m.fire.height * BASE;
@@ -70,9 +86,8 @@ for (const [w, h] of [[360, 640], [412, 915], [960, 1440], [768, 1024], [667, 37
     expect(m.fire.top, 'campfire inside S').toBeGreaterThanOrEqual(m.S.top - 0.5);
     expect(m.selectorTop - fireBase, 'campfire clear of the selector').toBeGreaterThanOrEqual(GAP - 0.5);
     for (const b of [m.fire, m.hero]) { expect(b.left).toBeGreaterThanOrEqual(0); expect(b.right).toBeLessThanOrEqual(m.vw + 0.5); }
-    // side by side when S is wide enough, otherwise the hero in front, centred
+    // side by side when S is wide enough
     if (sw >= 480 + 24) expect(m.hero.left, 'hero beside the campfire').toBeGreaterThanOrEqual(m.fire.right - m.fire.width * 0.25);
-    if (sw < 480) expect(Math.abs((m.hero.left + m.hero.right) / 2 - sCentre), 'hero centred in front').toBeLessThanOrEqual(sw * 0.06);
 
     // choosing another owned hero never moves the campfire
     const chips = page.locator('.hero-chip:not(.locked)');

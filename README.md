@@ -96,6 +96,8 @@ Set `SUPABASE_URL` and `SUPABASE_SECRET_KEY` in `.env`, then run `pnpm dev`. On 
 | `pnpm test:browser` | Build and run browser-level tests |
 | `pnpm test:e2e` | Run Playwright end-to-end journeys on Chromium, Firefox, and WebKit |
 | `pnpm test:e2e:retry` | Run each end-to-end journey twice, to catch flaky tests |
+| `pnpm test:mobile` | Run the mobile harness and the touch smoke test (see Mobile support and testing) |
+| `pnpm test:mobile:unit` | Run the touch-control unit tests |
 | `pnpm test:prof-responsive` | Build and run the professor-workspace responsive tests (375-1200 px) |
 | `pnpm audit:prof-responsive` | Build and run the professor responsive audit (report and screenshots, see below) |
 | `pnpm jitter:prof-responsive` | Build and run the professor resize-jitter sweeps |
@@ -124,6 +126,53 @@ The Playwright install line is only needed the first time.
 Playwright browser engines may need installing with `pnpm exec playwright install chromium firefox webkit`. Browser and end-to-end test servers use isolated temporary JSON stores; they do not use your configured Supabase project or `data/db.json`. The GitHub Actions workflow runs syntax, Node, Vitest, browser, and three-engine end-to-end jobs. The tests use synthetic fixtures and do not require live Gemini or Supabase credentials.
 
 End-to-end cases cover login and signup, practice, question authoring/review, class enrollment, reporting, Kingdom building, and Campfire Run play (see `e2e/`). To run one journey, use `pnpm exec playwright test e2e/login.spec.js`. Add new journeys in `e2e/<feature>.spec.js`; shared login and navigation helpers are in `e2e/helpers.js`.
+
+## Mobile support and testing
+
+QuizQuest works from an iPhone 6/SE-sized phone (375 x 667) up to wide desktops (1200 px and above), in portrait and landscape, with touch or with a mouse and keyboard. Campfire Run (the in-run game) plays in landscape on phones with on-screen touch controls. The full write-up, per-page changes and design decisions are in [`docs/mobile/NOTES.md`](docs/mobile/NOTES.md).
+
+**Supported viewports** (all checked automatically): 360 x 740, 375 x 667, 390 x 844, 412 x 915, 667 x 375 and 740 x 360 (landscape phones), 768 x 1024, 820 x 1180, 1024 x 768 (tablets), 1200 x 800 and 1440 x 900 (desktop).
+
+### Testing in Chrome DevTools
+
+1. Open the app, press **F12**, then click the device toolbar icon (or **Ctrl+Shift+M**).
+2. Choose a phone (for example *iPhone SE*), reload, and sign in. The student menu collapses into the ☰ button and drawer.
+3. Click the **rotate** icon in the device toolbar to switch to landscape. Campfire Run asks you to rotate in portrait.
+4. On a normal desktop window, add **`?touch=1`** to the game URL to force the touch controls with a mouse (for example `http://localhost:3000/hero-lab/world.html?heroId=sheriff&touch=1`). Add `&touchdebug=1` to see the active pointers and gesture state. In the game, Settings → Touch controls (Auto / On / Off) changes the default.
+
+### Testing on a real phone
+
+1. Build and start the server: `pnpm build` then `pnpm start`. The Node server listens on every network interface, port 3000 (or `PORT`).
+2. Put the phone on the **same Wi-Fi** as the computer and open `http://<computer-IP>:3000` (find the IP with `ipconfig` on Windows or `ipconfig getifaddr en0` on macOS). Allow Node through the computer's firewall if asked.
+3. The clipboard API only works over HTTPS or on localhost, so on a phone over plain HTTP the room code's copy button uses its fallback (a hidden text field and the browser's copy command).
+4. [`docs/mobile/PHONE-CHECKLIST.md`](docs/mobile/PHONE-CHECKLIST.md) is a 25-step, 10-minute pass through everything.
+
+### Mobile tests
+
+| Command | What it runs |
+|---|---|
+| `pnpm test:mobile:unit` | `tests/mobile/touch-logic.unit.test.mjs` (Node, no browser): the pure touch logic - stick vector to 8-way movement and the dead zone, tap versus hold at 180 ms / 12 px, drag to aim for direction and point abilities with range limits, auto-aim target choice and fallbacks, the cancel zone, the Bombardier targeting state machine (tap then arena tap, hold-drag-release, cancel, timeout), pinch zoom clamping, camera clamping at the arena edges, and the screen-to-world round trip. |
+| `pnpm test:mobile -- responsive` | `tests/mobile/responsive.spec.mjs` (Playwright, Chromium): every page and dialog state at every viewport above. It fails on any horizontal scroll, anything poking past the viewport, or text/controls cut off by a clipping parent; it saves a screenshot per page per viewport to `docs/mobile/screenshots/` and lists tap targets under 44 x 44 px in `docs/mobile/HARNESS-REPORT.md`. `MOBILE_VIEWPORT=375x667` runs one size; `MOBILE_SMALL=1` adds 320 x 568. |
+| `pnpm test:mobile -- touch-smoke` | `tests/mobile/touch-smoke.e2e.mjs` (Playwright, Chromium): the arena sandbox as a 667 x 375 phone with real multi-touch through the Chrome DevTools Protocol. Dragging the stick moves the hero; tapping E sends the skill; hold-drag-release on M1 fires in the dragged direction; releasing in the cancel zone sends nothing; Bombardier tap Q then tap the arena confirms, and Cancel backs out; a two-finger pinch zooms and casts nothing; portrait shows the rotate prompt; the stats panel is hidden and opens from the menu. |
+| `pnpm test:mobile` | Both Playwright files. Each run starts its own server (port 4180) with fresh demo data. |
+
+Install the Chromium engine once with `pnpm exec playwright install chromium`.
+
+### Mobile controls (Campfire Run)
+
+On mobile:
+
+- **Move:** drag the left virtual stick.
+- **Attack or use an ability:** tap its on-screen button to activate. To aim, hold the button, drag toward the target, then release.
+- **Bombardier ultimate:** hold Ultimate, drag to choose a target, then release or tap the arena to confirm. Use the on-screen Cancel button to back out.
+- **Emote:** tap the 👋 button and choose an emote.
+- **Zoom:** pinch the arena.
+
+A tap aims automatically at the nearest enemy in range. Dragging back onto the button before letting go cancels without spending the cooldown. The ☰ menu (top right) holds Settings, Information, Fullscreen and Leave room.
+
+### Responsive design
+
+Every page uses fluid layouts (CSS grid and flex with `minmax(0, 1fr)`), `clamp()` for type and spacing, and a few breakpoints that follow Bootstrap's (576, 768, 992, 1200 px), plus touch-specific rules under `(pointer: coarse)` and orientation queries for short landscape screens. The page itself (`html`/`body`) never hides overflow: the harness measures every page at every size and fails on any horizontal scroll or clipped content, so each overflow was fixed at its cause (fixed widths, a scaled sprite box, a ten-chip row). Wide tables scroll inside their own box with a shadow hint or turn into stacked cards on phones; long selector rows scroll sideways with scroll-snap. Navigation collapses into a drawer, dialogs become full-screen sheets with a fixed header on phones, and every touch target is at least 44 x 44 px with 16 px form fields, so iOS never zooms on focus. Heights use `dvh`/`svh` with a `visualViewport` fallback, and safe-area insets keep controls clear of notches. The game keeps its server rules untouched: touch input sends exactly the messages the keyboard and mouse send, and a follow camera, a compact HUD and on-screen controls make it playable on a phone.
 
 ## Professor workspace responsive design and testing
 

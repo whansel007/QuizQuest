@@ -73,7 +73,8 @@ export function abbreviateCount(value) {
 // clearing between the panels above it and the hero selector (less this gap);
 // the campfire stands centred in S on its ground line and the hero beside it
 // on the same baseline, at most this share of S's height (and this many px).
-// Below SCENE_FRONT_BELOW_PX of width the hero stands in front of the fire.
+// Below SCENE_FRONT_BELOW_PX of width (phones in portrait; the reference phone
+// is an iPhone 6, 375 x 667) the campfire is hidden and the hero stands alone.
 export const SCENE_SELECTOR_GAP_PX = 12;
 export const SCENE_HERO_MAX_HEIGHT_RATIO = 0.6;
 export const SCENE_HERO_MAX_PX = 520;
