@@ -46,3 +46,15 @@ Tick each box; note anything odd next to it.
 ## Summon
 
 - [ ] 25. **Summon x1 and x10, History**: open Summon. Pull once, then ten times: the 10-pull results show 2 per row in portrait and 5 per row in landscape. Open History: it fills the screen with a sticky header; switch tabs and close it.
+
+## Fixes from the phone test (docs/mobile/FIXES.md)
+
+- [ ] 26. **Close buttons on every overlay (F1)**: open Summon → History and Details, a building panel (Castle, Tower, Library…), the 1x summon reveal and the menu drawer. Each × (or Continue) is fully visible, nothing sits on top of it (the corner ☰ is hidden behind the overlay while it is open), and one tap closes it. Tapping outside the panel and pressing Esc (keyboard) close it too.
+- [ ] 27. **Resources panel (F3)**: on a phone or portrait tablet the Kingdom shows one 🪙 chip just left of ☰ (same height, same row) instead of the row of chips; nothing overlaps the "Your Kingdom" card. Tap it: a "Your resources" sheet slides up from the bottom (phones) or drops down under the chip (tablets and landscape), listing Coins, Wood, Crystal, Herb and the Castle level. It closes on ×, on a tap outside and on changing page.
+- [ ] 28. **Town walk to the north path (F2)**: in the Kingdom walk (tap or stick) up the path beside the BATTLES sign to the top of the town, then to each building door. The avatar never stops against something invisible.
+- [ ] 29. **Summon background (F4)**: on Summon, scroll to the bottom and pull past the end (overscroll). Everything round History / Details / Summon is the dark blue night sky, never green or white, in portrait and landscape.
+- [ ] 30. **Campfire Run entry (F5/F6)**: the "or" divider sits between JOIN A PARTY and READY TO PLAY? and crosses nothing. The campfire is in the middle of the clearing and the hero stands on the same ground line beside it (in front of it on a phone), never cut off by the hero list.
+- [ ] 31. **Quiz chips (F8)**: on the Quiz page every topic chip is the same size; the count reads "8 Q(s)" at the right; ticking a topic does not change any chip's size.
+- [ ] 32. **Hint bar (F9)**: in the Kingdom, the hint "Tap the ground to walk · tap a building to open" sits in the bottom row to the right of Emote and the sound button, not on its own bar. Tapping the hint walks the avatar there.
+- [ ] 33. **Aim line under the hero (F10)**: in a run, hold SKILL and drag to aim: the dashed line starts under your hero (the hero is drawn on top of it); the small end reticle stays visible above enemies.
+- [ ] 34. **Login on a tablet (F7)**: on an iPad-sized screen (portrait and landscape) the login card and the town picture sit side by side with a clear gap between them.

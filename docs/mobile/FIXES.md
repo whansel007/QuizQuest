@@ -507,7 +507,7 @@ sweep it also ran at 1024x768 and 1280x800. It lists:
 
 1. **Summon History: the NEW and Duplicate tags overlapped the next row's name** (phones,
    600 px and below).
-   - **Root cause:** `web/src/student/PetsView.vue:576` (before the fix). In the full-screen
+   - **Root cause:** `web/src/student/PetsView.vue:588` (before the fix). In the full-screen
      sheet (a flex column), the history list keeps `overflow: auto`. That makes its
      automatic minimum height 0, so the flex column shrank it. Its grid rows were squashed
      to 61 px, but a row with a tag needs about 93 px (the tag wraps to a second line), so
@@ -518,7 +518,7 @@ sweep it also ran at 1024x768 and 1280x800. It lists:
 2. **Campfire Run: "← Back to Kingdom" ran under the corner menu button** (phones, 360 to
    667 px).
    - **Root cause:** the button was stretched to the full grid width
-     (`HeroLabView.vue:458`, `.kingdom-return`), so its box ran under the fixed menu
+     (`HeroLabView.vue:541`, `.kingdom-return`), so its box ran under the fixed menu
      button.
    - **Fix:** `justify-self: start`, so it is only as wide as its text.
 3. **Kingdom and Campfire Run: the app's light grey (`#f6f5f1`) behind the scene.** Same
