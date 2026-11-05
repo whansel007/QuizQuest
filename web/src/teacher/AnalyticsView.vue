@@ -150,11 +150,22 @@ const navEl = ref(null);
 const toolbarEl = ref(null); // the sticky page toolbar (pickers + section bar)
 const barHeight = ref(0); // the sticky mobile top bar's height (0 beside the sidebar)
 const currentSection = ref('dash-overview');
-// beside the sidebar the whole toolbar sticks; on phones only the section bar does
-const stickyHeight = () => (toolbarEl.value && getComputedStyle(toolbarEl.value).display === 'contents'
-  ? navEl.value?.offsetHeight || 0
-  : toolbarEl.value?.offsetHeight || 0);
+// beside the sidebar the whole toolbar sticks; on phones only the section
+// bar does, and on short landscape screens neither (teacher-responsive.css)
+function stickyHeight() {
+  const bar = toolbarEl.value;
+  if (!bar) return 0;
+  const style = getComputedStyle(bar);
+  if (style.display !== 'contents') return style.position === 'sticky' ? bar.offsetHeight : 0;
+  const nav = navEl.value;
+  return nav && getComputedStyle(nav).position === 'sticky' ? nav.offsetHeight : 0;
+}
 const topOffset = () => barHeight.value + stickyHeight();
+// the sticky toolbar's share of the scroll padding (see App.vue's --t-topbar-h)
+function setStickyExtra() {
+  const h = stickyHeight() + 'px';
+  if (document.documentElement.style.getPropertyValue('--t-sticky-extra') !== h) document.documentElement.style.setProperty('--t-sticky-extra', h);
+}
 let spyFrame = 0;
 function spy() {
   cancelAnimationFrame(spyFrame);
@@ -170,6 +181,7 @@ function spy() {
     // scrolled to the bottom: a short last section can't reach the top
     if (window.innerHeight + window.scrollY >= document.documentElement.scrollHeight - 2) current = sections.value.at(-1)[0];
     currentSection.value = current;
+    setStickyExtra();
     // on a phone the bar scrolls sideways: keep the current button in view
     const btn = navEl.value?.querySelector(`[data-section="${current}"]`);
     if (btn && navEl.value.scrollWidth > navEl.value.clientWidth) navEl.value.scrollTo({ left: btn.offsetLeft - 16 });
@@ -186,10 +198,12 @@ onMounted(() => {
   }
   window.addEventListener('scroll', spy, { passive: true });
   window.addEventListener('resize', spy);
+  spy();
 });
 onUnmounted(() => {
   headerRo?.disconnect();
   cancelAnimationFrame(spyFrame);
+  document.documentElement.style.removeProperty('--t-sticky-extra');
   window.removeEventListener('scroll', spy);
   window.removeEventListener('resize', spy);
 });
@@ -380,6 +394,7 @@ watch(navEl, (nav) => {
   navRo = new ResizeObserver(fitNav);
   navRo.observe(nav);
   fitNav();
+  spy(); // the toolbar is on screen now: measure its sticky height
 });
 watch(() => sections.value.map(([id]) => id).join(), () => nextTick(fitNav));
 onMounted(() => document.fonts?.ready.then(fitNav)); // web fonts change the label widths

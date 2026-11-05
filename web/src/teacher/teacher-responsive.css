@@ -1,0 +1,72 @@
+/* ============================================================
+   Professor workspace: responsive fixes (375 px to 1200 px).
+   See docs/mobile/PROF-NOTES.md. Every rule is scoped to the
+   professor shell (.teacher-app, or the document while it holds
+   one), so student pages are untouched. Loaded after app.css
+   (web/src/main.js), so equal-specificity rules here win.
+   Breakpoints follow Bootstrap 5: sm 576, md 768, lg 992, xl 1200.
+   Layout, sizing, overflow, stacking, sticky and touch only: no
+   colour, font or branding changes.
+   ============================================================ */
+
+/* ---------- shell: sticky bars never hide a focused or scrolled-to element ----------
+   App.vue measures the sticky top bar into --t-topbar-h (0 beside the
+   sidebar) and Analytics adds its sticky section bar as --t-sticky-extra,
+   so the browser leaves that much room when it scrolls focus, anchors or
+   scrollIntoView() into view. */
+html:has(.teacher-app) {
+  scroll-padding-top: calc(var(--t-topbar-h, 0px) + var(--t-sticky-extra, 0px) + 8px);
+}
+
+/* ---------- Analytics ---------- */
+/* chart legends: a long topic name wraps instead of widening the page */
+.teacher-app .viz-legend li { min-width: 0; max-width: 100%; white-space: normal; overflow-wrap: anywhere; }
+
+/* Tables in a scroll region keep whole words in their headers and cells
+   (.panel's inherited overflow-wrap: anywhere broke "SOURCE" into
+   "SOURC/E"); the region scrolls instead. */
+.teacher-app .table-wrap > table :is(th, td) { overflow-wrap: normal; }
+
+/* Phones: the pinned first column of a wide grid (Compare classes, the
+   trend and heatmap tables, Evaluation) takes at most ~40% of the screen,
+   so the numbers beside it stay in view; long names wrap inside it. */
+@media (max-width: 767.98px) {
+  .teacher-app .table-wrap > table.sticky-first > * > tr > :first-child {
+    /* both, because a wide table squeezes a column down to its minimum */
+    width: min(38vw, 170px);
+    min-width: min(38vw, 170px);
+    white-space: normal;
+    overflow-wrap: anywhere;
+  }
+}
+
+/* Phones: stacked-card tables wrap long names (an unbroken string included) */
+@media (max-width: 575.98px) {
+  .teacher-app .table-wrap > .dash-table.stack > tbody > tr > td,
+  .teacher-app .table-wrap > .dash-table.stack .linklike { overflow-wrap: anywhere; }
+}
+
+/* Short landscape screens (phones on their side): the top bar alone stays
+   sticky, so the bars never take more than ~30% of the height; the section
+   bar scrolls with the page (AnalyticsView reads its position). */
+@media (max-width: 991.98px) and (max-height: 480px) {
+  .teacher-app .dash-toolbar .dash-nav { position: static; }
+  .teacher-app header#top.t-topbar { padding-top: max(4px, env(safe-area-inset-top)); padding-bottom: 4px; }
+}
+
+/* ---------- touch targets below md (768 px) ---------- */
+@media (max-width: 767.98px) {
+  /* icon buttons in the drawer and the account menu */
+  .teacher-app .t-sidebar .t-icon-btn { width: 44px; height: 44px; }
+  .teacher-app .account-logout { min-width: 44px; min-height: 44px; }
+  /* a checkbox or radio is hit through its label: the label is the target */
+  .teacher-app label:has(> input[type="checkbox"]),
+  .teacher-app label:has(> input[type="radio"]) { display: inline-flex; align-items: center; gap: 8px; min-height: 44px; }
+  /* disclosure summaries */
+  .teacher-app summary { display: list-item; min-height: 44px; padding-block: 11px; line-height: 22px; }
+  /* tile info buttons and the by-topic expand buttons */
+  .teacher-app .tile .info-btn { min-width: 44px; min-height: 44px; }
+  .teacher-app .by-topic-table .topic-row .btn.small { width: 44px; height: 44px; }
+  /* pagination: numbered page buttons */
+  .teacher-app .pager .btn { min-width: 44px; }
+}

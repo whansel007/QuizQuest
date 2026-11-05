@@ -130,9 +130,31 @@ function onShellKey(event) {
   if (event.key === 'Escape' && drawerOpen.value) closeDrawer();
 }
 document.addEventListener('keydown', onShellKey);
+// The sticky top bar's height (0 beside the sidebar, where it is hidden),
+// for scroll-padding-top in teacher/teacher-responsive.css: focus, anchors
+// and scrollIntoView() then stop below the bar instead of under it.
+// Writing a custom property on <html> changes no layout, so this observer
+// cannot feed itself.
+const topbarEl = ref(null);
+let topbarRo = null;
+function setTopbarHeight() {
+  const h = (topbarEl.value?.offsetHeight || 0) + 'px';
+  if (document.documentElement.style.getPropertyValue('--t-topbar-h') !== h) document.documentElement.style.setProperty('--t-topbar-h', h);
+}
+watch(topbarEl, (el) => {
+  topbarRo?.disconnect();
+  topbarRo = null;
+  if (!el) return document.documentElement.style.removeProperty('--t-topbar-h');
+  setTopbarHeight();
+  if (typeof ResizeObserver !== 'undefined') {
+    topbarRo = new ResizeObserver(setTopbarHeight);
+    topbarRo.observe(el);
+  }
+});
 
 onUnmounted(() => {
   document.removeEventListener('keydown', onShellKey);
+  topbarRo?.disconnect();
   document.removeEventListener('pointermove', onDocumentPointerMove);
   document.removeEventListener('pointerdown', onDocumentPointerDown);
   clearStudentNavTimer();
@@ -144,7 +166,7 @@ onUnmounted(() => {
   <LoginView v-if="ready && !S.me" :key="'login' + S.viewKey" />
   <!-- teachers: a calm workspace with a collapsible sidebar and full-width pages -->
   <div v-else-if="ready && teacherActive" class="teacher-app" :class="{ 'nav-collapsed': navCollapsed, 'drawer-open': drawerOpen }">
-    <header id="top" class="t-topbar">
+    <header id="top" ref="topbarEl" class="t-topbar">
       <button ref="drawerToggle" class="t-icon-btn" type="button" aria-controls="t-sidebar" :aria-expanded="drawerOpen" aria-label="Open navigation" @click="drawerOpen = true">
         <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M4 12h16M4 17h16" /></svg>
       </button>

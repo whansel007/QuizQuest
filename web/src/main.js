@@ -14,5 +14,8 @@ import '@fontsource/nunito/latin-700.css';
 // component defaults, which would change QuizQuest's established visual design.
 import 'bootstrap/dist/css/bootstrap-utilities.css';
 import './app.css';
+// professor workspace responsive rules (all under .teacher-app); after
+// app.css so they win ties with the shell rules they refine
+import './teacher/teacher-responsive.css';
 
 createApp(App).mount('#app');

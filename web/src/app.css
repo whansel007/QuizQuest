@@ -3183,7 +3183,7 @@ button.attention-card:hover .attention-go, button.attention-card:focus-visible .
 
 /* ---------- professor workspace: phone and small tablet layouts ---------- */
 @media (max-width: 767.98px) {
-  .teacher-app { min-height: 100vh; min-height: 100dvh; overflow-x: clip; }
+  .teacher-app { min-height: 100vh; min-height: 100dvh; }
   .teacher-app header#top.t-topbar {
     padding: max(6px, env(safe-area-inset-top)) max(12px, env(safe-area-inset-right)) 6px max(12px, env(safe-area-inset-left));
   }
@@ -3198,7 +3198,6 @@ button.attention-card:hover .attention-go, button.attention-card:focus-visible .
   .teacher-app main#main.main-teacher {
     min-width: 0;
     padding: 16px max(12px, env(safe-area-inset-right)) calc(30px + env(safe-area-inset-bottom)) max(12px, env(safe-area-inset-left));
-    overflow-x: clip;
   }
   .teacher-app main#main.main-teacher > * { min-width: 0; max-width: 100%; }
   .teacher-app h2 { font-size: clamp(21px, 5.5vw, 26px); }
