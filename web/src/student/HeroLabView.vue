@@ -4,16 +4,21 @@
 //
 // Layout: the pre-lobby World page is a forest clearing with camp controls,
 // a highlighted hero beside an animated campfire, and the roster below.
-import { computed, nextTick, onMounted, onUnmounted, ref } from 'vue';
+import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue';
 import BuildingIcon from './BuildingIcon.vue';
 import HeroIcon from './HeroIcon.vue';
 import { loadHome } from './home.js';
-import { api } from '../api.js';
+import { api, S } from '../api.js';
 import { wipeTo } from '../transitions.js';
+import { useRouteTheme } from '../route-theme.js';
 import { HERO_TYPE_ICON } from './hero-type.js';
 import TalentBadge from './TalentBadge.vue';
 import { GAME_CONFIG } from '../../../public/hero-lab/game-config.js';
 import { talentKeyLabel, talentKeyTooltip } from '../../../public/hero-lab/talent-badge.js';
+import {
+  CAMPFIRE_BASE_RATIO, SCENE_CAMPFIRE_MAX_PX, SCENE_CAMPFIRE_MIN_PX, SCENE_FRONT_BELOW_PX, SCENE_HERO_MAX_HEIGHT_RATIO,
+  SCENE_HERO_MAX_PX, SCENE_SELECTOR_GAP_PX, SCENE_SIDE_GAP_PX, belowWithHysteresis,
+} from '../mobile-config.js';
 import {
   BUILDING_BONUS_PER_LEVEL, BUILDING_LEVEL_CAP,
   HERO_PREVIEW_EMOJI_PX, HERO_PREVIEW_EMOJI_OFFSET_X_PX, HERO_PREVIEW_EMOJI_OFFSET_Y_PX,
@@ -189,7 +194,92 @@ onMounted(async () => {
   catch { kingdomLevels.value = {}; }
   applyInitialHero();
 });
-onUnmounted(() => window.removeEventListener('message', returnToSelection));
+// ---- F6 (docs/mobile/FIXES.md): compose the campfire scene from measured sizes ----
+// S is the clearing between the panels above the scene and the hero selector
+// (less SCENE_SELECTOR_GAP_PX). The campfire is centred in S on its ground
+// line; the hero stands on the same baseline beside it, or in front of it when
+// S is narrower than SCENE_FRONT_BELOW_PX. The hero never moves the campfire.
+// F11: the document behind the clearing is the forest's green
+useRouteTheme('qq-world-route');
+const sidesEl = ref(null);
+const sceneEl = ref(null);
+const selectorEl = ref(null);
+const scene = ref(null);
+let heroInFront = false;
+function heroAspect() {
+  const art = sceneEl.value?.querySelector('.hero-preview-art canvas.hero-icon');
+  return art && art.height ? art.width / art.height : 1;
+}
+function layoutScene() {
+  const box = sceneEl.value?.getBoundingClientRect();
+  const selector = selectorEl.value?.getBoundingClientRect();
+  if (!box || !selector || !box.width || !box.height) { scene.value = null; return; }
+  // the panels that share the scene's columns sit above it on wide screens
+  let top = box.top;
+  for (const panel of sidesEl.value?.querySelectorAll('.room-entry, .kingdom-preview, .hero-preview') || []) {
+    const r = panel.getBoundingClientRect();
+    if (r.bottom > box.top && r.top < box.bottom && r.bottom < selector.top) top = Math.max(top, r.bottom + SCENE_SELECTOR_GAP_PX);
+  }
+  const bottom = Math.min(box.bottom, selector.top - SCENE_SELECTOR_GAP_PX);
+  const sw = box.width;
+  const sh = Math.max(0, bottom - top);
+  const cx = sw / 2;
+  const ground = bottom - box.top; // scene-local y of the ground line
+  heroInFront = belowWithHysteresis(sw, SCENE_FRONT_BELOW_PX, heroInFront);
+  const fireW = Math.round(Math.max(SCENE_CAMPFIRE_MIN_PX, Math.min(SCENE_CAMPFIRE_MAX_PX, sw * 0.3, sh * SCENE_HERO_MAX_HEIGHT_RATIO / CAMPFIRE_BASE_RATIO)));
+  const aspect = heroAspect();
+  let heroH = Math.min(SCENE_HERO_MAX_PX, sh * SCENE_HERO_MAX_HEIGHT_RATIO);
+  if (!heroInFront) {
+    // beside the fire: keep the whole hero inside S's right edge
+    const room = sw - 8 - (cx + fireW / 2 + SCENE_SIDE_GAP_PX);
+    heroH = Math.min(heroH, room / aspect);
+  } else {
+    heroH = Math.min(heroH, (sw - 16) / aspect);
+  }
+  heroH = Math.max(0, Math.floor(heroH));
+  const heroW = Math.round(heroH * aspect);
+  const heroLeft = heroInFront ? cx - heroW / 2 : cx + fireW / 2 + SCENE_SIDE_GAP_PX;
+  scene.value = {
+    front: heroInFront,
+    style: {
+      '--s-top': `${top - box.top}px`,
+      '--s-height': `${sh}px`,
+      '--fire-w': `${fireW}px`,
+      '--fire-left': `${cx - fireW / 2}px`,
+      '--fire-top': `${ground - fireW * CAMPFIRE_BASE_RATIO}px`,
+      '--hero-w': `${heroW}px`,
+      '--hero-h': `${heroH}px`,
+      '--hero-left': `${heroLeft}px`,
+      '--hero-top': `${ground - heroH}px`,
+    },
+  };
+}
+// Only boxes outside the composition are observed (the scene box, the
+// selector, the panels): the absolutely placed art cannot resize them, so
+// there is no feedback loop.
+const sceneObserver = typeof ResizeObserver === 'function' ? new ResizeObserver(() => layoutScene()) : null;
+watch([sceneEl, selectorEl, sidesEl], () => {
+  sceneObserver?.disconnect();
+  for (const el of [sceneEl.value, selectorEl.value, ...(sidesEl.value?.querySelectorAll('.room-entry, .kingdom-preview, .hero-preview') || [])]) if (el) sceneObserver?.observe(el);
+  nextTick(layoutScene);
+});
+// a new hero only changes the hero's own width once its sprite has drawn
+let aspectFrames = 0;
+function settleHeroAspect() {
+  const before = heroAspect();
+  layoutScene();
+  if (aspectFrames-- > 0) requestAnimationFrame(() => { if (heroAspect() !== before || aspectFrames % 10 === 0) layoutScene(); settleHeroAspect(); });
+}
+watch(previewHero, () => { aspectFrames = 90; nextTick(settleHeroAspect); });
+window.addEventListener('resize', layoutScene);
+onUnmounted(() => { sceneObserver?.disconnect(); window.removeEventListener('resize', layoutScene); aspectFrames = 0; });
+
+// The app shell hides its own nav while the game is on screen.
+watch(inGame, (playing) => { S.gameActive = playing; }, { immediate: true });
+onUnmounted(() => {
+  window.removeEventListener('message', returnToSelection);
+  S.gameActive = false;
+});
 </script>
 
 <template>
@@ -204,19 +294,20 @@ onUnmounted(() => window.removeEventListener('message', returnToSelection));
       <p v-if="loadingRoster" class="muted">Loading your hero collection…</p>
       <div v-else-if="rosterError" class="note bad">{{ rosterError }}</div>
 
-      <div class="world-sides">
+      <div ref="sidesEl" class="world-sides">
         <section class="panel room-entry" aria-label="Room entry">
           <div class="room-join-block">
             <button class="kingdom-return" type="button" @click="wipeTo('kingdom')"><span aria-hidden="true">←</span> Back to Kingdom</button>
             <h1 class="room-title">Campfire Run</h1>
-            <p class="room-intro">Choose a hero and defend the campfire. Move with WASD; E is your skill and Q your ultimate.</p>
+            <p class="room-intro">Choose a hero and defend the campfire. <span class="hint-keys">Move with WASD; E is your skill and Q your ultimate.</span><span class="hint-touch-controls">Drag the left stick to move; tap an ability to cast it, or hold and drag to aim.</span></p>
             <span class="panel-kicker">JOIN A PARTY</span>
-            <div class="room-actions">
+            <div class="room-actions" data-testid="room-join-row">
               <label class="sr-only" for="room-code-input">Room code</label>
               <input
                 id="room-code-input"
                 v-model="roomCode"
                 class="room-code-input"
+                data-testid="room-code"
                 type="text"
                 inputmode="latin"
                 autocomplete="off"
@@ -227,12 +318,13 @@ onUnmounted(() => window.removeEventListener('message', returnToSelection));
                 @input="onCodeInput"
                 @keyup.enter="enterRoom('join')"
               >
-              <button class="btn" type="button" :disabled="!selectedHero || roomCode.length !== 4" @click="enterRoom('join')">JOIN</button>
+              <button class="btn" type="button" data-testid="room-join" :disabled="!selectedHero || roomCode.length !== 4" @click="enterRoom('join')">JOIN</button>
             </div>
           </div>
+          <div class="room-or" role="separator" aria-label="or" data-testid="room-separator"><span aria-hidden="true">or</span></div>
           <div class="room-host-block">
             <span class="panel-kicker">READY TO PLAY?</span>
-            <button class="btn primary" type="button" :disabled="!selectedHero" @click="enterRoom('create')">HOST LOBBY</button>
+            <button class="btn primary" type="button" data-testid="room-host" :disabled="!selectedHero" @click="enterRoom('create')">HOST LOBBY</button>
           </div>
           <p v-if="roomError" class="note bad" role="alert">{{ roomError }}</p>
         </section>
@@ -282,8 +374,8 @@ onUnmounted(() => window.removeEventListener('message', returnToSelection));
           </div>
         </section>
 
-        <section class="forest-scene" aria-label="A forest campfire with your selected hero">
-          <div class="campfire-spotlight">
+        <section ref="sceneEl" class="forest-scene" :class="{ composed: scene, 'hero-in-front': scene?.front }" :style="scene?.style" aria-label="A forest campfire with your selected hero" data-testid="campfire-scene">
+          <div class="campfire-spotlight" data-testid="scene-campfire">
             <div class="campfire-glow" aria-hidden="true"></div>
             <svg class="campfire-art" viewBox="0 0 220 220" role="img" aria-label="A small animated campfire">
               <ellipse cx="110" cy="193" rx="77" ry="14" fill="#122b24" opacity=".42"/>
@@ -301,7 +393,7 @@ onUnmounted(() => window.removeEventListener('message', returnToSelection));
               <g class="fire-sparks" fill="#ffe28a"><circle cx="72" cy="88" r="3"/><circle cx="151" cy="73" r="2.5"/><circle cx="131" cy="47" r="2"/></g>
             </svg>
           </div>
-          <div class="hero-spotlight">
+          <div class="hero-spotlight" data-testid="scene-hero">
             <div class="hero-halo" aria-hidden="true"></div>
             <div class="hero-preview-art"><HeroIcon v-if="previewHero" :hero="previewHero" :size="HERO_PREVIEW_EMOJI_PX * 3.2" :label="`${previewHero.name}, selected hero`" animated /></div>
           </div>
@@ -310,7 +402,7 @@ onUnmounted(() => window.removeEventListener('message', returnToSelection));
           <span class="forest-firefly firefly-three" aria-hidden="true"></span>
         </section>
 
-        <section class="hero-selector" aria-label="Choose your hero">
+        <section ref="selectorEl" class="hero-selector" aria-label="Choose your hero" data-testid="hero-selector">
           <div class="roster-heading"><strong>Choose an adventurer</strong></div>
           <div class="hero-roster-grid" :style="{ '--hero-cols': orderedHeroes.length }">
             <button
@@ -349,7 +441,8 @@ onUnmounted(() => window.removeEventListener('message', returnToSelection));
         class="hero-lab-frame"
         :src="gameUrl"
         title="Campfire Run"
-        allow="gamepad; clipboard-write"
+        allow="gamepad; clipboard-write; fullscreen"
+        allowfullscreen
         tabindex="0"
         @load="focusGame"
       />
@@ -397,7 +490,7 @@ onUnmounted(() => window.removeEventListener('message', returnToSelection));
   height: 100%;
   min-height: 0;
   grid-template-columns: minmax(0, 1fr) minmax(0, .915fr) minmax(0, 2.3fr);
-  grid-template-rows: 16.2% 14.9% minmax(0, 1fr) auto;
+  grid-template-rows: minmax(16.2%, auto) minmax(14.9%, auto) minmax(0, 1fr) auto;
   grid-template-areas: "room upgrades dossier" "room upgrades ." ". . ." "roster roster roster";
   column-gap: clamp(14px, 1.6vw, 22px);
   row-gap: 15px;
@@ -437,14 +530,19 @@ onUnmounted(() => window.removeEventListener('message', returnToSelection));
   box-shadow: 0 5px 0 rgb(35 56 47 / 72%), 0 10px 24px rgb(11 33 25 / 17%), inset 0 0 0 1px rgb(255 255 255 / 42%);
 }
 .panel-kicker { display: block; color: #778054; font-size: .6rem; font-weight: 900; }
-.room-entry { grid-area: room; grid-row: 1 / 3; display: grid; align-content: stretch; gap: 0; }
+.room-entry { grid-area: room; grid-row: 1 / 3; display: grid; align-content: center; gap: 0; }
 .room-entry, .kingdom-preview { background-image: linear-gradient(135deg, #fff8e4, #f1e6c7); }
 .room-entry, .hero-preview { align-self: stretch; height: 100%; max-height: 100%; overflow: hidden; padding: 10px 14px !important; }
+/* F5: the join/host card is never cut off; its rows grow to fit it instead */
+.room-entry { max-height: none; overflow: visible; }
 .kingdom-preview { grid-area: upgrades; grid-row: 1 / 3; height: 100%; max-height: 100%; overflow: hidden; padding-block: 10px !important; grid-template-rows: auto minmax(0, 1fr); }
-.room-join-block, .room-host-block { display: grid; align-content: center; gap: 5px; min-height: 0; }
-.room-join-block { padding-bottom: 10px; border-bottom: 2px dashed #a79773; }
-.room-host-block { padding-top: 10px; }
-.kingdom-return { align-self: flex-start; margin: 0 0 6px; padding: 2px 0; color: var(--camp-pine); background: none; border: 0; font: 800 .8rem Nunito, Trebuchet MS, sans-serif; text-decoration: underline; cursor: pointer; }
+.room-join-block, .room-host-block { display: grid; align-content: center; gap: 5px; }
+/* F5: an in-flow separator between joining and hosting (the old dashed
+   border-bottom sat under the input and JOIN once the block was squeezed) */
+.room-or { display: flex; align-items: center; gap: 10px; margin: 16px 0; color: #8a7d5c; font: 800 .66rem/1 Nunito, Trebuchet MS, sans-serif; letter-spacing: .08em; text-transform: uppercase; }
+.room-or::before, .room-or::after { content: ''; flex: 1 1 0; border-top: 2px dashed #a79773; }
+/* F11: as wide as its text, so on phones it stays clear of the corner menu button */
+.kingdom-return { align-self: flex-start; justify-self: start; margin: 0 0 6px; padding: 2px 0; color: var(--camp-pine); background: none; border: 0; font: 800 .8rem Nunito, Trebuchet MS, sans-serif; text-decoration: underline; cursor: pointer; }
 .kingdom-return:focus-visible { outline: 3px solid #8062a9; outline-offset: 2px; }
 .room-title { margin: 0; color: var(--camp-pine); font-family: Georgia, "Palatino Linotype", serif; font-size: clamp(19px, 1.55vw, 23px); font-weight: 700; letter-spacing: -.02em; line-height: 1; }
 .room-intro { margin: 0; color: #66745d; font-size: .68rem; line-height: 1.15; }
@@ -647,7 +745,7 @@ onUnmounted(() => window.removeEventListener('message', returnToSelection));
 }
 @media (max-height: 820px) and (min-width: 1101px) {
   .hero-lab-page { height: 100%; min-height: 0; overflow: hidden; }
-  .world-sides { height: 100%; min-height: 0; grid-template-rows: 16.2% 14.9% minmax(0, 1fr) auto; }
+  .world-sides { height: 100%; min-height: 0; grid-template-rows: minmax(16.2%, auto) minmax(14.9%, auto) minmax(0, 1fr) auto; }
   .hero-preview { padding: 8px 18px !important; }
   /* The Camp Buffs panel is only ~31% of a short viewport tall. Shrink the tile
      icon and effect line so neither the "Lv N/3" nor the effect text wraps or
@@ -698,8 +796,9 @@ onUnmounted(() => window.removeEventListener('message', returnToSelection));
 @media (max-width: 380px) {
   .hero-lab-page { --hero-art-size: 164px; }
   .world-sides .panel { padding: 12px; }
-  .room-actions { gap: 5px; }
-  .room-code-input { width: 4.8rem; }
+  /* F5: the code and JOIN stack as two full-width rows */
+  .room-actions { flex-direction: column; align-items: stretch; gap: 8px; }
+  .room-code-input { width: 100%; flex: none; }
   .hero-roster-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .forest-scene { min-height: 340px; }
   .hero-preview-art { width: 160px; }
@@ -710,6 +809,21 @@ onUnmounted(() => window.removeEventListener('message', returnToSelection));
 @media (max-width: 380px) {
   .hero-preview-art > .hero-icon { transform: translate(var(--preview-emoji-x, 0), var(--preview-emoji-y, 0)) scale(.32); }
 }
+/* Phones: size the preview art to its own box instead of scaling the 512 px
+   sprite with transform. A scaled box keeps its full layout size, so the
+   sprite slid under the roster panel (412 px) or off the right edge (375 px,
+   emoji fallback). Height-driven sizing keeps the sprite's aspect ratio. */
+/* Tablets: the ten heroes would squeeze into one row of ~70 px chips. The row
+   scrolls sideways instead, snapping chip by chip. */
+@media (min-width: 701px) and (max-width: 1100px) {
+  .hero-roster-grid { grid-template-columns: none; grid-auto-flow: column; grid-auto-columns: minmax(184px, 1fr); overflow-x: auto; overscroll-behavior-inline: contain; scroll-snap-type: x mandatory; scrollbar-width: thin; padding-bottom: 6px; }
+  .hero-chip { scroll-snap-align: start; }
+}
+@media (max-width: 1100px) {
+  .hero-preview-art { height: var(--hero-art-size); max-width: 100%; }
+  .hero-preview-art > canvas.hero-icon { width: auto !important; height: 100% !important; max-width: 100%; transform: translate(var(--preview-emoji-x, 0), var(--preview-emoji-y, 0)); }
+  .hero-preview-art > .hero-emoji { font-size: calc(var(--hero-art-size) * .7) !important; transform: translate(var(--preview-emoji-x, 0), var(--preview-emoji-y, 0)); }
+}
 @media (prefers-reduced-motion: reduce) {
   .hero-lab-page *, .hero-lab-page *::before, .hero-lab-page *::after {
     scroll-behavior: auto !important;
@@ -719,4 +833,21 @@ onUnmounted(() => window.removeEventListener('message', returnToSelection));
   }
 }
 .hero-lab-frame { position: fixed; z-index: 10; inset: 0; display: block; width: 100vw; height: 100vh; height: 100dvh; border: 0; border-radius: 0; background: #70a94f; }
+/* touch screens read the touch controls instead of the keyboard ones */
+.hint-touch-controls { display: none; }
+@media (pointer: coarse) { .hint-keys { display: none; } .hint-touch-controls { display: inline; } }
+/* ---- F6 (docs/mobile/FIXES.md): the composed scene ----
+   HeroLabView measures the clearing S and sets these variables; the campfire
+   and the hero are placed on one ground line inside it. Until the first
+   measurement the original grid layout shows. */
+.forest-scene.composed { display: block; }
+.forest-scene.composed .campfire-spotlight { position: absolute; top: var(--fire-top); left: var(--fire-left); display: block; width: var(--fire-w); height: var(--fire-w); padding: 0; }
+.forest-scene.composed .campfire-art { display: block; width: 100%; height: 100%; max-height: none; }
+.forest-scene.composed .campfire-glow { bottom: 0; width: calc(var(--fire-w) * 1.4); }
+.forest-scene.composed .hero-spotlight { position: absolute; top: var(--hero-top); left: var(--hero-left); display: block; width: var(--hero-w); height: var(--hero-h); margin: 0; padding: 0; }
+.forest-scene.composed.hero-in-front .hero-spotlight { z-index: 2; }
+.forest-scene.composed .hero-halo { top: auto; bottom: 0; width: calc(var(--hero-h) * 1.3); height: var(--hero-h); }
+.forest-scene.composed .hero-preview-art { position: absolute; inset: 0; display: flex; align-items: flex-end; justify-content: center; width: 100%; height: 100%; max-width: none; transform: none; }
+.forest-scene.composed .hero-preview-art > canvas.hero-icon { width: auto !important; height: 100% !important; max-width: none; transform: none; }
+.forest-scene.composed .hero-preview-art > .hero-emoji { font-size: calc(var(--hero-h) * .8) !important; line-height: 1; transform: none; }
 </style>

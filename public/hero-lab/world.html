@@ -68,15 +68,15 @@
     <strong>Defend the campfire!</strong>
     <div class="briefing-tip"><span aria-hidden="true">🟢</span><span>Stand in the green ring to heal.</span></div>
     <div class="briefing-tip"><span aria-hidden="true">🏃</span><span>Keep moving: +20% damage while you move.</span></div>
-    <div class="briefing-tip"><span aria-hidden="true">🎮</span><span class="desktop-input-help">Click fire | E skill | Q ultimate | WASD move | Z emotes</span><span class="touch-input-help">Left stick moves · hold an ability and drag to aim · tap 👋 to emote</span></div>
+    <div class="briefing-tip"><span aria-hidden="true">🎮</span><span class="desktop-input-help">Click fire | E skill | Q ultimate | WASD move | Z emotes</span><span class="touch-input-help"><strong>On mobile:</strong><span>Move: drag the left virtual stick.</span><span>Attack or use an ability: tap its on-screen button to activate. To aim, hold the button, drag toward the target, then release.</span><span>Bombardier ultimate: hold Ultimate, drag to choose a target, then release or tap the arena to confirm. Use the on-screen Cancel button to back out.</span><span>Emote: tap the 👋 button and choose an emote.</span><span>Zoom: pinch the arena.</span></span></div>
     <small class="desktop-dismiss-help">Press any key or click to close · Press I any time to see this again.</small><small class="touch-dismiss-help">Tap to close · Open Information any time to see this again.</small>
   </section>
   <aside id="bottom-left-hud">
     <div id="bottom-left-tools">
       <aside id="settings-hud">
         <button id="settings-button" type="button" aria-expanded="false" aria-controls="settings-panel" aria-label="Arena settings" title="Settings"><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M8.6 2h2.8l.4 2.2 1.6.9 2.1-.8 1.4 2.4-1.7 1.5v1.6l1.7 1.5-1.4 2.4-2.1-.8-1.6.9-.4 2.2H8.6l-.4-2.2-1.6-.9-2.1.8-1.4-2.4 1.7-1.5V8.2L3.1 6.7l1.4-2.4 2.1.8 1.6-.9Z" /><circle cx="10" cy="10" r="2.6" /></svg></button>
-        <section id="settings-panel" hidden aria-label="Arena settings">
-          <strong>Settings</strong>
+        <section id="settings-panel" hidden aria-label="Arena settings" data-testid="settings-panel">
+          <div class="settings-head"><strong>Settings</strong><button id="settings-close" class="touch-only" type="button" aria-label="Close settings">✕</button></div>
           <label><input id="shake-setting" type="checkbox" checked> Screen shake</label>
           <label for="shake-intensity-setting">Shake intensity <span id="shake-intensity-value"></span></label>
           <input id="shake-intensity-setting" type="range">
@@ -92,6 +92,20 @@
           <label for="volume-setting">Master volume</label>
           <input id="volume-setting" type="range" min="0" max="1" step="0.01" value="0.55">
           <label><input id="perf-setting" type="checkbox"> Show performance stats</label>
+          <label for="touch-controls-setting">Touch controls</label>
+          <select id="touch-controls-setting" data-testid="touch-controls-setting">
+            <option value="auto">Auto</option>
+            <option value="on">On</option>
+            <option value="off">Off</option>
+          </select>
+          <small id="touch-controls-note" hidden>Takes effect the next time you open the arena.</small>
+          <label for="stick-mode-setting" class="touch-only">Move stick</label>
+          <select id="stick-mode-setting" class="touch-only">
+            <option value="floating">Floating (appears under your thumb)</option>
+            <option value="fixed">Fixed (bottom left)</option>
+          </select>
+          <label class="touch-only"><input id="haptics-setting" type="checkbox"> Vibrate when casting</label>
+          <button id="reset-zoom" class="touch-only" type="button" data-testid="reset-zoom">Reset zoom</button>
           <div id="perf-mount" hidden></div>
           <details id="icon-credits">
             <summary>Icon credits</summary>
@@ -106,10 +120,10 @@
     <button id="info-button" type="button" aria-expanded="false" aria-controls="stats-panel">
       <span class="ability-circle info-circle">I</span><span>Information</span>
     </button>
-    <button id="emote-button" type="button" aria-haspopup="dialog" aria-expanded="false" aria-controls="emote-menu" title="Choose an emote (Z)">
+    <button id="emote-button" type="button" aria-haspopup="dialog" aria-expanded="false" aria-controls="emote-menu" title="Choose an emote (Z)" data-testid="touch-emote">
       <span aria-hidden="true">👋</span><span>Emote <kbd>Z</kbd></span>
     </button>
-    <section id="stats-panel" hidden aria-label="Hero information">
+    <section id="stats-panel" hidden aria-label="Hero information" data-testid="stats-panel">
       <section id="howto-card" class="info-card" aria-label="How to play">
         <div class="info-card-head">
           <strong>How to play</strong>
@@ -118,7 +132,7 @@
         <p id="howto-lead">Defend the campfire!</p>
         <div class="briefing-tip"><span aria-hidden="true">🟢</span><span>Stand in the green ring to heal.</span></div>
         <div class="briefing-tip"><span aria-hidden="true">🏃</span><span>Keep moving: +20% damage while you move.</span></div>
-        <div class="briefing-tip"><span aria-hidden="true">🎮</span><span class="desktop-input-help">Click fire | E skill | Q ultimate | WASD move | Z emotes</span><span class="touch-input-help">Left stick moves · hold an ability and drag to aim · tap 👋 to emote</span></div>
+        <div class="briefing-tip"><span aria-hidden="true">🎮</span><span class="desktop-input-help">Click fire | E skill | Q ultimate | WASD move | Z emotes</span><span class="touch-input-help"><strong>On mobile:</strong><span>Move: drag the left virtual stick.</span><span>Attack or use an ability: tap its on-screen button to activate. To aim, hold the button, drag toward the target, then release.</span><span>Bombardier ultimate: hold Ultimate, drag to choose a target, then release or tap the arena to confirm. Use the on-screen Cancel button to back out.</span><span>Emote: tap the 👋 button and choose an emote.</span><span>Zoom: pinch the arena.</span></span></div>
       </section>
       <section id="stats-card" class="info-card" aria-label="Current hero stats">
         <strong>Current stats</strong>
@@ -163,20 +177,20 @@
     </div>
   </section>
   <div id="targeting-reticle" hidden aria-hidden="true"><span></span></div>
-  <div id="move-stick" class="virtual-stick" aria-hidden="true">
+  <div id="move-stick" class="virtual-stick" aria-hidden="true" data-testid="touch-stick">
     <span class="virtual-stick-base"><span class="virtual-stick-knob"></span></span>
     <span class="virtual-stick-label">MOVE</span>
   </div>
   <div id="touch-help" aria-hidden="true" hidden>Pinch to zoom · left stick moves · hold an ability and drag to aim</div>
   <div id="hud-debug-clusters" hidden aria-hidden="true"></div>
   <aside id="ability-hud" aria-label="Hero abilities">
-    <button class="ability" data-ability="weapon" type="button" aria-label="Primary weapon">
+    <button class="ability" data-ability="weapon" type="button" aria-label="Primary weapon" data-testid="ability-weapon">
       <span class="ability-circle"><span class="ability-icon"></span></span><span class="ability-key" data-touch-label="FIRE">M1</span>
     </button>
-    <button class="ability" data-ability="skill" type="button" aria-label="Hero skill">
+    <button class="ability" data-ability="skill" type="button" aria-label="Hero skill" data-testid="ability-skill">
       <span class="ability-circle"><span class="ability-icon"></span></span><span class="ability-key" data-touch-label="SKILL">E</span>
     </button>
-    <button class="ability" data-ability="ultimate" type="button" aria-label="Hero ultimate">
+    <button class="ability" data-ability="ultimate" type="button" aria-label="Hero ultimate" data-testid="ability-ultimate">
       <span class="ability-circle"><span class="ability-icon"></span><small class="ability-lockout"></small></span><span class="ability-key" data-touch-label="ULT">Q</span>
     </button>
   </aside>
@@ -227,6 +241,25 @@
       </div>
     </div>
   </section>
+  <!-- Touch play (docs/mobile/NOTES.md, Stages 3-4): shown only in touch mode -->
+  <button id="touch-menu-button" type="button" aria-haspopup="dialog" aria-expanded="false" aria-controls="touch-menu" aria-label="Game menu" data-testid="touch-menu"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M4 12h16M4 17h16" /></svg></button>
+  <section id="touch-menu" hidden role="dialog" aria-modal="true" aria-label="Game menu" data-testid="touch-menu-sheet">
+    <div class="touch-menu-panel">
+      <strong>Menu</strong>
+      <button type="button" data-touch-menu="settings">⚙ Settings</button>
+      <button type="button" data-touch-menu="info">ℹ Information</button>
+      <button type="button" data-touch-menu="fullscreen">⛶ Fullscreen</button>
+      <button type="button" data-touch-menu="leave">⌂ Leave room</button>
+      <button type="button" data-touch-menu="close" class="touch-menu-close">Close</button>
+    </div>
+  </section>
+  <button id="touch-cancel" type="button" hidden data-testid="touch-cancel"><span>Cancel</span></button>
+  <div id="rotate-overlay" hidden role="alert" data-testid="rotate-overlay">
+    <span class="rotate-icon" aria-hidden="true">📱↻</span>
+    <strong>Rotate your phone to play</strong>
+    <span>Campfire Run plays in landscape. Your hero and your room are waiting.</span>
+  </div>
+  <div id="touch-debug" hidden aria-hidden="true"></div>
   <script src="/socket.io/socket.io.js"></script>
   <script type="module" src="/hero-lab/world.js"></script>
   <script type="module" src="/hero-lab/test-ai.js"></script>

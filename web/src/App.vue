@@ -2,9 +2,11 @@
 // ============================================================
 // QuizQuest - app shell: sign-in, header, tabs
 // ============================================================
-import { computed, onMounted, onUnmounted, ref, watch } from 'vue';
+import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue';
+import { PHONE_NAV_QUERY } from './mobile-config.js';
 import { S, setTab, restoreSession } from './api.js';
 import { toastState } from './ui.js';
+import { overlayOpen } from './overlays.js';
 import LoginView from './LoginView.vue';
 import ReviewView from './teacher/ReviewView.vue';
 import GenerateView from './teacher/GenerateView.vue';
@@ -105,6 +107,61 @@ watch(immersiveStudentTab, (active) => {
   if (active) studentNavTimer = setTimeout(() => { studentNavVisible.value = false; }, 1600);
 }, { immediate: true });
 
+// ---- student shell on phones and portrait tablets (PHONE_NAV_QUERY): the top bar is the logo and
+// a menu button; the tabs and account controls move into a full-height drawer
+// that closes on a tap outside, Esc, the close button or choosing a tab.
+const phoneNavQuery = window.matchMedia?.(PHONE_NAV_QUERY);
+const phoneNav = ref(Boolean(phoneNavQuery?.matches));
+const studentDrawerOpen = ref(false);
+const studentDrawerToggle = ref(null);
+const studentDrawer = ref(null);
+function onPhoneNavChange(event) {
+  phoneNav.value = event.matches;
+  if (!event.matches) studentDrawerOpen.value = false;
+}
+phoneNavQuery?.addEventListener?.('change', onPhoneNavChange);
+async function openStudentDrawer() {
+  studentDrawerOpen.value = true;
+  clearStudentNavTimer();
+  await nextTick();
+  focusWhenVisible(() => studentDrawer.value?.querySelector('nav#tabs button[aria-current="page"]') || studentDrawer.value?.querySelector('nav#tabs button'));
+}
+// A control can only take focus once it is visible; buttons inside the
+// drawer inherit its visibility through their own short transition, so try
+// each frame (for up to ~half a second) until the focus lands.
+function focusWhenVisible(find, frames = 30) {
+  const el = find();
+  if (el) el.focus({ preventScroll: true });
+  if ((!el || document.activeElement !== el) && frames > 0) requestAnimationFrame(() => focusWhenVisible(find, frames - 1));
+}
+function closeStudentDrawer({ restoreFocus = true } = {}) {
+  if (!studentDrawerOpen.value) return;
+  studentDrawerOpen.value = false;
+  if (restoreFocus) (studentDrawerToggle.value || document.querySelector('.nav-peek'))?.focus({ preventScroll: true });
+}
+function onStudentDrawerTab(id) {
+  closeStudentDrawer({ restoreFocus: false });
+  openStudentTab(id);
+}
+// keep keyboard focus inside the open drawer
+function onStudentDrawerKey(event) {
+  if (event.key !== 'Tab' || !studentDrawer.value) return;
+  const items = [...studentDrawer.value.querySelectorAll('button:not([disabled]), a[href], select, input')].filter((el) => el.offsetParent !== null);
+  if (!items.length) return;
+  const first = items[0], last = items[items.length - 1];
+  if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last.focus(); }
+  else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first.focus(); }
+}
+// The in-run game has its own menu button: the site nav and its peek handle
+// stay out of the way while a run is on screen.
+// Desktop keeps its tucked-away nav and peek handle unchanged.
+const coarseQuery = window.matchMedia?.('(pointer: coarse)');
+const coarsePointer = ref(Boolean(coarseQuery?.matches));
+const onCoarseChange = (event) => { coarsePointer.value = event.matches; };
+coarseQuery?.addEventListener?.('change', onCoarseChange);
+const gameActive = computed(() => S.gameActive && current.value?.[0] === 'world' && (phoneNav.value || coarsePointer.value));
+watch(gameActive, (active) => { if (active) closeStudentDrawer({ restoreFocus: false }); });
+
 // ---- teacher shell: a sidebar that collapses to an icon rail on desktop and
 // becomes a drawer on narrow screens. The collapsed choice is remembered.
 const teacherActive = computed(() => S.me?.role === 'teacher');
@@ -202,7 +259,15 @@ window.addEventListener('resize', onShellResize, { passive: true });
 window.addEventListener('scroll', onShellScroll, { passive: true });
 function onShellKey(event) {
   if (event.key === 'Escape' && drawerOpen.value) closeDrawer();
+  if (event.key === 'Escape' && studentDrawerOpen.value) closeStudentDrawer();
 }
+// Opening the professor's drawer moves focus into it, so keyboard and
+// screen-reader users land on the navigation they just opened.
+watch(drawerOpen, async (open) => {
+  if (!open) return;
+  await nextTick();
+  focusWhenVisible(() => document.querySelector('#t-sidebar nav#tabs button[aria-current="page"]') || document.querySelector('#t-sidebar nav#tabs button'));
+});
 document.addEventListener('keydown', onShellKey);
 // The sticky top bar's height (0 beside the sidebar, where it is hidden),
 // for scroll-padding-top in teacher/teacher-responsive.css: focus, anchors
@@ -237,6 +302,8 @@ onUnmounted(() => {
   document.documentElement.classList.remove('is-resizing');
   document.removeEventListener('pointermove', onDocumentPointerMove);
   document.removeEventListener('pointerdown', onDocumentPointerDown);
+  phoneNavQuery?.removeEventListener?.('change', onPhoneNavChange);
+  coarseQuery?.removeEventListener?.('change', onCoarseChange);
   clearStudentNavTimer();
 });
 </script>
@@ -284,7 +351,8 @@ onUnmounted(() => {
   <template v-else-if="ready">
   <header
     id="top"
-    :class="{ 'student-immersive-nav': immersiveStudentTab, 'student-nav-hidden': immersiveStudentTab && !studentNavVisible, 'summon-nav': current?.[0] === 'pets', 'practice-nav': current?.[0] === 'practice', 'progress-nav': current?.[0] === 'progress' }"
+    :class="{ 'student-immersive-nav': immersiveStudentTab, 'student-nav-hidden': (immersiveStudentTab && (phoneNav || !studentNavVisible)) || gameActive, 'summon-nav': current?.[0] === 'pets', 'practice-nav': current?.[0] === 'practice', 'progress-nav': current?.[0] === 'progress', 'phone-nav': phoneNav, 'under-overlay': overlayOpen }"
+    :inert="overlayOpen || undefined"
     @pointerenter="onTopPointerEnter"
     @pointerleave="onTopPointerLeave"
     @focusin="onTopFocusIn"
@@ -293,18 +361,64 @@ onUnmounted(() => {
     <div class="brand d-flex align-items-center">
       <QuizQuestLogo :size="30" />
     </div>
-    <nav id="tabs" :class="{ crowded: tabs.length > 5 }">
-      <button v-for="[id, label] in tabs" :key="id" :aria-current="current && current[0] === id ? 'page' : null" @click="openStudentTab(id)">{{ label }}</button>
-    </nav>
-    <div id="who" class="d-flex align-items-center">
-      <template v-if="S.me">
-        <span>{{ S.me.name }}</span>
-        <AccountMenu />
-        <DebugMenu v-if="S.me.role === 'student'" :key="S.token" />
-        <SoundToggle v-if="S.me.role === 'student'" />
-      </template>
-    </div>
+    <template v-if="!phoneNav">
+      <nav id="tabs" :class="{ crowded: tabs.length > 5 }">
+        <button v-for="[id, label] in tabs" :key="id" :aria-current="current && current[0] === id ? 'page' : null" @click="openStudentTab(id)">{{ label }}</button>
+      </nav>
+      <div id="who" class="d-flex align-items-center">
+        <template v-if="S.me">
+          <span>{{ S.me.name }}</span>
+          <AccountMenu />
+          <DebugMenu v-if="S.me.role === 'student'" :key="S.token" />
+          <SoundToggle v-if="S.me.role === 'student'" />
+        </template>
+      </div>
+    </template>
+    <template v-else>
+      <span class="s-topbar-page">{{ current?.[1] }}</span>
+      <button ref="studentDrawerToggle" class="s-menu-btn" type="button" aria-controls="s-drawer" :aria-expanded="studentDrawerOpen" aria-label="Open menu" data-testid="nav-menu" @click="openStudentDrawer">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M4 12h16M4 17h16" /></svg>
+      </button>
+    </template>
   </header>
+  <!-- phones: the student navigation drawer (outside the header, whose
+       slide-away transform would otherwise trap a fixed child) -->
+  <template v-if="phoneNav">
+    <div v-if="studentDrawerOpen" class="s-scrim" data-testid="nav-scrim" @click="closeStudentDrawer()"></div>
+    <aside
+      id="s-drawer"
+      ref="studentDrawer"
+      class="s-drawer"
+      :class="{ open: studentDrawerOpen, 'summon-nav': current?.[0] === 'pets' }"
+      :inert="!studentDrawerOpen"
+      :aria-hidden="!studentDrawerOpen"
+      role="dialog"
+      aria-modal="true"
+      aria-label="Menu"
+      data-testid="nav-drawer"
+      @keydown="onStudentDrawerKey"
+    >
+      <div class="s-drawer-head">
+        <QuizQuestLogo :size="28" />
+        <button class="s-drawer-close" type="button" aria-label="Close menu" data-testid="nav-close" @click="closeStudentDrawer()">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m6 6 12 12M18 6 6 18" /></svg>
+        </button>
+      </div>
+      <nav id="tabs" aria-label="Student pages">
+        <button v-for="[id, label] in tabs" :key="id" type="button" :aria-current="current && current[0] === id ? 'page' : null" @click="onStudentDrawerTab(id)">{{ label }}</button>
+      </nav>
+      <div id="who" class="s-drawer-account">
+        <template v-if="S.me">
+          <span class="s-drawer-name">{{ S.me.name }}</span>
+          <div class="s-drawer-tools">
+            <AccountMenu />
+            <DebugMenu v-if="S.me.role === 'student'" :key="S.token" />
+            <SoundToggle v-if="S.me.role === 'student'" />
+          </div>
+        </template>
+      </div>
+    </aside>
+  </template>
   <main id="main" :class="{ 'main-student': studentActive, 'main-world': current?.[0] === 'world', 'main-kingdom': current?.[0] === 'kingdom', 'main-summon': current?.[0] === 'pets', 'main-practice': current?.[0] === 'practice', 'main-progress': current?.[0] === 'progress' }">
     <!-- the key remounts the view on tab switch, user switch or rerender(),
          so each view starts fresh and releases sockets/timers on unmount -->
@@ -315,9 +429,10 @@ onUnmounted(() => {
        mounted while the nav is open (hidden, not removed) so pointerleave on the
        header still fires normally. -->
   <button
-    v-if="immersiveStudentTab"
+    v-if="immersiveStudentTab && !phoneNav && !gameActive"
     class="nav-peek"
-    :class="{ 'is-hidden': studentNavVisible }"
+    :class="{ 'is-hidden': studentNavVisible, 'under-overlay': overlayOpen }"
+    :inert="overlayOpen || undefined"
     type="button"
     aria-label="Show menu"
     title="Show menu"
@@ -325,6 +440,19 @@ onUnmounted(() => {
     @focus="showStudentNav"
     @click="onTopPointerEnter"
   >▾</button>
+  <!-- phones: one tap on the corner menu button opens the drawer directly -->
+  <button
+    v-if="immersiveStudentTab && phoneNav && !gameActive"
+    class="nav-peek nav-peek-phone"
+    :class="{ 'is-hidden': studentDrawerOpen, 'under-overlay': overlayOpen }"
+    :inert="overlayOpen || undefined"
+    type="button"
+    aria-label="Open menu"
+    aria-controls="s-drawer"
+    :aria-expanded="studentDrawerOpen"
+    data-testid="nav-peek"
+    @click="openStudentDrawer"
+  ><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M4 12h16M4 17h16" /></svg></button>
   </template>
   <ScreenWipe />
   <div id="toast" role="status" aria-live="polite" :class="{ show: toastState.show, bad: toastState.bad }">{{ toastState.msg }}</div>

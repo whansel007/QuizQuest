@@ -13,7 +13,19 @@ import { GAME_CONFIG, HERO_FX_COLORS, HERO_FX_SECONDARY, ABILITY_ICONS, ABILITY_
   VORTEX_GROUND_FILL_ALPHA, VORTEX_SUSTAIN_FADE_MS, VORTEX_DEBRIS_LIFETIME_MS,
   SAMURAI_DASH_AFTERIMAGE_MS, SAMURAI_HIT_MARK_MS, SAMURAI_SLASH_GROW_MS,
   SAMURAI_SLASH_FADE_MS, SAMURAI_EXECUTE_LABEL_MS, SAMURAI_CUT_OVERLAY_MS,
-  VORTEX_POP_STILL_CORE_PX } from './game-config.js';
+  VORTEX_POP_STILL_CORE_PX,
+  MOBILE_DEFAULT_ZOOM, MOBILE_ZOOM_MAX, MOBILE_VIEW_BASE_W, MOBILE_VIEW_BASE_H, MOBILE_VIEW_MAX_BASE_SCALE, MOBILE_CAMERA_LERP,
+  MOBILE_MAX_DPR, MOBILE_LOW_END_DPR, MOBILE_LOW_END_CORES, HUD_SCALE_MIN, HUD_SCALE_MAX, HUD_SCALE_REFERENCE_HEIGHT,
+  MOBILE_STICK_RADIUS, MOBILE_STICK_KNOB_RADIUS, MOBILE_STICK_DEAD_ZONE, MOBILE_STICK_ZONE_FRACTION,
+  MOBILE_BUTTON_SCALE, MOBILE_BUTTON_MIN_PX, MOBILE_BUTTON_HIT_SLOP_PX, MOBILE_TAP_MS, MOBILE_TAP_MOVE_PX,
+  MOBILE_AIM_DRAG_RADIUS, MOBILE_CANCEL_RADIUS, MOBILE_AUTO_AIM, MOBILE_BOMBARDIER_DRAG_RANGE, MOBILE_NAME_CHARS,
+  MOBILE_DEFAULT_QUALITY, MOBILE_PARTICLE_FACTOR, MOBILE_SHAKE_FACTOR, MOBILE_HAPTIC_MS,
+  ABILITY_AIM, ABILITY_AIM_MECH, ARENA_DRAW_ORDER } from './game-config.js';
+import {
+  stickVector, vectorToDirections, classifyPress, releaseOutcome, inCancelZone, aimFromDrag, aimPoint, autoAim,
+  densestCluster, bombardierInitial, bombardierReduce, bombardierWindowLeft, cameraBaseScale, minZoomForArena,
+  clampZoom, pinchZoom, clampCameraCenter, followCamera, screenToWorld, hudScale, shortName,
+} from './touch-controls.js';
 import { SHAKE_PLAYER_HIT_TRAUMA, SHAKE_ULTIMATE_TRAUMA, SHAKE_BOSS_SLAM_TRAUMA, SHAKE_EXPLOSION_BASE_TRAUMA,
   SHAKE_EXPLOSION_RADIUS_SCALE, SHAKE_MAX_TRAUMA, SHAKE_DECAY, SHAKE_MAX_OFFSET, SHAKE_EXPLOSION_COOLDOWN_MS,
   SHAKE_NOISE_HZ, SHAKE_NOISE_PRIMARY_PHASE, SHAKE_NOISE_PRIMARY_FREQUENCY, SHAKE_NOISE_SECONDARY_FREQUENCY, SHAKE_NOISE_SECONDARY_PHASE, SHAKE_DEFAULT_INTENSITY,
@@ -42,29 +54,66 @@ const canvas = document.querySelector('#world');
 const ARENA_WIDTH = GAME_CONFIG.arena.width;
 const ARENA_HEIGHT = GAME_CONFIG.arena.height;
 const touchViewport = matchMedia('(pointer: coarse)');
-const MOBILE_ZOOM_MAX = 2.8;
-let mobileZoom = 1.8;
-let pinchStart = null;
-const pinchPointers = new Map();
+// ---- Touch mode (docs/mobile/NOTES.md, Stages 3-4) ---------------------------
+// Touch controls are on when the device has a coarse pointer (Settings: Auto),
+// when the player turned them On, or with ?touch=1 (testing with a mouse).
+// Desktop (keyboard + mouse) keeps its whole-arena view and controls exactly.
+const touchQuery = new URLSearchParams(location.search);
+const TOUCH_PREF_KEY = 'hero-lab-touch-controls';
+const STICK_MODE_KEY = 'hero-lab-touch-stick';
+const HAPTICS_KEY = 'hero-lab-touch-haptics';
+const ZOOM_SESSION_KEY = 'hero-lab-touch-zoom';
+const touchForced = touchQuery.get('touch') === '1';
+const touchDebug = touchQuery.get('touchdebug') === '1';
+const readPref = (key, fallback) => { try { return localStorage.getItem(key) || fallback; } catch { return fallback; } };
+let touchPref = readPref(TOUCH_PREF_KEY, 'auto');
+let stickMode = readPref(STICK_MODE_KEY, 'floating');
+let hapticsOn = readPref(HAPTICS_KEY, 'off') === 'on';
+function computeTouchMode() {
+  if (touchForced || touchPref === 'on') return true;
+  if (touchPref === 'off') return false;
+  return touchViewport.matches;
+}
+const touchMode = computeTouchMode();
+document.documentElement.classList.toggle('touch-mode', touchMode);
+// Canvas resolution on touch devices: the device pixel ratio, capped.
+function touchDpr() {
+  const cores = navigator.hardwareConcurrency || MOBILE_LOW_END_CORES;
+  return Math.min(Math.max(1, window.devicePixelRatio || 1), cores < MOBILE_LOW_END_CORES ? MOBILE_LOW_END_DPR : MOBILE_MAX_DPR);
+}
+// The canvas's CSS size on touch (it fills the viewport).
+function viewSize() {
+  return { w: canvas.clientWidth || innerWidth, h: canvas.clientHeight || innerHeight };
+}
+// Touch devices step the resolution down when drawn frames fall behind the
+// frame cap (see sampleTouchFrame): 100% -> 75% -> 50% of the capped DPR,
+// never below 1 CSS px per canvas px.
+const TOUCH_RESOLUTION_STEPS = [1, 0.75, 0.5];
+let touchResolutionStep = 0;
+let touchForcedLowEffects = false; // set by sampleTouchFrame at the lowest resolution step
 // Rasterize close to the displayed viewport while keeping world coordinates fixed.
 function arenaRenderScale() {
-  const fit = touchViewport.matches
-    ? Math.max(innerWidth / ARENA_WIDTH, innerHeight / ARENA_HEIGHT)
-    : Math.min(innerWidth / ARENA_WIDTH, innerHeight / ARENA_HEIGHT);
+  if (touchMode) return Math.max(1, touchDpr() * TOUCH_RESOLUTION_STEPS[touchResolutionStep]);
+  const fit = Math.min(innerWidth / ARENA_WIDTH, innerHeight / ARENA_HEIGHT);
   return Math.min(1, Math.max(0.4, fit));
 }
 let renderScale = arenaRenderScale();
+// The forest floor never needs more than 1 px per world px.
+const backgroundScaleFor = (scale) => (touchMode ? Math.min(1, scale) : scale);
+// Particle budget: on touch it follows the area drawn (not the DPR) and is halved.
+const particleScaleFor = (scale) => (touchMode ? MOBILE_PARTICLE_FACTOR : scale * scale);
 function resizeCanvasBacking() {
-  if (touchViewport.matches) {
-    canvas.width = Math.round(innerWidth * renderScale);
-    canvas.height = Math.round(innerHeight * renderScale);
+  if (touchMode) {
+    const { w, h } = viewSize();
+    canvas.width = Math.round(w * renderScale);
+    canvas.height = Math.round(h * renderScale);
   } else {
     canvas.width = Math.round(ARENA_WIDTH * renderScale);
     canvas.height = Math.round(ARENA_HEIGHT * renderScale);
   }
 }
 resizeCanvasBacking();
-let particleBudget = Math.max(100, Math.floor(GAME_CONFIG.arenaTuning.performance.maxParticles * renderScale * renderScale));
+let particleBudget = Math.max(100, Math.floor(GAME_CONFIG.arenaTuning.performance.maxParticles * particleScaleFor(renderScale)));
 const context = canvas.getContext('2d', { alpha: false, desynchronized: true });
 let heroSpriteCache = null;
 let heroSpriteConfig = null;
@@ -83,78 +132,67 @@ void preloadHeroSprites().then((cache) => {
   updateHud();
 }).catch((error) => console.warn('[Hero sprites] Config failed; using emoji.', error));
 const backgroundCanvas = document.createElement('canvas');
-backgroundCanvas.width = Math.round(ARENA_WIDTH * renderScale);
-backgroundCanvas.height = Math.round(ARENA_HEIGHT * renderScale);
+backgroundCanvas.width = Math.round(ARENA_WIDTH * backgroundScaleFor(renderScale));
+backgroundCanvas.height = Math.round(ARENA_HEIGHT * backgroundScaleFor(renderScale));
 const backgroundContext = backgroundCanvas.getContext('2d');
-backgroundContext.scale(renderScale, renderScale);
+backgroundContext.scale(backgroundScaleFor(renderScale), backgroundScaleFor(renderScale));
 paintForestClearing(backgroundContext);
 
 function resizeArenaRaster() {
   const nextScale = arenaRenderScale();
   const scaleChanged = Math.abs(nextScale - renderScale) >= 0.001;
   renderScale = nextScale;
-  const canvasWidth = touchViewport.matches ? Math.round(innerWidth * renderScale) : Math.round(ARENA_WIDTH * renderScale);
-  const canvasHeight = touchViewport.matches ? Math.round(innerHeight * renderScale) : Math.round(ARENA_HEIGHT * renderScale);
+  const { w, h } = viewSize();
+  const canvasWidth = touchMode ? Math.round(w * renderScale) : Math.round(ARENA_WIDTH * renderScale);
+  const canvasHeight = touchMode ? Math.round(h * renderScale) : Math.round(ARENA_HEIGHT * renderScale);
   const canvasChanged = canvas.width !== canvasWidth || canvas.height !== canvasHeight;
   if (canvasChanged) resizeCanvasBacking();
   if (scaleChanged) {
-    backgroundCanvas.width = Math.round(ARENA_WIDTH * renderScale);
-    backgroundCanvas.height = Math.round(ARENA_HEIGHT * renderScale);
-    backgroundContext.scale(renderScale, renderScale);
+    backgroundCanvas.width = Math.round(ARENA_WIDTH * backgroundScaleFor(renderScale));
+    backgroundCanvas.height = Math.round(ARENA_HEIGHT * backgroundScaleFor(renderScale));
+    backgroundContext.scale(backgroundScaleFor(renderScale), backgroundScaleFor(renderScale));
     paintForestClearing(backgroundContext);
   }
-  particleBudget = Math.max(100, Math.floor(GAME_CONFIG.arenaTuning.performance.maxParticles * renderScale * renderScale));
+  particleBudget = Math.max(100, Math.floor(GAME_CONFIG.arenaTuning.performance.maxParticles * particleScaleFor(renderScale)));
+  if (touchMode) { updateHudScale(); updateRotateOverlay(); }
 }
 
-function mobileMinimumZoom() {
-  const fitScale = Math.min(innerWidth / ARENA_WIDTH, innerHeight / ARENA_HEIGHT);
-  const coverScale = Math.max(innerWidth / ARENA_WIDTH, innerHeight / ARENA_HEIGHT);
-  return fitScale / coverScale;
+// ---- Touch camera ---------------------------------------------------------------
+// A follow camera on the local hero (soft lerp), zoomable from "whole arena"
+// to MOBILE_ZOOM_MAX, clamped so the view never shows outside the arena. Only
+// drawing and the screen<->world conversion use it; hitboxes and every rule
+// stay on the server.
+const ARENA_RECT = { width: ARENA_WIDTH, height: ARENA_HEIGHT };
+let storedTouchZoom = MOBILE_DEFAULT_ZOOM;
+try { storedTouchZoom = Number(sessionStorage.getItem(ZOOM_SESSION_KEY)) || MOBILE_DEFAULT_ZOOM; } catch { /* session storage is optional */ }
+const touchCamera = { x: ARENA_WIDTH / 2, y: ARENA_HEIGHT / 2, scale: 1, zoom: storedTouchZoom, ready: false };
+function touchZoomLimits() {
+  const { w, h } = viewSize();
+  const base = cameraBaseScale(w, h, { baseW: MOBILE_VIEW_BASE_W, baseH: MOBILE_VIEW_BASE_H, maxBaseScale: MOBILE_VIEW_MAX_BASE_SCALE });
+  return { base, min: minZoomForArena(w, h, ARENA_RECT, base), max: MOBILE_ZOOM_MAX };
 }
-
-function mobileCameraView() {
-  if (!touchViewport.matches) return null;
+function setTouchZoom(zoom) {
+  const limits = touchZoomLimits();
+  touchCamera.zoom = clampZoom(zoom, limits.min, limits.max);
+  try { sessionStorage.setItem(ZOOM_SESSION_KEY, String(touchCamera.zoom)); } catch { /* optional */ }
+}
+function updateTouchCamera(dt) {
+  const { w, h } = viewSize();
+  const limits = touchZoomLimits();
+  touchCamera.zoom = clampZoom(touchCamera.zoom, limits.min, limits.max);
+  touchCamera.scale = limits.base * touchCamera.zoom;
   const player = state.players?.find((candidate) => candidate.id === me);
-  const coverScale = Math.max(innerWidth / ARENA_WIDTH, innerHeight / ARENA_HEIGHT);
-  mobileZoom = Math.max(mobileMinimumZoom(), Math.min(MOBILE_ZOOM_MAX, mobileZoom));
-  return {
-    scale: coverScale * mobileZoom,
-    x: player?.x ?? ARENA_WIDTH / 2,
-    y: player?.y ?? ARENA_HEIGHT / 2,
-  };
+  const target = player ? { x: player.x, y: player.y } : { x: ARENA_WIDTH / 2, y: ARENA_HEIGHT / 2 };
+  const next = touchCamera.ready ? followCamera(touchCamera, target, MOBILE_CAMERA_LERP, dt) : target;
+  const clamped = clampCameraCenter(next.x, next.y, w, h, touchCamera.scale, ARENA_RECT);
+  touchCamera.x = clamped.x; touchCamera.y = clamped.y;
+  touchCamera.ready = Boolean(player);
 }
-
-function pinchDistance() {
-  const [a, b] = [...pinchPointers.values()];
-  return Math.hypot(a.x - b.x, a.y - b.y);
+function mobileCameraView() {
+  return touchMode ? touchCamera : null;
 }
-
-function beginTouchZoom(event) {
-  if (!touchViewport.matches || event.pointerType !== 'touch') return;
-  pinchPointers.set(event.pointerId, { x: event.clientX, y: event.clientY });
-  if (pinchPointers.size === 2) {
-    pinchStart = { distance: Math.max(1, pinchDistance()), zoom: mobileZoom };
-    if (primaryPointerId !== null) {
-      primaryPointerId = null;
-      setPrimaryHeld(false);
-    }
-  }
-}
-
-function moveTouchZoom(event) {
-  if (!pinchPointers.has(event.pointerId)) return;
-  pinchPointers.set(event.pointerId, { x: event.clientX, y: event.clientY });
-  if (pinchStart && pinchPointers.size >= 2) {
-    mobileZoom = Math.max(mobileMinimumZoom(), Math.min(MOBILE_ZOOM_MAX,
-      pinchStart.zoom * pinchDistance() / pinchStart.distance));
-    event.preventDefault();
-  }
-}
-
-function endTouchZoom(event) {
-  pinchPointers.delete(event.pointerId);
-  if (pinchPointers.size < 2) pinchStart = null;
-}
+// Set while two arena fingers pinch: arena taps and aiming pause meanwhile.
+let pinchStart = null;
 
 // The arena floor: a calm woodland clearing. Everything here is low contrast
 // on purpose, so enemies, projectiles, rings and the campfire stay the
@@ -730,7 +768,7 @@ setBtnVar('--btn-label-height', `${BTN_LABEL_HEIGHT}px`);
 setBtnVar('--btn-label-size', `${BTN_LABEL_SIZE}px`);
 setBtnVar('--btn-label-clearance', `${BTN_LABEL_CLEARANCE}px`);
 setBtnVar('--btn-icon-scale', String(BTN_ICON_SCALE));
-setBtnVar('--ability-cluster-height', `${touchViewport.matches ? 168 : ABILITY_CLUSTER_HEIGHT_PX}px`);
+setBtnVar('--ability-cluster-height', `${touchMode ? 168 : ABILITY_CLUSTER_HEIGHT_PX}px`);
 setBtnVar('--ready-highlight-color', BTN_HIGHLIGHT_READY_COLOR);
 
 // data-ability ("weapon") -> config slot ("primary").
@@ -891,6 +929,10 @@ if (storedSettings && storedSettings.settingsVersion !== SETTINGS_VERSION) {
 Object.assign(settings, storedSettings);
 settings.settingsVersion = SETTINGS_VERSION;
 if (!['auto', 'high', 'medium', 'low'].includes(settings.effectsQuality)) settings.effectsQuality = 'auto';
+// Touch devices start lighter: Medium effects and 40% of the desktop shake.
+// Both stay adjustable in Settings, and a saved choice always wins.
+if (touchMode && !Object.hasOwn(storedSettings || {}, 'effectsQuality')) settings.effectsQuality = MOBILE_DEFAULT_QUALITY;
+if (touchMode && !Object.hasOwn(storedSettings || {}, 'shakeIntensity')) settings.shakeIntensity = Math.round(SHAKE_DEFAULT_INTENSITY * MOBILE_SHAKE_FACTOR);
 const storedShakeIntensity = Number(settings.shakeIntensity);
 settings.shakeIntensity = Number.isFinite(storedShakeIntensity)
   ? Math.max(SHAKE_MIN_INTENSITY, Math.min(SHAKE_MAX_INTENSITY, storedShakeIntensity)) : SHAKE_DEFAULT_INTENSITY;
@@ -1181,12 +1223,13 @@ function registerKill(now) {
 function isMassKillWindow(now) { return now < massKillUntil; }
 
 function effectiveQuality() {
+  if (touchMode && touchForcedLowEffects) return 'low';
   return settings.effectsQuality === 'auto' ? autoQualityLevel : settings.effectsQuality;
 }
 applyEffectsQuality();
 function applyEffectsQuality() {
   const factor = QUALITY_PARTICLE_FACTOR[effectiveQuality()] ?? 1;
-  particleBudget = Math.max(40, Math.floor(GAME_CONFIG.arenaTuning.performance.maxParticles * renderScale * renderScale * factor));
+  particleBudget = Math.max(40, Math.floor(GAME_CONFIG.arenaTuning.performance.maxParticles * particleScaleFor(renderScale) * factor));
 }
 
 // One shared puff for a whole mass-kill window: plain arc particles, no glyphs.
@@ -1227,7 +1270,7 @@ function spawnBossConfetti() {
   // Two bursts, one per top corner, aimed down and toward the middle.
   const corners = [
     { x: cfg.burstInsetPx, y: cfg.burstInsetPx, dirX: 1 },
-    { x: ARENA_WIDTH - cfg.burstInsetPx, y: cfg.burstInsetPx, dirX: -1 },
+    { x: (touchMode ? viewSize().w : ARENA_WIDTH) - cfg.burstInsetPx, y: cfg.burstInsetPx, dirX: -1 },
   ];
   for (let i = 0; i < total; i += 1) {
     const corner = corners[i % 2];
@@ -2010,7 +2053,9 @@ socket.on('disconnect', () => {
   fairyVortexHumStop?.(); fairyVortexHumStop = null;
   fairyVortexVisuals.clear();
   releaseKeys();
+  if (touchMode) releaseAllTouch();
   connectionStatus.textContent = 'Disconnected from the server. Reconnecting…';
+  if (touchMode && !document.hidden) showToast('Reconnecting…');
 });
 socket.on('welcome', (welcome) => {
   me = welcome.you;
@@ -3092,12 +3137,7 @@ function onMovementPointerEnd(event) {
 function getPointerCoordinates(event) {
   const rect = canvas.getBoundingClientRect();
   const camera = mobileCameraView();
-  if (camera) {
-    return {
-      x: camera.x + (event.clientX - rect.left - rect.width / 2) / camera.scale,
-      y: camera.y + (event.clientY - rect.top - rect.height / 2) / camera.scale,
-    };
-  }
+  if (camera) return screenToWorld(event.clientX - rect.left, event.clientY - rect.top, camera, rect.width, rect.height);
   return {
     x: ((event.clientX - rect.left) / rect.width) * ARENA_WIDTH,
     y: ((event.clientY - rect.top) / rect.height) * ARENA_HEIGHT,
@@ -3219,7 +3259,7 @@ function setPrimaryHeld(held) {
 }
 
 function onPointerMove(event) {
-  if (pinchStart) return;
+  if (touchMode || pinchStart) return;
   const pointer = getPointerCoordinates(event);
   window.lastPointerWorld = pointer;
   if (!socket.connected || !me || aimSendTimer !== null) return;
@@ -3463,11 +3503,13 @@ function renderPlayerList(room) {
     }
     row.append(portrait);
 
-    // Display name (NOT hero/class), truncated + duplicate suffix.
-    let displayName = truncateName(entry.name);
+    // Display name (NOT hero/class), truncated + duplicate suffix. Touch
+    // screens use the compact list (8 characters).
+    const hudName = (name) => (touchMode ? shortName(name || 'Hero', MOBILE_NAME_CHARS) : truncateName(name));
+    let displayName = hudName(entry.name);
     if ((nameCounts[entry.name] || 0) > 1) {
       nameSeen[entry.name] = (nameSeen[entry.name] || 0) + 1;
-      if (nameSeen[entry.name] > 1) displayName = truncateName(`${entry.name} (${nameSeen[entry.name]})`);
+      if (nameSeen[entry.name] > 1) displayName = hudName(`${entry.name} (${nameSeen[entry.name]})`);
     }
     const who = document.createElement('span');
     who.className = 'roster-who';
@@ -4033,10 +4075,13 @@ function updateHud(timestamp = performance.now()) {
   const engineerTargeting = player.heroId === 'engineer' && engineerPlacementTargeting;
   const rangerTargeting = player.heroId === 'ranger' && rangerMeatTargeting;
   targetingHint.hidden = !player.targeting && !engineerTargeting && !rangerTargeting;
-  if (targetingHintText) targetingHintText.textContent = rangerTargeting
-    ? 'Move to a spot · Primary fire to throw meat · E to cancel'
-    : engineerTargeting ? 'Move to a spot · Primary fire to place · E to cancel '
-      : defaultTargetingHintText;
+  if (targetingHintText) targetingHintText.textContent = touchMode
+    ? (rangerTargeting || engineerTargeting ? 'Tap the arena or FIRE to place · Cancel to back out'
+      : 'Drag Ultimate to a target and release, or tap the arena · Cancel to back out')
+    : rangerTargeting
+      ? 'Move to a spot · Primary fire to throw meat · E to cancel'
+      : engineerTargeting ? 'Move to a spot · Primary fire to place · E to cancel '
+        : defaultTargetingHintText;
   if (!player.targeting && !engineerTargeting) targetingReticle.hidden = true;
 }
 
@@ -4049,7 +4094,7 @@ function onKeyUp(event) {
 }
 
 function onPointerDown(event) {
-  if (!me || pinchStart) return;
+  if (touchMode || !me || pinchStart) return;
   const pointer = getPointerCoordinates(event);
   window.lastPointerWorld = pointer;
   const player = state.players.find((candidate) => candidate.id === me);
@@ -4102,6 +4147,7 @@ function paintTargetReticle(event, gesture = abilityGesture) {
 }
 
 function beginAbilityGesture(event) {
+  if (touchMode) return;
   const button = event.target.closest?.('.ability[data-ability]');
   if (!button || !me || abilityGesture) return;
   event.preventDefault();
@@ -4192,6 +4238,7 @@ function finishAbilityGesture(event, cancelled = false) {
 
 function onAbilityKeyboardClick(event) {
   if (event.detail !== 0) return;
+  if (touchMode && abilityTouches.size) return;
   const slot = event.currentTarget.dataset.ability;
   if (slot === 'weapon') fireWeapon('primary');
   else activateAbility(slot);
@@ -4199,7 +4246,10 @@ function onAbilityKeyboardClick(event) {
 
 function cancelTargeting() {
   socket.emit('cancel_targeting');
+  bombState = bombardierInitial();
+  touchAimVisual = null;
   engineerPlacementTargeting = false;
+  rangerMeatTargeting = false;
   targetingReticle.hidden = true;
   if (abilityGesture?.targetedBombing) {
     abilityGesture.button.classList.remove('aiming');
@@ -4208,6 +4258,7 @@ function cancelTargeting() {
 }
 
 function releasePointerControls(event) {
+  if (touchMode) return;
   finishAbilityGesture(event, event.type === 'pointercancel');
   onMovementPointerEnd(event);
   if (primaryPointerId === event.pointerId) {
@@ -4281,6 +4332,41 @@ function draw(timestamp) {
   const drawMs = performance.now() - startedAt;
   profiler.recordFrame(timestamp || performance.now(), drawMs);
   sampleAdaptiveQuality(drawMs);
+  if (touchMode) sampleTouchFrame(timestamp || performance.now(), drawMs);
+}
+
+// Touch devices (Stage 6): the canvas is rastered off the main thread, so the
+// draw time alone misses a slow GPU. When the interval between drawn frames
+// stays well behind FRAME_CAP_FPS, lower the resolution one step, and once at
+// the lowest step also drop the effects to Low (even when the player chose
+// Medium). Good frames for twice ADAPTIVE_RESTORE_MS bring one step back.
+const touchFrameIntervals = [];
+let lastTouchFrameAt = 0;
+let touchGoodMs = 0;
+var touchFrameStats = { frames: 0, drawMsTotal: 0, drawMsMax: 0, controlsMs: 0, since: performance.now() };
+if (touchDebug) window.__heroLabFrameStats = touchFrameStats;
+function sampleTouchFrame(now, drawMs) {
+  touchFrameStats.frames += 1; touchFrameStats.drawMsTotal += drawMs; touchFrameStats.drawMsMax = Math.max(touchFrameStats.drawMsMax, drawMs);
+  const interval = lastTouchFrameAt ? now - lastTouchFrameAt : 0;
+  lastTouchFrameAt = now;
+  if (!interval || interval > 500) return; // first frame, or back from the background
+  touchFrameIntervals.push(interval);
+  if (touchFrameIntervals.length < ADAPTIVE_SAMPLE_FRAMES) return;
+  const avg = touchFrameIntervals.reduce((sum, value) => sum + value, 0) / touchFrameIntervals.length;
+  touchFrameIntervals.length = 0;
+  const budget = 1000 / (FRAME_CAP_FPS || 60);
+  if (avg > budget * 1.15) {
+    touchGoodMs = 0;
+    if (touchResolutionStep < TOUCH_RESOLUTION_STEPS.length - 1) { touchResolutionStep += 1; resizeArenaRaster(); }
+    else if (!touchForcedLowEffects) { touchForcedLowEffects = true; applyEffectsQuality(); }
+  } else if (avg < budget * 1.05 && (touchResolutionStep > 0 || touchForcedLowEffects)) {
+    touchGoodMs += ADAPTIVE_SAMPLE_FRAMES * avg;
+    if (touchGoodMs >= ADAPTIVE_RESTORE_MS * 2) {
+      touchGoodMs = 0;
+      if (touchForcedLowEffects) { touchForcedLowEffects = false; applyEffectsQuality(); }
+      else { touchResolutionStep -= 1; resizeArenaRaster(); }
+    }
+  }
 }
 
 // Adaptive quality (STEP 2H). When the average draw time over the last
@@ -5027,9 +5113,14 @@ function drawScene(timestamp) {
   context.filter = 'none';
   context.shadowBlur = 0;
   context.setLineDash([]);
-  if (touchViewport.matches) {
+  if (touchMode) {
+    updateTouchCamera(dt);
+    const controlsStartedAt = touchDebug ? performance.now() : 0;
+    tickTouchControls(currentTime);
+    if (touchDebug) touchFrameStats.controlsMs += performance.now() - controlsStartedAt;
+    const view = viewSize();
     context.fillStyle = '#2F5E3E';
-    context.fillRect(0, 0, innerWidth, innerHeight);
+    context.fillRect(0, 0, view.w, view.h);
   }
   context.save();
   const traumaElapsed = Math.max(0, (currentTime - lastTraumaUpdateAt) / 1000);
@@ -5047,9 +5138,12 @@ function drawScene(timestamp) {
   }
   const mobileCamera = mobileCameraView();
   if (mobileCamera) {
-    context.translate(innerWidth / (2 * mobileCamera.scale) - mobileCamera.x,
-      innerHeight / (2 * mobileCamera.scale) - mobileCamera.y);
+    // screen = (world - camera) * scale + view centre: the exact inverse of
+    // getPointerCoordinates / screenToWorld, so aim and taps line up.
+    const view = viewSize();
+    context.translate(view.w / 2, view.h / 2);
     context.scale(mobileCamera.scale, mobileCamera.scale);
+    context.translate(-mobileCamera.x, -mobileCamera.y);
   }
   if (currentTime < cameraZoom.until) {
     const centerX = ARENA_WIDTH / 2, centerY = ARENA_HEIGHT / 2;
@@ -5059,6 +5153,44 @@ function drawScene(timestamp) {
     context.translate(centerX, centerY); context.scale(scale, scale); context.translate(-centerX, -centerY);
   } else cameraZoom.scale = 1;
 
+  // Paint the layers bottom to top in the configured order (ARENA_DRAW_ORDER,
+  // game-config.js). World layers share the shake/camera transform above;
+  // the first screen-space layer closes it.
+  const frame = { currentTime, dt };
+  let worldPassOpen = true;
+  for (const layerId of ARENA_DRAW_ORDER) {
+    const layer = ARENA_LAYERS[layerId];
+    if (!layer) continue;
+    if (layer.space === 'screen' && worldPassOpen) { endArenaWorldPass(); worldPassOpen = false; }
+    layer.paint(frame);
+  }
+  if (worldPassOpen) endArenaWorldPass();
+}
+
+// Pops the shake/camera transform and resets the context for screen-space drawing.
+function endArenaWorldPass() {
+  context.globalAlpha = 1;
+  context.restore();
+  context.setTransform(1, 0, 0, 1, 0, 0);
+  context.globalAlpha = 1;
+  context.globalCompositeOperation = 'source-over';
+  context.filter = 'none';
+  context.shadowBlur = 0;
+  context.setLineDash([]);
+}
+
+function arenaCampfire() {
+  return state.campfire || {
+    x: GAME_CONFIG.arena.width / 2,
+    y: GAME_CONFIG.arena.height / 2,
+    radius: GAME_CONFIG.campfire.radius,
+    hp: GAME_CONFIG.campfire.hp,
+    maxHp: GAME_CONFIG.campfire.hp,
+  };
+}
+
+// ---- Arena layers (bottom to top: ARENA_DRAW_ORDER) ----------------------------------------
+function paintGroundLayer({ currentTime, dt }) {
   // Overscan the background by the maximum shake offset so the camera
   // translate can never expose an unpainted strip at the arena edge (the
   // canvas is opaque and never cleared, so a strip would show stale pixels).
@@ -5067,34 +5199,33 @@ function drawScene(timestamp) {
     ARENA_WIDTH + shakeOverscan * 2, ARENA_HEIGHT + shakeOverscan * 2);
   drawFairyVortexGround(currentTime);
   drawDustPuffs(currentTime, dt);
+}
 
+function paintCampfireRingsLayer({ currentTime }) {
+  const cf = arenaCampfire();
+  // Permanent rings: pre-rendered sprites (dashed colored stroke
+  // + fill), blitted once each. The sprite stroke is baked at full alpha so
+  // the heal ring's gentle pulse keeps the stroke at or above the
+  // AREA_RING_STROKE_ALPHA floor; the Thorns ring stays steady.
+  context.save();
+  const pulse = AREA_RING_STROKE_ALPHA + (1 - AREA_RING_STROKE_ALPHA) * (0.5 + 0.5 * Math.sin(currentTime * 0.0015));
+  const healRing = ringSprite('heal', ARENA_TUNING.campfire.healRadius,
+    AREA_COLORS.healStroke, AREA_COLORS.healFill, AREA_RING_WIDTH, 1);
+  context.globalAlpha = pulse;
+  context.drawImage(healRing.canvas, cf.x - healRing.size / 2, cf.y - healRing.size / 2);
+  if ((state.activeBuffs || []).some((buff) => buff.id === 'thorns')) {
+    const thornsRing = ringSprite('thorns', ARENA_TUNING.cards.effects.thornsRadius,
+      AREA_COLORS.thornsStroke, AREA_COLORS.thornsFill, AREA_RING_WIDTH, 1);
+    context.globalAlpha = 1;
+    context.drawImage(thornsRing.canvas, cf.x - thornsRing.size / 2, cf.y - thornsRing.size / 2);
+  }
+  context.restore();
+}
+
+function paintCampfireLayer({ currentTime }) {
   // 1. Draw Campfire in the middle
-  const cf = state.campfire || {
-    x: GAME_CONFIG.arena.width / 2,
-    y: GAME_CONFIG.arena.height / 2,
-    radius: GAME_CONFIG.campfire.radius,
-    hp: GAME_CONFIG.campfire.hp,
-    maxHp: GAME_CONFIG.campfire.hp,
-  };
-  if (cf) {
-    // Permanent rings: pre-rendered sprites (dashed colored stroke
-    // + fill), blitted once each. The sprite stroke is baked at full alpha so
-    // the heal ring's gentle pulse keeps the stroke at or above the
-    // AREA_RING_STROKE_ALPHA floor; the Thorns ring stays steady.
-    context.save();
-    const pulse = AREA_RING_STROKE_ALPHA + (1 - AREA_RING_STROKE_ALPHA) * (0.5 + 0.5 * Math.sin(currentTime * 0.0015));
-    const healRing = ringSprite('heal', ARENA_TUNING.campfire.healRadius,
-      AREA_COLORS.healStroke, AREA_COLORS.healFill, AREA_RING_WIDTH, 1);
-    context.globalAlpha = pulse;
-    context.drawImage(healRing.canvas, cf.x - healRing.size / 2, cf.y - healRing.size / 2);
-    if ((state.activeBuffs || []).some((buff) => buff.id === 'thorns')) {
-      const thornsRing = ringSprite('thorns', ARENA_TUNING.cards.effects.thornsRadius,
-        AREA_COLORS.thornsStroke, AREA_COLORS.thornsFill, AREA_RING_WIDTH, 1);
-      context.globalAlpha = 1;
-      context.drawImage(thornsRing.canvas, cf.x - thornsRing.size / 2, cf.y - thornsRing.size / 2);
-    }
-    context.restore();
-
+  const cf = arenaCampfire();
+  {
     for (const player of state.players || []) {
       const inside = Math.hypot(player.x - cf.x, player.y - cf.y) <= ARENA_TUNING.campfire.healRadius;
       const now = performance.now();
@@ -5133,22 +5264,48 @@ function drawScene(timestamp) {
   }
 
   drawFairyVortexStructures(currentTime);
-  drawRangerAimGuides();
+}
 
+// Hero-origin aim lines sit under shadows, enemies and hero sprites (F10).
+function paintAimLinesLayer() {
+  drawRangerAimGuides();
+  if (touchMode) {
+    const aimStartedAt = touchDebug ? performance.now() : 0;
+    drawTouchAimLine();
+    if (touchDebug) touchFrameStats.controlsMs += performance.now() - aimStartedAt;
+  }
+}
+
+// Where an enemy is drawn this frame: its position plus the decaying hit knockback.
+function enemyDrawOffset(monster, currentTime) {
+  const hitFx = enemyHitFx.get(monster.id);
+  const hitProgress = hitFx ? Math.min(1, (currentTime - hitFx.startedAt) / hitFx.durationMs) : 1;
+  return {
+    hitFx, hitProgress,
+    x: monster.x + (hitFx ? hitFx.x * (1 - hitProgress) : 0),
+    y: monster.y + (hitFx ? hitFx.y * (1 - hitProgress) : 0),
+  };
+}
+
+function paintShadowsLayer({ currentTime }) {
+  if (!Array.isArray(state.monsters)) return;
+  context.fillStyle = 'rgba(0, 0, 0, 0.2)';
+  for (const monster of state.monsters) {
+    const { x: mx, y: my } = enemyDrawOffset(monster, currentTime);
+    // Monster shadow
+    context.beginPath();
+    context.ellipse(mx, my + 16, 12, 5, 0, 0, Math.PI * 2);
+    context.fill();
+  }
+}
+
+function paintEnemiesLayer({ currentTime }) {
   // 2. Draw Zombie Monsters
   if (Array.isArray(state.monsters)) {
     for (const monster of state.monsters) {
-      const hitFx = enemyHitFx.get(monster.id);
-      const hitProgress = hitFx ? Math.min(1, (currentTime - hitFx.startedAt) / hitFx.durationMs) : 1;
+      const { hitFx, hitProgress, x: mx, y: my } = enemyDrawOffset(monster, currentTime);
       if (hitFx && hitProgress >= 1) enemyHitFx.delete(monster.id);
-      const mx = monster.x + (hitFx ? hitFx.x * (1 - hitProgress) : 0);
-      const my = monster.y + (hitFx ? hitFx.y * (1 - hitProgress) : 0);
       const hitFlash = (enemyHitFlashUntil.get(monster.id) || 0) > currentTime;
-      // Monster shadow
-      context.beginPath();
-      context.ellipse(mx, my + 16, 12, 5, 0, 0, Math.PI * 2);
-      context.fillStyle = 'rgba(0, 0, 0, 0.2)';
-      context.fill();
 
       // Give the pale zombie emoji an opaque backdrop so it reads clearly on grass.
       context.save();
@@ -5212,7 +5369,11 @@ function drawScene(timestamp) {
       }
     }
   }
+}
 
+// Ground-level world markers whose depth F10 leaves unchanged (above enemies,
+// below heroes): area markers and telegraphs, the Engineer's laser, turrets...
+function paintWorldMarkersLayer({ currentTime }) {
   for (const monster of state.monsters || []) {
     const mark = (monster.rangerMarks || []).find((entry) => entry.ownerId === me);
     if (!mark) continue;
@@ -5432,7 +5593,9 @@ function drawScene(timestamp) {
   // Keep the cut guide and slash over enemies but beneath the hero sprite.
   drawSamuraiCutGuides(currentTime);
   drawSamuraiCutSlashes(currentTime);
+}
 
+function paintHeroesLayer({ currentTime, dt }) {
   // 3. Draw players
   for (const player of state.players) {
     const visualState = getHeroVisualState(player, currentTime);
@@ -5695,7 +5858,9 @@ function drawScene(timestamp) {
     // Social bubbles belong above hero-specific badges such as Samurai stacks.
     drawPlayerEmote(player, currentTime);
   }
+}
 
+function paintEffectsLayer({ currentTime, dt }) {
   for (const monster of state.monsters || []) {
     if (heroDebugHitboxes) {
       context.save(); context.strokeStyle = '#ff2d55'; context.lineWidth = 2; context.setLineDash([5, 4]);
@@ -5872,14 +6037,17 @@ function drawScene(timestamp) {
     context.drawImage(g.canvas, dtObj.x - g.w / 2, dtObj.y - g.h / 2, g.w, g.h);
   }
   drawSamuraiWorldEffects(currentTime);
-  context.globalAlpha = 1;
-  context.restore();
-  context.setTransform(1, 0, 0, 1, 0, 0);
-  context.globalAlpha = 1;
-  context.globalCompositeOperation = 'source-over';
-  context.filter = 'none';
-  context.shadowBlur = 0;
-  context.setLineDash([]);
+}
+
+// The small aim end reticle stays above enemies and effects (F10).
+function paintAimReticleLayer() {
+  if (!touchMode) return;
+  const aimStartedAt = touchDebug ? performance.now() : 0;
+  drawTouchAimReticle();
+  if (touchDebug) touchFrameStats.controlsMs += performance.now() - aimStartedAt;
+}
+
+function paintScreenEffectsLayer({ currentTime, dt }) {
   if (samuraiScreenFlash) {
     const age = currentTime - samuraiScreenFlash.startedAt;
     if (age >= SAMURAI_CUT_OVERLAY_MS) samuraiScreenFlash = null;
@@ -5896,6 +6064,26 @@ function drawScene(timestamp) {
   drawConfetti(currentTime);
 }
 
+// Painter per ARENA_DRAW_ORDER entry. 'world' layers draw under the
+// shake/camera transform; 'screen' layers draw in canvas pixels after it.
+const ARENA_LAYERS = Object.freeze({
+  ground: { space: 'world', paint: paintGroundLayer },
+  campfireRings: { space: 'world', paint: paintCampfireRingsLayer },
+  campfire: { space: 'world', paint: paintCampfireLayer },
+  aimLines: { space: 'world', paint: paintAimLinesLayer },
+  shadows: { space: 'world', paint: paintShadowsLayer },
+  enemies: { space: 'world', paint: paintEnemiesLayer },
+  worldMarkers: { space: 'world', paint: paintWorldMarkersLayer },
+  heroes: { space: 'world', paint: paintHeroesLayer },
+  effects: { space: 'world', paint: paintEffectsLayer },
+  aimReticle: { space: 'world', paint: paintAimReticleLayer },
+  screenEffects: { space: 'screen', paint: paintScreenEffectsLayer },
+  hud: null, // DOM HUD above the canvas: no canvas pass
+});
+for (const layerId of ARENA_DRAW_ORDER) {
+  if (!(layerId in ARENA_LAYERS)) console.error(`[arena] no painter for draw layer "${layerId}"`);
+}
+
 function spawnDashTrail(player) {
   const prior=previousPositions.get(player.id);
   previousPositions.set(player.id,{x:player.x,y:player.y});
@@ -5908,26 +6096,497 @@ function spawnDashTrail(player) {
     vx:(Math.random()-.5)*35,vy:(Math.random()-.5)*35,radius:spec.radius+Math.random()*2+ramp*2,color:ramp > 0.4 ? HERO_FX_COLORS[player.heroId]?.highlight : HERO_FX_COLORS[player.heroId]?.primary || '#d8dfc7',alpha:.65+ramp*.35,decay:spec.decay});
 }
 
-canvas.addEventListener('pointerdown', beginTouchZoom, { passive: true });
+// Desktop (mouse + keyboard) wiring: unchanged.
 canvas.addEventListener('pointermove', onPointerMove);
 canvas.addEventListener('pointerdown', onPointerDown);
-movementStick.addEventListener('pointerdown', onMovementPointerDown);
-movementStick.addEventListener('pointermove', updateMovementStick);
-movementStick.addEventListener('pointerup', onMovementPointerEnd);
-movementStick.addEventListener('pointercancel', onMovementPointerEnd);
 abilityElements.forEach((button) => {
   button.addEventListener('pointerdown', beginAbilityGesture);
   button.addEventListener('click', onAbilityKeyboardClick);
 });
 targetingCancel.addEventListener('click', cancelTargeting);
 window.addEventListener('pointermove', moveAbilityGesture, { passive: false });
-window.addEventListener('pointermove', moveTouchZoom, { passive: false });
-window.addEventListener('pointerup', endTouchZoom);
-window.addEventListener('pointercancel', endTouchZoom);
 window.addEventListener('pointerup', releasePointerControls);
 window.addEventListener('pointercancel', releasePointerControls);
+
+// ============================================================================
+// Touch input layer (docs/mobile/NOTES.md, Stage 4)
+// ============================================================================
+// The gesture rules are pure functions in touch-controls.js (unit tested);
+// this layer only routes pointers and sends the SAME socket messages the
+// keyboard and mouse send: 'input' booleans, 'aim' vectors, 'fire',
+// 'primary_hold', 'skill', 'ultimate', 'cancel_targeting'. Every pointer is
+// tracked by pointerId, so the stick, a held ability and a two-finger pinch
+// all work at once; pointercancel, blur and backgrounding release everything.
+const touchCancelButton = document.querySelector('#touch-cancel');
+const touchMenuButton = document.querySelector('#touch-menu-button');
+const touchMenu = document.querySelector('#touch-menu');
+const rotateOverlay = document.querySelector('#rotate-overlay');
+const touchDebugPanel = document.querySelector('#touch-debug');
+const arenaPointers = new Map(); // pointerId -> { x, y, startX, startY, startedAt, pinched }
+const abilityTouches = new Map(); // pointerId -> ability gesture
+const stickState = { pointerId: null, baseX: 0, baseY: 0, offsetX: 0, offsetY: 0, startX: 0, startY: 0, startedAt: 0, vector: { x: 0, y: 0, magnitude: 0 } };
+let lastMoveDir = null;
+let bombState = bombardierInitial();
+let touchAimVisual = null;
+const BOMB_SPEC = GAME_CONFIG.heroes.bombardier.airstrike;
+const TAP_RULES = { tapMs: MOBILE_TAP_MS, tapMovePx: MOBILE_TAP_MOVE_PX };
+
+function localPlayer() { return state.players?.find((candidate) => candidate.id === me) || null; }
+function haptic() { if (hapticsOn) navigator.vibrate?.(MOBILE_HAPTIC_MS); }
+const clampToArena = (point) => ({ x: Math.max(0, Math.min(ARENA_WIDTH, point.x)), y: Math.max(0, Math.min(ARENA_HEIGHT, point.y)) });
+function abilityAimSpec(player, slot) {
+  const mech = player?.heroId === 'pilot' && Boolean(player?.mech);
+  return (mech && ABILITY_AIM_MECH.pilot?.[slot]) || ABILITY_AIM[player?.heroId]?.[slot] || { type: 'dir', range: 400 };
+}
+// Tap = auto-aim: nearest enemy (or lobby dummy) in range, else the last aim,
+// else the way the hero last moved.
+function autoAimFor(player, range) {
+  const enemies = MOBILE_AUTO_AIM ? state.monsters : [];
+  return autoAim(player, enemies, range || 400, player.aim, lastMoveDir);
+}
+function touchWorldPoint(event) {
+  const rect = canvas.getBoundingClientRect();
+  return clampToArena(screenToWorld(event.clientX - rect.left, event.clientY - rect.top, touchCamera, rect.width, rect.height));
+}
+
+// ---- left stick ---------------------------------------------------------------
+function stickHomeCenter() {
+  const rect = movementStick.getBoundingClientRect();
+  return { x: rect.left + rect.width / 2 - stickState.offsetX, y: rect.top + rect.height / 2 - stickState.offsetY };
+}
+function startStick(event, floating) {
+  const home = stickHomeCenter();
+  stickState.pointerId = event.pointerId;
+  stickState.offsetX = floating ? event.clientX - home.x : 0;
+  stickState.offsetY = floating ? event.clientY - home.y : 0;
+  stickState.baseX = home.x + stickState.offsetX;
+  stickState.baseY = home.y + stickState.offsetY;
+  stickState.startX = event.clientX; stickState.startY = event.clientY; stickState.startedAt = performance.now();
+  movementStick.style.setProperty('--stick-dx', `${stickState.offsetX}px`);
+  movementStick.style.setProperty('--stick-dy', `${stickState.offsetY}px`);
+  movementStick.classList.add('active');
+  moveStick(event);
+}
+function moveStick(event) {
+  const v = stickVector(event.clientX - stickState.baseX, event.clientY - stickState.baseY, MOBILE_STICK_RADIUS, MOBILE_STICK_DEAD_ZONE);
+  stickState.vector = v;
+  movementStick.style.setProperty('--stick-x', `${v.knobX}px`);
+  movementStick.style.setProperty('--stick-y', `${v.knobY}px`);
+  // The server takes digital movement: 8 directions, as WASD would send.
+  Object.assign(stickKeys, vectorToDirections(v.x, v.y));
+  sendMovement();
+  if (v.magnitude > 0) {
+    const length = Math.hypot(v.x, v.y);
+    lastMoveDir = { x: v.x / length, y: v.y / length };
+    // Guardian's Unbreakable Charge runs along the aim: the stick steers it,
+    // with the same 'aim' message the mouse sends.
+    if (localPlayer()?.guardianCharging) sendAimVector(v.x, v.y);
+  }
+}
+function endStick() {
+  stickState.pointerId = null;
+  stickState.offsetX = 0; stickState.offsetY = 0;
+  for (const key of Object.keys(stickKeys)) stickKeys[key] = false;
+  movementStick.classList.remove('active');
+  for (const name of ['--stick-x', '--stick-y', '--stick-dx', '--stick-dy']) movementStick.style.setProperty(name, '0px');
+  sendMovement();
+}
+
+// ---- arena: floating stick, taps and pinch ----------------------------------------
+function onTouchArenaDown(event) {
+  if (!touchMode || !me || rotateBlocked()) return;
+  event.preventDefault();
+  try { canvas.setPointerCapture(event.pointerId); } catch { /* window listeners still see it */ }
+  const inStickZone = event.clientX < viewSize().w * MOBILE_STICK_ZONE_FRACTION;
+  if (stickMode === 'floating' && inStickZone && stickState.pointerId === null && !pinchStart) {
+    startStick(event, true);
+    return;
+  }
+  arenaPointers.set(event.pointerId, { x: event.clientX, y: event.clientY, startX: event.clientX, startY: event.clientY, startedAt: performance.now(), pinched: false });
+  if (arenaPointers.size === 2) {
+    // A pinch: two fingers that both started on the arena. It never casts.
+    const [a, b] = [...arenaPointers.values()];
+    a.pinched = true; b.pinched = true;
+    pinchStart = { distance: Math.max(1, Math.hypot(a.x - b.x, a.y - b.y)), zoom: touchCamera.zoom };
+  }
+}
+function onFixedStickDown(event) {
+  if (!touchMode || !me || rotateBlocked() || stickState.pointerId !== null) return;
+  event.preventDefault(); event.stopPropagation();
+  try { movementStick.setPointerCapture(event.pointerId); } catch { /* fine */ }
+  startStick(event, false);
+}
+function handleArenaTap(event) {
+  const player = localPlayer();
+  if (!player) return;
+  const point = touchWorldPoint(event);
+  if (bombState.phase !== 'idle') { dispatchBomb({ type: 'arenaTap', point }); return; }
+  // targeting opened another way (keyboard Q with ?touch=1): same confirm message
+  if (player.targeting) { window.lastPointerWorld = point; fireWeapon('secondary', point); haptic(); return; }
+  if (player.heroId === 'engineer' && engineerPlacementTargeting) { confirmEngineerPlacement(point); return; }
+  if (player.heroId === 'ranger' && rangerMeatTargeting) confirmRangerMeatPlacement(point);
+}
+function onTouchPointerMove(event) {
+  if (!touchMode) return;
+  if (event.pointerId === stickState.pointerId) { moveStick(event); return; }
+  const gesture = abilityTouches.get(event.pointerId);
+  if (gesture) { moveAbilityTouch(event, gesture); return; }
+  const pointer = arenaPointers.get(event.pointerId);
+  if (!pointer) return;
+  pointer.x = event.clientX; pointer.y = event.clientY;
+  if (pinchStart && arenaPointers.size >= 2) {
+    const [a, b] = [...arenaPointers.values()];
+    const limits = touchZoomLimits();
+    setTouchZoom(pinchZoom(pinchStart.zoom, pinchStart.distance, Math.hypot(a.x - b.x, a.y - b.y), limits.min, limits.max));
+    event.preventDefault();
+  }
+}
+function onTouchPointerEnd(event) {
+  if (!touchMode) return;
+  const cancelled = event.type === 'pointercancel';
+  if (event.pointerId === stickState.pointerId) {
+    const tap = classifyPress(performance.now() - stickState.startedAt,
+      Math.hypot(event.clientX - stickState.startX, event.clientY - stickState.startY), TAP_RULES) === 'tap';
+    endStick();
+    // a quick tap in the stick zone still confirms a pending target
+    if (!cancelled && tap) handleArenaTap(event);
+    return;
+  }
+  const gesture = abilityTouches.get(event.pointerId);
+  if (gesture) { finishAbilityTouch(gesture, cancelled); return; }
+  const pointer = arenaPointers.get(event.pointerId);
+  if (!pointer) return;
+  arenaPointers.delete(event.pointerId);
+  if (arenaPointers.size < 2) pinchStart = null;
+  if (cancelled || pointer.pinched) return;
+  if (Math.hypot(event.clientX - pointer.startX, event.clientY - pointer.startY) >= MOBILE_TAP_MOVE_PX) return;
+  handleArenaTap(event);
+}
+
+// ---- ability buttons ------------------------------------------------------------------
+// TAP (< 180 ms, < 12 px): cast now with auto-aim. HOLD/DRAG: aim mode; the
+// drag from the button centre sets the direction (and, for point abilities,
+// the distance up to the real range); release fires. Dragging back to the
+// button (cancel zone) and releasing sends nothing and spends no cooldown.
+function onTouchAbilityDown(event) {
+  if (!touchMode) return;
+  event.preventDefault(); event.stopPropagation();
+  if (!me || rotateBlocked()) return;
+  const button = event.currentTarget;
+  const slot = ABILITY_SLOT[button.dataset.ability];
+  const player = localPlayer();
+  if (!player || [...abilityTouches.values()].some((gesture) => gesture.slot === slot)) return;
+  try { button.setPointerCapture(event.pointerId); } catch { /* window listeners still see it */ }
+  const circle = (button.querySelector('.ability-circle') || button).getBoundingClientRect();
+  const gesture = { pointerId: event.pointerId, button, slot, spec: abilityAimSpec(player, slot),
+    cx: circle.left + circle.width / 2, cy: circle.top + circle.height / 2,
+    startX: event.clientX, startY: event.clientY, startedAt: performance.now(), dragged: false, dx: 0, dy: 0, aim: null, consumed: false };
+  abilityTouches.set(event.pointerId, gesture);
+  button.classList.add('aiming');
+  if (slot === 'primary') {
+    // While a target is pending, M1 confirms it (as a left click does).
+    if (bombState.phase !== 'idle' || player.targeting) {
+      const point = bombState.point || window.lastPointerWorld;
+      if (point && bombState.phase !== 'idle') dispatchBomb({ type: 'arenaTap', point });
+      else if (point) { fireWeapon('secondary', point); haptic(); }
+      gesture.consumed = true; return;
+    }
+    if (player.heroId === 'engineer' && engineerPlacementTargeting) { confirmEngineerPlacement(); gesture.consumed = true; return; }
+    if (player.heroId === 'ranger' && rangerMeatTargeting) { confirmRangerMeatPlacement(); gesture.consumed = true; return; }
+    // Press = fire now with auto-aim, then hold to keep firing (Ranger: the
+    // press starts the charge and the release fires, as the server defines).
+    const auto = autoAimFor(player, gesture.spec.range);
+    sendAimVector(auto.dir.x, auto.dir.y, true);
+    window.lastPointerWorld = clampToArena({ x: player.x + auto.dir.x * Math.min(gesture.spec.range || 300, auto.distance), y: player.y + auto.dir.y * Math.min(gesture.spec.range || 300, auto.distance) });
+    fireWeapon('primary');
+    setPrimaryHeld(true);
+    primaryPointerId = event.pointerId;
+    haptic();
+    return;
+  }
+  if (gesture.spec.type === 'special') {
+    // Bombardier: Q opens the 5 s targeting window (no cooldown yet), with a
+    // default reticle on the densest group of enemies.
+    const cluster = densestCluster(state.monsters, BOMB_SPEC.explosionRadius);
+    const aim = player.aim && Math.hypot(player.aim.x, player.aim.y) > 0 ? player.aim : { x: 1, y: 0 };
+    const defaultPoint = cluster ? clampToArena(cluster) : clampToArena({ x: player.x + aim.x * 300, y: player.y + aim.y * 300 });
+    dispatchBomb({ type: 'press', now: performance.now(), defaultPoint });
+  }
+}
+function moveAbilityTouch(event, gesture) {
+  if (gesture.consumed) return;
+  gesture.dx = event.clientX - gesture.cx;
+  gesture.dy = event.clientY - gesture.cy;
+  if (!gesture.dragged && Math.hypot(event.clientX - gesture.startX, event.clientY - gesture.startY) >= MOBILE_TAP_MOVE_PX) gesture.dragged = true;
+  if (!gesture.dragged) return;
+  event.preventDefault();
+  const length = Math.hypot(gesture.dx, gesture.dy);
+  const knob = Math.min(1, 40 / Math.max(1, length));
+  gesture.button.style.setProperty('--aim-x', `${gesture.dx * knob}px`);
+  gesture.button.style.setProperty('--aim-y', `${gesture.dy * knob}px`);
+  const cancelArmed = gesture.slot !== 'primary' && inCancelZone(gesture.dx, gesture.dy, MOBILE_CANCEL_RADIUS);
+  gesture.button.classList.toggle('cancel-armed', cancelArmed);
+  const player = localPlayer();
+  if (!player) return;
+  const aim = aimFromDrag(gesture.dx, gesture.dy, gesture.spec, MOBILE_AIM_DRAG_RADIUS);
+  if (!aim) return;
+  gesture.aim = aim;
+  if (gesture.spec.type === 'self') { touchAimVisual = null; return; }
+  const point = aimPoint(player, aim, ARENA_RECT);
+  // the touch aim point stands in for the mouse everywhere (placement ghosts,
+  // Ranger's arrow preview, Bombardier's pattern)
+  window.lastPointerWorld = point;
+  touchAimVisual = cancelArmed ? null : { slot: gesture.slot, type: gesture.spec.type, to: point };
+  if (gesture.spec.type === 'special') dispatchBomb({ type: 'drag', point });
+  else if (gesture.slot === 'primary') sendAimVector(aim.dir.x, aim.dir.y);
+}
+function finishAbilityTouch(gesture, cancelled) {
+  abilityTouches.delete(gesture.pointerId);
+  gesture.button.classList.remove('aiming', 'cancel-armed');
+  gesture.button.style.removeProperty('--aim-x');
+  gesture.button.style.removeProperty('--aim-y');
+  if (touchAimVisual?.slot === gesture.slot) touchAimVisual = null;
+  if (gesture.consumed) return;
+  const player = localPlayer();
+  if (gesture.slot === 'primary') {
+    if (primaryPointerId === gesture.pointerId) {
+      if (player?.heroId === 'ranger' && gesture.aim) sendAimVector(gesture.aim.dir.x, gesture.aim.dir.y, true);
+      primaryPointerId = null;
+      setPrimaryHeld(false);
+    }
+    return;
+  }
+  const outcome = cancelled ? 'cancel' : releaseOutcome(gesture, MOBILE_CANCEL_RADIUS);
+  if (gesture.spec.type === 'special') { dispatchBomb({ type: 'release', outcome }); return; }
+  if (outcome === 'cancel' || !player || !socket.connected) return;
+  castTouchAbility(player, gesture);
+}
+function castTouchAbility(player, gesture) {
+  const { spec } = gesture;
+  let aim = gesture.dragged && gesture.aim ? gesture.aim : null;
+  if (!aim && spec.type !== 'self') {
+    const auto = autoAimFor(player, spec.range);
+    aim = { dir: auto.dir, distance: Math.min(spec.range || 0, auto.distance) };
+  }
+  if (spec.type === 'point') {
+    // Turret / meat: the world point, exactly what the desktop placement click sends.
+    const point = aimPoint(player, aim, ARENA_RECT);
+    window.lastPointerWorld = point;
+    engineerPlacementTargeting = false; rangerMeatTargeting = false;
+    socket.emit('skill', point);
+  } else {
+    if (aim) sendAimVector(aim.dir.x, aim.dir.y, true);
+    socket.emit(gesture.slot === 'skill' ? 'skill' : 'ultimate');
+  }
+  haptic();
+}
+
+// ---- Bombardier Targeted Bombing -----------------------------------------------------
+function dispatchBomb(event) {
+  const result = bombardierReduce(bombState, event, { windowMs: BOMB_SPEC.targetTimeoutMs });
+  bombState = result.state;
+  for (const [name, ...args] of result.emits) {
+    if (name === 'fire') { window.lastPointerWorld = args[1]; fireWeapon('secondary', args[1]); haptic(); }
+    else socket.emit(name, ...args);
+  }
+  if (bombState.point) window.lastPointerWorld = bombState.point;
+  if (bombState.phase === 'idle') touchAimVisual = null;
+  syncTouchCancel(performance.now());
+}
+function syncTouchCancel(now) {
+  if (!touchCancelButton) return;
+  const player = localPlayer();
+  const pending = touchMode && (bombState.phase !== 'idle' || player?.targeting
+    || (player?.heroId === 'engineer' && engineerPlacementTargeting) || (player?.heroId === 'ranger' && rangerMeatTargeting));
+  if (touchCancelButton.hidden === !pending) { /* unchanged */ } else touchCancelButton.hidden = !pending;
+  const left = bombState.phase !== 'idle' ? bombardierWindowLeft(bombState, now, BOMB_SPEC.targetTimeoutMs) : 1;
+  touchCancelButton.style.setProperty('--window-degrees', `${Math.round(left * 360)}deg`);
+}
+touchCancelButton?.addEventListener('click', () => {
+  if (bombState.phase !== 'idle') dispatchBomb({ type: 'cancel' });
+  else cancelTargeting();
+  syncTouchCancel(performance.now());
+});
+// Per frame: the window ring, the timeout, and server-side closes.
+function tickTouchControls(now) {
+  if (bombState.phase !== 'idle') {
+    dispatchBomb({ type: 'tick', now });
+    // the server closed the window (confirmed elsewhere, downed, timed out)
+    const player = localPlayer();
+    if (bombState.phase !== 'idle' && player && !player.targeting && now - bombState.openedAt > 800) { bombState = bombardierInitial(); touchAimVisual = null; }
+  }
+  syncTouchCancel(now);
+  if (touchDebug && touchDebugPanel) {
+    touchDebugPanel.textContent = `stick ${stickState.pointerId ?? '-'} (${stickState.vector.x.toFixed(2)}, ${stickState.vector.y.toFixed(2)}) · abilities ${[...abilityTouches.values()].map((g) => `${g.slot}${g.dragged ? '*' : ''}`).join(',') || '-'} · arena ${arenaPointers.size}${pinchStart ? ' pinch' : ''} · zoom ${touchCamera.zoom.toFixed(2)} · bomb ${bombState.phase}`;
+  }
+}
+
+// Thin aim line + reticle from the hero, in the hero's FX colour (world space,
+// so it follows the camera exactly). Two passes (ARENA_DRAW_ORDER): the line
+// in 'aimLines' under the hero sprites (which cover its start at the hero's
+// centre), the end reticle in 'aimReticle' above enemies and effects.
+// Sets the aim stroke/fill on the (already saved) context; null when not aiming.
+function applyTouchAimStyle() {
+  const visual = touchAimVisual;
+  const player = localPlayer();
+  if (!visual || !player) return null;
+  const color = HERO_FX_COLORS[player.heroId]?.primary || '#ffd34f';
+  const px = 1 / Math.max(0.01, touchCamera.scale);
+  context.strokeStyle = color; context.fillStyle = color;
+  context.globalAlpha = 0.9; context.lineWidth = 3 * px;
+  return { visual, player, px };
+}
+function drawTouchAimLine() {
+  context.save();
+  const aim = applyTouchAimStyle();
+  if (aim) {
+    const { visual, player, px } = aim;
+    context.setLineDash([10 * px, 7 * px]);
+    context.beginPath(); context.moveTo(player.x, player.y); context.lineTo(visual.to.x, visual.to.y); context.stroke();
+  }
+  context.restore();
+}
+function drawTouchAimReticle() {
+  context.save();
+  const aim = applyTouchAimStyle();
+  if (aim) {
+    const { visual, px } = aim;
+    context.setLineDash([]);
+    context.beginPath(); context.arc(visual.to.x, visual.to.y, 14 * px, 0, Math.PI * 2); context.stroke();
+    context.beginPath(); context.arc(visual.to.x, visual.to.y, 3 * px, 0, Math.PI * 2); context.fill();
+  }
+  context.restore();
+}
+
+// ---- rotate prompt, HUD scale, release-everything ---------------------------------------
+function rotateBlocked() { return touchMode && rotateOverlay && !rotateOverlay.hidden; }
+function updateRotateOverlay() {
+  if (!rotateOverlay) return;
+  // Portrait blocks input only; the connection and the hero are untouched.
+  const portrait = touchMode && innerHeight > innerWidth;
+  if (rotateOverlay.hidden !== portrait) return;
+  rotateOverlay.hidden = !portrait;
+  if (portrait) releaseAllTouch();
+}
+function updateHudScale() {
+  document.documentElement.style.setProperty('--hud-scale', String(hudScale(innerHeight, { min: HUD_SCALE_MIN, referenceHeight: HUD_SCALE_REFERENCE_HEIGHT, max: HUD_SCALE_MAX })));
+}
+function releaseAllTouch() {
+  for (const gesture of [...abilityTouches.values()]) finishAbilityTouch(gesture, true);
+  arenaPointers.clear();
+  pinchStart = null;
+  if (stickState.pointerId !== null) endStick();
+  touchAimVisual = null;
+  if (primaryPointerId !== null) { primaryPointerId = null; setPrimaryHeld(false); }
+}
+
+// ---- the game menu (top right) --------------------------------------------------------
+function setTouchMenu(open) {
+  if (!touchMenu) return;
+  touchMenu.hidden = !open;
+  touchMenuButton?.setAttribute('aria-expanded', String(open));
+  if (open) touchMenu.querySelector('button')?.focus({ preventScroll: true });
+}
+async function enterFullscreen() {
+  try {
+    await document.documentElement.requestFullscreen?.({ navigationUI: 'hide' });
+    await screen.orientation?.lock?.('landscape');
+  } catch { /* not allowed here (iOS, or the frame lacks permission): the game still fits the screen */ }
+}
+touchMenuButton?.addEventListener('click', () => setTouchMenu(touchMenu.hidden));
+touchMenu?.addEventListener('click', (event) => {
+  if (event.target === touchMenu) { setTouchMenu(false); return; }
+  const action = event.target.closest?.('[data-touch-menu]')?.dataset.touchMenu;
+  if (!action) return;
+  setTouchMenu(false);
+  if (action === 'settings') {
+    settingsPanel.hidden = false;
+    settingsButton.setAttribute('aria-expanded', 'true');
+    updatePerfVisibility();
+  } else if (action === 'info') openStats();
+  else if (action === 'fullscreen') void enterFullscreen();
+  else if (action === 'leave') returnToKingdom();
+});
+const fullscreenItem = touchMenu?.querySelector('[data-touch-menu="fullscreen"]');
+if (fullscreenItem) fullscreenItem.hidden = !document.fullscreenEnabled;
+// Settings sheet close button (touch): the desktop gear toggles it instead.
+document.querySelector('#settings-close')?.addEventListener('click', () => {
+  settingsPanel.hidden = true;
+  settingsButton.setAttribute('aria-expanded', 'false');
+  updatePerfVisibility();
+});
+
+// ---- touch settings (saved) -------------------------------------------------------------
+const touchControlsSetting = document.querySelector('#touch-controls-setting');
+const stickModeSetting = document.querySelector('#stick-mode-setting');
+const hapticsSetting = document.querySelector('#haptics-setting');
+const touchSettingNote = document.querySelector('#touch-controls-note');
+if (touchControlsSetting) {
+  touchControlsSetting.value = touchPref;
+  touchControlsSetting.addEventListener('change', () => {
+    touchPref = touchControlsSetting.value;
+    try { localStorage.setItem(TOUCH_PREF_KEY, touchPref); } catch { /* optional */ }
+    // switching modes mid-run would move every control; it applies on the next visit
+    if (touchSettingNote) touchSettingNote.hidden = computeTouchMode() === touchMode;
+  });
+}
+if (stickModeSetting) {
+  stickModeSetting.value = stickMode;
+  stickModeSetting.addEventListener('change', () => {
+    stickMode = stickModeSetting.value;
+    try { localStorage.setItem(STICK_MODE_KEY, stickMode); } catch { /* optional */ }
+    movementStick.dataset.mode = stickMode;
+  });
+}
+if (hapticsSetting) {
+  hapticsSetting.checked = hapticsOn;
+  hapticsSetting.addEventListener('change', () => {
+    hapticsOn = hapticsSetting.checked;
+    try { localStorage.setItem(HAPTICS_KEY, hapticsOn ? 'on' : 'off'); } catch { /* optional */ }
+  });
+}
+document.querySelector('#reset-zoom')?.addEventListener('click', () => setTouchZoom(MOBILE_DEFAULT_ZOOM));
+
+if (touchMode) {
+  // the 👋 button joins the ability cluster (its free top-left corner)
+  document.querySelector('#ability-hud')?.prepend(emoteButton);
+  movementStick.dataset.mode = stickMode;
+  movementStick.style.setProperty('--stick-radius', `${MOBILE_STICK_RADIUS}px`);
+  movementStick.style.setProperty('--stick-knob', `${MOBILE_STICK_KNOB_RADIUS}px`);
+  const touchButtonPx = (px) => `${Math.max(MOBILE_BUTTON_MIN_PX, Math.round(px * MOBILE_BUTTON_SCALE))}px`;
+  setBtnVar('--touch-btn-primary', touchButtonPx(48));
+  setBtnVar('--touch-btn-skill', touchButtonPx(54));
+  setBtnVar('--touch-btn-ult', touchButtonPx(62));
+  setBtnVar('--touch-hit-slop', `${MOBILE_BUTTON_HIT_SLOP_PX}px`);
+  if (touchDebug && touchDebugPanel) touchDebugPanel.hidden = false;
+  canvas.addEventListener('pointerdown', onTouchArenaDown);
+  movementStick.addEventListener('pointerdown', (event) => {
+    if (stickMode === 'fixed') onFixedStickDown(event);
+    else { event.preventDefault(); if (stickState.pointerId === null) { try { movementStick.setPointerCapture(event.pointerId); } catch { /* fine */ } startStick(event, true); } }
+  });
+  abilityElements.forEach((button) => button.addEventListener('pointerdown', onTouchAbilityDown));
+  window.addEventListener('pointermove', onTouchPointerMove, { passive: false });
+  window.addEventListener('pointerup', onTouchPointerEnd);
+  window.addEventListener('pointercancel', onTouchPointerEnd);
+  // The page is a game surface: no long-press menu, no page pinch-zoom, no
+  // pull-to-refresh, no text selection (also set in hud.css). This page is
+  // its own document inside the app's frame, so leaving the run discards it.
+  document.addEventListener('contextmenu', (event) => event.preventDefault());
+  document.addEventListener('gesturestart', (event) => event.preventDefault());
+  document.addEventListener('touchmove', (event) => { if (event.touches.length > 1 || !event.target.closest?.('#settings-panel, #stats-panel, #touch-menu, #buff-vote-panel, #run-result, #session-summary, .emote-wheel-panel')) event.preventDefault(); }, { passive: false });
+  // Backgrounded: release every input and stop firing. Coming back, the
+  // socket's own reconnect takes over; say so if the link dropped.
+  document.addEventListener('visibilitychange', () => {
+    if (document.hidden) { releaseAllTouch(); releaseKeys(); }
+    else if (!socket.connected) showToast('Reconnecting…');
+  });
+  updateHudScale();
+  updateRotateOverlay();
+}
+
 window.addEventListener('resize', resizeArenaRaster, { passive: true });
 touchViewport.addEventListener?.('change', resizeArenaRaster);
+window.visualViewport?.addEventListener('resize', resizeArenaRaster, { passive: true });
 socket.on('connect', () => {
   lastSentMovement = null;
   sendMovement();
@@ -5937,14 +6596,18 @@ socket.on('connect', () => {
 const warmAudioOnFirstInput = () => {
   warmUpAudio();
   window.removeEventListener('pointerdown', warmAudioOnFirstInput);
+  window.removeEventListener('touchend', warmAudioOnFirstInput);
   window.removeEventListener('keydown', warmAudioOnFirstInput);
 };
 window.addEventListener('pointerdown', warmAudioOnFirstInput);
+// iOS only lets audio start inside a touchend gesture
+window.addEventListener('touchend', warmAudioOnFirstInput, { passive: true });
 window.addEventListener('keydown', warmAudioOnFirstInput);
 canvas.addEventListener('contextmenu', (event) => event.preventDefault());
 addEventListener('keydown', onKeyDown);
 addEventListener('keyup', onKeyUp);
 addEventListener('blur', () => {
+  if (touchMode) releaseAllTouch();
   if (abilityGesture) finishAbilityGesture({ pointerId: abilityGesture.pointerId }, true);
   engineerPlacementTargeting = false;
   releaseKeys();

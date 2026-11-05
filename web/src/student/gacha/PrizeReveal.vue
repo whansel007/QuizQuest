@@ -112,7 +112,7 @@ onUnmounted(() => {
 
 <template>
   <Teleport to="body">
-    <div ref="root" class="prize" :class="['is-' + stage, rarity]" role="dialog" aria-modal="true" aria-labelledby="prize-title" tabindex="-1" @click="onSurfaceClick" @keydown="onKey">
+    <div ref="root" class="prize" :class="['is-' + stage, rarity]" data-testid="prize-reveal" role="dialog" aria-modal="true" aria-labelledby="prize-title" tabindex="-1" @click="onSurfaceClick" @keydown="onKey">
       <div class="prize-rays" aria-hidden="true"></div>
       <div :key="revealKey" class="prize-stage">
         <div v-if="stage === 'star'" class="prize-falling-star" aria-hidden="true">
@@ -157,7 +157,7 @@ onUnmounted(() => {
           <p v-else class="prize-move">Added to your kingdom resources</p>
           <p class="prize-move pity-line">{{ result.pity.totalPulls }} total pulls · pity {{ result.pity.sinceHero }} / {{ result.pity.sinceEpic }}</p>
       <div class="prize-actions" @click.stop>
-            <button ref="collectBtn" type="button" class="btn primary" @click="emit('close')">{{ skipToSummary ? 'View all results' : 'Continue' }}</button>
+            <button ref="collectBtn" type="button" class="btn primary" data-testid="prize-continue" @click="emit('close')">{{ skipToSummary ? 'View all results' : 'Continue' }}</button>
           </div>
         </template>
         <template v-else>

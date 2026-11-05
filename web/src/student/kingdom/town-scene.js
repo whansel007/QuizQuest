@@ -39,16 +39,38 @@ export const PALETTE = {
 // Campfire Run on the east of the clearing. A trail leaves the plaza's west
 // edge, climbs through the gap and forks: a short spur to the Duel, a long
 // path across the clearing to the Campfire Run.
-export const TOWN_GAP = { x: 386, w: 48 };
-const GAP_X = TOWN_GAP.x + TOWN_GAP.w / 2;
+// GAP_X is the trail's centre line through the gap. makeEdgeTrees leaves out
+// every north-row tree within GAP_CLEARANCE of it, and the walkable gap
+// (TOWN_GAP, below) spans the whole opening that leaves between the canopies
+// of the two trees either side, so no invisible wall stands in open grass.
+const GAP_X = 410;
+const GAP_CLEARANCE = 50;
 export const TOWN_TRAILS = [
   [[512, 330], [GAP_X, 330], [GAP_X, -232]],
   [[GAP_X, -232], [430, -296]],
   [[GAP_X, -232], [640, -214], [860, -250], [1010, -294]],
 ];
+// The town's top edge (the north tree line's trunks stand on it).
+const TOWN_ZONE_TOP = 40;
+// Half the drawn width of an edge tree's canopy at its widest (drawTree: the
+// round tree's side circles reach 0.46 W, the pine's bottom tier 0.48 W).
+const canopyHalf = (t) => t.w * (t.kind === 'pine' ? 0.48 : 0.46);
+// The open gap in the north tree line, measured from the trees themselves:
+// from the right canopy edge of the nearest tree west of the trail to the left
+// canopy edge of the nearest tree east of it.
+function measureGap() {
+  const northRow = makeEdgeTrees().filter((t) => Math.abs(t.y + t.h - TOWN_ZONE_TOP) < 8);
+  const centre = (t) => t.x + t.w / 2;
+  const west = northRow.filter((t) => centre(t) < GAP_X).sort((a, b) => centre(b) - centre(a))[0];
+  const east = northRow.filter((t) => centre(t) > GAP_X).sort((a, b) => centre(a) - centre(b))[0];
+  const left = Math.ceil(centre(west) + canopyHalf(west));
+  const right = Math.floor(centre(east) - canopyHalf(east));
+  return { x: left, w: right - left };
+}
+export const TOWN_GAP = Object.freeze(measureGap());
 // Walkable zones: the town, the gap in the northern tree line, the clearing.
 export const TOWN_WALK_ZONES = [
-  { x: 28, y: 40, w: 1224, h: 662 },
+  { x: 28, y: TOWN_ZONE_TOP, w: 1224, h: 662 },
   { x: TOWN_GAP.x, y: -70, w: TOWN_GAP.w, h: 120 },
   { x: 150, y: -600, w: 980, h: 560 },
 ];
@@ -77,8 +99,8 @@ export function makeEdgeTrees() {
     trees.push({ id: `edge-${trees.length}`, type: 'tree', kind, x: cx - w / 2, y: baseY - h, w, h, decorative: true });
   };
   for (let x = -20; x <= TOWN_WIDTH + 20; x += 52) {
-    const inGap = x > GAP_X - 50 && x < GAP_X + 50; // the gap in the north tree line
-    const northX = x + random() * 10; const northY = 36 + random() * 4; const northKind = random() < 0.5 ? 'pine' : 'round';
+    const inGap = x > GAP_X - GAP_CLEARANCE && x < GAP_X + GAP_CLEARANCE; // the gap in the north tree line
+    const northX = x + random() * 10; const northY = TOWN_ZONE_TOP - 4 + random() * 4; const northKind = random() < 0.5 ? 'pine' : 'round';
     if (!inGap) add(northX, northY, northKind);
     add(x + 20 + random() * 10, TOWN_HEIGHT + 34 + random() * 6, random() < 0.4 ? 'pine' : 'round');
     add(x + random() * 10, WORLD_TOP + 118 + random() * 6, 'pine');

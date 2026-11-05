@@ -1,0 +1,5726 @@
+[
+ {
+  "route": "login",
+  "viewport": "1024x768",
+  "touch": true,
+  "vw": 1024,
+  "scrollWidth": 1024,
+  "clientWidth": 1024,
+  "overflow": [],
+  "overflowCount": 0,
+  "clipped": [],
+  "small": []
+ },
+ {
+  "route": "login",
+  "viewport": "1200x800",
+  "touch": false,
+  "vw": 1200,
+  "scrollWidth": 1200,
+  "clientWidth": 1200,
+  "overflow": [],
+  "overflowCount": 0,
+  "clipped": [],
+  "small": [
+   {
+    "el": "p.qq-register > button.qq-inline-link",
+    "w": 117,
+    "h": 21,
+    "text": "Create an account"
+   }
+  ]
+ },
+ {
+  "route": "login",
+  "viewport": "1440x900",
+  "touch": false,
+  "vw": 1440,
+  "scrollWidth": 1440,
+  "clientWidth": 1440,
+  "overflow": [],
+  "overflowCount": 0,
+  "clipped": [],
+  "small": [
+   {
+    "el": "p.qq-register > button.qq-inline-link",
+    "w": 117,
+    "h": 21,
+    "text": "Create an account"
+   }
+  ]
+ },
+ {
+  "route": "login",
+  "viewport": "320x568",
+  "touch": true,
+  "vw": 320,
+  "scrollWidth": 320,
+  "clientWidth": 320,
+  "overflow": [],
+  "overflowCount": 0,
+  "clipped": [],
+  "small": []
+ },
+ {
+  "route": "login",
+  "viewport": "360x740",
+  "touch": true,
+  "vw": 360,
+  "scrollWidth": 360,
+  "clientWidth": 360,
+  "overflow": [],
+  "overflowCount": 0,
+  "clipped": [],
+  "small": []
+ },
+ {
+  "route": "login",
+  "viewport": "375x667",
+  "touch": true,
+  "vw": 375,
+  "scrollWidth": 375,
+  "clientWidth": 375,
+  "overflow": [],
+  "overflowCount": 0,
+  "clipped": [],
+  "small": []
+ },
+ {
+  "route": "login",
+  "viewport": "390x844",
+  "touch": true,
+  "vw": 390,
+  "scrollWidth": 390,
+  "clientWidth": 390,
+  "overflow": [],
+  "overflowCount": 0,
+  "clipped": [],
+  "small": []
+ },
+ {
+  "route": "login",
+  "viewport": "412x915",
+  "touch": true,
+  "vw": 412,
+  "scrollWidth": 412,
+  "clientWidth": 412,
+  "overflow": [],
+  "overflowCount": 0,
+  "clipped": [],
+  "small": []
+ },
+ {
+  "route": "login",
+  "viewport": "667x375",
+  "touch": true,
+  "vw": 667,
+  "scrollWidth": 667,
+  "clientWidth": 667,
+  "overflow": [],
+  "overflowCount": 0,
+  "clipped": [],
+  "small": []
+ },
+ {
+  "route": "login",
+  "viewport": "740x360",
+  "touch": true,
+  "vw": 740,
+  "scrollWidth": 740,
+  "clientWidth": 740,
+  "overflow": [],
+  "overflowCount": 0,
+  "clipped": [],
+  "small": []
+ },
+ {
+  "route": "login",
+  "viewport": "768x1024",
+  "touch": true,
+  "vw": 768,
+  "scrollWidth": 768,
+  "clientWidth": 768,
+  "overflow": [],
+  "overflowCount": 0,
+  "clipped": [],
+  "small": []
+ },
+ {
+  "route": "login",
+  "viewport": "820x1180",
+  "touch": true,
+  "vw": 820,
+  "scrollWidth": 820,
+  "clientWidth": 820,
+  "overflow": [],
+  "overflowCount": 0,
+  "clipped": [],
+  "small": []
+ },
+ {
+  "route": "signup",
+  "viewport": "1024x768",
+  "touch": true,
+  "vw": 1024,
+  "scrollWidth": 1024,
+  "clientWidth": 1024,
+  "overflow": [],
+  "overflowCount": 0,
+  "clipped": [],
+  "small": []
+ },
+ {
+  "route": "signup",
+  "viewport": "1200x800",
+  "touch": false,
+  "vw": 1200,
+  "scrollWidth": 1200,
+  "clientWidth": 1200,
+  "overflow": [],
+  "overflowCount": 0,
+  "clipped": [],
+  "small": [
+   {
+    "el": "div.qq-pw > button.qq-eye",
+    "w": 54,
+    "h": 30,
+    "text": "Show password"
+   }
+  ]
+ },
+ {
+  "route": "signup",
+  "viewport": "1440x900",
+  "touch": false,
+  "vw": 1440,
+  "scrollWidth": 1440,
+  "clientWidth": 1440,
+  "overflow": [],
+  "overflowCount": 0,
+  "clipped": [],
+  "small": [
+   {
+    "el": "div.qq-pw > button.qq-eye",
+    "w": 54,
+    "h": 30,
+    "text": "Show password"
+   }
+  ]
+ },
+ {
+  "route": "signup",
+  "viewport": "320x568",
+  "touch": true,
+  "vw": 320,
+  "scrollWidth": 320,
+  "clientWidth": 320,
+  "overflow": [],
+  "overflowCount": 0,
+  "clipped": [],
+  "small": []
+ },
+ {
+  "route": "signup",
+  "viewport": "360x740",
+  "touch": true,
+  "vw": 360,
+  "scrollWidth": 360,
+  "clientWidth": 360,
+  "overflow": [],
+  "overflowCount": 0,
+  "clipped": [],
+  "small": []
+ },
+ {
+  "route": "signup",
+  "viewport": "375x667",
+  "touch": true,
+  "vw": 375,
+  "scrollWidth": 375,
+  "clientWidth": 375,
+  "overflow": [],
+  "overflowCount": 0,
+  "clipped": [],
+  "small": []
+ },
+ {
+  "route": "signup",
+  "viewport": "390x844",
+  "touch": true,
+  "vw": 390,
+  "scrollWidth": 390,
+  "clientWidth": 390,
+  "overflow": [],
+  "overflowCount": 0,
+  "clipped": [],
+  "small": []
+ },
+ {
+  "route": "signup",
+  "viewport": "412x915",
+  "touch": true,
+  "vw": 412,
+  "scrollWidth": 412,
+  "clientWidth": 412,
+  "overflow": [],
+  "overflowCount": 0,
+  "clipped": [],
+  "small": []
+ },
+ {
+  "route": "signup",
+  "viewport": "667x375",
+  "touch": true,
+  "vw": 667,
+  "scrollWidth": 667,
+  "clientWidth": 667,
+  "overflow": [],
+  "overflowCount": 0,
+  "clipped": [],
+  "small": []
+ },
+ {
+  "route": "signup",
+  "viewport": "740x360",
+  "touch": true,
+  "vw": 740,
+  "scrollWidth": 740,
+  "clientWidth": 740,
+  "overflow": [],
+  "overflowCount": 0,
+  "clipped": [],
+  "small": []
+ },
+ {
+  "route": "signup",
+  "viewport": "768x1024",
+  "touch": true,
+  "vw": 768,
+  "scrollWidth": 768,
+  "clientWidth": 768,
+  "overflow": [],
+  "overflowCount": 0,
+  "clipped": [],
+  "small": []
+ },
+ {
+  "route": "signup",
+  "viewport": "820x1180",
+  "touch": true,
+  "vw": 820,
+  "scrollWidth": 820,
+  "clientWidth": 820,
+  "overflow": [],
+  "overflowCount": 0,
+  "clipped": [],
+  "small": []
+ },
+ {
+  "route": "student-kingdom-buildings",
+  "viewport": "1024x768",
+  "touch": true,
+  "vw": 1024,
+  "scrollWidth": 1024,
+  "clientWidth": 1024,
+  "overflow": [],
+  "overflowCount": 0,
+  "clipped": [],
+  "small": []
+ },
+ {
+  "route": "student-kingdom-buildings",
+  "viewport": "1200x800",
+  "touch": false,
+  "vw": 1200,
+  "scrollWidth": 1200,
+  "clientWidth": 1200,
+  "overflow": [],
+  "overflowCount": 0,
+  "clipped": [],
+  "small": [
+   {
+    "el": "nav#tabs > button",
+    "w": 85,
+    "h": 37,
+    "text": "Kingdom"
+   },
+   {
+    "el": "nav#tabs > button",
+    "w": 55,
+    "h": 37,
+    "text": "Quiz"
+   },
+   {
+    "el": "nav#tabs > button",
+    "w": 109,
+    "h": 37,
+    "text": "My Progress"
+   },
+   {
+    "el": "nav#tabs > button",
+    "w": 117,
+    "h": 37,
+    "text": "Campfire Run"
+   },
+   {
+    "el": "nav#tabs > button",
+    "w": 85,
+    "h": 37,
+    "text": "Summon"
+   },
+   {
+    "el": "div.account-menu > button.btn.small",
+    "w": 67,
+    "h": 30,
+    "text": "Log out"
+   },
+   {
+    "el": "div#who > button.btn.small.debug-trigger",
+    "w": 40,
+    "h": 30,
+    "text": "Tools and version"
+   },
+   {
+    "el": "div#who > button.btn.small.sound-toggle",
+    "w": 39,
+    "h": 30,
+    "text": "Mute sounds"
+   },
+   {
+    "el": "div.town-title-actions > button.hud-btn",
+    "w": 110,
+    "h": 36,
+    "text": "Buildings"
+   },
+   {
+    "el": "div.town-title-actions > button.hud-btn.hud-icon",
+    "w": 36,
+    "h": 36,
+    "text": "Replay the kingdom tour"
+   },
+   {
+    "el": "div.town-hud > button.hud-btn",
+    "w": 92,
+    "h": 36,
+    "text": "Emote Z"
+   },
+   {
+    "el": "div.town-hud > button.hud-btn.hud-icon",
+    "w": 36,
+    "h": 36,
+    "text": "Mute sounds"
+   },
+   {
+    "el": "header.panel-head > button.castle-info-chip",
+    "w": 145,
+    "h": 40,
+    "text": "i Castle growth"
+   },
+   {
+    "el": "header.panel-head > button.town-modal-close",
+    "w": 36,
+    "h": 36,
+    "text": "Close"
+   },
+   {
+    "el": "div.wardrobe-tabs > button.wardrobe-tab",
+    "w": 55,
+    "h": 34,
+    "text": "Hats"
+   },
+   {
+    "el": "div.wardrobe-tabs > button.wardrobe-tab",
+    "w": 53,
+    "h": 34,
+    "text": "Pins"
+   },
+   {
+    "el": "div.wardrobe-tabs > button.wardrobe-tab",
+    "w": 65,
+    "h": 34,
+    "text": "Colors"
+   },
+   {
+    "el": "article.hat-card > button.hat-claim",
+    "w": 115,
+    "h": 29,
+    "text": "Add · Free"
+   }
+  ]
+ },
+ {
+  "route": "student-kingdom-buildings",
+  "viewport": "1440x900",
+  "touch": false,
+  "vw": 1440,
+  "scrollWidth": 1440,
+  "clientWidth": 1440,
+  "overflow": [],
+  "overflowCount": 0,
+  "clipped": [],
+  "small": [
+   {
+    "el": "nav#tabs > button",
+    "w": 85,
+    "h": 37,
+    "text": "Kingdom"
+   },
+   {
+    "el": "nav#tabs > button",
+    "w": 55,
+    "h": 37,
+    "text": "Quiz"
+   },
+   {
+    "el": "nav#tabs > button",
+    "w": 109,
+    "h": 37,
+    "text": "My Progress"
+   },
+   {
+    "el": "nav#tabs > button",
+    "w": 117,
+    "h": 37,
+    "text": "Campfire Run"
+   },
+   {
+    "el": "nav#tabs > button",
+    "w": 85,
+    "h": 37,
+    "text": "Summon"
+   },
+   {
+    "el": "div.account-menu > button.btn.small",
+    "w": 67,
+    "h": 30,
+    "text": "Log out"
+   },
+   {
+    "el": "div#who > button.btn.small.debug-trigger",
+    "w": 40,
+    "h": 30,
+    "text": "Tools and version"
+   },
+   {
+    "el": "div#who > button.btn.small.sound-toggle",
+    "w": 39,
+    "h": 30,
+    "text": "Mute sounds"
+   },
+   {
+    "el": "div.town-title-actions > button.hud-btn",
+    "w": 110,
+    "h": 36,
+    "text": "Buildings"
+   },
+   {
+    "el": "div.town-title-actions > button.hud-btn.hud-icon",
+    "w": 36,
+    "h": 36,
+    "text": "Replay the kingdom tour"
+   },
+   {
+    "el": "div.town-hud > button.hud-btn",
+    "w": 92,
+    "h": 36,
+    "text": "Emote Z"
+   },
+   {
+    "el": "div.town-hud > button.hud-btn.hud-icon",
+    "w": 36,
+    "h": 36,
+    "text": "Mute sounds"
+   },
+   {
+    "el": "header.panel-head > button.castle-info-chip",
+    "w": 145,
+    "h": 40,
+    "text": "i Castle growth"
+   },
+   {
+    "el": "header.panel-head > button.town-modal-close",
+    "w": 36,
+    "h": 36,
+    "text": "Close"
+   },
+   {
+    "el": "div.wardrobe-tabs > button.wardrobe-tab",
+    "w": 55,
+    "h": 34,
+    "text": "Hats"
+   },
+   {
+    "el": "div.wardrobe-tabs > button.wardrobe-tab",
+    "w": 53,
+    "h": 34,
+    "text": "Pins"
+   },
+   {
+    "el": "div.wardrobe-tabs > button.wardrobe-tab",
+    "w": 65,
+    "h": 34,
+    "text": "Colors"
+   },
+   {
+    "el": "article.hat-card > button.hat-claim",
+    "w": 117,
+    "h": 29,
+    "text": "Add · Free"
+   },
+   {
+    "el": "section.wardrobe-catalog > button.btn.primary.wardrobe-save",
+    "w": 126,
+    "h": 38,
+    "text": "Save this look"
+   }
+  ]
+ },
+ {
+  "route": "student-kingdom-buildings",
+  "viewport": "320x568",
+  "touch": true,
+  "vw": 320,
+  "scrollWidth": 320,
+  "clientWidth": 320,
+  "overflow": [],
+  "overflowCount": 0,
+  "clipped": [],
+  "small": []
+ },
+ {
+  "route": "student-kingdom-buildings",
+  "viewport": "360x740",
+  "touch": true,
+  "vw": 360,
+  "scrollWidth": 360,
+  "clientWidth": 360,
+  "overflow": [],
+  "overflowCount": 0,
+  "clipped": [],
+  "small": []
+ },
+ {
+  "route": "student-kingdom-buildings",
+  "viewport": "375x667",
+  "touch": true,
+  "vw": 375,
+  "scrollWidth": 375,
+  "clientWidth": 375,
+  "overflow": [],
+  "overflowCount": 0,
+  "clipped": [],
+  "small": []
+ },
+ {
+  "route": "student-kingdom-buildings",
+  "viewport": "390x844",
+  "touch": true,
+  "vw": 390,
+  "scrollWidth": 390,
+  "clientWidth": 390,
+  "overflow": [],
+  "overflowCount": 0,
+  "clipped": [],
+  "small": []
+ },
+ {
+  "route": "student-kingdom-buildings",
+  "viewport": "412x915",
+  "touch": true,
+  "vw": 412,
+  "scrollWidth": 412,
+  "clientWidth": 412,
+  "overflow": [],
+  "overflowCount": 0,
+  "clipped": [],
+  "small": []
+ },
+ {
+  "route": "student-kingdom-buildings",
+  "viewport": "667x375",
+  "touch": true,
+  "vw": 667,
+  "scrollWidth": 667,
+  "clientWidth": 667,
+  "overflow": [],
+  "overflowCount": 0,
+  "clipped": [],
+  "small": []
+ },
+ {
+  "route": "student-kingdom-buildings",
+  "viewport": "740x360",
+  "touch": true,
+  "vw": 740,
+  "scrollWidth": 740,
+  "clientWidth": 740,
+  "overflow": [],
+  "overflowCount": 0,
+  "clipped": [],
+  "small": []
+ },
+ {
+  "route": "student-kingdom-buildings",
+  "viewport": "768x1024",
+  "touch": true,
+  "vw": 768,
+  "scrollWidth": 768,
+  "clientWidth": 768,
+  "overflow": [],
+  "overflowCount": 0,
+  "clipped": [],
+  "small": []
+ },
+ {
+  "route": "student-kingdom-buildings",
+  "viewport": "820x1180",
+  "touch": true,
+  "vw": 820,
+  "scrollWidth": 820,
+  "clientWidth": 820,
+  "overflow": [],
+  "overflowCount": 0,
+  "clipped": [],
+  "small": []
+ },
+ {
+  "route": "student-kingdom-intro",
+  "viewport": "1024x768",
+  "touch": true,
+  "vw": 1024,
+  "scrollWidth": 1024,
+  "clientWidth": 1024,
+  "overflow": [],
+  "overflowCount": 0,
+  "clipped": [],
+  "small": []
+ },
+ {
+  "route": "student-kingdom-intro",
+  "viewport": "1200x800",
+  "touch": false,
+  "vw": 1200,
+  "scrollWidth": 1200,
+  "clientWidth": 1200,
+  "overflow": [],
+  "overflowCount": 0,
+  "clipped": [],
+  "small": [
+   {
+    "el": "nav#tabs > button",
+    "w": 85,
+    "h": 37,
+    "text": "Kingdom"
+   },
+   {
+    "el": "nav#tabs > button",
+    "w": 55,
+    "h": 37,
+    "text": "Quiz"
+   },
+   {
+    "el": "nav#tabs > button",
+    "w": 109,
+    "h": 37,
+    "text": "My Progress"
+   },
+   {
+    "el": "nav#tabs > button",
+    "w": 117,
+    "h": 37,
+    "text": "Campfire Run"
+   },
+   {
+    "el": "nav#tabs > button",
+    "w": 85,
+    "h": 37,
+    "text": "Summon"
+   },
+   {
+    "el": "div.account-menu > button.btn.small",
+    "w": 67,
+    "h": 30,
+    "text": "Log out"
+   },
+   {
+    "el": "div#who > button.btn.small.debug-trigger",
+    "w": 40,
+    "h": 30,
+    "text": "Tools and version"
+   },
+   {
+    "el": "div#who > button.btn.small.sound-toggle",
+    "w": 39,
+    "h": 30,
+    "text": "Mute sounds"
+   },
+   {
+    "el": "div.town-title-actions > button.hud-btn",
+    "w": 110,
+    "h": 36,
+    "text": "Buildings"
+   },
+   {
+    "el": "div.town-title-actions > button.hud-btn.hud-icon",
+    "w": 36,
+    "h": 36,
+    "text": "Replay the kingdom tour"
+   },
+   {
+    "el": "div.town-hud > button.hud-btn",
+    "w": 92,
+    "h": 36,
+    "text": "Emote Z"
+   },
+   {
+    "el": "div.town-hud > button.hud-btn.hud-icon",
+    "w": 36,
+    "h": 36,
+    "text": "Mute sounds"
+   },
+   {
+    "el": "div.town-intro-actions > button.btn",
+    "w": 61,
+    "h": 38,
+    "text": "Skip"
+   },
+   {
+    "el": "div.town-intro-actions > button.btn.primary",
+    "w": 64,
+    "h": 38,
+    "text": "Next"
+   }
+  ]
+ },
+ {
+  "route": "student-kingdom-intro",
+  "viewport": "1440x900",
+  "touch": false,
+  "vw": 1440,
+  "scrollWidth": 1440,
+  "clientWidth": 1440,
+  "overflow": [],
+  "overflowCount": 0,
+  "clipped": [],
+  "small": [
+   {
+    "el": "nav#tabs > button",
+    "w": 85,
+    "h": 37,
+    "text": "Kingdom"
+   },
+   {
+    "el": "nav#tabs > button",
+    "w": 55,
+    "h": 37,
+    "text": "Quiz"
+   },
+   {
+    "el": "nav#tabs > button",
+    "w": 109,
+    "h": 37,
+    "text": "My Progress"
+   },
+   {
+    "el": "nav#tabs > button",
+    "w": 117,
+    "h": 37,
+    "text": "Campfire Run"
+   },
+   {
+    "el": "nav#tabs > button",
+    "w": 85,
+    "h": 37,
+    "text": "Summon"
+   },
+   {
+    "el": "div.account-menu > button.btn.small",
+    "w": 67,
+    "h": 30,
+    "text": "Log out"
+   },
+   {
+    "el": "div#who > button.btn.small.debug-trigger",
+    "w": 40,
+    "h": 30,
+    "text": "Tools and version"
+   },
+   {
+    "el": "div#who > button.btn.small.sound-toggle",
+    "w": 39,
+    "h": 30,
+    "text": "Mute sounds"
+   },
+   {
+    "el": "div.town-title-actions > button.hud-btn",
+    "w": 110,
+    "h": 36,
+    "text": "Buildings"
+   },
+   {
+    "el": "div.town-title-actions > button.hud-btn.hud-icon",
+    "w": 36,
+    "h": 36,
+    "text": "Replay the kingdom tour"
+   },
+   {
+    "el": "div.town-hud > button.hud-btn",
+    "w": 92,
+    "h": 36,
+    "text": "Emote Z"
+   },
+   {
+    "el": "div.town-hud > button.hud-btn.hud-icon",
+    "w": 36,
+    "h": 36,
+    "text": "Mute sounds"
+   },
+   {
+    "el": "div.town-intro-actions > button.btn",
+    "w": 61,
+    "h": 38,
+    "text": "Skip"
+   },
+   {
+    "el": "div.town-intro-actions > button.btn.primary",
+    "w": 64,
+    "h": 38,
+    "text": "Next"
+   }
+  ]
+ },
+ {
+  "route": "student-kingdom-intro",
+  "viewport": "320x568",
+  "touch": true,
+  "vw": 320,
+  "scrollWidth": 320,
+  "clientWidth": 320,
+  "overflow": [],
+  "overflowCount": 0,
+  "clipped": [],
+  "small": []
+ },
+ {
+  "route": "student-kingdom-intro",
+  "viewport": "360x740",
+  "touch": true,
+  "vw": 360,
+  "scrollWidth": 360,
+  "clientWidth": 360,
+  "overflow": [],
+  "overflowCount": 0,
+  "clipped": [],
+  "small": []
+ },
+ {
+  "route": "student-kingdom-intro",
+  "viewport": "375x667",
+  "touch": true,
+  "vw": 375,
+  "scrollWidth": 375,
+  "clientWidth": 375,
+  "overflow": [],
+  "overflowCount": 0,
+  "clipped": [],
+  "small": []
+ },
+ {
+  "route": "student-kingdom-intro",
+  "viewport": "390x844",
+  "touch": true,
+  "vw": 390,
+  "scrollWidth": 390,
+  "clientWidth": 390,
+  "overflow": [],
+  "overflowCount": 0,
+  "clipped": [],
+  "small": []
+ },
+ {
+  "route": "student-kingdom-intro",
+  "viewport": "412x915",
+  "touch": true,
+  "vw": 412,
+  "scrollWidth": 412,
+  "clientWidth": 412,
+  "overflow": [],
+  "overflowCount": 0,
+  "clipped": [],
+  "small": []
+ },
+ {
+  "route": "student-kingdom-intro",
+  "viewport": "667x375",
+  "touch": true,
+  "vw": 667,
+  "scrollWidth": 667,
+  "clientWidth": 667,
+  "overflow": [],
+  "overflowCount": 0,
+  "clipped": [],
+  "small": []
+ },
+ {
+  "route": "student-kingdom-intro",
+  "viewport": "740x360",
+  "touch": true,
+  "vw": 740,
+  "scrollWidth": 740,
+  "clientWidth": 740,
+  "overflow": [],
+  "overflowCount": 0,
+  "clipped": [],
+  "small": []
+ },
+ {
+  "route": "student-kingdom-intro",
+  "viewport": "768x1024",
+  "touch": true,
+  "vw": 768,
+  "scrollWidth": 768,
+  "clientWidth": 768,
+  "overflow": [],
+  "overflowCount": 0,
+  "clipped": [],
+  "small": []
+ },
+ {
+  "route": "student-kingdom-intro",
+  "viewport": "820x1180",
+  "touch": true,
+  "vw": 820,
+  "scrollWidth": 820,
+  "clientWidth": 820,
+  "overflow": [],
+  "overflowCount": 0,
+  "clipped": [],
+  "small": []
+ },
+ {
+  "route": "student-kingdom",
+  "viewport": "1024x768",
+  "touch": true,
+  "vw": 1024,
+  "scrollWidth": 1024,
+  "clientWidth": 1024,
+  "overflow": [],
+  "overflowCount": 0,
+  "clipped": [],
+  "small": []
+ },
+ {
+  "route": "student-kingdom",
+  "viewport": "1200x800",
+  "touch": false,
+  "vw": 1200,
+  "scrollWidth": 1200,
+  "clientWidth": 1200,
+  "overflow": [],
+  "overflowCount": 0,
+  "clipped": [],
+  "small": [
+   {
+    "el": "nav#tabs > button",
+    "w": 85,
+    "h": 37,
+    "text": "Kingdom"
+   },
+   {
+    "el": "nav#tabs > button",
+    "w": 55,
+    "h": 37,
+    "text": "Quiz"
+   },
+   {
+    "el": "nav#tabs > button",
+    "w": 109,
+    "h": 37,
+    "text": "My Progress"
+   },
+   {
+    "el": "nav#tabs > button",
+    "w": 117,
+    "h": 37,
+    "text": "Campfire Run"
+   },
+   {
+    "el": "nav#tabs > button",
+    "w": 85,
+    "h": 37,
+    "text": "Summon"
+   },
+   {
+    "el": "div.account-menu > button.btn.small",
+    "w": 67,
+    "h": 30,
+    "text": "Log out"
+   },
+   {
+    "el": "div#who > button.btn.small.debug-trigger",
+    "w": 40,
+    "h": 30,
+    "text": "Tools and version"
+   },
+   {
+    "el": "div#who > button.btn.small.sound-toggle",
+    "w": 39,
+    "h": 30,
+    "text": "Mute sounds"
+   },
+   {
+    "el": "div.town-title-actions > button.hud-btn",
+    "w": 110,
+    "h": 36,
+    "text": "Buildings"
+   },
+   {
+    "el": "div.town-title-actions > button.hud-btn.hud-icon",
+    "w": 36,
+    "h": 36,
+    "text": "Replay the kingdom tour"
+   },
+   {
+    "el": "div.town-hud > button.hud-btn",
+    "w": 92,
+    "h": 36,
+    "text": "Emote Z"
+   },
+   {
+    "el": "div.town-hud > button.hud-btn.hud-icon",
+    "w": 36,
+    "h": 36,
+    "text": "Mute sounds"
+   },
+   {
+    "el": "div.town-intro-actions > button.btn",
+    "w": 61,
+    "h": 38,
+    "text": "Skip"
+   },
+   {
+    "el": "div.town-intro-actions > button.btn.primary",
+    "w": 64,
+    "h": 38,
+    "text": "Next"
+   }
+  ]
+ },
+ {
+  "route": "student-kingdom",
+  "viewport": "1440x900",
+  "touch": false,
+  "vw": 1440,
+  "scrollWidth": 1440,
+  "clientWidth": 1440,
+  "overflow": [],
+  "overflowCount": 0,
+  "clipped": [],
+  "small": [
+   {
+    "el": "nav#tabs > button",
+    "w": 85,
+    "h": 37,
+    "text": "Kingdom"
+   },
+   {
+    "el": "nav#tabs > button",
+    "w": 55,
+    "h": 37,
+    "text": "Quiz"
+   },
+   {
+    "el": "nav#tabs > button",
+    "w": 109,
+    "h": 37,
+    "text": "My Progress"
+   },
+   {
+    "el": "nav#tabs > button",
+    "w": 117,
+    "h": 37,
+    "text": "Campfire Run"
+   },
+   {
+    "el": "nav#tabs > button",
+    "w": 85,
+    "h": 37,
+    "text": "Summon"
+   },
+   {
+    "el": "div.account-menu > button.btn.small",
+    "w": 67,
+    "h": 30,
+    "text": "Log out"
+   },
+   {
+    "el": "div#who > button.btn.small.debug-trigger",
+    "w": 40,
+    "h": 30,
+    "text": "Tools and version"
+   },
+   {
+    "el": "div#who > button.btn.small.sound-toggle",
+    "w": 39,
+    "h": 30,
+    "text": "Mute sounds"
+   },
+   {
+    "el": "div.town-title-actions > button.hud-btn",
+    "w": 110,
+    "h": 36,
+    "text": "Buildings"
+   },
+   {
+    "el": "div.town-title-actions > button.hud-btn.hud-icon",
+    "w": 36,
+    "h": 36,
+    "text": "Replay the kingdom tour"
+   },
+   {
+    "el": "div.town-hud > button.hud-btn",
+    "w": 92,
+    "h": 36,
+    "text": "Emote Z"
+   },
+   {
+    "el": "div.town-hud > button.hud-btn.hud-icon",
+    "w": 36,
+    "h": 36,
+    "text": "Mute sounds"
+   },
+   {
+    "el": "div.town-intro-actions > button.btn",
+    "w": 61,
+    "h": 38,
+    "text": "Skip"
+   },
+   {
+    "el": "div.town-intro-actions > button.btn.primary",
+    "w": 64,
+    "h": 38,
+    "text": "Next"
+   }
+  ]
+ },
+ {
+  "route": "student-kingdom",
+  "viewport": "320x568",
+  "touch": true,
+  "vw": 320,
+  "scrollWidth": 320,
+  "clientWidth": 320,
+  "overflow": [],
+  "overflowCount": 0,
+  "clipped": [],
+  "small": []
+ },
+ {
+  "route": "student-kingdom",
+  "viewport": "360x740",
+  "touch": true,
+  "vw": 360,
+  "scrollWidth": 360,
+  "clientWidth": 360,
+  "overflow": [],
+  "overflowCount": 0,
+  "clipped": [],
+  "small": []
+ },
+ {
+  "route": "student-kingdom",
+  "viewport": "375x667",
+  "touch": true,
+  "vw": 375,
+  "scrollWidth": 375,
+  "clientWidth": 375,
+  "overflow": [],
+  "overflowCount": 0,
+  "clipped": [],
+  "small": []
+ },
+ {
+  "route": "student-kingdom",
+  "viewport": "390x844",
+  "touch": true,
+  "vw": 390,
+  "scrollWidth": 390,
+  "clientWidth": 390,
+  "overflow": [],
+  "overflowCount": 0,
+  "clipped": [],
+  "small": []
+ },
+ {
+  "route": "student-kingdom",
+  "viewport": "412x915",
+  "touch": true,
+  "vw": 412,
+  "scrollWidth": 412,
+  "clientWidth": 412,
+  "overflow": [],
+  "overflowCount": 0,
+  "clipped": [],
+  "small": []
+ },
+ {
+  "route": "student-kingdom",
+  "viewport": "667x375",
+  "touch": true,
+  "vw": 667,
+  "scrollWidth": 667,
+  "clientWidth": 667,
+  "overflow": [],
+  "overflowCount": 0,
+  "clipped": [],
+  "small": []
+ },
+ {
+  "route": "student-kingdom",
+  "viewport": "740x360",
+  "touch": true,
+  "vw": 740,
+  "scrollWidth": 740,
+  "clientWidth": 740,
+  "overflow": [],
+  "overflowCount": 0,
+  "clipped": [],
+  "small": []
+ },
+ {
+  "route": "student-kingdom",
+  "viewport": "768x1024",
+  "touch": true,
+  "vw": 768,
+  "scrollWidth": 768,
+  "clientWidth": 768,
+  "overflow": [],
+  "overflowCount": 0,
+  "clipped": [],
+  "small": []
+ },
+ {
+  "route": "student-kingdom",
+  "viewport": "820x1180",
+  "touch": true,
+  "vw": 820,
+  "scrollWidth": 820,
+  "clientWidth": 820,
+  "overflow": [],
+  "overflowCount": 0,
+  "clipped": [],
+  "small": []
+ },
+ {
+  "route": "student-nav-drawer",
+  "viewport": "1024x768",
+  "touch": true,
+  "skipped": "desktop nav: no drawer at this width"
+ },
+ {
+  "route": "student-nav-drawer",
+  "viewport": "1200x800",
+  "touch": false,
+  "skipped": "desktop nav: no drawer at this width"
+ },
+ {
+  "route": "student-nav-drawer",
+  "viewport": "1440x900",
+  "touch": false,
+  "skipped": "desktop nav: no drawer at this width"
+ },
+ {
+  "route": "student-nav-drawer",
+  "viewport": "320x568",
+  "touch": true,
+  "vw": 320,
+  "scrollWidth": 320,
+  "clientWidth": 320,
+  "overflow": [],
+  "overflowCount": 0,
+  "clipped": [],
+  "small": []
+ },
+ {
+  "route": "student-nav-drawer",
+  "viewport": "360x740",
+  "touch": true,
+  "vw": 360,
+  "scrollWidth": 360,
+  "clientWidth": 360,
+  "overflow": [],
+  "overflowCount": 0,
+  "clipped": [],
+  "small": []
+ },
+ {
+  "route": "student-nav-drawer",
+  "viewport": "375x667",
+  "touch": true,
+  "vw": 375,
+  "scrollWidth": 375,
+  "clientWidth": 375,
+  "overflow": [],
+  "overflowCount": 0,
+  "clipped": [],
+  "small": []
+ },
+ {
+  "route": "student-nav-drawer",
+  "viewport": "390x844",
+  "touch": true,
+  "vw": 390,
+  "scrollWidth": 390,
+  "clientWidth": 390,
+  "overflow": [],
+  "overflowCount": 0,
+  "clipped": [],
+  "small": []
+ },
+ {
+  "route": "student-nav-drawer",
+  "viewport": "412x915",
+  "touch": true,
+  "vw": 412,
+  "scrollWidth": 412,
+  "clientWidth": 412,
+  "overflow": [],
+  "overflowCount": 0,
+  "clipped": [],
+  "small": []
+ },
+ {
+  "route": "student-nav-drawer",
+  "viewport": "667x375",
+  "touch": true,
+  "vw": 667,
+  "scrollWidth": 667,
+  "clientWidth": 667,
+  "overflow": [],
+  "overflowCount": 0,
+  "clipped": [],
+  "small": []
+ },
+ {
+  "route": "student-nav-drawer",
+  "viewport": "740x360",
+  "touch": true,
+  "vw": 740,
+  "scrollWidth": 740,
+  "clientWidth": 740,
+  "overflow": [],
+  "overflowCount": 0,
+  "clipped": [],
+  "small": []
+ },
+ {
+  "route": "student-nav-drawer",
+  "viewport": "768x1024",
+  "touch": true,
+  "vw": 768,
+  "scrollWidth": 768,
+  "clientWidth": 768,
+  "overflow": [],
+  "overflowCount": 0,
+  "clipped": [],
+  "small": []
+ },
+ {
+  "route": "student-nav-drawer",
+  "viewport": "820x1180",
+  "touch": true,
+  "vw": 820,
+  "scrollWidth": 820,
+  "clientWidth": 820,
+  "overflow": [],
+  "overflowCount": 0,
+  "clipped": [],
+  "small": []
+ },
+ {
+  "route": "student-practice",
+  "viewport": "1024x768",
+  "touch": true,
+  "vw": 1024,
+  "scrollWidth": 1024,
+  "clientWidth": 1024,
+  "overflow": [],
+  "overflowCount": 0,
+  "clipped": [],
+  "small": []
+ },
+ {
+  "route": "student-practice",
+  "viewport": "1200x800",
+  "touch": false,
+  "vw": 1200,
+  "scrollWidth": 1200,
+  "clientWidth": 1200,
+  "overflow": [],
+  "overflowCount": 0,
+  "clipped": [],
+  "small": [
+   {
+    "el": "nav#tabs > button",
+    "w": 85,
+    "h": 37,
+    "text": "Kingdom"
+   },
+   {
+    "el": "nav#tabs > button",
+    "w": 55,
+    "h": 37,
+    "text": "Quiz"
+   },
+   {
+    "el": "nav#tabs > button",
+    "w": 109,
+    "h": 37,
+    "text": "My Progress"
+   },
+   {
+    "el": "nav#tabs > button",
+    "w": 117,
+    "h": 37,
+    "text": "Campfire Run"
+   },
+   {
+    "el": "nav#tabs > button",
+    "w": 85,
+    "h": 37,
+    "text": "Summon"
+   },
+   {
+    "el": "div.account-menu > button.btn.small",
+    "w": 67,
+    "h": 30,
+    "text": "Log out"
+   },
+   {
+    "el": "div#who > button.btn.small.debug-trigger",
+    "w": 40,
+    "h": 30,
+    "text": "Tools and version"
+   },
+   {
+    "el": "div#who > button.btn.small.sound-toggle",
+    "w": 39,
+    "h": 30,
+    "text": "Mute sounds"
+   },
+   {
+    "el": "div > select",
+    "w": 385,
+    "h": 40,
+    "text": "Class"
+   },
+   {
+    "el": "div > button.btn.small.primary",
+    "w": 95,
+    "h": 40,
+    "text": "+ Join Class"
+   },
+   {
+    "el": "div.practice-resource-row > button.btn.small.practice-return",
+    "w": 154,
+    "h": 32,
+    "text": "← Return to Kingdom"
+   },
+   {
+    "el": "select#v-2",
+    "w": 144,
+    "h": 42,
+    "text": "5 questions8 questions10 questions15 que"
+   },
+   {
+    "el": "select#v-3",
+    "w": 144,
+    "h": 42,
+    "text": "Untimed30s per question60s per question9"
+   },
+   {
+    "el": "select#v-4",
+    "w": 144,
+    "h": 42,
+    "text": "Standard timeExtra time x1.5Extra time x"
+   },
+   {
+    "el": "div.practice-topics-actions > button.btn.small",
+    "w": 95,
+    "h": 32,
+    "text": "Select none"
+   },
+   {
+    "el": "section.panel > button.btn.small",
+    "w": 123,
+    "h": 32,
+    "text": "Resume practice"
+   }
+  ]
+ },
+ {
+  "route": "student-practice",
+  "viewport": "1440x900",
+  "touch": false,
+  "vw": 1440,
+  "scrollWidth": 1440,
+  "clientWidth": 1440,
+  "overflow": [],
+  "overflowCount": 0,
+  "clipped": [],
+  "small": [
+   {
+    "el": "nav#tabs > button",
+    "w": 85,
+    "h": 37,
+    "text": "Kingdom"
+   },
+   {
+    "el": "nav#tabs > button",
+    "w": 55,
+    "h": 37,
+    "text": "Quiz"
+   },
+   {
+    "el": "nav#tabs > button",
+    "w": 109,
+    "h": 37,
+    "text": "My Progress"
+   },
+   {
+    "el": "nav#tabs > button",
+    "w": 117,
+    "h": 37,
+    "text": "Campfire Run"
+   },
+   {
+    "el": "nav#tabs > button",
+    "w": 85,
+    "h": 37,
+    "text": "Summon"
+   },
+   {
+    "el": "div.account-menu > button.btn.small",
+    "w": 67,
+    "h": 30,
+    "text": "Log out"
+   },
+   {
+    "el": "div#who > button.btn.small.debug-trigger",
+    "w": 40,
+    "h": 30,
+    "text": "Tools and version"
+   },
+   {
+    "el": "div#who > button.btn.small.sound-toggle",
+    "w": 39,
+    "h": 30,
+    "text": "Mute sounds"
+   },
+   {
+    "el": "div > select",
+    "w": 489,
+    "h": 40,
+    "text": "Class"
+   },
+   {
+    "el": "div > button.btn.small.primary",
+    "w": 95,
+    "h": 40,
+    "text": "+ Join Class"
+   },
+   {
+    "el": "div.practice-resource-row > button.btn.small.practice-return",
+    "w": 154,
+    "h": 32,
+    "text": "← Return to Kingdom"
+   },
+   {
+    "el": "select#v-2",
+    "w": 177,
+    "h": 42,
+    "text": "5 questions8 questions10 questions15 que"
+   },
+   {
+    "el": "select#v-3",
+    "w": 177,
+    "h": 42,
+    "text": "Untimed30s per question60s per question9"
+   },
+   {
+    "el": "select#v-4",
+    "w": 177,
+    "h": 42,
+    "text": "Standard timeExtra time x1.5Extra time x"
+   },
+   {
+    "el": "div.practice-topics-actions > button.btn.small",
+    "w": 95,
+    "h": 32,
+    "text": "Select none"
+   },
+   {
+    "el": "section.panel > button.btn.small",
+    "w": 123,
+    "h": 32,
+    "text": "Resume practice"
+   }
+  ]
+ },
+ {
+  "route": "student-practice",
+  "viewport": "320x568",
+  "touch": true,
+  "vw": 320,
+  "scrollWidth": 320,
+  "clientWidth": 320,
+  "overflow": [],
+  "overflowCount": 0,
+  "clipped": [],
+  "small": []
+ },
+ {
+  "route": "student-practice",
+  "viewport": "360x740",
+  "touch": true,
+  "vw": 360,
+  "scrollWidth": 360,
+  "clientWidth": 360,
+  "overflow": [],
+  "overflowCount": 0,
+  "clipped": [],
+  "small": []
+ },
+ {
+  "route": "student-practice",
+  "viewport": "375x667",
+  "touch": true,
+  "vw": 375,
+  "scrollWidth": 375,
+  "clientWidth": 375,
+  "overflow": [],
+  "overflowCount": 0,
+  "clipped": [],
+  "small": []
+ },
+ {
+  "route": "student-practice",
+  "viewport": "390x844",
+  "touch": true,
+  "vw": 390,
+  "scrollWidth": 390,
+  "clientWidth": 390,
+  "overflow": [],
+  "overflowCount": 0,
+  "clipped": [],
+  "small": []
+ },
+ {
+  "route": "student-practice",
+  "viewport": "412x915",
+  "touch": true,
+  "vw": 412,
+  "scrollWidth": 412,
+  "clientWidth": 412,
+  "overflow": [],
+  "overflowCount": 0,
+  "clipped": [],
+  "small": []
+ },
+ {
+  "route": "student-practice",
+  "viewport": "667x375",
+  "touch": true,
+  "vw": 667,
+  "scrollWidth": 667,
+  "clientWidth": 667,
+  "overflow": [],
+  "overflowCount": 0,
+  "clipped": [],
+  "small": []
+ },
+ {
+  "route": "student-practice",
+  "viewport": "740x360",
+  "touch": true,
+  "vw": 740,
+  "scrollWidth": 740,
+  "clientWidth": 740,
+  "overflow": [],
+  "overflowCount": 0,
+  "clipped": [],
+  "small": []
+ },
+ {
+  "route": "student-practice",
+  "viewport": "768x1024",
+  "touch": true,
+  "vw": 768,
+  "scrollWidth": 768,
+  "clientWidth": 768,
+  "overflow": [],
+  "overflowCount": 0,
+  "clipped": [],
+  "small": []
+ },
+ {
+  "route": "student-practice",
+  "viewport": "820x1180",
+  "touch": true,
+  "vw": 820,
+  "scrollWidth": 820,
+  "clientWidth": 820,
+  "overflow": [],
+  "overflowCount": 0,
+  "clipped": [],
+  "small": []
+ },
+ {
+  "route": "student-progress",
+  "viewport": "1024x768",
+  "touch": true,
+  "vw": 1024,
+  "scrollWidth": 1024,
+  "clientWidth": 1024,
+  "overflow": [],
+  "overflowCount": 0,
+  "clipped": [],
+  "small": []
+ },
+ {
+  "route": "student-progress",
+  "viewport": "1200x800",
+  "touch": false,
+  "vw": 1200,
+  "scrollWidth": 1200,
+  "clientWidth": 1200,
+  "overflow": [],
+  "overflowCount": 0,
+  "clipped": [],
+  "small": [
+   {
+    "el": "nav#tabs > button",
+    "w": 85,
+    "h": 37,
+    "text": "Kingdom"
+   },
+   {
+    "el": "nav#tabs > button",
+    "w": 55,
+    "h": 37,
+    "text": "Quiz"
+   },
+   {
+    "el": "nav#tabs > button",
+    "w": 109,
+    "h": 37,
+    "text": "My Progress"
+   },
+   {
+    "el": "nav#tabs > button",
+    "w": 117,
+    "h": 37,
+    "text": "Campfire Run"
+   },
+   {
+    "el": "nav#tabs > button",
+    "w": 85,
+    "h": 37,
+    "text": "Summon"
+   },
+   {
+    "el": "div.account-menu > button.btn.small",
+    "w": 67,
+    "h": 30,
+    "text": "Log out"
+   },
+   {
+    "el": "div#who > button.btn.small.debug-trigger",
+    "w": 40,
+    "h": 30,
+    "text": "Tools and version"
+   },
+   {
+    "el": "div#who > button.btn.small.sound-toggle",
+    "w": 39,
+    "h": 30,
+    "text": "Mute sounds"
+   },
+   {
+    "el": "div > select",
+    "w": 244,
+    "h": 42,
+    "text": "Class"
+   },
+   {
+    "el": "div > button.btn.small.primary",
+    "w": 95,
+    "h": 32,
+    "text": "+ Join Class"
+   },
+   {
+    "el": "div.row > button.btn.small",
+    "w": 127,
+    "h": 32,
+    "text": "Refresh progress"
+   },
+   {
+    "el": "div.pg-hero-body > button.btn.primary",
+    "w": 129,
+    "h": 41,
+    "text": "Go to practice"
+   }
+  ]
+ },
+ {
+  "route": "student-progress",
+  "viewport": "1440x900",
+  "touch": false,
+  "vw": 1440,
+  "scrollWidth": 1440,
+  "clientWidth": 1440,
+  "overflow": [],
+  "overflowCount": 0,
+  "clipped": [],
+  "small": [
+   {
+    "el": "nav#tabs > button",
+    "w": 85,
+    "h": 37,
+    "text": "Kingdom"
+   },
+   {
+    "el": "nav#tabs > button",
+    "w": 55,
+    "h": 37,
+    "text": "Quiz"
+   },
+   {
+    "el": "nav#tabs > button",
+    "w": 109,
+    "h": 37,
+    "text": "My Progress"
+   },
+   {
+    "el": "nav#tabs > button",
+    "w": 117,
+    "h": 37,
+    "text": "Campfire Run"
+   },
+   {
+    "el": "nav#tabs > button",
+    "w": 85,
+    "h": 37,
+    "text": "Summon"
+   },
+   {
+    "el": "div.account-menu > button.btn.small",
+    "w": 67,
+    "h": 30,
+    "text": "Log out"
+   },
+   {
+    "el": "div#who > button.btn.small.debug-trigger",
+    "w": 40,
+    "h": 30,
+    "text": "Tools and version"
+   },
+   {
+    "el": "div#who > button.btn.small.sound-toggle",
+    "w": 39,
+    "h": 30,
+    "text": "Mute sounds"
+   },
+   {
+    "el": "div > select",
+    "w": 244,
+    "h": 42,
+    "text": "Class"
+   },
+   {
+    "el": "div > button.btn.small.primary",
+    "w": 95,
+    "h": 32,
+    "text": "+ Join Class"
+   },
+   {
+    "el": "div.row > button.btn.small",
+    "w": 127,
+    "h": 32,
+    "text": "Refresh progress"
+   },
+   {
+    "el": "div.pg-hero-body > button.btn.primary",
+    "w": 129,
+    "h": 41,
+    "text": "Go to practice"
+   },
+   {
+    "el": "select#report-status",
+    "w": 624,
+    "h": 42,
+    "text": "All reportsAwaiting reviewResolved"
+   }
+  ]
+ },
+ {
+  "route": "student-progress",
+  "viewport": "320x568",
+  "touch": true,
+  "vw": 320,
+  "scrollWidth": 320,
+  "clientWidth": 320,
+  "overflow": [],
+  "overflowCount": 0,
+  "clipped": [],
+  "small": []
+ },
+ {
+  "route": "student-progress",
+  "viewport": "360x740",
+  "touch": true,
+  "vw": 360,
+  "scrollWidth": 360,
+  "clientWidth": 360,
+  "overflow": [],
+  "overflowCount": 0,
+  "clipped": [],
+  "small": []
+ },
+ {
+  "route": "student-progress",
+  "viewport": "375x667",
+  "touch": true,
+  "vw": 375,
+  "scrollWidth": 375,
+  "clientWidth": 375,
+  "overflow": [],
+  "overflowCount": 0,
+  "clipped": [],
+  "small": []
+ },
+ {
+  "route": "student-progress",
+  "viewport": "390x844",
+  "touch": true,
+  "vw": 390,
+  "scrollWidth": 390,
+  "clientWidth": 390,
+  "overflow": [],
+  "overflowCount": 0,
+  "clipped": [],
+  "small": []
+ },
+ {
+  "route": "student-progress",
+  "viewport": "412x915",
+  "touch": true,
+  "vw": 412,
+  "scrollWidth": 412,
+  "clientWidth": 412,
+  "overflow": [],
+  "overflowCount": 0,
+  "clipped": [],
+  "small": []
+ },
+ {
+  "route": "student-progress",
+  "viewport": "667x375",
+  "touch": true,
+  "vw": 667,
+  "scrollWidth": 667,
+  "clientWidth": 667,
+  "overflow": [],
+  "overflowCount": 0,
+  "clipped": [],
+  "small": []
+ },
+ {
+  "route": "student-progress",
+  "viewport": "740x360",
+  "touch": true,
+  "vw": 740,
+  "scrollWidth": 740,
+  "clientWidth": 740,
+  "overflow": [],
+  "overflowCount": 0,
+  "clipped": [],
+  "small": []
+ },
+ {
+  "route": "student-progress",
+  "viewport": "768x1024",
+  "touch": true,
+  "vw": 768,
+  "scrollWidth": 768,
+  "clientWidth": 768,
+  "overflow": [],
+  "overflowCount": 0,
+  "clipped": [],
+  "small": []
+ },
+ {
+  "route": "student-progress",
+  "viewport": "820x1180",
+  "touch": true,
+  "vw": 820,
+  "scrollWidth": 820,
+  "clientWidth": 820,
+  "overflow": [],
+  "overflowCount": 0,
+  "clipped": [],
+  "small": []
+ },
+ {
+  "route": "student-quiz-question",
+  "viewport": "1024x768",
+  "touch": true,
+  "vw": 1024,
+  "scrollWidth": 1024,
+  "clientWidth": 1024,
+  "overflow": [],
+  "overflowCount": 0,
+  "clipped": [],
+  "small": []
+ },
+ {
+  "route": "student-quiz-question",
+  "viewport": "1200x800",
+  "touch": false,
+  "vw": 1200,
+  "scrollWidth": 1200,
+  "clientWidth": 1200,
+  "overflow": [],
+  "overflowCount": 0,
+  "clipped": [],
+  "small": [
+   {
+    "el": "nav#tabs > button",
+    "w": 85,
+    "h": 37,
+    "text": "Kingdom"
+   },
+   {
+    "el": "nav#tabs > button",
+    "w": 55,
+    "h": 37,
+    "text": "Quiz"
+   },
+   {
+    "el": "nav#tabs > button",
+    "w": 109,
+    "h": 37,
+    "text": "My Progress"
+   },
+   {
+    "el": "nav#tabs > button",
+    "w": 117,
+    "h": 37,
+    "text": "Campfire Run"
+   },
+   {
+    "el": "nav#tabs > button",
+    "w": 85,
+    "h": 37,
+    "text": "Summon"
+   },
+   {
+    "el": "div.account-menu > button.btn.small",
+    "w": 67,
+    "h": 30,
+    "text": "Log out"
+   },
+   {
+    "el": "div#who > button.btn.small.debug-trigger",
+    "w": 40,
+    "h": 30,
+    "text": "Tools and version"
+   },
+   {
+    "el": "div#who > button.btn.small.sound-toggle",
+    "w": 39,
+    "h": 30,
+    "text": "Mute sounds"
+   },
+   {
+    "el": "div.quiz-head > button.btn.small.quiz-leave",
+    "w": 154,
+    "h": 32,
+    "text": "← Return to Kingdom"
+   }
+  ]
+ },
+ {
+  "route": "student-quiz-question",
+  "viewport": "1440x900",
+  "touch": false,
+  "vw": 1440,
+  "scrollWidth": 1440,
+  "clientWidth": 1440,
+  "overflow": [],
+  "overflowCount": 0,
+  "clipped": [],
+  "small": [
+   {
+    "el": "nav#tabs > button",
+    "w": 85,
+    "h": 37,
+    "text": "Kingdom"
+   },
+   {
+    "el": "nav#tabs > button",
+    "w": 55,
+    "h": 37,
+    "text": "Quiz"
+   },
+   {
+    "el": "nav#tabs > button",
+    "w": 109,
+    "h": 37,
+    "text": "My Progress"
+   },
+   {
+    "el": "nav#tabs > button",
+    "w": 117,
+    "h": 37,
+    "text": "Campfire Run"
+   },
+   {
+    "el": "nav#tabs > button",
+    "w": 85,
+    "h": 37,
+    "text": "Summon"
+   },
+   {
+    "el": "div.account-menu > button.btn.small",
+    "w": 67,
+    "h": 30,
+    "text": "Log out"
+   },
+   {
+    "el": "div#who > button.btn.small.debug-trigger",
+    "w": 40,
+    "h": 30,
+    "text": "Tools and version"
+   },
+   {
+    "el": "div#who > button.btn.small.sound-toggle",
+    "w": 39,
+    "h": 30,
+    "text": "Mute sounds"
+   },
+   {
+    "el": "div.quiz-head > button.btn.small.quiz-leave",
+    "w": 154,
+    "h": 32,
+    "text": "← Return to Kingdom"
+   }
+  ]
+ },
+ {
+  "route": "student-quiz-question",
+  "viewport": "320x568",
+  "touch": true,
+  "vw": 320,
+  "scrollWidth": 320,
+  "clientWidth": 320,
+  "overflow": [],
+  "overflowCount": 0,
+  "clipped": [],
+  "small": []
+ },
+ {
+  "route": "student-quiz-question",
+  "viewport": "360x740",
+  "touch": true,
+  "vw": 360,
+  "scrollWidth": 360,
+  "clientWidth": 360,
+  "overflow": [],
+  "overflowCount": 0,
+  "clipped": [],
+  "small": []
+ },
+ {
+  "route": "student-quiz-question",
+  "viewport": "375x667",
+  "touch": true,
+  "vw": 375,
+  "scrollWidth": 375,
+  "clientWidth": 375,
+  "overflow": [],
+  "overflowCount": 0,
+  "clipped": [],
+  "small": []
+ },
+ {
+  "route": "student-quiz-question",
+  "viewport": "390x844",
+  "touch": true,
+  "vw": 390,
+  "scrollWidth": 390,
+  "clientWidth": 390,
+  "overflow": [],
+  "overflowCount": 0,
+  "clipped": [],
+  "small": []
+ },
+ {
+  "route": "student-quiz-question",
+  "viewport": "412x915",
+  "touch": true,
+  "vw": 412,
+  "scrollWidth": 412,
+  "clientWidth": 412,
+  "overflow": [],
+  "overflowCount": 0,
+  "clipped": [],
+  "small": []
+ },
+ {
+  "route": "student-quiz-question",
+  "viewport": "667x375",
+  "touch": true,
+  "vw": 667,
+  "scrollWidth": 667,
+  "clientWidth": 667,
+  "overflow": [],
+  "overflowCount": 0,
+  "clipped": [],
+  "small": []
+ },
+ {
+  "route": "student-quiz-question",
+  "viewport": "740x360",
+  "touch": true,
+  "vw": 740,
+  "scrollWidth": 740,
+  "clientWidth": 740,
+  "overflow": [],
+  "overflowCount": 0,
+  "clipped": [],
+  "small": []
+ },
+ {
+  "route": "student-quiz-question",
+  "viewport": "768x1024",
+  "touch": true,
+  "vw": 768,
+  "scrollWidth": 768,
+  "clientWidth": 768,
+  "overflow": [],
+  "overflowCount": 0,
+  "clipped": [],
+  "small": []
+ },
+ {
+  "route": "student-quiz-question",
+  "viewport": "820x1180",
+  "touch": true,
+  "vw": 820,
+  "scrollWidth": 820,
+  "clientWidth": 820,
+  "overflow": [],
+  "overflowCount": 0,
+  "clipped": [],
+  "small": []
+ },
+ {
+  "route": "student-summon-history",
+  "viewport": "1024x768",
+  "touch": true,
+  "vw": 1024,
+  "scrollWidth": 1024,
+  "clientWidth": 1024,
+  "overflow": [],
+  "overflowCount": 0,
+  "clipped": [],
+  "small": []
+ },
+ {
+  "route": "student-summon-history",
+  "viewport": "1200x800",
+  "touch": false,
+  "vw": 1200,
+  "scrollWidth": 1200,
+  "clientWidth": 1200,
+  "overflow": [],
+  "overflowCount": 0,
+  "clipped": [],
+  "small": [
+   {
+    "el": "nav#tabs > button",
+    "w": 85,
+    "h": 37,
+    "text": "Kingdom"
+   },
+   {
+    "el": "nav#tabs > button",
+    "w": 55,
+    "h": 37,
+    "text": "Quiz"
+   },
+   {
+    "el": "nav#tabs > button",
+    "w": 109,
+    "h": 37,
+    "text": "My Progress"
+   },
+   {
+    "el": "nav#tabs > button",
+    "w": 117,
+    "h": 37,
+    "text": "Campfire Run"
+   },
+   {
+    "el": "nav#tabs > button",
+    "w": 85,
+    "h": 37,
+    "text": "Summon"
+   },
+   {
+    "el": "div.account-menu > button.btn.small",
+    "w": 67,
+    "h": 30,
+    "text": "Log out"
+   },
+   {
+    "el": "div#who > button.btn.small.debug-trigger",
+    "w": 40,
+    "h": 30,
+    "text": "Tools and version"
+   },
+   {
+    "el": "div#who > button.btn.small.sound-toggle",
+    "w": 39,
+    "h": 30,
+    "text": "Mute sounds"
+   },
+   {
+    "el": "header.story-modal-header > button.modal-close",
+    "w": 36,
+    "h": 36,
+    "text": "Close"
+   },
+   {
+    "el": "div.history-tabs > button",
+    "w": 77,
+    "h": 30,
+    "text": "Summons"
+   },
+   {
+    "el": "div.history-tabs > button",
+    "w": 53,
+    "h": 30,
+    "text": "Coins"
+   },
+   {
+    "el": "div.history-tabs > button",
+    "w": 79,
+    "h": 30,
+    "text": "Resources"
+   },
+   {
+    "el": "div.rarity-filters > button",
+    "w": 39,
+    "h": 30,
+    "text": "All"
+   },
+   {
+    "el": "div.rarity-filters > button",
+    "w": 56,
+    "h": 30,
+    "text": "5-star"
+   },
+   {
+    "el": "div.rarity-filters > button",
+    "w": 56,
+    "h": 30,
+    "text": "4-star"
+   },
+   {
+    "el": "div.rarity-filters > button",
+    "w": 79,
+    "h": 30,
+    "text": "Resources"
+   }
+  ]
+ },
+ {
+  "route": "student-summon-history",
+  "viewport": "1440x900",
+  "touch": false,
+  "vw": 1440,
+  "scrollWidth": 1440,
+  "clientWidth": 1440,
+  "overflow": [],
+  "overflowCount": 0,
+  "clipped": [],
+  "small": [
+   {
+    "el": "nav#tabs > button",
+    "w": 85,
+    "h": 37,
+    "text": "Kingdom"
+   },
+   {
+    "el": "nav#tabs > button",
+    "w": 55,
+    "h": 37,
+    "text": "Quiz"
+   },
+   {
+    "el": "nav#tabs > button",
+    "w": 109,
+    "h": 37,
+    "text": "My Progress"
+   },
+   {
+    "el": "nav#tabs > button",
+    "w": 117,
+    "h": 37,
+    "text": "Campfire Run"
+   },
+   {
+    "el": "nav#tabs > button",
+    "w": 85,
+    "h": 37,
+    "text": "Summon"
+   },
+   {
+    "el": "div.account-menu > button.btn.small",
+    "w": 67,
+    "h": 30,
+    "text": "Log out"
+   },
+   {
+    "el": "div#who > button.btn.small.debug-trigger",
+    "w": 40,
+    "h": 30,
+    "text": "Tools and version"
+   },
+   {
+    "el": "div#who > button.btn.small.sound-toggle",
+    "w": 39,
+    "h": 30,
+    "text": "Mute sounds"
+   },
+   {
+    "el": "header.story-modal-header > button.modal-close",
+    "w": 36,
+    "h": 36,
+    "text": "Close"
+   },
+   {
+    "el": "div.history-tabs > button",
+    "w": 77,
+    "h": 30,
+    "text": "Summons"
+   },
+   {
+    "el": "div.history-tabs > button",
+    "w": 53,
+    "h": 30,
+    "text": "Coins"
+   },
+   {
+    "el": "div.history-tabs > button",
+    "w": 79,
+    "h": 30,
+    "text": "Resources"
+   },
+   {
+    "el": "div.rarity-filters > button",
+    "w": 39,
+    "h": 30,
+    "text": "All"
+   },
+   {
+    "el": "div.rarity-filters > button",
+    "w": 56,
+    "h": 30,
+    "text": "5-star"
+   },
+   {
+    "el": "div.rarity-filters > button",
+    "w": 56,
+    "h": 30,
+    "text": "4-star"
+   },
+   {
+    "el": "div.rarity-filters > button",
+    "w": 79,
+    "h": 30,
+    "text": "Resources"
+   }
+  ]
+ },
+ {
+  "route": "student-summon-history",
+  "viewport": "320x568",
+  "touch": true,
+  "vw": 320,
+  "scrollWidth": 320,
+  "clientWidth": 320,
+  "overflow": [],
+  "overflowCount": 0,
+  "clipped": [],
+  "small": []
+ },
+ {
+  "route": "student-summon-history",
+  "viewport": "360x740",
+  "touch": true,
+  "vw": 360,
+  "scrollWidth": 360,
+  "clientWidth": 360,
+  "overflow": [],
+  "overflowCount": 0,
+  "clipped": [],
+  "small": []
+ },
+ {
+  "route": "student-summon-history",
+  "viewport": "375x667",
+  "touch": true,
+  "vw": 375,
+  "scrollWidth": 375,
+  "clientWidth": 375,
+  "overflow": [],
+  "overflowCount": 0,
+  "clipped": [],
+  "small": []
+ },
+ {
+  "route": "student-summon-history",
+  "viewport": "390x844",
+  "touch": true,
+  "vw": 390,
+  "scrollWidth": 390,
+  "clientWidth": 390,
+  "overflow": [],
+  "overflowCount": 0,
+  "clipped": [],
+  "small": []
+ },
+ {
+  "route": "student-summon-history",
+  "viewport": "412x915",
+  "touch": true,
+  "vw": 412,
+  "scrollWidth": 412,
+  "clientWidth": 412,
+  "overflow": [],
+  "overflowCount": 0,
+  "clipped": [],
+  "small": []
+ },
+ {
+  "route": "student-summon-history",
+  "viewport": "667x375",
+  "touch": true,
+  "vw": 667,
+  "scrollWidth": 667,
+  "clientWidth": 667,
+  "overflow": [],
+  "overflowCount": 0,
+  "clipped": [],
+  "small": []
+ },
+ {
+  "route": "student-summon-history",
+  "viewport": "740x360",
+  "touch": true,
+  "vw": 740,
+  "scrollWidth": 740,
+  "clientWidth": 740,
+  "overflow": [],
+  "overflowCount": 0,
+  "clipped": [],
+  "small": []
+ },
+ {
+  "route": "student-summon-history",
+  "viewport": "768x1024",
+  "touch": true,
+  "vw": 768,
+  "scrollWidth": 768,
+  "clientWidth": 768,
+  "overflow": [],
+  "overflowCount": 0,
+  "clipped": [],
+  "small": []
+ },
+ {
+  "route": "student-summon-history",
+  "viewport": "820x1180",
+  "touch": true,
+  "vw": 820,
+  "scrollWidth": 820,
+  "clientWidth": 820,
+  "overflow": [],
+  "overflowCount": 0,
+  "clipped": [],
+  "small": []
+ },
+ {
+  "route": "student-summon",
+  "viewport": "1024x768",
+  "touch": true,
+  "vw": 1024,
+  "scrollWidth": 1024,
+  "clientWidth": 1024,
+  "overflow": [],
+  "overflowCount": 0,
+  "clipped": [],
+  "small": []
+ },
+ {
+  "route": "student-summon",
+  "viewport": "1200x800",
+  "touch": false,
+  "vw": 1200,
+  "scrollWidth": 1200,
+  "clientWidth": 1200,
+  "overflow": [],
+  "overflowCount": 0,
+  "clipped": [],
+  "small": [
+   {
+    "el": "nav#tabs > button",
+    "w": 85,
+    "h": 37,
+    "text": "Kingdom"
+   },
+   {
+    "el": "nav#tabs > button",
+    "w": 55,
+    "h": 37,
+    "text": "Quiz"
+   },
+   {
+    "el": "nav#tabs > button",
+    "w": 109,
+    "h": 37,
+    "text": "My Progress"
+   },
+   {
+    "el": "nav#tabs > button",
+    "w": 117,
+    "h": 37,
+    "text": "Campfire Run"
+   },
+   {
+    "el": "nav#tabs > button",
+    "w": 85,
+    "h": 37,
+    "text": "Summon"
+   },
+   {
+    "el": "div.account-menu > button.btn.small",
+    "w": 67,
+    "h": 30,
+    "text": "Log out"
+   },
+   {
+    "el": "div#who > button.btn.small.debug-trigger",
+    "w": 40,
+    "h": 30,
+    "text": "Tools and version"
+   },
+   {
+    "el": "div#who > button.btn.small.sound-toggle",
+    "w": 39,
+    "h": 30,
+    "text": "Mute sounds"
+   }
+  ]
+ },
+ {
+  "route": "student-summon",
+  "viewport": "1440x900",
+  "touch": false,
+  "vw": 1440,
+  "scrollWidth": 1440,
+  "clientWidth": 1440,
+  "overflow": [],
+  "overflowCount": 0,
+  "clipped": [],
+  "small": [
+   {
+    "el": "nav#tabs > button",
+    "w": 85,
+    "h": 37,
+    "text": "Kingdom"
+   },
+   {
+    "el": "nav#tabs > button",
+    "w": 55,
+    "h": 37,
+    "text": "Quiz"
+   },
+   {
+    "el": "nav#tabs > button",
+    "w": 109,
+    "h": 37,
+    "text": "My Progress"
+   },
+   {
+    "el": "nav#tabs > button",
+    "w": 117,
+    "h": 37,
+    "text": "Campfire Run"
+   },
+   {
+    "el": "nav#tabs > button",
+    "w": 85,
+    "h": 37,
+    "text": "Summon"
+   },
+   {
+    "el": "div.account-menu > button.btn.small",
+    "w": 67,
+    "h": 30,
+    "text": "Log out"
+   },
+   {
+    "el": "div#who > button.btn.small.debug-trigger",
+    "w": 40,
+    "h": 30,
+    "text": "Tools and version"
+   },
+   {
+    "el": "div#who > button.btn.small.sound-toggle",
+    "w": 39,
+    "h": 30,
+    "text": "Mute sounds"
+   }
+  ]
+ },
+ {
+  "route": "student-summon",
+  "viewport": "320x568",
+  "touch": true,
+  "vw": 320,
+  "scrollWidth": 320,
+  "clientWidth": 320,
+  "overflow": [],
+  "overflowCount": 0,
+  "clipped": [],
+  "small": []
+ },
+ {
+  "route": "student-summon",
+  "viewport": "360x740",
+  "touch": true,
+  "vw": 360,
+  "scrollWidth": 360,
+  "clientWidth": 360,
+  "overflow": [],
+  "overflowCount": 0,
+  "clipped": [],
+  "small": []
+ },
+ {
+  "route": "student-summon",
+  "viewport": "375x667",
+  "touch": true,
+  "vw": 375,
+  "scrollWidth": 375,
+  "clientWidth": 375,
+  "overflow": [],
+  "overflowCount": 0,
+  "clipped": [],
+  "small": []
+ },
+ {
+  "route": "student-summon",
+  "viewport": "390x844",
+  "touch": true,
+  "vw": 390,
+  "scrollWidth": 390,
+  "clientWidth": 390,
+  "overflow": [],
+  "overflowCount": 0,
+  "clipped": [],
+  "small": []
+ },
+ {
+  "route": "student-summon",
+  "viewport": "412x915",
+  "touch": true,
+  "vw": 412,
+  "scrollWidth": 412,
+  "clientWidth": 412,
+  "overflow": [],
+  "overflowCount": 0,
+  "clipped": [],
+  "small": []
+ },
+ {
+  "route": "student-summon",
+  "viewport": "667x375",
+  "touch": true,
+  "vw": 667,
+  "scrollWidth": 667,
+  "clientWidth": 667,
+  "overflow": [],
+  "overflowCount": 0,
+  "clipped": [],
+  "small": []
+ },
+ {
+  "route": "student-summon",
+  "viewport": "740x360",
+  "touch": true,
+  "vw": 740,
+  "scrollWidth": 740,
+  "clientWidth": 740,
+  "overflow": [],
+  "overflowCount": 0,
+  "clipped": [],
+  "small": []
+ },
+ {
+  "route": "student-summon",
+  "viewport": "768x1024",
+  "touch": true,
+  "vw": 768,
+  "scrollWidth": 768,
+  "clientWidth": 768,
+  "overflow": [],
+  "overflowCount": 0,
+  "clipped": [],
+  "small": []
+ },
+ {
+  "route": "student-summon",
+  "viewport": "820x1180",
+  "touch": true,
+  "vw": 820,
+  "scrollWidth": 820,
+  "clientWidth": 820,
+  "overflow": [],
+  "overflowCount": 0,
+  "clipped": [],
+  "small": []
+ },
+ {
+  "route": "student-world",
+  "viewport": "1024x768",
+  "touch": true,
+  "vw": 1024,
+  "scrollWidth": 1024,
+  "clientWidth": 1024,
+  "overflow": [],
+  "overflowCount": 0,
+  "clipped": [],
+  "small": []
+ },
+ {
+  "route": "student-world",
+  "viewport": "1200x800",
+  "touch": false,
+  "vw": 1200,
+  "scrollWidth": 1200,
+  "clientWidth": 1200,
+  "overflow": [],
+  "overflowCount": 0,
+  "clipped": [],
+  "small": [
+   {
+    "el": "nav#tabs > button",
+    "w": 85,
+    "h": 37,
+    "text": "Kingdom"
+   },
+   {
+    "el": "nav#tabs > button",
+    "w": 55,
+    "h": 37,
+    "text": "Quiz"
+   },
+   {
+    "el": "nav#tabs > button",
+    "w": 109,
+    "h": 37,
+    "text": "My Progress"
+   },
+   {
+    "el": "nav#tabs > button",
+    "w": 117,
+    "h": 37,
+    "text": "Campfire Run"
+   },
+   {
+    "el": "nav#tabs > button",
+    "w": 85,
+    "h": 37,
+    "text": "Summon"
+   },
+   {
+    "el": "div.account-menu > button.btn.small",
+    "w": 67,
+    "h": 30,
+    "text": "Log out"
+   },
+   {
+    "el": "div#who > button.btn.small.debug-trigger",
+    "w": 40,
+    "h": 30,
+    "text": "Tools and version"
+   },
+   {
+    "el": "div#who > button.btn.small.sound-toggle",
+    "w": 39,
+    "h": 30,
+    "text": "Mute sounds"
+   },
+   {
+    "el": "div.room-join-block > button.kingdom-return",
+    "w": 235,
+    "h": 23,
+    "text": "← Back to Kingdom"
+   },
+   {
+    "el": "input#room-code-input.room-code-input",
+    "w": 179,
+    "h": 40,
+    "text": "Room code"
+   },
+   {
+    "el": "div.room-host-block > button.btn.primary",
+    "w": 235,
+    "h": 40,
+    "text": "HOST LOBBY"
+   }
+  ]
+ },
+ {
+  "route": "student-world",
+  "viewport": "1440x900",
+  "touch": false,
+  "vw": 1440,
+  "scrollWidth": 1440,
+  "clientWidth": 1440,
+  "overflow": [],
+  "overflowCount": 0,
+  "clipped": [],
+  "small": [
+   {
+    "el": "nav#tabs > button",
+    "w": 85,
+    "h": 37,
+    "text": "Kingdom"
+   },
+   {
+    "el": "nav#tabs > button",
+    "w": 55,
+    "h": 37,
+    "text": "Quiz"
+   },
+   {
+    "el": "nav#tabs > button",
+    "w": 109,
+    "h": 37,
+    "text": "My Progress"
+   },
+   {
+    "el": "nav#tabs > button",
+    "w": 117,
+    "h": 37,
+    "text": "Campfire Run"
+   },
+   {
+    "el": "nav#tabs > button",
+    "w": 85,
+    "h": 37,
+    "text": "Summon"
+   },
+   {
+    "el": "div.account-menu > button.btn.small",
+    "w": 67,
+    "h": 30,
+    "text": "Log out"
+   },
+   {
+    "el": "div#who > button.btn.small.debug-trigger",
+    "w": 40,
+    "h": 30,
+    "text": "Tools and version"
+   },
+   {
+    "el": "div#who > button.btn.small.sound-toggle",
+    "w": 39,
+    "h": 30,
+    "text": "Mute sounds"
+   },
+   {
+    "el": "div.room-join-block > button.kingdom-return",
+    "w": 276,
+    "h": 23,
+    "text": "← Back to Kingdom"
+   },
+   {
+    "el": "input#room-code-input.room-code-input",
+    "w": 220,
+    "h": 40,
+    "text": "Room code"
+   },
+   {
+    "el": "div.room-host-block > button.btn.primary",
+    "w": 276,
+    "h": 40,
+    "text": "HOST LOBBY"
+   }
+  ]
+ },
+ {
+  "route": "student-world",
+  "viewport": "320x568",
+  "touch": true,
+  "vw": 320,
+  "scrollWidth": 320,
+  "clientWidth": 320,
+  "overflow": [],
+  "overflowCount": 0,
+  "clipped": [],
+  "small": []
+ },
+ {
+  "route": "student-world",
+  "viewport": "360x740",
+  "touch": true,
+  "vw": 360,
+  "scrollWidth": 360,
+  "clientWidth": 360,
+  "overflow": [],
+  "overflowCount": 0,
+  "clipped": [],
+  "small": []
+ },
+ {
+  "route": "student-world",
+  "viewport": "375x667",
+  "touch": true,
+  "vw": 375,
+  "scrollWidth": 375,
+  "clientWidth": 375,
+  "overflow": [],
+  "overflowCount": 0,
+  "clipped": [],
+  "small": []
+ },
+ {
+  "route": "student-world",
+  "viewport": "390x844",
+  "touch": true,
+  "vw": 390,
+  "scrollWidth": 390,
+  "clientWidth": 390,
+  "overflow": [],
+  "overflowCount": 0,
+  "clipped": [],
+  "small": []
+ },
+ {
+  "route": "student-world",
+  "viewport": "412x915",
+  "touch": true,
+  "vw": 412,
+  "scrollWidth": 412,
+  "clientWidth": 412,
+  "overflow": [],
+  "overflowCount": 0,
+  "clipped": [],
+  "small": []
+ },
+ {
+  "route": "student-world",
+  "viewport": "667x375",
+  "touch": true,
+  "vw": 667,
+  "scrollWidth": 667,
+  "clientWidth": 667,
+  "overflow": [],
+  "overflowCount": 0,
+  "clipped": [],
+  "small": []
+ },
+ {
+  "route": "student-world",
+  "viewport": "740x360",
+  "touch": true,
+  "vw": 740,
+  "scrollWidth": 740,
+  "clientWidth": 740,
+  "overflow": [],
+  "overflowCount": 0,
+  "clipped": [],
+  "small": []
+ },
+ {
+  "route": "student-world",
+  "viewport": "768x1024",
+  "touch": true,
+  "vw": 768,
+  "scrollWidth": 768,
+  "clientWidth": 768,
+  "overflow": [],
+  "overflowCount": 0,
+  "clipped": [],
+  "small": []
+ },
+ {
+  "route": "student-world",
+  "viewport": "820x1180",
+  "touch": true,
+  "vw": 820,
+  "scrollWidth": 820,
+  "clientWidth": 820,
+  "overflow": [],
+  "overflowCount": 0,
+  "clipped": [],
+  "small": []
+ },
+ {
+  "route": "teacher-ai-drafting",
+  "viewport": "1024x768",
+  "touch": true,
+  "vw": 1024,
+  "scrollWidth": 1024,
+  "clientWidth": 1024,
+  "overflow": [],
+  "overflowCount": 0,
+  "clipped": [],
+  "small": []
+ },
+ {
+  "route": "teacher-ai-drafting",
+  "viewport": "1200x800",
+  "touch": false,
+  "vw": 1200,
+  "scrollWidth": 1200,
+  "clientWidth": 1200,
+  "overflow": [],
+  "overflowCount": 0,
+  "clipped": [],
+  "small": [
+   {
+    "el": "div.t-brand > button.t-icon-btn.t-collapse",
+    "w": 34,
+    "h": 34,
+    "text": "Collapse sidebar"
+   },
+   {
+    "el": "nav#tabs > button",
+    "w": 219,
+    "h": 42,
+    "text": "Analytics"
+   },
+   {
+    "el": "nav#tabs > button",
+    "w": 219,
+    "h": 42,
+    "text": "To review1"
+   },
+   {
+    "el": "nav#tabs > button",
+    "w": 219,
+    "h": 42,
+    "text": "Classes & Roster"
+   },
+   {
+    "el": "nav#tabs > button",
+    "w": 219,
+    "h": 42,
+    "text": "Question bank"
+   },
+   {
+    "el": "nav#tabs > button",
+    "w": 219,
+    "h": 42,
+    "text": "AI drafting"
+   },
+   {
+    "el": "nav#tabs > button",
+    "w": 219,
+    "h": 42,
+    "text": "Evaluation"
+   },
+   {
+    "el": "nav#tabs > button",
+    "w": 219,
+    "h": 42,
+    "text": "Settings"
+   },
+   {
+    "el": "div.account-menu > button.btn.small.account-logout",
+    "w": 36,
+    "h": 36,
+    "text": "Log out"
+   },
+   {
+    "el": "div.row > select",
+    "w": 240,
+    "h": 40,
+    "text": "Weekly topic"
+   },
+   {
+    "el": "div.row > button.btn.small",
+    "w": 90,
+    "h": 30,
+    "text": "+ Add topic"
+   },
+   {
+    "el": "p.small > button.linklike",
+    "w": 89,
+    "h": 20,
+    "text": "Show all topics"
+   },
+   {
+    "el": "td.label > button.linklike",
+    "w": 125,
+    "h": 21,
+    "text": "Show material for Week 1 · Data represen"
+   },
+   {
+    "el": "td > button.btn.small",
+    "w": 45,
+    "h": 30,
+    "text": "Edit Data representation"
+   },
+   {
+    "el": "div.upload-dropzone > button.btn.upload-choose",
+    "w": 114,
+    "h": 39,
+    "text": "Choose files"
+   },
+   {
+    "el": "details.panel > summary",
+    "w": 846,
+    "h": 23,
+    "text": "Material library · Notes, images & older"
+   },
+   {
+    "el": "details.panel > button.btn.small",
+    "w": 162,
+    "h": 30,
+    "text": "Refresh material library"
+   },
+   {
+    "el": "label.small > input",
+    "w": 846,
+    "h": 20,
+    "text": ""
+   },
+   {
+    "el": "label > input",
+    "w": 846,
+    "h": 38,
+    "text": ""
+   }
+  ]
+ },
+ {
+  "route": "teacher-ai-drafting",
+  "viewport": "1440x900",
+  "touch": false,
+  "vw": 1440,
+  "scrollWidth": 1440,
+  "clientWidth": 1440,
+  "overflow": [],
+  "overflowCount": 0,
+  "clipped": [],
+  "small": [
+   {
+    "el": "div.t-brand > button.t-icon-btn.t-collapse",
+    "w": 34,
+    "h": 34,
+    "text": "Collapse sidebar"
+   },
+   {
+    "el": "nav#tabs > button",
+    "w": 219,
+    "h": 42,
+    "text": "Analytics"
+   },
+   {
+    "el": "nav#tabs > button",
+    "w": 219,
+    "h": 42,
+    "text": "To review1"
+   },
+   {
+    "el": "nav#tabs > button",
+    "w": 219,
+    "h": 42,
+    "text": "Classes & Roster"
+   },
+   {
+    "el": "nav#tabs > button",
+    "w": 219,
+    "h": 42,
+    "text": "Question bank"
+   },
+   {
+    "el": "nav#tabs > button",
+    "w": 219,
+    "h": 42,
+    "text": "AI drafting"
+   },
+   {
+    "el": "nav#tabs > button",
+    "w": 219,
+    "h": 42,
+    "text": "Evaluation"
+   },
+   {
+    "el": "nav#tabs > button",
+    "w": 219,
+    "h": 42,
+    "text": "Settings"
+   },
+   {
+    "el": "div.account-menu > button.btn.small.account-logout",
+    "w": 36,
+    "h": 36,
+    "text": "Log out"
+   },
+   {
+    "el": "div.row > select",
+    "w": 240,
+    "h": 40,
+    "text": "Weekly topic"
+   },
+   {
+    "el": "div.row > button.btn.small",
+    "w": 90,
+    "h": 30,
+    "text": "+ Add topic"
+   },
+   {
+    "el": "p.small > button.linklike",
+    "w": 89,
+    "h": 20,
+    "text": "Show all topics"
+   },
+   {
+    "el": "td.label > button.linklike",
+    "w": 125,
+    "h": 21,
+    "text": "Show material for Week 1 · Data represen"
+   },
+   {
+    "el": "td > button.btn.small",
+    "w": 45,
+    "h": 30,
+    "text": "Edit Data representation"
+   },
+   {
+    "el": "div.upload-dropzone > button.btn.upload-choose",
+    "w": 114,
+    "h": 39,
+    "text": "Choose files"
+   },
+   {
+    "el": "details.panel > summary",
+    "w": 1078,
+    "h": 23,
+    "text": "Material library · Notes, images & older"
+   },
+   {
+    "el": "details.panel > button.btn.small",
+    "w": 162,
+    "h": 30,
+    "text": "Refresh material library"
+   },
+   {
+    "el": "label.small > input",
+    "w": 1078,
+    "h": 20,
+    "text": ""
+   },
+   {
+    "el": "label > input",
+    "w": 1078,
+    "h": 38,
+    "text": ""
+   }
+  ]
+ },
+ {
+  "route": "teacher-ai-drafting",
+  "viewport": "320x568",
+  "touch": true,
+  "vw": 320,
+  "scrollWidth": 320,
+  "clientWidth": 320,
+  "overflow": [],
+  "overflowCount": 0,
+  "clipped": [],
+  "small": []
+ },
+ {
+  "route": "teacher-ai-drafting",
+  "viewport": "360x740",
+  "touch": true,
+  "vw": 360,
+  "scrollWidth": 360,
+  "clientWidth": 360,
+  "overflow": [],
+  "overflowCount": 0,
+  "clipped": [],
+  "small": []
+ },
+ {
+  "route": "teacher-ai-drafting",
+  "viewport": "375x667",
+  "touch": true,
+  "vw": 375,
+  "scrollWidth": 375,
+  "clientWidth": 375,
+  "overflow": [],
+  "overflowCount": 0,
+  "clipped": [],
+  "small": []
+ },
+ {
+  "route": "teacher-ai-drafting",
+  "viewport": "390x844",
+  "touch": true,
+  "vw": 390,
+  "scrollWidth": 390,
+  "clientWidth": 390,
+  "overflow": [],
+  "overflowCount": 0,
+  "clipped": [],
+  "small": []
+ },
+ {
+  "route": "teacher-ai-drafting",
+  "viewport": "412x915",
+  "touch": true,
+  "vw": 412,
+  "scrollWidth": 412,
+  "clientWidth": 412,
+  "overflow": [],
+  "overflowCount": 0,
+  "clipped": [],
+  "small": []
+ },
+ {
+  "route": "teacher-ai-drafting",
+  "viewport": "667x375",
+  "touch": true,
+  "vw": 667,
+  "scrollWidth": 667,
+  "clientWidth": 667,
+  "overflow": [],
+  "overflowCount": 0,
+  "clipped": [],
+  "small": []
+ },
+ {
+  "route": "teacher-ai-drafting",
+  "viewport": "740x360",
+  "touch": true,
+  "vw": 740,
+  "scrollWidth": 740,
+  "clientWidth": 740,
+  "overflow": [],
+  "overflowCount": 0,
+  "clipped": [],
+  "small": []
+ },
+ {
+  "route": "teacher-ai-drafting",
+  "viewport": "768x1024",
+  "touch": true,
+  "vw": 768,
+  "scrollWidth": 768,
+  "clientWidth": 768,
+  "overflow": [],
+  "overflowCount": 0,
+  "clipped": [],
+  "small": []
+ },
+ {
+  "route": "teacher-ai-drafting",
+  "viewport": "820x1180",
+  "touch": true,
+  "vw": 820,
+  "scrollWidth": 820,
+  "clientWidth": 820,
+  "overflow": [],
+  "overflowCount": 0,
+  "clipped": [],
+  "small": []
+ },
+ {
+  "route": "teacher-analytics",
+  "viewport": "1024x768",
+  "touch": true,
+  "vw": 1024,
+  "scrollWidth": 1024,
+  "clientWidth": 1024,
+  "overflow": [],
+  "overflowCount": 0,
+  "clipped": [],
+  "small": []
+ },
+ {
+  "route": "teacher-analytics",
+  "viewport": "1200x800",
+  "touch": false,
+  "vw": 1200,
+  "scrollWidth": 1200,
+  "clientWidth": 1200,
+  "overflow": [],
+  "overflowCount": 0,
+  "clipped": [],
+  "small": [
+   {
+    "el": "div.t-brand > button.t-icon-btn.t-collapse",
+    "w": 34,
+    "h": 34,
+    "text": "Collapse sidebar"
+   },
+   {
+    "el": "nav#tabs > button",
+    "w": 219,
+    "h": 42,
+    "text": "Analytics"
+   },
+   {
+    "el": "nav#tabs > button",
+    "w": 219,
+    "h": 42,
+    "text": "To review1"
+   },
+   {
+    "el": "nav#tabs > button",
+    "w": 219,
+    "h": 42,
+    "text": "Classes & Roster"
+   },
+   {
+    "el": "nav#tabs > button",
+    "w": 219,
+    "h": 42,
+    "text": "Question bank"
+   },
+   {
+    "el": "nav#tabs > button",
+    "w": 219,
+    "h": 42,
+    "text": "AI drafting"
+   },
+   {
+    "el": "nav#tabs > button",
+    "w": 219,
+    "h": 42,
+    "text": "Evaluation"
+   },
+   {
+    "el": "nav#tabs > button",
+    "w": 219,
+    "h": 42,
+    "text": "Settings"
+   },
+   {
+    "el": "div.account-menu > button.btn.small.account-logout",
+    "w": 36,
+    "h": 36,
+    "text": "Log out"
+   },
+   {
+    "el": "div.t-toolbar > select",
+    "w": 242,
+    "h": 40,
+    "text": "Class"
+   },
+   {
+    "el": "div.t-toolbar > select",
+    "w": 240,
+    "h": 40,
+    "text": "Weekly topic"
+   },
+   {
+    "el": "div.t-toolbar > select",
+    "w": 137,
+    "h": 40,
+    "text": "Period"
+   },
+   {
+    "el": "div.t-toolbar > button.btn",
+    "w": 109,
+    "h": 39,
+    "text": "Print report"
+   },
+   {
+    "el": "nav.dash-nav > button.btn.small",
+    "w": 79,
+    "h": 30,
+    "text": "OverviewOverview"
+   },
+   {
+    "el": "nav.dash-nav > button.btn.small",
+    "w": 106,
+    "h": 30,
+    "text": "Weekly topicsWeekly"
+   },
+   {
+    "el": "nav.dash-nav > button.btn.small",
+    "w": 62,
+    "h": 30,
+    "text": "TrendsTrends"
+   },
+   {
+    "el": "nav.dash-nav > button.btn.small",
+    "w": 146,
+    "h": 30,
+    "text": "Topics and questionsTopics"
+   },
+   {
+    "el": "nav.dash-nav > button.btn.small",
+    "w": 131,
+    "h": 30,
+    "text": "Commonly missedMissed"
+   },
+   {
+    "el": "nav.dash-nav > button.btn.small",
+    "w": 120,
+    "h": 30,
+    "text": "Question qualityQuality"
+   },
+   {
+    "el": "nav.dash-nav > button.btn.small",
+    "w": 122,
+    "h": 30,
+    "text": "Compare classesCompare"
+   },
+   {
+    "el": "label > input",
+    "w": 204,
+    "h": 23,
+    "text": ""
+   },
+   {
+    "el": "span.keep-together > button.info-btn.no-print",
+    "w": 24,
+    "h": 24,
+    "text": "How the students who practised (last 30 "
+   },
+   {
+    "el": "span.keep-together > button.info-btn.no-print",
+    "w": 24,
+    "h": 24,
+    "text": "How the sessions completed comparison wo"
+   },
+   {
+    "el": "span.keep-together > button.info-btn.no-print",
+    "w": 24,
+    "h": 24,
+    "text": "How the answers submitted comparison wor"
+   },
+   {
+    "el": "li > button.tb-row",
+    "w": 471,
+    "h": 37,
+    "text": "Networking basics: 46% correct on first "
+   },
+   {
+    "el": "li > button.tb-row",
+    "w": 471,
+    "h": 37,
+    "text": "Data representation: 64% correct on firs"
+   },
+   {
+    "el": "li > button.tb-row",
+    "w": 471,
+    "h": 37,
+    "text": "Cyber hygiene: 84% correct on first atte"
+   }
+  ]
+ },
+ {
+  "route": "teacher-analytics",
+  "viewport": "1440x900",
+  "touch": false,
+  "vw": 1440,
+  "scrollWidth": 1440,
+  "clientWidth": 1440,
+  "overflow": [],
+  "overflowCount": 0,
+  "clipped": [],
+  "small": [
+   {
+    "el": "div.t-brand > button.t-icon-btn.t-collapse",
+    "w": 34,
+    "h": 34,
+    "text": "Collapse sidebar"
+   },
+   {
+    "el": "nav#tabs > button",
+    "w": 219,
+    "h": 42,
+    "text": "Analytics"
+   },
+   {
+    "el": "nav#tabs > button",
+    "w": 219,
+    "h": 42,
+    "text": "To review1"
+   },
+   {
+    "el": "nav#tabs > button",
+    "w": 219,
+    "h": 42,
+    "text": "Classes & Roster"
+   },
+   {
+    "el": "nav#tabs > button",
+    "w": 219,
+    "h": 42,
+    "text": "Question bank"
+   },
+   {
+    "el": "nav#tabs > button",
+    "w": 219,
+    "h": 42,
+    "text": "AI drafting"
+   },
+   {
+    "el": "nav#tabs > button",
+    "w": 219,
+    "h": 42,
+    "text": "Evaluation"
+   },
+   {
+    "el": "nav#tabs > button",
+    "w": 219,
+    "h": 42,
+    "text": "Settings"
+   },
+   {
+    "el": "div.account-menu > button.btn.small.account-logout",
+    "w": 36,
+    "h": 36,
+    "text": "Log out"
+   },
+   {
+    "el": "div.t-toolbar > select",
+    "w": 242,
+    "h": 40,
+    "text": "Class"
+   },
+   {
+    "el": "div.t-toolbar > select",
+    "w": 240,
+    "h": 40,
+    "text": "Weekly topic"
+   },
+   {
+    "el": "div.t-toolbar > select",
+    "w": 137,
+    "h": 40,
+    "text": "Period"
+   },
+   {
+    "el": "div.t-toolbar > button.btn",
+    "w": 109,
+    "h": 39,
+    "text": "Print report"
+   },
+   {
+    "el": "nav.dash-nav > button.btn.small",
+    "w": 79,
+    "h": 30,
+    "text": "OverviewOverview"
+   },
+   {
+    "el": "nav.dash-nav > button.btn.small",
+    "w": 106,
+    "h": 30,
+    "text": "Weekly topicsWeekly"
+   },
+   {
+    "el": "nav.dash-nav > button.btn.small",
+    "w": 62,
+    "h": 30,
+    "text": "TrendsTrends"
+   },
+   {
+    "el": "nav.dash-nav > button.btn.small",
+    "w": 146,
+    "h": 30,
+    "text": "Topics and questionsTopics"
+   },
+   {
+    "el": "nav.dash-nav > button.btn.small",
+    "w": 131,
+    "h": 30,
+    "text": "Commonly missedMissed"
+   },
+   {
+    "el": "nav.dash-nav > button.btn.small",
+    "w": 120,
+    "h": 30,
+    "text": "Question qualityQuality"
+   },
+   {
+    "el": "nav.dash-nav > button.btn.small",
+    "w": 122,
+    "h": 30,
+    "text": "Compare classesCompare"
+   },
+   {
+    "el": "label > input",
+    "w": 204,
+    "h": 23,
+    "text": ""
+   },
+   {
+    "el": "span.keep-together > button.info-btn.no-print",
+    "w": 24,
+    "h": 24,
+    "text": "How the students who practised (last 30 "
+   },
+   {
+    "el": "span.keep-together > button.info-btn.no-print",
+    "w": 24,
+    "h": 24,
+    "text": "How the sessions completed comparison wo"
+   },
+   {
+    "el": "span.keep-together > button.info-btn.no-print",
+    "w": 24,
+    "h": 24,
+    "text": "How the answers submitted comparison wor"
+   },
+   {
+    "el": "li > button.tb-row",
+    "w": 606,
+    "h": 37,
+    "text": "Networking basics: 46% correct on first "
+   },
+   {
+    "el": "li > button.tb-row",
+    "w": 606,
+    "h": 37,
+    "text": "Data representation: 64% correct on firs"
+   },
+   {
+    "el": "li > button.tb-row",
+    "w": 606,
+    "h": 37,
+    "text": "Cyber hygiene: 84% correct on first atte"
+   }
+  ]
+ },
+ {
+  "route": "teacher-analytics",
+  "viewport": "320x568",
+  "touch": true,
+  "vw": 320,
+  "scrollWidth": 320,
+  "clientWidth": 320,
+  "overflow": [],
+  "overflowCount": 0,
+  "clipped": [],
+  "small": []
+ },
+ {
+  "route": "teacher-analytics",
+  "viewport": "360x740",
+  "touch": true,
+  "vw": 360,
+  "scrollWidth": 360,
+  "clientWidth": 360,
+  "overflow": [],
+  "overflowCount": 0,
+  "clipped": [],
+  "small": []
+ },
+ {
+  "route": "teacher-analytics",
+  "viewport": "375x667",
+  "touch": true,
+  "vw": 375,
+  "scrollWidth": 375,
+  "clientWidth": 375,
+  "overflow": [],
+  "overflowCount": 0,
+  "clipped": [],
+  "small": []
+ },
+ {
+  "route": "teacher-analytics",
+  "viewport": "390x844",
+  "touch": true,
+  "vw": 390,
+  "scrollWidth": 390,
+  "clientWidth": 390,
+  "overflow": [],
+  "overflowCount": 0,
+  "clipped": [],
+  "small": []
+ },
+ {
+  "route": "teacher-analytics",
+  "viewport": "412x915",
+  "touch": true,
+  "vw": 412,
+  "scrollWidth": 412,
+  "clientWidth": 412,
+  "overflow": [],
+  "overflowCount": 0,
+  "clipped": [],
+  "small": []
+ },
+ {
+  "route": "teacher-analytics",
+  "viewport": "667x375",
+  "touch": true,
+  "vw": 667,
+  "scrollWidth": 667,
+  "clientWidth": 667,
+  "overflow": [],
+  "overflowCount": 0,
+  "clipped": [],
+  "small": []
+ },
+ {
+  "route": "teacher-analytics",
+  "viewport": "740x360",
+  "touch": true,
+  "vw": 740,
+  "scrollWidth": 740,
+  "clientWidth": 740,
+  "overflow": [],
+  "overflowCount": 0,
+  "clipped": [],
+  "small": []
+ },
+ {
+  "route": "teacher-analytics",
+  "viewport": "768x1024",
+  "touch": true,
+  "vw": 768,
+  "scrollWidth": 768,
+  "clientWidth": 768,
+  "overflow": [],
+  "overflowCount": 0,
+  "clipped": [],
+  "small": []
+ },
+ {
+  "route": "teacher-analytics",
+  "viewport": "820x1180",
+  "touch": true,
+  "vw": 820,
+  "scrollWidth": 820,
+  "clientWidth": 820,
+  "overflow": [],
+  "overflowCount": 0,
+  "clipped": [],
+  "small": []
+ },
+ {
+  "route": "teacher-classes",
+  "viewport": "1024x768",
+  "touch": true,
+  "vw": 1024,
+  "scrollWidth": 1024,
+  "clientWidth": 1024,
+  "overflow": [],
+  "overflowCount": 0,
+  "clipped": [],
+  "small": []
+ },
+ {
+  "route": "teacher-classes",
+  "viewport": "1200x800",
+  "touch": false,
+  "vw": 1200,
+  "scrollWidth": 1200,
+  "clientWidth": 1200,
+  "overflow": [],
+  "overflowCount": 0,
+  "clipped": [],
+  "small": [
+   {
+    "el": "div.t-brand > button.t-icon-btn.t-collapse",
+    "w": 34,
+    "h": 34,
+    "text": "Collapse sidebar"
+   },
+   {
+    "el": "nav#tabs > button",
+    "w": 219,
+    "h": 42,
+    "text": "Analytics"
+   },
+   {
+    "el": "nav#tabs > button",
+    "w": 219,
+    "h": 42,
+    "text": "To review1"
+   },
+   {
+    "el": "nav#tabs > button",
+    "w": 219,
+    "h": 42,
+    "text": "Classes & Roster"
+   },
+   {
+    "el": "nav#tabs > button",
+    "w": 219,
+    "h": 42,
+    "text": "Question bank"
+   },
+   {
+    "el": "nav#tabs > button",
+    "w": 219,
+    "h": 42,
+    "text": "AI drafting"
+   },
+   {
+    "el": "nav#tabs > button",
+    "w": 219,
+    "h": 42,
+    "text": "Evaluation"
+   },
+   {
+    "el": "nav#tabs > button",
+    "w": 219,
+    "h": 42,
+    "text": "Settings"
+   },
+   {
+    "el": "div.account-menu > button.btn.small.account-logout",
+    "w": 36,
+    "h": 36,
+    "text": "Log out"
+   },
+   {
+    "el": "div.row > button.btn.primary",
+    "w": 129,
+    "h": 39,
+    "text": "+ Create Class"
+   },
+   {
+    "el": "label > input",
+    "w": 160,
+    "h": 20,
+    "text": ""
+   },
+   {
+    "el": "div.row > input.grow",
+    "w": 846,
+    "h": 21,
+    "text": "Search classes"
+   },
+   {
+    "el": "input#v-3",
+    "w": 417,
+    "h": 41,
+    "text": ""
+   },
+   {
+    "el": "input#v-4",
+    "w": 417,
+    "h": 41,
+    "text": ""
+   },
+   {
+    "el": "form.panel > button.btn.primary",
+    "w": 122,
+    "h": 39,
+    "text": "Enrol student"
+   },
+   {
+    "el": "div.row > button.btn.small.primary",
+    "w": 179,
+    "h": 30,
+    "text": "Manage Roster & Codes →"
+   },
+   {
+    "el": "div.row > button.btn.small",
+    "w": 71,
+    "h": 30,
+    "text": "Settings"
+   },
+   {
+    "el": "div.row > button.btn.small",
+    "w": 70,
+    "h": 30,
+    "text": "Rename"
+   },
+   {
+    "el": "div.row > button.btn.small.bad",
+    "w": 67,
+    "h": 30,
+    "text": "Archive"
+   },
+   {
+    "el": "div.row > button.btn.small.primary",
+    "w": 179,
+    "h": 30,
+    "text": "Manage Roster & Codes →"
+   },
+   {
+    "el": "div.row > button.btn.small",
+    "w": 71,
+    "h": 30,
+    "text": "Settings"
+   },
+   {
+    "el": "div.row > button.btn.small",
+    "w": 70,
+    "h": 30,
+    "text": "Rename"
+   },
+   {
+    "el": "div.row > button.btn.small.bad",
+    "w": 67,
+    "h": 30,
+    "text": "Archive"
+   }
+  ]
+ },
+ {
+  "route": "teacher-classes",
+  "viewport": "1440x900",
+  "touch": false,
+  "vw": 1440,
+  "scrollWidth": 1440,
+  "clientWidth": 1440,
+  "overflow": [],
+  "overflowCount": 0,
+  "clipped": [],
+  "small": [
+   {
+    "el": "div.t-brand > button.t-icon-btn.t-collapse",
+    "w": 34,
+    "h": 34,
+    "text": "Collapse sidebar"
+   },
+   {
+    "el": "nav#tabs > button",
+    "w": 219,
+    "h": 42,
+    "text": "Analytics"
+   },
+   {
+    "el": "nav#tabs > button",
+    "w": 219,
+    "h": 42,
+    "text": "To review1"
+   },
+   {
+    "el": "nav#tabs > button",
+    "w": 219,
+    "h": 42,
+    "text": "Classes & Roster"
+   },
+   {
+    "el": "nav#tabs > button",
+    "w": 219,
+    "h": 42,
+    "text": "Question bank"
+   },
+   {
+    "el": "nav#tabs > button",
+    "w": 219,
+    "h": 42,
+    "text": "AI drafting"
+   },
+   {
+    "el": "nav#tabs > button",
+    "w": 219,
+    "h": 42,
+    "text": "Evaluation"
+   },
+   {
+    "el": "nav#tabs > button",
+    "w": 219,
+    "h": 42,
+    "text": "Settings"
+   },
+   {
+    "el": "div.account-menu > button.btn.small.account-logout",
+    "w": 36,
+    "h": 36,
+    "text": "Log out"
+   },
+   {
+    "el": "div.row > button.btn.primary",
+    "w": 129,
+    "h": 39,
+    "text": "+ Create Class"
+   },
+   {
+    "el": "label > input",
+    "w": 160,
+    "h": 20,
+    "text": ""
+   },
+   {
+    "el": "div.row > input.grow",
+    "w": 1002,
+    "h": 21,
+    "text": "Search classes"
+   },
+   {
+    "el": "input#v-3",
+    "w": 495,
+    "h": 41,
+    "text": ""
+   },
+   {
+    "el": "input#v-4",
+    "w": 495,
+    "h": 41,
+    "text": ""
+   },
+   {
+    "el": "form.panel > button.btn.primary",
+    "w": 122,
+    "h": 39,
+    "text": "Enrol student"
+   },
+   {
+    "el": "div.row > button.btn.small.primary",
+    "w": 179,
+    "h": 30,
+    "text": "Manage Roster & Codes →"
+   },
+   {
+    "el": "div.row > button.btn.small",
+    "w": 71,
+    "h": 30,
+    "text": "Settings"
+   },
+   {
+    "el": "div.row > button.btn.small",
+    "w": 70,
+    "h": 30,
+    "text": "Rename"
+   },
+   {
+    "el": "div.row > button.btn.small.bad",
+    "w": 67,
+    "h": 30,
+    "text": "Archive"
+   },
+   {
+    "el": "div.row > button.btn.small.primary",
+    "w": 179,
+    "h": 30,
+    "text": "Manage Roster & Codes →"
+   },
+   {
+    "el": "div.row > button.btn.small",
+    "w": 71,
+    "h": 30,
+    "text": "Settings"
+   },
+   {
+    "el": "div.row > button.btn.small",
+    "w": 70,
+    "h": 30,
+    "text": "Rename"
+   },
+   {
+    "el": "div.row > button.btn.small.bad",
+    "w": 67,
+    "h": 30,
+    "text": "Archive"
+   }
+  ]
+ },
+ {
+  "route": "teacher-classes",
+  "viewport": "320x568",
+  "touch": true,
+  "vw": 320,
+  "scrollWidth": 320,
+  "clientWidth": 320,
+  "overflow": [],
+  "overflowCount": 0,
+  "clipped": [],
+  "small": []
+ },
+ {
+  "route": "teacher-classes",
+  "viewport": "360x740",
+  "touch": true,
+  "vw": 360,
+  "scrollWidth": 360,
+  "clientWidth": 360,
+  "overflow": [],
+  "overflowCount": 0,
+  "clipped": [],
+  "small": []
+ },
+ {
+  "route": "teacher-classes",
+  "viewport": "375x667",
+  "touch": true,
+  "vw": 375,
+  "scrollWidth": 375,
+  "clientWidth": 375,
+  "overflow": [],
+  "overflowCount": 0,
+  "clipped": [],
+  "small": []
+ },
+ {
+  "route": "teacher-classes",
+  "viewport": "390x844",
+  "touch": true,
+  "vw": 390,
+  "scrollWidth": 390,
+  "clientWidth": 390,
+  "overflow": [],
+  "overflowCount": 0,
+  "clipped": [],
+  "small": []
+ },
+ {
+  "route": "teacher-classes",
+  "viewport": "412x915",
+  "touch": true,
+  "vw": 412,
+  "scrollWidth": 412,
+  "clientWidth": 412,
+  "overflow": [],
+  "overflowCount": 0,
+  "clipped": [],
+  "small": []
+ },
+ {
+  "route": "teacher-classes",
+  "viewport": "667x375",
+  "touch": true,
+  "vw": 667,
+  "scrollWidth": 667,
+  "clientWidth": 667,
+  "overflow": [],
+  "overflowCount": 0,
+  "clipped": [],
+  "small": []
+ },
+ {
+  "route": "teacher-classes",
+  "viewport": "740x360",
+  "touch": true,
+  "vw": 740,
+  "scrollWidth": 740,
+  "clientWidth": 740,
+  "overflow": [],
+  "overflowCount": 0,
+  "clipped": [],
+  "small": []
+ },
+ {
+  "route": "teacher-classes",
+  "viewport": "768x1024",
+  "touch": true,
+  "vw": 768,
+  "scrollWidth": 768,
+  "clientWidth": 768,
+  "overflow": [],
+  "overflowCount": 0,
+  "clipped": [],
+  "small": []
+ },
+ {
+  "route": "teacher-classes",
+  "viewport": "820x1180",
+  "touch": true,
+  "vw": 820,
+  "scrollWidth": 820,
+  "clientWidth": 820,
+  "overflow": [],
+  "overflowCount": 0,
+  "clipped": [],
+  "small": []
+ },
+ {
+  "route": "teacher-evaluation",
+  "viewport": "1024x768",
+  "touch": true,
+  "vw": 1024,
+  "scrollWidth": 1024,
+  "clientWidth": 1024,
+  "overflow": [],
+  "overflowCount": 0,
+  "clipped": [],
+  "small": []
+ },
+ {
+  "route": "teacher-evaluation",
+  "viewport": "1200x800",
+  "touch": false,
+  "vw": 1200,
+  "scrollWidth": 1200,
+  "clientWidth": 1200,
+  "overflow": [],
+  "overflowCount": 0,
+  "clipped": [],
+  "small": [
+   {
+    "el": "div.t-brand > button.t-icon-btn.t-collapse",
+    "w": 34,
+    "h": 34,
+    "text": "Collapse sidebar"
+   },
+   {
+    "el": "nav#tabs > button",
+    "w": 219,
+    "h": 42,
+    "text": "Analytics"
+   },
+   {
+    "el": "nav#tabs > button",
+    "w": 219,
+    "h": 42,
+    "text": "To review1"
+   },
+   {
+    "el": "nav#tabs > button",
+    "w": 219,
+    "h": 42,
+    "text": "Classes & Roster"
+   },
+   {
+    "el": "nav#tabs > button",
+    "w": 219,
+    "h": 42,
+    "text": "Question bank"
+   },
+   {
+    "el": "nav#tabs > button",
+    "w": 219,
+    "h": 42,
+    "text": "AI drafting"
+   },
+   {
+    "el": "nav#tabs > button",
+    "w": 219,
+    "h": 42,
+    "text": "Evaluation"
+   },
+   {
+    "el": "nav#tabs > button",
+    "w": 219,
+    "h": 42,
+    "text": "Settings"
+   },
+   {
+    "el": "div.account-menu > button.btn.small.account-logout",
+    "w": 36,
+    "h": 36,
+    "text": "Log out"
+   }
+  ]
+ },
+ {
+  "route": "teacher-evaluation",
+  "viewport": "1440x900",
+  "touch": false,
+  "vw": 1440,
+  "scrollWidth": 1440,
+  "clientWidth": 1440,
+  "overflow": [],
+  "overflowCount": 0,
+  "clipped": [],
+  "small": [
+   {
+    "el": "div.t-brand > button.t-icon-btn.t-collapse",
+    "w": 34,
+    "h": 34,
+    "text": "Collapse sidebar"
+   },
+   {
+    "el": "nav#tabs > button",
+    "w": 219,
+    "h": 42,
+    "text": "Analytics"
+   },
+   {
+    "el": "nav#tabs > button",
+    "w": 219,
+    "h": 42,
+    "text": "To review1"
+   },
+   {
+    "el": "nav#tabs > button",
+    "w": 219,
+    "h": 42,
+    "text": "Classes & Roster"
+   },
+   {
+    "el": "nav#tabs > button",
+    "w": 219,
+    "h": 42,
+    "text": "Question bank"
+   },
+   {
+    "el": "nav#tabs > button",
+    "w": 219,
+    "h": 42,
+    "text": "AI drafting"
+   },
+   {
+    "el": "nav#tabs > button",
+    "w": 219,
+    "h": 42,
+    "text": "Evaluation"
+   },
+   {
+    "el": "nav#tabs > button",
+    "w": 219,
+    "h": 42,
+    "text": "Settings"
+   },
+   {
+    "el": "div.account-menu > button.btn.small.account-logout",
+    "w": 36,
+    "h": 36,
+    "text": "Log out"
+   }
+  ]
+ },
+ {
+  "route": "teacher-evaluation",
+  "viewport": "320x568",
+  "touch": true,
+  "vw": 320,
+  "scrollWidth": 320,
+  "clientWidth": 320,
+  "overflow": [],
+  "overflowCount": 0,
+  "clipped": [],
+  "small": []
+ },
+ {
+  "route": "teacher-evaluation",
+  "viewport": "360x740",
+  "touch": true,
+  "vw": 360,
+  "scrollWidth": 360,
+  "clientWidth": 360,
+  "overflow": [],
+  "overflowCount": 0,
+  "clipped": [],
+  "small": []
+ },
+ {
+  "route": "teacher-evaluation",
+  "viewport": "375x667",
+  "touch": true,
+  "vw": 375,
+  "scrollWidth": 375,
+  "clientWidth": 375,
+  "overflow": [],
+  "overflowCount": 0,
+  "clipped": [],
+  "small": []
+ },
+ {
+  "route": "teacher-evaluation",
+  "viewport": "390x844",
+  "touch": true,
+  "vw": 390,
+  "scrollWidth": 390,
+  "clientWidth": 390,
+  "overflow": [],
+  "overflowCount": 0,
+  "clipped": [],
+  "small": []
+ },
+ {
+  "route": "teacher-evaluation",
+  "viewport": "412x915",
+  "touch": true,
+  "vw": 412,
+  "scrollWidth": 412,
+  "clientWidth": 412,
+  "overflow": [],
+  "overflowCount": 0,
+  "clipped": [],
+  "small": []
+ },
+ {
+  "route": "teacher-evaluation",
+  "viewport": "667x375",
+  "touch": true,
+  "vw": 667,
+  "scrollWidth": 667,
+  "clientWidth": 667,
+  "overflow": [],
+  "overflowCount": 0,
+  "clipped": [],
+  "small": []
+ },
+ {
+  "route": "teacher-evaluation",
+  "viewport": "740x360",
+  "touch": true,
+  "vw": 740,
+  "scrollWidth": 740,
+  "clientWidth": 740,
+  "overflow": [],
+  "overflowCount": 0,
+  "clipped": [],
+  "small": []
+ },
+ {
+  "route": "teacher-evaluation",
+  "viewport": "768x1024",
+  "touch": true,
+  "vw": 768,
+  "scrollWidth": 768,
+  "clientWidth": 768,
+  "overflow": [],
+  "overflowCount": 0,
+  "clipped": [],
+  "small": []
+ },
+ {
+  "route": "teacher-evaluation",
+  "viewport": "820x1180",
+  "touch": true,
+  "vw": 820,
+  "scrollWidth": 820,
+  "clientWidth": 820,
+  "overflow": [],
+  "overflowCount": 0,
+  "clipped": [],
+  "small": []
+ },
+ {
+  "route": "teacher-question-bank",
+  "viewport": "1024x768",
+  "touch": true,
+  "vw": 1024,
+  "scrollWidth": 1024,
+  "clientWidth": 1024,
+  "overflow": [],
+  "overflowCount": 0,
+  "clipped": [],
+  "small": []
+ },
+ {
+  "route": "teacher-question-bank",
+  "viewport": "1200x800",
+  "touch": false,
+  "vw": 1200,
+  "scrollWidth": 1200,
+  "clientWidth": 1200,
+  "overflow": [],
+  "overflowCount": 0,
+  "clipped": [],
+  "small": [
+   {
+    "el": "div.t-brand > button.t-icon-btn.t-collapse",
+    "w": 34,
+    "h": 34,
+    "text": "Collapse sidebar"
+   },
+   {
+    "el": "nav#tabs > button",
+    "w": 219,
+    "h": 42,
+    "text": "Analytics"
+   },
+   {
+    "el": "nav#tabs > button",
+    "w": 219,
+    "h": 42,
+    "text": "To review1"
+   },
+   {
+    "el": "nav#tabs > button",
+    "w": 219,
+    "h": 42,
+    "text": "Classes & Roster"
+   },
+   {
+    "el": "nav#tabs > button",
+    "w": 219,
+    "h": 42,
+    "text": "Question bank"
+   },
+   {
+    "el": "nav#tabs > button",
+    "w": 219,
+    "h": 42,
+    "text": "AI drafting"
+   },
+   {
+    "el": "nav#tabs > button",
+    "w": 219,
+    "h": 42,
+    "text": "Evaluation"
+   },
+   {
+    "el": "nav#tabs > button",
+    "w": 219,
+    "h": 42,
+    "text": "Settings"
+   },
+   {
+    "el": "div.account-menu > button.btn.small.account-logout",
+    "w": 36,
+    "h": 36,
+    "text": "Log out"
+   },
+   {
+    "el": "div.bank-modes > button.btn",
+    "w": 55,
+    "h": 39,
+    "text": "List"
+   },
+   {
+    "el": "div.bank-modes > button.btn",
+    "w": 163,
+    "h": 39,
+    "text": "Review as cards (0)"
+   },
+   {
+    "el": "div.t-toolbar > button.btn.primary",
+    "w": 138,
+    "h": 39,
+    "text": "+ New question"
+   },
+   {
+    "el": "label.field > select",
+    "w": 232,
+    "h": 38,
+    "text": "Filter by topic"
+   },
+   {
+    "el": "div.bank-status > button",
+    "w": 232,
+    "h": 39,
+    "text": "Needs review (1)"
+   },
+   {
+    "el": "div.bank-status > button",
+    "w": 232,
+    "h": 39,
+    "text": "Reported (1)"
+   },
+   {
+    "el": "div.bank-status > button",
+    "w": 232,
+    "h": 39,
+    "text": "Published (23)"
+   },
+   {
+    "el": "div.bank-status > button",
+    "w": 232,
+    "h": 39,
+    "text": "Withdrawn (0)"
+   },
+   {
+    "el": "div.bank-status > button",
+    "w": 232,
+    "h": 39,
+    "text": "Rejected (0)"
+   },
+   {
+    "el": "details.question-provenance > summary",
+    "w": 556,
+    "h": 20,
+    "text": "Sources & history"
+   },
+   {
+    "el": "div.actions > button.btn.good",
+    "w": 157,
+    "h": 39,
+    "text": "Approve & publish"
+   },
+   {
+    "el": "div.actions > button.btn",
+    "w": 57,
+    "h": 39,
+    "text": "Edit"
+   },
+   {
+    "el": "div.actions > button.btn.bad",
+    "w": 72,
+    "h": 39,
+    "text": "Reject"
+   }
+  ]
+ },
+ {
+  "route": "teacher-question-bank",
+  "viewport": "1440x900",
+  "touch": false,
+  "vw": 1440,
+  "scrollWidth": 1440,
+  "clientWidth": 1440,
+  "overflow": [],
+  "overflowCount": 0,
+  "clipped": [],
+  "small": [
+   {
+    "el": "div.t-brand > button.t-icon-btn.t-collapse",
+    "w": 34,
+    "h": 34,
+    "text": "Collapse sidebar"
+   },
+   {
+    "el": "nav#tabs > button",
+    "w": 219,
+    "h": 42,
+    "text": "Analytics"
+   },
+   {
+    "el": "nav#tabs > button",
+    "w": 219,
+    "h": 42,
+    "text": "To review1"
+   },
+   {
+    "el": "nav#tabs > button",
+    "w": 219,
+    "h": 42,
+    "text": "Classes & Roster"
+   },
+   {
+    "el": "nav#tabs > button",
+    "w": 219,
+    "h": 42,
+    "text": "Question bank"
+   },
+   {
+    "el": "nav#tabs > button",
+    "w": 219,
+    "h": 42,
+    "text": "AI drafting"
+   },
+   {
+    "el": "nav#tabs > button",
+    "w": 219,
+    "h": 42,
+    "text": "Evaluation"
+   },
+   {
+    "el": "nav#tabs > button",
+    "w": 219,
+    "h": 42,
+    "text": "Settings"
+   },
+   {
+    "el": "div.account-menu > button.btn.small.account-logout",
+    "w": 36,
+    "h": 36,
+    "text": "Log out"
+   },
+   {
+    "el": "div.bank-modes > button.btn",
+    "w": 55,
+    "h": 39,
+    "text": "List"
+   },
+   {
+    "el": "div.bank-modes > button.btn",
+    "w": 163,
+    "h": 39,
+    "text": "Review as cards (0)"
+   },
+   {
+    "el": "div.t-toolbar > button.btn.primary",
+    "w": 138,
+    "h": 39,
+    "text": "+ New question"
+   },
+   {
+    "el": "label.field > select",
+    "w": 232,
+    "h": 38,
+    "text": "Filter by topic"
+   },
+   {
+    "el": "div.bank-status > button",
+    "w": 232,
+    "h": 39,
+    "text": "Needs review (1)"
+   },
+   {
+    "el": "div.bank-status > button",
+    "w": 232,
+    "h": 39,
+    "text": "Reported (1)"
+   },
+   {
+    "el": "div.bank-status > button",
+    "w": 232,
+    "h": 39,
+    "text": "Published (23)"
+   },
+   {
+    "el": "div.bank-status > button",
+    "w": 232,
+    "h": 39,
+    "text": "Withdrawn (0)"
+   },
+   {
+    "el": "div.bank-status > button",
+    "w": 232,
+    "h": 39,
+    "text": "Rejected (0)"
+   },
+   {
+    "el": "details.question-provenance > summary",
+    "w": 788,
+    "h": 20,
+    "text": "Sources & history"
+   },
+   {
+    "el": "div.actions > button.btn.good",
+    "w": 157,
+    "h": 39,
+    "text": "Approve & publish"
+   },
+   {
+    "el": "div.actions > button.btn",
+    "w": 57,
+    "h": 39,
+    "text": "Edit"
+   },
+   {
+    "el": "div.actions > button.btn.bad",
+    "w": 72,
+    "h": 39,
+    "text": "Reject"
+   }
+  ]
+ },
+ {
+  "route": "teacher-question-bank",
+  "viewport": "320x568",
+  "touch": true,
+  "vw": 320,
+  "scrollWidth": 320,
+  "clientWidth": 320,
+  "overflow": [],
+  "overflowCount": 0,
+  "clipped": [],
+  "small": []
+ },
+ {
+  "route": "teacher-question-bank",
+  "viewport": "360x740",
+  "touch": true,
+  "vw": 360,
+  "scrollWidth": 360,
+  "clientWidth": 360,
+  "overflow": [],
+  "overflowCount": 0,
+  "clipped": [],
+  "small": []
+ },
+ {
+  "route": "teacher-question-bank",
+  "viewport": "375x667",
+  "touch": true,
+  "vw": 375,
+  "scrollWidth": 375,
+  "clientWidth": 375,
+  "overflow": [],
+  "overflowCount": 0,
+  "clipped": [],
+  "small": []
+ },
+ {
+  "route": "teacher-question-bank",
+  "viewport": "390x844",
+  "touch": true,
+  "vw": 390,
+  "scrollWidth": 390,
+  "clientWidth": 390,
+  "overflow": [],
+  "overflowCount": 0,
+  "clipped": [],
+  "small": []
+ },
+ {
+  "route": "teacher-question-bank",
+  "viewport": "412x915",
+  "touch": true,
+  "vw": 412,
+  "scrollWidth": 412,
+  "clientWidth": 412,
+  "overflow": [],
+  "overflowCount": 0,
+  "clipped": [],
+  "small": []
+ },
+ {
+  "route": "teacher-question-bank",
+  "viewport": "667x375",
+  "touch": true,
+  "vw": 667,
+  "scrollWidth": 667,
+  "clientWidth": 667,
+  "overflow": [],
+  "overflowCount": 0,
+  "clipped": [],
+  "small": []
+ },
+ {
+  "route": "teacher-question-bank",
+  "viewport": "740x360",
+  "touch": true,
+  "vw": 740,
+  "scrollWidth": 740,
+  "clientWidth": 740,
+  "overflow": [],
+  "overflowCount": 0,
+  "clipped": [],
+  "small": []
+ },
+ {
+  "route": "teacher-question-bank",
+  "viewport": "768x1024",
+  "touch": true,
+  "vw": 768,
+  "scrollWidth": 768,
+  "clientWidth": 768,
+  "overflow": [],
+  "overflowCount": 0,
+  "clipped": [],
+  "small": []
+ },
+ {
+  "route": "teacher-question-bank",
+  "viewport": "820x1180",
+  "touch": true,
+  "vw": 820,
+  "scrollWidth": 820,
+  "clientWidth": 820,
+  "overflow": [],
+  "overflowCount": 0,
+  "clipped": [],
+  "small": []
+ },
+ {
+  "route": "teacher-settings",
+  "viewport": "1024x768",
+  "touch": true,
+  "vw": 1024,
+  "scrollWidth": 1024,
+  "clientWidth": 1024,
+  "overflow": [],
+  "overflowCount": 0,
+  "clipped": [],
+  "small": []
+ },
+ {
+  "route": "teacher-settings",
+  "viewport": "1200x800",
+  "touch": false,
+  "vw": 1200,
+  "scrollWidth": 1200,
+  "clientWidth": 1200,
+  "overflow": [],
+  "overflowCount": 0,
+  "clipped": [],
+  "small": [
+   {
+    "el": "div.t-brand > button.t-icon-btn.t-collapse",
+    "w": 34,
+    "h": 34,
+    "text": "Collapse sidebar"
+   },
+   {
+    "el": "nav#tabs > button",
+    "w": 219,
+    "h": 42,
+    "text": "Analytics"
+   },
+   {
+    "el": "nav#tabs > button",
+    "w": 219,
+    "h": 42,
+    "text": "To review1"
+   },
+   {
+    "el": "nav#tabs > button",
+    "w": 219,
+    "h": 42,
+    "text": "Classes & Roster"
+   },
+   {
+    "el": "nav#tabs > button",
+    "w": 219,
+    "h": 42,
+    "text": "Question bank"
+   },
+   {
+    "el": "nav#tabs > button",
+    "w": 219,
+    "h": 42,
+    "text": "AI drafting"
+   },
+   {
+    "el": "nav#tabs > button",
+    "w": 219,
+    "h": 42,
+    "text": "Evaluation"
+   },
+   {
+    "el": "nav#tabs > button",
+    "w": 219,
+    "h": 42,
+    "text": "Settings"
+   },
+   {
+    "el": "div.account-menu > button.btn.small.account-logout",
+    "w": 36,
+    "h": 36,
+    "text": "Log out"
+   },
+   {
+    "el": "input#v-13",
+    "w": 100,
+    "h": 41,
+    "text": ""
+   },
+   {
+    "el": "div.row > button.btn.primary",
+    "w": 63,
+    "h": 39,
+    "text": "Save"
+   },
+   {
+    "el": "label.small > input",
+    "w": 116,
+    "h": 21,
+    "text": ""
+   },
+   {
+    "el": "label.small > input",
+    "w": 116,
+    "h": 21,
+    "text": ""
+   },
+   {
+    "el": "form.row > button.btn.primary",
+    "w": 105,
+    "h": 39,
+    "text": "Save dates"
+   }
+  ]
+ },
+ {
+  "route": "teacher-settings",
+  "viewport": "1440x900",
+  "touch": false,
+  "vw": 1440,
+  "scrollWidth": 1440,
+  "clientWidth": 1440,
+  "overflow": [],
+  "overflowCount": 0,
+  "clipped": [],
+  "small": [
+   {
+    "el": "div.t-brand > button.t-icon-btn.t-collapse",
+    "w": 34,
+    "h": 34,
+    "text": "Collapse sidebar"
+   },
+   {
+    "el": "nav#tabs > button",
+    "w": 219,
+    "h": 42,
+    "text": "Analytics"
+   },
+   {
+    "el": "nav#tabs > button",
+    "w": 219,
+    "h": 42,
+    "text": "To review1"
+   },
+   {
+    "el": "nav#tabs > button",
+    "w": 219,
+    "h": 42,
+    "text": "Classes & Roster"
+   },
+   {
+    "el": "nav#tabs > button",
+    "w": 219,
+    "h": 42,
+    "text": "Question bank"
+   },
+   {
+    "el": "nav#tabs > button",
+    "w": 219,
+    "h": 42,
+    "text": "AI drafting"
+   },
+   {
+    "el": "nav#tabs > button",
+    "w": 219,
+    "h": 42,
+    "text": "Evaluation"
+   },
+   {
+    "el": "nav#tabs > button",
+    "w": 219,
+    "h": 42,
+    "text": "Settings"
+   },
+   {
+    "el": "div.account-menu > button.btn.small.account-logout",
+    "w": 36,
+    "h": 36,
+    "text": "Log out"
+   },
+   {
+    "el": "input#v-13",
+    "w": 100,
+    "h": 41,
+    "text": ""
+   },
+   {
+    "el": "div.row > button.btn.primary",
+    "w": 63,
+    "h": 39,
+    "text": "Save"
+   },
+   {
+    "el": "label.small > input",
+    "w": 116,
+    "h": 21,
+    "text": ""
+   },
+   {
+    "el": "label.small > input",
+    "w": 116,
+    "h": 21,
+    "text": ""
+   },
+   {
+    "el": "form.row > button.btn.primary",
+    "w": 105,
+    "h": 39,
+    "text": "Save dates"
+   }
+  ]
+ },
+ {
+  "route": "teacher-settings",
+  "viewport": "320x568",
+  "touch": true,
+  "vw": 320,
+  "scrollWidth": 320,
+  "clientWidth": 320,
+  "overflow": [],
+  "overflowCount": 0,
+  "clipped": [],
+  "small": []
+ },
+ {
+  "route": "teacher-settings",
+  "viewport": "360x740",
+  "touch": true,
+  "vw": 360,
+  "scrollWidth": 360,
+  "clientWidth": 360,
+  "overflow": [],
+  "overflowCount": 0,
+  "clipped": [],
+  "small": []
+ },
+ {
+  "route": "teacher-settings",
+  "viewport": "375x667",
+  "touch": true,
+  "vw": 375,
+  "scrollWidth": 375,
+  "clientWidth": 375,
+  "overflow": [],
+  "overflowCount": 0,
+  "clipped": [],
+  "small": []
+ },
+ {
+  "route": "teacher-settings",
+  "viewport": "390x844",
+  "touch": true,
+  "vw": 390,
+  "scrollWidth": 390,
+  "clientWidth": 390,
+  "overflow": [],
+  "overflowCount": 0,
+  "clipped": [],
+  "small": []
+ },
+ {
+  "route": "teacher-settings",
+  "viewport": "412x915",
+  "touch": true,
+  "vw": 412,
+  "scrollWidth": 412,
+  "clientWidth": 412,
+  "overflow": [],
+  "overflowCount": 0,
+  "clipped": [],
+  "small": []
+ },
+ {
+  "route": "teacher-settings",
+  "viewport": "667x375",
+  "touch": true,
+  "vw": 667,
+  "scrollWidth": 667,
+  "clientWidth": 667,
+  "overflow": [],
+  "overflowCount": 0,
+  "clipped": [],
+  "small": []
+ },
+ {
+  "route": "teacher-settings",
+  "viewport": "740x360",
+  "touch": true,
+  "vw": 740,
+  "scrollWidth": 740,
+  "clientWidth": 740,
+  "overflow": [],
+  "overflowCount": 0,
+  "clipped": [],
+  "small": []
+ },
+ {
+  "route": "teacher-settings",
+  "viewport": "768x1024",
+  "touch": true,
+  "vw": 768,
+  "scrollWidth": 768,
+  "clientWidth": 768,
+  "overflow": [],
+  "overflowCount": 0,
+  "clipped": [],
+  "small": []
+ },
+ {
+  "route": "teacher-settings",
+  "viewport": "820x1180",
+  "touch": true,
+  "vw": 820,
+  "scrollWidth": 820,
+  "clientWidth": 820,
+  "overflow": [],
+  "overflowCount": 0,
+  "clipped": [],
+  "small": []
+ },
+ {
+  "route": "teacher-to-review",
+  "viewport": "1024x768",
+  "touch": true,
+  "vw": 1024,
+  "scrollWidth": 1024,
+  "clientWidth": 1024,
+  "overflow": [],
+  "overflowCount": 0,
+  "clipped": [],
+  "small": []
+ },
+ {
+  "route": "teacher-to-review",
+  "viewport": "1200x800",
+  "touch": false,
+  "vw": 1200,
+  "scrollWidth": 1200,
+  "clientWidth": 1200,
+  "overflow": [],
+  "overflowCount": 0,
+  "clipped": [],
+  "small": [
+   {
+    "el": "div.t-brand > button.t-icon-btn.t-collapse",
+    "w": 34,
+    "h": 34,
+    "text": "Collapse sidebar"
+   },
+   {
+    "el": "nav#tabs > button",
+    "w": 219,
+    "h": 42,
+    "text": "Analytics"
+   },
+   {
+    "el": "nav#tabs > button",
+    "w": 219,
+    "h": 42,
+    "text": "To review1"
+   },
+   {
+    "el": "nav#tabs > button",
+    "w": 219,
+    "h": 42,
+    "text": "Classes & Roster"
+   },
+   {
+    "el": "nav#tabs > button",
+    "w": 219,
+    "h": 42,
+    "text": "Question bank"
+   },
+   {
+    "el": "nav#tabs > button",
+    "w": 219,
+    "h": 42,
+    "text": "AI drafting"
+   },
+   {
+    "el": "nav#tabs > button",
+    "w": 219,
+    "h": 42,
+    "text": "Evaluation"
+   },
+   {
+    "el": "nav#tabs > button",
+    "w": 219,
+    "h": 42,
+    "text": "Settings"
+   },
+   {
+    "el": "div.account-menu > button.btn.small.account-logout",
+    "w": 36,
+    "h": 36,
+    "text": "Log out"
+   },
+   {
+    "el": "div.t-toolbar > select",
+    "w": 242,
+    "h": 40,
+    "text": "Class"
+   },
+   {
+    "el": "div.row > button.btn.small.good",
+    "w": 106,
+    "h": 30,
+    "text": "Mark resolved"
+   },
+   {
+    "el": "div.row > button.btn.small",
+    "w": 149,
+    "h": 30,
+    "text": "Edit in Question bank"
+   }
+  ]
+ },
+ {
+  "route": "teacher-to-review",
+  "viewport": "1440x900",
+  "touch": false,
+  "vw": 1440,
+  "scrollWidth": 1440,
+  "clientWidth": 1440,
+  "overflow": [],
+  "overflowCount": 0,
+  "clipped": [],
+  "small": [
+   {
+    "el": "div.t-brand > button.t-icon-btn.t-collapse",
+    "w": 34,
+    "h": 34,
+    "text": "Collapse sidebar"
+   },
+   {
+    "el": "nav#tabs > button",
+    "w": 219,
+    "h": 42,
+    "text": "Analytics"
+   },
+   {
+    "el": "nav#tabs > button",
+    "w": 219,
+    "h": 42,
+    "text": "To review1"
+   },
+   {
+    "el": "nav#tabs > button",
+    "w": 219,
+    "h": 42,
+    "text": "Classes & Roster"
+   },
+   {
+    "el": "nav#tabs > button",
+    "w": 219,
+    "h": 42,
+    "text": "Question bank"
+   },
+   {
+    "el": "nav#tabs > button",
+    "w": 219,
+    "h": 42,
+    "text": "AI drafting"
+   },
+   {
+    "el": "nav#tabs > button",
+    "w": 219,
+    "h": 42,
+    "text": "Evaluation"
+   },
+   {
+    "el": "nav#tabs > button",
+    "w": 219,
+    "h": 42,
+    "text": "Settings"
+   },
+   {
+    "el": "div.account-menu > button.btn.small.account-logout",
+    "w": 36,
+    "h": 36,
+    "text": "Log out"
+   },
+   {
+    "el": "div.t-toolbar > select",
+    "w": 242,
+    "h": 40,
+    "text": "Class"
+   },
+   {
+    "el": "div.report-head > button.linklike.report-stem",
+    "w": 958,
+    "h": 23,
+    "text": "A video call has a sharp picture but res"
+   },
+   {
+    "el": "div.row > button.btn.small.good",
+    "w": 106,
+    "h": 30,
+    "text": "Mark resolved"
+   },
+   {
+    "el": "div.row > button.btn.small",
+    "w": 149,
+    "h": 30,
+    "text": "Edit in Question bank"
+   }
+  ]
+ },
+ {
+  "route": "teacher-to-review",
+  "viewport": "320x568",
+  "touch": true,
+  "vw": 320,
+  "scrollWidth": 320,
+  "clientWidth": 320,
+  "overflow": [],
+  "overflowCount": 0,
+  "clipped": [],
+  "small": []
+ },
+ {
+  "route": "teacher-to-review",
+  "viewport": "360x740",
+  "touch": true,
+  "vw": 360,
+  "scrollWidth": 360,
+  "clientWidth": 360,
+  "overflow": [],
+  "overflowCount": 0,
+  "clipped": [],
+  "small": []
+ },
+ {
+  "route": "teacher-to-review",
+  "viewport": "375x667",
+  "touch": true,
+  "vw": 375,
+  "scrollWidth": 375,
+  "clientWidth": 375,
+  "overflow": [],
+  "overflowCount": 0,
+  "clipped": [],
+  "small": []
+ },
+ {
+  "route": "teacher-to-review",
+  "viewport": "390x844",
+  "touch": true,
+  "vw": 390,
+  "scrollWidth": 390,
+  "clientWidth": 390,
+  "overflow": [],
+  "overflowCount": 0,
+  "clipped": [],
+  "small": []
+ },
+ {
+  "route": "teacher-to-review",
+  "viewport": "412x915",
+  "touch": true,
+  "vw": 412,
+  "scrollWidth": 412,
+  "clientWidth": 412,
+  "overflow": [],
+  "overflowCount": 0,
+  "clipped": [],
+  "small": []
+ },
+ {
+  "route": "teacher-to-review",
+  "viewport": "667x375",
+  "touch": true,
+  "vw": 667,
+  "scrollWidth": 667,
+  "clientWidth": 667,
+  "overflow": [],
+  "overflowCount": 0,
+  "clipped": [],
+  "small": []
+ },
+ {
+  "route": "teacher-to-review",
+  "viewport": "740x360",
+  "touch": true,
+  "vw": 740,
+  "scrollWidth": 740,
+  "clientWidth": 740,
+  "overflow": [],
+  "overflowCount": 0,
+  "clipped": [],
+  "small": []
+ },
+ {
+  "route": "teacher-to-review",
+  "viewport": "768x1024",
+  "touch": true,
+  "vw": 768,
+  "scrollWidth": 768,
+  "clientWidth": 768,
+  "overflow": [],
+  "overflowCount": 0,
+  "clipped": [],
+  "small": []
+ },
+ {
+  "route": "teacher-to-review",
+  "viewport": "820x1180",
+  "touch": true,
+  "vw": 820,
+  "scrollWidth": 820,
+  "clientWidth": 820,
+  "overflow": [],
+  "overflowCount": 0,
+  "clipped": [],
+  "small": []
+ }
+]

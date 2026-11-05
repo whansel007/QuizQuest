@@ -483,47 +483,167 @@ body[data-mode="workshop-trial"] #waiting-banner { display: none !important; }
   .buff-card > strong, .buff-card > span, .buff-card > small { grid-column: 2; }
   .session-summary-card { min-height: 250px; padding: 24px 18px; }
 }
-/* Touch controls are independent overlays; they do not change the game canvas
-   coordinate system, and are hidden on a mouse-first laptop. */
-.virtual-stick, #touch-help { display: none; }
+/* ==== Touch mode (docs/mobile/NOTES.md, Stages 3-4) =========================
+   html.touch-mode is set by world.js when touch controls are on: a coarse
+   pointer (Settings: Auto), Settings: On, or ?touch=1. Desktop never gets it,
+   so none of this changes the keyboard-and-mouse HUD. Landscape layout:
+   party top left, wave + campfire + boss top centre, room code + menu top
+   right, stick bottom left, ability cluster bottom right, lobby bottom centre. */
+.virtual-stick, #touch-help, .touch-only, #touch-menu-button, #touch-cancel { display: none; }
 .virtual-stick[hidden] { display: none; }
-#touch-help[hidden] { display: none; }
-@media (pointer: coarse) {
-  #world { top: 0; left: 0; width: 100vw; height: 100dvh; aspect-ratio: auto; transform: none; }
-  .desktop-input-help, .desktop-dismiss-help { display: none; }
-  .touch-input-help { display: inline !important; }
-  .touch-dismiss-help { display: block; }
-  .virtual-stick {
-    position: fixed; z-index: 4; left: max(.65rem, env(safe-area-inset-left)); bottom: max(.65rem, env(safe-area-inset-bottom));
-    display: grid; justify-items: center; gap: 2px; width: 92px; height: 112px; color: var(--hud-text);
-    font: 800 .62rem var(--hud-mono); letter-spacing: .12em; touch-action: none; user-select: none; -webkit-user-select: none;
-  }
-  .virtual-stick-base { position: relative; display: grid; width: 88px; height: 88px; place-items: center; background: rgb(29 51 41 / 58%); border: 2px solid rgb(240 234 210 / 72%); border-radius: 50%; box-shadow: inset 0 0 0 6px rgb(29 51 41 / 24%); }
-  .virtual-stick-knob { width: 40px; height: 40px; border: 2px solid var(--hud-ink); border-radius: 50%; background: rgb(242 186 85 / 90%); box-shadow: 0 3px 0 var(--hud-ink); transform: translate(var(--stick-x, 0px), var(--stick-y, 0px)); }
-  .virtual-stick-label { padding: 2px 7px; color: var(--hud-text); background: rgb(29 51 41 / 82%); border-radius: 99px; }
-  #touch-help { position: fixed; z-index: 3; top: auto; bottom: calc(168px + 1rem + env(safe-area-inset-bottom)); left: 50%; display: block; width: max-content; max-width: min(430px, calc(100vw - 1rem)); padding: .3rem .55rem; color: var(--hud-text); background: rgb(29 51 41 / 84%); border: 1px solid var(--hud-line); border-radius: 7px; font-size: .7rem; text-align: center; transform: translateX(-50%); pointer-events: none; }
-  #ability-hud { right: max(.55rem, env(safe-area-inset-right)); bottom: max(.55rem, env(safe-area-inset-bottom)); grid-template-columns: 48px 62px; column-gap: 8px; row-gap: 8px; }
-  .ability[data-ability="weapon"] { --btn-size: 48px; }
-  .ability[data-ability="skill"] { --btn-size: 54px; }
-  .ability[data-ability="ultimate"] { --btn-size: 62px; }
-  .ability-key { min-height: 18px; padding: 2px 5px; }
-  .ability-key { font-size: 0; }
-  .ability-key::after { content: attr(data-touch-label); font: 900 10px/1 Nunito, sans-serif; letter-spacing: .04em; }
-  #settings-button { width: 2rem; height: 2rem; }
-  #settings-button svg { width: 16px; height: 16px; }
-  #info-button { gap: .35rem; padding: .22rem .55rem .22rem .22rem; font-size: .72rem; }
-  #info-button .info-circle { --btn-size: 24px; font-size: .8rem; }
-  #kingdom-exit { min-height: 38px; padding: .22rem .55rem; font-size: .72rem; }
-  #kingdom-exit > span:first-child { width: 1.35rem; height: 1.35rem; }
-  #emote-button { min-height: 32px; padding: .2rem .55rem; font-size: .72rem; }
-  #start-run { min-height: 34px; padding: .35rem .75rem; font-size: .74rem; }
-  #bottom-left-hud { bottom: calc(7.5rem + env(safe-area-inset-bottom)); left: max(.55rem, env(safe-area-inset-left)); }
-  #targeting-hint { top: max(7.5rem, env(safe-area-inset-top)); right: .6rem; bottom: auto; left: .6rem; width: auto; text-align: center; transform: none; }
-  #targeting-hint button { min-height: 44px; margin: .35rem .2rem 0; }
+#touch-help[hidden], #touch-menu[hidden], #rotate-overlay[hidden], #touch-debug[hidden], #touch-cancel[hidden] { display: none !important; }
+
+/* the page is a game surface */
+html.touch-mode, html.touch-mode body { overscroll-behavior: none; touch-action: none; -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; -webkit-tap-highlight-color: transparent; }
+html.touch-mode :is(#settings-panel, #stats-panel, #buff-vote-panel, #run-result, #session-summary, #milestone-dawn, .touch-menu-panel) { touch-action: pan-y; }
+html.touch-mode :is(input, select) { -webkit-user-select: auto; user-select: auto; }
+html.touch-mode .touch-only { display: revert; }
+html.touch-mode #world { top: 0; left: 0; width: 100vw; height: 100vh; height: 100dvh; aspect-ratio: auto; transform: none; }
+html.touch-mode #touch-help { display: none !important; }
+
+/* mobile help text replaces the keyboard text */
+html.touch-mode .desktop-input-help, html.touch-mode .desktop-dismiss-help { display: none; }
+html.touch-mode .touch-input-help { display: grid !important; gap: .2rem; text-align: left; font-size: .78rem; line-height: 1.3; }
+html.touch-mode .touch-input-help > strong { font-size: .8rem; }
+html.touch-mode .touch-dismiss-help { display: block; }
+html.touch-mode #join-briefing { width: min(460px, calc(100vw - 1.5rem)); max-height: calc(100dvh - 1rem); overflow-y: auto; gap: .45rem; padding: .7rem .9rem; font-size: .85rem; }
+
+/* top left: compact party list */
+html.touch-mode #hero-hud { top: max(.4rem, env(safe-area-inset-top)); left: max(.4rem, env(safe-area-inset-left)); width: 172px; padding: .3rem .4rem .35rem; gap: .25rem; transform: scale(var(--hud-scale, 1)); transform-origin: top left; }
+html.touch-mode #player-roster { gap: .25rem; }
+html.touch-mode .roster-row { grid-template-columns: 22px minmax(0, 1fr) auto; column-gap: .3rem; row-gap: .1rem; padding: .15rem .3rem; }
+html.touch-mode .roster-portrait { width: 22px; height: 22px; font-size: .8rem; }
+html.touch-mode .roster-portrait .hero-ui-sprite { height: 20px; }
+html.touch-mode #player-roster :is([class*="track"], [class*="health-bar"]) { height: 4px; }
+
+/* top centre: wave counter, campfire bar, boss bar */
+html.touch-mode #combat-hud { top: max(.4rem, env(safe-area-inset-top)); width: min(310px, calc(100vw - 420px)); min-width: 210px; grid-template-columns: minmax(64px, 1fr) minmax(0, 2.2fr); transform: translateX(-50%) scale(var(--hud-scale, 1)); transform-origin: top center; }
+html.touch-mode #wave-hud { padding: .25rem .45rem; }
+html.touch-mode #enemy-count { font-size: 1.25rem; }
+html.touch-mode #wave-number { margin-top: .1rem; font-size: .75rem; }
+html.touch-mode #wave-details { display: none; }
+html.touch-mode #campfire-hud { gap: .2rem; padding: .3rem .5rem; font-size: .7rem; }
+html.touch-mode .campfire-heading strong { font-size: .8rem; }
+html.touch-mode .campfire-track { height: 8px; }
+html.touch-mode #boss-hud { top: calc(max(.4rem, env(safe-area-inset-top)) + 3.6rem); bottom: auto; width: min(300px, 46vw); padding: .25rem .5rem; transform: translateX(-50%) scale(var(--hud-scale, 1)); transform-origin: top center; }
+html.touch-mode :is(#waiting-banner, #targeting-hint) { top: calc(max(.4rem, env(safe-area-inset-top)) + 3.8rem); right: auto; bottom: auto; left: 50%; width: max-content; max-width: min(460px, 62vw); padding: .3rem .6rem; font-size: .75rem; text-align: center; transform: translateX(-50%) scale(var(--hud-scale, 1)); transform-origin: top center; }
+html.touch-mode #targeting-cancel { display: none; }
+html.touch-mode #toast-stack { top: calc(max(.4rem, env(safe-area-inset-top)) + 3.8rem); right: auto; bottom: auto; left: 50%; justify-items: center; transform: translateX(-50%) scale(var(--hud-scale, 1)); transform-origin: top center; }
+html.touch-mode #moment-banner { top: 24vh; height: auto; font-size: clamp(1.5rem, 6vh, 2.6rem); }
+html.touch-mode #countdown { font-size: clamp(3rem, 22vh, 6.5rem); }
+
+/* top right: room code (tap to copy) and the game menu */
+html.touch-mode #touch-menu-button { position: fixed; z-index: 6; top: max(.4rem, env(safe-area-inset-top)); right: max(.4rem, env(safe-area-inset-right)); display: grid; place-items: center; width: 44px; height: 44px; padding: 0; color: var(--hud-text); background: var(--hud-panel); border: 2px solid var(--hud-ink); border-radius: 12px; box-shadow: 0 3px 0 var(--hud-ink); }
+#touch-menu-button svg { width: 22px; height: 22px; fill: none; stroke: currentColor; stroke-width: 2.4; stroke-linecap: round; }
+html.touch-mode #room-code-corner { top: max(.4rem, env(safe-area-inset-top)); right: calc(max(.4rem, env(safe-area-inset-right)) + 52px); padding: .1rem .3rem; }
+html.touch-mode #room-code { min-height: 40px; }
+html.touch-mode #touch-menu { position: fixed; z-index: 30; inset: 0; display: grid; place-items: start end; padding: calc(max(.4rem, env(safe-area-inset-top)) + 52px) max(.4rem, env(safe-area-inset-right)) 0 0; background: rgb(15 29 21 / 35%); }
+.touch-menu-panel { display: grid; gap: .35rem; min-width: 220px; max-height: calc(100dvh - 70px); overflow-y: auto; padding: .6rem; color: var(--hud-text); background: var(--hud-panel); border: 2px solid var(--hud-ink); border-radius: 12px; box-shadow: var(--hud-shadow); }
+.touch-menu-panel > strong { padding: 0 .2rem .1rem; color: var(--hud-gold); font: 800 .7rem var(--hud-mono); letter-spacing: .12em; text-transform: uppercase; }
+.touch-menu-panel button { min-height: 44px; padding: .45rem .75rem; color: var(--hud-text); background: var(--hud-panel-raised); border: 1px solid var(--hud-line); border-radius: 8px; font: 700 .92rem Nunito, system-ui, sans-serif; text-align: left; cursor: pointer; }
+.touch-menu-panel button[hidden] { display: none; }
+.touch-menu-panel .touch-menu-close { text-align: center; background: transparent; }
+
+/* desktop-only buttons leave the HUD; the stats panel and settings open from
+   the menu as sheets; run buffs and the kill streak sit under the room code */
+html.touch-mode :is(#settings-button, #kingdom-exit, #info-button) { display: none; }
+html.touch-mode #bottom-left-hud { top: calc(max(.4rem, env(safe-area-inset-top)) + 52px); right: max(.4rem, env(safe-area-inset-right)); bottom: auto; left: auto; justify-items: end; }
+html.touch-mode #bottom-left-hud:has(#settings-panel:not([hidden]), #stats-panel:not([hidden])) { z-index: 25; }
+html.touch-mode #bottom-left-tools { max-width: 40vw; }
+html.touch-mode #buff-icons { justify-content: flex-end; max-width: 40vw; }
+html.touch-mode #kill-streak { top: calc(100% + .3rem); right: 0; left: auto; font-size: .85rem; }
+html.touch-mode :is(#settings-panel, #stats-panel) { position: fixed; z-index: 25; inset: max(.5rem, env(safe-area-inset-top)) max(.5rem, env(safe-area-inset-right)) max(.5rem, env(safe-area-inset-bottom)) max(.5rem, env(safe-area-inset-left)); width: auto; max-width: 560px; max-height: none; margin: 0 auto; overflow-y: auto; overscroll-behavior: contain; }
+html.touch-mode #stats-panel { align-content: start; padding: .5rem; background: var(--hud-panel); border: 2px solid var(--hud-ink); border-radius: var(--hud-radius); box-shadow: var(--hud-shadow); }
+html.touch-mode :is(#settings-panel, #stats-panel)[hidden] { display: none; }
+.settings-head { display: flex; align-items: center; justify-content: space-between; gap: .5rem; }
+html.touch-mode #settings-close, html.touch-mode #info-close { display: grid; place-items: center; width: 44px; height: 44px; padding: 0; color: var(--hud-text); background: var(--hud-panel-raised); border: 1px solid var(--hud-line); border-radius: 8px; font-size: 1.1rem; }
+html.touch-mode #settings-panel :is(select, button, input[type="range"]) { min-height: 44px; }
+html.touch-mode #settings-panel label:has(> input[type="checkbox"]) { min-height: 44px; display: flex; align-items: center; }
+
+/* bottom left: the move stick (floating by default; a faint outline marks
+   its home). Translucent fill, dark ink outline, no blur or filters. */
+html.touch-mode .virtual-stick { position: fixed; z-index: 4; left: max(1.4rem, calc(env(safe-area-inset-left) + .8rem)); bottom: max(1.2rem, calc(env(safe-area-inset-bottom) + .6rem)); display: block; width: calc(2 * var(--stick-radius, 56px)); height: calc(2 * var(--stick-radius, 56px)); color: var(--hud-text); transform: translate(var(--stick-dx, 0px), var(--stick-dy, 0px)); touch-action: none; user-select: none; -webkit-user-select: none; opacity: .5; }
+html.touch-mode .virtual-stick[hidden] { display: none; }
+html.touch-mode .virtual-stick.active { opacity: 1; }
+html.touch-mode .virtual-stick-base { position: absolute; inset: 0; display: grid; width: auto; height: auto; place-items: center; background: rgb(29 51 41 / 26%); border: 2px solid rgb(16 16 24 / 70%); border-radius: 50%; box-shadow: none; }
+html.touch-mode .virtual-stick.active .virtual-stick-base { background: rgb(29 51 41 / 42%); border-color: #101018; }
+html.touch-mode .virtual-stick-knob { width: calc(2 * var(--stick-knob, 24px)); height: calc(2 * var(--stick-knob, 24px)); background: rgb(242 186 85 / 72%); border: 2px solid #101018; border-radius: 50%; box-shadow: none; transform: translate(var(--stick-x, 0px), var(--stick-y, 0px)); }
+html.touch-mode .virtual-stick-label { position: absolute; bottom: -.15rem; left: 50%; padding: 1px 6px; color: var(--hud-text); background: rgb(29 51 41 / 70%); border-radius: 99px; font: 800 .55rem var(--hud-mono); letter-spacing: .12em; transform: translate(-50%, 100%); }
+html.touch-mode .virtual-stick.active .virtual-stick-label { display: none; }
+
+/* bottom right: the ability cluster (same layout, colours, icons, cooldown
+   fills; scaled by MOBILE_BUTTON_SCALE; hit areas +8 px past the circle) */
+html.touch-mode #ability-hud { right: max(.7rem, calc(env(safe-area-inset-right) + .4rem)); bottom: max(.45rem, env(safe-area-inset-bottom)); display: grid; grid-template-columns: var(--touch-btn-primary, 55px) var(--touch-btn-ult, 71px); column-gap: 12px; row-gap: 4px; }
+html.touch-mode .ability { padding: var(--touch-hit-slop, 8px); margin: calc(-1 * var(--touch-hit-slop, 8px)); touch-action: none; }
+html.touch-mode .ability[data-ability="weapon"] { --btn-size: var(--touch-btn-primary, 55px); }
+html.touch-mode .ability[data-ability="skill"] { --btn-size: var(--touch-btn-skill, 62px); }
+html.touch-mode .ability[data-ability="ultimate"] { --btn-size: var(--touch-btn-ult, 71px); }
+html.touch-mode .ability-key { min-height: 16px; padding: 1px 5px; font-size: 0; }
+html.touch-mode .ability-key::after { content: attr(data-touch-label); font: 900 10px/1 Nunito, sans-serif; letter-spacing: .04em; }
+html.touch-mode .ability.aiming::before { width: 180px; height: 180px; }
+html.touch-mode .ability.cancel-armed .ability-circle { outline-color: #ff6b57; }
+html.touch-mode .ability.cancel-armed::after { background: #ff6b57; }
+/* the emote button sits in the free top-left corner of the cluster */
+html.touch-mode #emote-button { grid-area: 1 / 1; place-self: center; justify-content: center; width: 44px; height: 44px; min-height: 44px; padding: 0; background: rgb(29 51 41 / 62%); border-radius: 50%; font-size: 1.25rem; }
+html.touch-mode #emote-button > span:last-child { display: none; }
+html.touch-mode #emote-menu { place-items: end; padding: 0 max(.6rem, env(safe-area-inset-right)) calc(max(.45rem, env(safe-area-inset-bottom)) + 168px) 0; background: transparent; }
+html.touch-mode .emote-wheel-panel { width: auto; padding: .35rem .45rem; }
+html.touch-mode .emote-wheel-panel > :is(strong, small) { display: none; }
+html.touch-mode .emote-wheel { display: flex; gap: .25rem; width: auto; height: auto; padding: .25rem; border-radius: 99px; }
+html.touch-mode .emote-wheel > button { position: static; width: 44px; height: 44px; transform: none; }
+html.touch-mode .emote-choice kbd { display: none; }
+
+/* bottom centre: the lobby START button / hero choice, clear of the stick
+   (left) and the cluster (right); on narrow screens it moves up */
+html.touch-mode #lobby-bar { bottom: max(.5rem, env(safe-area-inset-bottom)); width: auto; max-width: calc(100vw - 2 * 196px); flex-wrap: wrap; justify-content: center; gap: .35rem; padding: .3rem .45rem; }
+html.touch-mode #lobby-hero-label { display: none; }
+html.touch-mode :is(#lobby-hero, #start-run) { min-height: 44px; }
+html.touch-mode #lobby-hero { max-width: 150px; }
+@media (max-width: 640px) {
+  html.touch-mode #lobby-bar { bottom: calc(max(.5rem, env(safe-area-inset-bottom)) + 150px); max-width: calc(100vw - 1rem); }
 }
-@media (pointer: coarse) and (orientation: portrait) {
-  #touch-help::after { content: ' · Turn sideways for a larger arena'; }
+
+/* Bombardier: the big Cancel button just above the cluster (clear of the
+   right thumb and of the lobby bar); the ring is the 5 s targeting window */
+html.touch-mode #touch-cancel { position: fixed; z-index: 6; right: max(.9rem, calc(env(safe-area-inset-right) + .6rem)); bottom: calc(max(.45rem, env(safe-area-inset-bottom)) + 178px); display: grid; place-items: center; width: 66px; height: 66px; padding: 0; color: #fff8e4; background: #b4452f; border: 3px solid var(--hud-ink); border-radius: 50%; box-shadow: 0 3px 0 var(--hud-ink); font: 900 .8rem Nunito, system-ui, sans-serif; }
+#touch-cancel::before { position: absolute; inset: -7px; content: ''; border-radius: 50%; background: conic-gradient(#ffd34f var(--window-degrees, 360deg), transparent 0); -webkit-mask: radial-gradient(farthest-side, transparent calc(100% - 4px), #000 calc(100% - 3px)); mask: radial-gradient(farthest-side, transparent calc(100% - 4px), #000 calc(100% - 3px)); pointer-events: none; }
+
+/* vote cards: a bottom-anchored row of three, live tally included. It sits
+   above the stick and the buttons for the short vote window, as the desktop
+   vote overlay sits above the desktop HUD. */
+html.touch-mode #buff-vote { z-index: 5; align-content: end; padding: 0 max(.5rem, env(safe-area-inset-right)) max(.5rem, env(safe-area-inset-bottom)) max(.5rem, env(safe-area-inset-left)); background: linear-gradient(transparent 35%, rgb(22 40 31 / 72%)); }
+html.touch-mode #buff-vote-panel { width: min(760px, 100%); max-height: 72dvh; gap: .3rem; padding: .5rem .6rem; }
+html.touch-mode #buff-vote-title { font-size: .9rem; }
+html.touch-mode #buff-vote-status { font-size: .7rem; }
+html.touch-mode #buff-cards { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: .45rem; }
+html.touch-mode .buff-card { grid-template-columns: 1fr; grid-template-rows: none; justify-items: center; align-items: start; min-height: 104px; padding: .45rem .4rem; text-align: center; }
+html.touch-mode .buff-card-icon { grid-row: auto; grid-column: auto; width: 30px; height: 30px; }
+html.touch-mode .buff-card > :is(strong, span, small) { grid-column: auto; }
+html.touch-mode .buff-card > strong { font-size: .8rem; }
+html.touch-mode .buff-card > span { display: -webkit-box; overflow: hidden; font-size: .68rem; line-height: 1.2; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
+
+/* dawn, defeat, end-of-run and the session summary: full-screen sheets
+   that scroll inside themselves on a short landscape phone */
+html.touch-mode :is(#milestone-dawn, #run-result, #session-summary) { align-content: safe center; overflow-y: auto; overscroll-behavior: contain; padding: max(.5rem, env(safe-area-inset-top)) max(.5rem, env(safe-area-inset-right)) max(.5rem, env(safe-area-inset-bottom)) max(.5rem, env(safe-area-inset-left)); }
+html.touch-mode :is(#milestone-dawn, #run-result, #session-summary) button { min-height: 44px; }
+@media (max-height: 520px) {
+  html.touch-mode .run-result-layout { max-height: none; overflow: visible; }
+  html.touch-mode .run-result-card { gap: .4rem; padding: 12px 14px; }
+  html.touch-mode #run-result-title { font-size: 1.35rem; }
+  html.touch-mode .session-summary-card { min-height: 0; padding: 14px; }
+  html.touch-mode #milestone-dawn > strong { font-size: 2rem; }
 }
+
+/* portrait: rotate prompt (blocks input; nothing changes on the server) */
+#rotate-overlay { position: fixed; z-index: 100; inset: 0; display: grid; place-content: center; justify-items: center; gap: .7rem; padding: 2rem; color: var(--hud-text); background: #16281f; text-align: center; touch-action: none; }
+#rotate-overlay strong { font: 700 1.45rem var(--hud-serif); }
+#rotate-overlay span:last-child { max-width: 30ch; color: var(--hud-soft); font-size: .9rem; }
+.rotate-icon { font-size: 3rem; line-height: 1; }
+@media (prefers-reduced-motion: no-preference) { .rotate-icon { animation: rotate-hint 1.6s ease-in-out infinite; } }
+@keyframes rotate-hint { 50% { transform: rotate(-90deg); } }
+
+/* ?touchdebug=1: active pointers and gesture state */
+#touch-debug { position: fixed; z-index: 50; top: 4.2rem; left: 50%; padding: 2px 6px; color: #fff; background: rgb(0 0 0 / 62%); border-radius: 4px; font: 600 11px/1.3 ui-monospace, monospace; transform: translateX(-50%); pointer-events: none; }
 @media (prefers-reduced-motion: reduce) {
   .buff-card { transition: none; }
   .buff-card:hover:not(:disabled), .buff-card:focus-visible { transform: none; }
