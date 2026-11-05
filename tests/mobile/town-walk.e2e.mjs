@@ -158,7 +158,14 @@ async function doors(page) {
 }
 
 async function walkToDoor(page, drive, door) {
-  const s = await walkTo(page, drive, door, { arrived: (q) => q.door === door.id && Math.hypot(q.x - door.x, q.y - door.y) < 20, label: `door ${door.id}` });
+  // The keys are released one round trip after the arrival sample, so under
+  // load the avatar can coast a few px past a small door zone. Walk back in
+  // (at most twice more) rather than read that coast as a broken door.
+  let s;
+  for (let attempt = 0; attempt < 3; attempt += 1) {
+    s = await walkTo(page, drive, door, { arrived: (q) => q.door === door.id && Math.hypot(q.x - door.x, q.y - door.y) < 20, label: `door ${door.id}` });
+    if (s.door === door.id) break;
+  }
   expect(s.door, `standing at the ${door.id} door`).toBe(door.id);
 }
 
