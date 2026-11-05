@@ -4,13 +4,19 @@
 // HUD, building panels, the first-visit tour and the telescope
 // hand-off to Hero Summon. The map itself lives in KingdomTown.
 // ============================================================
-import { ref, computed, reactive, nextTick, onMounted, onUnmounted } from 'vue';
+import { ref, computed, reactive, nextTick, onMounted, onUnmounted, watch } from 'vue';
 import { S, api, retryablePost } from '../api.js';
 import { fmtBundle, toast } from '../ui.js';
 import { soundState, toggleMuted, playCue } from '../sound.js';
 import { wipe, wipeTo } from '../transitions.js';
 import AsyncButton from '../components/AsyncButton.vue';
 import { loadHome } from './home.js';
+import { useOverlay } from '../overlays.js';
+import { useRouteTheme } from '../route-theme.js';
+import {
+  PHONE_NAV_QUERY, RESOURCES_COLLAPSE_BELOW_PX, RESOURCES_SHEET_BELOW_PX, TOWN_TITLE_COMPACT_BELOW_PX,
+  TOWN_HINT_SHORT_BELOW_PX, TOWN_HINT_TEXT, TOWN_HINT_TEXT_SHORT, abbreviateCount, belowWithHysteresis,
+} from '../mobile-config.js';
 import KingdomTown from './KingdomTown.vue';
 import BuildingIcon from './BuildingIcon.vue';
 import GardenPanel from './kingdom/panels/GardenPanel.vue';
@@ -55,6 +61,91 @@ onUnmounted(() => {
   window.removeEventListener('qq-debug-kingdom-updated', onDebugKingdomUpdated);
   window.removeEventListener('qq-replay-kingdom-intro', replayFirstIntro);
   clearTimeout(radioTimer);
+  stopTopRowLayout();
+});
+
+// ---- F3 (docs/mobile/FIXES.md): the top row of the town ----
+// Below RESOURCES_COLLAPSE_BELOW_PX the coin, resource and Castle chips
+// become one "resources" chip left of the app's menu button. The title card
+// is given exactly the room left of whatever sits on the right (the chips or
+// the one chip), so the two can never overlap at any width.
+const resourcesCollapsed = ref(belowWithHysteresis(window.innerWidth, RESOURCES_COLLAPSE_BELOW_PX, false));
+const resourcesAsSheet = ref(belowWithHysteresis(window.innerWidth, RESOURCES_SHEET_BELOW_PX, false));
+const resourcesOpen = ref(false);
+const resourcesChip = ref(null);
+const resourcesPanel = ref(null);
+const topRight = ref(null);
+const titleHud = ref(null);
+const titleMax = ref(null);
+const titleCompact = ref(false);
+const phoneMenuQuery = window.matchMedia?.(PHONE_NAV_QUERY);
+const besideMenu = ref(Boolean(phoneMenuQuery?.matches));
+const onPhoneMenuChange = (event) => { besideMenu.value = event.matches; nextTick(layoutTopRow); };
+phoneMenuQuery?.addEventListener?.('change', onPhoneMenuChange);
+useOverlay(() => resourcesOpen.value && resourcesAsSheet.value);
+const coinCount = computed(() => Number(homeData.value?.wallet?.balance || 0));
+const coinShort = computed(() => abbreviateCount(coinCount.value));
+const fmtAmount = (n) => Number(n || 0).toLocaleString('en-US');
+function layoutTopRow() {
+  const right = topRight.value?.getBoundingClientRect();
+  const title = titleHud.value?.getBoundingClientRect();
+  if (!right || !title || !right.width) { titleMax.value = null; return; }
+  const room = Math.floor(right.left - title.left - 12);
+  titleMax.value = room;
+  titleCompact.value = belowWithHysteresis(room, TOWN_TITLE_COMPACT_BELOW_PX, titleCompact.value);
+}
+function onViewportResize() {
+  const w = window.innerWidth;
+  const collapsed = belowWithHysteresis(w, RESOURCES_COLLAPSE_BELOW_PX, resourcesCollapsed.value);
+  if (collapsed !== resourcesCollapsed.value) { resourcesCollapsed.value = collapsed; resourcesOpen.value = false; }
+  resourcesAsSheet.value = belowWithHysteresis(w, RESOURCES_SHEET_BELOW_PX, resourcesAsSheet.value);
+  nextTick(layoutTopRow);
+}
+// The right-hand group never depends on the title's width, so measuring it
+// cannot feed back into itself.
+const topRowObserver = typeof ResizeObserver === 'function' ? new ResizeObserver(() => layoutTopRow()) : null;
+watch(topRight, (el, old) => {
+  if (old) topRowObserver?.unobserve(old);
+  if (el) { topRowObserver?.observe(el); nextTick(layoutTopRow); }
+});
+window.addEventListener('resize', onViewportResize);
+// F9: the touch hint takes whatever the bottom row leaves; its width comes
+// from the row (flex-basis 0), never from its text, so swapping to the short
+// text cannot feed back into the measurement.
+const hintEl = ref(null);
+const hintShort = ref(false);
+const hintObserver = typeof ResizeObserver === 'function' ? new ResizeObserver(([entry]) => {
+  const width = entry.contentRect.width;
+  if (width > 0) hintShort.value = belowWithHysteresis(width, TOWN_HINT_SHORT_BELOW_PX, hintShort.value);
+}) : null;
+watch(hintEl, (el, old) => { if (old) hintObserver?.unobserve(old); if (el) hintObserver?.observe(el); });
+function stopTopRowLayout() {
+  hintObserver?.disconnect();
+  topRowObserver?.disconnect();
+  window.removeEventListener('resize', onViewportResize);
+  phoneMenuQuery?.removeEventListener?.('change', onPhoneMenuChange);
+  document.removeEventListener('pointerdown', onResourcesOutside, true);
+}
+async function openResources() {
+  listOpen.value = false;
+  resourcesOpen.value = true;
+  await nextTick();
+  resourcesPanel.value?.querySelector('[data-testid="resources-close"]')?.focus({ preventScroll: true });
+}
+function closeResources({ restoreFocus = true } = {}) {
+  if (!resourcesOpen.value) return;
+  resourcesOpen.value = false;
+  if (restoreFocus) resourcesChip.value?.focus({ preventScroll: true });
+}
+function toggleResources() { if (resourcesOpen.value) closeResources(); else openResources(); }
+// a tap anywhere outside the chip and the panel closes it
+function onResourcesOutside(event) {
+  if (resourcesPanel.value?.contains(event.target) || resourcesChip.value?.contains(event.target)) return;
+  closeResources({ restoreFocus: false });
+}
+watch(resourcesOpen, (open) => {
+  if (open) document.addEventListener('pointerdown', onResourcesOutside, true);
+  else document.removeEventListener('pointerdown', onResourcesOutside, true);
 });
 
 const R = computed(() => k.value.catalog.resources);
@@ -134,6 +225,9 @@ function wardrobeShortfall(item) {
 const castleInfoOpen = ref(false);
 const upgraders = {};
 const townTarget = ref(null);
+useOverlay(() => Boolean(townTarget.value));
+// F11: the document behind the town is the town's green, never the app's light grey
+useRouteTheme('qq-kingdom-route');
 const listOpen = ref(false);
 const tradeBoard = ref(null);
 const tradeLoading = ref(false);
@@ -190,7 +284,7 @@ const INTRO_STEPS = [
   { highlight: 'castle', title: 'Welcome home!', body: 'This is your kingdom. The castle in the middle is your home, and it grows as your town does.' },
   { highlight: 'buildings', title: 'Four buildings', body: 'Garden to the north, Tower to the south, Library to the west and Workshop to the east. Upgrade them with the wood, crystal and herbs you earn to power up your heroes.' },
   { highlight: 'north', title: 'Adventure lies north', body: 'Walk up through the gap in the trees by the BATTLES sign, north-west of the castle. Out there you can start a Duel quiz battle or join a Campfire Run with friends.' },
-  { highlight: null, title: 'Getting around', body: 'Use WASD or the arrow keys, or click to walk. Press E at a door or beside a hero, and Z for emotes. The Buildings button opens any building from anywhere.' },
+  { highlight: null, title: 'Getting around', body: window.matchMedia?.('(pointer: coarse)').matches ? 'Tap the ground to walk (or turn on the 🕹️ stick). Tap a door or a hero to open it, and Emote to wave. The Buildings button opens any building from anywhere. Pinch to zoom.' : 'Use WASD or the arrow keys, or click to walk. Press E at a door or beside a hero, and Z for emotes. The Buildings button opens any building from anywhere.' },
 ];
 const introStep = ref(-1);
 const introOpen = computed(() => introStep.value >= 0);
@@ -307,7 +401,8 @@ function closePanel() {
 }
 function onTownKeydown(event) {
   if (event.key !== 'Escape') return;
-  if (introOpen.value) { closeIntro(); event.stopPropagation(); }
+  if (resourcesOpen.value) { closeResources(); event.stopPropagation(); }
+  else if (introOpen.value) { closeIntro(); event.stopPropagation(); }
   else if (archiveOpen.value) { closeArchiveBook(); event.stopPropagation(); }
   else if (townTarget.value) { closePanel(); event.stopPropagation(); }
   else if (listOpen.value) { listOpen.value = false; event.stopPropagation(); }
@@ -542,13 +637,13 @@ const castlePanelContext = reactive({
         @interact="onTownInteract"
       />
 
-      <div class="town-hud town-title-hud">
+      <div ref="titleHud" class="town-hud town-title-hud" :class="{ compact: titleCompact }" :style="titleMax ? { maxWidth: `${titleMax}px` } : null" data-testid="town-title-hud">
         <span class="scene-kicker">WELCOME HOME</span>
         <h1 class="town-title"><span>Your Kingdom</span><span class="town-title-dot" aria-hidden="true"> · </span><span>Storybook Town</span></h1>
         <div class="town-title-actions">
-          <button class="hud-btn" type="button" :aria-expanded="listOpen" aria-controls="town-building-list" @click="listOpen = !listOpen">
+          <button class="hud-btn" type="button" :aria-expanded="listOpen" aria-controls="town-building-list" aria-label="Buildings" @click="listOpen = !listOpen">
             <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M3 17V8l7-5 7 5v9h-5v-5H8v5H3Z" /></svg>
-            Buildings
+            <span class="hud-btn-label">Buildings</span>
           </button>
           <button class="hud-btn hud-icon" type="button" :aria-label="'Replay the kingdom tour'" title="Kingdom tour" @click="openIntro">?</button>
         </div>
@@ -564,7 +659,50 @@ const castlePanelContext = reactive({
           <em :class="{ ready: p.affordable }">Lv {{ p.lvl }}/{{ buildingCap(p.id) }}<template v-if="p.affordable"> · ready</template></em>
         </button>
       </section>
-      <div class="town-hud town-economy">
+      <!-- narrow screens: one chip beside the menu button opens the resources panel -->
+      <div v-if="resourcesCollapsed" ref="topRight" class="town-hud town-resources" :class="{ 'beside-menu': besideMenu }" data-testid="town-top-right">
+        <button ref="resourcesChip" type="button" class="town-resources-chip" data-testid="resources-chip" aria-haspopup="dialog" :aria-expanded="resourcesOpen" aria-controls="town-resources-panel" :aria-label="`Resources: ${coinBalance} coins`" @click="toggleResources">
+          <span class="town-resources-coin" aria-hidden="true">🪙</span>
+          <span class="town-resources-count">{{ coinShort }}</span>
+          <svg class="town-resources-chevron" :class="{ open: resourcesOpen }" viewBox="0 0 12 12" aria-hidden="true"><path d="m3 4.5 3 3 3-3" /></svg>
+        </button>
+      </div>
+      <div v-if="resourcesOpen && resourcesAsSheet" class="town-resources-backdrop" aria-hidden="true"></div>
+      <section
+        v-if="resourcesOpen"
+        id="town-resources-panel"
+        ref="resourcesPanel"
+        class="town-resources-panel"
+        :class="[resourcesAsSheet ? 'as-sheet' : 'as-popover', { 'beside-menu': besideMenu }]"
+        role="dialog"
+        :aria-modal="resourcesAsSheet ? 'true' : null"
+        aria-labelledby="town-resources-title"
+        data-testid="resources-panel"
+      >
+        <div class="town-resources-body">
+        <header class="town-resources-head">
+          <h2 id="town-resources-title">Your resources</h2>
+          <button type="button" class="town-resources-close" aria-label="Close resources" data-testid="resources-close" @click="closeResources()">×</button>
+        </header>
+        <ul class="town-resources-rows">
+          <li data-testid="resources-row">
+            <span class="town-resources-icon" aria-hidden="true">🪙</span>
+            <span class="town-resources-name">Coins<small>Spend on Summon pulls</small></span>
+            <span class="town-resources-amount">{{ fmtAmount(coinCount) }}</span>
+          </li>
+          <li v-for="(resource, id) in R" :key="id" data-testid="resources-row">
+            <span class="town-resources-icon" aria-hidden="true">{{ resource.emoji }}</span>
+            <span class="town-resources-name">{{ resource.name }}<small>Used for building upgrades</small></span>
+            <span class="town-resources-amount">{{ fmtAmount(k.resources[id]) }}</span>
+          </li>
+        </ul>
+        <div class="town-resources-castle">
+          <span>Castle level {{ k.castleLevel }} / {{ BUILDING_LEVEL_CAP }}</span>
+          <span class="town-resources-bar" role="progressbar" aria-label="Castle level" :aria-valuenow="k.castleLevel" aria-valuemin="0" :aria-valuemax="BUILDING_LEVEL_CAP"><i :style="{ width: `${Math.min(100, (k.castleLevel / BUILDING_LEVEL_CAP) * 100)}%` }"></i></span>
+        </div>
+        </div>
+      </section>
+      <div v-if="!resourcesCollapsed" ref="topRight" class="town-hud town-economy" data-testid="town-top-right">
         <div class="town-level">Castle · {{ k.castleLevel }} / {{ BUILDING_LEVEL_CAP }}</div>
         <div class="town-balances" role="group" aria-label="Your coins and Kingdom resources">
           <span class="town-balance" :aria-label="`${coinBalance} coins`" title="Coins">🪙 {{ coinBalance }}</span>
@@ -572,15 +710,16 @@ const castlePanelContext = reactive({
         </div>
       </div>
 
-      <div class="town-hud town-actions">
-        <button class="hud-btn" type="button" title="Emotes (Z)" @click="town?.openEmotes()">Emote <kbd>Z</kbd></button>
-        <button class="hud-btn hud-icon" type="button" :aria-pressed="soundState.muted" :aria-label="soundState.muted ? 'Turn sounds on' : 'Mute sounds'" :title="soundState.muted ? 'Sounds off' : 'Sounds on'" @click="toggleMuted">
+      <div class="town-hud town-actions" data-testid="town-actions">
+        <button class="hud-btn" type="button" title="Emotes (Z)" data-testid="town-emote" @click="town?.openEmotes()">Emote <kbd>Z</kbd></button>
+        <button class="hud-btn hud-icon" type="button" data-testid="town-sound" :aria-pressed="soundState.muted" :aria-label="soundState.muted ? 'Turn sounds on' : 'Mute sounds'" :title="soundState.muted ? 'Sounds off' : 'Sounds on'" @click="toggleMuted">
           <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M3 8h3l4-4v12l-4-4H3Z" /><path v-if="!soundState.muted" d="M13 7c1.4 1.6 1.4 4.4 0 6M15.5 5c2.6 2.8 2.6 7.2 0 10" fill="none" stroke-width="1.8" stroke-linecap="round" /><path v-else d="m13 7 5 6m0-6-5 6" fill="none" stroke-width="1.8" stroke-linecap="round" /></svg>
         </button>
+        <!-- touch screens: the hint shares this row (F9) -->
+        <span ref="hintEl" class="town-hint" data-testid="town-hint">{{ hintShort ? TOWN_HINT_TEXT_SHORT : TOWN_HINT_TEXT }}</span>
       </div>
       <div class="town-hud town-controls-hud">
         <span><kbd>WASD</kbd> walk</span><span><kbd>E</kbd> open / greet</span><span><kbd>Z</kbd> emote</span><span class="north-hint">Battles: walk north-west ↖</span>
-        <span class="touch-controls-hint">Tap the ground to walk · tap a building to open</span>
       </div>
 
       <!-- first-visit tour: a card along the bottom, so the town stays visible -->
@@ -595,7 +734,7 @@ const castlePanelContext = reactive({
         </div>
       </section>
 
-      <div v-if="townTarget" class="town-modal-shade" @pointerdown.self="closePanel">
+      <div v-if="townTarget" class="town-modal-shade" data-testid="town-modal" @pointerdown.self="closePanel">
         <section class="town-modal" :class="`theme-${townTarget}`" role="dialog" aria-modal="true" aria-labelledby="town-panel-title">
           <header class="panel-head">
             <div class="panel-title">
@@ -617,7 +756,7 @@ const castlePanelContext = reactive({
               <span v-else class="max-badge">Highest level</span>
             </div>
             <button v-else-if="townTarget === 'castle'" class="castle-info-chip" type="button" :aria-expanded="castleInfoOpen" aria-controls="castle-upgrade-info" @click="castleInfoOpen = !castleInfoOpen"><span aria-hidden="true">i</span> Castle growth</button>
-            <button class="town-modal-close" type="button" aria-label="Close" @click="closePanel">×</button>
+            <button class="town-modal-close" type="button" aria-label="Close" data-testid="town-modal-close" @click="closePanel">×</button>
           </header>
 
           <template v-if="townPlot">
@@ -684,7 +823,6 @@ const castlePanelContext = reactive({
 .kingdom-screen .town-controls-hud { right: 18px; bottom: 16px; display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 4px 14px; max-width: min(560px, 60vw); padding: 9px 14px; color: #fff8e4; background: rgb(35 56 47 / 90%); border-radius: 9px; font: 700 .8rem/1.3 Nunito, Trebuchet MS, sans-serif; pointer-events: none; }
 .kingdom-screen .town-controls-hud kbd { padding: 1px 5px; color: #23382f; background: #f2ba55; border: 1px solid #23382f; border-radius: 4px; font: 800 .68rem ui-monospace, monospace; }
 .kingdom-screen .north-hint { color: #f2ba55; }
-.kingdom-screen .touch-controls-hint { display: none; }
 
 .kingdom-screen .town-intro { position: absolute; z-index: 5; left: 18px; bottom: 70px; width: min(430px, calc(100vw - 32px)); padding: 18px 20px 16px; color: #23382f; background: #fbf2d8; background-image: url('/hero-lab/assets/storybook-paper.svg'), linear-gradient(135deg, #fff8e4, #f1e6c7); background-size: 144px 144px, auto; border: 3px solid #23382f; border-radius: 14px 11px 16px 12px; box-shadow: 0 6px 0 #7a6545, 0 14px 30px rgb(16 33 23 / 30%); }
 .kingdom-screen .town-intro h2 { margin: 4px 0 6px; color: #254937; font: 700 24px/1.15 Georgia, "Palatino Linotype", serif; }
@@ -1048,8 +1186,6 @@ const castlePanelContext = reactive({
 }
 @media (pointer: coarse) {
   .kingdom-screen .town-controls-hud { display: flex; right: 10px; bottom: calc(74px + env(safe-area-inset-bottom)); left: 10px; justify-content: center; max-width: none; padding: 7px 10px; font-size: .75rem; text-align: center; }
-  .kingdom-screen .town-controls-hud > span:not(.touch-controls-hint) { display: none; }
-  .kingdom-screen .touch-controls-hint { display: inline; }
   .kingdom-screen .town-actions { bottom: max(10px, env(safe-area-inset-bottom)); }
   .kingdom-screen .town-actions .hud-btn { min-height: 44px; }
   .kingdom-screen .town-title-actions .hud-btn { min-height: 42px; }
@@ -1082,5 +1218,71 @@ const castlePanelContext = reactive({
   .kingdom-screen .panel-head { padding-bottom: 8px; }
   .kingdom-screen .panel-title h2 { font-size: 23px; }
   .kingdom-screen .panel-purpose { margin: 8px 0; }
+}
+/* ---- phones (docs/mobile/NOTES.md, Stage 1) ---- */
+/* Building panels become a full-screen sheet: the header (title, level,
+   upgrade button, close) stays put and the panel content scrolls under it. */
+@media (max-width: 600px), (pointer: coarse) and (max-height: 500px) {
+  .kingdom-screen .town-modal-shade { padding: 0; }
+  .kingdom-screen .town-modal { width: 100%; height: 100%; max-height: none; padding: max(12px, env(safe-area-inset-top)) max(12px, env(safe-area-inset-right)) max(12px, env(safe-area-inset-bottom)) max(12px, env(safe-area-inset-left)); border: 0; border-radius: 0; box-shadow: none; }
+  .kingdom-screen .town-modal-close { top: max(12px, env(safe-area-inset-top)); right: max(8px, env(safe-area-inset-right)); width: 44px; height: 44px; }
+  .kingdom-screen .panel-content { overscroll-behavior: contain; }
+  .kingdom-screen .castle-info-chip { min-height: 44px; }
+}
+/* landscape phones: the coin row makes room for the app's corner menu button */
+@media (max-width: 900px) and (orientation: landscape), (pointer: coarse) and (orientation: landscape) and (max-height: 520px) {
+  .kingdom-screen .town-economy { right: calc(max(8px, env(safe-area-inset-right)) + 54px); }
+}
+@media (pointer: coarse) {
+  .kingdom-screen .town-title-actions .hud-btn { min-height: 44px; min-width: 44px; }
+}
+/* ---- F3 (docs/mobile/FIXES.md): the title card never runs under the chips ----
+   KingdomView measures the room left of the right-hand group and sets the
+   card's max-width; the title truncates and the buttons stay whole. */
+.kingdom-screen .town-title-hud { min-width: 0; box-sizing: border-box; }
+.kingdom-screen .town-title, .kingdom-screen .town-title > span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.kingdom-screen .town-title-actions { flex-wrap: nowrap; }
+.kingdom-screen .town-title-hud.compact .hud-btn-label { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+.kingdom-screen .town-title-hud.compact .town-title-actions .hud-btn { justify-content: center; min-width: 44px; padding-inline: 8px; }
+/* the one resources chip: same row and height as the app's menu button */
+.kingdom-screen .town-resources { top: 18px; right: 18px; }
+.kingdom-screen .town-resources.beside-menu { top: max(8px, env(safe-area-inset-top)); right: calc(max(8px, env(safe-area-inset-right)) + 52px); }
+.kingdom-screen .town-resources-chip { display: inline-flex; align-items: center; gap: 6px; box-sizing: border-box; height: 44px; padding: 0 10px 0 9px; color: #23382f; background: rgb(251 242 216 / 96%); border: 2px solid #23382f; border-radius: 10px; box-shadow: 0 3px 0 #7a6545; font: 900 .95rem/1 Nunito, Trebuchet MS, sans-serif; font-variant-numeric: tabular-nums; white-space: nowrap; cursor: pointer; }
+.kingdom-screen .town-resources-chip:hover, .kingdom-screen .town-resources-chip:focus-visible { outline: 3px solid #f2ba55; outline-offset: 2px; }
+.kingdom-screen .town-resources-coin { font-size: 1.05rem; }
+.kingdom-screen .town-resources-chevron { width: 12px; height: 12px; fill: none; stroke: #23382f; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+.kingdom-screen .town-resources-chevron.open { transform: rotate(180deg); }
+/* the panel: a popover under the chip, or a bottom sheet on narrow screens */
+.kingdom-screen .town-resources-panel { position: absolute; z-index: var(--z-popover); display: flex; flex-direction: column; box-sizing: border-box; color: #23382f; background: #fbf2d8; background-image: url('/hero-lab/assets/storybook-paper.svg'), linear-gradient(135deg, #fff8e4, #f1e6c7); background-size: 144px 144px, auto; border: 2px solid #23382f; }
+.kingdom-screen .town-resources-body { min-height: 0; padding: 0 14px 14px; overflow-y: auto; overscroll-behavior: contain; border-radius: inherit; }
+.kingdom-screen .town-resources-panel.as-popover { top: calc(18px + 44px + 10px); right: 18px; width: 300px; max-width: calc(100% - 16px); max-height: calc(100% - 18px - 44px - 10px - 8px); border-radius: 10px; box-shadow: 0 4px 0 #7a6545, 0 14px 30px rgb(16 33 23 / 30%); }
+/* the small pointer up to the chip */
+.kingdom-screen .town-resources-panel.as-popover::before { content: ""; position: absolute; top: -9px; right: 26px; width: 14px; height: 14px; background: #fbf2d8; border-top: 2px solid #23382f; border-left: 2px solid #23382f; transform: rotate(45deg); }
+.kingdom-screen .town-resources-panel.as-popover.beside-menu { top: calc(max(8px, env(safe-area-inset-top)) + 44px + 10px); right: calc(max(8px, env(safe-area-inset-right)) + 52px); max-height: calc(100% - max(8px, env(safe-area-inset-top)) - 44px - 10px - max(8px, env(safe-area-inset-bottom))); }
+.kingdom-screen .town-resources-panel.as-sheet { position: fixed; z-index: var(--z-modal); right: 0; bottom: 0; left: 0; max-height: 85svh; border-width: 2px 0 0; border-radius: 16px 16px 0 0; box-shadow: 0 -6px 24px rgb(16 33 23 / 30%); }
+.kingdom-screen .town-resources-panel.as-sheet .town-resources-body { padding: 0 max(16px, env(safe-area-inset-right)) max(16px, env(safe-area-inset-bottom)) max(16px, env(safe-area-inset-left)); }
+.kingdom-screen .town-resources-backdrop { position: fixed; z-index: calc(var(--z-modal) - 1); inset: 0; background: rgb(22 36 27 / 45%); }
+.kingdom-screen .town-resources-head { position: sticky; z-index: 1; top: 0; display: flex; align-items: center; justify-content: space-between; gap: 12px; margin: 0 -2px 4px; padding: 10px 0 8px; background: #fbf2d8; border-bottom: 2px dashed #c5b58e; }
+.kingdom-screen .town-resources-head h2 { margin: 0; min-width: 0; color: #254937; font: 700 20px/1.15 Georgia, "Palatino Linotype", serif; }
+.kingdom-screen .town-resources-close { flex: none; width: 44px; height: 44px; padding: 0; color: #23382f; background: #fff8e4; border: 2px solid #23382f; border-radius: 8px; box-shadow: 0 3px 0 #7a6545; font-size: 24px; line-height: 1; cursor: pointer; }
+.kingdom-screen .town-resources-close:hover, .kingdom-screen .town-resources-close:focus-visible { outline: 3px solid #f2ba55; outline-offset: 2px; }
+.kingdom-screen .town-resources-rows { margin: 0; padding: 0; list-style: none; }
+.kingdom-screen .town-resources-rows li { display: grid; grid-template-columns: 28px minmax(0, 1fr) auto; align-items: center; gap: 10px; min-height: 44px; padding: 6px 2px; border-bottom: 1px dashed #c5b58e; }
+.kingdom-screen .town-resources-icon { font-size: 1.25rem; text-align: center; }
+.kingdom-screen .town-resources-name { min-width: 0; font: 800 .95rem/1.2 Nunito, Trebuchet MS, sans-serif; }
+.kingdom-screen .town-resources-name small { display: block; color: #5f6d58; font: 700 .72rem/1.25 Nunito, Trebuchet MS, sans-serif; }
+.kingdom-screen .town-resources-amount { font: 900 1rem/1 Nunito, Trebuchet MS, sans-serif; font-variant-numeric: tabular-nums; text-align: right; white-space: nowrap; }
+.kingdom-screen .town-resources-castle { display: grid; gap: 6px; padding: 10px 2px 0; font: 800 .88rem/1.2 Nunito, Trebuchet MS, sans-serif; }
+.kingdom-screen .town-resources-bar { display: block; height: 6px; overflow: hidden; background: #e4d6b2; border: 1px solid #c5b58e; border-radius: 4px; }
+.kingdom-screen .town-resources-bar i { display: block; height: 100%; background: #f2ba55; }
+/* ---- F9 (docs/mobile/FIXES.md): on touch screens the hint shares the bottom
+   row with the Emote and sound buttons instead of floating on its own; the
+   row lets taps through to the town except on its buttons ---- */
+.kingdom-screen .town-hint { display: none; }
+@media (pointer: coarse) {
+  .kingdom-screen .town-controls-hud { display: none; }
+  .kingdom-screen .town-actions { right: max(8px, env(safe-area-inset-right)); left: max(8px, env(safe-area-inset-left)); bottom: max(10px, env(safe-area-inset-bottom)); flex-wrap: nowrap; align-items: center; justify-content: flex-start; gap: 6px; pointer-events: none; }
+  .kingdom-screen .town-actions .hud-btn { flex: none; pointer-events: auto; }
+  .kingdom-screen .town-hint { display: -webkit-box; flex: 1 1 0; min-width: 0; overflow: hidden; -webkit-box-orient: vertical; -webkit-line-clamp: 2; line-clamp: 2; padding: 6px 12px; color: #fff8e4; background: rgb(35 56 47 / 90%); border-radius: 12px; font: 700 12.5px/1.3 Nunito, Trebuchet MS, sans-serif; text-align: left; pointer-events: none; }
 }
 </style>

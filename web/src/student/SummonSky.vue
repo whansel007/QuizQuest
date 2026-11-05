@@ -1,5 +1,6 @@
 <script setup>
 import { onMounted, onUnmounted, ref } from 'vue';
+import { MOBILE_BACKDROP_FPS, canvasDpr, isTouchDevice } from '../mobile-config.js';
 import {
   SUMMON_METEOR_DURATION_MS, SUMMON_METEOR_INTERVAL_MAX_S, SUMMON_METEOR_INTERVAL_MIN_S,
   SUMMON_METEOR_LENGTH_MAX_PX, SUMMON_METEOR_LENGTH_MIN_PX, SUMMON_METEOR_MAX_ALPHA,
@@ -58,7 +59,7 @@ function makeStars(width, height) {
 function resize() {
   if (!host.value || !canvas.value) return;
   const rect = host.value.getBoundingClientRect();
-  const dpr = Math.min(2, Math.max(1, window.devicePixelRatio || 1));
+  const dpr = Math.min(2, canvasDpr());
   canvas.value.width = Math.max(1, Math.round(rect.width * dpr));
   canvas.value.height = Math.max(1, Math.round(rect.height * dpr));
   canvas.value.style.width = `${rect.width}px`;
@@ -117,7 +118,8 @@ function drawMeteor(meteor, now) {
 function tick(now) {
   raf = 0;
   if (!ctx || !canvas.value || !visible || document.hidden) return;
-  const interval = 1000 / SUMMON_SKY_FRAME_CAP_FPS;
+  // touch devices: MOBILE_BACKDROP_FPS (20) instead of the desktop cap
+  const interval = 1000 / (isTouchDevice() ? Math.min(MOBILE_BACKDROP_FPS, SUMMON_SKY_FRAME_CAP_FPS) : SUMMON_SKY_FRAME_CAP_FPS);
   if (lastFrame && now - lastFrame < interval) { raf = requestAnimationFrame(tick); return; }
   lastFrame = now;
   const started = performance.now();

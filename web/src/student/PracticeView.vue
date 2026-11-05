@@ -13,6 +13,7 @@ import WalletBadge from './WalletBadge.vue';
 import ResourceBadge from './ResourceBadge.vue';
 import QuizRunner from './QuizRunner.vue';
 import { wipeTo } from '../transitions.js';
+import { TOPIC_CHIP_HEIGHT_PX } from '../mobile-config.js';
 import AvatarPreview from './AvatarPreview.vue';
 import { TOWN_AVATAR_DEFAULT_COLOR } from '../../../config/tuning.js';
 
@@ -179,12 +180,13 @@ const onStart = action(() => enterBattle(async () => {
                   <button class="btn small" type="button" :disabled="!chosen.length" @click="chooseAll(false)">Select none</button>
                 </div>
               </div>
-              <ul class="practice-topic-list">
+              <ul class="practice-topic-list" :style="{ '--topic-chip-h': `${TOPIC_CHIP_HEIGHT_PX}px` }">
                 <li v-for="t in topics" :key="t.id">
-                  <label class="practice-topic" :class="{ on: t.questions && !excluded.has(t.id), empty: !t.questions }">
+                  <label class="practice-topic" :class="{ on: t.questions && !excluded.has(t.id), empty: !t.questions }" :title="topicLabel(t)" data-testid="topic-chip">
                     <input type="checkbox" :checked="t.questions > 0 && !excluded.has(t.id)" :disabled="!t.questions" @change="toggleTopic(t.id)" />
-                    <span class="practice-topic-name" :title="topicLabel(t)">{{ topicLabel(t) }}</span>
-                    <span class="practice-topic-meta">{{ t.questions ? `${t.questions} question${t.questions === 1 ? '' : 's'}` : 'No questions yet' }}</span>
+                    <span class="practice-topic-name">{{ topicLabel(t) }}</span>
+                    <span class="practice-topic-meta" aria-hidden="true">{{ t.questions || 0 }} Q(s)</span>
+                    <span class="sr-only">{{ t.questions ? `${t.questions} question${t.questions === 1 ? '' : 's'}` : 'No questions yet' }}</span>
                   </label>
                 </li>
               </ul>
@@ -259,20 +261,18 @@ const onStart = action(() => enterBattle(async () => {
 .practice-topics-head { clear: both; display: flex; align-items: center; flex-wrap: wrap; gap: 8px 12px; margin-bottom: 10px; }
 .practice-topics-count { color: #536A53; font-size: 14px; font-weight: 700; }
 .practice-topics-actions { display: flex; gap: 8px; margin-left: auto; }
-.practice-topic-list { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; margin: 0; padding: 0 0 4px; list-style: none; }
+.practice-topic-list { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 220px), 1fr)); gap: 8px; margin: 0; padding: 0 0 4px; list-style: none; }
 .practice-topic-list > li { display: flex; min-width: 0; }
-/* every chip is the same size: full column width, fixed height, name on one
-   line and the question count on the next, both truncated rather than wrapped */
+/* every chip is the same size (F8): equal grid columns, one fixed height
+   (TOPIC_CHIP_HEIGHT_PX), checkbox | name (two lines at most) | "N Q(s)" */
 .practice-topic {
   display: grid;
-  grid-template-columns: auto minmax(0, 1fr);
-  grid-template-rows: auto auto;
-  align-content: center;
+  grid-template-columns: 22px minmax(0, 1fr) minmax(56px, auto);
   align-items: center;
   column-gap: 10px;
   box-sizing: border-box;
   width: 100%;
-  height: 56px;
+  height: var(--topic-chip-h, 64px);
   margin: 0;
   padding: 8px 11px;
   color: #20382C;
@@ -287,14 +287,13 @@ const onStart = action(() => enterBattle(async () => {
 .practice-topic:hover { background: #EAF0DE; transform: translateY(-1px); box-shadow: 0 4px 0 #536A4E; }
 .practice-topic.on { background: #F0E2AC; border-color: #B5944A; box-shadow: 0 3px 0 #785D2B; }
 .practice-topic.empty { color: #77816C; background: #D2D8C2; border-style: dashed; border-color: #A1AA8C; box-shadow: none; cursor: not-allowed; transform: none; }
-.practice-topic input { grid-row: span 2; width: 20px; height: 20px; margin: 0; accent-color: #3E6B4A; cursor: inherit; }
+.practice-topic input { width: 22px; height: 22px; min-width: 22px; min-height: 22px; margin: 0; accent-color: #3E6B4A; cursor: inherit; }
 .practice-topic input:focus-visible { outline: 3px solid #D5B96C; outline-offset: 2px; }
-.practice-topic-name { overflow: hidden; font-weight: 700; line-height: 1.25; text-overflow: ellipsis; white-space: nowrap; }
-.practice-topic-meta { overflow: hidden; color: #536A53; font-size: 12px; font-weight: 600; line-height: 1.25; text-overflow: ellipsis; white-space: nowrap; }
+.practice-topic-name { display: -webkit-box; min-width: 0; overflow: hidden; -webkit-box-orient: vertical; -webkit-line-clamp: 2; line-clamp: 2; font-weight: 700; line-height: 1.25; overflow-wrap: anywhere; }
+.practice-topic-meta { color: #536A53; font-size: 12px; font-weight: 700; font-variant-numeric: tabular-nums; line-height: 1.25; text-align: right; white-space: nowrap; }
 .practice-topic.empty .practice-topic-meta { color: #77816C; }
 .practice-topics-hint { margin: 0; color: #713C36 !important; font-size: 14px; font-weight: 700; }
 @media (max-width: 760px) {
-  .practice-topic-list { grid-template-columns: minmax(0, 1fr); }
   .practice-topics-actions { margin-left: 0; }
 }
 @media (prefers-reduced-motion: reduce) {

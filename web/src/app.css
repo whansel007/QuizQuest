@@ -108,7 +108,7 @@ main#main.main-world { max-width: none; padding: 16px 24px 22px; }
    viewport until the player moves to the top edge or focuses a nav control. */
 header#top.student-immersive-nav {
   position: fixed;
-  z-index: 100;
+  z-index: var(--z-topbar);
   inset: 0 0 auto;
   color: #fff7df;
   background: rgb(31 59 43 / 97%);
@@ -134,7 +134,7 @@ header#top.student-immersive-nav.summon-nav nav#tabs button[aria-current="page"]
    unmounting) as soon as the nav is out, so the header keeps the pointer. */
 .nav-peek {
   position: fixed;
-  z-index: 99;
+  z-index: calc(var(--z-topbar) - 1);
   top: 0;
   left: 50%;
   display: grid;

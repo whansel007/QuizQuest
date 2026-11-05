@@ -164,13 +164,13 @@ defineExpose({
       <div style="margin-top: 10px"><button class="btn primary" :disabled="locked" @click="goMulti">Submit answer</button></div>
     </div>
 
-    <div v-else-if="kind === 'numeric'" class="row">
+    <div v-else-if="kind === 'numeric'" class="row" data-keyboard-keep>
       <input ref="numericInput" v-model="value" aria-label="Numeric answer" type="text" inputmode="decimal" autocomplete="off" placeholder="Your answer" style="max-width: 220px" :disabled="locked" @keydown.enter="goNumeric" />
       <span v-if="q.unit">{{ q.unit }}</span>
       <button class="btn primary" :disabled="locked" @click="goNumeric">Submit answer</button>
     </div>
 
-    <div v-else-if="kind === 'short'">
+    <div v-else-if="kind === 'short'" data-keyboard-keep>
       <textarea v-model="text" aria-label="Written answer" rows="4" maxlength="1000" placeholder="Write your answer in a few sentences." :disabled="locked"></textarea>
       <p v-if="q.unit" class="small muted" style="margin-top: 4px">Give your answer in {{ q.unit }}.</p>
       <p class="small muted" style="margin-top: 4px">Marked against key points; your professor may review the mark. Please don't include personal information.</p>

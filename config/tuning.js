@@ -334,6 +334,23 @@ export const TOWN_PROP_LAYOUT = [
   { type: 'flowers', x: 560, y: -150, w: 30, h: 28 },
   { type: 'flowers', x: 900, y: -160, w: 30, h: 28 },
 ];
+// Town prop colliders: the share of a prop's layout box above that blocks
+// walking, centred on and resting at the box's bottom edge, so only the base
+// of the drawing is solid. Trees and rocks: the box is the sprite, and only
+// the trunk base / the rock's lower body block (never the canopy). Houses and
+// the well: the box is the ground footprint under the drawing, narrowed to
+// the drawn wall (56 of 64 px) and the well's basin (36 of 50 px). Props not
+// listed here (barter corner) block their whole footprint; flowers never block.
+// The overlay at ?debug=colliders draws them.
+export const TOWN_PROP_COLLIDER_RATIOS = Object.freeze({
+  tree: Object.freeze({ w: 0.4, h: 0.2 }),
+  rock: Object.freeze({ w: 0.8, h: 0.35 }),
+  house: Object.freeze({ w: 56 / 64, h: 1 }),
+  well: Object.freeze({ w: 36 / 50, h: 1 }),
+});
+// The BATTLES sign blocks only its post: a circle this size at the post's foot
+// (the post is drawn 5 px wide with a 2 px ink edge).
+export const TOWN_SIGN_POST_RADIUS = 4;
 
 // Tower: scales the four stat buff cards (maxHp / attack / defense / speed) on
 // the OWNER'S OWN hero only. towerMultiplier = 1 + perLevel * level, so Lv0 is

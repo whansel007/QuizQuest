@@ -88,6 +88,9 @@ export const S = reactive({
   // remounts the view, so the open state is kept here and the library stays
   // open where the professor left it.
   materialLibraryOpen: false,
+  // true while the Campfire Run game iframe is on screen: the site nav steps
+  // aside, since the game has its own menu (docs/mobile/NOTES.md, Stage 3)
+  gameActive: false,
   // bump to remount the current view (replaces the old rerender())
   viewKey: 0,
 });

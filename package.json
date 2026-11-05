@@ -11,6 +11,8 @@
     "test:unit": "vitest",
     "test:e2e": "playwright test",
     "test:e2e:retry": "playwright test --repeat-each=2",
+    "test:mobile": "playwright test -c tests/mobile/playwright.config.mjs",
+    "test:mobile:unit": "node --test tests/mobile/*.unit.test.mjs",
     "check": "node scripts/check.js",
     "test:browser": "vite build && node --test test/browser*.test.cjs",
     "test:prof-responsive": "vite build && node --test test/browser-prof-responsive.test.cjs",
