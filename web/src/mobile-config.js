@@ -21,6 +21,7 @@ export const SHEET_MAX_PX = 600;
 export const MOBILE_TOWN_ZOOM = 1.4;
 export const MOBILE_TOWN_ZOOM_MIN = 1.0;
 export const MOBILE_TOWN_ZOOM_MAX = 2.2;
+export const MOBILE_TOWN_STICK_RADIUS = 44;
 
 // Canvas backing stores on touch devices never exceed this device pixel
 // ratio (1.5 on devices reporting fewer than 4 CPU cores).

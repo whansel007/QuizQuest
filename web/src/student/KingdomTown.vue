@@ -17,6 +17,9 @@ import {
 import { EMOTES, heroLine } from './kingdom/town-voices.js';
 import { BUILDING_LAYOUT } from './kingdom/buildings/index.js';
 import { playSound, setAudioOptions, warmUpAudio } from '../../../public/hero-lab/arena-audio.js';
+import { MOBILE_STICK_DEAD_ZONE } from '../../../public/hero-lab/game-config.js';
+import { stickVector, vectorToDirections, pinchZoom } from '../../../public/hero-lab/touch-controls.js';
+import { MOBILE_TOWN_ZOOM, MOBILE_TOWN_ZOOM_MIN, MOBILE_TOWN_ZOOM_MAX, MOBILE_TOWN_STICK_RADIUS, canvasDpr, isTouchDevice } from '../mobile-config.js';
 import {
   TOWN_AVATAR_RADIUS, TOWN_DESTINATIONS, TOWN_DOOR_RADIUS, TOWN_GREET_RADIUS,
   TOWN_HEIGHT, TOWN_HERO_AVATAR_RADIUS, TOWN_HERO_HOP_HEIGHT, TOWN_HERO_HOPS_PER_SECOND,
@@ -295,12 +298,111 @@ function worldPoint(event) {
   return { x: (event.clientX - rect.left) / s + camera.x, y: (event.clientY - rect.top) / s + camera.y };
 }
 
+// ---- touch screens (docs/mobile/NOTES.md, Stage 2) ----------------------------
+// Tap-to-move stays the main control; a tap is decided on release so a
+// two-finger pinch (zoom 1.0x whole map .. 2.2x) never sends the avatar off.
+// The game's virtual stick is an optional alternative (toggle, remembered).
+const touchTown = isTouchDevice();
+let townScale = null; // CSS px per world px on touch; null = the default zoom
+const townPointers = new Map();
+let townPinch = null;
+const STICK_KEY = 'qq-town-stick';
+const stickOn = ref(false);
+try { stickOn.value = touchTown && localStorage.getItem(STICK_KEY) === '1'; } catch { /* optional */ }
+const stickKnob = ref({ x: 0, y: 0 });
+let stickPointer = null;
+let stickCenter = null;
+function townScaleLimits(rect) {
+  const fit = Math.min(rect.width / TOWN_WIDTH, rect.height / ZONES.town.h);
+  // Landscape: 1.4x the "whole map" scale. Portrait phones never start
+  // further out than the old readable view (1.4x fit would shrink the town).
+  const readable = Math.min(rect.height / ZONES.town.h, rect.width / 520);
+  const preferred = Math.max(fit * MOBILE_TOWN_ZOOM, readable);
+  return { preferred, min: fit * MOBILE_TOWN_ZOOM_MIN, max: Math.max(fit * MOBILE_TOWN_ZOOM_MAX, preferred) };
+}
+function applyTownScale(scale) {
+  const rect = frame.value?.getBoundingClientRect();
+  if (!rect) return;
+  const limits = townScaleLimits(rect);
+  townScale = Math.max(limits.min, Math.min(limits.max, scale));
+  view.scale = townScale * view.dpr;
+}
+function toggleStick() {
+  stickOn.value = !stickOn.value;
+  try { localStorage.setItem(STICK_KEY, stickOn.value ? '1' : '0'); } catch { /* optional */ }
+  canvas.value?.focus({ preventScroll: true });
+}
+function setStickKeys(dirs) {
+  for (const key of ['w', 'a', 's', 'd']) keys.delete(key);
+  if (dirs.up) keys.add('w');
+  if (dirs.down) keys.add('s');
+  if (dirs.left) keys.add('a');
+  if (dirs.right) keys.add('d');
+}
+function onStickDown(event) {
+  if (props.paused || stickPointer !== null) return;
+  event.preventDefault();
+  warmUpAudio();
+  stickPointer = event.pointerId;
+  try { event.currentTarget.setPointerCapture(event.pointerId); } catch { /* fine */ }
+  const rect = event.currentTarget.getBoundingClientRect();
+  stickCenter = { x: rect.left + rect.width / 2, y: rect.top + rect.height / 2 };
+  player.path = []; // the stick takes over from a tap destination
+  onStickMove(event);
+}
+function onStickMove(event) {
+  if (event.pointerId !== stickPointer) return;
+  const v = stickVector(event.clientX - stickCenter.x, event.clientY - stickCenter.y, MOBILE_TOWN_STICK_RADIUS, MOBILE_STICK_DEAD_ZONE);
+  stickKnob.value = { x: v.knobX, y: v.knobY };
+  setStickKeys(vectorToDirections(v.x, v.y));
+}
+function onStickUp(event) {
+  if (event.pointerId !== stickPointer) return;
+  stickPointer = null;
+  stickKnob.value = { x: 0, y: 0 };
+  setStickKeys({});
+}
+function onTownPointerMove(event) {
+  const pointer = townPointers.get(event.pointerId);
+  if (!pointer) return;
+  pointer.x = event.clientX; pointer.y = event.clientY;
+  if (townPinch && townPointers.size >= 2) {
+    const [a, b] = [...townPointers.values()];
+    applyTownScale(pinchZoom(townPinch.scale, townPinch.distance, Math.hypot(a.x - b.x, a.y - b.y), 0, Infinity));
+  }
+}
+function onTownPointerUp(event) {
+  const pointer = townPointers.get(event.pointerId);
+  if (!pointer) return;
+  townPointers.delete(event.pointerId);
+  if (townPointers.size < 2) townPinch = null;
+  if (event.type === 'pointercancel' || pointer.pinched) return;
+  if (Math.hypot(event.clientX - pointer.startX, event.clientY - pointer.startY) >= 12) return;
+  tapTown(event);
+}
+
 function onPointerDown(event) {
   warmUpAudio();
   focusRing.value = false;
   canvas.value?.focus({ preventScroll: true });
   if (props.paused) return;
   closeWheel();
+  if (touchTown && event.pointerType === 'touch') {
+    try { canvas.value.setPointerCapture(event.pointerId); } catch { /* fine */ }
+    townPointers.set(event.pointerId, { x: event.clientX, y: event.clientY, startX: event.clientX, startY: event.clientY, pinched: false });
+    if (townPointers.size === 2) {
+      const [a, b] = [...townPointers.values()];
+      a.pinched = true; b.pinched = true;
+      townPinch = { distance: Math.max(1, Math.hypot(a.x - b.x, a.y - b.y)), scale: townScale ?? view.scale / view.dpr };
+    }
+    return;
+  }
+  tapTown(event);
+}
+
+// Walk to the tapped point, or open the door / greet the hero under it.
+function tapTown(event) {
+  if (props.paused) return;
   const point = worldPoint(event);
   if (promptHit && point.x >= promptHit.x && point.x <= promptHit.x + promptHit.w && point.y >= promptHit.y && point.y <= promptHit.y + promptHit.h) {
     interact();
@@ -884,14 +986,22 @@ function tick(time) {
 // and let the camera follow the player across the town instead.
 function resize() {
   if (!frame.value || !canvas.value) return;
-  const dpr = Math.max(1, window.devicePixelRatio || 1);
+  // touch devices cap the backing store's pixel ratio (MOBILE_MAX_DPR)
+  const dpr = canvasDpr();
   const rect = frame.value.getBoundingClientRect();
   canvas.value.width = Math.round(rect.width * dpr);
   canvas.value.height = Math.round(rect.height * dpr);
   ctx = canvas.value.getContext('2d', { alpha: false });
   const fit = Math.min(rect.width / TOWN_WIDTH, rect.height / ZONES.town.h);
   const readable = Math.min(rect.height / ZONES.town.h, rect.width / 520);
-  Object.assign(view, { dpr, scale: Math.max(fit, readable) * dpr, width: canvas.value.width, height: canvas.value.height });
+  let cssScale = Math.max(fit, readable);
+  if (touchTown) {
+    // follow camera at MOBILE_TOWN_ZOOM; a pinch picks another zoom that survives resizes
+    const limits = townScaleLimits(rect);
+    cssScale = Math.max(limits.min, Math.min(limits.max, townScale ?? limits.preferred));
+    townScale = cssScale;
+  }
+  Object.assign(view, { dpr, scale: cssScale * dpr, width: canvas.value.width, height: canvas.value.height });
   forestPattern = createForestPattern(ctx);
   camera.ready = false;
 }
@@ -944,6 +1054,9 @@ defineExpose({ openEmotes: openWheel, focus: () => canvas.value?.focus({ prevent
         aria-label="Walk around your kingdom town. Use WASD or arrow keys, or click the ground to move. Press E near a door or a hero, Z for emotes. Walk north-west through the gap in the trees by the sign to reach the battle camps."
         :class="{ 'focus-ring': focusRing }"
         @pointerdown="onPointerDown"
+        @pointermove="onTownPointerMove"
+        @pointerup="onTownPointerUp"
+        @pointercancel="onTownPointerUp"
         @focus="onCanvasFocus"
         @blur="focusRing = false"
       />
@@ -964,6 +1077,13 @@ defineExpose({ openEmotes: openWheel, focus: () => canvas.value?.focus({ prevent
         ><span aria-hidden="true">{{ e.glyph }}</span><kbd aria-hidden="true">{{ i + 1 }}</kbd></button>
         <button class="emote-cancel" type="button" aria-label="Close emotes" title="Close (Esc)" @click="closeWheel">×</button>
       </div>
+      <!-- touch screens: the optional move stick (tap-to-move stays the main control) -->
+      <template v-if="touchTown">
+        <button class="town-stick-toggle" type="button" :aria-pressed="stickOn ? 'true' : 'false'" :aria-label="stickOn ? 'Hide the move stick' : 'Show a move stick'" data-testid="town-stick-toggle" @click="toggleStick"><span aria-hidden="true">🕹️</span></button>
+        <div v-if="stickOn" class="town-stick" aria-hidden="true" data-testid="town-stick" @pointerdown="onStickDown" @pointermove="onStickMove" @pointerup="onStickUp" @pointercancel="onStickUp">
+          <span class="town-stick-knob" :style="{ transform: `translate(${stickKnob.x}px, ${stickKnob.y}px)` }"></span>
+        </div>
+      </template>
     </div>
   </div>
 </template>
@@ -972,6 +1092,15 @@ defineExpose({ openEmotes: openWheel, focus: () => canvas.value?.focus({ prevent
 .town-shell { position: absolute; inset: 0; width: 100%; height: 100%; overflow: hidden; background: #2f5e3e; }
 .town-frame { position: relative; width: 100%; height: 100%; overflow: hidden; background: #2f5e3e; }
 .town-canvas { display: block; width: 100%; height: 100%; outline: none; cursor: crosshair; touch-action: none; }
+/* touch: optional move stick (translucent, dark ink outline, no filters) */
+.town-stick-toggle { position: absolute; z-index: 3; left: max(10px, env(safe-area-inset-left)); bottom: calc(118px + env(safe-area-inset-bottom)); display: grid; place-items: center; width: 44px; height: 44px; padding: 0; background: rgb(255 248 228 / 88%); border: 2px solid #23382f; border-radius: 50%; box-shadow: 0 3px 0 rgb(35 56 47 / 40%); font-size: 20px; cursor: pointer; }
+.town-stick-toggle[aria-pressed="true"] { background: #f2d37f; }
+.town-stick { position: absolute; z-index: 3; left: max(14px, env(safe-area-inset-left)); bottom: calc(172px + env(safe-area-inset-bottom)); display: grid; place-items: center; width: 104px; height: 104px; background: rgb(29 51 41 / 30%); border: 2px solid rgb(16 16 24 / 70%); border-radius: 50%; touch-action: none; }
+.town-stick-knob { width: 44px; height: 44px; background: rgb(242 186 85 / 80%); border: 2px solid #101018; border-radius: 50%; pointer-events: none; }
+@media (orientation: landscape) and (max-height: 520px) {
+  .town-stick-toggle { bottom: calc(64px + env(safe-area-inset-bottom)); }
+  .town-stick { bottom: calc(64px + env(safe-area-inset-bottom)); left: calc(max(10px, env(safe-area-inset-left)) + 54px); }
+}
 /* Focus arriving by Tab gets a quiet parchment ring inset from the edge;
    mouse, touch and programmatic focus draw no frame round the scene. */
 .town-canvas.focus-ring { outline: 3px dashed rgb(255 248 228 / 80%); outline-offset: -8px; }

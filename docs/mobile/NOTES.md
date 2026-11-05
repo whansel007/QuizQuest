@@ -176,3 +176,18 @@ This matches the brief's expected table with one difference: the Engineer's turr
 ### Files changed (Stages 3 and 4)
 
 `public/hero-lab/world.js`, `public/hero-lab/world.html`, `public/hero-lab/hud.css`, `public/hero-lab/game-config.js`, `public/hero-lab/touch-controls.js` (new), `web/src/student/HeroLabView.vue` (iframe fullscreen permission), `tests/mobile/touch-logic.unit.test.mjs` and `tests/mobile/touch-smoke.e2e.mjs` (new). No server file changed.
+
+## Stage 2: canvas pages on phones (Kingdom town, Summon backdrop)
+
+- **Kingdom town on touch devices** (`KingdomTown.vue`; numbers in `web/src/mobile-config.js`):
+  - follow camera on the avatar (it already followed on narrow screens; it is still clamped to the town/north zone, so no area outside the map shows once zoomed in);
+  - default zoom `MOBILE_TOWN_ZOOM = 1.4` x the "whole map fits" scale. In landscape that is exactly the brief. In **portrait**, 1.4x fit would show the town smaller than the readable view phones already had (the fit scale is width-bound there), so portrait starts at whichever is closer: 1.4x fit or the old readable scale;
+  - **pinch** zooms between `MOBILE_TOWN_ZOOM_MIN = 1.0` (whole map) and `MOBILE_TOWN_ZOOM_MAX = 2.2` x fit (never closer than the portrait default); the chosen zoom survives rotation and resizes;
+  - **tap-to-move stays the main control**: on touch, the tap is decided on release (under 12 px of movement and not part of a pinch), so a pinch never sends the avatar walking. Door bubbles are tapped as before and open the building panel, which is now a sheet (Stage 1);
+  - the game's **virtual stick** (the same `stickVector` / `vectorToDirections` from `touch-controls.js`) is an optional alternative: the 🕹️ button (bottom left, 44 px) shows or hides it, remembered in `localStorage`. It drives the same movement keys as WASD;
+  - works in portrait and landscape; desktop (mouse) is unchanged: mouse clicks still walk on press, the scale is the old `max(fit, readable)`.
+- **Canvas resolution**: the town's backing store now uses `canvasDpr()`: full DPR on desktop, capped at `MOBILE_MAX_DPR = 2` on touch devices (1.5 with fewer than 4 CPU cores). The in-run arena uses the same caps (`game-config.js`).
+- **Summon backdrop** (`SummonSky.vue`): already paused when hidden or scrolled away and capped at 30 fps; on touch devices it now runs at `MOBILE_BACKDROP_FPS = 20` and uses the capped DPR.
+- **Other animated canvases**: the in-run arena pauses with the page (`requestAnimationFrame` stops when hidden) and is covered in Stages 3 and 6. The sign-in page's animated preview (`LoginPreview.vue`) already caps DPR at 2; it belongs to the sign-in page another developer is redoing, so it was left alone.
+
+Files: `web/src/student/KingdomTown.vue`, `web/src/student/KingdomView.vue` (tour text), `web/src/student/SummonSky.vue`, `web/src/mobile-config.js`.
