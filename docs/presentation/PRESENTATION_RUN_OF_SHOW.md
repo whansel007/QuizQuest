@@ -58,8 +58,8 @@ the server reloads the reseeded data. Confirm afterwards with
 back. It re-seeds the demo and restores Prof. Demo A with that course and **two
 classes** — "Computing - Tutorial Group A" with **six** students (s-01 to s-06) and
 "Computing - Tutorial Group C" with **four** (s-09 to s-12) — plus the practice
-history that fills the Analytics dashboard (`src/quiz/seed.js:97-135`, and the seeded
-sessions/attempts at `src/quiz/seed.js:177-192`). Without one of these the roster is
+history that fills the Analytics dashboard (`src/quiz/seed.js:97-140`, and the seeded
+sessions/attempts at `src/quiz/seed.js:177-206`). Without one of these the roster is
 two students and the Analytics slide reads "No answers yet".
 
 **A reseed takes `t-a` back from whoever owns it now** — it reverts any demo
@@ -204,7 +204,7 @@ Then:
 >
 > Here's who built what."
 
-*(The library list and every licence are in `README.md:173-191` — the table under "### Libraries" in the README that ships in the zip. William hands to you for the closing paragraph below.)*
+*(The library list and every licence are in `README.md:202-224` — the table under "### Libraries" in the README that ships in the zip. William hands to you for the closing paragraph below.)*
 
 ### Closing 30 seconds — what each of us contributed (20:45–21:15)
 
@@ -324,7 +324,7 @@ Have the recorded video open in another tab as the fallback, and say: "Let me sh
 10. Do not narrate the old tab names. On screen they are **Kingdom, Quiz, My Progress, Campfire Run, Summon** and, for professors, **Analytics, To review, Classes & Roster, Question bank, AI drafting, Evaluation, Settings** (`web/src/App.vue:29-32`).
 11. Do not restart the deployed app. The brief says to leave it running and not restart unless the teaching team contacts you.
 12. Do not read a credential aloud from the screen. The professor account is a seeded demo account; the password lives in the group chat.
-13. Do not present third-party code as ours. The rubric requires third-party libraries to be identified in the presentation and in code comments (`README.md:140-186` credits them on the slide-15 list).
+13. Do not present third-party code as ours. The rubric requires third-party libraries to be identified in the presentation and in code comments (`README.md:171-224` credits them on the slide-15 list).
 
 ---
 

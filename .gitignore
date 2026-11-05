@@ -21,3 +21,15 @@ submission/
 # for Marxel to paste in, but never published and never packed into the
 # submission zip.
 docs/presentation/CLAUDE_HANDOFF.md
+
+# Scratch space and run logs. These are working files, not project assets:
+# scratch/ holds debug scripts and throwaway screenshots, and the *.log files
+# are captured test output. Neither belongs in the repository or in the
+# submission zip.
+scratch/
+*.log
+
+# The team's slide deck. It is authored outside the repository (PowerPoint,
+# exported to PDF) and copied in here so the submission packer can pick it up.
+# Keeping it untracked avoids a stale second copy of a deck that still moves.
+docs/presentation/*.pdf
