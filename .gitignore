@@ -13,13 +13,5 @@ playwright-report/
 .workbuddy-ai
 # Local agent notes - personal, not shared with the team
 memory/
-# A commercial textbook that was never a project asset - kept out of the
-# repository and the submission zip on purpose.
-docs/Pandas.pdf
 # The built eLearn submission zip
 submission/
-
-# The agent handoff brief: context for a second Claude agent, kept on disk
-# for Marxel to paste in, but never published and never packed into the
-# submission zip.
-docs/presentation/CLAUDE_HANDOFF.md

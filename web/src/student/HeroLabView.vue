@@ -534,7 +534,7 @@ onUnmounted(() => window.removeEventListener('message', returnToSelection));
 .talent-row > .talent-badge-host { display: grid; width: 56px; height: 56px; place-items: center; align-self: center; }
 .talent-text { display: grid; align-content: center; align-self: center; gap: 1px; min-width: 0; }
 .talent-name { color: #304b38; font-size: 1.15rem; line-height: 1.2; }
-.talent-desc { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden; color: #637064; font-size: .86rem; line-height: 1.3; }
+.talent-desc { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; line-clamp: 2; overflow: hidden; color: #637064; font-size: .86rem; line-height: 1.3; }
 .talent-key { display: grid; place-items: center; justify-self: end; align-self: center; min-width: 32px; min-height: 32px; padding: 4px 8px; color: #fff7df; background: #456b53; border: 1px solid #2d4937; border-radius: 7px; font-size: .75rem; font-weight: 900; }
 .forest-scene {
   position: relative;
