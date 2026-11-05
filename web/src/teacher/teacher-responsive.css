@@ -152,3 +152,14 @@ html:has(.teacher-app) {
 @media (max-width: 767.98px) {
   .teacher-app .panel > .tiles > .tile:last-child:nth-child(odd) { grid-column: 1 / -1; }
 }
+
+/* ---------- resizing ----------
+   App.vue sets html.is-resizing while the window is being resized (cleared
+   150 ms after the last resize event). The professor shell's transitions
+   stop meanwhile, so a breakpoint never replays the drawer's slide or any
+   other animation after the window has stopped. Intentional transitions
+   (the drawer on tap, menus) are back as soon as the resize ends. */
+html.is-resizing .teacher-app,
+html.is-resizing .teacher-app *,
+html.is-resizing .teacher-app *::before,
+html.is-resizing .teacher-app *::after { transition: none !important; }

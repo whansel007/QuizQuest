@@ -122,10 +122,83 @@ function openTeacherTab(id) {
   setTab(id);
   if (drawerOpen.value) closeDrawer();
 }
-function closeDrawer() {
+function closeDrawer({ restoreFocus = true } = {}) {
   drawerOpen.value = false;
-  drawerToggle.value?.focus();
+  if (restoreFocus) drawerToggle.value?.focus();
 }
+// The drawer only exists below 992px (CSS). Crossing that width resets it,
+// so no half-open drawer or stale scrim is left behind: growing past 992px
+// closes it (the sidebar is then on screen anyway, and keyboard focus that
+// was inside it stays where it is); shrinking below starts with it shut.
+const drawerQuery = window.matchMedia?.('(max-width: 991.98px)');
+function onDrawerQueryChange() {
+  if (drawerOpen.value) closeDrawer({ restoreFocus: false });
+}
+drawerQuery?.addEventListener?.('change', onDrawerQueryChange);
+// While the window is being resized, the professor shell suspends its
+// transitions (html.is-resizing, teacher-responsive.css): otherwise a
+// breakpoint that moves the sidebar between in-page and off-canvas replays
+// its 0.2s slide after the window has stopped. Cleared 150ms after the
+// last resize event, so the drawer's own slide still animates on tap.
+//
+// The same resize keeps the reader's place. A breakpoint can change the
+// page's height by thousands of pixels, and the browser's own scroll
+// anchoring drifts across that (1200 -> 375 -> 1200 px moved Analytics from
+// "Commonly missed" to "Compare classes"). So the shell remembers the element
+// at the top of the view (just below the sticky bars) while the professor
+// scrolls, and when a resize ends it puts that element back where it was.
+let resizingTimer = 0;
+let viewAnchor = null;
+let anchorFrame = 0;
+const ANCHOR = 'h2, h3, h4, tr, li, .qcard, .class-card, .marking-item, .tile, .panel, section';
+function pickViewAnchor() {
+  if (!teacherActive.value || window.scrollY < 1) return (viewAnchor = null);
+  const line = (parseFloat(getComputedStyle(document.documentElement).scrollPaddingTop) || 0) + 4;
+  const main = document.querySelector('main#main');
+  if (!main) return;
+  const box = main.getBoundingClientRect();
+  // what the professor is reading: the first heading or card that starts
+  // at the line (below the sticky bars) and is on screen ...
+  for (const h of main.querySelectorAll('h2, h3, h4, .qcard, .class-card, .marking-item')) {
+    const r = h.getBoundingClientRect();
+    if (!r.height || r.top < line - 2) continue;
+    if (r.top < window.innerHeight * 0.6) return (viewAnchor = { el: h, top: r.top });
+    break;
+  }
+  // ... or, in a long stretch without one, whatever sits at the line
+  let el = document.elementFromPoint(box.left + Math.min(40, box.width / 2), Math.min(window.innerHeight - 1, line))?.closest(ANCHOR);
+  if (!el || !main.contains(el)) return;
+  // a tall box (a whole panel) changes height with the width: anchor to
+  // the first small piece of it (heading, row, paragraph) at the line instead
+  if (el.getBoundingClientRect().height > window.innerHeight / 3) {
+    const inner = [...el.querySelectorAll('h2, h3, h4, tr, li, p, .tile, .qcard, .class-card, .marking-item')]
+      .find((x) => { const r = x.getBoundingClientRect(); return r.height > 0 && r.height < window.innerHeight / 3 && r.top >= line - 2; });
+    if (inner) el = inner;
+  }
+  viewAnchor = { el, top: el.getBoundingClientRect().top };
+}
+function onShellScroll() {
+  if (document.documentElement.classList.contains('is-resizing')) return; // anchoring moves, not the reader
+  cancelAnimationFrame(anchorFrame);
+  anchorFrame = requestAnimationFrame(pickViewAnchor);
+}
+function endResize() {
+  document.documentElement.classList.remove('is-resizing');
+  const anchor = viewAnchor;
+  if (anchor?.el.isConnected && window.scrollY > 0) {
+    const drift = anchor.el.getBoundingClientRect().top - anchor.top;
+    if (Math.abs(drift) > 1) window.scrollBy(0, drift);
+  }
+  requestAnimationFrame(pickViewAnchor);
+}
+function onShellResize() {
+  if (!teacherActive.value) return;
+  document.documentElement.classList.add('is-resizing');
+  clearTimeout(resizingTimer);
+  resizingTimer = setTimeout(endResize, 150);
+}
+window.addEventListener('resize', onShellResize, { passive: true });
+window.addEventListener('scroll', onShellScroll, { passive: true });
 function onShellKey(event) {
   if (event.key === 'Escape' && drawerOpen.value) closeDrawer();
 }
@@ -155,6 +228,12 @@ watch(topbarEl, (el) => {
 onUnmounted(() => {
   document.removeEventListener('keydown', onShellKey);
   topbarRo?.disconnect();
+  drawerQuery?.removeEventListener?.('change', onDrawerQueryChange);
+  window.removeEventListener('resize', onShellResize);
+  window.removeEventListener('scroll', onShellScroll);
+  clearTimeout(resizingTimer);
+  cancelAnimationFrame(anchorFrame);
+  document.documentElement.classList.remove('is-resizing');
   document.removeEventListener('pointermove', onDocumentPointerMove);
   document.removeEventListener('pointerdown', onDocumentPointerDown);
   clearStudentNavTimer();
