@@ -7,6 +7,11 @@
 // controls send, and the hero's position from the server's state.
 // Run: npm run test:mobile -- touch-smoke
 import { test, expect } from '@playwright/test';
+import path from 'node:path';
+
+// a few in-game screenshots for docs/mobile/screenshots (presentation)
+const SHOTS = path.resolve(import.meta.dirname, '../../docs/mobile/screenshots');
+const shot = (page, name) => page.screenshot({ path: path.join(SHOTS, `${name}.jpg`), type: 'jpeg', quality: 75 });
 
 const PHONE = { viewport: { width: 667, height: 375 }, deviceScaleFactor: 1, isMobile: true, hasTouch: true };
 
@@ -69,6 +74,7 @@ test.describe('touch controls in the arena (667 x 375 landscape)', () => {
 
   test('dragging the left stick moves the hero', async ({ page }) => {
     await openArena(page, 'sheriff');
+    await shot(page, 'game-lobby__667x375');
     const before = await me(page);
     const touch = await touchSession(page);
     await touch.drag({ x: 110, y: 270 }, { x: 190, y: 270 });
@@ -100,6 +106,7 @@ test.describe('touch controls in the arena (667 x 375 landscape)', () => {
     await expect.poll(async () => (await sent(page, 'primary_hold')).some(([, held]) => held === true)).toBe(true);
     // the latest aim points up (the drag direction)
     await expect.poll(async () => { const aim = (await sent(page, 'aim')).at(-1)?.[1]; return aim ? aim.y < 0 && Math.abs(aim.y) > Math.abs(aim.x) : false; }).toBe(true);
+    await shot(page, 'game-aim-drag__667x375');
     await touch.end();
     expect((await sent(page, 'fire')).some(([, mode]) => mode === 'primary')).toBe(true);
     await expect.poll(async () => (await sent(page, 'primary_hold')).at(-1)?.[1]).toBe(false);
@@ -129,6 +136,7 @@ test.describe('touch controls in the arena (667 x 375 landscape)', () => {
     await touch.end();
     await expect.poll(async () => (await sent(page, 'ultimate')).length).toBe(1);
     await expect(page.getByTestId('touch-cancel')).toBeVisible();
+    await shot(page, 'game-bombardier-targeting__667x375');
     await touch.start([{ x: 470, y: 120, id: 2 }]);
     await touch.end();
     await expect.poll(async () => (await sent(page, 'fire')).filter(([, mode]) => mode === 'secondary').length).toBe(1);
@@ -170,6 +178,7 @@ test.describe('touch controls in the arena (667 x 375 landscape)', () => {
     await expect(page.getByTestId('rotate-overlay')).toBeHidden();
     await page.setViewportSize({ width: 375, height: 667 });
     await expect(page.getByTestId('rotate-overlay')).toBeVisible();
+    await shot(page, 'game-rotate-prompt__375x667');
     await page.setViewportSize({ width: 667, height: 375 });
     await expect(page.getByTestId('rotate-overlay')).toBeHidden();
   });
@@ -179,6 +188,7 @@ test.describe('touch controls in the arena (667 x 375 landscape)', () => {
     await expect(page.getByTestId('stats-panel')).toBeHidden();
     await expect(page.locator('#info-button')).toBeHidden();
     await page.getByTestId('touch-menu').tap();
+    await shot(page, 'game-menu__667x375');
     await page.getByTestId('touch-menu-sheet').getByRole('button', { name: /Information/ }).tap();
     await expect(page.getByTestId('stats-panel')).toBeVisible();
   });

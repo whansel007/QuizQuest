@@ -603,13 +603,15 @@ html.touch-mode #lobby-hero { max-width: 150px; }
   html.touch-mode #lobby-bar { bottom: calc(max(.5rem, env(safe-area-inset-bottom)) + 150px); max-width: calc(100vw - 1rem); }
 }
 
-/* Bombardier: the big Cancel button left of the cluster; the ring is the
-   5 s targeting window */
-html.touch-mode #touch-cancel { position: fixed; z-index: 6; right: calc(max(.7rem, env(safe-area-inset-right)) + var(--touch-btn-primary, 55px) + var(--touch-btn-ult, 71px) + 26px); bottom: calc(max(.45rem, env(safe-area-inset-bottom)) + 10px); display: grid; place-items: center; width: 66px; height: 66px; padding: 0; color: #fff8e4; background: #b4452f; border: 3px solid var(--hud-ink); border-radius: 50%; box-shadow: 0 3px 0 var(--hud-ink); font: 900 .8rem Nunito, system-ui, sans-serif; }
+/* Bombardier: the big Cancel button just above the cluster (clear of the
+   right thumb and of the lobby bar); the ring is the 5 s targeting window */
+html.touch-mode #touch-cancel { position: fixed; z-index: 6; right: max(.9rem, calc(env(safe-area-inset-right) + .6rem)); bottom: calc(max(.45rem, env(safe-area-inset-bottom)) + 178px); display: grid; place-items: center; width: 66px; height: 66px; padding: 0; color: #fff8e4; background: #b4452f; border: 3px solid var(--hud-ink); border-radius: 50%; box-shadow: 0 3px 0 var(--hud-ink); font: 900 .8rem Nunito, system-ui, sans-serif; }
 #touch-cancel::before { position: absolute; inset: -7px; content: ''; border-radius: 50%; background: conic-gradient(#ffd34f var(--window-degrees, 360deg), transparent 0); -webkit-mask: radial-gradient(farthest-side, transparent calc(100% - 4px), #000 calc(100% - 3px)); mask: radial-gradient(farthest-side, transparent calc(100% - 4px), #000 calc(100% - 3px)); pointer-events: none; }
 
-/* vote cards: a bottom-anchored row of three, live tally included */
-html.touch-mode #buff-vote { align-content: end; padding: 0 max(.5rem, env(safe-area-inset-right)) max(.5rem, env(safe-area-inset-bottom)) max(.5rem, env(safe-area-inset-left)); background: linear-gradient(transparent 35%, rgb(22 40 31 / 72%)); }
+/* vote cards: a bottom-anchored row of three, live tally included. It sits
+   above the stick and the buttons for the short vote window, as the desktop
+   vote overlay sits above the desktop HUD. */
+html.touch-mode #buff-vote { z-index: 5; align-content: end; padding: 0 max(.5rem, env(safe-area-inset-right)) max(.5rem, env(safe-area-inset-bottom)) max(.5rem, env(safe-area-inset-left)); background: linear-gradient(transparent 35%, rgb(22 40 31 / 72%)); }
 html.touch-mode #buff-vote-panel { width: min(760px, 100%); max-height: 72dvh; gap: .3rem; padding: .5rem .6rem; }
 html.touch-mode #buff-vote-title { font-size: .9rem; }
 html.touch-mode #buff-vote-status { font-size: .7rem; }

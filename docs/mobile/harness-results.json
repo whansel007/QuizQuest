@@ -51,6 +51,18 @@
  },
  {
   "route": "login",
+  "viewport": "320x568",
+  "touch": true,
+  "vw": 320,
+  "scrollWidth": 320,
+  "clientWidth": 320,
+  "overflow": [],
+  "overflowCount": 0,
+  "clipped": [],
+  "small": []
+ },
+ {
+  "route": "login",
   "viewport": "360x740",
   "touch": true,
   "vw": 360,
@@ -194,6 +206,18 @@
     "text": "Show password"
    }
   ]
+ },
+ {
+  "route": "signup",
+  "viewport": "320x568",
+  "touch": true,
+  "vw": 320,
+  "scrollWidth": 320,
+  "clientWidth": 320,
+  "overflow": [],
+  "overflowCount": 0,
+  "clipped": [],
+  "small": []
  },
  {
   "route": "signup",
@@ -553,6 +577,18 @@
  },
  {
   "route": "student-kingdom-buildings",
+  "viewport": "320x568",
+  "touch": true,
+  "vw": 320,
+  "scrollWidth": 320,
+  "clientWidth": 320,
+  "overflow": [],
+  "overflowCount": 0,
+  "clipped": [],
+  "small": []
+ },
+ {
+  "route": "student-kingdom-buildings",
   "viewport": "360x740",
   "touch": true,
   "vw": 360,
@@ -855,6 +891,18 @@
  },
  {
   "route": "student-kingdom-intro",
+  "viewport": "320x568",
+  "touch": true,
+  "vw": 320,
+  "scrollWidth": 320,
+  "clientWidth": 320,
+  "overflow": [],
+  "overflowCount": 0,
+  "clipped": [],
+  "small": []
+ },
+ {
+  "route": "student-kingdom-intro",
   "viewport": "360x740",
   "touch": true,
   "vw": 360,
@@ -1157,6 +1205,18 @@
  },
  {
   "route": "student-kingdom",
+  "viewport": "320x568",
+  "touch": true,
+  "vw": 320,
+  "scrollWidth": 320,
+  "clientWidth": 320,
+  "overflow": [],
+  "overflowCount": 0,
+  "clipped": [],
+  "small": []
+ },
+ {
+  "route": "student-kingdom",
   "viewport": "360x740",
   "touch": true,
   "vw": 360,
@@ -1271,9 +1331,27 @@
  },
  {
   "route": "student-nav-drawer",
+  "viewport": "320x568",
+  "touch": true,
+  "vw": 320,
+  "scrollWidth": 320,
+  "clientWidth": 320,
+  "overflow": [],
+  "overflowCount": 0,
+  "clipped": [],
+  "small": []
+ },
+ {
+  "route": "student-nav-drawer",
   "viewport": "360x740",
   "touch": true,
-  "skipped": "\u001b[2mexpect(\u001b[22m\u001b[31mlocator\u001b[39m\u001b[2m).\u001b[22mtoBeFocused\u001b[2m(\u001b[22m\u001b[2m)\u001b[22m failed"
+  "vw": 360,
+  "scrollWidth": 360,
+  "clientWidth": 360,
+  "overflow": [],
+  "overflowCount": 0,
+  "clipped": [],
+  "small": []
  },
  {
   "route": "student-nav-drawer",
@@ -1291,37 +1369,73 @@
   "route": "student-nav-drawer",
   "viewport": "390x844",
   "touch": true,
-  "skipped": "\u001b[2mexpect(\u001b[22m\u001b[31mlocator\u001b[39m\u001b[2m).\u001b[22mtoBeFocused\u001b[2m(\u001b[22m\u001b[2m)\u001b[22m failed"
+  "vw": 390,
+  "scrollWidth": 390,
+  "clientWidth": 390,
+  "overflow": [],
+  "overflowCount": 0,
+  "clipped": [],
+  "small": []
  },
  {
   "route": "student-nav-drawer",
   "viewport": "412x915",
   "touch": true,
-  "skipped": "\u001b[2mexpect(\u001b[22m\u001b[31mlocator\u001b[39m\u001b[2m).\u001b[22mtoBeFocused\u001b[2m(\u001b[22m\u001b[2m)\u001b[22m failed"
+  "vw": 412,
+  "scrollWidth": 412,
+  "clientWidth": 412,
+  "overflow": [],
+  "overflowCount": 0,
+  "clipped": [],
+  "small": []
  },
  {
   "route": "student-nav-drawer",
   "viewport": "667x375",
   "touch": true,
-  "skipped": "\u001b[2mexpect(\u001b[22m\u001b[31mlocator\u001b[39m\u001b[2m).\u001b[22mtoBeFocused\u001b[2m(\u001b[22m\u001b[2m)\u001b[22m failed"
+  "vw": 667,
+  "scrollWidth": 667,
+  "clientWidth": 667,
+  "overflow": [],
+  "overflowCount": 0,
+  "clipped": [],
+  "small": []
  },
  {
   "route": "student-nav-drawer",
   "viewport": "740x360",
   "touch": true,
-  "skipped": "\u001b[2mexpect(\u001b[22m\u001b[31mlocator\u001b[39m\u001b[2m).\u001b[22mtoBeFocused\u001b[2m(\u001b[22m\u001b[2m)\u001b[22m failed"
+  "vw": 740,
+  "scrollWidth": 740,
+  "clientWidth": 740,
+  "overflow": [],
+  "overflowCount": 0,
+  "clipped": [],
+  "small": []
  },
  {
   "route": "student-nav-drawer",
   "viewport": "768x1024",
   "touch": true,
-  "skipped": "\u001b[2mexpect(\u001b[22m\u001b[31mlocator\u001b[39m\u001b[2m).\u001b[22mtoBeFocused\u001b[2m(\u001b[22m\u001b[2m)\u001b[22m failed"
+  "vw": 768,
+  "scrollWidth": 768,
+  "clientWidth": 768,
+  "overflow": [],
+  "overflowCount": 0,
+  "clipped": [],
+  "small": []
  },
  {
   "route": "student-nav-drawer",
   "viewport": "820x1180",
   "touch": true,
-  "skipped": "\u001b[2mexpect(\u001b[22m\u001b[31mlocator\u001b[39m\u001b[2m).\u001b[22mtoBeFocused\u001b[2m(\u001b[22m\u001b[2m)\u001b[22m failed"
+  "vw": 820,
+  "scrollWidth": 820,
+  "clientWidth": 820,
+  "overflow": [],
+  "overflowCount": 0,
+  "clipped": [],
+  "small": []
  },
  {
   "route": "student-practice",
@@ -1333,20 +1447,7 @@
   "overflow": [],
   "overflowCount": 0,
   "clipped": [],
-  "small": [
-   {
-    "el": "div > select",
-    "w": 309,
-    "h": 40,
-    "text": "Class"
-   },
-   {
-    "el": "div > button.btn.small.primary",
-    "w": 95,
-    "h": 40,
-    "text": "+ Join Class"
-   }
-  ]
+  "small": []
  },
  {
   "route": "student-practice",
@@ -1568,6 +1669,18 @@
  },
  {
   "route": "student-practice",
+  "viewport": "320x568",
+  "touch": true,
+  "vw": 320,
+  "scrollWidth": 320,
+  "clientWidth": 320,
+  "overflow": [],
+  "overflowCount": 0,
+  "clipped": [],
+  "small": []
+ },
+ {
+  "route": "student-practice",
   "viewport": "360x740",
   "touch": true,
   "vw": 360,
@@ -1576,14 +1689,7 @@
   "overflow": [],
   "overflowCount": 0,
   "clipped": [],
-  "small": [
-   {
-    "el": "div > button.btn.small.primary",
-    "w": 95,
-    "h": 40,
-    "text": "+ Join Class"
-   }
-  ]
+  "small": []
  },
  {
   "route": "student-practice",
@@ -1607,14 +1713,7 @@
   "overflow": [],
   "overflowCount": 0,
   "clipped": [],
-  "small": [
-   {
-    "el": "div > button.btn.small.primary",
-    "w": 95,
-    "h": 40,
-    "text": "+ Join Class"
-   }
-  ]
+  "small": []
  },
  {
   "route": "student-practice",
@@ -1626,14 +1725,7 @@
   "overflow": [],
   "overflowCount": 0,
   "clipped": [],
-  "small": [
-   {
-    "el": "div > button.btn.small.primary",
-    "w": 95,
-    "h": 40,
-    "text": "+ Join Class"
-   }
-  ]
+  "small": []
  },
  {
   "route": "student-practice",
@@ -1645,20 +1737,7 @@
   "overflow": [],
   "overflowCount": 0,
   "clipped": [],
-  "small": [
-   {
-    "el": "div > select",
-    "w": 518,
-    "h": 40,
-    "text": "Class"
-   },
-   {
-    "el": "div > button.btn.small.primary",
-    "w": 95,
-    "h": 40,
-    "text": "+ Join Class"
-   }
-  ]
+  "small": []
  },
  {
   "route": "student-practice",
@@ -1670,20 +1749,7 @@
   "overflow": [],
   "overflowCount": 0,
   "clipped": [],
-  "small": [
-   {
-    "el": "div > select",
-    "w": 591,
-    "h": 40,
-    "text": "Class"
-   },
-   {
-    "el": "div > button.btn.small.primary",
-    "w": 95,
-    "h": 40,
-    "text": "+ Join Class"
-   }
-  ]
+  "small": []
  },
  {
   "route": "student-practice",
@@ -1695,20 +1761,7 @@
   "overflow": [],
   "overflowCount": 0,
   "clipped": [],
-  "small": [
-   {
-    "el": "div > select",
-    "w": 619,
-    "h": 40,
-    "text": "Class"
-   },
-   {
-    "el": "div > button.btn.small.primary",
-    "w": 95,
-    "h": 40,
-    "text": "+ Join Class"
-   }
-  ]
+  "small": []
  },
  {
   "route": "student-practice",
@@ -1720,20 +1773,7 @@
   "overflow": [],
   "overflowCount": 0,
   "clipped": [],
-  "small": [
-   {
-    "el": "div > select",
-    "w": 671,
-    "h": 40,
-    "text": "Class"
-   },
-   {
-    "el": "div > button.btn.small.primary",
-    "w": 95,
-    "h": 40,
-    "text": "+ Join Class"
-   }
-  ]
+  "small": []
  },
  {
   "route": "student-progress",
@@ -1925,6 +1965,18 @@
  },
  {
   "route": "student-progress",
+  "viewport": "320x568",
+  "touch": true,
+  "vw": 320,
+  "scrollWidth": 320,
+  "clientWidth": 320,
+  "overflow": [],
+  "overflowCount": 0,
+  "clipped": [],
+  "small": []
+ },
+ {
+  "route": "student-progress",
   "viewport": "360x740",
   "touch": true,
   "vw": 360,
@@ -2164,6 +2216,18 @@
     "text": "← Return to Kingdom"
    }
   ]
+ },
+ {
+  "route": "student-quiz-question",
+  "viewport": "320x568",
+  "touch": true,
+  "vw": 320,
+  "scrollWidth": 320,
+  "clientWidth": 320,
+  "overflow": [],
+  "overflowCount": 0,
+  "clipped": [],
+  "small": []
  },
  {
   "route": "student-quiz-question",
@@ -2493,6 +2557,18 @@
  },
  {
   "route": "student-summon-history",
+  "viewport": "320x568",
+  "touch": true,
+  "vw": 320,
+  "scrollWidth": 320,
+  "clientWidth": 320,
+  "overflow": [],
+  "overflowCount": 0,
+  "clipped": [],
+  "small": []
+ },
+ {
+  "route": "student-summon-history",
   "viewport": "360x740",
   "touch": true,
   "vw": 360,
@@ -2720,6 +2796,18 @@
     "text": "Mute sounds"
    }
   ]
+ },
+ {
+  "route": "student-summon",
+  "viewport": "320x568",
+  "touch": true,
+  "vw": 320,
+  "scrollWidth": 320,
+  "clientWidth": 320,
+  "overflow": [],
+  "overflowCount": 0,
+  "clipped": [],
+  "small": []
  },
  {
   "route": "student-summon",
@@ -2989,6 +3077,18 @@
  },
  {
   "route": "student-world",
+  "viewport": "320x568",
+  "touch": true,
+  "vw": 320,
+  "scrollWidth": 320,
+  "clientWidth": 320,
+  "overflow": [],
+  "overflowCount": 0,
+  "clipped": [],
+  "small": []
+ },
+ {
+  "route": "student-world",
   "viewport": "360x740",
   "touch": true,
   "vw": 360,
@@ -3348,6 +3448,18 @@
     "text": ""
    }
   ]
+ },
+ {
+  "route": "teacher-ai-drafting",
+  "viewport": "320x568",
+  "touch": true,
+  "vw": 320,
+  "scrollWidth": 320,
+  "clientWidth": 320,
+  "overflow": [],
+  "overflowCount": 0,
+  "clipped": [],
+  "small": []
  },
  {
   "route": "teacher-ai-drafting",
@@ -3806,6 +3918,18 @@
     "text": "Cyber hygiene: 84% correct on first atte"
    }
   ]
+ },
+ {
+  "route": "teacher-analytics",
+  "viewport": "320x568",
+  "touch": true,
+  "vw": 320,
+  "scrollWidth": 320,
+  "clientWidth": 320,
+  "overflow": [],
+  "overflowCount": 0,
+  "clipped": [],
+  "small": []
  },
  {
   "route": "teacher-analytics",
@@ -4219,6 +4343,18 @@
  },
  {
   "route": "teacher-classes",
+  "viewport": "320x568",
+  "touch": true,
+  "vw": 320,
+  "scrollWidth": 320,
+  "clientWidth": 320,
+  "overflow": [],
+  "overflowCount": 0,
+  "clipped": [],
+  "small": []
+ },
+ {
+  "route": "teacher-classes",
   "viewport": "360x740",
   "touch": true,
   "vw": 360,
@@ -4458,6 +4594,18 @@
     "text": "Log out"
    }
   ]
+ },
+ {
+  "route": "teacher-evaluation",
+  "viewport": "320x568",
+  "touch": true,
+  "vw": 320,
+  "scrollWidth": 320,
+  "clientWidth": 320,
+  "overflow": [],
+  "overflowCount": 0,
+  "clipped": [],
+  "small": []
  },
  {
   "route": "teacher-evaluation",
@@ -4859,6 +5007,18 @@
  },
  {
   "route": "teacher-question-bank",
+  "viewport": "320x568",
+  "touch": true,
+  "vw": 320,
+  "scrollWidth": 320,
+  "clientWidth": 320,
+  "overflow": [],
+  "overflowCount": 0,
+  "clipped": [],
+  "small": []
+ },
+ {
+  "route": "teacher-question-bank",
   "viewport": "360x740",
   "touch": true,
   "vw": 360,
@@ -5158,6 +5318,18 @@
     "text": "Save dates"
    }
   ]
+ },
+ {
+  "route": "teacher-settings",
+  "viewport": "320x568",
+  "touch": true,
+  "vw": 320,
+  "scrollWidth": 320,
+  "clientWidth": 320,
+  "overflow": [],
+  "overflowCount": 0,
+  "clipped": [],
+  "small": []
  },
  {
   "route": "teacher-settings",
@@ -5442,6 +5614,18 @@
     "text": "Edit in Question bank"
    }
   ]
+ },
+ {
+  "route": "teacher-to-review",
+  "viewport": "320x568",
+  "touch": true,
+  "vw": 320,
+  "scrollWidth": 320,
+  "clientWidth": 320,
+  "overflow": [],
+  "overflowCount": 0,
+  "clipped": [],
+  "small": []
  },
  {
   "route": "teacher-to-review",
