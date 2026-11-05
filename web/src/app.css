@@ -3176,6 +3176,28 @@ button.attention-card:hover .attention-go, button.attention-card:focus-visible .
   main#main.main-practice .quiz-summary-card,
   main#main.main-practice .quiz-content-column > .quiz-details-card:only-child { max-height: calc(100svh - 20px); }
 }
+/* Small battle stages (phones in portrait, e.g. an iPhone 6, and the side
+   column of a phone in landscape): the HP cards covered both fighters, because
+   the cards spanned the middle of the stage and the sprites were sized from
+   the viewport. The stage is split into corners instead - Fog card top left,
+   Fog top right, hero bottom left, hero card bottom right with the turn label
+   under it - and everything is sized from the stage itself (cq units). */
+@media (max-width: 560px), (min-width: 561px) and (max-width: 900px) and (max-height: 600px) {
+  main#main.main-practice .quiz-battle-stage { container-type: size; }
+  main#main.main-practice .battle-enemy-status,
+  main#main.main-practice .battle-player-status { width: 58cqw; max-width: 280px; padding: 7px 9px; }
+  main#main.main-practice .battle-enemy-status { top: 4cqh; left: 3cqw; }
+  main#main.main-practice .battle-player-status { right: 3cqw; bottom: calc(3cqh + 16px); }
+  main#main.main-practice .battle-status-top { font-size: 9px; }
+  main#main.main-practice .battle-name { margin: 3px 0 5px; font-size: clamp(13px, 5cqw, 16px); }
+  main#main.main-practice .battle-health { height: 10px; }
+  main#main.main-practice .battle-enemy { top: 3cqh; right: 2cqw; width: 38cqw; height: 46cqh; }
+  main#main.main-practice .battle-player { bottom: 3cqh; left: 2cqw; width: 38cqw; height: 48cqh; }
+  main#main.main-practice .battle-enemy-sprite { font-size: min(30cqh, 25cqw); }
+  main#main.main-practice .battle-player-sprite .duel-avatar-preview { width: min(46cqh, 36cqw) !important; }
+  main#main.main-practice .battle-turn-label { left: auto; right: 3cqw; bottom: 3cqh; max-width: 58cqw; transform: none; font-size: 11px; text-align: right; }
+  main#main.main-practice .battle-damage { font-size: clamp(22px, 9cqw, 34px); }
+}
 @media (pointer: coarse) and (max-width: 900px) {
   header#top.student-immersive-nav nav#tabs button { min-height: 44px; padding: 9px 12px; }
   .nav-peek { width: 54px; height: 28px; font-size: 11px; }
