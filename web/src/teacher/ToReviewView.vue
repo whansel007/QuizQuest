@@ -141,7 +141,7 @@ onUnmounted(() => refreshReviewCount());
     <p v-else-if="!loaded" class="muted">Loading…</p>
     <p v-else-if="!courses.some((c) => c.classes.length)" class="muted">You have no classes yet. Create one in Classes &amp; Roster.</p>
     <template v-else>
-      <p v-if="!total" class="note good">✓ Nothing to review for this class right now.</p>
+      <p v-if="!total" class="note good" data-testid="todo-empty">✓ Nothing to review for this class right now.</p>
 
       <section v-if="marking.length" id="review-marking" class="t-section">
         <div class="panel" style="border-color: var(--warn)">
@@ -149,7 +149,7 @@ onUnmounted(() => refreshReviewCount());
           <p class="small muted">Free-response answers get a provisional automatic mark. Confirm or change it; marking an answer correct pays the usual first-correct coins. Answers are shown without student names. This list covers every period.</p>
           <p v-if="markingTotal > marking.length" class="small">Showing the newest {{ marking.length }} of {{ markingTotal }}; older ones appear as you mark these.</p>
           <TransitionGroup tag="div" :name="sliding ? 'marked' : 'none'" class="marking-list">
-            <div v-for="m in markingPages.items" :key="m.attemptId" class="marking-item">
+            <div v-for="m in markingPages.items" :key="m.attemptId" class="marking-item" data-testid="marking-item">
               <div style="font-weight: 600">{{ m.stem }}</div>
               <div class="small muted">Key points: {{ m.keyPoints.map((k, i) => (m.coveredPoints.includes(i) ? `✓ ${k}` : `○ ${k}`)).join(' · ') }}</div>
               <div class="panel" style="background: var(--bg); margin: 6px 0; padding: 10px; white-space: pre-wrap">{{ m.text || '(blank)' }}</div>

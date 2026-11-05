@@ -1,0 +1,165 @@
+/* ============================================================
+   Professor workspace: responsive fixes (375 px to 1200 px).
+   See docs/mobile/PROF-NOTES.md. Every rule is scoped to the
+   professor shell (.teacher-app, or the document while it holds
+   one), so student pages are untouched. Loaded after app.css
+   (web/src/main.js), so equal-specificity rules here win.
+   Breakpoints follow Bootstrap 5: sm 576, md 768, lg 992, xl 1200.
+   Layout, sizing, overflow, stacking, sticky and touch only: no
+   colour, font or branding changes.
+   ============================================================ */
+
+/* ---------- shell: sticky bars never hide a focused or scrolled-to element ----------
+   App.vue measures the sticky top bar into --t-topbar-h (0 beside the
+   sidebar) and Analytics adds its sticky section bar as --t-sticky-extra,
+   so the browser leaves that much room when it scrolls focus, anchors or
+   scrollIntoView() into view. */
+html:has(.teacher-app) {
+  scroll-padding-top: calc(var(--t-topbar-h, 0px) + var(--t-sticky-extra, 0px) + 8px);
+}
+
+/* ---------- Analytics ---------- */
+/* chart legends: a long topic name wraps instead of widening the page */
+.teacher-app .viz-legend li { min-width: 0; max-width: 100%; white-space: normal; overflow-wrap: anywhere; }
+
+/* Tables in a scroll region keep whole words in their headers and cells
+   (.panel's inherited overflow-wrap: anywhere broke "SOURCE" into
+   "SOURC/E"); the region scrolls instead. */
+.teacher-app .table-wrap > table :is(th, td) { overflow-wrap: normal; }
+
+/* Phones: the pinned first column of a wide grid (Compare classes, the
+   trend and heatmap tables, Evaluation) takes at most ~40% of the screen,
+   so the numbers beside it stay in view; long names wrap inside it. */
+@media (max-width: 767.98px) {
+  .teacher-app .table-wrap > table.sticky-first > * > tr > :first-child {
+    /* both, because a wide table squeezes a column down to its minimum */
+    width: min(38vw, 170px);
+    min-width: min(38vw, 170px);
+    white-space: normal;
+    overflow-wrap: anywhere;
+  }
+}
+
+/* Phones: stacked-card tables wrap long names (an unbroken string included) */
+@media (max-width: 575.98px) {
+  .teacher-app .table-wrap > .dash-table.stack > tbody > tr > td,
+  .teacher-app .table-wrap > .dash-table.stack .linklike { overflow-wrap: anywhere; }
+}
+
+/* Short landscape screens (phones on their side): the top bar alone stays
+   sticky, so the bars never take more than ~30% of the height; the section
+   bar scrolls with the page (AnalyticsView reads its position). */
+@media (max-width: 991.98px) and (max-height: 480px) {
+  .teacher-app .dash-toolbar .dash-nav { position: static; }
+  .teacher-app header#top.t-topbar { padding-top: max(4px, env(safe-area-inset-top)); padding-bottom: 4px; }
+}
+
+/* ---------- touch targets below md (768 px) ---------- */
+@media (max-width: 767.98px) {
+  /* icon buttons in the drawer and the account menu */
+  .teacher-app .t-sidebar .t-icon-btn { width: 44px; height: 44px; }
+  .teacher-app .account-menu .btn.account-logout { width: 44px; height: 44px; }
+  /* a checkbox or radio is hit through its label: the label is the target */
+  .teacher-app label:has(> input[type="checkbox"]),
+  .teacher-app label:has(> input[type="radio"]) { display: inline-flex; align-items: center; gap: 8px; min-height: 44px; }
+  /* disclosure summaries */
+  .teacher-app summary { display: list-item; min-height: 44px; padding-block: 11px; line-height: 22px; }
+  /* tile info buttons and the by-topic expand buttons */
+  .teacher-app .tile .info-btn { min-width: 44px; min-height: 44px; }
+  .teacher-app .by-topic-table .topic-row .btn.small { width: 44px; height: 44px; }
+  /* pagination: numbered page buttons, and every small icon-like button
+     ("×", "Close", page numbers) is at least as wide as it is tall */
+  .teacher-app .btn.small { min-width: 44px; }
+  /* file pickers (material library imports): the whole control is the target */
+  .teacher-app input[type="file"] { width: 100%; min-height: 44px; }
+  /* question editor: the correct-option radio/checkbox sits in a 44px label */
+  .teacher-app .opt-row .opt-pick { display: inline-flex; flex: none; align-items: center; justify-content: center; width: 44px; height: 44px; margin: 0; }
+  .teacher-app .opt-row .opt-pick > input { margin: 0; }
+  /* pick, option text and remove stay on one line; the text takes the rest */
+  .teacher-app .question-editor .opt-row { flex-wrap: nowrap; align-items: center; gap: 6px; }
+  .teacher-app .question-editor .opt-row textarea { flex: 1 1 0; min-width: 0; }
+}
+
+/* ---------- Question bank ---------- */
+/* card review on a phone on its side: the pinned Deny/Approve bar is
+   slimmer, so it and the top bar stay under ~30% of the height */
+@media (max-width: 767.98px) and (max-height: 480px) {
+  .teacher-app .card-review .cr-decide { padding: 4px 0; }
+  .teacher-app .card-review .cr-decide > .btn { min-height: 44px; }
+}
+
+/* ---------- Classes & Roster: modals (create, rename, join code) ----------
+   Below md and on short screens the dialogs are bottom sheets that scroll
+   inside; their Cancel / primary row stays pinned to the sheet's bottom edge
+   so the action is reachable without scrolling to the end. svh first, for
+   browsers without dvh. */
+@media (max-width: 767.98px), (max-height: 480px) {
+  .teacher-app .modal-overlay { align-items: flex-end; }
+  .teacher-app .modal-card {
+    max-height: calc(100svh - 16px);
+    max-height: calc(100dvh - 16px);
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    padding-inline: 14px;
+    padding-bottom: 0;
+  }
+  .teacher-app .modal-card form > .row:last-child {
+    position: sticky;
+    bottom: 0;
+    margin: 0 -14px;
+    padding: 10px 14px max(12px, env(safe-area-inset-bottom));
+    background: var(--panel);
+    border-top: 1px solid var(--line);
+  }
+}
+
+/* ---------- AI drafting ---------- */
+/* Generation log (a contained scroll region): the date stays on one line
+   and the outcome wraps in a readable column instead of squeezing it. */
+.teacher-app .gen-log td:first-child { white-space: nowrap; }
+.teacher-app .gen-log td:nth-child(2) { min-width: 15em; overflow-wrap: anywhere; }
+/* Material sent to the drafter: on phones each chunk reads as a short
+   stacked card (title, why, score, preview) instead of four squeezed columns
+   that split words. */
+@media (max-width: 575.98px) {
+  .teacher-app .retrieved-table,
+  .teacher-app .retrieved-table > tbody,
+  .teacher-app .retrieved-table > tbody > tr,
+  .teacher-app .retrieved-table > tbody > tr > td { display: block; width: auto; }
+  .teacher-app .retrieved-table > tbody > tr { padding: 8px 0; border-bottom: 1px solid var(--line); }
+  .teacher-app .retrieved-table > tbody > tr > td { padding: 2px 0; border: 0; overflow-wrap: anywhere; }
+  .teacher-app .retrieved-table > tbody > tr > td:first-child { font-weight: 700; }
+}
+
+/* ---------- Settings ---------- */
+/* phones: one field per line, the date pickers full width under their
+   labels (easier to hit and read than inline beside them) */
+@media (max-width: 767.98px) {
+  .teacher-app .semester-dates { flex-direction: column; align-items: stretch; }
+  .teacher-app .semester-dates > label { display: block; }
+  .teacher-app .semester-dates input[type="date"] { display: block; width: 100%; margin-top: 4px; }
+  .teacher-app .semester-dates > .btn { align-self: flex-start; }
+}
+
+/* ---------- Evaluation ---------- */
+/* The metrics tables are contained scroll regions (shadow on the side with
+   more to see, the source column pinned): every number column keeps a
+   readable minimum width and its header wraps between words only. */
+.teacher-app .eval-table th { white-space: normal; vertical-align: bottom; }
+.teacher-app .eval-table :is(th, td):not(:first-child) { min-width: 6.5em; }
+/* two tiles per row on phones: an odd last tile (the ratings) takes the whole
+   row, so "😕 13 · 😐 11 · 🙂 16" reads on one line */
+@media (max-width: 767.98px) {
+  .teacher-app .panel > .tiles > .tile:last-child:nth-child(odd) { grid-column: 1 / -1; }
+}
+
+/* ---------- resizing ----------
+   App.vue sets html.is-resizing while the window is being resized (cleared
+   150 ms after the last resize event). The professor shell's transitions
+   stop meanwhile, so a breakpoint never replays the drawer's slide or any
+   other animation after the window has stopped. Intentional transitions
+   (the drawer on tap, menus) are back as soon as the resize ends. */
+html.is-resizing .teacher-app,
+html.is-resizing .teacher-app *,
+html.is-resizing .teacher-app *::before,
+html.is-resizing .teacher-app *::after { transition: none !important; }

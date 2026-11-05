@@ -8,6 +8,15 @@
   <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800&family=Pixelify+Sans:wght@500;600;700&display=swap" rel="stylesheet">
   <title>QuizQuest</title>
   <link rel="icon" href="data:," />
+  <!-- installable web app (docs/mobile/NOTES.md, Stage 6); no orientation is
+       forced, so every page still works in portrait and landscape -->
+  <link rel="manifest" href="/manifest.webmanifest" />
+  <meta name="theme-color" content="#1f3b2b" />
+  <meta name="mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-title" content="QuizQuest" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png" />
 </head>
 <body>
   <!-- The Vue app (web/src) renders everything here. The server owns all

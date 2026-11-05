@@ -1,0 +1,1275 @@
+[
+ {
+  "sweep": "a",
+  "detail": "steps around 1200px (50 resizes)",
+  "late": [],
+  "errors": [],
+  "samples": {
+   "0": {
+    "scroll": "1212x8915",
+    "topbar": "0x0",
+    "toolbar": "895x151",
+    "nav": "895x40",
+    "navMode": "full",
+    "charts": "139.453125,139.453125,553.515625,277.75,277.765625,277.75,277.75,277.765625,277.75,277.75,277.765625,277.75,277.75",
+    "drawer": "closed|none|visible",
+    "collapsed": false,
+    "resizing": false
+   },
+   "50": {
+    "scroll": "1212x8915",
+    "topbar": "0x0",
+    "toolbar": "895x151",
+    "nav": "895x40",
+    "navMode": "full",
+    "charts": "139.453125,139.453125,553.515625,277.75,277.765625,277.75,277.75,277.765625,277.75,277.75,277.765625,277.75,277.75",
+    "drawer": "closed|none|visible",
+    "collapsed": false,
+    "resizing": false
+   },
+   "100": {
+    "scroll": "1212x8915",
+    "topbar": "0x0",
+    "toolbar": "895x151",
+    "nav": "895x40",
+    "navMode": "full",
+    "charts": "139.453125,139.453125,553.515625,277.75,277.765625,277.75,277.75,277.765625,277.75,277.75,277.765625,277.75,277.75",
+    "drawer": "closed|none|visible",
+    "collapsed": false,
+    "resizing": false
+   },
+   "250": {
+    "scroll": "1212x8915",
+    "topbar": "0x0",
+    "toolbar": "895x151",
+    "nav": "895x40",
+    "navMode": "full",
+    "charts": "139.453125,139.453125,553.515625,277.75,277.765625,277.75,277.75,277.765625,277.75,277.75,277.765625,277.75,277.75",
+    "drawer": "closed|none|visible",
+    "collapsed": false,
+    "resizing": false
+   },
+   "500": {
+    "scroll": "1212x8915",
+    "topbar": "0x0",
+    "toolbar": "895x151",
+    "nav": "895x40",
+    "navMode": "full",
+    "charts": "139.453125,139.453125,553.515625,277.75,277.765625,277.75,277.75,277.765625,277.75,277.75,277.765625,277.75,277.75",
+    "drawer": "closed|none|visible",
+    "collapsed": false,
+    "resizing": false
+   },
+   "1000": {
+    "scroll": "1212x8915",
+    "topbar": "0x0",
+    "toolbar": "895x151",
+    "nav": "895x40",
+    "navMode": "full",
+    "charts": "139.453125,139.453125,553.515625,277.75,277.765625,277.75,277.75,277.765625,277.75,277.75,277.765625,277.75,277.75",
+    "drawer": "closed|none|visible",
+    "collapsed": false,
+    "resizing": false
+   }
+  },
+  "bounces": 0,
+  "where": [],
+  "note": ""
+ },
+ {
+  "sweep": "a",
+  "detail": "steps around 992px (50 resizes)",
+  "late": [],
+  "errors": [],
+  "samples": {
+   "0": {
+    "scroll": "1004x9945",
+    "topbar": "0x0",
+    "toolbar": "700x201",
+    "nav": "700x40",
+    "navMode": "compact",
+    "charts": "313.890625,313.890625,661.78125,324.890625,324.890625,324.890625,324.890625,324.890625,324.890625,324.890625,324.890625,324.890625,324.890625",
+    "drawer": "closed|none|visible",
+    "collapsed": false,
+    "resizing": false
+   },
+   "50": {
+    "scroll": "1004x9945",
+    "topbar": "0x0",
+    "toolbar": "700x201",
+    "nav": "700x40",
+    "navMode": "compact",
+    "charts": "313.890625,313.890625,661.78125,324.890625,324.890625,324.890625,324.890625,324.890625,324.890625,324.890625,324.890625,324.890625,324.890625",
+    "drawer": "closed|none|visible",
+    "collapsed": false,
+    "resizing": false
+   },
+   "100": {
+    "scroll": "1004x9945",
+    "topbar": "0x0",
+    "toolbar": "700x201",
+    "nav": "700x40",
+    "navMode": "compact",
+    "charts": "313.890625,313.890625,661.78125,324.890625,324.890625,324.890625,324.890625,324.890625,324.890625,324.890625,324.890625,324.890625,324.890625",
+    "drawer": "closed|none|visible",
+    "collapsed": false,
+    "resizing": false
+   },
+   "250": {
+    "scroll": "1004x9945",
+    "topbar": "0x0",
+    "toolbar": "700x201",
+    "nav": "700x40",
+    "navMode": "compact",
+    "charts": "313.890625,313.890625,661.78125,324.890625,324.890625,324.890625,324.890625,324.890625,324.890625,324.890625,324.890625,324.890625,324.890625",
+    "drawer": "closed|none|visible",
+    "collapsed": false,
+    "resizing": false
+   },
+   "500": {
+    "scroll": "1004x9945",
+    "topbar": "0x0",
+    "toolbar": "700x201",
+    "nav": "700x40",
+    "navMode": "compact",
+    "charts": "313.890625,313.890625,661.78125,324.890625,324.890625,324.890625,324.890625,324.890625,324.890625,324.890625,324.890625,324.890625,324.890625",
+    "drawer": "closed|none|visible",
+    "collapsed": false,
+    "resizing": false
+   },
+   "1000": {
+    "scroll": "1004x9945",
+    "topbar": "0x0",
+    "toolbar": "700x201",
+    "nav": "700x40",
+    "navMode": "compact",
+    "charts": "313.890625,313.890625,661.78125,324.890625,324.890625,324.890625,324.890625,324.890625,324.890625,324.890625,324.890625,324.890625,324.890625",
+    "drawer": "closed|none|visible",
+    "collapsed": false,
+    "resizing": false
+   }
+  },
+  "bounces": 0,
+  "where": [],
+  "note": ""
+ },
+ {
+  "sweep": "a",
+  "detail": "steps around 768px (50 resizes)",
+  "late": [],
+  "errors": [],
+  "samples": {
+   "0": {
+    "scroll": "780x9767",
+    "topbar": "780x51",
+    "toolbar": "0x0",
+    "nav": "752x42",
+    "navMode": "compact",
+    "charts": "110.796875,110.796875,714,351,351,351,351,351,351,351,351,351,351",
+    "drawer": "closed|matrix(1, 0, 0, 1, -285.6, 0)|hidden",
+    "collapsed": false,
+    "resizing": false
+   },
+   "50": {
+    "scroll": "780x9767",
+    "topbar": "780x51",
+    "toolbar": "0x0",
+    "nav": "752x42",
+    "navMode": "compact",
+    "charts": "110.796875,110.796875,714,351,351,351,351,351,351,351,351,351,351",
+    "drawer": "closed|matrix(1, 0, 0, 1, -285.6, 0)|hidden",
+    "collapsed": false,
+    "resizing": false
+   },
+   "100": {
+    "scroll": "780x9767",
+    "topbar": "780x51",
+    "toolbar": "0x0",
+    "nav": "752x42",
+    "navMode": "compact",
+    "charts": "110.796875,110.796875,714,351,351,351,351,351,351,351,351,351,351",
+    "drawer": "closed|matrix(1, 0, 0, 1, -285.6, 0)|hidden",
+    "collapsed": false,
+    "resizing": false
+   },
+   "250": {
+    "scroll": "780x9767",
+    "topbar": "780x51",
+    "toolbar": "0x0",
+    "nav": "752x42",
+    "navMode": "compact",
+    "charts": "110.796875,110.796875,714,351,351,351,351,351,351,351,351,351,351",
+    "drawer": "closed|matrix(1, 0, 0, 1, -285.6, 0)|hidden",
+    "collapsed": false,
+    "resizing": false
+   },
+   "500": {
+    "scroll": "780x9767",
+    "topbar": "780x51",
+    "toolbar": "0x0",
+    "nav": "752x42",
+    "navMode": "compact",
+    "charts": "110.796875,110.796875,714,351,351,351,351,351,351,351,351,351,351",
+    "drawer": "closed|matrix(1, 0, 0, 1, -285.6, 0)|hidden",
+    "collapsed": false,
+    "resizing": false
+   },
+   "1000": {
+    "scroll": "780x9767",
+    "topbar": "780x51",
+    "toolbar": "0x0",
+    "nav": "752x42",
+    "navMode": "compact",
+    "charts": "110.796875,110.796875,714,351,351,351,351,351,351,351,351,351,351",
+    "drawer": "closed|matrix(1, 0, 0, 1, -285.6, 0)|hidden",
+    "collapsed": false,
+    "resizing": false
+   }
+  },
+  "bounces": 0,
+  "where": [],
+  "note": ""
+ },
+ {
+  "sweep": "a",
+  "detail": "steps around 576px (50 resizes)",
+  "late": [],
+  "errors": [],
+  "samples": {
+   "0": {
+    "scroll": "588x11310",
+    "topbar": "588x57",
+    "toolbar": "0x0",
+    "nav": "564x56",
+    "navMode": "compact",
+    "charts": "246,246,534,261,261,261,261,261,261,261,261,261,261",
+    "drawer": "closed|matrix(1, 0, 0, 1, -326.4, 0)|hidden",
+    "collapsed": false,
+    "resizing": false
+   },
+   "50": {
+    "scroll": "588x11310",
+    "topbar": "588x57",
+    "toolbar": "0x0",
+    "nav": "564x56",
+    "navMode": "compact",
+    "charts": "246,246,534,261,261,261,261,261,261,261,261,261,261",
+    "drawer": "closed|matrix(1, 0, 0, 1, -326.4, 0)|hidden",
+    "collapsed": false,
+    "resizing": false
+   },
+   "100": {
+    "scroll": "588x11310",
+    "topbar": "588x57",
+    "toolbar": "0x0",
+    "nav": "564x56",
+    "navMode": "compact",
+    "charts": "246,246,534,261,261,261,261,261,261,261,261,261,261",
+    "drawer": "closed|matrix(1, 0, 0, 1, -326.4, 0)|hidden",
+    "collapsed": false,
+    "resizing": false
+   },
+   "250": {
+    "scroll": "588x11310",
+    "topbar": "588x57",
+    "toolbar": "0x0",
+    "nav": "564x56",
+    "navMode": "compact",
+    "charts": "246,246,534,261,261,261,261,261,261,261,261,261,261",
+    "drawer": "closed|matrix(1, 0, 0, 1, -326.4, 0)|hidden",
+    "collapsed": false,
+    "resizing": false
+   },
+   "500": {
+    "scroll": "588x11310",
+    "topbar": "588x57",
+    "toolbar": "0x0",
+    "nav": "564x56",
+    "navMode": "compact",
+    "charts": "246,246,534,261,261,261,261,261,261,261,261,261,261",
+    "drawer": "closed|matrix(1, 0, 0, 1, -326.4, 0)|hidden",
+    "collapsed": false,
+    "resizing": false
+   },
+   "1000": {
+    "scroll": "588x11310",
+    "topbar": "588x57",
+    "toolbar": "0x0",
+    "nav": "564x56",
+    "navMode": "compact",
+    "charts": "246,246,534,261,261,261,261,261,261,261,261,261,261",
+    "drawer": "closed|matrix(1, 0, 0, 1, -326.4, 0)|hidden",
+    "collapsed": false,
+    "resizing": false
+   }
+  },
+  "bounces": 0,
+  "where": [],
+  "note": ""
+ },
+ {
+  "sweep": "a",
+  "detail": "steps around 430px (50 resizes)",
+  "late": [],
+  "errors": [],
+  "samples": {
+   "0": {
+    "scroll": "442x19724",
+    "topbar": "442x57",
+    "toolbar": "0x0",
+    "nav": "418x56",
+    "navMode": "compact",
+    "charts": "178,178,388,388,388,388,388,388,388,388,388,388,388",
+    "drawer": "closed|matrix(1, 0, 0, 1, -326.4, 0)|hidden",
+    "collapsed": false,
+    "resizing": false
+   },
+   "50": {
+    "scroll": "442x19724",
+    "topbar": "442x57",
+    "toolbar": "0x0",
+    "nav": "418x56",
+    "navMode": "compact",
+    "charts": "178,178,388,388,388,388,388,388,388,388,388,388,388",
+    "drawer": "closed|matrix(1, 0, 0, 1, -326.4, 0)|hidden",
+    "collapsed": false,
+    "resizing": false
+   },
+   "100": {
+    "scroll": "442x19724",
+    "topbar": "442x57",
+    "toolbar": "0x0",
+    "nav": "418x56",
+    "navMode": "compact",
+    "charts": "178,178,388,388,388,388,388,388,388,388,388,388,388",
+    "drawer": "closed|matrix(1, 0, 0, 1, -326.4, 0)|hidden",
+    "collapsed": false,
+    "resizing": false
+   },
+   "250": {
+    "scroll": "442x19724",
+    "topbar": "442x57",
+    "toolbar": "0x0",
+    "nav": "418x56",
+    "navMode": "compact",
+    "charts": "178,178,388,388,388,388,388,388,388,388,388,388,388",
+    "drawer": "closed|matrix(1, 0, 0, 1, -326.4, 0)|hidden",
+    "collapsed": false,
+    "resizing": false
+   },
+   "500": {
+    "scroll": "442x19724",
+    "topbar": "442x57",
+    "toolbar": "0x0",
+    "nav": "418x56",
+    "navMode": "compact",
+    "charts": "178,178,388,388,388,388,388,388,388,388,388,388,388",
+    "drawer": "closed|matrix(1, 0, 0, 1, -326.4, 0)|hidden",
+    "collapsed": false,
+    "resizing": false
+   },
+   "1000": {
+    "scroll": "442x19724",
+    "topbar": "442x57",
+    "toolbar": "0x0",
+    "nav": "418x56",
+    "navMode": "compact",
+    "charts": "178,178,388,388,388,388,388,388,388,388,388,388,388",
+    "drawer": "closed|matrix(1, 0, 0, 1, -326.4, 0)|hidden",
+    "collapsed": false,
+    "resizing": false
+   }
+  },
+  "bounces": 0,
+  "where": [],
+  "note": ""
+ },
+ {
+  "sweep": "b",
+  "detail": "drawer open at 991, resized to 1100",
+  "late": [],
+  "errors": [],
+  "samples": {
+   "0": {
+    "scroll": "1100x9831",
+    "topbar": "0x0",
+    "toolbar": "790x199",
+    "nav": "790x40",
+    "navMode": "compact",
+    "charts": "359,359,752,370,370,370,370,370,370,370,370,370,370",
+    "drawer": "closed|none|visible",
+    "collapsed": false,
+    "resizing": true
+   },
+   "50": {
+    "scroll": "1100x9831",
+    "topbar": "0x0",
+    "toolbar": "790x199",
+    "nav": "790x40",
+    "navMode": "compact",
+    "charts": "359,359,752,370,370,370,370,370,370,370,370,370,370",
+    "drawer": "closed|none|visible",
+    "collapsed": false,
+    "resizing": true
+   },
+   "100": {
+    "scroll": "1100x9831",
+    "topbar": "0x0",
+    "toolbar": "790x199",
+    "nav": "790x40",
+    "navMode": "compact",
+    "charts": "359,359,752,370,370,370,370,370,370,370,370,370,370",
+    "drawer": "closed|none|visible",
+    "collapsed": false,
+    "resizing": false
+   },
+   "250": {
+    "scroll": "1100x9831",
+    "topbar": "0x0",
+    "toolbar": "790x199",
+    "nav": "790x40",
+    "navMode": "compact",
+    "charts": "359,359,752,370,370,370,370,370,370,370,370,370,370",
+    "drawer": "closed|none|visible",
+    "collapsed": false,
+    "resizing": false
+   },
+   "500": {
+    "scroll": "1100x9831",
+    "topbar": "0x0",
+    "toolbar": "790x199",
+    "nav": "790x40",
+    "navMode": "compact",
+    "charts": "359,359,752,370,370,370,370,370,370,370,370,370,370",
+    "drawer": "closed|none|visible",
+    "collapsed": false,
+    "resizing": false
+   },
+   "1000": {
+    "scroll": "1100x9831",
+    "topbar": "0x0",
+    "toolbar": "790x199",
+    "nav": "790x40",
+    "navMode": "compact",
+    "charts": "359,359,752,370,370,370,370,370,370,370,370,370,370",
+    "drawer": "closed|none|visible",
+    "collapsed": false,
+    "resizing": false
+   }
+  },
+  "state": {
+   "open": false,
+   "scrim": false,
+   "bodyOverflow": "visible",
+   "focus": "BODY"
+  },
+  "note": "drawer-open class cleared, scrim gone"
+ },
+ {
+  "sweep": "b",
+  "detail": "then back to 991",
+  "late": [],
+  "errors": [],
+  "samples": {
+   "0": {
+    "scroll": "991x8988",
+    "topbar": "991x51",
+    "toolbar": "0x0",
+    "nav": "963x42",
+    "navMode": "full",
+    "charts": "153,153,925,300.328125,300.328125,300.34375,300.328125,300.328125,300.34375,300.328125,300.328125,300.34375,300.328125",
+    "drawer": "closed|matrix(1, 0, 0, 1, -285.6, 0)|hidden",
+    "collapsed": false,
+    "resizing": true
+   },
+   "50": {
+    "scroll": "991x8988",
+    "topbar": "991x51",
+    "toolbar": "0x0",
+    "nav": "963x42",
+    "navMode": "full",
+    "charts": "153,153,925,300.328125,300.328125,300.34375,300.328125,300.328125,300.34375,300.328125,300.328125,300.34375,300.328125",
+    "drawer": "closed|matrix(1, 0, 0, 1, -285.6, 0)|hidden",
+    "collapsed": false,
+    "resizing": true
+   },
+   "100": {
+    "scroll": "991x8988",
+    "topbar": "991x51",
+    "toolbar": "0x0",
+    "nav": "963x42",
+    "navMode": "full",
+    "charts": "153,153,925,300.328125,300.328125,300.34375,300.328125,300.328125,300.34375,300.328125,300.328125,300.34375,300.328125",
+    "drawer": "closed|matrix(1, 0, 0, 1, -285.6, 0)|hidden",
+    "collapsed": false,
+    "resizing": true
+   },
+   "250": {
+    "scroll": "991x8988",
+    "topbar": "991x51",
+    "toolbar": "0x0",
+    "nav": "963x42",
+    "navMode": "full",
+    "charts": "153,153,925,300.328125,300.328125,300.34375,300.328125,300.328125,300.34375,300.328125,300.328125,300.34375,300.328125",
+    "drawer": "closed|matrix(1, 0, 0, 1, -285.6, 0)|hidden",
+    "collapsed": false,
+    "resizing": false
+   },
+   "500": {
+    "scroll": "991x8988",
+    "topbar": "991x51",
+    "toolbar": "0x0",
+    "nav": "963x42",
+    "navMode": "full",
+    "charts": "153,153,925,300.328125,300.328125,300.34375,300.328125,300.328125,300.34375,300.328125,300.328125,300.34375,300.328125",
+    "drawer": "closed|matrix(1, 0, 0, 1, -285.6, 0)|hidden",
+    "collapsed": false,
+    "resizing": false
+   },
+   "1000": {
+    "scroll": "991x8988",
+    "topbar": "991x51",
+    "toolbar": "0x0",
+    "nav": "963x42",
+    "navMode": "full",
+    "charts": "153,153,925,300.328125,300.328125,300.34375,300.328125,300.328125,300.34375,300.328125,300.328125,300.34375,300.328125",
+    "drawer": "closed|matrix(1, 0, 0, 1, -285.6, 0)|hidden",
+    "collapsed": false,
+    "resizing": false
+   }
+  },
+  "state": {
+   "open": false,
+   "transform": "matrix(1, 0, 0, 1, -285.6, 0)",
+   "visibility": "hidden"
+  },
+  "note": "drawer closed"
+ },
+ {
+  "sweep": "b",
+  "detail": "sidebar collapsed: 1200 <-> 991 twice",
+  "late": [],
+  "errors": [],
+  "samples": {
+   "0": {
+    "scroll": "1200x8220",
+    "topbar": "0x0",
+    "toolbar": "1056x151",
+    "nav": "1056x40",
+    "navMode": "full",
+    "charts": "171.59375,171.59375,660.65625,331.328125,331.328125,331.34375,331.328125,331.328125,331.34375,331.328125,331.328125,331.34375,331.328125",
+    "drawer": "closed|none|visible",
+    "collapsed": true,
+    "resizing": true
+   },
+   "50": {
+    "scroll": "1200x8220",
+    "topbar": "0x0",
+    "toolbar": "1056x151",
+    "nav": "1056x40",
+    "navMode": "full",
+    "charts": "171.59375,171.59375,660.65625,331.328125,331.328125,331.34375,331.328125,331.328125,331.34375,331.328125,331.328125,331.34375,331.328125",
+    "drawer": "closed|none|visible",
+    "collapsed": true,
+    "resizing": true
+   },
+   "100": {
+    "scroll": "1200x8220",
+    "topbar": "0x0",
+    "toolbar": "1056x151",
+    "nav": "1056x40",
+    "navMode": "full",
+    "charts": "171.59375,171.59375,660.65625,331.328125,331.328125,331.34375,331.328125,331.328125,331.34375,331.328125,331.328125,331.34375,331.328125",
+    "drawer": "closed|none|visible",
+    "collapsed": true,
+    "resizing": true
+   },
+   "250": {
+    "scroll": "1200x8220",
+    "topbar": "0x0",
+    "toolbar": "1056x151",
+    "nav": "1056x40",
+    "navMode": "full",
+    "charts": "171.59375,171.59375,660.65625,331.328125,331.328125,331.34375,331.328125,331.328125,331.34375,331.328125,331.328125,331.34375,331.328125",
+    "drawer": "closed|none|visible",
+    "collapsed": true,
+    "resizing": false
+   },
+   "500": {
+    "scroll": "1200x8220",
+    "topbar": "0x0",
+    "toolbar": "1056x151",
+    "nav": "1056x40",
+    "navMode": "full",
+    "charts": "171.59375,171.59375,660.65625,331.328125,331.328125,331.34375,331.328125,331.328125,331.34375,331.328125,331.328125,331.34375,331.328125",
+    "drawer": "closed|none|visible",
+    "collapsed": true,
+    "resizing": false
+   },
+   "1000": {
+    "scroll": "1200x8220",
+    "topbar": "0x0",
+    "toolbar": "1056x151",
+    "nav": "1056x40",
+    "navMode": "full",
+    "charts": "171.59375,171.59375,660.65625,331.328125,331.328125,331.34375,331.328125,331.328125,331.34375,331.328125,331.328125,331.34375,331.328125",
+    "drawer": "closed|none|visible",
+    "collapsed": true,
+    "resizing": false
+   }
+  }
+ },
+ {
+  "sweep": "b",
+  "detail": "sidebar expanded: 1200 <-> 991 twice",
+  "late": [],
+  "errors": [],
+  "samples": {
+   "0": {
+    "scroll": "1200x8937",
+    "topbar": "0x0",
+    "toolbar": "884x151",
+    "nav": "884x40",
+    "navMode": "full",
+    "charts": "137.1875,137.203125,546,274,274,274,274,274,274,274,274,274,274",
+    "drawer": "closed|none|visible",
+    "collapsed": false,
+    "resizing": true
+   },
+   "50": {
+    "scroll": "1200x8937",
+    "topbar": "0x0",
+    "toolbar": "884x151",
+    "nav": "884x40",
+    "navMode": "full",
+    "charts": "137.1875,137.203125,546,274,274,274,274,274,274,274,274,274,274",
+    "drawer": "closed|none|visible",
+    "collapsed": false,
+    "resizing": true
+   },
+   "100": {
+    "scroll": "1200x8937",
+    "topbar": "0x0",
+    "toolbar": "884x151",
+    "nav": "884x40",
+    "navMode": "full",
+    "charts": "137.1875,137.203125,546,274,274,274,274,274,274,274,274,274,274",
+    "drawer": "closed|none|visible",
+    "collapsed": false,
+    "resizing": true
+   },
+   "250": {
+    "scroll": "1200x8937",
+    "topbar": "0x0",
+    "toolbar": "884x151",
+    "nav": "884x40",
+    "navMode": "full",
+    "charts": "137.1875,137.203125,546,274,274,274,274,274,274,274,274,274,274",
+    "drawer": "closed|none|visible",
+    "collapsed": false,
+    "resizing": false
+   },
+   "500": {
+    "scroll": "1200x8937",
+    "topbar": "0x0",
+    "toolbar": "884x151",
+    "nav": "884x40",
+    "navMode": "full",
+    "charts": "137.1875,137.203125,546,274,274,274,274,274,274,274,274,274,274",
+    "drawer": "closed|none|visible",
+    "collapsed": false,
+    "resizing": false
+   },
+   "1000": {
+    "scroll": "1200x8937",
+    "topbar": "0x0",
+    "toolbar": "884x151",
+    "nav": "884x40",
+    "navMode": "full",
+    "charts": "137.1875,137.203125,546,274,274,274,274,274,274,274,274,274,274",
+    "drawer": "closed|none|visible",
+    "collapsed": false,
+    "resizing": false
+   }
+  }
+ },
+ {
+  "sweep": "c",
+  "detail": "height to 600 at 375 wide",
+  "late": [],
+  "errors": [],
+  "samples": {
+   "0": {
+    "scroll": "375x20426",
+    "topbar": "375x57",
+    "toolbar": "0x0",
+    "nav": "359x56",
+    "navMode": "compact",
+    "charts": "153.5,153.5,333,333,333,333,333,333,333,333,333,333,333",
+    "drawer": "closed|matrix(1, 0, 0, 1, -326.4, 0)|hidden",
+    "collapsed": false,
+    "resizing": true
+   },
+   "50": {
+    "scroll": "375x20426",
+    "topbar": "375x57",
+    "toolbar": "0x0",
+    "nav": "359x56",
+    "navMode": "compact",
+    "charts": "153.5,153.5,333,333,333,333,333,333,333,333,333,333,333",
+    "drawer": "closed|matrix(1, 0, 0, 1, -326.4, 0)|hidden",
+    "collapsed": false,
+    "resizing": true
+   },
+   "100": {
+    "scroll": "375x20426",
+    "topbar": "375x57",
+    "toolbar": "0x0",
+    "nav": "359x56",
+    "navMode": "compact",
+    "charts": "153.5,153.5,333,333,333,333,333,333,333,333,333,333,333",
+    "drawer": "closed|matrix(1, 0, 0, 1, -326.4, 0)|hidden",
+    "collapsed": false,
+    "resizing": true
+   },
+   "250": {
+    "scroll": "375x20426",
+    "topbar": "375x57",
+    "toolbar": "0x0",
+    "nav": "359x56",
+    "navMode": "compact",
+    "charts": "153.5,153.5,333,333,333,333,333,333,333,333,333,333,333",
+    "drawer": "closed|matrix(1, 0, 0, 1, -326.4, 0)|hidden",
+    "collapsed": false,
+    "resizing": false
+   },
+   "500": {
+    "scroll": "375x20426",
+    "topbar": "375x57",
+    "toolbar": "0x0",
+    "nav": "359x56",
+    "navMode": "compact",
+    "charts": "153.5,153.5,333,333,333,333,333,333,333,333,333,333,333",
+    "drawer": "closed|matrix(1, 0, 0, 1, -326.4, 0)|hidden",
+    "collapsed": false,
+    "resizing": false
+   },
+   "1000": {
+    "scroll": "375x20426",
+    "topbar": "375x57",
+    "toolbar": "0x0",
+    "nav": "359x56",
+    "navMode": "compact",
+    "charts": "153.5,153.5,333,333,333,333,333,333,333,333,333,333,333",
+    "drawer": "closed|matrix(1, 0, 0, 1, -326.4, 0)|hidden",
+    "collapsed": false,
+    "resizing": false
+   }
+  },
+  "scrollY": 1200
+ },
+ {
+  "sweep": "c",
+  "detail": "height to 667 at 375 wide",
+  "late": [],
+  "errors": [],
+  "samples": {
+   "0": {
+    "scroll": "375x20426",
+    "topbar": "375x57",
+    "toolbar": "0x0",
+    "nav": "359x56",
+    "navMode": "compact",
+    "charts": "153.5,153.5,333,333,333,333,333,333,333,333,333,333,333",
+    "drawer": "closed|matrix(1, 0, 0, 1, -326.4, 0)|hidden",
+    "collapsed": false,
+    "resizing": true
+   },
+   "50": {
+    "scroll": "375x20426",
+    "topbar": "375x57",
+    "toolbar": "0x0",
+    "nav": "359x56",
+    "navMode": "compact",
+    "charts": "153.5,153.5,333,333,333,333,333,333,333,333,333,333,333",
+    "drawer": "closed|matrix(1, 0, 0, 1, -326.4, 0)|hidden",
+    "collapsed": false,
+    "resizing": true
+   },
+   "100": {
+    "scroll": "375x20426",
+    "topbar": "375x57",
+    "toolbar": "0x0",
+    "nav": "359x56",
+    "navMode": "compact",
+    "charts": "153.5,153.5,333,333,333,333,333,333,333,333,333,333,333",
+    "drawer": "closed|matrix(1, 0, 0, 1, -326.4, 0)|hidden",
+    "collapsed": false,
+    "resizing": true
+   },
+   "250": {
+    "scroll": "375x20426",
+    "topbar": "375x57",
+    "toolbar": "0x0",
+    "nav": "359x56",
+    "navMode": "compact",
+    "charts": "153.5,153.5,333,333,333,333,333,333,333,333,333,333,333",
+    "drawer": "closed|matrix(1, 0, 0, 1, -326.4, 0)|hidden",
+    "collapsed": false,
+    "resizing": false
+   },
+   "500": {
+    "scroll": "375x20426",
+    "topbar": "375x57",
+    "toolbar": "0x0",
+    "nav": "359x56",
+    "navMode": "compact",
+    "charts": "153.5,153.5,333,333,333,333,333,333,333,333,333,333,333",
+    "drawer": "closed|matrix(1, 0, 0, 1, -326.4, 0)|hidden",
+    "collapsed": false,
+    "resizing": false
+   },
+   "1000": {
+    "scroll": "375x20426",
+    "topbar": "375x57",
+    "toolbar": "0x0",
+    "nav": "359x56",
+    "navMode": "compact",
+    "charts": "153.5,153.5,333,333,333,333,333,333,333,333,333,333,333",
+    "drawer": "closed|matrix(1, 0, 0, 1, -326.4, 0)|hidden",
+    "collapsed": false,
+    "resizing": false
+   }
+  },
+  "scrollY": 1200
+ },
+ {
+  "sweep": "c",
+  "detail": "height to 600 at 375 wide",
+  "late": [],
+  "errors": [],
+  "samples": {
+   "0": {
+    "scroll": "375x20426",
+    "topbar": "375x57",
+    "toolbar": "0x0",
+    "nav": "359x56",
+    "navMode": "compact",
+    "charts": "153.5,153.5,333,333,333,333,333,333,333,333,333,333,333",
+    "drawer": "closed|matrix(1, 0, 0, 1, -326.4, 0)|hidden",
+    "collapsed": false,
+    "resizing": true
+   },
+   "50": {
+    "scroll": "375x20426",
+    "topbar": "375x57",
+    "toolbar": "0x0",
+    "nav": "359x56",
+    "navMode": "compact",
+    "charts": "153.5,153.5,333,333,333,333,333,333,333,333,333,333,333",
+    "drawer": "closed|matrix(1, 0, 0, 1, -326.4, 0)|hidden",
+    "collapsed": false,
+    "resizing": true
+   },
+   "100": {
+    "scroll": "375x20426",
+    "topbar": "375x57",
+    "toolbar": "0x0",
+    "nav": "359x56",
+    "navMode": "compact",
+    "charts": "153.5,153.5,333,333,333,333,333,333,333,333,333,333,333",
+    "drawer": "closed|matrix(1, 0, 0, 1, -326.4, 0)|hidden",
+    "collapsed": false,
+    "resizing": true
+   },
+   "250": {
+    "scroll": "375x20426",
+    "topbar": "375x57",
+    "toolbar": "0x0",
+    "nav": "359x56",
+    "navMode": "compact",
+    "charts": "153.5,153.5,333,333,333,333,333,333,333,333,333,333,333",
+    "drawer": "closed|matrix(1, 0, 0, 1, -326.4, 0)|hidden",
+    "collapsed": false,
+    "resizing": false
+   },
+   "500": {
+    "scroll": "375x20426",
+    "topbar": "375x57",
+    "toolbar": "0x0",
+    "nav": "359x56",
+    "navMode": "compact",
+    "charts": "153.5,153.5,333,333,333,333,333,333,333,333,333,333,333",
+    "drawer": "closed|matrix(1, 0, 0, 1, -326.4, 0)|hidden",
+    "collapsed": false,
+    "resizing": false
+   },
+   "1000": {
+    "scroll": "375x20426",
+    "topbar": "375x57",
+    "toolbar": "0x0",
+    "nav": "359x56",
+    "navMode": "compact",
+    "charts": "153.5,153.5,333,333,333,333,333,333,333,333,333,333,333",
+    "drawer": "closed|matrix(1, 0, 0, 1, -326.4, 0)|hidden",
+    "collapsed": false,
+    "resizing": false
+   }
+  },
+  "scrollY": 1200
+ },
+ {
+  "sweep": "c",
+  "detail": "height to 667 at 375 wide",
+  "late": [],
+  "errors": [],
+  "samples": {
+   "0": {
+    "scroll": "375x20426",
+    "topbar": "375x57",
+    "toolbar": "0x0",
+    "nav": "359x56",
+    "navMode": "compact",
+    "charts": "153.5,153.5,333,333,333,333,333,333,333,333,333,333,333",
+    "drawer": "closed|matrix(1, 0, 0, 1, -326.4, 0)|hidden",
+    "collapsed": false,
+    "resizing": true
+   },
+   "50": {
+    "scroll": "375x20426",
+    "topbar": "375x57",
+    "toolbar": "0x0",
+    "nav": "359x56",
+    "navMode": "compact",
+    "charts": "153.5,153.5,333,333,333,333,333,333,333,333,333,333,333",
+    "drawer": "closed|matrix(1, 0, 0, 1, -326.4, 0)|hidden",
+    "collapsed": false,
+    "resizing": true
+   },
+   "100": {
+    "scroll": "375x20426",
+    "topbar": "375x57",
+    "toolbar": "0x0",
+    "nav": "359x56",
+    "navMode": "compact",
+    "charts": "153.5,153.5,333,333,333,333,333,333,333,333,333,333,333",
+    "drawer": "closed|matrix(1, 0, 0, 1, -326.4, 0)|hidden",
+    "collapsed": false,
+    "resizing": true
+   },
+   "250": {
+    "scroll": "375x20426",
+    "topbar": "375x57",
+    "toolbar": "0x0",
+    "nav": "359x56",
+    "navMode": "compact",
+    "charts": "153.5,153.5,333,333,333,333,333,333,333,333,333,333,333",
+    "drawer": "closed|matrix(1, 0, 0, 1, -326.4, 0)|hidden",
+    "collapsed": false,
+    "resizing": false
+   },
+   "500": {
+    "scroll": "375x20426",
+    "topbar": "375x57",
+    "toolbar": "0x0",
+    "nav": "359x56",
+    "navMode": "compact",
+    "charts": "153.5,153.5,333,333,333,333,333,333,333,333,333,333,333",
+    "drawer": "closed|matrix(1, 0, 0, 1, -326.4, 0)|hidden",
+    "collapsed": false,
+    "resizing": false
+   },
+   "1000": {
+    "scroll": "375x20426",
+    "topbar": "375x57",
+    "toolbar": "0x0",
+    "nav": "359x56",
+    "navMode": "compact",
+    "charts": "153.5,153.5,333,333,333,333,333,333,333,333,333,333,333",
+    "drawer": "closed|matrix(1, 0, 0, 1, -326.4, 0)|hidden",
+    "collapsed": false,
+    "resizing": false
+   }
+  },
+  "scrollY": 1200
+ },
+ {
+  "sweep": "d",
+  "detail": "fonts held back 4 s (landed at +3957 ms), watched 6 s",
+  "late": [],
+  "errors": [],
+  "samples": {
+   "0": {
+    "scroll": "1100x9789",
+    "topbar": "0x0",
+    "toolbar": "790x199",
+    "nav": "790x40",
+    "navMode": "compact",
+    "charts": "359,359,752,370,370,370,370,370,370,370,370,370,370",
+    "drawer": "closed|none|visible",
+    "collapsed": false,
+    "resizing": false
+   },
+   "50": {
+    "scroll": "1100x9789",
+    "topbar": "0x0",
+    "toolbar": "790x199",
+    "nav": "790x40",
+    "navMode": "compact",
+    "charts": "359,359,752,370,370,370,370,370,370,370,370,370,370",
+    "drawer": "closed|none|visible",
+    "collapsed": false,
+    "resizing": false
+   },
+   "100": {
+    "scroll": "1100x9789",
+    "topbar": "0x0",
+    "toolbar": "790x199",
+    "nav": "790x40",
+    "navMode": "compact",
+    "charts": "359,359,752,370,370,370,370,370,370,370,370,370,370",
+    "drawer": "closed|none|visible",
+    "collapsed": false,
+    "resizing": false
+   },
+   "250": {
+    "scroll": "1100x9789",
+    "topbar": "0x0",
+    "toolbar": "790x199",
+    "nav": "790x40",
+    "navMode": "compact",
+    "charts": "359,359,752,370,370,370,370,370,370,370,370,370,370",
+    "drawer": "closed|none|visible",
+    "collapsed": false,
+    "resizing": false
+   },
+   "500": {
+    "scroll": "1100x9789",
+    "topbar": "0x0",
+    "toolbar": "790x199",
+    "nav": "790x40",
+    "navMode": "compact",
+    "charts": "359,359,752,370,370,370,370,370,370,370,370,370,370",
+    "drawer": "closed|none|visible",
+    "collapsed": false,
+    "resizing": false
+   },
+   "1000": {
+    "scroll": "1100x9789",
+    "topbar": "0x0",
+    "toolbar": "790x199",
+    "nav": "790x40",
+    "navMode": "compact",
+    "charts": "359,359,752,370,370,370,370,370,370,370,370,370,370",
+    "drawer": "closed|none|visible",
+    "collapsed": false,
+    "resizing": false
+   }
+  },
+  "afterFonts": 2,
+  "navModeChanges": 0,
+  "note": "2 changes in the frames after the fonts landed, 0 label-mode toggles"
+ },
+ {
+  "sweep": "e",
+  "detail": "10 x 993 <-> 991, no waits",
+  "late": [],
+  "errors": [],
+  "samples": {
+   "0": {
+    "scroll": "991x8988",
+    "topbar": "991x51",
+    "toolbar": "0x0",
+    "nav": "963x42",
+    "navMode": "full",
+    "charts": "153,153,925,300.328125,300.328125,300.34375,300.328125,300.328125,300.34375,300.328125,300.328125,300.34375,300.328125",
+    "drawer": "closed|matrix(1, 0, 0, 1, -285.6, 0)|hidden",
+    "collapsed": false,
+    "resizing": true
+   },
+   "50": {
+    "scroll": "991x8988",
+    "topbar": "991x51",
+    "toolbar": "0x0",
+    "nav": "963x42",
+    "navMode": "full",
+    "charts": "153,153,925,300.328125,300.328125,300.34375,300.328125,300.328125,300.34375,300.328125,300.328125,300.34375,300.328125",
+    "drawer": "closed|matrix(1, 0, 0, 1, -285.6, 0)|hidden",
+    "collapsed": false,
+    "resizing": true
+   },
+   "100": {
+    "scroll": "991x8988",
+    "topbar": "991x51",
+    "toolbar": "0x0",
+    "nav": "963x42",
+    "navMode": "full",
+    "charts": "153,153,925,300.328125,300.328125,300.34375,300.328125,300.328125,300.34375,300.328125,300.328125,300.34375,300.328125",
+    "drawer": "closed|matrix(1, 0, 0, 1, -285.6, 0)|hidden",
+    "collapsed": false,
+    "resizing": true
+   },
+   "250": {
+    "scroll": "991x8988",
+    "topbar": "991x51",
+    "toolbar": "0x0",
+    "nav": "963x42",
+    "navMode": "full",
+    "charts": "153,153,925,300.328125,300.328125,300.34375,300.328125,300.328125,300.34375,300.328125,300.328125,300.34375,300.328125",
+    "drawer": "closed|matrix(1, 0, 0, 1, -285.6, 0)|hidden",
+    "collapsed": false,
+    "resizing": false
+   },
+   "500": {
+    "scroll": "991x8988",
+    "topbar": "991x51",
+    "toolbar": "0x0",
+    "nav": "963x42",
+    "navMode": "full",
+    "charts": "153,153,925,300.328125,300.328125,300.34375,300.328125,300.328125,300.34375,300.328125,300.328125,300.34375,300.328125",
+    "drawer": "closed|matrix(1, 0, 0, 1, -285.6, 0)|hidden",
+    "collapsed": false,
+    "resizing": false
+   },
+   "1000": {
+    "scroll": "991x8988",
+    "topbar": "991x51",
+    "toolbar": "0x0",
+    "nav": "963x42",
+    "navMode": "full",
+    "charts": "153,153,925,300.328125,300.328125,300.34375,300.328125,300.328125,300.34375,300.328125,300.328125,300.34375,300.328125",
+    "drawer": "closed|matrix(1, 0, 0, 1, -285.6, 0)|hidden",
+    "collapsed": false,
+    "resizing": false
+   }
+  }
+ },
+ {
+  "sweep": "e",
+  "detail": "10 x 769 <-> 767, no waits",
+  "late": [],
+  "errors": [],
+  "samples": {
+   "0": {
+    "scroll": "767x10919",
+    "topbar": "767x57",
+    "toolbar": "0x0",
+    "nav": "743x56",
+    "navMode": "compact",
+    "charts": "335.5,335.5,713,350.5,350.5,350.5,350.5,350.5,350.5,350.5,350.5,350.5,350.5",
+    "drawer": "closed|matrix(1, 0, 0, 1, -326.4, 0)|hidden",
+    "collapsed": false,
+    "resizing": true
+   },
+   "50": {
+    "scroll": "767x10919",
+    "topbar": "767x57",
+    "toolbar": "0x0",
+    "nav": "743x56",
+    "navMode": "compact",
+    "charts": "335.5,335.5,713,350.5,350.5,350.5,350.5,350.5,350.5,350.5,350.5,350.5,350.5",
+    "drawer": "closed|matrix(1, 0, 0, 1, -326.4, 0)|hidden",
+    "collapsed": false,
+    "resizing": true
+   },
+   "100": {
+    "scroll": "767x10919",
+    "topbar": "767x57",
+    "toolbar": "0x0",
+    "nav": "743x56",
+    "navMode": "compact",
+    "charts": "335.5,335.5,713,350.5,350.5,350.5,350.5,350.5,350.5,350.5,350.5,350.5,350.5",
+    "drawer": "closed|matrix(1, 0, 0, 1, -326.4, 0)|hidden",
+    "collapsed": false,
+    "resizing": true
+   },
+   "250": {
+    "scroll": "767x10919",
+    "topbar": "767x57",
+    "toolbar": "0x0",
+    "nav": "743x56",
+    "navMode": "compact",
+    "charts": "335.5,335.5,713,350.5,350.5,350.5,350.5,350.5,350.5,350.5,350.5,350.5,350.5",
+    "drawer": "closed|matrix(1, 0, 0, 1, -326.4, 0)|hidden",
+    "collapsed": false,
+    "resizing": false
+   },
+   "500": {
+    "scroll": "767x10919",
+    "topbar": "767x57",
+    "toolbar": "0x0",
+    "nav": "743x56",
+    "navMode": "compact",
+    "charts": "335.5,335.5,713,350.5,350.5,350.5,350.5,350.5,350.5,350.5,350.5,350.5,350.5",
+    "drawer": "closed|matrix(1, 0, 0, 1, -326.4, 0)|hidden",
+    "collapsed": false,
+    "resizing": false
+   },
+   "1000": {
+    "scroll": "767x10919",
+    "topbar": "767x57",
+    "toolbar": "0x0",
+    "nav": "743x56",
+    "navMode": "compact",
+    "charts": "335.5,335.5,713,350.5,350.5,350.5,350.5,350.5,350.5,350.5,350.5,350.5,350.5",
+    "drawer": "closed|matrix(1, 0, 0, 1, -326.4, 0)|hidden",
+    "collapsed": false,
+    "resizing": false
+   }
+  }
+ },
+ {
+  "sweep": "f",
+  "detail": "state across 1200 -> 375 -> 1200",
+  "late": [],
+  "errors": [],
+  "note": "all kept",
+  "checks": [
+   {
+    "name": "Analytics: selected class kept",
+    "pass": true,
+    "detail": ""
+   },
+   {
+    "name": "Analytics: scroll not reset to the top",
+    "pass": true,
+    "detail": "scrollY 5886"
+   },
+   {
+    "name": "Analytics: same section in view",
+    "pass": true,
+    "detail": "dash-missed heading at 167px of 800"
+   },
+   {
+    "name": "Analytics: tab kept",
+    "pass": true,
+    "detail": ""
+   },
+   {
+    "name": "Question bank: topic filter kept",
+    "pass": true,
+    "detail": ""
+   },
+   {
+    "name": "Question bank: status filter kept",
+    "pass": true,
+    "detail": ""
+   },
+   {
+    "name": "Classes: Create dialog still open",
+    "pass": true,
+    "detail": ""
+   },
+   {
+    "name": "Classes: typed class name kept",
+    "pass": true,
+    "detail": ""
+   },
+   {
+    "name": "Classes: search text kept",
+    "pass": true,
+    "detail": ""
+   }
+  ]
+ }
+]

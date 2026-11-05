@@ -834,3 +834,98 @@ export const GAME_CONFIG = Object.freeze({
   hud: { physical: '#48a8ff', magic: '#b17cff' },
   visuals: { dashTrail: { count: 3, radius: 3, decay: 0.09 }, lightningArcMs: 220, enemyFlashMs: 220 },
 });
+
+// ---- Mobile / touch play (docs/mobile/NOTES.md, Stages 3-4) -------------------
+// Client-only tuning: none of these change a gameplay rule. The server stays
+// authoritative; touch input sends the same messages as keyboard and mouse.
+
+// Camera (touch mode only; desktop keeps the whole-arena view). Zoom 1 is the
+// default view: about MOBILE_VIEW_BASE_W x MOBILE_VIEW_BASE_H world px around
+// the hero (640 x 360 on a 667 x 375 phone). The smallest zoom fits the whole
+// arena; MOBILE_ZOOM_MAX = 2.5 is the closest view.
+export const MOBILE_DEFAULT_ZOOM = 1;
+export const MOBILE_ZOOM_MAX = 2.5;
+export const MOBILE_VIEW_BASE_W = 640;
+export const MOBILE_VIEW_BASE_H = 360;
+export const MOBILE_VIEW_MAX_BASE_SCALE = 1.25; // tablets never start magnified past this
+export const MOBILE_CAMERA_LERP = 0.15;
+// Canvas resolution on touch devices.
+export const MOBILE_MAX_DPR = 2;
+export const MOBILE_LOW_END_DPR = 1.5;
+export const MOBILE_LOW_END_CORES = 4;
+// HUD_SCALE = clamp(min, viewportHeight / reference, max) for HUD text and bars.
+export const HUD_SCALE_MIN = 0.75;
+export const HUD_SCALE_MAX = 1;
+export const HUD_SCALE_REFERENCE_HEIGHT = 600;
+// Left stick.
+export const MOBILE_STICK_RADIUS = 56;
+export const MOBILE_STICK_KNOB_RADIUS = 24;
+export const MOBILE_STICK_DEAD_ZONE = 0.18;
+export const MOBILE_STICK_ZONE_FRACTION = 0.45; // left share of the screen that spawns the floating stick
+// Ability buttons. Sizes are the existing touch HUD sizes (48/54/62 px) x the scale.
+export const MOBILE_BUTTON_SCALE = 1.15;
+export const MOBILE_BUTTON_MIN_PX = 48;
+export const MOBILE_BUTTON_HIT_SLOP_PX = 8;
+export const MOBILE_TAP_MS = 180;
+export const MOBILE_TAP_MOVE_PX = 12;
+export const MOBILE_AIM_DRAG_RADIUS = 90;
+export const MOBILE_CANCEL_RADIUS = 18;
+export const MOBILE_AUTO_AIM = true;
+// Bombardier on touch: a full 90 px drag puts the reticle this far from the
+// hero. Desktop has no range limit (the server only clamps to the arena), so
+// this only sets how far one thumb drag reaches.
+export const MOBILE_BOMBARDIER_DRAG_RANGE = 720;
+export const MOBILE_NAME_CHARS = 8;
+// Effects defaults on touch (each still adjustable in Settings).
+export const MOBILE_DEFAULT_QUALITY = 'medium';
+export const MOBILE_PARTICLE_FACTOR = 0.5;
+export const MOBILE_SHAKE_FACTOR = 0.4;
+export const MOBILE_HAPTIC_MS = 10;
+
+// How each ability is aimed by touch, derived from the hero code
+// (public/hero-lab/heroes/*.js) and the server (src/hero-lab/room.js):
+//   self    - no aim: tap casts (a drag-back still cancels)
+//   dir     - direction from the hero (the 'aim' vector, as the mouse sends)
+//   point   - a world point within range (sent with 'skill', as the mouse does)
+//   steer   - aimed at cast; while it lasts the left stick steers it
+//   special - Bombardier Targeted Bombing (its own targeting window)
+// range is in world px (used by auto-aim and point targeting).
+export const ABILITY_AIM = Object.freeze({
+  sheriff: { primary: { type: 'dir', range: 1100 }, skill: { type: 'dir', range: 1575 }, ultimate: { type: 'self' } },
+  guardian: { primary: { type: 'dir', range: 173 }, skill: { type: 'dir', range: 300 }, ultimate: { type: 'steer', range: 400 } },
+  pilot: { primary: { type: 'dir', range: 390 }, skill: { type: 'dir', range: 250 }, ultimate: { type: 'self' } },
+  bombardier: { primary: { type: 'dir', range: 349 }, skill: { type: 'self' }, ultimate: { type: 'special', range: MOBILE_BOMBARDIER_DRAG_RANGE } },
+  bubbles: { primary: { type: 'dir', range: 315 }, skill: { type: 'dir', range: 390 }, ultimate: { type: 'self' } },
+  electromancer: { primary: { type: 'dir', range: 1100 }, skill: { type: 'dir', range: 1012 }, ultimate: { type: 'self' } },
+  fairy: { primary: { type: 'dir', range: 380 }, skill: { type: 'dir', range: 360 }, ultimate: { type: 'dir', range: 420 } },
+  engineer: { primary: { type: 'dir', range: 300 }, skill: { type: 'point', range: 220 }, ultimate: { type: 'dir', range: 900 } },
+  ranger: { primary: { type: 'dir', range: 560 }, skill: { type: 'point', range: 300 }, ultimate: { type: 'self' } },
+  samurai: { primary: { type: 'dir', range: 320 }, skill: { type: 'dir', range: 260 }, ultimate: { type: 'dir', range: 480 } },
+});
+// Pilot's Mech Suit form: M1 and E stay directional (the mech cannon and
+// the mech dash), so the table above already covers it.
+export const ABILITY_AIM_MECH = Object.freeze({ pilot: { primary: { type: 'dir', range: 390 }, skill: { type: 'dir', range: 250 } } });
+
+// Arena draw order (docs/mobile/fixes/F10.md), bottom to top. drawScene in
+// world.js paints these layers in exactly this order, so the touch aim line
+// (and the Ranger's bow / Dead Aim line) lies UNDER the hero sprites, while
+// the small aim end reticle stays visible above enemies. The line may start at
+// the hero's centre; the sprite covers the start.
+//   ground         - forest floor, Fairy vortex floor, dust puffs
+//   campfireRings  - the campfire's heal ring and the Thorns ring
+//   campfire       - campfire glow, embers and sprite, Fairy vortex structures
+//   aimLines       - hero-origin aim lines: touch aim line, Ranger bow / Dead Aim
+//   shadows        - enemy ground shadows
+//   enemies        - enemy sprites and health bars
+//   worldMarkers   - Ranger marks / wolves / meat ghost, turrets, Engineer laser
+//                    and placement ghost, pickups, deaths, spawn telegraphs,
+//                    traps, area markers, Samurai cut guides (depth unchanged)
+//   heroes         - hero sprites (with their badges, names and emotes)
+//   effects        - status marks, arcs, projectiles, particles, damage numbers
+//   aimReticle     - the touch aim end reticle
+//   screenEffects  - screen-space Samurai flash and confetti
+//   hud            - the DOM HUD, stacked above the canvas (no canvas pass)
+export const ARENA_DRAW_ORDER = Object.freeze([
+  'ground', 'campfireRings', 'campfire', 'aimLines', 'shadows', 'enemies', 'worldMarkers',
+  'heroes', 'effects', 'aimReticle', 'screenEffects', 'hud',
+]);

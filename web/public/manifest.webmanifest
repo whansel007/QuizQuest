@@ -1,0 +1,16 @@
+{
+  "name": "QuizQuest",
+  "short_name": "QuizQuest",
+  "description": "A storybook quest where your class learns together around the campfire.",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#1f3b2b",
+  "theme_color": "#1f3b2b",
+  "icons": [
+    { "src": "/icons/quizquest-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "/icons/quizquest-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "/icons/quizquest-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" },
+    { "src": "/icons/quizquest-icon.svg", "sizes": "any", "type": "image/svg+xml" }
+  ]
+}

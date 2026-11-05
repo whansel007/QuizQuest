@@ -56,7 +56,7 @@ const frac = (r) => `${pct(r.accuracy)} (${r.correct}/${r.n})`;
             <td class="label" data-label="Topic">{{ q.topic }}</td>
             <td data-label="Tagged">{{ q.tagged }}</td>
             <td class="num" data-label="First-attempt correct">{{ frac(q.accuracy) }}</td>
-            <td data-label="Looks"><span class="badge draft">⚠ {{ q.verdict }}</span></td>
+            <td data-label="Looks"><span class="badge draft text-nowrap">⚠ {{ q.verdict }}</span></td>
           </tr>
         </tbody>
       </table>
