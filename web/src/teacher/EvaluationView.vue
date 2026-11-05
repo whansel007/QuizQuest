@@ -35,7 +35,7 @@ const change = (r) => (r.meanAccuracyChange === null ? '-' : `${r.meanAccuracyCh
   <template v-else-if="loaded">
     <p v-if="!course">You have no assigned courses.</p>
     <template v-else>
-      <Heading title="Evaluation"><CoursePicker :courses="courses" /></Heading>
+      <Heading title="Evaluation" data-testid="evaluation-page"><CoursePicker :courses="courses" /></Heading>
       <div class="note small">The measures the proposal commits to. All descriptive: small samples and no control group, so none of this shows that learning improved.</div>
       <div class="panel">
         <h3>Question drafting: acceptance and editing</h3>

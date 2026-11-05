@@ -58,7 +58,7 @@ const targetId = useId();
   <template v-else-if="loaded">
     <p v-if="!course">You have no assigned courses.</p>
     <template v-else>
-      <Heading title="Settings"><CoursePicker :courses="courses" /></Heading>
+      <Heading title="Settings" data-testid="settings-page"><CoursePicker :courses="courses" /></Heading>
       <div class="panel">
         <h3>Subject guidance for AI drafting</h3>
         <p class="small muted">Added to every drafting prompt for this course (e.g. "use SI units", "prefer applied scenarios"). It is the per-subject "skill" from proposal §6.</p>

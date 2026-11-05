@@ -90,7 +90,7 @@ const outcomeText = (id) => course.value.topics.flatMap((t) => t.outcomes).find(
   <template v-else-if="loaded">
     <p v-if="!course">You have no assigned courses.</p>
     <template v-else>
-      <Heading title="AI drafting">
+      <Heading title="AI drafting" data-testid="generate-page">
         <CoursePicker :courses="courses" />
         <TopicPicker v-if="course.topics.length" :topics="course.topics" @change="rerender" />
       </Heading>
