@@ -905,3 +905,27 @@ export const ABILITY_AIM = Object.freeze({
 // Pilot's Mech Suit form: M1 and E stay directional (the mech cannon and
 // the mech dash), so the table above already covers it.
 export const ABILITY_AIM_MECH = Object.freeze({ pilot: { primary: { type: 'dir', range: 390 }, skill: { type: 'dir', range: 250 } } });
+
+// Arena draw order (docs/mobile/fixes/F10.md), bottom to top. drawScene in
+// world.js paints these layers in exactly this order, so the touch aim line
+// (and the Ranger's bow / Dead Aim line) lies UNDER the hero sprites, while
+// the small aim end reticle stays visible above enemies. The line may start at
+// the hero's centre; the sprite covers the start.
+//   ground         - forest floor, Fairy vortex floor, dust puffs
+//   campfireRings  - the campfire's heal ring and the Thorns ring
+//   campfire       - campfire glow, embers and sprite, Fairy vortex structures
+//   aimLines       - hero-origin aim lines: touch aim line, Ranger bow / Dead Aim
+//   shadows        - enemy ground shadows
+//   enemies        - enemy sprites and health bars
+//   worldMarkers   - Ranger marks / wolves / meat ghost, turrets, Engineer laser
+//                    and placement ghost, pickups, deaths, spawn telegraphs,
+//                    traps, area markers, Samurai cut guides (depth unchanged)
+//   heroes         - hero sprites (with their badges, names and emotes)
+//   effects        - status marks, arcs, projectiles, particles, damage numbers
+//   aimReticle     - the touch aim end reticle
+//   screenEffects  - screen-space Samurai flash and confetti
+//   hud            - the DOM HUD, stacked above the canvas (no canvas pass)
+export const ARENA_DRAW_ORDER = Object.freeze([
+  'ground', 'campfireRings', 'campfire', 'aimLines', 'shadows', 'enemies', 'worldMarkers',
+  'heroes', 'effects', 'aimReticle', 'screenEffects', 'hud',
+]);

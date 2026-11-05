@@ -20,7 +20,7 @@ import { GAME_CONFIG, HERO_FX_COLORS, HERO_FX_SECONDARY, ABILITY_ICONS, ABILITY_
   MOBILE_BUTTON_SCALE, MOBILE_BUTTON_MIN_PX, MOBILE_BUTTON_HIT_SLOP_PX, MOBILE_TAP_MS, MOBILE_TAP_MOVE_PX,
   MOBILE_AIM_DRAG_RADIUS, MOBILE_CANCEL_RADIUS, MOBILE_AUTO_AIM, MOBILE_BOMBARDIER_DRAG_RANGE, MOBILE_NAME_CHARS,
   MOBILE_DEFAULT_QUALITY, MOBILE_PARTICLE_FACTOR, MOBILE_SHAKE_FACTOR, MOBILE_HAPTIC_MS,
-  ABILITY_AIM, ABILITY_AIM_MECH } from './game-config.js';
+  ABILITY_AIM, ABILITY_AIM_MECH, ARENA_DRAW_ORDER } from './game-config.js';
 import {
   stickVector, vectorToDirections, classifyPress, releaseOutcome, inCancelZone, aimFromDrag, aimPoint, autoAim,
   densestCluster, bombardierInitial, bombardierReduce, bombardierWindowLeft, cameraBaseScale, minZoomForArena,
@@ -5153,6 +5153,44 @@ function drawScene(timestamp) {
     context.translate(centerX, centerY); context.scale(scale, scale); context.translate(-centerX, -centerY);
   } else cameraZoom.scale = 1;
 
+  // Paint the layers bottom to top in the configured order (ARENA_DRAW_ORDER,
+  // game-config.js). World layers share the shake/camera transform above;
+  // the first screen-space layer closes it.
+  const frame = { currentTime, dt };
+  let worldPassOpen = true;
+  for (const layerId of ARENA_DRAW_ORDER) {
+    const layer = ARENA_LAYERS[layerId];
+    if (!layer) continue;
+    if (layer.space === 'screen' && worldPassOpen) { endArenaWorldPass(); worldPassOpen = false; }
+    layer.paint(frame);
+  }
+  if (worldPassOpen) endArenaWorldPass();
+}
+
+// Pops the shake/camera transform and resets the context for screen-space drawing.
+function endArenaWorldPass() {
+  context.globalAlpha = 1;
+  context.restore();
+  context.setTransform(1, 0, 0, 1, 0, 0);
+  context.globalAlpha = 1;
+  context.globalCompositeOperation = 'source-over';
+  context.filter = 'none';
+  context.shadowBlur = 0;
+  context.setLineDash([]);
+}
+
+function arenaCampfire() {
+  return state.campfire || {
+    x: GAME_CONFIG.arena.width / 2,
+    y: GAME_CONFIG.arena.height / 2,
+    radius: GAME_CONFIG.campfire.radius,
+    hp: GAME_CONFIG.campfire.hp,
+    maxHp: GAME_CONFIG.campfire.hp,
+  };
+}
+
+// ---- Arena layers (bottom to top: ARENA_DRAW_ORDER) ----------------------------------------
+function paintGroundLayer({ currentTime, dt }) {
   // Overscan the background by the maximum shake offset so the camera
   // translate can never expose an unpainted strip at the arena edge (the
   // canvas is opaque and never cleared, so a strip would show stale pixels).
@@ -5161,34 +5199,33 @@ function drawScene(timestamp) {
     ARENA_WIDTH + shakeOverscan * 2, ARENA_HEIGHT + shakeOverscan * 2);
   drawFairyVortexGround(currentTime);
   drawDustPuffs(currentTime, dt);
+}
 
+function paintCampfireRingsLayer({ currentTime }) {
+  const cf = arenaCampfire();
+  // Permanent rings: pre-rendered sprites (dashed colored stroke
+  // + fill), blitted once each. The sprite stroke is baked at full alpha so
+  // the heal ring's gentle pulse keeps the stroke at or above the
+  // AREA_RING_STROKE_ALPHA floor; the Thorns ring stays steady.
+  context.save();
+  const pulse = AREA_RING_STROKE_ALPHA + (1 - AREA_RING_STROKE_ALPHA) * (0.5 + 0.5 * Math.sin(currentTime * 0.0015));
+  const healRing = ringSprite('heal', ARENA_TUNING.campfire.healRadius,
+    AREA_COLORS.healStroke, AREA_COLORS.healFill, AREA_RING_WIDTH, 1);
+  context.globalAlpha = pulse;
+  context.drawImage(healRing.canvas, cf.x - healRing.size / 2, cf.y - healRing.size / 2);
+  if ((state.activeBuffs || []).some((buff) => buff.id === 'thorns')) {
+    const thornsRing = ringSprite('thorns', ARENA_TUNING.cards.effects.thornsRadius,
+      AREA_COLORS.thornsStroke, AREA_COLORS.thornsFill, AREA_RING_WIDTH, 1);
+    context.globalAlpha = 1;
+    context.drawImage(thornsRing.canvas, cf.x - thornsRing.size / 2, cf.y - thornsRing.size / 2);
+  }
+  context.restore();
+}
+
+function paintCampfireLayer({ currentTime }) {
   // 1. Draw Campfire in the middle
-  const cf = state.campfire || {
-    x: GAME_CONFIG.arena.width / 2,
-    y: GAME_CONFIG.arena.height / 2,
-    radius: GAME_CONFIG.campfire.radius,
-    hp: GAME_CONFIG.campfire.hp,
-    maxHp: GAME_CONFIG.campfire.hp,
-  };
-  if (cf) {
-    // Permanent rings: pre-rendered sprites (dashed colored stroke
-    // + fill), blitted once each. The sprite stroke is baked at full alpha so
-    // the heal ring's gentle pulse keeps the stroke at or above the
-    // AREA_RING_STROKE_ALPHA floor; the Thorns ring stays steady.
-    context.save();
-    const pulse = AREA_RING_STROKE_ALPHA + (1 - AREA_RING_STROKE_ALPHA) * (0.5 + 0.5 * Math.sin(currentTime * 0.0015));
-    const healRing = ringSprite('heal', ARENA_TUNING.campfire.healRadius,
-      AREA_COLORS.healStroke, AREA_COLORS.healFill, AREA_RING_WIDTH, 1);
-    context.globalAlpha = pulse;
-    context.drawImage(healRing.canvas, cf.x - healRing.size / 2, cf.y - healRing.size / 2);
-    if ((state.activeBuffs || []).some((buff) => buff.id === 'thorns')) {
-      const thornsRing = ringSprite('thorns', ARENA_TUNING.cards.effects.thornsRadius,
-        AREA_COLORS.thornsStroke, AREA_COLORS.thornsFill, AREA_RING_WIDTH, 1);
-      context.globalAlpha = 1;
-      context.drawImage(thornsRing.canvas, cf.x - thornsRing.size / 2, cf.y - thornsRing.size / 2);
-    }
-    context.restore();
-
+  const cf = arenaCampfire();
+  {
     for (const player of state.players || []) {
       const inside = Math.hypot(player.x - cf.x, player.y - cf.y) <= ARENA_TUNING.campfire.healRadius;
       const now = performance.now();
@@ -5227,22 +5264,48 @@ function drawScene(timestamp) {
   }
 
   drawFairyVortexStructures(currentTime);
-  drawRangerAimGuides();
+}
 
+// Hero-origin aim lines sit under shadows, enemies and hero sprites (F10).
+function paintAimLinesLayer() {
+  drawRangerAimGuides();
+  if (touchMode) {
+    const aimStartedAt = touchDebug ? performance.now() : 0;
+    drawTouchAimLine();
+    if (touchDebug) touchFrameStats.controlsMs += performance.now() - aimStartedAt;
+  }
+}
+
+// Where an enemy is drawn this frame: its position plus the decaying hit knockback.
+function enemyDrawOffset(monster, currentTime) {
+  const hitFx = enemyHitFx.get(monster.id);
+  const hitProgress = hitFx ? Math.min(1, (currentTime - hitFx.startedAt) / hitFx.durationMs) : 1;
+  return {
+    hitFx, hitProgress,
+    x: monster.x + (hitFx ? hitFx.x * (1 - hitProgress) : 0),
+    y: monster.y + (hitFx ? hitFx.y * (1 - hitProgress) : 0),
+  };
+}
+
+function paintShadowsLayer({ currentTime }) {
+  if (!Array.isArray(state.monsters)) return;
+  context.fillStyle = 'rgba(0, 0, 0, 0.2)';
+  for (const monster of state.monsters) {
+    const { x: mx, y: my } = enemyDrawOffset(monster, currentTime);
+    // Monster shadow
+    context.beginPath();
+    context.ellipse(mx, my + 16, 12, 5, 0, 0, Math.PI * 2);
+    context.fill();
+  }
+}
+
+function paintEnemiesLayer({ currentTime }) {
   // 2. Draw Zombie Monsters
   if (Array.isArray(state.monsters)) {
     for (const monster of state.monsters) {
-      const hitFx = enemyHitFx.get(monster.id);
-      const hitProgress = hitFx ? Math.min(1, (currentTime - hitFx.startedAt) / hitFx.durationMs) : 1;
+      const { hitFx, hitProgress, x: mx, y: my } = enemyDrawOffset(monster, currentTime);
       if (hitFx && hitProgress >= 1) enemyHitFx.delete(monster.id);
-      const mx = monster.x + (hitFx ? hitFx.x * (1 - hitProgress) : 0);
-      const my = monster.y + (hitFx ? hitFx.y * (1 - hitProgress) : 0);
       const hitFlash = (enemyHitFlashUntil.get(monster.id) || 0) > currentTime;
-      // Monster shadow
-      context.beginPath();
-      context.ellipse(mx, my + 16, 12, 5, 0, 0, Math.PI * 2);
-      context.fillStyle = 'rgba(0, 0, 0, 0.2)';
-      context.fill();
 
       // Give the pale zombie emoji an opaque backdrop so it reads clearly on grass.
       context.save();
@@ -5306,7 +5369,11 @@ function drawScene(timestamp) {
       }
     }
   }
+}
 
+// Ground-level world markers whose depth F10 leaves unchanged (above enemies,
+// below heroes): area markers and telegraphs, the Engineer's laser, turrets...
+function paintWorldMarkersLayer({ currentTime }) {
   for (const monster of state.monsters || []) {
     const mark = (monster.rangerMarks || []).find((entry) => entry.ownerId === me);
     if (!mark) continue;
@@ -5526,7 +5593,9 @@ function drawScene(timestamp) {
   // Keep the cut guide and slash over enemies but beneath the hero sprite.
   drawSamuraiCutGuides(currentTime);
   drawSamuraiCutSlashes(currentTime);
+}
 
+function paintHeroesLayer({ currentTime, dt }) {
   // 3. Draw players
   for (const player of state.players) {
     const visualState = getHeroVisualState(player, currentTime);
@@ -5789,7 +5858,9 @@ function drawScene(timestamp) {
     // Social bubbles belong above hero-specific badges such as Samurai stacks.
     drawPlayerEmote(player, currentTime);
   }
+}
 
+function paintEffectsLayer({ currentTime, dt }) {
   for (const monster of state.monsters || []) {
     if (heroDebugHitboxes) {
       context.save(); context.strokeStyle = '#ff2d55'; context.lineWidth = 2; context.setLineDash([5, 4]);
@@ -5966,19 +6037,17 @@ function drawScene(timestamp) {
     context.drawImage(g.canvas, dtObj.x - g.w / 2, dtObj.y - g.h / 2, g.w, g.h);
   }
   drawSamuraiWorldEffects(currentTime);
-  if (touchMode) {
-    const aimStartedAt = touchDebug ? performance.now() : 0;
-    drawTouchAim(currentTime);
-    if (touchDebug) touchFrameStats.controlsMs += performance.now() - aimStartedAt;
-  }
-  context.globalAlpha = 1;
-  context.restore();
-  context.setTransform(1, 0, 0, 1, 0, 0);
-  context.globalAlpha = 1;
-  context.globalCompositeOperation = 'source-over';
-  context.filter = 'none';
-  context.shadowBlur = 0;
-  context.setLineDash([]);
+}
+
+// The small aim end reticle stays above enemies and effects (F10).
+function paintAimReticleLayer() {
+  if (!touchMode) return;
+  const aimStartedAt = touchDebug ? performance.now() : 0;
+  drawTouchAimReticle();
+  if (touchDebug) touchFrameStats.controlsMs += performance.now() - aimStartedAt;
+}
+
+function paintScreenEffectsLayer({ currentTime, dt }) {
   if (samuraiScreenFlash) {
     const age = currentTime - samuraiScreenFlash.startedAt;
     if (age >= SAMURAI_CUT_OVERLAY_MS) samuraiScreenFlash = null;
@@ -5993,6 +6062,26 @@ function drawScene(timestamp) {
   // Screen-space celebration: unaffected by shake and the boss zoom.
   updateConfetti(currentTime, dt);
   drawConfetti(currentTime);
+}
+
+// Painter per ARENA_DRAW_ORDER entry. 'world' layers draw under the
+// shake/camera transform; 'screen' layers draw in canvas pixels after it.
+const ARENA_LAYERS = Object.freeze({
+  ground: { space: 'world', paint: paintGroundLayer },
+  campfireRings: { space: 'world', paint: paintCampfireRingsLayer },
+  campfire: { space: 'world', paint: paintCampfireLayer },
+  aimLines: { space: 'world', paint: paintAimLinesLayer },
+  shadows: { space: 'world', paint: paintShadowsLayer },
+  enemies: { space: 'world', paint: paintEnemiesLayer },
+  worldMarkers: { space: 'world', paint: paintWorldMarkersLayer },
+  heroes: { space: 'world', paint: paintHeroesLayer },
+  effects: { space: 'world', paint: paintEffectsLayer },
+  aimReticle: { space: 'world', paint: paintAimReticleLayer },
+  screenEffects: { space: 'screen', paint: paintScreenEffectsLayer },
+  hud: null, // DOM HUD above the canvas: no canvas pass
+});
+for (const layerId of ARENA_DRAW_ORDER) {
+  if (!(layerId in ARENA_LAYERS)) console.error(`[arena] no painter for draw layer "${layerId}"`);
 }
 
 function spawnDashTrail(player) {
@@ -6333,21 +6422,39 @@ function tickTouchControls(now) {
 }
 
 // Thin aim line + reticle from the hero, in the hero's FX colour (world space,
-// so it follows the camera exactly).
-function drawTouchAim() {
+// so it follows the camera exactly). Two passes (ARENA_DRAW_ORDER): the line
+// in 'aimLines' under the hero sprites (which cover its start at the hero's
+// centre), the end reticle in 'aimReticle' above enemies and effects.
+// Sets the aim stroke/fill on the (already saved) context; null when not aiming.
+function applyTouchAimStyle() {
   const visual = touchAimVisual;
   const player = localPlayer();
-  if (!visual || !player) return;
+  if (!visual || !player) return null;
   const color = HERO_FX_COLORS[player.heroId]?.primary || '#ffd34f';
   const px = 1 / Math.max(0.01, touchCamera.scale);
-  context.save();
   context.strokeStyle = color; context.fillStyle = color;
   context.globalAlpha = 0.9; context.lineWidth = 3 * px;
-  context.setLineDash([10 * px, 7 * px]);
-  context.beginPath(); context.moveTo(player.x, player.y); context.lineTo(visual.to.x, visual.to.y); context.stroke();
-  context.setLineDash([]);
-  context.beginPath(); context.arc(visual.to.x, visual.to.y, 14 * px, 0, Math.PI * 2); context.stroke();
-  context.beginPath(); context.arc(visual.to.x, visual.to.y, 3 * px, 0, Math.PI * 2); context.fill();
+  return { visual, player, px };
+}
+function drawTouchAimLine() {
+  context.save();
+  const aim = applyTouchAimStyle();
+  if (aim) {
+    const { visual, player, px } = aim;
+    context.setLineDash([10 * px, 7 * px]);
+    context.beginPath(); context.moveTo(player.x, player.y); context.lineTo(visual.to.x, visual.to.y); context.stroke();
+  }
+  context.restore();
+}
+function drawTouchAimReticle() {
+  context.save();
+  const aim = applyTouchAimStyle();
+  if (aim) {
+    const { visual, px } = aim;
+    context.setLineDash([]);
+    context.beginPath(); context.arc(visual.to.x, visual.to.y, 14 * px, 0, Math.PI * 2); context.stroke();
+    context.beginPath(); context.arc(visual.to.x, visual.to.y, 3 * px, 0, Math.PI * 2); context.fill();
+  }
   context.restore();
 }
 
