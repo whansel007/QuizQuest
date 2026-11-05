@@ -354,7 +354,8 @@ onUnmounted(() => {
         class="hero-lab-frame"
         :src="gameUrl"
         title="Campfire Run"
-        allow="gamepad; clipboard-write"
+        allow="gamepad; clipboard-write; fullscreen"
+        allowfullscreen
         tabindex="0"
         @load="focusGame"
       />

@@ -95,3 +95,84 @@ Another developer is redoing the sign-in and professor pages. On those pages I c
 - `web/src/App.vue`: the professor shell's drawer now focuses its first tab on open (one `watch`); the rest of the App.vue changes are the student shell.
 - `web/src/mobile.css` (new): the `(pointer: coarse)` rules that reach professor pages are `.teacher-app nav#tabs.t-nav button { min-height: 44px }` and the zero-specificity `:where()` rules for 44 px controls, checkbox labels and file inputs, and 16 px inputs.
 - `LoginView.vue` and every file under `web/src/teacher/`: not touched. The sign-in page already passed every check; its "Show password" button is 54 x 30 px (left as is: their page).
+
+## Stages 3 and 4: the in-run game on phones, and touch controls
+
+Committed together: the camera, HUD and touch input share one pointer router in `world.js`, and the HUD layout only makes sense with the controls in place.
+
+### Where things live
+
+- **Pure gesture logic** (no DOM, unit tested): `public/hero-lab/touch-controls.js`. Stick vector and 8-way mapping, tap/hold classification, cancel zone, drag to aim (direction and point), auto-aim, densest-cluster reticle, the Bombardier targeting state machine, camera base scale, zoom limits, pinch, camera clamping and follow, screen/world conversion, HUD scale, short names.
+- **Thin DOM/canvas layer**: the "Touch input layer" section near the end of `public/hero-lab/world.js`, plus the "Touch camera" section near the top.
+- **Tuning**: every new number is a named `MOBILE_*` / `HUD_SCALE_*` constant in `public/hero-lab/game-config.js`, with `ABILITY_AIM` and `ABILITY_AIM_MECH`.
+- **Layout**: the `html.touch-mode` block in `public/hero-lab/hud.css` (it replaces the old `@media (pointer: coarse)` block). New markup in `public/hero-lab/world.html`: game menu button and sheet, Cancel button, rotate overlay, touch settings, the mobile help text, `data-testid` hooks.
+
+### When touch controls are on
+
+`html.touch-mode` is set when `(pointer: coarse)` matches (Settings → Touch controls: **Auto**, the default), when the player picks **On**, or with **`?touch=1`** in the URL (mouse pointer events count, for testing on a desktop). **Off** keeps the desktop controls on a touch device. The choice is saved in `localStorage` and applies the next time the arena opens (switching mid-run would move every control). `?touchdebug=1` shows a strip with the active pointers, gesture state, zoom and Bombardier phase.
+
+### Stage 3: layout, camera, orientation, HUD
+
+- **Game surface**: the canvas fills the viewport (`100dvh`). In touch mode the page sets `touch-action: none`, `user-select: none`, `-webkit-touch-callout: none` and `overscroll-behavior: none`, and blocks the context menu, page pinch-zoom (`gesturestart`, multi-finger `touchmove`) and pull-to-refresh. Panels that scroll (settings, information, votes, results) keep `pan-y`. The game is its own document inside the app's iframe, so leaving the run discards these rules. The audio context also warms up on the first `touchend` (iOS only starts audio inside a touch gesture).
+- **Resolution**: on touch the canvas backing store is CSS size x device pixel ratio, capped at `MOBILE_MAX_DPR = 2` (1.5 with fewer than 4 CPU cores). Before this it was CSS size x 0.4 on phones (blurry). The forest floor stays at 1 px per world px, and the particle budget follows the drawn area and is halved (`MOBILE_PARTICLE_FACTOR`), so the higher resolution does not multiply the particle work.
+- **Orientation**: portrait shows a full-screen "Rotate your phone to play" overlay that takes all input and releases held controls. Nothing is sent to the server; the connection and the hero stay as they are. The game menu has **Fullscreen** where the Fullscreen API exists (not on iPhone); after entering it the page tries `screen.orientation.lock('landscape')`. The app's iframe now has `allow="… fullscreen"` and `allowfullscreen` (`HeroLabView.vue`), which fullscreen inside the frame needs.
+- **Camera (touch only; desktop keeps the whole-arena view)**: follow camera on the local hero with lerp 0.15 (frame-rate independent), clamped so nothing outside the arena shows. Zoom 1 (`MOBILE_DEFAULT_ZOOM`) shows about `MOBILE_VIEW_BASE_W x MOBILE_VIEW_BASE_H` = 640 x 360 world px (exactly that on a 667 x 375 phone; tablets are capped at `MOBILE_VIEW_MAX_BASE_SCALE`). Pinch zooms from "whole arena fits" to `MOBILE_ZOOM_MAX = 2.5`. The zoom persists for the session (`sessionStorage`); Settings has **Reset zoom**. **Bug fixed on the way:** the old touch camera translated before scaling, so what was drawn and where a tap landed disagreed whenever the zoom was not 1. Drawing and `getPointerCoordinates` now use the same transform (`screen = (world - camera) x scale + view centre`), checked by a round-trip unit test. Damage numbers, rings, reticles, particles, health bars and the placement ghosts are drawn in world space, so they follow it. The HUD, banners, vignette, confetti and the shake origin stay in screen space (confetti now bursts from the corners of the visible screen).
+- **HUD** (`HUD_SCALE = clamp(0.75, viewportHeight / 600, 1)`, applied with `transform: scale` so touch targets keep their size):
+  - top left: compact party list (names cut to 8 characters, thinner bars, smaller portraits);
+  - top centre: wave counter, campfire bar and boss bar (smaller; wave details hidden);
+  - top right: room code (tap to copy, as before) and a 44 px **menu button** that opens a sheet with Settings, Information (the I panel), Fullscreen and Leave room;
+  - removed from the touch HUD: the gear, Back to Kingdom and Information buttons (all three are in the menu); run buffs and the kill streak sit under the room code;
+  - bottom left: the move stick; the stats panel is hidden and opens from the menu as a sheet;
+  - bottom right: the ability cluster;
+  - bottom centre: the lobby hero choice and START, between the stick and the cluster (above them on screens under 640 px wide);
+  - vote cards: a bottom-anchored row of three compact cards with the live tally; dawn, defeat, end-of-run and session summary are full-screen sheets that scroll inside themselves on short screens;
+  - banners, toasts, the waiting banner and the targeting hint sit under the top bar, never over the controls.
+- **Effects defaults on touch** (only when the player never chose otherwise; all still adjustable): Effects quality **Medium**, screen shake intensity **40%** of the desktop default (20 instead of 50), particle budget halved, performance overlay off.
+- **Backgrounding**: on `visibilitychange` (hidden) every touch input and movement key is released and firing stops. On return, Socket.IO's own reconnect takes over and a "Reconnecting…" toast shows if the link dropped (also shown on a disconnect while visible).
+- **Help text**: the join briefing and the How to play card show the mobile controls text (below) instead of the keyboard line when touch controls are on; the World page intro and the Kingdom tour's "Getting around" step do the same on touch screens. The standing-still nudge ("Move to deal +20% damage") names no keys, so it is unchanged.
+
+### Stage 4: touch controls
+
+- **Movement output**: the server takes **digital movement booleans** (`input { up, down, left, right }`, as WASD). The stick maps its vector to **8 directions** (45 degree sectors) after a 0.18 dead zone. Speed rules stay the server's.
+- **Left stick**: floating by default. A touch on the left 45% of the arena places the base under the thumb (`MOBILE_STICK_RADIUS = 56`, knob 24, dead zone 0.18); a faint outline marks its home at the bottom left, above the safe area. Settings → Move stick: **Floating / Fixed**. Translucent fill, dark ink outline, no blur or filters.
+- **Ability buttons**: the existing HUD buttons, layout, colours, icons, key labels, cooldown fills and ready pulses. Sizes are the previous touch sizes (48/54/62 px) x `MOBILE_BUTTON_SCALE = 1.15` = 55/62/71 px (never below 48), with an 8 px larger hit area. (Scaling the desktop sizes 56/70/88 instead would make the cluster 250 px tall on a 375 px screen.)
+  - **Tap** (at most 180 ms and under 12 px): cast now with **auto-aim**: the nearest enemy within the ability's range (lobby dummies included), else the hero's last aim, else the direction the hero last moved (`MOBILE_AUTO_AIM = true`).
+  - **Hold and drag**: aim mode with a thin dashed aim line and reticle from the hero in the hero's FX colour. The drag from the button centre (up to `MOBILE_AIM_DRAG_RADIUS = 90` px) gives the direction; for point abilities the drag length maps linearly onto the real range. Release fires. Dragging back to within 18 px of the button centre turns the button red, and releasing there **cancels**: nothing is sent and no cooldown is spent.
+  - **M1**: press fires at once with auto-aim and holds (`primary_hold true`; the server repeats); dragging re-aims while firing; release sends `primary_hold false`. Ranger's Charge Bow uses the same messages, so the press starts the charge, dragging aims and the release fires; Dead Aim fires one arrow per tap. **M1 has no cancel zone**: the first shot goes out on press (as a mouse click does), and the server fires Ranger's arrow on release whatever the client does, so a cancel could not be honoured without a server change.
+  - Placement abilities (Engineer turret, Ranger meat) send the same `skill {x, y}` world point the desktop placement click sends. A placement started from the keyboard is confirmed by M1 or a tap on the arena.
+- **Bombardier Targeted Bombing**: pressing Q sends `ultimate` (the server's 5 s window opens; no cooldown yet) and shows a large **Cancel** button left of the cluster, with a ring that drains over the 5 s. Hold and drag: the reticle (the existing canvas airstrike pattern: 280 px pattern, 135 px blasts) follows the hero position plus the drag scaled to `MOBILE_BOMBARDIER_DRAG_RANGE`; release outside the cancel zone **confirms** with `fire 'secondary' {x, y}` (the desktop right-click message). Tap only: the window stays open with a default reticle on the densest group of enemies; a tap on the arena (converted through the camera) confirms there. Cancel (or Esc, also with `?touch=1`) sends `cancel_targeting`; on a timeout the server closes the window. No cooldown is spent either way. The desktop has **no range limit** (the server only clamps the point to the arena), so the drag range only sets how far a full thumb drag reaches.
+- **Emote**: the emote system already existed (Z wheel, 6 emoji, server broadcast, shown above the hero). Per the brief, only the touch button and popup were added: the 👋 button becomes a 44 px translucent circle in the free top-left corner of the ability cluster, and the wheel opens as a compact row of 44 px emoji above the cluster. The existing emoji (👍 👎 👋 ❤️ 😄 ❓), the 2.4 s display and the server's 500 ms limit are unchanged: the brief's 2 s / one-per-2-s numbers would need a server change, which the RULES forbid.
+- **Pinch**: two fingers that both started on the arena (not on the stick, a button or the HUD) zoom by their distance ratio, clamped to the limits. The stick and the buttons keep working with other fingers; a pinch never casts or confirms anything.
+- **Multi-touch**: every pointer is tracked by `pointerId` with `setPointerCapture` (stick + held ability + two-finger pinch = 4 at once). `pointercancel`, window `blur`, backgrounding, a disconnect and the rotate prompt release everything safely (a held M1 sends `primary_hold false`; an aimed ability is cancelled, never fired).
+- **Haptics**: Settings → "Vibrate when casting" (default off) calls `navigator.vibrate(10)` on a cast where supported.
+- **Latency**: aim lines, the reticle and the muzzle flash draw immediately from the local touch state; nothing waits for the server.
+
+### `ABILITY_AIM` (derived from `public/hero-lab/heroes/*.js` and `src/hero-lab/room.js`)
+
+| Hero | M1 (primary) | E (skill) | Q (ultimate) |
+|---|---|---|---|
+| Sheriff | dir 1100 | Dynamite: dir 1575 | Deadeye: **self** |
+| Guardian | dir 173 | Shield Rush: dir 300 | Unbreakable Charge: **steer** (aimed at cast; the stick steers it by sending `aim`, since the server moves the charge along the aim) |
+| Pilot | dir 390 | Dash: dir 250 | Mech Suit: **self** (mech M1 and E stay dir) |
+| Bombardier | dir 349 | Proximity Trap: **self** | Targeted Bombing: **special** |
+| Bubbles | dir 315 | Bubble Trap: dir 390 | Bubble Rush: **self** |
+| Electromancer | dir 1100 | Stun Field: dir 1012 | Chain Lightning: **self** |
+| Fairy | dir 380 | Gale Burst: dir 360 | Vortex Orb: dir 420 |
+| Engineer | dir 300 | Deploy Turret: **point 220** | Overclock Laser: dir 900 |
+| Ranger | dir 560 (charge bow) | Meat: **point 300** | Dead Aim: **self** |
+| Samurai | dir 320 | Cutting Dash: dir 260 | Afterimage Cut: dir 480 |
+
+This matches the brief's expected table with one difference: the Engineer's turret placement range in the code is **220** (`engineer.turretSkill.placeRange`), not 140. The touch control uses 220 so it can place exactly where the desktop can.
+
+### Mobile controls text (shown in the game when touch controls are on)
+
+> On mobile:
+> - Move: drag the left virtual stick.
+> - Attack or use an ability: tap its on-screen button to activate. To aim, hold the button, drag toward the target, then release.
+> - Bombardier ultimate: hold Ultimate, drag to choose a target, then release or tap the arena to confirm. Use the on-screen Cancel button to back out.
+> - Emote: tap the 👋 button and choose an emote.
+> - Zoom: pinch the arena.
+
+### Files changed (Stages 3 and 4)
+
+`public/hero-lab/world.js`, `public/hero-lab/world.html`, `public/hero-lab/hud.css`, `public/hero-lab/game-config.js`, `public/hero-lab/touch-controls.js` (new), `web/src/student/HeroLabView.vue` (iframe fullscreen permission), `tests/mobile/touch-logic.unit.test.mjs` and `tests/mobile/touch-smoke.e2e.mjs` (new). No server file changed.
