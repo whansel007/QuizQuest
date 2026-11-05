@@ -216,12 +216,13 @@ onUnmounted(() => {
             <h1 class="room-title">Campfire Run</h1>
             <p class="room-intro">Choose a hero and defend the campfire. <span class="hint-keys">Move with WASD; E is your skill and Q your ultimate.</span><span class="hint-touch-controls">Drag the left stick to move; tap an ability to cast it, or hold and drag to aim.</span></p>
             <span class="panel-kicker">JOIN A PARTY</span>
-            <div class="room-actions">
+            <div class="room-actions" data-testid="room-join-row">
               <label class="sr-only" for="room-code-input">Room code</label>
               <input
                 id="room-code-input"
                 v-model="roomCode"
                 class="room-code-input"
+                data-testid="room-code"
                 type="text"
                 inputmode="latin"
                 autocomplete="off"
@@ -232,12 +233,13 @@ onUnmounted(() => {
                 @input="onCodeInput"
                 @keyup.enter="enterRoom('join')"
               >
-              <button class="btn" type="button" :disabled="!selectedHero || roomCode.length !== 4" @click="enterRoom('join')">JOIN</button>
+              <button class="btn" type="button" data-testid="room-join" :disabled="!selectedHero || roomCode.length !== 4" @click="enterRoom('join')">JOIN</button>
             </div>
           </div>
+          <div class="room-or" role="separator" aria-label="or" data-testid="room-separator"><span aria-hidden="true">or</span></div>
           <div class="room-host-block">
             <span class="panel-kicker">READY TO PLAY?</span>
-            <button class="btn primary" type="button" :disabled="!selectedHero" @click="enterRoom('create')">HOST LOBBY</button>
+            <button class="btn primary" type="button" data-testid="room-host" :disabled="!selectedHero" @click="enterRoom('create')">HOST LOBBY</button>
           </div>
           <p v-if="roomError" class="note bad" role="alert">{{ roomError }}</p>
         </section>
@@ -403,7 +405,7 @@ onUnmounted(() => {
   height: 100%;
   min-height: 0;
   grid-template-columns: minmax(0, 1fr) minmax(0, .915fr) minmax(0, 2.3fr);
-  grid-template-rows: 16.2% 14.9% minmax(0, 1fr) auto;
+  grid-template-rows: minmax(16.2%, auto) minmax(14.9%, auto) minmax(0, 1fr) auto;
   grid-template-areas: "room upgrades dossier" "room upgrades ." ". . ." "roster roster roster";
   column-gap: clamp(14px, 1.6vw, 22px);
   row-gap: 15px;
@@ -443,13 +445,17 @@ onUnmounted(() => {
   box-shadow: 0 5px 0 rgb(35 56 47 / 72%), 0 10px 24px rgb(11 33 25 / 17%), inset 0 0 0 1px rgb(255 255 255 / 42%);
 }
 .panel-kicker { display: block; color: #778054; font-size: .6rem; font-weight: 900; }
-.room-entry { grid-area: room; grid-row: 1 / 3; display: grid; align-content: stretch; gap: 0; }
+.room-entry { grid-area: room; grid-row: 1 / 3; display: grid; align-content: center; gap: 0; }
 .room-entry, .kingdom-preview { background-image: linear-gradient(135deg, #fff8e4, #f1e6c7); }
 .room-entry, .hero-preview { align-self: stretch; height: 100%; max-height: 100%; overflow: hidden; padding: 10px 14px !important; }
+/* F5: the join/host card is never cut off; its rows grow to fit it instead */
+.room-entry { max-height: none; overflow: visible; }
 .kingdom-preview { grid-area: upgrades; grid-row: 1 / 3; height: 100%; max-height: 100%; overflow: hidden; padding-block: 10px !important; grid-template-rows: auto minmax(0, 1fr); }
-.room-join-block, .room-host-block { display: grid; align-content: center; gap: 5px; min-height: 0; }
-.room-join-block { padding-bottom: 10px; border-bottom: 2px dashed #a79773; }
-.room-host-block { padding-top: 10px; }
+.room-join-block, .room-host-block { display: grid; align-content: center; gap: 5px; }
+/* F5: an in-flow separator between joining and hosting (the old dashed
+   border-bottom sat under the input and JOIN once the block was squeezed) */
+.room-or { display: flex; align-items: center; gap: 10px; margin: 16px 0; color: #8a7d5c; font: 800 .66rem/1 Nunito, Trebuchet MS, sans-serif; letter-spacing: .08em; text-transform: uppercase; }
+.room-or::before, .room-or::after { content: ''; flex: 1 1 0; border-top: 2px dashed #a79773; }
 .kingdom-return { align-self: flex-start; margin: 0 0 6px; padding: 2px 0; color: var(--camp-pine); background: none; border: 0; font: 800 .8rem Nunito, Trebuchet MS, sans-serif; text-decoration: underline; cursor: pointer; }
 .kingdom-return:focus-visible { outline: 3px solid #8062a9; outline-offset: 2px; }
 .room-title { margin: 0; color: var(--camp-pine); font-family: Georgia, "Palatino Linotype", serif; font-size: clamp(19px, 1.55vw, 23px); font-weight: 700; letter-spacing: -.02em; line-height: 1; }
@@ -653,7 +659,7 @@ onUnmounted(() => {
 }
 @media (max-height: 820px) and (min-width: 1101px) {
   .hero-lab-page { height: 100%; min-height: 0; overflow: hidden; }
-  .world-sides { height: 100%; min-height: 0; grid-template-rows: 16.2% 14.9% minmax(0, 1fr) auto; }
+  .world-sides { height: 100%; min-height: 0; grid-template-rows: minmax(16.2%, auto) minmax(14.9%, auto) minmax(0, 1fr) auto; }
   .hero-preview { padding: 8px 18px !important; }
   /* The Camp Buffs panel is only ~31% of a short viewport tall. Shrink the tile
      icon and effect line so neither the "Lv N/3" nor the effect text wraps or
@@ -704,8 +710,9 @@ onUnmounted(() => {
 @media (max-width: 380px) {
   .hero-lab-page { --hero-art-size: 164px; }
   .world-sides .panel { padding: 12px; }
-  .room-actions { gap: 5px; }
-  .room-code-input { width: 4.8rem; }
+  /* F5: the code and JOIN stack as two full-width rows */
+  .room-actions { flex-direction: column; align-items: stretch; gap: 8px; }
+  .room-code-input { width: 100%; flex: none; }
   .hero-roster-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .forest-scene { min-height: 340px; }
   .hero-preview-art { width: 160px; }

@@ -218,3 +218,40 @@ is the Kingdom's forest green. Two more things could show through around it:
 The test fails on the old code.
 
 **Screenshots:** `F4-before.png` and `F4-after.png` (full page, 412x968).
+
+---
+
+## F5: Campfire Run divider drawn behind the code input and JOIN button
+
+**Status before:** not fixed. At 1280x800 the dashed line ran through the code row, and the
+top of the card ("← Back to Kingdom") was cut off.
+
+**Root cause:** `web/src/student/HeroLabView.vue:451` (before the fix). The divider was
+`.room-join-block`'s `border-bottom`, and three rules squeezed that block:
+- `HeroLabView.vue:450`: the block had `min-height: 0` and centred its content.
+- `HeroLabView.vue:448`: `.room-entry` was `height: 100%; overflow: hidden` inside...
+- `HeroLabView.vue:402`: ...the fixed percentage rows `16.2% 14.9%`.
+
+When the card's content was taller than those rows, the join block shrank below its content.
+The input and JOIN overflowed past the block's bottom border, so the dashed line was drawn
+across them, and the clipped card lost its top line.
+
+**Fix:**
+- The border is gone. An in-flow separator, `.room-or` (`role="separator"`), sits between
+  the two groups: a centred "or" between two dashed rules (flex items, not absolutely
+  positioned), with 16 px margins and no z-index.
+- The join and host blocks keep their natural height.
+- On wide screens the rows are `minmax(16.2%, auto) minmax(14.9%, auto)`, so they grow to
+  fit the card instead of clipping it. `.room-entry` no longer clips.
+- Under 380 px, the code input and JOIN stack as two full-width rows.
+- The disabled JOIN already had a plain (solid-border) disabled style. The "dashed border"
+  was the divider running through it.
+
+**Test:** `tests/mobile/campfire-run.spec.mjs`, sweeping 320 to 1440 px in 8 px steps with
+touch and with a mouse. At every width it checks:
+- the separator intersects none of the code input, JOIN and HOST LOBBY;
+- it sits below the join row and above HOST LOBBY;
+- JOIN is beside the code at 380 px and up, and below it under 380 px.
+
+**Screenshots:** `F5-before.png` and `F5-after.png` (1280x800). The before shot shows the
+mouse-revealed top bar because the probe's pointer sits at the top edge.
