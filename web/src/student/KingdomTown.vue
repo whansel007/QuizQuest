@@ -12,8 +12,9 @@ import { drawAvatarCosmetics, loadOwnedHeroVisuals, loadPlayerVisuals, tintedPla
 import { INK, drawFlame } from './kingdom/town-art.js';
 import {
   PALETTE, TOWN_BUILDINGS, TOWN_CAMPS, TOWN_MAP_PROPS, TOWN_SIGN_SPOT, TOWN_TRAILS, TOWN_VIEW_TOP, TOWN_WALK_ZONES,
-  WORLD_HEIGHT, WORLD_TOP, buildTownObjects, createForestPattern, createGroundLayer, makeEdgeTrees,
+  WORLD_TOP, buildTownObjects, createForestPattern, createGroundLayer, makeEdgeTrees,
 } from './kingdom/town-scene.js';
+import { TOWN_SPAWN, buildGrid, canStandAt, findPath, inZone, makeTownObstacles } from './kingdom/town-collision.js';
 import { EMOTES, heroLine } from './kingdom/town-voices.js';
 import { BUILDING_LAYOUT } from './kingdom/buildings/index.js';
 import { playSound, setAudioOptions, warmUpAudio } from '../../../public/hero-lab/arena-audio.js';
@@ -62,17 +63,9 @@ const targets = [...buildings, ...destinations];
 const mapProps = TOWN_MAP_PROPS.map((p, index) => ({ ...p, id: `prop-${index}` }));
 const edgeTrees = makeEdgeTrees();
 
-const footprintRect = (o) => ({ type: 'rect', x: o.x, y: o.y, w: o.w, h: o.h });
-const obstacles = [
-  ...targets.map(footprintRect),
-  ...mapProps.filter((p) => p.type !== 'flowers').map((p) => {
-    // Trees are solid at the trunk; the canopy can overlap the walking space.
-    if (p.type === 'tree') return { type: 'rect', x: p.x + p.w * 0.38, y: p.y + p.h * 0.72, w: p.w * 0.24, h: p.h * 0.26 };
-    if (p.type === 'rock') return { type: 'circle', x: p.x + p.w / 2, y: p.y + p.h * 0.6, r: Math.max(p.w, p.h) * 0.36 };
-    if (p.type === 'sign') return { type: 'circle', x: p.x + p.w / 2, y: p.y + p.h - 4, r: 7 };
-    return footprintRect(p);
-  }),
-];
+// Building and camp footprints, and each prop's base only (trees block their
+// trunk, never the canopy): see kingdom/town-collision.js.
+const obstacles = makeTownObstacles(targets, mapProps);
 
 function distanceToSegment(px, py, [ax, ay], [bx, by]) {
   const dx = bx - ax; const dy = by - ay;
@@ -88,7 +81,7 @@ function onRoad(x, y, margin = 0) {
 // ---- runtime state ---------------------------------------------------------
 
 const keys = new Set();
-const player = { x: 690, y: 446, facing: -1, path: [], waypoint: 0, moving: false };
+const player = { x: TOWN_SPAWN.x, y: TOWN_SPAWN.y, facing: -1, path: [], waypoint: 0, moving: false };
 const wanderers = [];
 let reducedMotion = false;
 let playerFrames = null;
@@ -152,21 +145,9 @@ function makeObjectCanvases() {
 
 // ---- collision and paths ---------------------------------------------------
 
-function circleHitsRect(x, y, r, rect) {
-  const nx = Math.max(rect.x, Math.min(x, rect.x + rect.w));
-  const ny = Math.max(rect.y, Math.min(y, rect.y + rect.h));
-  return ((x - nx) ** 2 + (y - ny) ** 2) < r ** 2;
-}
-const inZone = (x, y, z) => x >= z.x && x <= z.x + z.w && y >= z.y && y <= z.y + z.h;
-
+// Keys, the stick and tap-to-move (the walk grid) all use this one test.
 function canStand(x, y, radius = TOWN_AVATAR_RADIUS) {
-  if (!TOWN_WALK_ZONES.some((z) => inZone(x, y, z))) return false;
-  // keep the hitbox to the sprite's ground footprint: a flat ellipse at the feet
-  const r = radius * 0.8;
-  for (const obstacle of obstacles) {
-    if (obstacle.type === 'rect' ? circleHitsRect(x, y, r, obstacle) : Math.hypot(x - obstacle.x, y - obstacle.y) < r + obstacle.r) return false;
-  }
-  return true;
+  return canStandAt(x, y, radius, obstacles);
 }
 
 // Heroes keep to the town grass, away from doors; they may cross a road.
@@ -175,71 +156,6 @@ function canWanderStand(x, y) {
   return targets.every((t) => Math.hypot(x - t.door.x, y - t.door.y) >= 34);
 }
 
-function buildGrid(canWalk) {
-  const cols = Math.floor(TOWN_WIDTH / TOWN_TILE_SIZE);
-  const rows = Math.floor(WORLD_HEIGHT / TOWN_TILE_SIZE);
-  const blocked = new Uint8Array(cols * rows);
-  for (let i = 0; i < blocked.length; i += 1) {
-    const x = (i % cols) * TOWN_TILE_SIZE + TOWN_TILE_SIZE / 2;
-    const y = WORLD_TOP + Math.floor(i / cols) * TOWN_TILE_SIZE + TOWN_TILE_SIZE / 2;
-    blocked[i] = canWalk(x, y) ? 0 : 1;
-  }
-  return { cols, rows, blocked, canWalk };
-}
-
-function nearestWalkableCell(index, grid) {
-  const { cols, rows, blocked } = grid;
-  if (index >= 0 && index < blocked.length && !blocked[index]) return index;
-  const cx = index % cols;
-  const cy = Math.floor(index / cols);
-  for (let radius = 1; radius < 6; radius += 1) {
-    for (let dy = -radius; dy <= radius; dy += 1) {
-      for (let dx = -radius; dx <= radius; dx += 1) {
-        if (Math.max(Math.abs(dx), Math.abs(dy)) !== radius) continue;
-        const x = cx + dx; const y = cy + dy;
-        const candidate = y * cols + x;
-        if (x >= 0 && x < cols && y >= 0 && y < rows && !blocked[candidate]) return candidate;
-      }
-    }
-  }
-  return -1;
-}
-
-const cellOf = (x, y, cols) => Math.floor((y - WORLD_TOP) / TOWN_TILE_SIZE) * cols + Math.floor(x / TOWN_TILE_SIZE);
-const cellCentre = (i, cols) => ({ x: (i % cols) * TOWN_TILE_SIZE + TOWN_TILE_SIZE / 2, y: WORLD_TOP + Math.floor(i / cols) * TOWN_TILE_SIZE + TOWN_TILE_SIZE / 2 });
-
-function findPath(startX, startY, targetX, targetY, grid) {
-  const { cols, rows, blocked } = grid;
-  const size = cols * rows;
-  const start = nearestWalkableCell(cellOf(startX, startY, cols), grid);
-  const goal = nearestWalkableCell(cellOf(targetX, targetY, cols), grid);
-  if (start < 0 || goal < 0) return [];
-  const prev = new Int32Array(size).fill(-1);
-  const queue = new Int32Array(size);
-  let head = 0; let tail = 0;
-  queue[tail++] = start;
-  prev[start] = start;
-  const dirs = [[1, 0], [-1, 0], [0, 1], [0, -1], [1, 1], [1, -1], [-1, 1], [-1, -1]];
-  while (head < tail && prev[goal] === -1) {
-    const at = queue[head++];
-    const x = at % cols; const y = Math.floor(at / cols);
-    for (const [dx, dy] of dirs) {
-      const nx = x + dx; const ny = y + dy;
-      if (nx < 0 || nx >= cols || ny < 0 || ny >= rows) continue;
-      const next = ny * cols + nx;
-      if (blocked[next] || prev[next] !== -1) continue;
-      if (dx && dy && (blocked[y * cols + nx] || blocked[ny * cols + x])) continue;
-      prev[next] = at;
-      queue[tail++] = next;
-    }
-  }
-  if (prev[goal] === -1) return [];
-  const route = [];
-  for (let at = goal; at !== start; at = prev[at]) route.push(cellCentre(at, cols));
-  route.reverse();
-  route.push(grid.canWalk(targetX, targetY) ? { x: targetX, y: targetY } : cellCentre(goal, cols));
-  return route;
-}
 
 // ---- interaction -----------------------------------------------------------
 
@@ -895,6 +811,64 @@ function drawHighlight(g, time) {
   g.restore();
 }
 
+// ---- collider debug overlay (?debug=colliders) -------------------------------
+// Off unless the page URL carries debug=colliders (comma lists allowed). Draws
+// the walk zones, the blocked pathfinding cells, every collider, the door
+// zones, the sprite boxes of the props and the player's footprint, so a
+// collider bigger than its drawing shows at a glance. Never drawn otherwise.
+const debugColliders = (() => {
+  try { return (new URLSearchParams(window.location.search).get('debug') || '').split(',').includes('colliders'); }
+  catch { return false; }
+})();
+
+function drawColliderDebug(g) {
+  const v = visibleWorld();
+  g.save();
+  g.lineWidth = 1.5;
+  // blocked pathfinding cells (the grid tap-to-move uses)
+  if (walkGrid) {
+    g.fillStyle = 'rgba(220,40,40,.26)';
+    const { cols, rows, blocked } = walkGrid;
+    for (let i = 0; i < cols * rows; i += 1) {
+      if (!blocked[i]) continue;
+      const x = (i % cols) * TOWN_TILE_SIZE; const y = WORLD_TOP + Math.floor(i / cols) * TOWN_TILE_SIZE;
+      if (x + TOWN_TILE_SIZE < v.x || x > v.x + v.w || y + TOWN_TILE_SIZE < v.y || y > v.y + v.h) continue;
+      g.fillRect(x + 1, y + 1, TOWN_TILE_SIZE - 2, TOWN_TILE_SIZE - 2);
+    }
+  }
+  // walk zones: the avatar's centre must stay inside one of these
+  g.strokeStyle = '#2f7bff'; g.setLineDash([8, 5]);
+  for (const z of TOWN_WALK_ZONES) g.strokeRect(z.x, z.y, z.w, z.h);
+  // sprite boxes of the placed props (to compare with their colliders)
+  g.strokeStyle = 'rgba(255,255,255,.75)'; g.setLineDash([3, 3]);
+  for (const item of objectCanvases) if (!String(item.id).startsWith('edge-')) g.strokeRect(item.x, item.y, item.w, item.h);
+  g.setLineDash([]);
+  // colliders
+  g.fillStyle = 'rgba(255,0,200,.30)'; g.strokeStyle = '#ff00c8';
+  for (const o of obstacles) {
+    g.beginPath();
+    if (o.type === 'rect') g.rect(o.x, o.y, o.w, o.h);
+    else g.arc(o.x, o.y, o.r, 0, Math.PI * 2);
+    g.fill(); g.stroke();
+  }
+  // door zones (E / tap opens within TOWN_DOOR_RADIUS of the door point)
+  g.strokeStyle = '#ffd400'; g.fillStyle = 'rgba(255,212,0,.16)';
+  for (const t of targets) {
+    g.beginPath(); g.arc(t.door.x, t.door.y, TOWN_DOOR_RADIUS, 0, Math.PI * 2); g.fill(); g.stroke();
+    g.fillStyle = '#ffd400'; g.beginPath(); g.arc(t.door.x, t.door.y, 3, 0, Math.PI * 2); g.fill();
+    g.fillStyle = 'rgba(255,212,0,.16)';
+  }
+  // the player's footprint and any tap-to-move route
+  g.strokeStyle = '#00e5ff'; g.lineWidth = 2;
+  g.beginPath(); g.arc(player.x, player.y, TOWN_AVATAR_RADIUS * 0.8, 0, Math.PI * 2); g.stroke();
+  if (player.path.length) {
+    g.beginPath(); g.moveTo(player.x, player.y);
+    for (const p of player.path.slice(player.waypoint)) g.lineTo(p.x, p.y);
+    g.stroke();
+  }
+  g.restore();
+}
+
 // ---- camera ----------------------------------------------------------------
 
 function cameraTarget() {
@@ -975,6 +949,7 @@ function tick(time) {
       if (item.id === 'campfire') drawFlame(ctx, TOWN_DESTINATIONS.campfire.flame.x, TOWN_DESTINATIONS.campfire.flame.y, time, reducedMotion);
     }
   }
+  if (debugColliders) drawColliderDebug(ctx);
   drawAffordableArrows(ctx, time);
   drawSpeech(ctx, time);
   drawEmote(ctx, time);
@@ -1030,6 +1005,19 @@ onMounted(async () => {
   window.addEventListener('keydown', onKeyDown);
   window.addEventListener('keyup', onKeyUp);
   window.addEventListener('blur', onBlur);
+  // Read-only test hook, only with ?debug=colliders (tests/mobile/town-walk.e2e.mjs).
+  if (debugColliders) {
+    window.__qqTown = {
+      player: () => ({ x: player.x, y: player.y, moving: player.moving }),
+      camera: () => ({ x: camera.x, y: camera.y }),
+      view: () => { const w = visibleWorld(); return { ...w, cssWidth: view.width / view.dpr, cssHeight: view.height / view.dpr }; },
+      doors: () => targets.map((t) => ({ id: t.id, x: t.door.x, y: t.door.y })),
+      route: (x, y) => findPath(player.x, player.y, x, y, walkGrid).map((p) => ({ x: p.x, y: p.y })),
+      nearDoor: () => closestTarget()?.id ?? null,
+      walkZones: () => TOWN_WALK_ZONES.map((z) => ({ ...z })),
+      zone: () => zone,
+    };
+  }
   raf = requestAnimationFrame(tick);
 });
 onUnmounted(() => {
@@ -1039,6 +1027,7 @@ onUnmounted(() => {
   window.removeEventListener('keyup', onKeyUp);
   window.removeEventListener('blur', onBlur);
   keys.clear();
+  if (debugColliders) delete window.__qqTown;
 });
 
 defineExpose({ openEmotes: openWheel, focus: () => canvas.value?.focus({ preventScroll: true }) });
