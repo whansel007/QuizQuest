@@ -230,7 +230,7 @@ top of the card ("← Back to Kingdom") was cut off.
 `.room-join-block`'s `border-bottom`, and three rules squeezed that block:
 - `HeroLabView.vue:450`: the block had `min-height: 0` and centred its content.
 - `HeroLabView.vue:448`: `.room-entry` was `height: 100%; overflow: hidden` inside...
-- `HeroLabView.vue:402`: ...the fixed percentage rows `16.2% 14.9%`.
+- `HeroLabView.vue:406`: ...the fixed percentage rows `16.2% 14.9%`.
 
 When the card's content was taller than those rows, the join block shrank below its content.
 The input and JOIN overflowed past the block's bottom border, so the dashed line was drawn
@@ -255,3 +255,62 @@ touch and with a mouse. At every width it checks:
 
 **Screenshots:** `F5-before.png` and `F5-after.png` (1280x800). The before shot shows the
 mouse-revealed top bar because the probe's pointer sits at the top edge.
+
+---
+
+## F6: Campfire Run scene composition
+
+**Status before:** not fixed. At 1280x800 the campfire sat in the left half. At 960x1440 the
+hero stood about 40 px lower than the campfire and was cut off by the hero selector.
+
+**Root cause:** in `web/src/student/HeroLabView.vue` (before the fix) the scene is a
+two-column grid (`.forest-scene`, line 545). The two halves are aligned independently:
+- The campfire sits at the *bottom* of the left column (`align-content: end`), so its
+  centre is at 25% of the width, not the middle.
+- The hero (`.hero-preview-art`, line 584) is an absolutely positioned 512 px box,
+  `bottom: 12px`, in the right column. Breakpoints then shrink it with
+  `transform: scale(.72/.5/.32)`. A scaled box keeps its full layout size, so its feet do not
+  line up with the fire.
+- Nothing knows where the hero selector starts, so on tall screens the sprite runs into it.
+
+**Fix: a measured composition.** `layoutScene()` in `HeroLabView.vue`, with the constants in
+`web/src/mobile-config.js`:
+- **The scene area S:** the scene box, starting 12 px below any panel that overlaps it (on
+  wide screens the room, Camp Buffs and dossier panels sit over its top). It ends
+  `SCENE_SELECTOR_GAP_PX = 12` above the hero selector.
+- **Ground line:** the bottom of S.
+- **Campfire:** centred in S, its log base (`CAMPFIRE_BASE_RATIO = 193/220` of the
+  drawing) on the ground line. Its width is min(300 px, 30% of S's width,
+  0.6 x S's height / base ratio), and at least 110 px.
+- **Hero:** stands on the same ground line, with height at most
+  `SCENE_HERO_MAX_HEIGHT_RATIO = 0.6` of S and at most 520 px. The sprite canvas is sized
+  by height, with no scale transforms or offsets.
+
+**Composition chosen:**
+- When S is 480 px or wider (`SCENE_FRONT_BELOW_PX`), the hero stands to the campfire's
+  right, 16 px from it. It shrinks if needed so its whole body stays inside S.
+- Under 480 px the hero stands in front of the fire, centred, with the fire still centred
+  behind it.
+- **Why:** beside the fire reads best and keeps both visible, but under 480 px two figures
+  side by side would each be too small to read.
+- The toggle has 24 px hysteresis.
+
+**Layout mechanics:**
+- A `ResizeObserver` watches the scene box, the selector and the panels. None of these is
+  sized by the absolutely placed art, so there is no feedback loop.
+- The layout also reruns on window resize, and while a newly chosen hero's sprite first
+  draws (to pick up its aspect ratio).
+- The campfire's position depends only on S, so changing the hero never moves it.
+- Until the first measurement, the original grid shows.
+
+**Test:** `tests/mobile/campfire-scene.spec.mjs`, at 360x640, 412x915, 960x1440, 768x1024,
+667x375, 1024x768, 1280x800 and 1440x900. It measures S from the page's own boxes and the
+hero from its sprite's opaque pixels, then checks:
+- the campfire's centre is within 2% of S's centre;
+- the hero's feet are within 4 px of the campfire's log base;
+- the whole hero is inside S, at least 12 px above the selector;
+- the campfire is inside S, and nothing passes the viewport's sides;
+- the hero is beside the fire when S is wide, and centred in front when narrow;
+- choosing another hero leaves the campfire exactly where it was.
+
+**Screenshots:** `F6-before.png` and `F6-after.png` (960x1440).

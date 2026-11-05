@@ -68,3 +68,18 @@ export function abbreviateCount(value) {
   if (n >= 1e4) return `${Math.floor(n / 100) / 10}k`;
   return n.toLocaleString('en-US');
 }
+
+// Campfire Run entry scene (docs/mobile/FIXES.md, F6). The scene area S is the
+// clearing between the panels above it and the hero selector (less this gap);
+// the campfire stands centred in S on its ground line and the hero beside it
+// on the same baseline, at most this share of S's height (and this many px).
+// Below SCENE_FRONT_BELOW_PX of width the hero stands in front of the fire.
+export const SCENE_SELECTOR_GAP_PX = 12;
+export const SCENE_HERO_MAX_HEIGHT_RATIO = 0.6;
+export const SCENE_HERO_MAX_PX = 520;
+export const SCENE_FRONT_BELOW_PX = 480;
+export const SCENE_CAMPFIRE_MAX_PX = 300;
+export const SCENE_CAMPFIRE_MIN_PX = 110;
+export const SCENE_SIDE_GAP_PX = 16;
+// where the logs meet the ground in the campfire drawing (viewBox 220 x 220)
+export const CAMPFIRE_BASE_RATIO = 193 / 220;

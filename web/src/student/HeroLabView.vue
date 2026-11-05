@@ -15,6 +15,10 @@ import TalentBadge from './TalentBadge.vue';
 import { GAME_CONFIG } from '../../../public/hero-lab/game-config.js';
 import { talentKeyLabel, talentKeyTooltip } from '../../../public/hero-lab/talent-badge.js';
 import {
+  CAMPFIRE_BASE_RATIO, SCENE_CAMPFIRE_MAX_PX, SCENE_CAMPFIRE_MIN_PX, SCENE_FRONT_BELOW_PX, SCENE_HERO_MAX_HEIGHT_RATIO,
+  SCENE_HERO_MAX_PX, SCENE_SELECTOR_GAP_PX, SCENE_SIDE_GAP_PX, belowWithHysteresis,
+} from '../mobile-config.js';
+import {
   BUILDING_BONUS_PER_LEVEL, BUILDING_LEVEL_CAP,
   HERO_PREVIEW_EMOJI_PX, HERO_PREVIEW_EMOJI_OFFSET_X_PX, HERO_PREVIEW_EMOJI_OFFSET_Y_PX,
   TOWER_BONUS_PER_LEVEL, TOWER_MAX_LEVEL,
@@ -189,6 +193,84 @@ onMounted(async () => {
   catch { kingdomLevels.value = {}; }
   applyInitialHero();
 });
+// ---- F6 (docs/mobile/FIXES.md): compose the campfire scene from measured sizes ----
+// S is the clearing between the panels above the scene and the hero selector
+// (less SCENE_SELECTOR_GAP_PX). The campfire is centred in S on its ground
+// line; the hero stands on the same baseline beside it, or in front of it when
+// S is narrower than SCENE_FRONT_BELOW_PX. The hero never moves the campfire.
+const sidesEl = ref(null);
+const sceneEl = ref(null);
+const selectorEl = ref(null);
+const scene = ref(null);
+let heroInFront = false;
+function heroAspect() {
+  const art = sceneEl.value?.querySelector('.hero-preview-art canvas.hero-icon');
+  return art && art.height ? art.width / art.height : 1;
+}
+function layoutScene() {
+  const box = sceneEl.value?.getBoundingClientRect();
+  const selector = selectorEl.value?.getBoundingClientRect();
+  if (!box || !selector || !box.width || !box.height) { scene.value = null; return; }
+  // the panels that share the scene's columns sit above it on wide screens
+  let top = box.top;
+  for (const panel of sidesEl.value?.querySelectorAll('.room-entry, .kingdom-preview, .hero-preview') || []) {
+    const r = panel.getBoundingClientRect();
+    if (r.bottom > box.top && r.top < box.bottom && r.bottom < selector.top) top = Math.max(top, r.bottom + SCENE_SELECTOR_GAP_PX);
+  }
+  const bottom = Math.min(box.bottom, selector.top - SCENE_SELECTOR_GAP_PX);
+  const sw = box.width;
+  const sh = Math.max(0, bottom - top);
+  const cx = sw / 2;
+  const ground = bottom - box.top; // scene-local y of the ground line
+  heroInFront = belowWithHysteresis(sw, SCENE_FRONT_BELOW_PX, heroInFront);
+  const fireW = Math.round(Math.max(SCENE_CAMPFIRE_MIN_PX, Math.min(SCENE_CAMPFIRE_MAX_PX, sw * 0.3, sh * SCENE_HERO_MAX_HEIGHT_RATIO / CAMPFIRE_BASE_RATIO)));
+  const aspect = heroAspect();
+  let heroH = Math.min(SCENE_HERO_MAX_PX, sh * SCENE_HERO_MAX_HEIGHT_RATIO);
+  if (!heroInFront) {
+    // beside the fire: keep the whole hero inside S's right edge
+    const room = sw - 8 - (cx + fireW / 2 + SCENE_SIDE_GAP_PX);
+    heroH = Math.min(heroH, room / aspect);
+  } else {
+    heroH = Math.min(heroH, (sw - 16) / aspect);
+  }
+  heroH = Math.max(0, Math.floor(heroH));
+  const heroW = Math.round(heroH * aspect);
+  const heroLeft = heroInFront ? cx - heroW / 2 : cx + fireW / 2 + SCENE_SIDE_GAP_PX;
+  scene.value = {
+    front: heroInFront,
+    style: {
+      '--s-top': `${top - box.top}px`,
+      '--s-height': `${sh}px`,
+      '--fire-w': `${fireW}px`,
+      '--fire-left': `${cx - fireW / 2}px`,
+      '--fire-top': `${ground - fireW * CAMPFIRE_BASE_RATIO}px`,
+      '--hero-w': `${heroW}px`,
+      '--hero-h': `${heroH}px`,
+      '--hero-left': `${heroLeft}px`,
+      '--hero-top': `${ground - heroH}px`,
+    },
+  };
+}
+// Only boxes outside the composition are observed (the scene box, the
+// selector, the panels): the absolutely placed art cannot resize them, so
+// there is no feedback loop.
+const sceneObserver = typeof ResizeObserver === 'function' ? new ResizeObserver(() => layoutScene()) : null;
+watch([sceneEl, selectorEl, sidesEl], () => {
+  sceneObserver?.disconnect();
+  for (const el of [sceneEl.value, selectorEl.value, ...(sidesEl.value?.querySelectorAll('.room-entry, .kingdom-preview, .hero-preview') || [])]) if (el) sceneObserver?.observe(el);
+  nextTick(layoutScene);
+});
+// a new hero only changes the hero's own width once its sprite has drawn
+let aspectFrames = 0;
+function settleHeroAspect() {
+  const before = heroAspect();
+  layoutScene();
+  if (aspectFrames-- > 0) requestAnimationFrame(() => { if (heroAspect() !== before || aspectFrames % 10 === 0) layoutScene(); settleHeroAspect(); });
+}
+watch(previewHero, () => { aspectFrames = 90; nextTick(settleHeroAspect); });
+window.addEventListener('resize', layoutScene);
+onUnmounted(() => { sceneObserver?.disconnect(); window.removeEventListener('resize', layoutScene); aspectFrames = 0; });
+
 // The app shell hides its own nav while the game is on screen.
 watch(inGame, (playing) => { S.gameActive = playing; }, { immediate: true });
 onUnmounted(() => {
@@ -209,7 +291,7 @@ onUnmounted(() => {
       <p v-if="loadingRoster" class="muted">Loading your hero collection…</p>
       <div v-else-if="rosterError" class="note bad">{{ rosterError }}</div>
 
-      <div class="world-sides">
+      <div ref="sidesEl" class="world-sides">
         <section class="panel room-entry" aria-label="Room entry">
           <div class="room-join-block">
             <button class="kingdom-return" type="button" @click="wipeTo('kingdom')"><span aria-hidden="true">←</span> Back to Kingdom</button>
@@ -289,8 +371,8 @@ onUnmounted(() => {
           </div>
         </section>
 
-        <section class="forest-scene" aria-label="A forest campfire with your selected hero">
-          <div class="campfire-spotlight">
+        <section ref="sceneEl" class="forest-scene" :class="{ composed: scene, 'hero-in-front': scene?.front }" :style="scene?.style" aria-label="A forest campfire with your selected hero" data-testid="campfire-scene">
+          <div class="campfire-spotlight" data-testid="scene-campfire">
             <div class="campfire-glow" aria-hidden="true"></div>
             <svg class="campfire-art" viewBox="0 0 220 220" role="img" aria-label="A small animated campfire">
               <ellipse cx="110" cy="193" rx="77" ry="14" fill="#122b24" opacity=".42"/>
@@ -308,7 +390,7 @@ onUnmounted(() => {
               <g class="fire-sparks" fill="#ffe28a"><circle cx="72" cy="88" r="3"/><circle cx="151" cy="73" r="2.5"/><circle cx="131" cy="47" r="2"/></g>
             </svg>
           </div>
-          <div class="hero-spotlight">
+          <div class="hero-spotlight" data-testid="scene-hero">
             <div class="hero-halo" aria-hidden="true"></div>
             <div class="hero-preview-art"><HeroIcon v-if="previewHero" :hero="previewHero" :size="HERO_PREVIEW_EMOJI_PX * 3.2" :label="`${previewHero.name}, selected hero`" animated /></div>
           </div>
@@ -317,7 +399,7 @@ onUnmounted(() => {
           <span class="forest-firefly firefly-three" aria-hidden="true"></span>
         </section>
 
-        <section class="hero-selector" aria-label="Choose your hero">
+        <section ref="selectorEl" class="hero-selector" aria-label="Choose your hero" data-testid="hero-selector">
           <div class="roster-heading"><strong>Choose an adventurer</strong></div>
           <div class="hero-roster-grid" :style="{ '--hero-cols': orderedHeroes.length }">
             <button
@@ -750,4 +832,18 @@ onUnmounted(() => {
 /* touch screens read the touch controls instead of the keyboard ones */
 .hint-touch-controls { display: none; }
 @media (pointer: coarse) { .hint-keys { display: none; } .hint-touch-controls { display: inline; } }
+/* ---- F6 (docs/mobile/FIXES.md): the composed scene ----
+   HeroLabView measures the clearing S and sets these variables; the campfire
+   and the hero are placed on one ground line inside it. Until the first
+   measurement the original grid layout shows. */
+.forest-scene.composed { display: block; }
+.forest-scene.composed .campfire-spotlight { position: absolute; top: var(--fire-top); left: var(--fire-left); display: block; width: var(--fire-w); height: var(--fire-w); padding: 0; }
+.forest-scene.composed .campfire-art { display: block; width: 100%; height: 100%; max-height: none; }
+.forest-scene.composed .campfire-glow { bottom: 0; width: calc(var(--fire-w) * 1.4); }
+.forest-scene.composed .hero-spotlight { position: absolute; top: var(--hero-top); left: var(--hero-left); display: block; width: var(--hero-w); height: var(--hero-h); margin: 0; padding: 0; }
+.forest-scene.composed.hero-in-front .hero-spotlight { z-index: 2; }
+.forest-scene.composed .hero-halo { top: auto; bottom: 0; width: calc(var(--hero-h) * 1.3); height: var(--hero-h); }
+.forest-scene.composed .hero-preview-art { position: absolute; inset: 0; display: flex; align-items: flex-end; justify-content: center; width: 100%; height: 100%; max-width: none; transform: none; }
+.forest-scene.composed .hero-preview-art > canvas.hero-icon { width: auto !important; height: 100% !important; max-width: none; transform: none; }
+.forest-scene.composed .hero-preview-art > .hero-emoji { font-size: calc(var(--hero-h) * .8) !important; line-height: 1; transform: none; }
 </style>
