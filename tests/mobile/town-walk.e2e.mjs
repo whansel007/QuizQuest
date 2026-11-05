@@ -115,22 +115,39 @@ async function walkTo(page, drive, target, { arrived, label = 'walk' } = {}) {
   let lastMove = s;
   let step = 0; // how far the avatar moved between the last two samples
   const start = s.t;
+  // generous: the route at a third of the walking speed (180 px/s), plus 10 s
+  let length = 0; let from = s;
+  for (const p of route) { length += Math.hypot(p.x - from.x, p.y - from.y); from = p; }
+  const timeoutMs = 10_000 + (length / 60) * 1000;
+  let prev = { x: s.x, y: s.y };
   for (let i = 0; i < route.length && !goal(s); i += 1) {
     const wp = route[i];
     const last = i === route.length - 1;
     for (;;) {
       const dx = wp.x - s.x; const dy = wp.y - s.y;
-      if (goal(s) || Math.hypot(dx, dy) < (last ? 4 : 10)) break;
-      // a dead band of about one step, so 8-way input never see-saws round a point
+      if (goal(s)) break;
+      if (!last) {
+        // close enough, or already past it (8-way input can overshoot a cell centre)
+        const passed = dx * (wp.x - prev.x) + dy * (wp.y - prev.y) <= 0;
+        if (passed || Math.hypot(dx, dy) < Math.max(10, step * 1.5)) break;
+      } else if (Math.hypot(dx, dy) < 4) break;
+      // a dead band of about one step, so 8-way input never see-saws round a point;
+      // at least one axis always gets input, so the avatar never idles short of the goal
       const band = Math.min(5, Math.max(2, step * 0.6));
-      await drive.set({ right: dx > band, left: dx < -band, down: dy > band, up: dy < -band });
+      const dir = { right: dx > band, left: dx < -band, down: dy > band, up: dy < -band };
+      if (!dir.right && !dir.left && !dir.down && !dir.up) {
+        if (Math.abs(dx) >= Math.abs(dy)) dir[dx > 0 ? 'right' : 'left'] = true; else dir[dy > 0 ? 'down' : 'up'] = true;
+      }
+      await drive.set(dir);
       const previous = s;
       s = await sample(page);
       step = Math.hypot(s.x - previous.x, s.y - previous.y);
       if (step > 0.01) lastMove = s;
-      expect(s.t - lastMove.t, `${label}: stalled at (${s.x.toFixed(1)}, ${s.y.toFixed(1)}) on the way to (${wp.x}, ${wp.y})`).toBeLessThan(STALL_MS);
-      expect(s.t - start, `${label}: timed out`).toBeLessThan(40_000);
+      const where = `(${s.x.toFixed(1)}, ${s.y.toFixed(1)}) on the way to waypoint ${i + 1}/${route.length} (${wp.x}, ${wp.y})`;
+      expect(s.t - lastMove.t, `${label}: stalled at ${where}`).toBeLessThan(STALL_MS);
+      expect(s.t - start, `${label}: timed out at ${where}`).toBeLessThan(timeoutMs);
     }
+    prev = wp;
   }
   await drive.release();
   return sample(page);
