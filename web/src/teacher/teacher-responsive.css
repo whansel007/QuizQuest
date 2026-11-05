@@ -67,6 +67,21 @@ html:has(.teacher-app) {
   /* tile info buttons and the by-topic expand buttons */
   .teacher-app .tile .info-btn { min-width: 44px; min-height: 44px; }
   .teacher-app .by-topic-table .topic-row .btn.small { width: 44px; height: 44px; }
-  /* pagination: numbered page buttons */
-  .teacher-app .pager .btn { min-width: 44px; }
+  /* pagination: numbered page buttons, and every small icon-like button
+     ("×", "Close", page numbers) is at least as wide as it is tall */
+  .teacher-app .btn.small { min-width: 44px; }
+  /* question editor: the correct-option radio/checkbox sits in a 44px label */
+  .teacher-app .opt-row .opt-pick { display: inline-flex; flex: none; align-items: center; justify-content: center; width: 44px; height: 44px; margin: 0; }
+  .teacher-app .opt-row .opt-pick > input { margin: 0; }
+  /* pick, option text and remove stay on one line; the text takes the rest */
+  .teacher-app .question-editor .opt-row { flex-wrap: nowrap; align-items: center; gap: 6px; }
+  .teacher-app .question-editor .opt-row textarea { flex: 1 1 0; min-width: 0; }
+}
+
+/* ---------- Question bank ---------- */
+/* card review on a phone on its side: the pinned Deny/Approve bar is
+   slimmer, so it and the top bar stay under ~30% of the height */
+@media (max-width: 767.98px) and (max-height: 480px) {
+  .teacher-app .card-review .cr-decide { padding: 4px 0; }
+  .teacher-app .card-review .cr-decide > .btn { min-height: 44px; }
 }
