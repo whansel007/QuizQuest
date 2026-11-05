@@ -454,3 +454,38 @@ bar at `bottom: calc(74px + safe-area)`, separate from the `.town-actions` row o
 On desktop, the keyboard hints stay and the touch hint is hidden. Passed 3 times in a row.
 
 **Screenshots:** `F9-before.png` and `F9-after.png` (375x667).
+
+---
+
+## F10: touch aim line under the hero sprite
+
+The fix was done in a separate worktree and cherry-picked. The full write-up is in
+[`fixes/F10.md`](fixes/F10.md).
+
+**Status before:** not fixed. The dashed touch-aim line crossed the hero's face.
+
+**Root cause:** `public/hero-lab/world.js` (before the fix). `drawScene` (line 5102) painted
+everything in one hand-ordered function. `drawTouchAim()` was the last world-space call
+(line 5971), after the hero sprites (line 5654). It drew the line from the hero's centre and
+the end reticle in one pass, so the line lay over the sprite. The Ranger's bow and Dead Aim
+guide was already under the sprite.
+
+**Fix:**
+- `ARENA_DRAW_ORDER` in `public/hero-lab/game-config.js`, from bottom to top: `ground`,
+  `campfireRings`, `campfire`, `aimLines`, `shadows`, `enemies`, `worldMarkers`, `heroes`,
+  `effects`, `aimReticle`, `screenEffects`, `hud`.
+- `drawScene` loops over that list, with one painter per layer.
+- The touch aim is split: the line draws in `aimLines`, and the reticle draws in
+  `aimReticle` (above enemies).
+- No change to aim logic, to the messages sent or to their geometry.
+- The Engineer laser and the area telegraphs keep their depth. The brief also says "do not
+  move area markers", so only the permanent campfire rings sit under the aim lines.
+
+**Tests:**
+- `tests/mobile/arena-draw-order.unit.test.mjs`: layer order, and that each pass runs once
+  from the right layer.
+- `tests/mobile/aim-line-layer.e2e.mjs`: a Guardian aiming at 667x375. No aim-coloured pixel
+  inside the sprite's box, and the line is still visible beyond it. Before the fix it found
+  54 such pixels; after, 0.
+
+**Screenshots:** `F10-before.png` and `F10-after.png`.
