@@ -1417,7 +1417,7 @@ dialog.insight::backdrop { background: rgba(10, 12, 20, 0.45); }
   body .teacher-app {
     --bg: #ffffff; --panel: #ffffff; --ink: #111111; --muted: #555555; --line: #d8d8d8;
     --accent: #3343b8; --accent-ink: #ffffff; --accent-soft: #eef0fb; --shadow: none;
-    display: block; min-height: 0; background: #fff;
+    display: block; min-height: 0; background: #fff; color-scheme: light;
   }
   .teacher-app .t-sidebar, .teacher-app .t-scrim, .teacher-app header#top.t-topbar { display: none !important; }
   .teacher-app .t-sidebar, .teacher-app .t-scrim, .teacher-app header#top.t-topbar { display: none !important; }
@@ -2868,6 +2868,8 @@ main#main.main-practice .quiz-battle-stage {
   --t-side-bg: #FFFFFF;
   --t-side-line: #DCE3EE;
   --t-section: #EEF3FC;
+  /* native controls (date pickers, scrollbars, checkboxes) follow the shell */
+  color-scheme: light;
   display: grid;
   grid-template-columns: var(--t-side) minmax(0, 1fr);
   min-height: 100vh;
@@ -2888,6 +2890,7 @@ main#main.main-practice .quiz-battle-stage {
     --t-side-bg: #141B28;
     --t-side-line: #283246;
     --t-section: #172238;
+    color-scheme: dark;
   }
 }
 body:has(.teacher-app) { background: var(--bg); }
@@ -2930,6 +2933,10 @@ body:has(.teacher-app) { background: var(--bg); }
 .teacher-app .btn { border-radius: 8px; }
 .teacher-app .btn.primary:hover:not(:disabled) { filter: brightness(1.06); }
 .teacher-app :is(input:not([type]), input[type="text"], input[type="search"], input[type="number"], input[type="email"], input[type="password"], input[type="date"], select, textarea) { border-radius: 8px; }
+/* date fields take the shell's field colours (the base field rule leaves them
+   out, so they kept the browser's white box in dark mode) */
+.teacher-app input[type="date"] { max-width: 100%; padding: 8px 10px; font: inherit; color: var(--ink); background: var(--bg); border: 1px solid var(--line); }
+.teacher-app input[type="date"]:disabled { opacity: .6; }
 /* page toolbar: title on the left, the page's pickers and actions on the right */
 .t-toolbar { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 14px; margin: 0 0 18px; }
 .t-toolbar > h2 { flex: 1 1 auto; margin: 0; }
@@ -3176,6 +3183,28 @@ button.attention-card:hover .attention-go, button.attention-card:focus-visible .
   main#main.main-practice .quiz-summary-card,
   main#main.main-practice .quiz-content-column > .quiz-details-card:only-child { max-height: calc(100svh - 20px); }
 }
+/* Small battle stages (phones in portrait, e.g. an iPhone 6, and the side
+   column of a phone in landscape): the HP cards covered both fighters, because
+   the cards spanned the middle of the stage and the sprites were sized from
+   the viewport. The stage is split into corners instead - Fog card top left,
+   Fog top right, hero bottom left, hero card bottom right with the turn label
+   under it - and everything is sized from the stage itself (cq units). */
+@media (max-width: 560px), (min-width: 561px) and (max-width: 900px) and (max-height: 600px) {
+  main#main.main-practice .quiz-battle-stage { container-type: size; }
+  main#main.main-practice .battle-enemy-status,
+  main#main.main-practice .battle-player-status { width: 58cqw; max-width: 280px; padding: 7px 9px; }
+  main#main.main-practice .battle-enemy-status { top: 4cqh; left: 3cqw; }
+  main#main.main-practice .battle-player-status { right: 3cqw; bottom: calc(3cqh + 16px); }
+  main#main.main-practice .battle-status-top { font-size: 9px; }
+  main#main.main-practice .battle-name { margin: 3px 0 5px; font-size: clamp(13px, 5cqw, 16px); }
+  main#main.main-practice .battle-health { height: 10px; }
+  main#main.main-practice .battle-enemy { top: 3cqh; right: 2cqw; width: 38cqw; height: 46cqh; }
+  main#main.main-practice .battle-player { bottom: 3cqh; left: 2cqw; width: 38cqw; height: 48cqh; }
+  main#main.main-practice .battle-enemy-sprite { font-size: min(30cqh, 25cqw); }
+  main#main.main-practice .battle-player-sprite .duel-avatar-preview { width: min(46cqh, 36cqw) !important; }
+  main#main.main-practice .battle-turn-label { left: auto; right: 3cqw; bottom: 3cqh; max-width: 58cqw; transform: none; font-size: 11px; text-align: right; }
+  main#main.main-practice .battle-damage { font-size: clamp(22px, 9cqw, 34px); }
+}
 @media (pointer: coarse) and (max-width: 900px) {
   header#top.student-immersive-nav nav#tabs button { min-height: 44px; padding: 9px 12px; }
   .nav-peek { width: 54px; height: 28px; font-size: 11px; }
@@ -3183,7 +3212,7 @@ button.attention-card:hover .attention-go, button.attention-card:focus-visible .
 
 /* ---------- professor workspace: phone and small tablet layouts ---------- */
 @media (max-width: 767.98px) {
-  .teacher-app { min-height: 100vh; min-height: 100dvh; overflow-x: clip; }
+  .teacher-app { min-height: 100vh; min-height: 100dvh; }
   .teacher-app header#top.t-topbar {
     padding: max(6px, env(safe-area-inset-top)) max(12px, env(safe-area-inset-right)) 6px max(12px, env(safe-area-inset-left));
   }
@@ -3198,7 +3227,6 @@ button.attention-card:hover .attention-go, button.attention-card:focus-visible .
   .teacher-app main#main.main-teacher {
     min-width: 0;
     padding: 16px max(12px, env(safe-area-inset-right)) calc(30px + env(safe-area-inset-bottom)) max(12px, env(safe-area-inset-left));
-    overflow-x: clip;
   }
   .teacher-app main#main.main-teacher > * { min-width: 0; max-width: 100%; }
   .teacher-app h2 { font-size: clamp(21px, 5.5vw, 26px); }

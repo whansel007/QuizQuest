@@ -15,6 +15,9 @@ import '@fontsource/nunito/latin-700.css';
 import 'bootstrap/dist/css/bootstrap-utilities.css';
 import './app.css';
 import './mobile.css';
+// professor workspace responsive rules (all under .teacher-app); after
+// app.css and mobile.css so they win ties with the shell rules they refine
+import './teacher/teacher-responsive.css';
 
 // --app-vh: 1% of the visible height. iOS Safari's 100vh ignores its own
 // toolbar and the soft keyboard; visualViewport reports what is really

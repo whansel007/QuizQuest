@@ -58,7 +58,7 @@ const targetId = useId();
   <template v-else-if="loaded">
     <p v-if="!course">You have no assigned courses.</p>
     <template v-else>
-      <Heading title="Settings"><CoursePicker :courses="courses" /></Heading>
+      <Heading title="Settings" data-testid="settings-page"><CoursePicker :courses="courses" /></Heading>
       <div class="panel">
         <h3>Subject guidance for AI drafting</h3>
         <p class="small muted">Added to every drafting prompt for this course (e.g. "use SI units", "prefer applied scenarios"). It is the per-subject "skill" from proposal §6.</p>
@@ -72,7 +72,7 @@ const targetId = useId();
       <div class="panel">
         <h3>Semester dates</h3>
         <p class="small muted">Used by "This semester" on the Analytics dashboard: from the start date to today, or to the end date once the semester is over. Update them at the start of each term.</p>
-        <form class="row" @submit.prevent>
+        <form class="row semester-dates" @submit.prevent>
           <label class="small" style="margin: 0">Semester starts <input v-model="semester.start" type="date" :max="semester.end || undefined" /></label>
           <label class="small" style="margin: 0">Ends (optional) <input v-model="semester.end" type="date" :min="semester.start || undefined" :disabled="!semester.start" /></label>
           <AsyncButton class="btn primary" :run="saveSemester">{{ semester.start ? 'Save dates' : 'Clear dates' }}</AsyncButton>

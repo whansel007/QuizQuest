@@ -182,8 +182,11 @@ const plainLabel = 'font-weight:400;color:inherit';
         <label>{{ type === 'multi' ? 'Options (tick every correct one)' : 'Options (select the correct one)' }}</label>
         <div>
           <div v-for="(o, i) in st.options" :key="o.key" class="opt-row">
-            <input v-if="type === 'multi'" v-model="o.right" type="checkbox" :name="radioName" :aria-label="'Option '+(i+1)+' is correct'" />
-            <input v-else type="radio" :name="radioName" :checked="o.right" :aria-label="'Option '+(i+1)+' is correct'" @change="pickRight(i)" />
+            <!-- the label is the touch target (44px on phones, teacher-responsive.css) -->
+            <label class="opt-pick">
+              <input v-if="type === 'multi'" v-model="o.right" type="checkbox" :name="radioName" :aria-label="'Option '+(i+1)+' is correct'" />
+              <input v-else type="radio" :name="radioName" :checked="o.right" :aria-label="'Option '+(i+1)+' is correct'" @change="pickRight(i)" />
+            </label>
             <textarea v-model="o.text" rows="2" :aria-label="'Option '+(i+1)"></textarea>
             <button class="btn small" :aria-label="'Remove option '+(i+1)" :disabled="st.options.length<=3" @click="removeOption(i)">&times;</button>
           </div>
@@ -283,6 +286,7 @@ const plainLabel = 'font-weight:400;color:inherit';
 .opt-row { display:flex; align-items:flex-start; gap:10px; margin:8px 0; }
 .opt-row textarea { flex:1; min-width:0; }
 .opt-row input[type=radio], .opt-row input[type=checkbox] { margin-top:12px; }
+.opt-row .opt-pick { margin:0; }
 .advanced-options, .editor-preview { padding:12px 0; }
 summary { cursor:pointer; font-weight:600; }
 @media (max-width: 767.98px) { .opt-row { flex-wrap:wrap; } .opt-row textarea { flex-basis:70%; } }

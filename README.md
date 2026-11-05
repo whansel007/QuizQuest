@@ -98,6 +98,10 @@ Set `SUPABASE_URL` and `SUPABASE_SECRET_KEY` in `.env`, then run `pnpm dev`. On 
 | `pnpm test:e2e:retry` | Run each end-to-end journey twice, to catch flaky tests |
 | `pnpm test:mobile` | Run the mobile harness and the touch smoke test (see Mobile support and testing) |
 | `pnpm test:mobile:unit` | Run the touch-control unit tests |
+| `pnpm test:prof-responsive` | Build and run the professor-workspace responsive tests (375-1200 px) |
+| `pnpm audit:prof-responsive` | Build and run the professor responsive audit (report and screenshots, see below) |
+| `pnpm jitter:prof-responsive` | Build and run the professor resize-jitter sweeps |
+| `pnpm seed:prof-responsive` | Write the dev-only populated professor fixture to `data/prof-responsive.json` |
 | `pnpm check` | Run the JavaScript syntax checks |
 | `pnpm reset-data` | Delete local JSON demo data |
 | `pnpm db:reset --confirm` | Clear and re-seed the configured Supabase project |
@@ -169,6 +173,47 @@ A tap aims automatically at the nearest enemy in range. Dragging back onto the b
 ### Responsive design
 
 Every page uses fluid layouts (CSS grid and flex with `minmax(0, 1fr)`), `clamp()` for type and spacing, and a few breakpoints that follow Bootstrap's (576, 768, 992, 1200 px), plus touch-specific rules under `(pointer: coarse)` and orientation queries for short landscape screens. The page itself (`html`/`body`) never hides overflow: the harness measures every page at every size and fails on any horizontal scroll or clipped content, so each overflow was fixed at its cause (fixed widths, a scaled sprite box, a ten-chip row). Wide tables scroll inside their own box with a shadow hint or turn into stacked cards on phones; long selector rows scroll sideways with scroll-snap. Navigation collapses into a drawer, dialogs become full-screen sheets with a fixed header on phones, and every touch target is at least 44 x 44 px with 16 px form fields, so iOS never zooms on focus. Heights use `dvh`/`svh` with a `visualViewport` fallback, and safe-area insets keep controls clear of notches. The game keeps its server rules untouched: touch input sends exactly the messages the keyboard and mouse send, and a follow camera, a compact HUD and on-screen controls make it playable on a phone.
+
+## Professor workspace responsive design and testing
+
+The professor workspace (Analytics, To review, Classes & Roster, Question bank, AI drafting, Evaluation, Settings) is supported from **375 px** (iPhone 6/SE width) to **1200 px** and wider, in portrait and short landscape (667x375, 740x360). It follows Bootstrap's breakpoints:
+
+- **1200 px and up**: sidebar beside the content
+- **992-1199 px**: the panels stack
+- **below 992 px**: a sticky top bar and an off-canvas navigation drawer
+- **below 768 px**: 44 px touch targets, 16 px inputs, single-column forms and bottom-sheet dialogs
+- **below 576 px**: one-row-per-item tables become stacked cards; wide number grids scroll inside their own box, with the first column pinned
+- **430 px and below**: tighter gutters
+
+The details, the tab-by-tab fixes and the known limits are in [docs/mobile/PROF-NOTES.md](docs/mobile/PROF-NOTES.md).
+
+**Check it in Chrome DevTools.** Open DevTools, turn on the device toolbar (Ctrl+Shift+M), choose *Responsive*, sign in as Prof. Demo A and try these widths: 375, 430, 575/576, 767/768, 991/992, 1199/1200, plus 667x375 and 740x360 for phones on their side. Check both sides of each pair. Open the menu below 992 px, the class dialogs, and the question editor. Drag the width slowly across 992 px with the drawer open: it closes cleanly.
+
+**Populated data.** `pnpm seed:prof-responsive` writes a dev-only demo file, which you then serve with `QUIZ_DATA_FILE=data/prof-responsive.json node server.js`. It contains 2 courses (one with a 61-character title), 4 active classes and 1 archived one, 46 students, 14 topics including a 60-character name and an unbroken string, 80+ questions in every status, answers waiting for marking, a generation log, and survey comments. It refuses to run with `NODE_ENV=production` or `SUPABASE_URL` set, and never touches `data/db.json`.
+
+**Tests.**
+
+- `pnpm test:prof-responsive` (also part of `pnpm test:browser`) checks every tab at every width for:
+  - page overflow, elements off screen, overlaps and tap targets
+  - modal fit at 375x667 and 667x375
+  - sticky bars never covering focus, section jumps or the end of the page
+  - the drawer across 992 px
+  - layout that keeps moving after a resize, and ResizeObserver errors
+  - state kept through a resize sweep
+- `pnpm audit:prof-responsive -- --label after --shots` writes the full report (`docs/mobile/prof-audit-after.md`) and screenshots (`docs/mobile/screenshots/prof/after/`).
+- `pnpm jitter:prof-responsive -- --label after` writes the resize measurements (`docs/mobile/prof-jitter-after.md`).
+
+A ten-minute manual pass on a real phone is in [docs/mobile/PROF-PHONE-CHECKLIST.md](docs/mobile/PROF-PHONE-CHECKLIST.md).
+
+**Approach (for the presentation).** We measured before changing anything. A browser harness signs in as a professor with realistic, deliberately awkward data (long names, an unbroken string, dozens of rows) and inspects all seven tabs at 13 viewport sizes, checking overflow, clipping, overlaps, sticky-bar cover, focus, tap-target size, console errors and the interactive states. The fixes then went in tab by tab, as layout-only CSS scoped to the professor shell, so the calm blue theme and the student pages stay unchanged. The rules include:
+
+- chart legends wrap
+- table headers keep whole words
+- wide grids scroll inside their box with a pinned first column
+- dialogs are bottom sheets with pinned actions
+- 44 px targets throughout
+
+We also measured resize behaviour separately. Nothing kept moving after a resize stopped, but the drawer's slide replayed across 992 px, an open drawer outlived the breakpoint, and the reading position drifted after big reflows. Each of these got a targeted fix, and the harness became the regression test suite. Before/after screenshots are paired in [docs/mobile/PROF-SCREENSHOTS.md](docs/mobile/PROF-SCREENSHOTS.md).
 
 ## AI authoring at a glance
 

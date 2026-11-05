@@ -1,0 +1,8532 @@
+[
+ {
+  "tab": "Analytics",
+  "viewport": "375x667",
+  "vw": 375,
+  "vh": 667,
+  "overflow": 0,
+  "offenders": [
+   {
+    "s": "ul.viz-legend > li",
+    "left": 21,
+    "right": 378,
+    "width": 357
+   },
+   {
+    "s": "ul.viz-legend > li",
+    "left": 21,
+    "right": 440,
+    "width": 419
+   }
+  ],
+  "clipped": [
+   {
+    "s": "main#main",
+    "how": "x",
+    "ellipsis": false,
+    "titled": false,
+    "by": 65
+   }
+  ],
+  "overlaps": [],
+  "smallTargets": [
+   {
+    "s": "div.row.small.muted > label(\"Auto-refresh every 30 second\") > input",
+    "w": 211,
+    "h": 30,
+    "inline": false,
+    "note": "via label"
+   },
+   {
+    "s": "button.info-btn.no-print(\"How the students who practised (last 30 days) comparison works\")",
+    "w": 24,
+    "h": 44,
+    "inline": false,
+    "note": ""
+   },
+   {
+    "s": "button.info-btn.no-print(\"How the sessions completed comparison works\")",
+    "w": 24,
+    "h": 44,
+    "inline": false,
+    "note": ""
+   },
+   {
+    "s": "button.info-btn.no-print(\"How the answers submitted comparison works\")",
+    "w": 24,
+    "h": 44,
+    "inline": false,
+    "note": ""
+   },
+   {
+    "s": "details.viz-table > summary(\"Show as a table\")",
+    "w": 333,
+    "h": 20,
+    "inline": false,
+    "note": ""
+   },
+   {
+    "s": "details.viz-table > summary(\"Show the chart data as a tab\")",
+    "w": 333,
+    "h": 20,
+    "inline": false,
+    "note": ""
+   },
+   {
+    "s": "button.btn.small(\"Show learning outcomes for Data representation\")",
+    "w": 28,
+    "h": 44,
+    "inline": false,
+    "note": ""
+   },
+   {
+    "s": "button.btn.small(\"Show learning outcomes for Networking basics\")",
+    "w": 28,
+    "h": 44,
+    "inline": false,
+    "note": ""
+   },
+   {
+    "s": "button.btn.small(\"Show learning outcomes for Cyber hygiene\")",
+    "w": 28,
+    "h": 44,
+    "inline": false,
+    "note": ""
+   },
+   {
+    "s": "button.btn.small(\"Show learning outcomes for Algorithms and flowcharts\")",
+    "w": 28,
+    "h": 44,
+    "inline": false,
+    "note": ""
+   },
+   {
+    "s": "button.btn.small(\"Show learning outcomes for Encryption, hashing and digital signatures in everyday systems\")",
+    "w": 28,
+    "h": 44,
+    "inline": false,
+    "note": ""
+   },
+   {
+    "s": "button.btn.small(\"Show learning outcomes for Databases and SQL\")",
+    "w": 28,
+    "h": 44,
+    "inline": false,
+    "note": ""
+   },
+   {
+    "s": "button.btn.small(\"Show learning outcomes for How the web works\")",
+    "w": 28,
+    "h": 44,
+    "inline": false,
+    "note": ""
+   },
+   {
+    "s": "button.btn.small(\"Show learning outcomes for AI ethics and bias\")",
+    "w": 28,
+    "h": 44,
+    "inline": false,
+    "note": ""
+   },
+   {
+    "s": "button.btn.small(\"Show learning outcomes for Supercalifragilistic_unbroken_identifier_string_for_wrapping_checks_2026\")",
+    "w": 28,
+    "h": 44,
+    "inline": false,
+    "note": ""
+   },
+   {
+    "s": "button.btn.small(\"Show learning outcomes for Hardware and operating systems\")",
+    "w": 28,
+    "h": 44,
+    "inline": false,
+    "note": ""
+   },
+   {
+    "s": "details.small.muted.how-measured > summary(\"How this is measured\")",
+    "w": 333,
+    "h": 20,
+    "inline": false,
+    "note": ""
+   },
+   {
+    "s": "button.btn.small(\"Page 1\")",
+    "w": 32,
+    "h": 44,
+    "inline": false,
+    "note": ""
+   },
+   {
+    "s": "button.btn.small(\"Page 2\")",
+    "w": 32,
+    "h": 44,
+    "inline": false,
+    "note": ""
+   },
+   {
+    "s": "button.btn.small(\"Page 4\")",
+    "w": 32,
+    "h": 44,
+    "inline": false,
+    "note": ""
+   },
+   {
+    "s": "button.btn.small(\"Page 1\")",
+    "w": 32,
+    "h": 44,
+    "inline": false,
+    "note": ""
+   },
+   {
+    "s": "button.btn.small(\"Page 2\")",
+    "w": 32,
+    "h": 44,
+    "inline": false,
+    "note": ""
+   },
+   {
+    "s": "button.btn.small(\"Page 3\")",
+    "w": 32,
+    "h": 44,
+    "inline": false,
+    "note": ""
+   }
+  ],
+  "smallTargetCount": 23,
+  "sticky": {
+   "bars": [
+    "header#top",
+    "nav.dash-nav.compact(\"Dashboard sections\")"
+   ],
+   "total": 113,
+   "share": 0.17
+  },
+  "end": {
+   "ok": true,
+   "bottom": 627,
+   "vh": 667,
+   "covered": null
+  },
+  "anchors": [
+   {
+    "id": "dash-overview",
+    "top": 426,
+    "cover": 327,
+    "ok": true
+   },
+   {
+    "id": "dash-weeks",
+    "top": 2268,
+    "cover": 300,
+    "ok": true
+   },
+   {
+    "id": "dash-trends",
+    "top": 4854,
+    "cover": 113,
+    "ok": true
+   },
+   {
+    "id": "dash-topics",
+    "top": 7676,
+    "cover": 113,
+    "ok": true
+   },
+   {
+    "id": "dash-missed",
+    "top": 14543,
+    "cover": 113,
+    "ok": true
+   },
+   {
+    "id": "dash-quality",
+    "top": 15895,
+    "cover": 113,
+    "ok": true
+   },
+   {
+    "id": "dash-compare",
+    "top": 18309,
+    "cover": 113,
+    "ok": true
+   }
+  ],
+  "focus": [
+   "select(\"Class\") at 37-81 under top"
+  ],
+  "log": {
+   "errors": [],
+   "warnings": [],
+   "failed": []
+  },
+  "issues": [
+   "outside viewport: ul.viz-legend > li (left 21, right 378, width 357)",
+   "outside viewport: ul.viz-legend > li (left 21, right 440, width 419)",
+   "clipped text (x, 65px): main#main",
+   "23 tap targets under 44px: div.row.small.muted > label(\"Auto-refresh every 30 second\") > input 211x30; button.info-btn.no-print(\"How the students who practised (last 30 days) comparison works\") 24x44; button.info-btn.no-print(\"How the sessions completed comparison works\") 24x44; button.info-btn.no-print(\"How the answers submitted comparison works\") 24x44; details.viz-table > summary(\"Show as a table\") 333x20; details.viz-table > summary(\"Show the chart data as a tab\") 333x20; button.btn.small(\"Show learning outcomes for Data representation\") 28x44; button.btn.small(\"Show learning outcomes for Networking basics\") 28x44",
+   "focus under sticky bar: select(\"Class\") at 37-81 under top"
+  ]
+ },
+ {
+  "tab": "To review",
+  "viewport": "375x667",
+  "vw": 375,
+  "vh": 667,
+  "overflow": 0,
+  "offenders": [],
+  "clipped": [],
+  "overlaps": [],
+  "smallTargets": [],
+  "smallTargetCount": 0,
+  "sticky": {
+   "bars": [
+    "header#top"
+   ],
+   "total": 57,
+   "share": 0.09
+  },
+  "end": {
+   "ok": true,
+   "bottom": 590,
+   "vh": 667,
+   "covered": null
+  },
+  "focus": [
+   "select(\"Class\") at 52-96 under top"
+  ],
+  "log": {
+   "errors": [],
+   "warnings": [],
+   "failed": []
+  },
+  "issues": [
+   "focus under sticky bar: select(\"Class\") at 52-96 under top"
+  ]
+ },
+ {
+  "tab": "Classes & Roster",
+  "viewport": "375x667",
+  "vw": 375,
+  "vh": 667,
+  "overflow": 0,
+  "offenders": [],
+  "clipped": [],
+  "overlaps": [],
+  "smallTargets": [
+   {
+    "s": "div.row > label(\"Show archived classes\") > input",
+    "w": 167,
+    "h": 26,
+    "inline": false,
+    "note": "via label"
+   }
+  ],
+  "smallTargetCount": 1,
+  "sticky": {
+   "bars": [
+    "header#top"
+   ],
+   "total": 57,
+   "share": 0.09
+  },
+  "end": {
+   "ok": true,
+   "bottom": 608,
+   "vh": 667,
+   "covered": null
+  },
+  "focus": [
+   "button(\"+ Create Class\") at 54-98 under top"
+  ],
+  "log": {
+   "errors": [],
+   "warnings": [],
+   "failed": []
+  },
+  "issues": [
+   "1 tap targets under 44px: div.row > label(\"Show archived classes\") > input 167x26",
+   "focus under sticky bar: button(\"+ Create Class\") at 54-98 under top"
+  ]
+ },
+ {
+  "tab": "Question bank",
+  "viewport": "375x667",
+  "vw": 375,
+  "vh": 667,
+  "overflow": 0,
+  "offenders": [],
+  "clipped": [],
+  "overlaps": [],
+  "smallTargets": [
+   {
+    "s": "details.question-provenance > summary(\"Sources & history\")",
+    "w": 333,
+    "h": 20,
+    "inline": false,
+    "note": ""
+   },
+   {
+    "s": "details.question-provenance > summary(\"Sources & history\")",
+    "w": 333,
+    "h": 20,
+    "inline": false,
+    "note": ""
+   },
+   {
+    "s": "details.question-provenance > summary(\"Sources & history\")",
+    "w": 333,
+    "h": 20,
+    "inline": false,
+    "note": ""
+   },
+   {
+    "s": "details.question-provenance > summary(\"Sources & history\")",
+    "w": 333,
+    "h": 20,
+    "inline": false,
+    "note": ""
+   },
+   {
+    "s": "details.question-provenance > summary(\"Sources & history\")",
+    "w": 333,
+    "h": 20,
+    "inline": false,
+    "note": ""
+   },
+   {
+    "s": "details.question-provenance > summary(\"Sources & history\")",
+    "w": 333,
+    "h": 20,
+    "inline": false,
+    "note": ""
+   },
+   {
+    "s": "details.question-provenance > summary(\"Sources & history\")",
+    "w": 333,
+    "h": 20,
+    "inline": false,
+    "note": ""
+   },
+   {
+    "s": "details.question-provenance > summary(\"Sources & history\")",
+    "w": 333,
+    "h": 20,
+    "inline": false,
+    "note": ""
+   }
+  ],
+  "smallTargetCount": 8,
+  "sticky": {
+   "bars": [
+    "header#top"
+   ],
+   "total": 57,
+   "share": 0.09
+  },
+  "end": {
+   "ok": true,
+   "bottom": 608,
+   "vh": 667,
+   "covered": null
+  },
+  "focus": [
+   "select(\"Intro to Computing (demo)Found\") at 52-96 under top"
+  ],
+  "log": {
+   "errors": [],
+   "warnings": [],
+   "failed": []
+  },
+  "issues": [
+   "8 tap targets under 44px: details.question-provenance > summary(\"Sources & history\") 333x20; details.question-provenance > summary(\"Sources & history\") 333x20; details.question-provenance > summary(\"Sources & history\") 333x20; details.question-provenance > summary(\"Sources & history\") 333x20; details.question-provenance > summary(\"Sources & history\") 333x20; details.question-provenance > summary(\"Sources & history\") 333x20; details.question-provenance > summary(\"Sources & history\") 333x20; details.question-provenance > summary(\"Sources & history\") 333x20",
+   "focus under sticky bar: select(\"Intro to Computing (demo)Found\") at 52-96 under top"
+  ]
+ },
+ {
+  "tab": "AI drafting",
+  "viewport": "375x667",
+  "vw": 375,
+  "vh": 667,
+  "overflow": 0,
+  "offenders": [],
+  "clipped": [],
+  "overlaps": [],
+  "smallTargets": [
+   {
+    "s": "details.panel > summary(\"Material library · Notes, im\")",
+    "w": 333,
+    "h": 23,
+    "inline": false,
+    "note": ""
+   }
+  ],
+  "smallTargetCount": 1,
+  "sticky": {
+   "bars": [
+    "header#top"
+   ],
+   "total": 57,
+   "share": 0.09
+  },
+  "end": {
+   "ok": true,
+   "bottom": 608,
+   "vh": 667,
+   "covered": null
+  },
+  "focus": [
+   "select(\"Intro to Computing (demo)Found\") at 54-98 under top"
+  ],
+  "log": {
+   "errors": [],
+   "warnings": [],
+   "failed": []
+  },
+  "issues": [
+   "1 tap targets under 44px: details.panel > summary(\"Material library · Notes, im\") 333x23",
+   "focus under sticky bar: select(\"Intro to Computing (demo)Found\") at 54-98 under top"
+  ]
+ },
+ {
+  "tab": "Evaluation",
+  "viewport": "375x667",
+  "vw": 375,
+  "vh": 667,
+  "overflow": 0,
+  "offenders": [],
+  "clipped": [],
+  "overlaps": [],
+  "smallTargets": [],
+  "smallTargetCount": 0,
+  "sticky": {
+   "bars": [
+    "header#top"
+   ],
+   "total": 57,
+   "share": 0.09
+  },
+  "end": {
+   "ok": true,
+   "bottom": 593,
+   "vh": 667,
+   "covered": null
+  },
+  "focus": [
+   "select(\"Intro to Computing (demo)Found\") at 54-98 under top",
+   "select(\"Intro to Computing (demo)Found\") at 0-44 under top",
+   "select(\"Intro to Computing (demo)Found\") at 0-44 under top",
+   "select(\"Intro to Computing (demo)Found\") at 0-44 under top"
+  ],
+  "log": {
+   "errors": [],
+   "warnings": [],
+   "failed": []
+  },
+  "issues": [
+   "focus under sticky bar: select(\"Intro to Computing (demo)Found\") at 54-98 under top",
+   "focus under sticky bar: select(\"Intro to Computing (demo)Found\") at 0-44 under top",
+   "focus under sticky bar: select(\"Intro to Computing (demo)Found\") at 0-44 under top",
+   "focus under sticky bar: select(\"Intro to Computing (demo)Found\") at 0-44 under top"
+  ]
+ },
+ {
+  "tab": "Settings",
+  "viewport": "375x667",
+  "vw": 375,
+  "vh": 667,
+  "overflow": 0,
+  "offenders": [],
+  "clipped": [],
+  "overlaps": [],
+  "smallTargets": [],
+  "smallTargetCount": 0,
+  "sticky": {
+   "bars": [
+    "header#top"
+   ],
+   "total": 57,
+   "share": 0.09
+  },
+  "end": {
+   "ok": true,
+   "bottom": 598,
+   "vh": 667,
+   "covered": null
+  },
+  "focus": [
+   "select(\"Intro to Computing (demo)Found\") at 54-98 under top",
+   "select(\"Intro to Computing (demo)Found\") at 23-67 under top"
+  ],
+  "log": {
+   "errors": [],
+   "warnings": [],
+   "failed": []
+  },
+  "issues": [
+   "focus under sticky bar: select(\"Intro to Computing (demo)Found\") at 54-98 under top",
+   "focus under sticky bar: select(\"Intro to Computing (demo)Found\") at 23-67 under top"
+  ]
+ },
+ {
+  "tab": "state: drawer open",
+  "viewport": "375x667",
+  "state": "drawer open",
+  "vw": 375,
+  "vh": 667,
+  "overflow": 0,
+  "offenders": [],
+  "clipped": [],
+  "overlaps": [],
+  "smallTargets": [
+   {
+    "s": "button.t-icon-btn.t-drawer-close(\"Close navigation\")",
+    "w": 34,
+    "h": 44,
+    "inline": false,
+    "note": ""
+   }
+  ],
+  "smallTargetCount": 1,
+  "sticky": {
+   "bars": [
+    "header#top"
+   ],
+   "total": 57,
+   "share": 0.09
+  },
+  "drawer": {
+   "fits": true,
+   "lastReachable": true
+  },
+  "issues": [
+   "1 tap targets under 44px: button.t-icon-btn.t-drawer-close(\"Close navigation\") 34x44"
+  ],
+  "log": {
+   "errors": [],
+   "warnings": [],
+   "failed": []
+  }
+ },
+ {
+  "tab": "state: analytics question dialog",
+  "viewport": "375x667",
+  "state": "analytics question dialog",
+  "vw": 375,
+  "vh": 667,
+  "overflow": 0,
+  "offenders": [],
+  "clipped": [],
+  "overlaps": [],
+  "smallTargets": [
+   {
+    "s": "div.row.small.muted > label(\"Auto-refresh every 30 second\") > input",
+    "w": 211,
+    "h": 30,
+    "inline": false,
+    "note": "via label"
+   },
+   {
+    "s": "button.info-btn.no-print(\"How the students who practised (last 30 days) comparison works\")",
+    "w": 24,
+    "h": 44,
+    "inline": false,
+    "note": ""
+   },
+   {
+    "s": "button.info-btn.no-print(\"How the sessions completed comparison works\")",
+    "w": 24,
+    "h": 44,
+    "inline": false,
+    "note": ""
+   },
+   {
+    "s": "button.info-btn.no-print(\"How the answers submitted comparison works\")",
+    "w": 24,
+    "h": 44,
+    "inline": false,
+    "note": ""
+   },
+   {
+    "s": "details.viz-table > summary(\"Show as a table\")",
+    "w": 333,
+    "h": 20,
+    "inline": false,
+    "note": ""
+   },
+   {
+    "s": "details.viz-table > summary(\"Show the chart data as a tab\")",
+    "w": 333,
+    "h": 20,
+    "inline": false,
+    "note": ""
+   },
+   {
+    "s": "button.btn.small(\"Hide learning outcomes for Data representation\")",
+    "w": 28,
+    "h": 44,
+    "inline": false,
+    "note": ""
+   },
+   {
+    "s": "details.small.muted.how-measured > summary(\"How this is measured\")",
+    "w": 333,
+    "h": 20,
+    "inline": false,
+    "note": ""
+   },
+   {
+    "s": "button.btn.small(\"Close\")",
+    "w": 35,
+    "h": 44,
+    "inline": false,
+    "note": ""
+   }
+  ],
+  "smallTargetCount": 9,
+  "sticky": {
+   "bars": [
+    "header#top",
+    "nav.dash-nav.compact(\"Dashboard sections\")"
+   ],
+   "total": 113,
+   "share": 0.17
+  },
+  "modal": {
+   "ok": true,
+   "fits": true,
+   "scroller": true,
+   "reachable": true,
+   "closeVisibleAtTop": true,
+   "h": 651,
+   "vh": 667
+  },
+  "issues": [
+   "9 tap targets under 44px: div.row.small.muted > label(\"Auto-refresh every 30 second\") > input 211x30; button.info-btn.no-print(\"How the students who practised (last 30 days) comparison works\") 24x44; button.info-btn.no-print(\"How the sessions completed comparison works\") 24x44; button.info-btn.no-print(\"How the answers submitted comparison works\") 24x44; details.viz-table > summary(\"Show as a table\") 333x20; details.viz-table > summary(\"Show the chart data as a tab\") 333x20; button.btn.small(\"Hide learning outcomes for Data representation\") 28x44; details.small.muted.how-measured > summary(\"How this is measured\") 333x20"
+  ],
+  "log": {
+   "errors": [],
+   "warnings": [],
+   "failed": []
+  }
+ },
+ {
+  "tab": "state: classes create modal",
+  "viewport": "375x667",
+  "state": "classes create modal",
+  "vw": 375,
+  "vh": 667,
+  "overflow": 0,
+  "offenders": [],
+  "clipped": [],
+  "overlaps": [],
+  "smallTargets": [
+   {
+    "s": "div.row > label(\"Show archived classes\") > input",
+    "w": 167,
+    "h": 26,
+    "inline": false,
+    "note": "via label"
+   }
+  ],
+  "smallTargetCount": 1,
+  "sticky": {
+   "bars": [
+    "header#top"
+   ],
+   "total": 57,
+   "share": 0.09
+  },
+  "modal": {
+   "ok": true,
+   "fits": true,
+   "scroller": true,
+   "reachable": true,
+   "closeVisibleAtTop": true,
+   "h": 460,
+   "vh": 667
+  },
+  "issues": [
+   "1 tap targets under 44px: div.row > label(\"Show archived classes\") > input 167x26"
+  ],
+  "log": {
+   "errors": [],
+   "warnings": [],
+   "failed": []
+  }
+ },
+ {
+  "tab": "state: classes rename modal",
+  "viewport": "375x667",
+  "state": "classes rename modal",
+  "vw": 375,
+  "vh": 667,
+  "overflow": 0,
+  "offenders": [],
+  "clipped": [],
+  "overlaps": [],
+  "smallTargets": [
+   {
+    "s": "div.row > label(\"Show archived classes\") > input",
+    "w": 167,
+    "h": 26,
+    "inline": false,
+    "note": "via label"
+   }
+  ],
+  "smallTargetCount": 1,
+  "sticky": {
+   "bars": [
+    "header#top"
+   ],
+   "total": 57,
+   "share": 0.09
+  },
+  "modal": {
+   "ok": true,
+   "fits": true,
+   "scroller": true,
+   "reachable": true,
+   "closeVisibleAtTop": true,
+   "h": 398,
+   "vh": 667
+  },
+  "issues": [
+   "1 tap targets under 44px: div.row > label(\"Show archived classes\") > input 167x26"
+  ],
+  "log": {
+   "errors": [],
+   "warnings": [],
+   "failed": []
+  }
+ },
+ {
+  "tab": "state: classes roster",
+  "viewport": "375x667",
+  "state": "classes roster",
+  "vw": 375,
+  "vh": 667,
+  "overflow": 0,
+  "offenders": [],
+  "clipped": [],
+  "overlaps": [],
+  "smallTargets": [],
+  "smallTargetCount": 0,
+  "sticky": {
+   "bars": [
+    "header#top"
+   ],
+   "total": 57,
+   "share": 0.09
+  },
+  "issues": [],
+  "log": {
+   "errors": [],
+   "warnings": [],
+   "failed": []
+  }
+ },
+ {
+  "tab": "state: classes code modal",
+  "viewport": "375x667",
+  "state": "classes code modal",
+  "vw": 375,
+  "vh": 667,
+  "overflow": 0,
+  "offenders": [],
+  "clipped": [],
+  "overlaps": [],
+  "smallTargets": [],
+  "smallTargetCount": 0,
+  "sticky": {
+   "bars": [
+    "header#top"
+   ],
+   "total": 57,
+   "share": 0.09
+  },
+  "modal": {
+   "ok": true,
+   "fits": true,
+   "scroller": true,
+   "reachable": true,
+   "closeVisibleAtTop": true,
+   "h": 391,
+   "vh": 667
+  },
+  "issues": [],
+  "log": {
+   "errors": [],
+   "warnings": [],
+   "failed": []
+  }
+ },
+ {
+  "tab": "state: classes class settings",
+  "viewport": "375x667",
+  "state": "classes class settings",
+  "vw": 375,
+  "vh": 667,
+  "overflow": 0,
+  "offenders": [],
+  "clipped": [],
+  "overlaps": [],
+  "smallTargets": [],
+  "smallTargetCount": 0,
+  "sticky": {
+   "bars": [
+    "header#top"
+   ],
+   "total": 57,
+   "share": 0.09
+  },
+  "issues": [],
+  "log": {
+   "errors": [],
+   "warnings": [],
+   "failed": []
+  }
+ },
+ {
+  "tab": "state: question bank cards",
+  "viewport": "375x667",
+  "state": "question bank cards",
+  "vw": 375,
+  "vh": 667,
+  "overflow": 0,
+  "offenders": [],
+  "clipped": [],
+  "overlaps": [],
+  "smallTargets": [],
+  "smallTargetCount": 0,
+  "sticky": {
+   "bars": [
+    "header#top"
+   ],
+   "total": 57,
+   "share": 0.09
+  },
+  "issues": [],
+  "log": {
+   "errors": [],
+   "warnings": [],
+   "failed": []
+  }
+ },
+ {
+  "tab": "state: question bank editor",
+  "viewport": "375x667",
+  "state": "question bank editor",
+  "vw": 375,
+  "vh": 667,
+  "overflow": 0,
+  "offenders": [],
+  "clipped": [],
+  "overlaps": [],
+  "smallTargets": [
+   {
+    "s": "details.question-provenance > summary(\"Sources & history\")",
+    "w": 333,
+    "h": 20,
+    "inline": false,
+    "note": ""
+   },
+   {
+    "s": "div.opt-row > input(\"Option 1 is correct\")",
+    "w": 20,
+    "h": 20,
+    "inline": false,
+    "note": ""
+   },
+   {
+    "s": "button.btn.small(\"Remove option 1\")",
+    "w": 32,
+    "h": 44,
+    "inline": false,
+    "note": ""
+   },
+   {
+    "s": "div.opt-row > input(\"Option 2 is correct\")",
+    "w": 20,
+    "h": 20,
+    "inline": false,
+    "note": ""
+   },
+   {
+    "s": "button.btn.small(\"Remove option 2\")",
+    "w": 32,
+    "h": 44,
+    "inline": false,
+    "note": ""
+   },
+   {
+    "s": "div.opt-row > input(\"Option 3 is correct\")",
+    "w": 20,
+    "h": 20,
+    "inline": false,
+    "note": ""
+   },
+   {
+    "s": "button.btn.small(\"Remove option 3\")",
+    "w": 32,
+    "h": 44,
+    "inline": false,
+    "note": ""
+   },
+   {
+    "s": "div.opt-row > input(\"Option 4 is correct\")",
+    "w": 20,
+    "h": 20,
+    "inline": false,
+    "note": ""
+   },
+   {
+    "s": "button.btn.small(\"Remove option 4\")",
+    "w": 32,
+    "h": 44,
+    "inline": false,
+    "note": ""
+   },
+   {
+    "s": "details.field.grow.advanced-options > summary(\"Advanced: source passages\")",
+    "w": 307,
+    "h": 23,
+    "inline": false,
+    "note": ""
+   },
+   {
+    "s": "details.editor-preview > summary(\"Preview question\")",
+    "w": 307,
+    "h": 23,
+    "inline": false,
+    "note": ""
+   },
+   {
+    "s": "details.question-provenance > summary(\"Sources & history\")",
+    "w": 333,
+    "h": 20,
+    "inline": false,
+    "note": ""
+   },
+   {
+    "s": "details.question-provenance > summary(\"Sources & history\")",
+    "w": 333,
+    "h": 20,
+    "inline": false,
+    "note": ""
+   },
+   {
+    "s": "details.question-provenance > summary(\"Sources & history\")",
+    "w": 333,
+    "h": 20,
+    "inline": false,
+    "note": ""
+   },
+   {
+    "s": "details.question-provenance > summary(\"Sources & history\")",
+    "w": 333,
+    "h": 20,
+    "inline": false,
+    "note": ""
+   },
+   {
+    "s": "details.question-provenance > summary(\"Sources & history\")",
+    "w": 333,
+    "h": 20,
+    "inline": false,
+    "note": ""
+   },
+   {
+    "s": "details.question-provenance > summary(\"Sources & history\")",
+    "w": 333,
+    "h": 20,
+    "inline": false,
+    "note": ""
+   },
+   {
+    "s": "section.answer-section > details > summary(\"Example variation\")",
+    "w": 333,
+    "h": 23,
+    "inline": false,
+    "note": ""
+   },
+   {
+    "s": "details.question-provenance > summary(\"Sources & history\")",
+    "w": 333,
+    "h": 20,
+    "inline": false,
+    "note": ""
+   }
+  ],
+  "smallTargetCount": 19,
+  "sticky": {
+   "bars": [
+    "header#top"
+   ],
+   "total": 57,
+   "share": 0.09
+  },
+  "issues": [
+   "19 tap targets under 44px: details.question-provenance > summary(\"Sources & history\") 333x20; div.opt-row > input(\"Option 1 is correct\") 20x20; button.btn.small(\"Remove option 1\") 32x44; div.opt-row > input(\"Option 2 is correct\") 20x20; button.btn.small(\"Remove option 2\") 32x44; div.opt-row > input(\"Option 3 is correct\") 20x20; button.btn.small(\"Remove option 3\") 32x44; div.opt-row > input(\"Option 4 is correct\") 20x20"
+  ],
+  "log": {
+   "errors": [],
+   "warnings": [],
+   "failed": []
+  }
+ },
+ {
+  "tab": "state: ai drafting retrieved material",
+  "viewport": "375x667",
+  "state": "ai drafting retrieved material",
+  "vw": 375,
+  "vh": 667,
+  "overflow": 0,
+  "offenders": [],
+  "clipped": [],
+  "overlaps": [],
+  "smallTargets": [
+   {
+    "s": "details.panel > summary(\"Material library · Notes, im\")",
+    "w": 333,
+    "h": 23,
+    "inline": false,
+    "note": ""
+   },
+   {
+    "s": "details.small > summary(\"Material sent to the drafter\")",
+    "w": 333,
+    "h": 20,
+    "inline": false,
+    "note": ""
+   }
+  ],
+  "smallTargetCount": 2,
+  "sticky": {
+   "bars": [
+    "header#top"
+   ],
+   "total": 57,
+   "share": 0.09
+  },
+  "issues": [
+   "2 tap targets under 44px: details.panel > summary(\"Material library · Notes, im\") 333x23; details.small > summary(\"Material sent to the drafter\") 333x20"
+  ],
+  "log": {
+   "errors": [],
+   "warnings": [],
+   "failed": []
+  }
+ },
+ {
+  "tab": "state: ai drafting material library",
+  "viewport": "375x667",
+  "state": "ai drafting material library",
+  "vw": 375,
+  "vh": 667,
+  "overflow": 0,
+  "offenders": [],
+  "clipped": [],
+  "overlaps": [],
+  "smallTargets": [
+   {
+    "s": "details.panel > summary(\"Material library · Notes, im\")",
+    "w": 333,
+    "h": 23,
+    "inline": false,
+    "note": ""
+   },
+   {
+    "s": "label.small.muted.lib-toggle(\"Show archived material\") > input",
+    "w": 333,
+    "h": 26,
+    "inline": false,
+    "note": "via label"
+   },
+   {
+    "s": "div.panel.import-option > input",
+    "w": 253,
+    "h": 21,
+    "inline": false,
+    "note": ""
+   },
+   {
+    "s": "div.panel.import-option > input",
+    "w": 253,
+    "h": 21,
+    "inline": false,
+    "note": ""
+   },
+   {
+    "s": "details.small > summary(\"Material sent to the drafter\")",
+    "w": 333,
+    "h": 20,
+    "inline": false,
+    "note": ""
+   }
+  ],
+  "smallTargetCount": 5,
+  "sticky": {
+   "bars": [
+    "header#top"
+   ],
+   "total": 57,
+   "share": 0.09
+  },
+  "issues": [
+   "5 tap targets under 44px: details.panel > summary(\"Material library · Notes, im\") 333x23; label.small.muted.lib-toggle(\"Show archived material\") > input 333x26; div.panel.import-option > input 253x21; div.panel.import-option > input 253x21; details.small > summary(\"Material sent to the drafter\") 333x20"
+  ],
+  "log": {
+   "errors": [],
+   "warnings": [],
+   "failed": []
+  }
+ },
+ {
+  "tab": "Analytics",
+  "viewport": "430x932",
+  "vw": 430,
+  "vh": 932,
+  "overflow": 0,
+  "offenders": [
+   {
+    "s": "ul.viz-legend > li",
+    "left": 21,
+    "right": 440,
+    "width": 419
+   }
+  ],
+  "clipped": [
+   {
+    "s": "main#main",
+    "how": "x",
+    "ellipsis": false,
+    "titled": false,
+    "by": 10
+   }
+  ],
+  "overlaps": [],
+  "smallTargets": [
+   {
+    "s": "div.row.small.muted > label(\"Auto-refresh every 30 second\") > input",
+    "w": 211,
+    "h": 30,
+    "inline": false,
+    "note": "via label"
+   },
+   {
+    "s": "button.info-btn.no-print(\"How the students who practised (last 30 days) comparison works\")",
+    "w": 24,
+    "h": 44,
+    "inline": false,
+    "note": ""
+   },
+   {
+    "s": "button.info-btn.no-print(\"How the sessions completed comparison works\")",
+    "w": 24,
+    "h": 44,
+    "inline": false,
+    "note": ""
+   },
+   {
+    "s": "button.info-btn.no-print(\"How the answers submitted comparison works\")",
+    "w": 24,
+    "h": 44,
+    "inline": false,
+    "note": ""
+   },
+   {
+    "s": "details.viz-table > summary(\"Show as a table\")",
+    "w": 388,
+    "h": 20,
+    "inline": false,
+    "note": ""
+   },
+   {
+    "s": "details.viz-table > summary(\"Show the chart data as a tab\")",
+    "w": 388,
+    "h": 20,
+    "inline": false,
+    "note": ""
+   },
+   {
+    "s": "button.btn.small(\"Show learning outcomes for Data representation\")",
+    "w": 28,
+    "h": 44,
+    "inline": false,
+    "note": ""
+   },
+   {
+    "s": "button.btn.small(\"Show learning outcomes for Networking basics\")",
+    "w": 28,
+    "h": 44,
+    "inline": false,
+    "note": ""
+   },
+   {
+    "s": "button.btn.small(\"Show learning outcomes for Cyber hygiene\")",
+    "w": 28,
+    "h": 44,
+    "inline": false,
+    "note": ""
+   },
+   {
+    "s": "button.btn.small(\"Show learning outcomes for Algorithms and flowcharts\")",
+    "w": 28,
+    "h": 44,
+    "inline": false,
+    "note": ""
+   },
+   {
+    "s": "button.btn.small(\"Show learning outcomes for Encryption, hashing and digital signatures in everyday systems\")",
+    "w": 28,
+    "h": 44,
+    "inline": false,
+    "note": ""
+   },
+   {
+    "s": "button.btn.small(\"Show learning outcomes for Databases and SQL\")",
+    "w": 28,
+    "h": 44,
+    "inline": false,
+    "note": ""
+   },
+   {
+    "s": "button.btn.small(\"Show learning outcomes for How the web works\")",
+    "w": 28,
+    "h": 44,
+    "inline": false,
+    "note": ""
+   },
+   {
+    "s": "button.btn.small(\"Show learning outcomes for AI ethics and bias\")",
+    "w": 28,
+    "h": 44,
+    "inline": false,
+    "note": ""
+   },
+   {
+    "s": "button.btn.small(\"Show learning outcomes for Supercalifragilistic_unbroken_identifier_string_for_wrapping_checks_2026\")",
+    "w": 28,
+    "h": 44,
+    "inline": false,
+    "note": ""
+   },
+   {
+    "s": "button.btn.small(\"Show learning outcomes for Hardware and operating systems\")",
+    "w": 28,
+    "h": 44,
+    "inline": false,
+    "note": ""
+   },
+   {
+    "s": "details.small.muted.how-measured > summary(\"How this is measured\")",
+    "w": 388,
+    "h": 20,
+    "inline": false,
+    "note": ""
+   },
+   {
+    "s": "button.btn.small(\"Page 1\")",
+    "w": 32,
+    "h": 44,
+    "inline": false,
+    "note": ""
+   },
+   {
+    "s": "button.btn.small(\"Page 2\")",
+    "w": 32,
+    "h": 44,
+    "inline": false,
+    "note": ""
+   },
+   {
+    "s": "button.btn.small(\"Page 4\")",
+    "w": 32,
+    "h": 44,
+    "inline": false,
+    "note": ""
+   },
+   {
+    "s": "button.btn.small(\"Page 1\")",
+    "w": 32,
+    "h": 44,
+    "inline": false,
+    "note": ""
+   },
+   {
+    "s": "button.btn.small(\"Page 2\")",
+    "w": 32,
+    "h": 44,
+    "inline": false,
+    "note": ""
+   },
+   {
+    "s": "button.btn.small(\"Page 3\")",
+    "w": 32,
+    "h": 44,
+    "inline": false,
+    "note": ""
+   }
+  ],
+  "smallTargetCount": 23,
+  "sticky": {
+   "bars": [
+    "header#top",
+    "nav.dash-nav.compact(\"Dashboard sections\")"
+   ],
+   "total": 113,
+   "share": 0.12
+  },
+  "end": {
+   "ok": true,
+   "bottom": 892,
+   "vh": 932,
+   "covered": null
+  },
+  "anchors": [
+   {
+    "id": "dash-overview",
+    "top": 429,
+    "cover": 331,
+    "ok": true
+   },
+   {
+    "id": "dash-weeks",
+    "top": 1816,
+    "cover": 113,
+    "ok": true
+   },
+   {
+    "id": "dash-trends",
+    "top": 4860,
+    "cover": 113,
+    "ok": true
+   },
+   {
+    "id": "dash-topics",
+    "top": 7687,
+    "cover": 113,
+    "ok": true
+   },
+   {
+    "id": "dash-missed",
+    "top": 14361,
+    "cover": 113,
+    "ok": true
+   },
+   {
+    "id": "dash-quality",
+    "top": 15576,
+    "cover": 113,
+    "ok": true
+   },
+   {
+    "id": "dash-compare",
+    "top": 17811,
+    "cover": 113,
+    "ok": true
+   }
+  ],
+  "focus": [
+   "select(\"Class\") at 56-100 under top"
+  ],
+  "log": {
+   "errors": [],
+   "warnings": [],
+   "failed": []
+  },
+  "issues": [
+   "outside viewport: ul.viz-legend > li (left 21, right 440, width 419)",
+   "clipped text (x, 10px): main#main",
+   "23 tap targets under 44px: div.row.small.muted > label(\"Auto-refresh every 30 second\") > input 211x30; button.info-btn.no-print(\"How the students who practised (last 30 days) comparison works\") 24x44; button.info-btn.no-print(\"How the sessions completed comparison works\") 24x44; button.info-btn.no-print(\"How the answers submitted comparison works\") 24x44; details.viz-table > summary(\"Show as a table\") 388x20; details.viz-table > summary(\"Show the chart data as a tab\") 388x20; button.btn.small(\"Show learning outcomes for Data representation\") 28x44; button.btn.small(\"Show learning outcomes for Networking basics\") 28x44",
+   "focus under sticky bar: select(\"Class\") at 56-100 under top"
+  ]
+ },
+ {
+  "tab": "To review",
+  "viewport": "430x932",
+  "vw": 430,
+  "vh": 932,
+  "overflow": 0,
+  "offenders": [],
+  "clipped": [],
+  "overlaps": [],
+  "smallTargets": [],
+  "smallTargetCount": 0,
+  "sticky": {
+   "bars": [
+    "header#top"
+   ],
+   "total": 57,
+   "share": 0.06
+  },
+  "end": {
+   "ok": true,
+   "bottom": 855,
+   "vh": 932,
+   "covered": null
+  },
+  "focus": [
+   "select(\"Class\") at 56-100 under top"
+  ],
+  "log": {
+   "errors": [],
+   "warnings": [],
+   "failed": []
+  },
+  "issues": [
+   "focus under sticky bar: select(\"Class\") at 56-100 under top"
+  ]
+ },
+ {
+  "tab": "Classes & Roster",
+  "viewport": "430x932",
+  "vw": 430,
+  "vh": 932,
+  "overflow": 0,
+  "offenders": [],
+  "clipped": [],
+  "overlaps": [],
+  "smallTargets": [
+   {
+    "s": "div.row > label(\"Show archived classes\") > input",
+    "w": 167,
+    "h": 26,
+    "inline": false,
+    "note": "via label"
+   }
+  ],
+  "smallTargetCount": 1,
+  "sticky": {
+   "bars": [
+    "header#top"
+   ],
+   "total": 57,
+   "share": 0.06
+  },
+  "end": {
+   "ok": true,
+   "bottom": 873,
+   "vh": 932,
+   "covered": null
+  },
+  "focus": [],
+  "log": {
+   "errors": [],
+   "warnings": [],
+   "failed": []
+  },
+  "issues": [
+   "1 tap targets under 44px: div.row > label(\"Show archived classes\") > input 167x26"
+  ]
+ },
+ {
+  "tab": "Question bank",
+  "viewport": "430x932",
+  "vw": 430,
+  "vh": 932,
+  "overflow": 0,
+  "offenders": [],
+  "clipped": [],
+  "overlaps": [],
+  "smallTargets": [
+   {
+    "s": "details.question-provenance > summary(\"Sources & history\")",
+    "w": 388,
+    "h": 20,
+    "inline": false,
+    "note": ""
+   },
+   {
+    "s": "details.question-provenance > summary(\"Sources & history\")",
+    "w": 388,
+    "h": 20,
+    "inline": false,
+    "note": ""
+   },
+   {
+    "s": "details.question-provenance > summary(\"Sources & history\")",
+    "w": 388,
+    "h": 20,
+    "inline": false,
+    "note": ""
+   },
+   {
+    "s": "details.question-provenance > summary(\"Sources & history\")",
+    "w": 388,
+    "h": 20,
+    "inline": false,
+    "note": ""
+   },
+   {
+    "s": "details.question-provenance > summary(\"Sources & history\")",
+    "w": 388,
+    "h": 20,
+    "inline": false,
+    "note": ""
+   },
+   {
+    "s": "details.question-provenance > summary(\"Sources & history\")",
+    "w": 388,
+    "h": 20,
+    "inline": false,
+    "note": ""
+   },
+   {
+    "s": "details.question-provenance > summary(\"Sources & history\")",
+    "w": 388,
+    "h": 20,
+    "inline": false,
+    "note": ""
+   },
+   {
+    "s": "details.question-provenance > summary(\"Sources & history\")",
+    "w": 388,
+    "h": 20,
+    "inline": false,
+    "note": ""
+   },
+   {
+    "s": "details.question-provenance > summary(\"Sources & history\")",
+    "w": 388,
+    "h": 20,
+    "inline": false,
+    "note": ""
+   }
+  ],
+  "smallTargetCount": 9,
+  "sticky": {
+   "bars": [
+    "header#top"
+   ],
+   "total": 57,
+   "share": 0.06
+  },
+  "end": {
+   "ok": true,
+   "bottom": 873,
+   "vh": 932,
+   "covered": null
+  },
+  "focus": [
+   "select(\"Intro to Computing (demo)Found\") at 56-100 under top"
+  ],
+  "log": {
+   "errors": [],
+   "warnings": [],
+   "failed": []
+  },
+  "issues": [
+   "9 tap targets under 44px: details.question-provenance > summary(\"Sources & history\") 388x20; details.question-provenance > summary(\"Sources & history\") 388x20; details.question-provenance > summary(\"Sources & history\") 388x20; details.question-provenance > summary(\"Sources & history\") 388x20; details.question-provenance > summary(\"Sources & history\") 388x20; details.question-provenance > summary(\"Sources & history\") 388x20; details.question-provenance > summary(\"Sources & history\") 388x20; details.question-provenance > summary(\"Sources & history\") 388x20",
+   "focus under sticky bar: select(\"Intro to Computing (demo)Found\") at 56-100 under top"
+  ]
+ },
+ {
+  "tab": "AI drafting",
+  "viewport": "430x932",
+  "vw": 430,
+  "vh": 932,
+  "overflow": 0,
+  "offenders": [],
+  "clipped": [],
+  "overlaps": [],
+  "smallTargets": [
+   {
+    "s": "details.panel > summary(\"Material library · Notes, im\")",
+    "w": 388,
+    "h": 23,
+    "inline": false,
+    "note": ""
+   }
+  ],
+  "smallTargetCount": 1,
+  "sticky": {
+   "bars": [
+    "header#top"
+   ],
+   "total": 57,
+   "share": 0.06
+  },
+  "end": {
+   "ok": true,
+   "bottom": 872,
+   "vh": 932,
+   "covered": null
+  },
+  "focus": [],
+  "log": {
+   "errors": [],
+   "warnings": [],
+   "failed": []
+  },
+  "issues": [
+   "1 tap targets under 44px: details.panel > summary(\"Material library · Notes, im\") 388x23"
+  ]
+ },
+ {
+  "tab": "Evaluation",
+  "viewport": "430x932",
+  "vw": 430,
+  "vh": 932,
+  "overflow": 0,
+  "offenders": [],
+  "clipped": [],
+  "overlaps": [],
+  "smallTargets": [],
+  "smallTargetCount": 0,
+  "sticky": {
+   "bars": [
+    "header#top"
+   ],
+   "total": 57,
+   "share": 0.06
+  },
+  "end": {
+   "ok": true,
+   "bottom": 858,
+   "vh": 932,
+   "covered": null
+  },
+  "focus": [],
+  "log": {
+   "errors": [],
+   "warnings": [],
+   "failed": []
+  },
+  "issues": []
+ },
+ {
+  "tab": "Settings",
+  "viewport": "430x932",
+  "vw": 430,
+  "vh": 932,
+  "overflow": 0,
+  "offenders": [],
+  "clipped": [],
+  "overlaps": [],
+  "smallTargets": [],
+  "smallTargetCount": 0,
+  "sticky": {
+   "bars": [
+    "header#top"
+   ],
+   "total": 61,
+   "share": 0.07
+  },
+  "end": {
+   "ok": true,
+   "bottom": 859,
+   "vh": 932,
+   "covered": null
+  },
+  "focus": [],
+  "log": {
+   "errors": [],
+   "warnings": [],
+   "failed": []
+  },
+  "issues": []
+ },
+ {
+  "tab": "state: drawer open",
+  "viewport": "430x932",
+  "state": "drawer open",
+  "vw": 430,
+  "vh": 932,
+  "overflow": 0,
+  "offenders": [],
+  "clipped": [],
+  "overlaps": [],
+  "smallTargets": [
+   {
+    "s": "button.t-icon-btn.t-drawer-close(\"Close navigation\")",
+    "w": 34,
+    "h": 44,
+    "inline": false,
+    "note": ""
+   }
+  ],
+  "smallTargetCount": 1,
+  "sticky": {
+   "bars": [
+    "header#top"
+   ],
+   "total": 61,
+   "share": 0.07
+  },
+  "drawer": {
+   "fits": true,
+   "lastReachable": true
+  },
+  "issues": [
+   "1 tap targets under 44px: button.t-icon-btn.t-drawer-close(\"Close navigation\") 34x44"
+  ],
+  "log": {
+   "errors": [],
+   "warnings": [],
+   "failed": []
+  }
+ },
+ {
+  "tab": "state: analytics question dialog",
+  "viewport": "430x932",
+  "state": "analytics question dialog",
+  "vw": 430,
+  "vh": 932,
+  "overflow": 0,
+  "offenders": [],
+  "clipped": [],
+  "overlaps": [],
+  "smallTargets": [
+   {
+    "s": "div.row.small.muted > label(\"Auto-refresh every 30 second\") > input",
+    "w": 211,
+    "h": 30,
+    "inline": false,
+    "note": "via label"
+   },
+   {
+    "s": "button.info-btn.no-print(\"How the students who practised (last 30 days) comparison works\")",
+    "w": 24,
+    "h": 44,
+    "inline": false,
+    "note": ""
+   },
+   {
+    "s": "button.info-btn.no-print(\"How the sessions completed comparison works\")",
+    "w": 24,
+    "h": 44,
+    "inline": false,
+    "note": ""
+   },
+   {
+    "s": "button.info-btn.no-print(\"How the answers submitted comparison works\")",
+    "w": 24,
+    "h": 44,
+    "inline": false,
+    "note": ""
+   },
+   {
+    "s": "details.viz-table > summary(\"Show as a table\")",
+    "w": 388,
+    "h": 20,
+    "inline": false,
+    "note": ""
+   },
+   {
+    "s": "details.viz-table > summary(\"Show the chart data as a tab\")",
+    "w": 388,
+    "h": 20,
+    "inline": false,
+    "note": ""
+   },
+   {
+    "s": "button.btn.small(\"Hide learning outcomes for Data representation\")",
+    "w": 28,
+    "h": 44,
+    "inline": false,
+    "note": ""
+   },
+   {
+    "s": "details.small.muted.how-measured > summary(\"How this is measured\")",
+    "w": 388,
+    "h": 20,
+    "inline": false,
+    "note": ""
+   },
+   {
+    "s": "button.btn.small(\"Close\")",
+    "w": 35,
+    "h": 44,
+    "inline": false,
+    "note": ""
+   }
+  ],
+  "smallTargetCount": 9,
+  "sticky": {
+   "bars": [
+    "header#top",
+    "nav.dash-nav.compact(\"Dashboard sections\")"
+   ],
+   "total": 113,
+   "share": 0.12
+  },
+  "modal": {
+   "ok": true,
+   "fits": true,
+   "scroller": true,
+   "reachable": true,
+   "closeVisibleAtTop": true,
+   "h": 741,
+   "vh": 932
+  },
+  "issues": [
+   "9 tap targets under 44px: div.row.small.muted > label(\"Auto-refresh every 30 second\") > input 211x30; button.info-btn.no-print(\"How the students who practised (last 30 days) comparison works\") 24x44; button.info-btn.no-print(\"How the sessions completed comparison works\") 24x44; button.info-btn.no-print(\"How the answers submitted comparison works\") 24x44; details.viz-table > summary(\"Show as a table\") 388x20; details.viz-table > summary(\"Show the chart data as a tab\") 388x20; button.btn.small(\"Hide learning outcomes for Data representation\") 28x44; details.small.muted.how-measured > summary(\"How this is measured\") 388x20"
+  ],
+  "log": {
+   "errors": [],
+   "warnings": [],
+   "failed": []
+  }
+ },
+ {
+  "tab": "state: classes create modal",
+  "viewport": "430x932",
+  "state": "classes create modal",
+  "vw": 430,
+  "vh": 932,
+  "overflow": 0,
+  "offenders": [],
+  "clipped": [],
+  "overlaps": [],
+  "smallTargets": [
+   {
+    "s": "div.row > label(\"Show archived classes\") > input",
+    "w": 167,
+    "h": 26,
+    "inline": false,
+    "note": "via label"
+   }
+  ],
+  "smallTargetCount": 1,
+  "sticky": {
+   "bars": [
+    "header#top"
+   ],
+   "total": 57,
+   "share": 0.06
+  },
+  "modal": {
+   "ok": true,
+   "fits": true,
+   "scroller": true,
+   "reachable": true,
+   "closeVisibleAtTop": true,
+   "h": 441,
+   "vh": 932
+  },
+  "issues": [
+   "1 tap targets under 44px: div.row > label(\"Show archived classes\") > input 167x26"
+  ],
+  "log": {
+   "errors": [],
+   "warnings": [],
+   "failed": []
+  }
+ },
+ {
+  "tab": "state: classes rename modal",
+  "viewport": "430x932",
+  "state": "classes rename modal",
+  "vw": 430,
+  "vh": 932,
+  "overflow": 0,
+  "offenders": [],
+  "clipped": [],
+  "overlaps": [],
+  "smallTargets": [
+   {
+    "s": "div.row > label(\"Show archived classes\") > input",
+    "w": 167,
+    "h": 26,
+    "inline": false,
+    "note": "via label"
+   }
+  ],
+  "smallTargetCount": 1,
+  "sticky": {
+   "bars": [
+    "header#top"
+   ],
+   "total": 57,
+   "share": 0.06
+  },
+  "modal": {
+   "ok": true,
+   "fits": true,
+   "scroller": true,
+   "reachable": true,
+   "closeVisibleAtTop": true,
+   "h": 379,
+   "vh": 932
+  },
+  "issues": [
+   "1 tap targets under 44px: div.row > label(\"Show archived classes\") > input 167x26"
+  ],
+  "log": {
+   "errors": [],
+   "warnings": [],
+   "failed": []
+  }
+ },
+ {
+  "tab": "state: classes roster",
+  "viewport": "430x932",
+  "state": "classes roster",
+  "vw": 430,
+  "vh": 932,
+  "overflow": 0,
+  "offenders": [],
+  "clipped": [],
+  "overlaps": [],
+  "smallTargets": [],
+  "smallTargetCount": 0,
+  "sticky": {
+   "bars": [
+    "header#top"
+   ],
+   "total": 57,
+   "share": 0.06
+  },
+  "issues": [],
+  "log": {
+   "errors": [],
+   "warnings": [],
+   "failed": []
+  }
+ },
+ {
+  "tab": "state: classes code modal",
+  "viewport": "430x932",
+  "state": "classes code modal",
+  "vw": 430,
+  "vh": 932,
+  "overflow": 0,
+  "offenders": [],
+  "clipped": [],
+  "overlaps": [],
+  "smallTargets": [],
+  "smallTargetCount": 0,
+  "sticky": {
+   "bars": [
+    "header#top"
+   ],
+   "total": 121,
+   "share": 0.13
+  },
+  "modal": {
+   "ok": true,
+   "fits": true,
+   "scroller": true,
+   "reachable": true,
+   "closeVisibleAtTop": true,
+   "h": 349,
+   "vh": 932
+  },
+  "issues": [],
+  "log": {
+   "errors": [],
+   "warnings": [],
+   "failed": []
+  }
+ },
+ {
+  "tab": "state: classes class settings",
+  "viewport": "430x932",
+  "state": "classes class settings",
+  "vw": 430,
+  "vh": 932,
+  "overflow": 0,
+  "offenders": [],
+  "clipped": [],
+  "overlaps": [],
+  "smallTargets": [],
+  "smallTargetCount": 0,
+  "sticky": {
+   "bars": [
+    "header#top"
+   ],
+   "total": 75,
+   "share": 0.08
+  },
+  "issues": [],
+  "log": {
+   "errors": [],
+   "warnings": [],
+   "failed": []
+  }
+ },
+ {
+  "tab": "state: question bank cards",
+  "viewport": "430x932",
+  "state": "question bank cards",
+  "vw": 430,
+  "vh": 932,
+  "overflow": 0,
+  "offenders": [],
+  "clipped": [],
+  "overlaps": [],
+  "smallTargets": [],
+  "smallTargetCount": 0,
+  "sticky": {
+   "bars": [
+    "header#top",
+    "div.cr-decide"
+   ],
+   "total": 129,
+   "share": 0.14
+  },
+  "issues": [],
+  "log": {
+   "errors": [],
+   "warnings": [],
+   "failed": []
+  }
+ },
+ {
+  "tab": "state: question bank editor",
+  "viewport": "430x932",
+  "state": "question bank editor",
+  "vw": 430,
+  "vh": 932,
+  "overflow": 0,
+  "offenders": [],
+  "clipped": [],
+  "overlaps": [],
+  "smallTargets": [
+   {
+    "s": "details.question-provenance > summary(\"Sources & history\")",
+    "w": 388,
+    "h": 20,
+    "inline": false,
+    "note": ""
+   },
+   {
+    "s": "div.opt-row > input(\"Option 1 is correct\")",
+    "w": 20,
+    "h": 20,
+    "inline": false,
+    "note": ""
+   },
+   {
+    "s": "button.btn.small(\"Remove option 1\")",
+    "w": 32,
+    "h": 44,
+    "inline": false,
+    "note": ""
+   },
+   {
+    "s": "div.opt-row > input(\"Option 2 is correct\")",
+    "w": 20,
+    "h": 20,
+    "inline": false,
+    "note": ""
+   },
+   {
+    "s": "button.btn.small(\"Remove option 2\")",
+    "w": 32,
+    "h": 44,
+    "inline": false,
+    "note": ""
+   },
+   {
+    "s": "div.opt-row > input(\"Option 3 is correct\")",
+    "w": 20,
+    "h": 20,
+    "inline": false,
+    "note": ""
+   },
+   {
+    "s": "button.btn.small(\"Remove option 3\")",
+    "w": 32,
+    "h": 44,
+    "inline": false,
+    "note": ""
+   },
+   {
+    "s": "div.opt-row > input(\"Option 4 is correct\")",
+    "w": 20,
+    "h": 20,
+    "inline": false,
+    "note": ""
+   },
+   {
+    "s": "button.btn.small(\"Remove option 4\")",
+    "w": 32,
+    "h": 44,
+    "inline": false,
+    "note": ""
+   },
+   {
+    "s": "details.field.grow.advanced-options > summary(\"Advanced: source passages\")",
+    "w": 362,
+    "h": 23,
+    "inline": false,
+    "note": ""
+   },
+   {
+    "s": "details.editor-preview > summary(\"Preview question\")",
+    "w": 362,
+    "h": 23,
+    "inline": false,
+    "note": ""
+   },
+   {
+    "s": "details.question-provenance > summary(\"Sources & history\")",
+    "w": 388,
+    "h": 20,
+    "inline": false,
+    "note": ""
+   },
+   {
+    "s": "details.question-provenance > summary(\"Sources & history\")",
+    "w": 388,
+    "h": 20,
+    "inline": false,
+    "note": ""
+   },
+   {
+    "s": "details.question-provenance > summary(\"Sources & history\")",
+    "w": 388,
+    "h": 20,
+    "inline": false,
+    "note": ""
+   },
+   {
+    "s": "details.question-provenance > summary(\"Sources & history\")",
+    "w": 388,
+    "h": 20,
+    "inline": false,
+    "note": ""
+   },
+   {
+    "s": "details.question-provenance > summary(\"Sources & history\")",
+    "w": 388,
+    "h": 20,
+    "inline": false,
+    "note": ""
+   },
+   {
+    "s": "details.question-provenance > summary(\"Sources & history\")",
+    "w": 388,
+    "h": 20,
+    "inline": false,
+    "note": ""
+   },
+   {
+    "s": "section.answer-section > details > summary(\"Example variation\")",
+    "w": 388,
+    "h": 23,
+    "inline": false,
+    "note": ""
+   },
+   {
+    "s": "details.question-provenance > summary(\"Sources & history\")",
+    "w": 388,
+    "h": 20,
+    "inline": false,
+    "note": ""
+   }
+  ],
+  "smallTargetCount": 19,
+  "sticky": {
+   "bars": [
+    "header#top"
+   ],
+   "total": 57,
+   "share": 0.06
+  },
+  "issues": [
+   "19 tap targets under 44px: details.question-provenance > summary(\"Sources & history\") 388x20; div.opt-row > input(\"Option 1 is correct\") 20x20; button.btn.small(\"Remove option 1\") 32x44; div.opt-row > input(\"Option 2 is correct\") 20x20; button.btn.small(\"Remove option 2\") 32x44; div.opt-row > input(\"Option 3 is correct\") 20x20; button.btn.small(\"Remove option 3\") 32x44; div.opt-row > input(\"Option 4 is correct\") 20x20"
+  ],
+  "log": {
+   "errors": [],
+   "warnings": [],
+   "failed": []
+  }
+ },
+ {
+  "tab": "state: ai drafting retrieved material",
+  "viewport": "430x932",
+  "state": "ai drafting retrieved material",
+  "vw": 430,
+  "vh": 932,
+  "overflow": 0,
+  "offenders": [],
+  "clipped": [],
+  "overlaps": [],
+  "smallTargets": [
+   {
+    "s": "details.panel > summary(\"Material library · Notes, im\")",
+    "w": 388,
+    "h": 23,
+    "inline": false,
+    "note": ""
+   },
+   {
+    "s": "details.small > summary(\"Material sent to the drafter\")",
+    "w": 388,
+    "h": 20,
+    "inline": false,
+    "note": ""
+   }
+  ],
+  "smallTargetCount": 2,
+  "sticky": {
+   "bars": [
+    "header#top"
+   ],
+   "total": 57,
+   "share": 0.06
+  },
+  "issues": [
+   "2 tap targets under 44px: details.panel > summary(\"Material library · Notes, im\") 388x23; details.small > summary(\"Material sent to the drafter\") 388x20"
+  ],
+  "log": {
+   "errors": [],
+   "warnings": [],
+   "failed": []
+  }
+ },
+ {
+  "tab": "state: ai drafting material library",
+  "viewport": "430x932",
+  "state": "ai drafting material library",
+  "vw": 430,
+  "vh": 932,
+  "overflow": 0,
+  "offenders": [],
+  "clipped": [],
+  "overlaps": [],
+  "smallTargets": [
+   {
+    "s": "details.panel > summary(\"Material library · Notes, im\")",
+    "w": 388,
+    "h": 23,
+    "inline": false,
+    "note": ""
+   },
+   {
+    "s": "label.small.muted.lib-toggle(\"Show archived material\") > input",
+    "w": 388,
+    "h": 26,
+    "inline": false,
+    "note": "via label"
+   },
+   {
+    "s": "div.panel.import-option > input",
+    "w": 253,
+    "h": 21,
+    "inline": false,
+    "note": ""
+   },
+   {
+    "s": "div.panel.import-option > input",
+    "w": 253,
+    "h": 21,
+    "inline": false,
+    "note": ""
+   },
+   {
+    "s": "details.small > summary(\"Material sent to the drafter\")",
+    "w": 388,
+    "h": 20,
+    "inline": false,
+    "note": ""
+   }
+  ],
+  "smallTargetCount": 5,
+  "sticky": {
+   "bars": [
+    "header#top"
+   ],
+   "total": 57,
+   "share": 0.06
+  },
+  "issues": [
+   "5 tap targets under 44px: details.panel > summary(\"Material library · Notes, im\") 388x23; label.small.muted.lib-toggle(\"Show archived material\") > input 388x26; div.panel.import-option > input 253x21; div.panel.import-option > input 253x21; details.small > summary(\"Material sent to the drafter\") 388x20"
+  ],
+  "log": {
+   "errors": [],
+   "warnings": [],
+   "failed": []
+  }
+ },
+ {
+  "tab": "Analytics",
+  "viewport": "431x900",
+  "vw": 431,
+  "vh": 900,
+  "overflow": 0,
+  "offenders": [
+   {
+    "s": "ul.viz-legend > li",
+    "left": 27,
+    "right": 446,
+    "width": 419
+   }
+  ],
+  "clipped": [
+   {
+    "s": "main#main",
+    "how": "x",
+    "ellipsis": false,
+    "titled": false,
+    "by": 15
+   }
+  ],
+  "overlaps": [],
+  "smallTargets": [
+   {
+    "s": "div.row.small.muted > label(\"Auto-refresh every 30 second\") > input",
+    "w": 211,
+    "h": 30,
+    "inline": false,
+    "note": "via label"
+   },
+   {
+    "s": "button.info-btn.no-print(\"How the students who practised (last 30 days) comparison works\")",
+    "w": 24,
+    "h": 44,
+    "inline": false,
+    "note": ""
+   },
+   {
+    "s": "button.info-btn.no-print(\"How the sessions completed comparison works\")",
+    "w": 24,
+    "h": 44,
+    "inline": false,
+    "note": ""
+   },
+   {
+    "s": "button.info-btn.no-print(\"How the answers submitted comparison works\")",
+    "w": 24,
+    "h": 44,
+    "inline": false,
+    "note": ""
+   },
+   {
+    "s": "details.viz-table > summary(\"Show as a table\")",
+    "w": 377,
+    "h": 20,
+    "inline": false,
+    "note": ""
+   },
+   {
+    "s": "details.viz-table > summary(\"Show the chart data as a tab\")",
+    "w": 377,
+    "h": 20,
+    "inline": false,
+    "note": ""
+   },
+   {
+    "s": "button.btn.small(\"Show learning outcomes for Data representation\")",
+    "w": 28,
+    "h": 44,
+    "inline": false,
+    "note": ""
+   },
+   {
+    "s": "button.btn.small(\"Show learning outcomes for Networking basics\")",
+    "w": 28,
+    "h": 44,
+    "inline": false,
+    "note": ""
+   },
+   {
+    "s": "button.btn.small(\"Show learning outcomes for Cyber hygiene\")",
+    "w": 28,
+    "h": 44,
+    "inline": false,
+    "note": ""
+   },
+   {
+    "s": "button.btn.small(\"Show learning outcomes for Algorithms and flowcharts\")",
+    "w": 28,
+    "h": 44,
+    "inline": false,
+    "note": ""
+   },
+   {
+    "s": "button.btn.small(\"Show learning outcomes for Encryption, hashing and digital signatures in everyday systems\")",
+    "w": 28,
+    "h": 44,
+    "inline": false,
+    "note": ""
+   },
+   {
+    "s": "button.btn.small(\"Show learning outcomes for Databases and SQL\")",
+    "w": 28,
+    "h": 44,
+    "inline": false,
+    "note": ""
+   },
+   {
+    "s": "button.btn.small(\"Show learning outcomes for How the web works\")",
+    "w": 28,
+    "h": 44,
+    "inline": false,
+    "note": ""
+   },
+   {
+    "s": "button.btn.small(\"Show learning outcomes for AI ethics and bias\")",
+    "w": 28,
+    "h": 44,
+    "inline": false,
+    "note": ""
+   },
+   {
+    "s": "button.btn.small(\"Show learning outcomes for Supercalifragilistic_unbroken_identifier_string_for_wrapping_checks_2026\")",
+    "w": 28,
+    "h": 44,
+    "inline": false,
+    "note": ""
+   },
+   {
+    "s": "button.btn.small(\"Show learning outcomes for Hardware and operating systems\")",
+    "w": 28,
+    "h": 44,
+    "inline": false,
+    "note": ""
+   },
+   {
+    "s": "details.small.muted.how-measured > summary(\"How this is measured\")",
+    "w": 377,
+    "h": 20,
+    "inline": false,
+    "note": ""
+   },
+   {
+    "s": "button.btn.small(\"Page 1\")",
+    "w": 32,
+    "h": 44,
+    "inline": false,
+    "note": ""
+   },
+   {
+    "s": "button.btn.small(\"Page 2\")",
+    "w": 32,
+    "h": 44,
+    "inline": false,
+    "note": ""
+   },
+   {
+    "s": "button.btn.small(\"Page 4\")",
+    "w": 32,
+    "h": 44,
+    "inline": false,
+    "note": ""
+   },
+   {
+    "s": "button.btn.small(\"Page 1\")",
+    "w": 32,
+    "h": 44,
+    "inline": false,
+    "note": ""
+   },
+   {
+    "s": "button.btn.small(\"Page 2\")",
+    "w": 32,
+    "h": 44,
+    "inline": false,
+    "note": ""
+   },
+   {
+    "s": "button.btn.small(\"Page 3\")",
+    "w": 32,
+    "h": 44,
+    "inline": false,
+    "note": ""
+   }
+  ],
+  "smallTargetCount": 23,
+  "sticky": {
+   "bars": [
+    "header#top",
+    "nav.dash-nav.compact(\"Dashboard sections\")"
+   ],
+   "total": 113,
+   "share": 0.13
+  },
+  "end": {
+   "ok": true,
+   "bottom": 860,
+   "vh": 900,
+   "covered": null
+  },
+  "anchors": [
+   {
+    "id": "dash-overview",
+    "top": 427,
+    "cover": 329,
+    "ok": true
+   },
+   {
+    "id": "dash-weeks",
+    "top": 2194,
+    "cover": 315,
+    "ok": true
+   },
+   {
+    "id": "dash-trends",
+    "top": 3725,
+    "cover": 113,
+    "ok": true
+   },
+   {
+    "id": "dash-topics",
+    "top": 6534,
+    "cover": 113,
+    "ok": true
+   },
+   {
+    "id": "dash-missed",
+    "top": 13239,
+    "cover": 113,
+    "ok": true
+   },
+   {
+    "id": "dash-quality",
+    "top": 14477,
+    "cover": 113,
+    "ok": true
+   },
+   {
+    "id": "dash-compare",
+    "top": 16719,
+    "cover": 113,
+    "ok": true
+   }
+  ],
+  "focus": [
+   "select(\"Class\") at 56-100 under top"
+  ],
+  "log": {
+   "errors": [],
+   "warnings": [],
+   "failed": []
+  },
+  "issues": [
+   "outside viewport: ul.viz-legend > li (left 27, right 446, width 419)",
+   "clipped text (x, 15px): main#main",
+   "23 tap targets under 44px: div.row.small.muted > label(\"Auto-refresh every 30 second\") > input 211x30; button.info-btn.no-print(\"How the students who practised (last 30 days) comparison works\") 24x44; button.info-btn.no-print(\"How the sessions completed comparison works\") 24x44; button.info-btn.no-print(\"How the answers submitted comparison works\") 24x44; details.viz-table > summary(\"Show as a table\") 377x20; details.viz-table > summary(\"Show the chart data as a tab\") 377x20; button.btn.small(\"Show learning outcomes for Data representation\") 28x44; button.btn.small(\"Show learning outcomes for Networking basics\") 28x44",
+   "focus under sticky bar: select(\"Class\") at 56-100 under top"
+  ]
+ },
+ {
+  "tab": "To review",
+  "viewport": "431x900",
+  "vw": 431,
+  "vh": 900,
+  "overflow": 0,
+  "offenders": [],
+  "clipped": [],
+  "overlaps": [],
+  "smallTargets": [],
+  "smallTargetCount": 0,
+  "sticky": {
+   "bars": [
+    "header#top"
+   ],
+   "total": 57,
+   "share": 0.06
+  },
+  "end": {
+   "ok": true,
+   "bottom": 821,
+   "vh": 900,
+   "covered": null
+  },
+  "focus": [
+   "select(\"Class\") at 56-100 under top"
+  ],
+  "log": {
+   "errors": [],
+   "warnings": [],
+   "failed": []
+  },
+  "issues": [
+   "focus under sticky bar: select(\"Class\") at 56-100 under top"
+  ]
+ },
+ {
+  "tab": "Classes & Roster",
+  "viewport": "431x900",
+  "vw": 431,
+  "vh": 900,
+  "overflow": 0,
+  "offenders": [],
+  "clipped": [],
+  "overlaps": [],
+  "smallTargets": [
+   {
+    "s": "div.row > label(\"Show archived classes\") > input",
+    "w": 167,
+    "h": 26,
+    "inline": false,
+    "note": "via label"
+   }
+  ],
+  "smallTargetCount": 1,
+  "sticky": {
+   "bars": [
+    "header#top"
+   ],
+   "total": 57,
+   "share": 0.06
+  },
+  "end": {
+   "ok": true,
+   "bottom": 839,
+   "vh": 900,
+   "covered": null
+  },
+  "focus": [],
+  "log": {
+   "errors": [],
+   "warnings": [],
+   "failed": []
+  },
+  "issues": [
+   "1 tap targets under 44px: div.row > label(\"Show archived classes\") > input 167x26"
+  ]
+ },
+ {
+  "tab": "Question bank",
+  "viewport": "431x900",
+  "vw": 431,
+  "vh": 900,
+  "overflow": 0,
+  "offenders": [],
+  "clipped": [],
+  "overlaps": [],
+  "smallTargets": [
+   {
+    "s": "details.question-provenance > summary(\"Sources & history\")",
+    "w": 377,
+    "h": 20,
+    "inline": false,
+    "note": ""
+   },
+   {
+    "s": "details.question-provenance > summary(\"Sources & history\")",
+    "w": 377,
+    "h": 20,
+    "inline": false,
+    "note": ""
+   },
+   {
+    "s": "details.question-provenance > summary(\"Sources & history\")",
+    "w": 377,
+    "h": 20,
+    "inline": false,
+    "note": ""
+   },
+   {
+    "s": "details.question-provenance > summary(\"Sources & history\")",
+    "w": 377,
+    "h": 20,
+    "inline": false,
+    "note": ""
+   },
+   {
+    "s": "details.question-provenance > summary(\"Sources & history\")",
+    "w": 377,
+    "h": 20,
+    "inline": false,
+    "note": ""
+   },
+   {
+    "s": "details.question-provenance > summary(\"Sources & history\")",
+    "w": 377,
+    "h": 20,
+    "inline": false,
+    "note": ""
+   },
+   {
+    "s": "details.question-provenance > summary(\"Sources & history\")",
+    "w": 377,
+    "h": 20,
+    "inline": false,
+    "note": ""
+   },
+   {
+    "s": "details.question-provenance > summary(\"Sources & history\")",
+    "w": 377,
+    "h": 20,
+    "inline": false,
+    "note": ""
+   },
+   {
+    "s": "details.question-provenance > summary(\"Sources & history\")",
+    "w": 377,
+    "h": 20,
+    "inline": false,
+    "note": ""
+   }
+  ],
+  "smallTargetCount": 9,
+  "sticky": {
+   "bars": [
+    "header#top"
+   ],
+   "total": 57,
+   "share": 0.06
+  },
+  "end": {
+   "ok": true,
+   "bottom": 839,
+   "vh": 900,
+   "covered": null
+  },
+  "focus": [
+   "select(\"Intro to Computing (demo)Found\") at 56-100 under top"
+  ],
+  "log": {
+   "errors": [],
+   "warnings": [],
+   "failed": []
+  },
+  "issues": [
+   "9 tap targets under 44px: details.question-provenance > summary(\"Sources & history\") 377x20; details.question-provenance > summary(\"Sources & history\") 377x20; details.question-provenance > summary(\"Sources & history\") 377x20; details.question-provenance > summary(\"Sources & history\") 377x20; details.question-provenance > summary(\"Sources & history\") 377x20; details.question-provenance > summary(\"Sources & history\") 377x20; details.question-provenance > summary(\"Sources & history\") 377x20; details.question-provenance > summary(\"Sources & history\") 377x20",
+   "focus under sticky bar: select(\"Intro to Computing (demo)Found\") at 56-100 under top"
+  ]
+ },
+ {
+  "tab": "AI drafting",
+  "viewport": "431x900",
+  "vw": 431,
+  "vh": 900,
+  "overflow": 0,
+  "offenders": [],
+  "clipped": [],
+  "overlaps": [],
+  "smallTargets": [
+   {
+    "s": "details.panel > summary(\"Material library · Notes, im\")",
+    "w": 377,
+    "h": 23,
+    "inline": false,
+    "note": ""
+   }
+  ],
+  "smallTargetCount": 1,
+  "sticky": {
+   "bars": [
+    "header#top"
+   ],
+   "total": 57,
+   "share": 0.06
+  },
+  "end": {
+   "ok": true,
+   "bottom": 838,
+   "vh": 900,
+   "covered": null
+  },
+  "focus": [],
+  "log": {
+   "errors": [],
+   "warnings": [],
+   "failed": []
+  },
+  "issues": [
+   "1 tap targets under 44px: details.panel > summary(\"Material library · Notes, im\") 377x23"
+  ]
+ },
+ {
+  "tab": "Evaluation",
+  "viewport": "431x900",
+  "vw": 431,
+  "vh": 900,
+  "overflow": 0,
+  "offenders": [],
+  "clipped": [],
+  "overlaps": [],
+  "smallTargets": [],
+  "smallTargetCount": 0,
+  "sticky": {
+   "bars": [
+    "header#top"
+   ],
+   "total": 57,
+   "share": 0.06
+  },
+  "end": {
+   "ok": true,
+   "bottom": 824,
+   "vh": 900,
+   "covered": null
+  },
+  "focus": [],
+  "log": {
+   "errors": [],
+   "warnings": [],
+   "failed": []
+  },
+  "issues": []
+ },
+ {
+  "tab": "Settings",
+  "viewport": "431x900",
+  "vw": 431,
+  "vh": 900,
+  "overflow": 0,
+  "offenders": [],
+  "clipped": [],
+  "overlaps": [],
+  "smallTargets": [],
+  "smallTargetCount": 0,
+  "sticky": {
+   "bars": [
+    "header#top"
+   ],
+   "total": 57,
+   "share": 0.06
+  },
+  "end": {
+   "ok": true,
+   "bottom": 829,
+   "vh": 900,
+   "covered": null
+  },
+  "focus": [],
+  "log": {
+   "errors": [],
+   "warnings": [],
+   "failed": []
+  },
+  "issues": []
+ },
+ {
+  "tab": "Analytics",
+  "viewport": "575x900",
+  "vw": 575,
+  "vh": 900,
+  "overflow": 0,
+  "offenders": [],
+  "clipped": [],
+  "overlaps": [],
+  "smallTargets": [
+   {
+    "s": "div.row.small.muted > label(\"Auto-refresh every 30 second\") > input",
+    "w": 211,
+    "h": 30,
+    "inline": false,
+    "note": "via label"
+   },
+   {
+    "s": "button.info-btn.no-print(\"How the students who practised (last 30 days) comparison works\")",
+    "w": 24,
+    "h": 44,
+    "inline": false,
+    "note": ""
+   },
+   {
+    "s": "button.info-btn.no-print(\"How the sessions completed comparison works\")",
+    "w": 24,
+    "h": 44,
+    "inline": false,
+    "note": ""
+   },
+   {
+    "s": "button.info-btn.no-print(\"How the answers submitted comparison works\")",
+    "w": 24,
+    "h": 44,
+    "inline": false,
+    "note": ""
+   },
+   {
+    "s": "details.viz-table > summary(\"Show as a table\")",
+    "w": 521,
+    "h": 20,
+    "inline": false,
+    "note": ""
+   },
+   {
+    "s": "details.viz-table > summary(\"Show the chart data as a tab\")",
+    "w": 521,
+    "h": 20,
+    "inline": false,
+    "note": ""
+   },
+   {
+    "s": "button.btn.small(\"Show learning outcomes for Data representation\")",
+    "w": 28,
+    "h": 44,
+    "inline": false,
+    "note": ""
+   },
+   {
+    "s": "button.btn.small(\"Show learning outcomes for Networking basics\")",
+    "w": 28,
+    "h": 44,
+    "inline": false,
+    "note": ""
+   },
+   {
+    "s": "button.btn.small(\"Show learning outcomes for Cyber hygiene\")",
+    "w": 28,
+    "h": 44,
+    "inline": false,
+    "note": ""
+   },
+   {
+    "s": "button.btn.small(\"Show learning outcomes for Algorithms and flowcharts\")",
+    "w": 28,
+    "h": 44,
+    "inline": false,
+    "note": ""
+   },
+   {
+    "s": "button.btn.small(\"Show learning outcomes for Encryption, hashing and digital signatures in everyday systems\")",
+    "w": 28,
+    "h": 44,
+    "inline": false,
+    "note": ""
+   },
+   {
+    "s": "button.btn.small(\"Show learning outcomes for Databases and SQL\")",
+    "w": 28,
+    "h": 44,
+    "inline": false,
+    "note": ""
+   },
+   {
+    "s": "button.btn.small(\"Show learning outcomes for How the web works\")",
+    "w": 28,
+    "h": 44,
+    "inline": false,
+    "note": ""
+   },
+   {
+    "s": "button.btn.small(\"Show learning outcomes for AI ethics and bias\")",
+    "w": 28,
+    "h": 44,
+    "inline": false,
+    "note": ""
+   },
+   {
+    "s": "button.btn.small(\"Show learning outcomes for Supercalifragilistic_unbroken_identifier_string_for_wrapping_checks_2026\")",
+    "w": 28,
+    "h": 44,
+    "inline": false,
+    "note": ""
+   },
+   {
+    "s": "button.btn.small(\"Show learning outcomes for Hardware and operating systems\")",
+    "w": 28,
+    "h": 44,
+    "inline": false,
+    "note": ""
+   },
+   {
+    "s": "details.small.muted.how-measured > summary(\"How this is measured\")",
+    "w": 521,
+    "h": 20,
+    "inline": false,
+    "note": ""
+   },
+   {
+    "s": "button.btn.small(\"Page 1\")",
+    "w": 32,
+    "h": 44,
+    "inline": false,
+    "note": ""
+   },
+   {
+    "s": "button.btn.small(\"Page 2\")",
+    "w": 32,
+    "h": 44,
+    "inline": false,
+    "note": ""
+   },
+   {
+    "s": "button.btn.small(\"Page 4\")",
+    "w": 32,
+    "h": 44,
+    "inline": false,
+    "note": ""
+   },
+   {
+    "s": "button.btn.small(\"Page 1\")",
+    "w": 32,
+    "h": 44,
+    "inline": false,
+    "note": ""
+   },
+   {
+    "s": "button.btn.small(\"Page 2\")",
+    "w": 32,
+    "h": 44,
+    "inline": false,
+    "note": ""
+   },
+   {
+    "s": "button.btn.small(\"Page 3\")",
+    "w": 32,
+    "h": 44,
+    "inline": false,
+    "note": ""
+   }
+  ],
+  "smallTargetCount": 23,
+  "sticky": {
+   "bars": [
+    "header#top",
+    "nav.dash-nav.compact(\"Dashboard sections\")"
+   ],
+   "total": 113,
+   "share": 0.13
+  },
+  "end": {
+   "ok": true,
+   "bottom": 860,
+   "vh": 900,
+   "covered": null
+  },
+  "anchors": [
+   {
+    "id": "dash-overview",
+    "top": 411,
+    "cover": 332,
+    "ok": true
+   },
+   {
+    "id": "dash-weeks",
+    "top": 1973,
+    "cover": 319,
+    "ok": true
+   },
+   {
+    "id": "dash-trends",
+    "top": 3586,
+    "cover": 113,
+    "ok": true
+   },
+   {
+    "id": "dash-topics",
+    "top": 6333,
+    "cover": 113,
+    "ok": true
+   },
+   {
+    "id": "dash-missed",
+    "top": 12584,
+    "cover": 113,
+    "ok": true
+   },
+   {
+    "id": "dash-quality",
+    "top": 13663,
+    "cover": 113,
+    "ok": true
+   },
+   {
+    "id": "dash-compare",
+    "top": 15739,
+    "cover": 113,
+    "ok": true
+   }
+  ],
+  "focus": [
+   "select(\"Class\") at 46-90 under top"
+  ],
+  "log": {
+   "errors": [],
+   "warnings": [],
+   "failed": []
+  },
+  "issues": [
+   "23 tap targets under 44px: div.row.small.muted > label(\"Auto-refresh every 30 second\") > input 211x30; button.info-btn.no-print(\"How the students who practised (last 30 days) comparison works\") 24x44; button.info-btn.no-print(\"How the sessions completed comparison works\") 24x44; button.info-btn.no-print(\"How the answers submitted comparison works\") 24x44; details.viz-table > summary(\"Show as a table\") 521x20; details.viz-table > summary(\"Show the chart data as a tab\") 521x20; button.btn.small(\"Show learning outcomes for Data representation\") 28x44; button.btn.small(\"Show learning outcomes for Networking basics\") 28x44",
+   "focus under sticky bar: select(\"Class\") at 46-90 under top"
+  ]
+ },
+ {
+  "tab": "To review",
+  "viewport": "575x900",
+  "vw": 575,
+  "vh": 900,
+  "overflow": 0,
+  "offenders": [],
+  "clipped": [],
+  "overlaps": [],
+  "smallTargets": [],
+  "smallTargetCount": 0,
+  "sticky": {
+   "bars": [
+    "header#top"
+   ],
+   "total": 57,
+   "share": 0.06
+  },
+  "end": {
+   "ok": true,
+   "bottom": 821,
+   "vh": 900,
+   "covered": null
+  },
+  "focus": [],
+  "log": {
+   "errors": [],
+   "warnings": [],
+   "failed": []
+  },
+  "issues": []
+ },
+ {
+  "tab": "Classes & Roster",
+  "viewport": "575x900",
+  "vw": 575,
+  "vh": 900,
+  "overflow": 0,
+  "offenders": [],
+  "clipped": [],
+  "overlaps": [],
+  "smallTargets": [
+   {
+    "s": "div.row > label(\"Show archived classes\") > input",
+    "w": 167,
+    "h": 26,
+    "inline": false,
+    "note": "via label"
+   }
+  ],
+  "smallTargetCount": 1,
+  "sticky": {
+   "bars": [
+    "header#top"
+   ],
+   "total": 57,
+   "share": 0.06
+  },
+  "end": {
+   "ok": true,
+   "bottom": 839,
+   "vh": 900,
+   "covered": null
+  },
+  "focus": [],
+  "log": {
+   "errors": [],
+   "warnings": [],
+   "failed": []
+  },
+  "issues": [
+   "1 tap targets under 44px: div.row > label(\"Show archived classes\") > input 167x26"
+  ]
+ },
+ {
+  "tab": "Question bank",
+  "viewport": "575x900",
+  "vw": 575,
+  "vh": 900,
+  "overflow": 0,
+  "offenders": [],
+  "clipped": [],
+  "overlaps": [],
+  "smallTargets": [
+   {
+    "s": "details.question-provenance > summary(\"Sources & history\")",
+    "w": 521,
+    "h": 20,
+    "inline": false,
+    "note": ""
+   },
+   {
+    "s": "details.question-provenance > summary(\"Sources & history\")",
+    "w": 521,
+    "h": 20,
+    "inline": false,
+    "note": ""
+   },
+   {
+    "s": "details.question-provenance > summary(\"Sources & history\")",
+    "w": 521,
+    "h": 20,
+    "inline": false,
+    "note": ""
+   },
+   {
+    "s": "details.question-provenance > summary(\"Sources & history\")",
+    "w": 521,
+    "h": 20,
+    "inline": false,
+    "note": ""
+   },
+   {
+    "s": "details.question-provenance > summary(\"Sources & history\")",
+    "w": 521,
+    "h": 20,
+    "inline": false,
+    "note": ""
+   },
+   {
+    "s": "details.question-provenance > summary(\"Sources & history\")",
+    "w": 521,
+    "h": 20,
+    "inline": false,
+    "note": ""
+   },
+   {
+    "s": "details.question-provenance > summary(\"Sources & history\")",
+    "w": 521,
+    "h": 20,
+    "inline": false,
+    "note": ""
+   },
+   {
+    "s": "details.question-provenance > summary(\"Sources & history\")",
+    "w": 521,
+    "h": 20,
+    "inline": false,
+    "note": ""
+   },
+   {
+    "s": "details.question-provenance > summary(\"Sources & history\")",
+    "w": 521,
+    "h": 20,
+    "inline": false,
+    "note": ""
+   }
+  ],
+  "smallTargetCount": 9,
+  "sticky": {
+   "bars": [
+    "header#top"
+   ],
+   "total": 57,
+   "share": 0.06
+  },
+  "end": {
+   "ok": true,
+   "bottom": 839,
+   "vh": 900,
+   "covered": null
+  },
+  "focus": [],
+  "log": {
+   "errors": [],
+   "warnings": [],
+   "failed": []
+  },
+  "issues": [
+   "9 tap targets under 44px: details.question-provenance > summary(\"Sources & history\") 521x20; details.question-provenance > summary(\"Sources & history\") 521x20; details.question-provenance > summary(\"Sources & history\") 521x20; details.question-provenance > summary(\"Sources & history\") 521x20; details.question-provenance > summary(\"Sources & history\") 521x20; details.question-provenance > summary(\"Sources & history\") 521x20; details.question-provenance > summary(\"Sources & history\") 521x20; details.question-provenance > summary(\"Sources & history\") 521x20"
+  ]
+ },
+ {
+  "tab": "AI drafting",
+  "viewport": "575x900",
+  "vw": 575,
+  "vh": 900,
+  "overflow": 0,
+  "offenders": [],
+  "clipped": [],
+  "overlaps": [],
+  "smallTargets": [
+   {
+    "s": "details.panel > summary(\"Material library · Notes, im\")",
+    "w": 521,
+    "h": 23,
+    "inline": false,
+    "note": ""
+   }
+  ],
+  "smallTargetCount": 1,
+  "sticky": {
+   "bars": [
+    "header#top"
+   ],
+   "total": 57,
+   "share": 0.06
+  },
+  "end": {
+   "ok": true,
+   "bottom": 838,
+   "vh": 900,
+   "covered": null
+  },
+  "focus": [],
+  "log": {
+   "errors": [],
+   "warnings": [],
+   "failed": []
+  },
+  "issues": [
+   "1 tap targets under 44px: details.panel > summary(\"Material library · Notes, im\") 521x23"
+  ]
+ },
+ {
+  "tab": "Evaluation",
+  "viewport": "575x900",
+  "vw": 575,
+  "vh": 900,
+  "overflow": 0,
+  "offenders": [],
+  "clipped": [],
+  "overlaps": [],
+  "smallTargets": [],
+  "smallTargetCount": 0,
+  "sticky": {
+   "bars": [
+    "header#top"
+   ],
+   "total": 57,
+   "share": 0.06
+  },
+  "end": {
+   "ok": true,
+   "bottom": 824,
+   "vh": 900,
+   "covered": null
+  },
+  "focus": [],
+  "log": {
+   "errors": [],
+   "warnings": [],
+   "failed": []
+  },
+  "issues": []
+ },
+ {
+  "tab": "Settings",
+  "viewport": "575x900",
+  "vw": 575,
+  "vh": 900,
+  "overflow": 0,
+  "offenders": [],
+  "clipped": [],
+  "overlaps": [],
+  "smallTargets": [],
+  "smallTargetCount": 0,
+  "sticky": {
+   "bars": [
+    "header#top"
+   ],
+   "total": 95,
+   "share": 0.1
+  },
+  "end": {
+   "ok": true,
+   "bottom": 792,
+   "vh": 900,
+   "covered": null
+  },
+  "focus": [],
+  "log": {
+   "errors": [],
+   "warnings": [],
+   "failed": []
+  },
+  "issues": []
+ },
+ {
+  "tab": "Analytics",
+  "viewport": "576x900",
+  "vw": 576,
+  "vh": 900,
+  "overflow": 0,
+  "offenders": [],
+  "clipped": [],
+  "overlaps": [],
+  "smallTargets": [
+   {
+    "s": "div.row.small.muted > label(\"Auto-refresh every 30 second\") > input",
+    "w": 211,
+    "h": 30,
+    "inline": false,
+    "note": "via label"
+   },
+   {
+    "s": "button.info-btn.no-print(\"How the students who practised (last 30 days) comparison works\")",
+    "w": 24,
+    "h": 44,
+    "inline": false,
+    "note": ""
+   },
+   {
+    "s": "button.info-btn.no-print(\"How the sessions completed comparison works\")",
+    "w": 24,
+    "h": 44,
+    "inline": false,
+    "note": ""
+   },
+   {
+    "s": "button.info-btn.no-print(\"How the answers submitted comparison works\")",
+    "w": 24,
+    "h": 44,
+    "inline": false,
+    "note": ""
+   },
+   {
+    "s": "details.viz-table > summary(\"Show as a table\")",
+    "w": 522,
+    "h": 20,
+    "inline": false,
+    "note": ""
+   },
+   {
+    "s": "details.viz-table > summary(\"Show the chart data as a tab\")",
+    "w": 522,
+    "h": 20,
+    "inline": false,
+    "note": ""
+   },
+   {
+    "s": "button.btn.small(\"Show learning outcomes for Data representation\")",
+    "w": 28,
+    "h": 44,
+    "inline": false,
+    "note": ""
+   },
+   {
+    "s": "button.btn.small(\"Show learning outcomes for Networking basics\")",
+    "w": 28,
+    "h": 44,
+    "inline": false,
+    "note": ""
+   },
+   {
+    "s": "button.btn.small(\"Show learning outcomes for Cyber hygiene\")",
+    "w": 28,
+    "h": 44,
+    "inline": false,
+    "note": ""
+   },
+   {
+    "s": "button.btn.small(\"Show learning outcomes for Algorithms and flowcharts\")",
+    "w": 28,
+    "h": 44,
+    "inline": false,
+    "note": ""
+   },
+   {
+    "s": "button.btn.small(\"Show learning outcomes for Encryption, hashing and digital signatures in everyday systems\")",
+    "w": 28,
+    "h": 44,
+    "inline": false,
+    "note": ""
+   },
+   {
+    "s": "button.btn.small(\"Show learning outcomes for Databases and SQL\")",
+    "w": 28,
+    "h": 44,
+    "inline": false,
+    "note": ""
+   },
+   {
+    "s": "button.btn.small(\"Show learning outcomes for How the web works\")",
+    "w": 28,
+    "h": 44,
+    "inline": false,
+    "note": ""
+   },
+   {
+    "s": "button.btn.small(\"Show learning outcomes for AI ethics and bias\")",
+    "w": 28,
+    "h": 44,
+    "inline": false,
+    "note": ""
+   },
+   {
+    "s": "button.btn.small(\"Show learning outcomes for Supercalifragilistic_unbroken_identifier_string_for_wrapping_checks_2026\")",
+    "w": 28,
+    "h": 44,
+    "inline": false,
+    "note": ""
+   },
+   {
+    "s": "button.btn.small(\"Show learning outcomes for Hardware and operating systems\")",
+    "w": 28,
+    "h": 44,
+    "inline": false,
+    "note": ""
+   },
+   {
+    "s": "details.small.muted.how-measured > summary(\"How this is measured\")",
+    "w": 522,
+    "h": 20,
+    "inline": false,
+    "note": ""
+   },
+   {
+    "s": "button.btn.small(\"Page 1\")",
+    "w": 32,
+    "h": 44,
+    "inline": false,
+    "note": ""
+   },
+   {
+    "s": "button.btn.small(\"Page 2\")",
+    "w": 32,
+    "h": 44,
+    "inline": false,
+    "note": ""
+   },
+   {
+    "s": "button.btn.small(\"Page 4\")",
+    "w": 32,
+    "h": 44,
+    "inline": false,
+    "note": ""
+   },
+   {
+    "s": "button.btn.small(\"Page 1\")",
+    "w": 32,
+    "h": 44,
+    "inline": false,
+    "note": ""
+   },
+   {
+    "s": "button.btn.small(\"Page 2\")",
+    "w": 32,
+    "h": 44,
+    "inline": false,
+    "note": ""
+   },
+   {
+    "s": "button.btn.small(\"Page 3\")",
+    "w": 32,
+    "h": 44,
+    "inline": false,
+    "note": ""
+   }
+  ],
+  "smallTargetCount": 23,
+  "sticky": {
+   "bars": [
+    "header#top",
+    "nav.dash-nav.compact(\"Dashboard sections\")"
+   ],
+   "total": 113,
+   "share": 0.13
+  },
+  "end": {
+   "ok": true,
+   "bottom": 860,
+   "vh": 900,
+   "covered": null
+  },
+  "anchors": [
+   {
+    "id": "dash-overview",
+    "top": 378,
+    "cover": 321,
+    "ok": true
+   },
+   {
+    "id": "dash-weeks",
+    "top": 1869,
+    "cover": 317,
+    "ok": true
+   },
+   {
+    "id": "dash-trends",
+    "top": 2431,
+    "cover": 113,
+    "ok": true
+   },
+   {
+    "id": "dash-topics",
+    "top": 5131,
+    "cover": 113,
+    "ok": true
+   },
+   {
+    "id": "dash-missed",
+    "top": 7915,
+    "cover": 113,
+    "ok": true
+   },
+   {
+    "id": "dash-quality",
+    "top": 8995,
+    "cover": 113,
+    "ok": true
+   },
+   {
+    "id": "dash-compare",
+    "top": 10475,
+    "cover": 113,
+    "ok": true
+   }
+  ],
+  "focus": [],
+  "log": {
+   "errors": [],
+   "warnings": [],
+   "failed": []
+  },
+  "issues": [
+   "23 tap targets under 44px: div.row.small.muted > label(\"Auto-refresh every 30 second\") > input 211x30; button.info-btn.no-print(\"How the students who practised (last 30 days) comparison works\") 24x44; button.info-btn.no-print(\"How the sessions completed comparison works\") 24x44; button.info-btn.no-print(\"How the answers submitted comparison works\") 24x44; details.viz-table > summary(\"Show as a table\") 522x20; details.viz-table > summary(\"Show the chart data as a tab\") 522x20; button.btn.small(\"Show learning outcomes for Data representation\") 28x44; button.btn.small(\"Show learning outcomes for Networking basics\") 28x44"
+  ]
+ },
+ {
+  "tab": "To review",
+  "viewport": "576x900",
+  "vw": 576,
+  "vh": 900,
+  "overflow": 0,
+  "offenders": [],
+  "clipped": [],
+  "overlaps": [],
+  "smallTargets": [],
+  "smallTargetCount": 0,
+  "sticky": {
+   "bars": [
+    "header#top"
+   ],
+   "total": 57,
+   "share": 0.06
+  },
+  "end": {
+   "ok": true,
+   "bottom": 821,
+   "vh": 900,
+   "covered": null
+  },
+  "focus": [],
+  "log": {
+   "errors": [],
+   "warnings": [],
+   "failed": []
+  },
+  "issues": []
+ },
+ {
+  "tab": "Classes & Roster",
+  "viewport": "576x900",
+  "vw": 576,
+  "vh": 900,
+  "overflow": 0,
+  "offenders": [],
+  "clipped": [],
+  "overlaps": [],
+  "smallTargets": [
+   {
+    "s": "div.row > label(\"Show archived classes\") > input",
+    "w": 167,
+    "h": 26,
+    "inline": false,
+    "note": "via label"
+   }
+  ],
+  "smallTargetCount": 1,
+  "sticky": {
+   "bars": [
+    "header#top"
+   ],
+   "total": 57,
+   "share": 0.06
+  },
+  "end": {
+   "ok": true,
+   "bottom": 839,
+   "vh": 900,
+   "covered": null
+  },
+  "focus": [],
+  "log": {
+   "errors": [],
+   "warnings": [],
+   "failed": []
+  },
+  "issues": [
+   "1 tap targets under 44px: div.row > label(\"Show archived classes\") > input 167x26"
+  ]
+ },
+ {
+  "tab": "Question bank",
+  "viewport": "576x900",
+  "vw": 576,
+  "vh": 900,
+  "overflow": 0,
+  "offenders": [],
+  "clipped": [],
+  "overlaps": [],
+  "smallTargets": [
+   {
+    "s": "details.question-provenance > summary(\"Sources & history\")",
+    "w": 522,
+    "h": 20,
+    "inline": false,
+    "note": ""
+   },
+   {
+    "s": "details.question-provenance > summary(\"Sources & history\")",
+    "w": 522,
+    "h": 20,
+    "inline": false,
+    "note": ""
+   },
+   {
+    "s": "details.question-provenance > summary(\"Sources & history\")",
+    "w": 522,
+    "h": 20,
+    "inline": false,
+    "note": ""
+   },
+   {
+    "s": "details.question-provenance > summary(\"Sources & history\")",
+    "w": 522,
+    "h": 20,
+    "inline": false,
+    "note": ""
+   },
+   {
+    "s": "details.question-provenance > summary(\"Sources & history\")",
+    "w": 522,
+    "h": 20,
+    "inline": false,
+    "note": ""
+   },
+   {
+    "s": "details.question-provenance > summary(\"Sources & history\")",
+    "w": 522,
+    "h": 20,
+    "inline": false,
+    "note": ""
+   },
+   {
+    "s": "details.question-provenance > summary(\"Sources & history\")",
+    "w": 522,
+    "h": 20,
+    "inline": false,
+    "note": ""
+   },
+   {
+    "s": "details.question-provenance > summary(\"Sources & history\")",
+    "w": 522,
+    "h": 20,
+    "inline": false,
+    "note": ""
+   },
+   {
+    "s": "details.question-provenance > summary(\"Sources & history\")",
+    "w": 522,
+    "h": 20,
+    "inline": false,
+    "note": ""
+   }
+  ],
+  "smallTargetCount": 9,
+  "sticky": {
+   "bars": [
+    "header#top"
+   ],
+   "total": 57,
+   "share": 0.06
+  },
+  "end": {
+   "ok": true,
+   "bottom": 839,
+   "vh": 900,
+   "covered": null
+  },
+  "focus": [],
+  "log": {
+   "errors": [],
+   "warnings": [],
+   "failed": []
+  },
+  "issues": [
+   "9 tap targets under 44px: details.question-provenance > summary(\"Sources & history\") 522x20; details.question-provenance > summary(\"Sources & history\") 522x20; details.question-provenance > summary(\"Sources & history\") 522x20; details.question-provenance > summary(\"Sources & history\") 522x20; details.question-provenance > summary(\"Sources & history\") 522x20; details.question-provenance > summary(\"Sources & history\") 522x20; details.question-provenance > summary(\"Sources & history\") 522x20; details.question-provenance > summary(\"Sources & history\") 522x20"
+  ]
+ },
+ {
+  "tab": "AI drafting",
+  "viewport": "576x900",
+  "vw": 576,
+  "vh": 900,
+  "overflow": 0,
+  "offenders": [],
+  "clipped": [],
+  "overlaps": [],
+  "smallTargets": [
+   {
+    "s": "details.panel > summary(\"Material library · Notes, im\")",
+    "w": 522,
+    "h": 23,
+    "inline": false,
+    "note": ""
+   }
+  ],
+  "smallTargetCount": 1,
+  "sticky": {
+   "bars": [
+    "header#top"
+   ],
+   "total": 57,
+   "share": 0.06
+  },
+  "end": {
+   "ok": true,
+   "bottom": 838,
+   "vh": 900,
+   "covered": null
+  },
+  "focus": [],
+  "log": {
+   "errors": [],
+   "warnings": [],
+   "failed": []
+  },
+  "issues": [
+   "1 tap targets under 44px: details.panel > summary(\"Material library · Notes, im\") 522x23"
+  ]
+ },
+ {
+  "tab": "Evaluation",
+  "viewport": "576x900",
+  "vw": 576,
+  "vh": 900,
+  "overflow": 0,
+  "offenders": [],
+  "clipped": [],
+  "overlaps": [],
+  "smallTargets": [],
+  "smallTargetCount": 0,
+  "sticky": {
+   "bars": [
+    "header#top"
+   ],
+   "total": 57,
+   "share": 0.06
+  },
+  "end": {
+   "ok": true,
+   "bottom": 824,
+   "vh": 900,
+   "covered": null
+  },
+  "focus": [],
+  "log": {
+   "errors": [],
+   "warnings": [],
+   "failed": []
+  },
+  "issues": []
+ },
+ {
+  "tab": "Settings",
+  "viewport": "576x900",
+  "vw": 576,
+  "vh": 900,
+  "overflow": 0,
+  "offenders": [],
+  "clipped": [],
+  "overlaps": [],
+  "smallTargets": [],
+  "smallTargetCount": 0,
+  "sticky": {
+   "bars": [
+    "header#top"
+   ],
+   "total": 95,
+   "share": 0.1
+  },
+  "end": {
+   "ok": true,
+   "bottom": 792,
+   "vh": 900,
+   "covered": null
+  },
+  "focus": [],
+  "log": {
+   "errors": [],
+   "warnings": [],
+   "failed": []
+  },
+  "issues": []
+ },
+ {
+  "tab": "Analytics",
+  "viewport": "767x900",
+  "vw": 767,
+  "vh": 900,
+  "overflow": 0,
+  "offenders": [],
+  "clipped": [],
+  "overlaps": [],
+  "smallTargets": [
+   {
+    "s": "div.row.small.muted > label(\"Auto-refresh every 30 second\") > input",
+    "w": 211,
+    "h": 30,
+    "inline": false,
+    "note": "via label"
+   },
+   {
+    "s": "button.info-btn.no-print(\"How the students who practised (last 30 days) comparison works\")",
+    "w": 24,
+    "h": 44,
+    "inline": false,
+    "note": ""
+   },
+   {
+    "s": "button.info-btn.no-print(\"How the sessions completed comparison works\")",
+    "w": 24,
+    "h": 44,
+    "inline": false,
+    "note": ""
+   },
+   {
+    "s": "button.info-btn.no-print(\"How the answers submitted comparison works\")",
+    "w": 24,
+    "h": 44,
+    "inline": false,
+    "note": ""
+   },
+   {
+    "s": "details.viz-table > summary(\"Show as a table\")",
+    "w": 713,
+    "h": 20,
+    "inline": false,
+    "note": ""
+   },
+   {
+    "s": "details.viz-table > summary(\"Show the chart data as a tab\")",
+    "w": 713,
+    "h": 20,
+    "inline": false,
+    "note": ""
+   },
+   {
+    "s": "button.btn.small(\"Show learning outcomes for Data representation\")",
+    "w": 28,
+    "h": 44,
+    "inline": false,
+    "note": ""
+   },
+   {
+    "s": "button.btn.small(\"Show learning outcomes for Networking basics\")",
+    "w": 28,
+    "h": 44,
+    "inline": false,
+    "note": ""
+   },
+   {
+    "s": "button.btn.small(\"Show learning outcomes for Cyber hygiene\")",
+    "w": 28,
+    "h": 44,
+    "inline": false,
+    "note": ""
+   },
+   {
+    "s": "button.btn.small(\"Show learning outcomes for Algorithms and flowcharts\")",
+    "w": 28,
+    "h": 44,
+    "inline": false,
+    "note": ""
+   },
+   {
+    "s": "button.btn.small(\"Show learning outcomes for Encryption, hashing and digital signatures in everyday systems\")",
+    "w": 28,
+    "h": 44,
+    "inline": false,
+    "note": ""
+   },
+   {
+    "s": "button.btn.small(\"Show learning outcomes for Databases and SQL\")",
+    "w": 28,
+    "h": 44,
+    "inline": false,
+    "note": ""
+   },
+   {
+    "s": "button.btn.small(\"Show learning outcomes for How the web works\")",
+    "w": 28,
+    "h": 44,
+    "inline": false,
+    "note": ""
+   },
+   {
+    "s": "button.btn.small(\"Show learning outcomes for AI ethics and bias\")",
+    "w": 28,
+    "h": 44,
+    "inline": false,
+    "note": ""
+   },
+   {
+    "s": "button.btn.small(\"Show learning outcomes for Supercalifragilistic_unbroken_identifier_string_for_wrapping_checks_2026\")",
+    "w": 28,
+    "h": 44,
+    "inline": false,
+    "note": ""
+   },
+   {
+    "s": "button.btn.small(\"Show learning outcomes for Hardware and operating systems\")",
+    "w": 28,
+    "h": 44,
+    "inline": false,
+    "note": ""
+   },
+   {
+    "s": "details.small.muted.how-measured > summary(\"How this is measured\")",
+    "w": 713,
+    "h": 20,
+    "inline": false,
+    "note": ""
+   },
+   {
+    "s": "button.btn.small(\"Page 1\")",
+    "w": 32,
+    "h": 44,
+    "inline": false,
+    "note": ""
+   },
+   {
+    "s": "button.btn.small(\"Page 2\")",
+    "w": 32,
+    "h": 44,
+    "inline": false,
+    "note": ""
+   },
+   {
+    "s": "button.btn.small(\"Page 4\")",
+    "w": 32,
+    "h": 44,
+    "inline": false,
+    "note": ""
+   },
+   {
+    "s": "button.btn.small(\"Page 1\")",
+    "w": 32,
+    "h": 44,
+    "inline": false,
+    "note": ""
+   },
+   {
+    "s": "button.btn.small(\"Page 2\")",
+    "w": 32,
+    "h": 44,
+    "inline": false,
+    "note": ""
+   },
+   {
+    "s": "button.btn.small(\"Page 3\")",
+    "w": 32,
+    "h": 44,
+    "inline": false,
+    "note": ""
+   }
+  ],
+  "smallTargetCount": 23,
+  "sticky": {
+   "bars": [
+    "header#top",
+    "nav.dash-nav.compact(\"Dashboard sections\")"
+   ],
+   "total": 113,
+   "share": 0.13
+  },
+  "end": {
+   "ok": true,
+   "bottom": 860,
+   "vh": 900,
+   "covered": null
+  },
+  "anchors": [
+   {
+    "id": "dash-overview",
+    "top": 388,
+    "cover": 331,
+    "ok": true
+   },
+   {
+    "id": "dash-weeks",
+    "top": 1766,
+    "cover": 323,
+    "ok": true
+   },
+   {
+    "id": "dash-trends",
+    "top": 1239,
+    "cover": 113,
+    "ok": true
+   },
+   {
+    "id": "dash-topics",
+    "top": 3066,
+    "cover": 113,
+    "ok": true
+   },
+   {
+    "id": "dash-missed",
+    "top": 5881,
+    "cover": 113,
+    "ok": true
+   },
+   {
+    "id": "dash-quality",
+    "top": 6878,
+    "cover": 113,
+    "ok": true
+   },
+   {
+    "id": "dash-compare",
+    "top": 8309,
+    "cover": 113,
+    "ok": true
+   }
+  ],
+  "focus": [
+   "select(\"Class\") at 52-96 under top"
+  ],
+  "log": {
+   "errors": [],
+   "warnings": [],
+   "failed": []
+  },
+  "issues": [
+   "23 tap targets under 44px: div.row.small.muted > label(\"Auto-refresh every 30 second\") > input 211x30; button.info-btn.no-print(\"How the students who practised (last 30 days) comparison works\") 24x44; button.info-btn.no-print(\"How the sessions completed comparison works\") 24x44; button.info-btn.no-print(\"How the answers submitted comparison works\") 24x44; details.viz-table > summary(\"Show as a table\") 713x20; details.viz-table > summary(\"Show the chart data as a tab\") 713x20; button.btn.small(\"Show learning outcomes for Data representation\") 28x44; button.btn.small(\"Show learning outcomes for Networking basics\") 28x44",
+   "focus under sticky bar: select(\"Class\") at 52-96 under top"
+  ]
+ },
+ {
+  "tab": "To review",
+  "viewport": "767x900",
+  "vw": 767,
+  "vh": 900,
+  "overflow": 0,
+  "offenders": [],
+  "clipped": [],
+  "overlaps": [],
+  "smallTargets": [],
+  "smallTargetCount": 0,
+  "sticky": {
+   "bars": [
+    "header#top"
+   ],
+   "total": 57,
+   "share": 0.06
+  },
+  "end": {
+   "ok": true,
+   "bottom": 821,
+   "vh": 900,
+   "covered": null
+  },
+  "focus": [],
+  "log": {
+   "errors": [],
+   "warnings": [],
+   "failed": []
+  },
+  "issues": []
+ },
+ {
+  "tab": "Classes & Roster",
+  "viewport": "767x900",
+  "vw": 767,
+  "vh": 900,
+  "overflow": 0,
+  "offenders": [],
+  "clipped": [],
+  "overlaps": [],
+  "smallTargets": [
+   {
+    "s": "div.row > label(\"Show archived classes\") > input",
+    "w": 167,
+    "h": 26,
+    "inline": false,
+    "note": "via label"
+   }
+  ],
+  "smallTargetCount": 1,
+  "sticky": {
+   "bars": [
+    "header#top"
+   ],
+   "total": 57,
+   "share": 0.06
+  },
+  "end": {
+   "ok": true,
+   "bottom": 839,
+   "vh": 900,
+   "covered": null
+  },
+  "focus": [
+   "button(\"+ Create Class\") at 16-60 under top"
+  ],
+  "log": {
+   "errors": [],
+   "warnings": [],
+   "failed": []
+  },
+  "issues": [
+   "1 tap targets under 44px: div.row > label(\"Show archived classes\") > input 167x26",
+   "focus under sticky bar: button(\"+ Create Class\") at 16-60 under top"
+  ]
+ },
+ {
+  "tab": "Question bank",
+  "viewport": "767x900",
+  "vw": 767,
+  "vh": 900,
+  "overflow": 0,
+  "offenders": [],
+  "clipped": [],
+  "overlaps": [],
+  "smallTargets": [
+   {
+    "s": "details.question-provenance > summary(\"Sources & history\")",
+    "w": 713,
+    "h": 20,
+    "inline": false,
+    "note": ""
+   },
+   {
+    "s": "details.question-provenance > summary(\"Sources & history\")",
+    "w": 713,
+    "h": 20,
+    "inline": false,
+    "note": ""
+   },
+   {
+    "s": "details.question-provenance > summary(\"Sources & history\")",
+    "w": 713,
+    "h": 20,
+    "inline": false,
+    "note": ""
+   },
+   {
+    "s": "details.question-provenance > summary(\"Sources & history\")",
+    "w": 713,
+    "h": 20,
+    "inline": false,
+    "note": ""
+   },
+   {
+    "s": "details.question-provenance > summary(\"Sources & history\")",
+    "w": 713,
+    "h": 20,
+    "inline": false,
+    "note": ""
+   },
+   {
+    "s": "details.question-provenance > summary(\"Sources & history\")",
+    "w": 713,
+    "h": 20,
+    "inline": false,
+    "note": ""
+   },
+   {
+    "s": "details.question-provenance > summary(\"Sources & history\")",
+    "w": 713,
+    "h": 20,
+    "inline": false,
+    "note": ""
+   },
+   {
+    "s": "details.question-provenance > summary(\"Sources & history\")",
+    "w": 713,
+    "h": 20,
+    "inline": false,
+    "note": ""
+   },
+   {
+    "s": "details.question-provenance > summary(\"Sources & history\")",
+    "w": 713,
+    "h": 20,
+    "inline": false,
+    "note": ""
+   }
+  ],
+  "smallTargetCount": 9,
+  "sticky": {
+   "bars": [
+    "header#top"
+   ],
+   "total": 57,
+   "share": 0.06
+  },
+  "end": {
+   "ok": true,
+   "bottom": 839,
+   "vh": 900,
+   "covered": null
+  },
+  "focus": [],
+  "log": {
+   "errors": [],
+   "warnings": [],
+   "failed": []
+  },
+  "issues": [
+   "9 tap targets under 44px: details.question-provenance > summary(\"Sources & history\") 713x20; details.question-provenance > summary(\"Sources & history\") 713x20; details.question-provenance > summary(\"Sources & history\") 713x20; details.question-provenance > summary(\"Sources & history\") 713x20; details.question-provenance > summary(\"Sources & history\") 713x20; details.question-provenance > summary(\"Sources & history\") 713x20; details.question-provenance > summary(\"Sources & history\") 713x20; details.question-provenance > summary(\"Sources & history\") 713x20"
+  ]
+ },
+ {
+  "tab": "AI drafting",
+  "viewport": "767x900",
+  "vw": 767,
+  "vh": 900,
+  "overflow": 0,
+  "offenders": [],
+  "clipped": [],
+  "overlaps": [],
+  "smallTargets": [
+   {
+    "s": "details.panel > summary(\"Material library · Notes, im\")",
+    "w": 713,
+    "h": 23,
+    "inline": false,
+    "note": ""
+   }
+  ],
+  "smallTargetCount": 1,
+  "sticky": {
+   "bars": [
+    "header#top"
+   ],
+   "total": 57,
+   "share": 0.06
+  },
+  "end": {
+   "ok": true,
+   "bottom": 838,
+   "vh": 900,
+   "covered": null
+  },
+  "focus": [
+   "select(\"Intro to Computing (demo)Found\") at 16-60 under top"
+  ],
+  "log": {
+   "errors": [],
+   "warnings": [],
+   "failed": []
+  },
+  "issues": [
+   "1 tap targets under 44px: details.panel > summary(\"Material library · Notes, im\") 713x23",
+   "focus under sticky bar: select(\"Intro to Computing (demo)Found\") at 16-60 under top"
+  ]
+ },
+ {
+  "tab": "Evaluation",
+  "viewport": "767x900",
+  "vw": 767,
+  "vh": 900,
+  "overflow": 0,
+  "offenders": [],
+  "clipped": [],
+  "overlaps": [],
+  "smallTargets": [],
+  "smallTargetCount": 0,
+  "sticky": {
+   "bars": [
+    "header#top"
+   ],
+   "total": 57,
+   "share": 0.06
+  },
+  "end": {
+   "ok": true,
+   "bottom": 824,
+   "vh": 900,
+   "covered": null
+  },
+  "focus": [
+   "select(\"Intro to Computing (demo)Found\") at 16-60 under top",
+   "select(\"Intro to Computing (demo)Found\") at 16-60 under top",
+   "select(\"Intro to Computing (demo)Found\") at 16-60 under top",
+   "select(\"Intro to Computing (demo)Found\") at 16-60 under top",
+   "select(\"Intro to Computing (demo)Found\") at 16-60 under top",
+   "select(\"Intro to Computing (demo)Found\") at 16-60 under top",
+   "select(\"Intro to Computing (demo)Found\") at 16-60 under top"
+  ],
+  "log": {
+   "errors": [],
+   "warnings": [],
+   "failed": []
+  },
+  "issues": [
+   "focus under sticky bar: select(\"Intro to Computing (demo)Found\") at 16-60 under top",
+   "focus under sticky bar: select(\"Intro to Computing (demo)Found\") at 16-60 under top",
+   "focus under sticky bar: select(\"Intro to Computing (demo)Found\") at 16-60 under top",
+   "focus under sticky bar: select(\"Intro to Computing (demo)Found\") at 16-60 under top",
+   "focus under sticky bar: select(\"Intro to Computing (demo)Found\") at 16-60 under top",
+   "focus under sticky bar: select(\"Intro to Computing (demo)Found\") at 16-60 under top",
+   "focus under sticky bar: select(\"Intro to Computing (demo)Found\") at 16-60 under top"
+  ]
+ },
+ {
+  "tab": "Settings",
+  "viewport": "767x900",
+  "vw": 767,
+  "vh": 900,
+  "overflow": 0,
+  "offenders": [],
+  "clipped": [],
+  "overlaps": [],
+  "smallTargets": [],
+  "smallTargetCount": 0,
+  "sticky": {
+   "bars": [
+    "header#top"
+   ],
+   "total": 145,
+   "share": 0.16
+  },
+  "end": {
+   "ok": true,
+   "bottom": 741,
+   "vh": 900,
+   "covered": null
+  },
+  "focus": [],
+  "log": {
+   "errors": [],
+   "warnings": [],
+   "failed": []
+  },
+  "issues": []
+ },
+ {
+  "tab": "Analytics",
+  "viewport": "768x900",
+  "vw": 768,
+  "vh": 900,
+  "overflow": 0,
+  "offenders": [],
+  "clipped": [],
+  "overlaps": [],
+  "smallTargets": [],
+  "smallTargetCount": 0,
+  "sticky": {
+   "bars": [
+    "header#top",
+    "nav.dash-nav.compact(\"Dashboard sections\")"
+   ],
+   "total": 117,
+   "share": 0.13
+  },
+  "end": {
+   "ok": true,
+   "bottom": 858,
+   "vh": 900,
+   "covered": null
+  },
+  "anchors": [
+   {
+    "id": "dash-overview",
+    "top": 340,
+    "cover": 283,
+    "ok": true
+   },
+   {
+    "id": "dash-weeks",
+    "top": 1542,
+    "cover": 289,
+    "ok": true
+   },
+   {
+    "id": "dash-trends",
+    "top": 2225,
+    "cover": 130,
+    "ok": true
+   },
+   {
+    "id": "dash-topics",
+    "top": 4012,
+    "cover": 117,
+    "ok": true
+   },
+   {
+    "id": "dash-missed",
+    "top": 6650,
+    "cover": 117,
+    "ok": true
+   },
+   {
+    "id": "dash-quality",
+    "top": 7449,
+    "cover": 117,
+    "ok": true
+   },
+   {
+    "id": "dash-compare",
+    "top": 8853,
+    "cover": 117,
+    "ok": true
+   }
+  ],
+  "focus": [
+   "select(\"Class\") at 18-62 under top"
+  ],
+  "log": {
+   "errors": [],
+   "warnings": [],
+   "failed": []
+  },
+  "issues": [
+   "focus under sticky bar: select(\"Class\") at 18-62 under top"
+  ]
+ },
+ {
+  "tab": "To review",
+  "viewport": "768x900",
+  "vw": 768,
+  "vh": 900,
+  "overflow": 0,
+  "offenders": [],
+  "clipped": [],
+  "overlaps": [],
+  "smallTargets": [],
+  "smallTargetCount": 0,
+  "sticky": {
+   "bars": [
+    "header#top"
+   ],
+   "total": 61,
+   "share": 0.07
+  },
+  "end": {
+   "ok": true,
+   "bottom": 809,
+   "vh": 900,
+   "covered": null
+  },
+  "focus": [
+   "select(\"Class\") at 18-62 under top"
+  ],
+  "log": {
+   "errors": [],
+   "warnings": [],
+   "failed": []
+  },
+  "issues": [
+   "focus under sticky bar: select(\"Class\") at 18-62 under top"
+  ]
+ },
+ {
+  "tab": "Classes & Roster",
+  "viewport": "768x900",
+  "vw": 768,
+  "vh": 900,
+  "overflow": 0,
+  "offenders": [],
+  "clipped": [],
+  "overlaps": [],
+  "smallTargets": [],
+  "smallTargetCount": 0,
+  "sticky": {
+   "bars": [
+    "header#top"
+   ],
+   "total": 61,
+   "share": 0.07
+  },
+  "end": {
+   "ok": true,
+   "bottom": 833,
+   "vh": 900,
+   "covered": null
+  },
+  "focus": [
+   "button(\"+ Create Class\") at 18-62 under top"
+  ],
+  "log": {
+   "errors": [],
+   "warnings": [],
+   "failed": []
+  },
+  "issues": [
+   "focus under sticky bar: button(\"+ Create Class\") at 18-62 under top"
+  ]
+ },
+ {
+  "tab": "Question bank",
+  "viewport": "768x900",
+  "vw": 768,
+  "vh": 900,
+  "overflow": 0,
+  "offenders": [],
+  "clipped": [],
+  "overlaps": [],
+  "smallTargets": [],
+  "smallTargetCount": 0,
+  "sticky": {
+   "bars": [
+    "header#top"
+   ],
+   "total": 61,
+   "share": 0.07
+  },
+  "end": {
+   "ok": true,
+   "bottom": 833,
+   "vh": 900,
+   "covered": null
+  },
+  "focus": [
+   "select(\"Intro to Computing (demo)Found\") at 18-62 under top"
+  ],
+  "log": {
+   "errors": [],
+   "warnings": [],
+   "failed": []
+  },
+  "issues": [
+   "focus under sticky bar: select(\"Intro to Computing (demo)Found\") at 18-62 under top"
+  ]
+ },
+ {
+  "tab": "AI drafting",
+  "viewport": "768x900",
+  "vw": 768,
+  "vh": 900,
+  "overflow": 0,
+  "offenders": [],
+  "clipped": [],
+  "overlaps": [],
+  "smallTargets": [],
+  "smallTargetCount": 0,
+  "sticky": {
+   "bars": [
+    "header#top"
+   ],
+   "total": 61,
+   "share": 0.07
+  },
+  "end": {
+   "ok": true,
+   "bottom": 832,
+   "vh": 900,
+   "covered": null
+  },
+  "focus": [
+   "select(\"Intro to Computing (demo)Found\") at 18-62 under top"
+  ],
+  "log": {
+   "errors": [],
+   "warnings": [],
+   "failed": []
+  },
+  "issues": [
+   "focus under sticky bar: select(\"Intro to Computing (demo)Found\") at 18-62 under top"
+  ]
+ },
+ {
+  "tab": "Evaluation",
+  "viewport": "768x900",
+  "vw": 768,
+  "vh": 900,
+  "overflow": 0,
+  "offenders": [],
+  "clipped": [],
+  "overlaps": [],
+  "smallTargets": [],
+  "smallTargetCount": 0,
+  "sticky": {
+   "bars": [
+    "header#top"
+   ],
+   "total": 61,
+   "share": 0.07
+  },
+  "end": {
+   "ok": true,
+   "bottom": 818,
+   "vh": 900,
+   "covered": null
+  },
+  "focus": [
+   "select(\"Intro to Computing (demo)Found\") at 18-62 under top",
+   "select(\"Intro to Computing (demo)Found\") at 18-62 under top",
+   "select(\"Intro to Computing (demo)Found\") at 18-62 under top",
+   "select(\"Intro to Computing (demo)Found\") at 18-62 under top",
+   "select(\"Intro to Computing (demo)Found\") at 18-62 under top",
+   "select(\"Intro to Computing (demo)Found\") at 18-62 under top",
+   "select(\"Intro to Computing (demo)Found\") at 18-62 under top"
+  ],
+  "log": {
+   "errors": [],
+   "warnings": [],
+   "failed": []
+  },
+  "issues": [
+   "focus under sticky bar: select(\"Intro to Computing (demo)Found\") at 18-62 under top",
+   "focus under sticky bar: select(\"Intro to Computing (demo)Found\") at 18-62 under top",
+   "focus under sticky bar: select(\"Intro to Computing (demo)Found\") at 18-62 under top",
+   "focus under sticky bar: select(\"Intro to Computing (demo)Found\") at 18-62 under top",
+   "focus under sticky bar: select(\"Intro to Computing (demo)Found\") at 18-62 under top",
+   "focus under sticky bar: select(\"Intro to Computing (demo)Found\") at 18-62 under top",
+   "focus under sticky bar: select(\"Intro to Computing (demo)Found\") at 18-62 under top"
+  ]
+ },
+ {
+  "tab": "Settings",
+  "viewport": "768x900",
+  "vw": 768,
+  "vh": 900,
+  "overflow": 0,
+  "offenders": [],
+  "clipped": [],
+  "overlaps": [],
+  "smallTargets": [],
+  "smallTargetCount": 0,
+  "sticky": {
+   "bars": [
+    "header#top"
+   ],
+   "total": 133,
+   "share": 0.15
+  },
+  "end": {
+   "ok": true,
+   "bottom": 751,
+   "vh": 900,
+   "covered": null
+  },
+  "focus": [],
+  "log": {
+   "errors": [],
+   "warnings": [],
+   "failed": []
+  },
+  "issues": []
+ },
+ {
+  "tab": "state: drawer open",
+  "viewport": "768x900",
+  "state": "drawer open",
+  "vw": 768,
+  "vh": 900,
+  "overflow": 0,
+  "offenders": [],
+  "clipped": [],
+  "overlaps": [],
+  "smallTargets": [],
+  "smallTargetCount": 0,
+  "sticky": {
+   "bars": [
+    "header#top"
+   ],
+   "total": 133,
+   "share": 0.15
+  },
+  "drawer": {
+   "fits": true,
+   "lastReachable": true
+  },
+  "issues": [],
+  "log": {
+   "errors": [],
+   "warnings": [],
+   "failed": []
+  }
+ },
+ {
+  "tab": "state: analytics question dialog",
+  "viewport": "768x900",
+  "state": "analytics question dialog",
+  "vw": 768,
+  "vh": 900,
+  "overflow": 0,
+  "offenders": [],
+  "clipped": [],
+  "overlaps": [],
+  "smallTargets": [],
+  "smallTargetCount": 0,
+  "sticky": {
+   "bars": [
+    "header#top",
+    "nav.dash-nav.compact(\"Dashboard sections\")"
+   ],
+   "total": 117,
+   "share": 0.13
+  },
+  "modal": {
+   "ok": true,
+   "fits": true,
+   "scroller": true,
+   "reachable": true,
+   "closeVisibleAtTop": true,
+   "h": 566,
+   "vh": 900
+  },
+  "issues": [],
+  "log": {
+   "errors": [],
+   "warnings": [],
+   "failed": []
+  }
+ },
+ {
+  "tab": "state: classes create modal",
+  "viewport": "768x900",
+  "state": "classes create modal",
+  "vw": 768,
+  "vh": 900,
+  "overflow": 0,
+  "offenders": [],
+  "clipped": [],
+  "overlaps": [],
+  "smallTargets": [],
+  "smallTargetCount": 0,
+  "sticky": {
+   "bars": [
+    "header#top"
+   ],
+   "total": 61,
+   "share": 0.07
+  },
+  "modal": {
+   "ok": true,
+   "fits": true,
+   "scroller": true,
+   "reachable": true,
+   "closeVisibleAtTop": true,
+   "h": 453,
+   "vh": 900
+  },
+  "issues": [],
+  "log": {
+   "errors": [],
+   "warnings": [],
+   "failed": []
+  }
+ },
+ {
+  "tab": "state: classes rename modal",
+  "viewport": "768x900",
+  "state": "classes rename modal",
+  "vw": 768,
+  "vh": 900,
+  "overflow": 0,
+  "offenders": [],
+  "clipped": [],
+  "overlaps": [],
+  "smallTargets": [],
+  "smallTargetCount": 0,
+  "sticky": {
+   "bars": [
+    "header#top"
+   ],
+   "total": 61,
+   "share": 0.07
+  },
+  "modal": {
+   "ok": true,
+   "fits": true,
+   "scroller": true,
+   "reachable": true,
+   "closeVisibleAtTop": true,
+   "h": 391,
+   "vh": 900
+  },
+  "issues": [],
+  "log": {
+   "errors": [],
+   "warnings": [],
+   "failed": []
+  }
+ },
+ {
+  "tab": "state: classes roster",
+  "viewport": "768x900",
+  "state": "classes roster",
+  "vw": 768,
+  "vh": 900,
+  "overflow": 0,
+  "offenders": [],
+  "clipped": [],
+  "overlaps": [],
+  "smallTargets": [],
+  "smallTargetCount": 0,
+  "sticky": {
+   "bars": [
+    "header#top"
+   ],
+   "total": 61,
+   "share": 0.07
+  },
+  "issues": [],
+  "log": {
+   "errors": [],
+   "warnings": [],
+   "failed": []
+  }
+ },
+ {
+  "tab": "state: classes code modal",
+  "viewport": "768x900",
+  "state": "classes code modal",
+  "vw": 768,
+  "vh": 900,
+  "overflow": 0,
+  "offenders": [],
+  "clipped": [],
+  "overlaps": [],
+  "smallTargets": [],
+  "smallTargetCount": 0,
+  "sticky": {
+   "bars": [
+    "header#top"
+   ],
+   "total": 139,
+   "share": 0.15
+  },
+  "modal": {
+   "ok": true,
+   "fits": true,
+   "scroller": true,
+   "reachable": true,
+   "closeVisibleAtTop": true,
+   "h": 361,
+   "vh": 900
+  },
+  "issues": [],
+  "log": {
+   "errors": [],
+   "warnings": [],
+   "failed": []
+  }
+ },
+ {
+  "tab": "state: classes class settings",
+  "viewport": "768x900",
+  "state": "classes class settings",
+  "vw": 768,
+  "vh": 900,
+  "overflow": 0,
+  "offenders": [],
+  "clipped": [],
+  "overlaps": [],
+  "smallTargets": [],
+  "smallTargetCount": 0,
+  "sticky": {
+   "bars": [
+    "header#top"
+   ],
+   "total": 110,
+   "share": 0.12
+  },
+  "issues": [],
+  "log": {
+   "errors": [],
+   "warnings": [],
+   "failed": []
+  }
+ },
+ {
+  "tab": "state: question bank cards",
+  "viewport": "768x900",
+  "state": "question bank cards",
+  "vw": 768,
+  "vh": 900,
+  "overflow": 0,
+  "offenders": [],
+  "clipped": [],
+  "overlaps": [],
+  "smallTargets": [],
+  "smallTargetCount": 0,
+  "sticky": {
+   "bars": [
+    "header#top",
+    "div.cr-actions"
+   ],
+   "total": 133,
+   "share": 0.15
+  },
+  "issues": [],
+  "log": {
+   "errors": [],
+   "warnings": [],
+   "failed": []
+  }
+ },
+ {
+  "tab": "state: question bank editor",
+  "viewport": "768x900",
+  "state": "question bank editor",
+  "vw": 768,
+  "vh": 900,
+  "overflow": 0,
+  "offenders": [],
+  "clipped": [],
+  "overlaps": [],
+  "smallTargets": [],
+  "smallTargetCount": 0,
+  "sticky": {
+   "bars": [
+    "header#top"
+   ],
+   "total": 61,
+   "share": 0.07
+  },
+  "issues": [],
+  "log": {
+   "errors": [],
+   "warnings": [],
+   "failed": []
+  }
+ },
+ {
+  "tab": "state: ai drafting retrieved material",
+  "viewport": "768x900",
+  "state": "ai drafting retrieved material",
+  "vw": 768,
+  "vh": 900,
+  "overflow": 0,
+  "offenders": [],
+  "clipped": [],
+  "overlaps": [],
+  "smallTargets": [],
+  "smallTargetCount": 0,
+  "sticky": {
+   "bars": [
+    "header#top"
+   ],
+   "total": 61,
+   "share": 0.07
+  },
+  "issues": [],
+  "log": {
+   "errors": [],
+   "warnings": [],
+   "failed": []
+  }
+ },
+ {
+  "tab": "state: ai drafting material library",
+  "viewport": "768x900",
+  "state": "ai drafting material library",
+  "vw": 768,
+  "vh": 900,
+  "overflow": 0,
+  "offenders": [],
+  "clipped": [],
+  "overlaps": [],
+  "smallTargets": [],
+  "smallTargetCount": 0,
+  "sticky": {
+   "bars": [
+    "header#top"
+   ],
+   "total": 61,
+   "share": 0.07
+  },
+  "issues": [],
+  "log": {
+   "errors": [],
+   "warnings": [],
+   "failed": []
+  }
+ },
+ {
+  "tab": "Analytics",
+  "viewport": "991x900",
+  "vw": 991,
+  "vh": 900,
+  "overflow": 86,
+  "offenders": [
+   {
+    "s": "ul.viz-legend > li",
+    "left": 658,
+    "right": 1077,
+    "width": 419
+   }
+  ],
+  "clipped": [],
+  "overlaps": [],
+  "smallTargets": [],
+  "smallTargetCount": 0,
+  "sticky": {
+   "bars": [
+    "header#top",
+    "nav.dash-nav(\"Dashboard sections\")"
+   ],
+   "total": 117,
+   "share": 0.13
+  },
+  "end": {
+   "ok": true,
+   "bottom": 858,
+   "vh": 900,
+   "covered": null
+  },
+  "anchors": [
+   {
+    "id": "dash-overview",
+    "top": 288,
+    "cover": 240,
+    "ok": true
+   },
+   {
+    "id": "dash-weeks",
+    "top": 1408,
+    "cover": 237,
+    "ok": true
+   },
+   {
+    "id": "dash-trends",
+    "top": 1952,
+    "cover": 117,
+    "ok": true
+   },
+   {
+    "id": "dash-topics",
+    "top": 3633,
+    "cover": 117,
+    "ok": true
+   },
+   {
+    "id": "dash-missed",
+    "top": 6162,
+    "cover": 117,
+    "ok": true
+   },
+   {
+    "id": "dash-quality",
+    "top": 6974,
+    "cover": 117,
+    "ok": true
+   },
+   {
+    "id": "dash-compare",
+    "top": 8363,
+    "cover": 117,
+    "ok": true
+   }
+  ],
+  "focus": [
+   "select(\"Class\") at 18-62 under top"
+  ],
+  "log": {
+   "errors": [],
+   "warnings": [],
+   "failed": []
+  },
+  "issues": [
+   "page overflows by 86px",
+   "outside viewport: ul.viz-legend > li (left 658, right 1077, width 419)",
+   "focus under sticky bar: select(\"Class\") at 18-62 under top"
+  ]
+ },
+ {
+  "tab": "To review",
+  "viewport": "991x900",
+  "vw": 991,
+  "vh": 900,
+  "overflow": 0,
+  "offenders": [],
+  "clipped": [],
+  "overlaps": [],
+  "smallTargets": [],
+  "smallTargetCount": 0,
+  "sticky": {
+   "bars": [
+    "header#top"
+   ],
+   "total": 61,
+   "share": 0.07
+  },
+  "end": {
+   "ok": true,
+   "bottom": 809,
+   "vh": 900,
+   "covered": null
+  },
+  "focus": [
+   "select(\"Class\") at 18-62 under top"
+  ],
+  "log": {
+   "errors": [],
+   "warnings": [],
+   "failed": []
+  },
+  "issues": [
+   "focus under sticky bar: select(\"Class\") at 18-62 under top"
+  ]
+ },
+ {
+  "tab": "Classes & Roster",
+  "viewport": "991x900",
+  "vw": 991,
+  "vh": 900,
+  "overflow": 0,
+  "offenders": [],
+  "clipped": [],
+  "overlaps": [],
+  "smallTargets": [],
+  "smallTargetCount": 0,
+  "sticky": {
+   "bars": [
+    "header#top"
+   ],
+   "total": 61,
+   "share": 0.07
+  },
+  "end": {
+   "ok": true,
+   "bottom": 833,
+   "vh": 900,
+   "covered": null
+  },
+  "focus": [
+   "button(\"+ Create Class\") at 18-62 under top"
+  ],
+  "log": {
+   "errors": [],
+   "warnings": [],
+   "failed": []
+  },
+  "issues": [
+   "focus under sticky bar: button(\"+ Create Class\") at 18-62 under top"
+  ]
+ },
+ {
+  "tab": "Question bank",
+  "viewport": "991x900",
+  "vw": 991,
+  "vh": 900,
+  "overflow": 0,
+  "offenders": [],
+  "clipped": [],
+  "overlaps": [],
+  "smallTargets": [],
+  "smallTargetCount": 0,
+  "sticky": {
+   "bars": [
+    "header#top"
+   ],
+   "total": 61,
+   "share": 0.07
+  },
+  "end": {
+   "ok": true,
+   "bottom": 833,
+   "vh": 900,
+   "covered": null
+  },
+  "focus": [
+   "select(\"Intro to Computing (demo)Found\") at 18-62 under top",
+   "button(\"List\") at 18-62 under top",
+   "button(\"Review as cards (8)\") at 18-62 under top"
+  ],
+  "log": {
+   "errors": [],
+   "warnings": [],
+   "failed": []
+  },
+  "issues": [
+   "focus under sticky bar: select(\"Intro to Computing (demo)Found\") at 18-62 under top",
+   "focus under sticky bar: button(\"List\") at 18-62 under top",
+   "focus under sticky bar: button(\"Review as cards (8)\") at 18-62 under top"
+  ]
+ },
+ {
+  "tab": "AI drafting",
+  "viewport": "991x900",
+  "vw": 991,
+  "vh": 900,
+  "overflow": 0,
+  "offenders": [],
+  "clipped": [],
+  "overlaps": [],
+  "smallTargets": [],
+  "smallTargetCount": 0,
+  "sticky": {
+   "bars": [
+    "header#top"
+   ],
+   "total": 61,
+   "share": 0.07
+  },
+  "end": {
+   "ok": true,
+   "bottom": 833,
+   "vh": 900,
+   "covered": null
+  },
+  "focus": [
+   "select(\"Intro to Computing (demo)Found\") at 18-62 under top"
+  ],
+  "log": {
+   "errors": [],
+   "warnings": [],
+   "failed": []
+  },
+  "issues": [
+   "focus under sticky bar: select(\"Intro to Computing (demo)Found\") at 18-62 under top"
+  ]
+ },
+ {
+  "tab": "Evaluation",
+  "viewport": "991x900",
+  "vw": 991,
+  "vh": 900,
+  "overflow": 0,
+  "offenders": [],
+  "clipped": [],
+  "overlaps": [],
+  "smallTargets": [],
+  "smallTargetCount": 0,
+  "sticky": {
+   "bars": [
+    "header#top"
+   ],
+   "total": 61,
+   "share": 0.07
+  },
+  "end": {
+   "ok": true,
+   "bottom": 818,
+   "vh": 900,
+   "covered": null
+  },
+  "focus": [
+   "select(\"Intro to Computing (demo)Found\") at 18-62 under top",
+   "select(\"Intro to Computing (demo)Found\") at 18-62 under top",
+   "select(\"Intro to Computing (demo)Found\") at 18-62 under top",
+   "select(\"Intro to Computing (demo)Found\") at 18-62 under top",
+   "select(\"Intro to Computing (demo)Found\") at 18-62 under top",
+   "select(\"Intro to Computing (demo)Found\") at 18-62 under top",
+   "select(\"Intro to Computing (demo)Found\") at 18-62 under top"
+  ],
+  "log": {
+   "errors": [],
+   "warnings": [],
+   "failed": []
+  },
+  "issues": [
+   "focus under sticky bar: select(\"Intro to Computing (demo)Found\") at 18-62 under top",
+   "focus under sticky bar: select(\"Intro to Computing (demo)Found\") at 18-62 under top",
+   "focus under sticky bar: select(\"Intro to Computing (demo)Found\") at 18-62 under top",
+   "focus under sticky bar: select(\"Intro to Computing (demo)Found\") at 18-62 under top",
+   "focus under sticky bar: select(\"Intro to Computing (demo)Found\") at 18-62 under top",
+   "focus under sticky bar: select(\"Intro to Computing (demo)Found\") at 18-62 under top",
+   "focus under sticky bar: select(\"Intro to Computing (demo)Found\") at 18-62 under top"
+  ]
+ },
+ {
+  "tab": "Settings",
+  "viewport": "991x900",
+  "vw": 991,
+  "vh": 900,
+  "overflow": 0,
+  "offenders": [],
+  "clipped": [],
+  "overlaps": [],
+  "smallTargets": [],
+  "smallTargetCount": 0,
+  "sticky": {
+   "bars": [
+    "header#top"
+   ],
+   "total": 152,
+   "share": 0.17
+  },
+  "end": {
+   "ok": true,
+   "bottom": 732,
+   "vh": 900,
+   "covered": null
+  },
+  "focus": [],
+  "log": {
+   "errors": [],
+   "warnings": [],
+   "failed": []
+  },
+  "issues": []
+ },
+ {
+  "tab": "state: drawer open",
+  "viewport": "991x900",
+  "state": "drawer open",
+  "vw": 991,
+  "vh": 900,
+  "overflow": 0,
+  "offenders": [],
+  "clipped": [],
+  "overlaps": [],
+  "smallTargets": [],
+  "smallTargetCount": 0,
+  "sticky": {
+   "bars": [
+    "header#top"
+   ],
+   "total": 152,
+   "share": 0.17
+  },
+  "drawer": {
+   "fits": true,
+   "lastReachable": true
+  },
+  "issues": [],
+  "log": {
+   "errors": [],
+   "warnings": [],
+   "failed": []
+  }
+ },
+ {
+  "tab": "state: analytics question dialog",
+  "viewport": "991x900",
+  "state": "analytics question dialog",
+  "vw": 991,
+  "vh": 900,
+  "overflow": 0,
+  "offenders": [],
+  "clipped": [],
+  "overlaps": [],
+  "smallTargets": [],
+  "smallTargetCount": 0,
+  "sticky": {
+   "bars": [
+    "header#top",
+    "nav.dash-nav(\"Dashboard sections\")"
+   ],
+   "total": 117,
+   "share": 0.13
+  },
+  "modal": {
+   "ok": true,
+   "fits": true,
+   "scroller": true,
+   "reachable": true,
+   "closeVisibleAtTop": true,
+   "h": 566,
+   "vh": 900
+  },
+  "issues": [],
+  "log": {
+   "errors": [],
+   "warnings": [],
+   "failed": []
+  }
+ },
+ {
+  "tab": "state: classes create modal",
+  "viewport": "991x900",
+  "state": "classes create modal",
+  "vw": 991,
+  "vh": 900,
+  "overflow": 0,
+  "offenders": [],
+  "clipped": [],
+  "overlaps": [],
+  "smallTargets": [],
+  "smallTargetCount": 0,
+  "sticky": {
+   "bars": [
+    "header#top"
+   ],
+   "total": 61,
+   "share": 0.07
+  },
+  "modal": {
+   "ok": true,
+   "fits": true,
+   "scroller": true,
+   "reachable": true,
+   "closeVisibleAtTop": true,
+   "h": 453,
+   "vh": 900
+  },
+  "issues": [],
+  "log": {
+   "errors": [],
+   "warnings": [],
+   "failed": []
+  }
+ },
+ {
+  "tab": "state: classes rename modal",
+  "viewport": "991x900",
+  "state": "classes rename modal",
+  "vw": 991,
+  "vh": 900,
+  "overflow": 0,
+  "offenders": [],
+  "clipped": [],
+  "overlaps": [],
+  "smallTargets": [],
+  "smallTargetCount": 0,
+  "sticky": {
+   "bars": [
+    "header#top"
+   ],
+   "total": 61,
+   "share": 0.07
+  },
+  "modal": {
+   "ok": true,
+   "fits": true,
+   "scroller": true,
+   "reachable": true,
+   "closeVisibleAtTop": true,
+   "h": 391,
+   "vh": 900
+  },
+  "issues": [],
+  "log": {
+   "errors": [],
+   "warnings": [],
+   "failed": []
+  }
+ },
+ {
+  "tab": "state: classes roster",
+  "viewport": "991x900",
+  "state": "classes roster",
+  "vw": 991,
+  "vh": 900,
+  "overflow": 0,
+  "offenders": [],
+  "clipped": [],
+  "overlaps": [],
+  "smallTargets": [],
+  "smallTargetCount": 0,
+  "sticky": {
+   "bars": [
+    "header#top"
+   ],
+   "total": 61,
+   "share": 0.07
+  },
+  "issues": [],
+  "log": {
+   "errors": [],
+   "warnings": [],
+   "failed": []
+  }
+ },
+ {
+  "tab": "state: classes code modal",
+  "viewport": "991x900",
+  "state": "classes code modal",
+  "vw": 991,
+  "vh": 900,
+  "overflow": 0,
+  "offenders": [],
+  "clipped": [],
+  "overlaps": [],
+  "smallTargets": [],
+  "smallTargetCount": 0,
+  "sticky": {
+   "bars": [
+    "header#top"
+   ],
+   "total": 156,
+   "share": 0.17
+  },
+  "modal": {
+   "ok": true,
+   "fits": true,
+   "scroller": true,
+   "reachable": true,
+   "closeVisibleAtTop": true,
+   "h": 361,
+   "vh": 900
+  },
+  "issues": [],
+  "log": {
+   "errors": [],
+   "warnings": [],
+   "failed": []
+  }
+ },
+ {
+  "tab": "state: classes class settings",
+  "viewport": "991x900",
+  "state": "classes class settings",
+  "vw": 991,
+  "vh": 900,
+  "overflow": 0,
+  "offenders": [],
+  "clipped": [],
+  "overlaps": [],
+  "smallTargets": [],
+  "smallTargetCount": 0,
+  "sticky": {
+   "bars": [
+    "header#top"
+   ],
+   "total": 136,
+   "share": 0.15
+  },
+  "issues": [],
+  "log": {
+   "errors": [],
+   "warnings": [],
+   "failed": []
+  }
+ },
+ {
+  "tab": "state: question bank cards",
+  "viewport": "991x900",
+  "state": "question bank cards",
+  "vw": 991,
+  "vh": 900,
+  "overflow": 0,
+  "offenders": [],
+  "clipped": [],
+  "overlaps": [],
+  "smallTargets": [],
+  "smallTargetCount": 0,
+  "sticky": {
+   "bars": [
+    "header#top",
+    "div.cr-actions"
+   ],
+   "total": 133,
+   "share": 0.15
+  },
+  "issues": [],
+  "log": {
+   "errors": [],
+   "warnings": [],
+   "failed": []
+  }
+ },
+ {
+  "tab": "state: question bank editor",
+  "viewport": "991x900",
+  "state": "question bank editor",
+  "vw": 991,
+  "vh": 900,
+  "overflow": 0,
+  "offenders": [],
+  "clipped": [],
+  "overlaps": [],
+  "smallTargets": [],
+  "smallTargetCount": 0,
+  "sticky": {
+   "bars": [
+    "header#top"
+   ],
+   "total": 61,
+   "share": 0.07
+  },
+  "issues": [],
+  "log": {
+   "errors": [],
+   "warnings": [],
+   "failed": []
+  }
+ },
+ {
+  "tab": "state: ai drafting retrieved material",
+  "viewport": "991x900",
+  "state": "ai drafting retrieved material",
+  "vw": 991,
+  "vh": 900,
+  "overflow": 0,
+  "offenders": [],
+  "clipped": [],
+  "overlaps": [],
+  "smallTargets": [],
+  "smallTargetCount": 0,
+  "sticky": {
+   "bars": [
+    "header#top"
+   ],
+   "total": 61,
+   "share": 0.07
+  },
+  "issues": [],
+  "log": {
+   "errors": [],
+   "warnings": [],
+   "failed": []
+  }
+ },
+ {
+  "tab": "state: ai drafting material library",
+  "viewport": "991x900",
+  "state": "ai drafting material library",
+  "vw": 991,
+  "vh": 900,
+  "overflow": 0,
+  "offenders": [],
+  "clipped": [],
+  "overlaps": [],
+  "smallTargets": [],
+  "smallTargetCount": 0,
+  "sticky": {
+   "bars": [
+    "header#top"
+   ],
+   "total": 61,
+   "share": 0.07
+  },
+  "issues": [],
+  "log": {
+   "errors": [],
+   "warnings": [],
+   "failed": []
+  }
+ },
+ {
+  "tab": "Analytics",
+  "viewport": "992x900",
+  "vw": 992,
+  "vh": 900,
+  "overflow": 0,
+  "offenders": [],
+  "clipped": [],
+  "overlaps": [],
+  "smallTargets": [],
+  "smallTargetCount": 0,
+  "sticky": {
+   "bars": [
+    "div.dash-toolbar.no-print"
+   ],
+   "total": 201,
+   "share": 0.22
+  },
+  "end": {
+   "ok": true,
+   "bottom": 850,
+   "vh": 900,
+   "covered": null
+  },
+  "anchors": [
+   {
+    "id": "dash-overview",
+    "top": 250,
+    "cover": 201,
+    "ok": true
+   },
+   {
+    "id": "dash-weeks",
+    "top": 1552,
+    "cover": 201,
+    "ok": true
+   },
+   {
+    "id": "dash-trends",
+    "top": 2194,
+    "cover": 201,
+    "ok": true
+   },
+   {
+    "id": "dash-topics",
+    "top": 4050,
+    "cover": 201,
+    "ok": true
+   },
+   {
+    "id": "dash-missed",
+    "top": 6646,
+    "cover": 201,
+    "ok": true
+   },
+   {
+    "id": "dash-quality",
+    "top": 7377,
+    "cover": 201,
+    "ok": true
+   },
+   {
+    "id": "dash-compare",
+    "top": 8709,
+    "cover": 201,
+    "ok": true
+   }
+  ],
+  "focus": [],
+  "log": {
+   "errors": [],
+   "warnings": [],
+   "failed": []
+  },
+  "issues": []
+ },
+ {
+  "tab": "To review",
+  "viewport": "992x900",
+  "vw": 992,
+  "vh": 900,
+  "overflow": 0,
+  "offenders": [],
+  "clipped": [],
+  "overlaps": [],
+  "smallTargets": [],
+  "smallTargetCount": 0,
+  "sticky": {
+   "bars": [],
+   "total": 0,
+   "share": 0
+  },
+  "end": {
+   "ok": true,
+   "bottom": 801,
+   "vh": 900,
+   "covered": null
+  },
+  "focus": [],
+  "log": {
+   "errors": [],
+   "warnings": [],
+   "failed": []
+  },
+  "issues": []
+ },
+ {
+  "tab": "Classes & Roster",
+  "viewport": "992x900",
+  "vw": 992,
+  "vh": 900,
+  "overflow": 0,
+  "offenders": [],
+  "clipped": [],
+  "overlaps": [],
+  "smallTargets": [],
+  "smallTargetCount": 0,
+  "sticky": {
+   "bars": [],
+   "total": 0,
+   "share": 0
+  },
+  "end": {
+   "ok": true,
+   "bottom": 825,
+   "vh": 900,
+   "covered": null
+  },
+  "focus": [],
+  "log": {
+   "errors": [],
+   "warnings": [],
+   "failed": []
+  },
+  "issues": []
+ },
+ {
+  "tab": "Question bank",
+  "viewport": "992x900",
+  "vw": 992,
+  "vh": 900,
+  "overflow": 0,
+  "offenders": [],
+  "clipped": [],
+  "overlaps": [],
+  "smallTargets": [],
+  "smallTargetCount": 0,
+  "sticky": {
+   "bars": [],
+   "total": 0,
+   "share": 0
+  },
+  "end": {
+   "ok": true,
+   "bottom": 825,
+   "vh": 900,
+   "covered": null
+  },
+  "focus": [],
+  "log": {
+   "errors": [],
+   "warnings": [],
+   "failed": []
+  },
+  "issues": []
+ },
+ {
+  "tab": "AI drafting",
+  "viewport": "992x900",
+  "vw": 992,
+  "vh": 900,
+  "overflow": 0,
+  "offenders": [],
+  "clipped": [],
+  "overlaps": [],
+  "smallTargets": [],
+  "smallTargetCount": 0,
+  "sticky": {
+   "bars": [],
+   "total": 0,
+   "share": 0
+  },
+  "end": {
+   "ok": true,
+   "bottom": 824,
+   "vh": 900,
+   "covered": null
+  },
+  "focus": [],
+  "log": {
+   "errors": [],
+   "warnings": [],
+   "failed": []
+  },
+  "issues": []
+ },
+ {
+  "tab": "Evaluation",
+  "viewport": "992x900",
+  "vw": 992,
+  "vh": 900,
+  "overflow": 0,
+  "offenders": [],
+  "clipped": [],
+  "overlaps": [],
+  "smallTargets": [],
+  "smallTargetCount": 0,
+  "sticky": {
+   "bars": [],
+   "total": 0,
+   "share": 0
+  },
+  "end": {
+   "ok": true,
+   "bottom": 810,
+   "vh": 900,
+   "covered": null
+  },
+  "focus": [],
+  "log": {
+   "errors": [],
+   "warnings": [],
+   "failed": []
+  },
+  "issues": []
+ },
+ {
+  "tab": "Settings",
+  "viewport": "992x900",
+  "vw": 992,
+  "vh": 900,
+  "overflow": 0,
+  "offenders": [],
+  "clipped": [],
+  "overlaps": [],
+  "smallTargets": [],
+  "smallTargetCount": 0,
+  "sticky": {
+   "bars": [],
+   "total": 0,
+   "share": 0
+  },
+  "end": {
+   "ok": true,
+   "bottom": 614,
+   "vh": 900,
+   "covered": null
+  },
+  "focus": [],
+  "log": {
+   "errors": [],
+   "warnings": [],
+   "failed": []
+  },
+  "issues": []
+ },
+ {
+  "tab": "state: analytics question dialog",
+  "viewport": "992x900",
+  "state": "analytics question dialog",
+  "vw": 992,
+  "vh": 900,
+  "overflow": 0,
+  "offenders": [],
+  "clipped": [],
+  "overlaps": [],
+  "smallTargets": [],
+  "smallTargetCount": 0,
+  "sticky": {
+   "bars": [
+    "div.dash-toolbar.no-print"
+   ],
+   "total": 201,
+   "share": 0.22
+  },
+  "modal": {
+   "ok": true,
+   "fits": true,
+   "scroller": true,
+   "reachable": true,
+   "closeVisibleAtTop": true,
+   "h": 546,
+   "vh": 900
+  },
+  "issues": [],
+  "log": {
+   "errors": [],
+   "warnings": [],
+   "failed": []
+  }
+ },
+ {
+  "tab": "state: classes create modal",
+  "viewport": "992x900",
+  "state": "classes create modal",
+  "vw": 992,
+  "vh": 900,
+  "overflow": 0,
+  "offenders": [],
+  "clipped": [],
+  "overlaps": [],
+  "smallTargets": [],
+  "smallTargetCount": 0,
+  "sticky": {
+   "bars": [],
+   "total": 0,
+   "share": 0
+  },
+  "modal": {
+   "ok": true,
+   "fits": true,
+   "scroller": true,
+   "reachable": true,
+   "closeVisibleAtTop": true,
+   "h": 440,
+   "vh": 900
+  },
+  "issues": [],
+  "log": {
+   "errors": [],
+   "warnings": [],
+   "failed": []
+  }
+ },
+ {
+  "tab": "state: classes rename modal",
+  "viewport": "992x900",
+  "state": "classes rename modal",
+  "vw": 992,
+  "vh": 900,
+  "overflow": 0,
+  "offenders": [],
+  "clipped": [],
+  "overlaps": [],
+  "smallTargets": [],
+  "smallTargetCount": 0,
+  "sticky": {
+   "bars": [],
+   "total": 0,
+   "share": 0
+  },
+  "modal": {
+   "ok": true,
+   "fits": true,
+   "scroller": true,
+   "reachable": true,
+   "closeVisibleAtTop": true,
+   "h": 382,
+   "vh": 900
+  },
+  "issues": [],
+  "log": {
+   "errors": [],
+   "warnings": [],
+   "failed": []
+  }
+ },
+ {
+  "tab": "state: classes roster",
+  "viewport": "992x900",
+  "state": "classes roster",
+  "vw": 992,
+  "vh": 900,
+  "overflow": 0,
+  "offenders": [],
+  "clipped": [],
+  "overlaps": [],
+  "smallTargets": [],
+  "smallTargetCount": 0,
+  "sticky": {
+   "bars": [],
+   "total": 0,
+   "share": 0
+  },
+  "issues": [],
+  "log": {
+   "errors": [],
+   "warnings": [],
+   "failed": []
+  }
+ },
+ {
+  "tab": "state: classes code modal",
+  "viewport": "992x900",
+  "state": "classes code modal",
+  "vw": 992,
+  "vh": 900,
+  "overflow": 0,
+  "offenders": [],
+  "clipped": [],
+  "overlaps": [],
+  "smallTargets": [],
+  "smallTargetCount": 0,
+  "sticky": {
+   "bars": [],
+   "total": 0,
+   "share": 0
+  },
+  "modal": {
+   "ok": true,
+   "fits": true,
+   "scroller": true,
+   "reachable": true,
+   "closeVisibleAtTop": true,
+   "h": 348,
+   "vh": 900
+  },
+  "issues": [],
+  "log": {
+   "errors": [],
+   "warnings": [],
+   "failed": []
+  }
+ },
+ {
+  "tab": "state: classes class settings",
+  "viewport": "992x900",
+  "state": "classes class settings",
+  "vw": 992,
+  "vh": 900,
+  "overflow": 0,
+  "offenders": [],
+  "clipped": [],
+  "overlaps": [],
+  "smallTargets": [],
+  "smallTargetCount": 0,
+  "sticky": {
+   "bars": [],
+   "total": 0,
+   "share": 0
+  },
+  "issues": [],
+  "log": {
+   "errors": [],
+   "warnings": [],
+   "failed": []
+  }
+ },
+ {
+  "tab": "state: question bank cards",
+  "viewport": "992x900",
+  "state": "question bank cards",
+  "vw": 992,
+  "vh": 900,
+  "overflow": 0,
+  "offenders": [],
+  "clipped": [],
+  "overlaps": [],
+  "smallTargets": [],
+  "smallTargetCount": 0,
+  "sticky": {
+   "bars": [],
+   "total": 0,
+   "share": 0
+  },
+  "issues": [],
+  "log": {
+   "errors": [],
+   "warnings": [],
+   "failed": []
+  }
+ },
+ {
+  "tab": "state: question bank editor",
+  "viewport": "992x900",
+  "state": "question bank editor",
+  "vw": 992,
+  "vh": 900,
+  "overflow": 0,
+  "offenders": [],
+  "clipped": [],
+  "overlaps": [],
+  "smallTargets": [],
+  "smallTargetCount": 0,
+  "sticky": {
+   "bars": [],
+   "total": 0,
+   "share": 0
+  },
+  "issues": [],
+  "log": {
+   "errors": [],
+   "warnings": [],
+   "failed": []
+  }
+ },
+ {
+  "tab": "state: ai drafting retrieved material",
+  "viewport": "992x900",
+  "state": "ai drafting retrieved material",
+  "vw": 992,
+  "vh": 900,
+  "overflow": 0,
+  "offenders": [],
+  "clipped": [],
+  "overlaps": [],
+  "smallTargets": [],
+  "smallTargetCount": 0,
+  "sticky": {
+   "bars": [],
+   "total": 0,
+   "share": 0
+  },
+  "issues": [],
+  "log": {
+   "errors": [],
+   "warnings": [],
+   "failed": []
+  }
+ },
+ {
+  "tab": "state: ai drafting material library",
+  "viewport": "992x900",
+  "state": "ai drafting material library",
+  "vw": 992,
+  "vh": 900,
+  "overflow": 0,
+  "offenders": [],
+  "clipped": [],
+  "overlaps": [],
+  "smallTargets": [],
+  "smallTargetCount": 0,
+  "sticky": {
+   "bars": [],
+   "total": 0,
+   "share": 0
+  },
+  "issues": [],
+  "log": {
+   "errors": [],
+   "warnings": [],
+   "failed": []
+  }
+ },
+ {
+  "tab": "Analytics",
+  "viewport": "1199x900",
+  "vw": 1199,
+  "vh": 900,
+  "overflow": 90,
+  "offenders": [
+   {
+    "s": "ul.viz-legend > li",
+    "left": 870,
+    "right": 1289,
+    "width": 419
+   }
+  ],
+  "clipped": [],
+  "overlaps": [],
+  "smallTargets": [],
+  "smallTargetCount": 0,
+  "sticky": {
+   "bars": [
+    "div.dash-toolbar.no-print"
+   ],
+   "total": 151,
+   "share": 0.17
+  },
+  "end": {
+   "ok": true,
+   "bottom": 850,
+   "vh": 900,
+   "covered": null
+  },
+  "anchors": [
+   {
+    "id": "dash-overview",
+    "top": 205,
+    "cover": 163,
+    "ok": true
+   },
+   {
+    "id": "dash-weeks",
+    "top": 1444,
+    "cover": 151,
+    "ok": true
+   },
+   {
+    "id": "dash-trends",
+    "top": 2025,
+    "cover": 151,
+    "ok": true
+   },
+   {
+    "id": "dash-topics",
+    "top": 3739,
+    "cover": 151,
+    "ok": true
+   },
+   {
+    "id": "dash-missed",
+    "top": 6167,
+    "cover": 151,
+    "ok": true
+   },
+   {
+    "id": "dash-quality",
+    "top": 6883,
+    "cover": 151,
+    "ok": true
+   },
+   {
+    "id": "dash-compare",
+    "top": 8214,
+    "cover": 151,
+    "ok": true
+   }
+  ],
+  "focus": [],
+  "log": {
+   "errors": [],
+   "warnings": [],
+   "failed": []
+  },
+  "issues": [
+   "page overflows by 90px",
+   "outside viewport: ul.viz-legend > li (left 870, right 1289, width 419)"
+  ]
+ },
+ {
+  "tab": "To review",
+  "viewport": "1199x900",
+  "vw": 1199,
+  "vh": 900,
+  "overflow": 0,
+  "offenders": [],
+  "clipped": [],
+  "overlaps": [],
+  "smallTargets": [],
+  "smallTargetCount": 0,
+  "sticky": {
+   "bars": [],
+   "total": 0,
+   "share": 0
+  },
+  "end": {
+   "ok": true,
+   "bottom": 801,
+   "vh": 900,
+   "covered": null
+  },
+  "focus": [],
+  "log": {
+   "errors": [],
+   "warnings": [],
+   "failed": []
+  },
+  "issues": []
+ },
+ {
+  "tab": "Classes & Roster",
+  "viewport": "1199x900",
+  "vw": 1199,
+  "vh": 900,
+  "overflow": 0,
+  "offenders": [],
+  "clipped": [],
+  "overlaps": [],
+  "smallTargets": [],
+  "smallTargetCount": 0,
+  "sticky": {
+   "bars": [],
+   "total": 0,
+   "share": 0
+  },
+  "end": {
+   "ok": true,
+   "bottom": 825,
+   "vh": 900,
+   "covered": null
+  },
+  "focus": [],
+  "log": {
+   "errors": [],
+   "warnings": [],
+   "failed": []
+  },
+  "issues": []
+ },
+ {
+  "tab": "Question bank",
+  "viewport": "1199x900",
+  "vw": 1199,
+  "vh": 900,
+  "overflow": 0,
+  "offenders": [],
+  "clipped": [],
+  "overlaps": [],
+  "smallTargets": [],
+  "smallTargetCount": 0,
+  "sticky": {
+   "bars": [],
+   "total": 0,
+   "share": 0
+  },
+  "end": {
+   "ok": true,
+   "bottom": 825,
+   "vh": 900,
+   "covered": null
+  },
+  "focus": [],
+  "log": {
+   "errors": [],
+   "warnings": [],
+   "failed": []
+  },
+  "issues": []
+ },
+ {
+  "tab": "AI drafting",
+  "viewport": "1199x900",
+  "vw": 1199,
+  "vh": 900,
+  "overflow": 0,
+  "offenders": [],
+  "clipped": [],
+  "overlaps": [],
+  "smallTargets": [],
+  "smallTargetCount": 0,
+  "sticky": {
+   "bars": [],
+   "total": 0,
+   "share": 0
+  },
+  "end": {
+   "ok": true,
+   "bottom": 825,
+   "vh": 900,
+   "covered": null
+  },
+  "focus": [],
+  "log": {
+   "errors": [],
+   "warnings": [],
+   "failed": []
+  },
+  "issues": []
+ },
+ {
+  "tab": "Evaluation",
+  "viewport": "1199x900",
+  "vw": 1199,
+  "vh": 900,
+  "overflow": 0,
+  "offenders": [],
+  "clipped": [],
+  "overlaps": [],
+  "smallTargets": [],
+  "smallTargetCount": 0,
+  "sticky": {
+   "bars": [],
+   "total": 0,
+   "share": 0
+  },
+  "end": {
+   "ok": true,
+   "bottom": 810,
+   "vh": 900,
+   "covered": null
+  },
+  "focus": [],
+  "log": {
+   "errors": [],
+   "warnings": [],
+   "failed": []
+  },
+  "issues": []
+ },
+ {
+  "tab": "Settings",
+  "viewport": "1199x900",
+  "vw": 1199,
+  "vh": 900,
+  "overflow": 0,
+  "offenders": [],
+  "clipped": [],
+  "overlaps": [],
+  "smallTargets": [],
+  "smallTargetCount": 0,
+  "sticky": {
+   "bars": [],
+   "total": 0,
+   "share": 0
+  },
+  "end": {
+   "ok": true,
+   "bottom": 575,
+   "vh": 900,
+   "covered": null
+  },
+  "focus": [],
+  "log": {
+   "errors": [],
+   "warnings": [],
+   "failed": []
+  },
+  "issues": []
+ },
+ {
+  "tab": "Analytics",
+  "viewport": "1200x900",
+  "vw": 1200,
+  "vh": 900,
+  "overflow": 90,
+  "offenders": [
+   {
+    "s": "ul.viz-legend > li",
+    "left": 871,
+    "right": 1290,
+    "width": 419
+   }
+  ],
+  "clipped": [],
+  "overlaps": [],
+  "smallTargets": [],
+  "smallTargetCount": 0,
+  "sticky": {
+   "bars": [
+    "div.dash-toolbar.no-print"
+   ],
+   "total": 151,
+   "share": 0.17
+  },
+  "end": {
+   "ok": true,
+   "bottom": 850,
+   "vh": 900,
+   "covered": null
+  },
+  "anchors": [
+   {
+    "id": "dash-overview",
+    "top": 205,
+    "cover": 163,
+    "ok": true
+   },
+   {
+    "id": "dash-weeks",
+    "top": 1118,
+    "cover": 151,
+    "ok": true
+   },
+   {
+    "id": "dash-trends",
+    "top": 1731,
+    "cover": 151,
+    "ok": true
+   },
+   {
+    "id": "dash-topics",
+    "top": 3141,
+    "cover": 151,
+    "ok": true
+   },
+   {
+    "id": "dash-missed",
+    "top": 5729,
+    "cover": 151,
+    "ok": true
+   },
+   {
+    "id": "dash-quality",
+    "top": 6376,
+    "cover": 151,
+    "ok": true
+   },
+   {
+    "id": "dash-compare",
+    "top": 7684,
+    "cover": 151,
+    "ok": true
+   }
+  ],
+  "focus": [],
+  "log": {
+   "errors": [],
+   "warnings": [],
+   "failed": []
+  },
+  "issues": [
+   "page overflows by 90px",
+   "outside viewport: ul.viz-legend > li (left 871, right 1290, width 419)"
+  ]
+ },
+ {
+  "tab": "To review",
+  "viewport": "1200x900",
+  "vw": 1200,
+  "vh": 900,
+  "overflow": 0,
+  "offenders": [],
+  "clipped": [],
+  "overlaps": [],
+  "smallTargets": [],
+  "smallTargetCount": 0,
+  "sticky": {
+   "bars": [],
+   "total": 0,
+   "share": 0
+  },
+  "end": {
+   "ok": true,
+   "bottom": 801,
+   "vh": 900,
+   "covered": null
+  },
+  "focus": [],
+  "log": {
+   "errors": [],
+   "warnings": [],
+   "failed": []
+  },
+  "issues": []
+ },
+ {
+  "tab": "Classes & Roster",
+  "viewport": "1200x900",
+  "vw": 1200,
+  "vh": 900,
+  "overflow": 0,
+  "offenders": [],
+  "clipped": [],
+  "overlaps": [],
+  "smallTargets": [],
+  "smallTargetCount": 0,
+  "sticky": {
+   "bars": [],
+   "total": 0,
+   "share": 0
+  },
+  "end": {
+   "ok": true,
+   "bottom": 825,
+   "vh": 900,
+   "covered": null
+  },
+  "focus": [],
+  "log": {
+   "errors": [],
+   "warnings": [],
+   "failed": []
+  },
+  "issues": []
+ },
+ {
+  "tab": "Question bank",
+  "viewport": "1200x900",
+  "vw": 1200,
+  "vh": 900,
+  "overflow": 0,
+  "offenders": [],
+  "clipped": [],
+  "overlaps": [],
+  "smallTargets": [],
+  "smallTargetCount": 0,
+  "sticky": {
+   "bars": [],
+   "total": 0,
+   "share": 0
+  },
+  "end": {
+   "ok": true,
+   "bottom": 825,
+   "vh": 900,
+   "covered": null
+  },
+  "focus": [],
+  "log": {
+   "errors": [],
+   "warnings": [],
+   "failed": []
+  },
+  "issues": []
+ },
+ {
+  "tab": "AI drafting",
+  "viewport": "1200x900",
+  "vw": 1200,
+  "vh": 900,
+  "overflow": 0,
+  "offenders": [],
+  "clipped": [],
+  "overlaps": [],
+  "smallTargets": [],
+  "smallTargetCount": 0,
+  "sticky": {
+   "bars": [],
+   "total": 0,
+   "share": 0
+  },
+  "end": {
+   "ok": true,
+   "bottom": 825,
+   "vh": 900,
+   "covered": null
+  },
+  "focus": [],
+  "log": {
+   "errors": [],
+   "warnings": [],
+   "failed": []
+  },
+  "issues": []
+ },
+ {
+  "tab": "Evaluation",
+  "viewport": "1200x900",
+  "vw": 1200,
+  "vh": 900,
+  "overflow": 0,
+  "offenders": [],
+  "clipped": [],
+  "overlaps": [],
+  "smallTargets": [],
+  "smallTargetCount": 0,
+  "sticky": {
+   "bars": [],
+   "total": 0,
+   "share": 0
+  },
+  "end": {
+   "ok": true,
+   "bottom": 810,
+   "vh": 900,
+   "covered": null
+  },
+  "focus": [],
+  "log": {
+   "errors": [],
+   "warnings": [],
+   "failed": []
+  },
+  "issues": []
+ },
+ {
+  "tab": "Settings",
+  "viewport": "1200x900",
+  "vw": 1200,
+  "vh": 900,
+  "overflow": 0,
+  "offenders": [],
+  "clipped": [],
+  "overlaps": [],
+  "smallTargets": [],
+  "smallTargetCount": 0,
+  "sticky": {
+   "bars": [],
+   "total": 0,
+   "share": 0
+  },
+  "end": {
+   "ok": true,
+   "bottom": 575,
+   "vh": 900,
+   "covered": null
+  },
+  "focus": [],
+  "log": {
+   "errors": [],
+   "warnings": [],
+   "failed": []
+  },
+  "issues": []
+ },
+ {
+  "tab": "Analytics",
+  "viewport": "667x375",
+  "vw": 667,
+  "vh": 375,
+  "overflow": 0,
+  "offenders": [],
+  "clipped": [],
+  "overlaps": [],
+  "smallTargets": [
+   {
+    "s": "div.row.small.muted > label(\"Auto-refresh every 30 second\") > input",
+    "w": 211,
+    "h": 30,
+    "inline": false,
+    "note": "via label"
+   },
+   {
+    "s": "button.info-btn.no-print(\"How the students who practised (last 30 days) comparison works\")",
+    "w": 24,
+    "h": 44,
+    "inline": false,
+    "note": ""
+   },
+   {
+    "s": "button.info-btn.no-print(\"How the sessions completed comparison works\")",
+    "w": 24,
+    "h": 44,
+    "inline": false,
+    "note": ""
+   },
+   {
+    "s": "button.info-btn.no-print(\"How the answers submitted comparison works\")",
+    "w": 24,
+    "h": 44,
+    "inline": false,
+    "note": ""
+   },
+   {
+    "s": "details.viz-table > summary(\"Show as a table\")",
+    "w": 613,
+    "h": 20,
+    "inline": false,
+    "note": ""
+   },
+   {
+    "s": "details.viz-table > summary(\"Show the chart data as a tab\")",
+    "w": 613,
+    "h": 20,
+    "inline": false,
+    "note": ""
+   },
+   {
+    "s": "button.btn.small(\"Show learning outcomes for Data representation\")",
+    "w": 28,
+    "h": 44,
+    "inline": false,
+    "note": ""
+   },
+   {
+    "s": "button.btn.small(\"Show learning outcomes for Networking basics\")",
+    "w": 28,
+    "h": 44,
+    "inline": false,
+    "note": ""
+   },
+   {
+    "s": "button.btn.small(\"Show learning outcomes for Cyber hygiene\")",
+    "w": 28,
+    "h": 44,
+    "inline": false,
+    "note": ""
+   },
+   {
+    "s": "button.btn.small(\"Show learning outcomes for Algorithms and flowcharts\")",
+    "w": 28,
+    "h": 44,
+    "inline": false,
+    "note": ""
+   },
+   {
+    "s": "button.btn.small(\"Show learning outcomes for Encryption, hashing and digital signatures in everyday systems\")",
+    "w": 28,
+    "h": 44,
+    "inline": false,
+    "note": ""
+   },
+   {
+    "s": "button.btn.small(\"Show learning outcomes for Databases and SQL\")",
+    "w": 28,
+    "h": 44,
+    "inline": false,
+    "note": ""
+   },
+   {
+    "s": "button.btn.small(\"Show learning outcomes for How the web works\")",
+    "w": 28,
+    "h": 44,
+    "inline": false,
+    "note": ""
+   },
+   {
+    "s": "button.btn.small(\"Show learning outcomes for AI ethics and bias\")",
+    "w": 28,
+    "h": 44,
+    "inline": false,
+    "note": ""
+   },
+   {
+    "s": "button.btn.small(\"Show learning outcomes for Supercalifragilistic_unbroken_identifier_string_for_wrapping_checks_2026\")",
+    "w": 28,
+    "h": 44,
+    "inline": false,
+    "note": ""
+   },
+   {
+    "s": "button.btn.small(\"Show learning outcomes for Hardware and operating systems\")",
+    "w": 28,
+    "h": 44,
+    "inline": false,
+    "note": ""
+   },
+   {
+    "s": "details.small.muted.how-measured > summary(\"How this is measured\")",
+    "w": 613,
+    "h": 20,
+    "inline": false,
+    "note": ""
+   },
+   {
+    "s": "button.btn.small(\"Page 1\")",
+    "w": 32,
+    "h": 44,
+    "inline": false,
+    "note": ""
+   },
+   {
+    "s": "button.btn.small(\"Page 2\")",
+    "w": 32,
+    "h": 44,
+    "inline": false,
+    "note": ""
+   },
+   {
+    "s": "button.btn.small(\"Page 4\")",
+    "w": 32,
+    "h": 44,
+    "inline": false,
+    "note": ""
+   },
+   {
+    "s": "button.btn.small(\"Page 1\")",
+    "w": 32,
+    "h": 44,
+    "inline": false,
+    "note": ""
+   },
+   {
+    "s": "button.btn.small(\"Page 2\")",
+    "w": 32,
+    "h": 44,
+    "inline": false,
+    "note": ""
+   },
+   {
+    "s": "button.btn.small(\"Page 3\")",
+    "w": 32,
+    "h": 44,
+    "inline": false,
+    "note": ""
+   }
+  ],
+  "smallTargetCount": 23,
+  "sticky": {
+   "bars": [
+    "header#top",
+    "nav.dash-nav.compact(\"Dashboard sections\")"
+   ],
+   "total": 113,
+   "share": 0.3
+  },
+  "end": {
+   "ok": true,
+   "bottom": 335,
+   "vh": 375,
+   "covered": null
+  },
+  "anchors": [
+   {
+    "id": "dash-overview",
+    "top": 378,
+    "cover": 321,
+    "ok": true
+   },
+   {
+    "id": "dash-weeks",
+    "top": 1675,
+    "cover": 177,
+    "ok": true
+   },
+   {
+    "id": "dash-trends",
+    "top": 2556,
+    "cover": 230,
+    "ok": true
+   },
+   {
+    "id": "dash-topics",
+    "top": 4039,
+    "cover": 113,
+    "ok": true
+   },
+   {
+    "id": "dash-missed",
+    "top": 6835,
+    "cover": 113,
+    "ok": true
+   },
+   {
+    "id": "dash-quality",
+    "top": 7921,
+    "cover": 113,
+    "ok": true
+   },
+   {
+    "id": "dash-compare",
+    "top": 9357,
+    "cover": 113,
+    "ok": true
+   }
+  ],
+  "focus": [
+   "select(\"Class\") at 51-95 under top"
+  ],
+  "log": {
+   "errors": [],
+   "warnings": [],
+   "failed": []
+  },
+  "issues": [
+   "23 tap targets under 44px: div.row.small.muted > label(\"Auto-refresh every 30 second\") > input 211x30; button.info-btn.no-print(\"How the students who practised (last 30 days) comparison works\") 24x44; button.info-btn.no-print(\"How the sessions completed comparison works\") 24x44; button.info-btn.no-print(\"How the answers submitted comparison works\") 24x44; details.viz-table > summary(\"Show as a table\") 613x20; details.viz-table > summary(\"Show the chart data as a tab\") 613x20; button.btn.small(\"Show learning outcomes for Data representation\") 28x44; button.btn.small(\"Show learning outcomes for Networking basics\") 28x44",
+   "focus under sticky bar: select(\"Class\") at 51-95 under top"
+  ]
+ },
+ {
+  "tab": "To review",
+  "viewport": "667x375",
+  "vw": 667,
+  "vh": 375,
+  "overflow": 0,
+  "offenders": [],
+  "clipped": [],
+  "overlaps": [],
+  "smallTargets": [],
+  "smallTargetCount": 0,
+  "sticky": {
+   "bars": [
+    "header#top"
+   ],
+   "total": 57,
+   "share": 0.15
+  },
+  "end": {
+   "ok": true,
+   "bottom": 296,
+   "vh": 375,
+   "covered": null
+  },
+  "focus": [],
+  "log": {
+   "errors": [],
+   "warnings": [],
+   "failed": []
+  },
+  "issues": []
+ },
+ {
+  "tab": "Classes & Roster",
+  "viewport": "667x375",
+  "vw": 667,
+  "vh": 375,
+  "overflow": 0,
+  "offenders": [],
+  "clipped": [],
+  "overlaps": [],
+  "smallTargets": [
+   {
+    "s": "div.row > label(\"Show archived classes\") > input",
+    "w": 167,
+    "h": 26,
+    "inline": false,
+    "note": "via label"
+   }
+  ],
+  "smallTargetCount": 1,
+  "sticky": {
+   "bars": [
+    "header#top"
+   ],
+   "total": 57,
+   "share": 0.15
+  },
+  "end": {
+   "ok": true,
+   "bottom": 314,
+   "vh": 375,
+   "covered": null
+  },
+  "focus": [
+   "button(\"+ Create Class\") at 16-60 under top"
+  ],
+  "log": {
+   "errors": [],
+   "warnings": [],
+   "failed": []
+  },
+  "issues": [
+   "1 tap targets under 44px: div.row > label(\"Show archived classes\") > input 167x26",
+   "focus under sticky bar: button(\"+ Create Class\") at 16-60 under top"
+  ]
+ },
+ {
+  "tab": "Question bank",
+  "viewport": "667x375",
+  "vw": 667,
+  "vh": 375,
+  "overflow": 0,
+  "offenders": [],
+  "clipped": [],
+  "overlaps": [],
+  "smallTargets": [
+   {
+    "s": "details.question-provenance > summary(\"Sources & history\")",
+    "w": 613,
+    "h": 20,
+    "inline": false,
+    "note": ""
+   },
+   {
+    "s": "details.question-provenance > summary(\"Sources & history\")",
+    "w": 613,
+    "h": 20,
+    "inline": false,
+    "note": ""
+   },
+   {
+    "s": "details.question-provenance > summary(\"Sources & history\")",
+    "w": 613,
+    "h": 20,
+    "inline": false,
+    "note": ""
+   },
+   {
+    "s": "details.question-provenance > summary(\"Sources & history\")",
+    "w": 613,
+    "h": 20,
+    "inline": false,
+    "note": ""
+   },
+   {
+    "s": "details.question-provenance > summary(\"Sources & history\")",
+    "w": 613,
+    "h": 20,
+    "inline": false,
+    "note": ""
+   },
+   {
+    "s": "details.question-provenance > summary(\"Sources & history\")",
+    "w": 613,
+    "h": 20,
+    "inline": false,
+    "note": ""
+   },
+   {
+    "s": "details.question-provenance > summary(\"Sources & history\")",
+    "w": 613,
+    "h": 20,
+    "inline": false,
+    "note": ""
+   },
+   {
+    "s": "details.question-provenance > summary(\"Sources & history\")",
+    "w": 613,
+    "h": 20,
+    "inline": false,
+    "note": ""
+   },
+   {
+    "s": "details.question-provenance > summary(\"Sources & history\")",
+    "w": 613,
+    "h": 20,
+    "inline": false,
+    "note": ""
+   }
+  ],
+  "smallTargetCount": 9,
+  "sticky": {
+   "bars": [
+    "header#top"
+   ],
+   "total": 57,
+   "share": 0.15
+  },
+  "end": {
+   "ok": true,
+   "bottom": 314,
+   "vh": 375,
+   "covered": null
+  },
+  "focus": [],
+  "log": {
+   "errors": [],
+   "warnings": [],
+   "failed": []
+  },
+  "issues": [
+   "9 tap targets under 44px: details.question-provenance > summary(\"Sources & history\") 613x20; details.question-provenance > summary(\"Sources & history\") 613x20; details.question-provenance > summary(\"Sources & history\") 613x20; details.question-provenance > summary(\"Sources & history\") 613x20; details.question-provenance > summary(\"Sources & history\") 613x20; details.question-provenance > summary(\"Sources & history\") 613x20; details.question-provenance > summary(\"Sources & history\") 613x20; details.question-provenance > summary(\"Sources & history\") 613x20"
+  ]
+ },
+ {
+  "tab": "AI drafting",
+  "viewport": "667x375",
+  "vw": 667,
+  "vh": 375,
+  "overflow": 0,
+  "offenders": [],
+  "clipped": [],
+  "overlaps": [],
+  "smallTargets": [
+   {
+    "s": "details.panel > summary(\"Material library · Notes, im\")",
+    "w": 613,
+    "h": 23,
+    "inline": false,
+    "note": ""
+   }
+  ],
+  "smallTargetCount": 1,
+  "sticky": {
+   "bars": [
+    "header#top"
+   ],
+   "total": 57,
+   "share": 0.15
+  },
+  "end": {
+   "ok": true,
+   "bottom": 314,
+   "vh": 375,
+   "covered": null
+  },
+  "focus": [
+   "select(\"Intro to Computing (demo)Found\") at 27-71 under top"
+  ],
+  "log": {
+   "errors": [],
+   "warnings": [],
+   "failed": []
+  },
+  "issues": [
+   "1 tap targets under 44px: details.panel > summary(\"Material library · Notes, im\") 613x23",
+   "focus under sticky bar: select(\"Intro to Computing (demo)Found\") at 27-71 under top"
+  ]
+ },
+ {
+  "tab": "Evaluation",
+  "viewport": "667x375",
+  "vw": 667,
+  "vh": 375,
+  "overflow": 0,
+  "offenders": [],
+  "clipped": [],
+  "overlaps": [],
+  "smallTargets": [],
+  "smallTargetCount": 0,
+  "sticky": {
+   "bars": [
+    "header#top"
+   ],
+   "total": 57,
+   "share": 0.15
+  },
+  "end": {
+   "ok": true,
+   "bottom": 299,
+   "vh": 375,
+   "covered": null
+  },
+  "focus": [
+   "select(\"Intro to Computing (demo)Found\") at 16-60 under top",
+   "select(\"Intro to Computing (demo)Found\") at 16-60 under top",
+   "select(\"Intro to Computing (demo)Found\") at 16-60 under top",
+   "select(\"Intro to Computing (demo)Found\") at 16-60 under top",
+   "select(\"Intro to Computing (demo)Found\") at 16-60 under top",
+   "select(\"Intro to Computing (demo)Found\") at 16-60 under top",
+   "select(\"Intro to Computing (demo)Found\") at 16-60 under top"
+  ],
+  "log": {
+   "errors": [],
+   "warnings": [],
+   "failed": []
+  },
+  "issues": [
+   "focus under sticky bar: select(\"Intro to Computing (demo)Found\") at 16-60 under top",
+   "focus under sticky bar: select(\"Intro to Computing (demo)Found\") at 16-60 under top",
+   "focus under sticky bar: select(\"Intro to Computing (demo)Found\") at 16-60 under top",
+   "focus under sticky bar: select(\"Intro to Computing (demo)Found\") at 16-60 under top",
+   "focus under sticky bar: select(\"Intro to Computing (demo)Found\") at 16-60 under top",
+   "focus under sticky bar: select(\"Intro to Computing (demo)Found\") at 16-60 under top",
+   "focus under sticky bar: select(\"Intro to Computing (demo)Found\") at 16-60 under top"
+  ]
+ },
+ {
+  "tab": "Settings",
+  "viewport": "667x375",
+  "vw": 667,
+  "vh": 375,
+  "overflow": 0,
+  "offenders": [],
+  "clipped": [],
+  "overlaps": [],
+  "smallTargets": [],
+  "smallTargetCount": 0,
+  "sticky": {
+   "bars": [
+    "header#top"
+   ],
+   "total": 57,
+   "share": 0.15
+  },
+  "end": {
+   "ok": true,
+   "bottom": 304,
+   "vh": 375,
+   "covered": null
+  },
+  "focus": [
+   "select(\"Intro to Computing (demo)Found\") at 16-60 under top"
+  ],
+  "log": {
+   "errors": [],
+   "warnings": [],
+   "failed": []
+  },
+  "issues": [
+   "focus under sticky bar: select(\"Intro to Computing (demo)Found\") at 16-60 under top"
+  ]
+ },
+ {
+  "tab": "state: drawer open",
+  "viewport": "667x375",
+  "state": "drawer open",
+  "vw": 667,
+  "vh": 375,
+  "overflow": 0,
+  "offenders": [],
+  "clipped": [],
+  "overlaps": [],
+  "smallTargets": [
+   {
+    "s": "button.t-icon-btn.t-drawer-close(\"Close navigation\")",
+    "w": 34,
+    "h": 44,
+    "inline": false,
+    "note": ""
+   }
+  ],
+  "smallTargetCount": 1,
+  "sticky": {
+   "bars": [
+    "header#top"
+   ],
+   "total": 57,
+   "share": 0.15
+  },
+  "drawer": {
+   "fits": true,
+   "lastReachable": true
+  },
+  "issues": [
+   "1 tap targets under 44px: button.t-icon-btn.t-drawer-close(\"Close navigation\") 34x44"
+  ],
+  "log": {
+   "errors": [],
+   "warnings": [],
+   "failed": []
+  }
+ },
+ {
+  "tab": "state: analytics question dialog",
+  "viewport": "667x375",
+  "state": "analytics question dialog",
+  "vw": 667,
+  "vh": 375,
+  "overflow": 0,
+  "offenders": [],
+  "clipped": [],
+  "overlaps": [],
+  "smallTargets": [
+   {
+    "s": "div.row.small.muted > label(\"Auto-refresh every 30 second\") > input",
+    "w": 211,
+    "h": 30,
+    "inline": false,
+    "note": "via label"
+   },
+   {
+    "s": "button.info-btn.no-print(\"How the students who practised (last 30 days) comparison works\")",
+    "w": 24,
+    "h": 44,
+    "inline": false,
+    "note": ""
+   },
+   {
+    "s": "button.info-btn.no-print(\"How the sessions completed comparison works\")",
+    "w": 24,
+    "h": 44,
+    "inline": false,
+    "note": ""
+   },
+   {
+    "s": "button.info-btn.no-print(\"How the answers submitted comparison works\")",
+    "w": 24,
+    "h": 44,
+    "inline": false,
+    "note": ""
+   },
+   {
+    "s": "details.viz-table > summary(\"Show as a table\")",
+    "w": 613,
+    "h": 20,
+    "inline": false,
+    "note": ""
+   },
+   {
+    "s": "details.viz-table > summary(\"Show the chart data as a tab\")",
+    "w": 613,
+    "h": 20,
+    "inline": false,
+    "note": ""
+   },
+   {
+    "s": "button.btn.small(\"Hide learning outcomes for Data representation\")",
+    "w": 28,
+    "h": 44,
+    "inline": false,
+    "note": ""
+   },
+   {
+    "s": "details.small.muted.how-measured > summary(\"How this is measured\")",
+    "w": 613,
+    "h": 20,
+    "inline": false,
+    "note": ""
+   },
+   {
+    "s": "button.btn.small(\"Close\")",
+    "w": 35,
+    "h": 44,
+    "inline": false,
+    "note": ""
+   }
+  ],
+  "smallTargetCount": 9,
+  "sticky": {
+   "bars": [
+    "header#top",
+    "nav.dash-nav.compact(\"Dashboard sections\")"
+   ],
+   "total": 113,
+   "share": 0.3
+  },
+  "modal": {
+   "ok": true,
+   "fits": true,
+   "scroller": true,
+   "reachable": true,
+   "closeVisibleAtTop": true,
+   "h": 327,
+   "vh": 375
+  },
+  "issues": [
+   "9 tap targets under 44px: div.row.small.muted > label(\"Auto-refresh every 30 second\") > input 211x30; button.info-btn.no-print(\"How the students who practised (last 30 days) comparison works\") 24x44; button.info-btn.no-print(\"How the sessions completed comparison works\") 24x44; button.info-btn.no-print(\"How the answers submitted comparison works\") 24x44; details.viz-table > summary(\"Show as a table\") 613x20; details.viz-table > summary(\"Show the chart data as a tab\") 613x20; button.btn.small(\"Hide learning outcomes for Data representation\") 28x44; details.small.muted.how-measured > summary(\"How this is measured\") 613x20"
+  ],
+  "log": {
+   "errors": [],
+   "warnings": [],
+   "failed": []
+  }
+ },
+ {
+  "tab": "state: classes create modal",
+  "viewport": "667x375",
+  "state": "classes create modal",
+  "vw": 667,
+  "vh": 375,
+  "overflow": 0,
+  "offenders": [],
+  "clipped": [],
+  "overlaps": [],
+  "smallTargets": [
+   {
+    "s": "div.row > label(\"Show archived classes\") > input",
+    "w": 167,
+    "h": 26,
+    "inline": false,
+    "note": "via label"
+   }
+  ],
+  "smallTargetCount": 1,
+  "sticky": {
+   "bars": [
+    "header#top"
+   ],
+   "total": 57,
+   "share": 0.15
+  },
+  "modal": {
+   "ok": true,
+   "fits": true,
+   "scroller": true,
+   "reachable": true,
+   "closeVisibleAtTop": false,
+   "h": 359,
+   "vh": 375
+  },
+  "issues": [
+   "1 tap targets under 44px: div.row > label(\"Show archived classes\") > input 167x26"
+  ],
+  "log": {
+   "errors": [],
+   "warnings": [],
+   "failed": []
+  }
+ },
+ {
+  "tab": "state: classes rename modal",
+  "viewport": "667x375",
+  "state": "classes rename modal",
+  "vw": 667,
+  "vh": 375,
+  "overflow": 0,
+  "offenders": [],
+  "clipped": [],
+  "overlaps": [],
+  "smallTargets": [
+   {
+    "s": "div.row > label(\"Show archived classes\") > input",
+    "w": 167,
+    "h": 26,
+    "inline": false,
+    "note": "via label"
+   }
+  ],
+  "smallTargetCount": 1,
+  "sticky": {
+   "bars": [
+    "header#top"
+   ],
+   "total": 57,
+   "share": 0.15
+  },
+  "modal": {
+   "ok": true,
+   "fits": true,
+   "scroller": true,
+   "reachable": true,
+   "closeVisibleAtTop": true,
+   "h": 359,
+   "vh": 375
+  },
+  "issues": [
+   "1 tap targets under 44px: div.row > label(\"Show archived classes\") > input 167x26"
+  ],
+  "log": {
+   "errors": [],
+   "warnings": [],
+   "failed": []
+  }
+ },
+ {
+  "tab": "state: classes roster",
+  "viewport": "667x375",
+  "state": "classes roster",
+  "vw": 667,
+  "vh": 375,
+  "overflow": 0,
+  "offenders": [],
+  "clipped": [],
+  "overlaps": [],
+  "smallTargets": [],
+  "smallTargetCount": 0,
+  "sticky": {
+   "bars": [
+    "header#top"
+   ],
+   "total": 57,
+   "share": 0.15
+  },
+  "issues": [],
+  "log": {
+   "errors": [],
+   "warnings": [],
+   "failed": []
+  }
+ },
+ {
+  "tab": "state: classes code modal",
+  "viewport": "667x375",
+  "state": "classes code modal",
+  "vw": 667,
+  "vh": 375,
+  "overflow": 0,
+  "offenders": [],
+  "clipped": [],
+  "overlaps": [],
+  "smallTargets": [],
+  "smallTargetCount": 0,
+  "sticky": {
+   "bars": [
+    "header#top"
+   ],
+   "total": 57,
+   "share": 0.15
+  },
+  "modal": {
+   "ok": true,
+   "fits": true,
+   "scroller": true,
+   "reachable": true,
+   "closeVisibleAtTop": true,
+   "h": 349,
+   "vh": 375
+  },
+  "issues": [],
+  "log": {
+   "errors": [],
+   "warnings": [],
+   "failed": []
+  }
+ },
+ {
+  "tab": "state: classes class settings",
+  "viewport": "667x375",
+  "state": "classes class settings",
+  "vw": 667,
+  "vh": 375,
+  "overflow": 0,
+  "offenders": [],
+  "clipped": [],
+  "overlaps": [],
+  "smallTargets": [],
+  "smallTargetCount": 0,
+  "sticky": {
+   "bars": [
+    "header#top"
+   ],
+   "total": 57,
+   "share": 0.15
+  },
+  "issues": [],
+  "log": {
+   "errors": [],
+   "warnings": [],
+   "failed": []
+  }
+ },
+ {
+  "tab": "state: question bank cards",
+  "viewport": "667x375",
+  "state": "question bank cards",
+  "vw": 667,
+  "vh": 375,
+  "overflow": 0,
+  "offenders": [],
+  "clipped": [],
+  "overlaps": [],
+  "smallTargets": [],
+  "smallTargetCount": 0,
+  "sticky": {
+   "bars": [
+    "header#top",
+    "div.cr-decide"
+   ],
+   "total": 129,
+   "share": 0.34
+  },
+  "issues": [
+   "sticky bars cover 34% of the height (header#top + div.cr-decide)"
+  ],
+  "log": {
+   "errors": [],
+   "warnings": [],
+   "failed": []
+  }
+ },
+ {
+  "tab": "state: question bank editor",
+  "viewport": "667x375",
+  "state": "question bank editor",
+  "vw": 667,
+  "vh": 375,
+  "overflow": 0,
+  "offenders": [],
+  "clipped": [],
+  "overlaps": [],
+  "smallTargets": [
+   {
+    "s": "details.question-provenance > summary(\"Sources & history\")",
+    "w": 613,
+    "h": 20,
+    "inline": false,
+    "note": ""
+   },
+   {
+    "s": "div.opt-row > input(\"Option 1 is correct\")",
+    "w": 20,
+    "h": 20,
+    "inline": false,
+    "note": ""
+   },
+   {
+    "s": "button.btn.small(\"Remove option 1\")",
+    "w": 32,
+    "h": 44,
+    "inline": false,
+    "note": ""
+   },
+   {
+    "s": "div.opt-row > input(\"Option 2 is correct\")",
+    "w": 20,
+    "h": 20,
+    "inline": false,
+    "note": ""
+   },
+   {
+    "s": "button.btn.small(\"Remove option 2\")",
+    "w": 32,
+    "h": 44,
+    "inline": false,
+    "note": ""
+   },
+   {
+    "s": "div.opt-row > input(\"Option 3 is correct\")",
+    "w": 20,
+    "h": 20,
+    "inline": false,
+    "note": ""
+   },
+   {
+    "s": "button.btn.small(\"Remove option 3\")",
+    "w": 32,
+    "h": 44,
+    "inline": false,
+    "note": ""
+   },
+   {
+    "s": "div.opt-row > input(\"Option 4 is correct\")",
+    "w": 20,
+    "h": 20,
+    "inline": false,
+    "note": ""
+   },
+   {
+    "s": "button.btn.small(\"Remove option 4\")",
+    "w": 32,
+    "h": 44,
+    "inline": false,
+    "note": ""
+   },
+   {
+    "s": "details.field.grow.advanced-options > summary(\"Advanced: source passages\")",
+    "w": 284,
+    "h": 23,
+    "inline": false,
+    "note": ""
+   },
+   {
+    "s": "details.editor-preview > summary(\"Preview question\")",
+    "w": 583,
+    "h": 23,
+    "inline": false,
+    "note": ""
+   },
+   {
+    "s": "details.question-provenance > summary(\"Sources & history\")",
+    "w": 613,
+    "h": 20,
+    "inline": false,
+    "note": ""
+   },
+   {
+    "s": "details.question-provenance > summary(\"Sources & history\")",
+    "w": 613,
+    "h": 20,
+    "inline": false,
+    "note": ""
+   },
+   {
+    "s": "details.question-provenance > summary(\"Sources & history\")",
+    "w": 613,
+    "h": 20,
+    "inline": false,
+    "note": ""
+   },
+   {
+    "s": "details.question-provenance > summary(\"Sources & history\")",
+    "w": 613,
+    "h": 20,
+    "inline": false,
+    "note": ""
+   },
+   {
+    "s": "details.question-provenance > summary(\"Sources & history\")",
+    "w": 613,
+    "h": 20,
+    "inline": false,
+    "note": ""
+   },
+   {
+    "s": "details.question-provenance > summary(\"Sources & history\")",
+    "w": 613,
+    "h": 20,
+    "inline": false,
+    "note": ""
+   },
+   {
+    "s": "section.answer-section > details > summary(\"Example variation\")",
+    "w": 613,
+    "h": 23,
+    "inline": false,
+    "note": ""
+   },
+   {
+    "s": "details.question-provenance > summary(\"Sources & history\")",
+    "w": 613,
+    "h": 20,
+    "inline": false,
+    "note": ""
+   }
+  ],
+  "smallTargetCount": 19,
+  "sticky": {
+   "bars": [
+    "header#top"
+   ],
+   "total": 57,
+   "share": 0.15
+  },
+  "issues": [
+   "19 tap targets under 44px: details.question-provenance > summary(\"Sources & history\") 613x20; div.opt-row > input(\"Option 1 is correct\") 20x20; button.btn.small(\"Remove option 1\") 32x44; div.opt-row > input(\"Option 2 is correct\") 20x20; button.btn.small(\"Remove option 2\") 32x44; div.opt-row > input(\"Option 3 is correct\") 20x20; button.btn.small(\"Remove option 3\") 32x44; div.opt-row > input(\"Option 4 is correct\") 20x20"
+  ],
+  "log": {
+   "errors": [],
+   "warnings": [],
+   "failed": []
+  }
+ },
+ {
+  "tab": "state: ai drafting retrieved material",
+  "viewport": "667x375",
+  "state": "ai drafting retrieved material",
+  "vw": 667,
+  "vh": 375,
+  "overflow": 0,
+  "offenders": [],
+  "clipped": [],
+  "overlaps": [],
+  "smallTargets": [
+   {
+    "s": "details.panel > summary(\"Material library · Notes, im\")",
+    "w": 613,
+    "h": 23,
+    "inline": false,
+    "note": ""
+   },
+   {
+    "s": "details.small > summary(\"Material sent to the drafter\")",
+    "w": 613,
+    "h": 20,
+    "inline": false,
+    "note": ""
+   }
+  ],
+  "smallTargetCount": 2,
+  "sticky": {
+   "bars": [
+    "header#top"
+   ],
+   "total": 57,
+   "share": 0.15
+  },
+  "issues": [
+   "2 tap targets under 44px: details.panel > summary(\"Material library · Notes, im\") 613x23; details.small > summary(\"Material sent to the drafter\") 613x20"
+  ],
+  "log": {
+   "errors": [],
+   "warnings": [],
+   "failed": []
+  }
+ },
+ {
+  "tab": "state: ai drafting material library",
+  "viewport": "667x375",
+  "state": "ai drafting material library",
+  "vw": 667,
+  "vh": 375,
+  "overflow": 0,
+  "offenders": [],
+  "clipped": [],
+  "overlaps": [],
+  "smallTargets": [
+   {
+    "s": "details.panel > summary(\"Material library · Notes, im\")",
+    "w": 613,
+    "h": 23,
+    "inline": false,
+    "note": ""
+   },
+   {
+    "s": "label.small.muted.lib-toggle(\"Show archived material\") > input",
+    "w": 613,
+    "h": 26,
+    "inline": false,
+    "note": "via label"
+   },
+   {
+    "s": "div.panel.import-option > input",
+    "w": 253,
+    "h": 21,
+    "inline": false,
+    "note": ""
+   },
+   {
+    "s": "div.panel.import-option > input",
+    "w": 253,
+    "h": 21,
+    "inline": false,
+    "note": ""
+   },
+   {
+    "s": "details.small > summary(\"Material sent to the drafter\")",
+    "w": 613,
+    "h": 20,
+    "inline": false,
+    "note": ""
+   }
+  ],
+  "smallTargetCount": 5,
+  "sticky": {
+   "bars": [
+    "header#top"
+   ],
+   "total": 57,
+   "share": 0.15
+  },
+  "issues": [
+   "5 tap targets under 44px: details.panel > summary(\"Material library · Notes, im\") 613x23; label.small.muted.lib-toggle(\"Show archived material\") > input 613x26; div.panel.import-option > input 253x21; div.panel.import-option > input 253x21; details.small > summary(\"Material sent to the drafter\") 613x20"
+  ],
+  "log": {
+   "errors": [],
+   "warnings": [],
+   "failed": []
+  }
+ },
+ {
+  "tab": "Analytics",
+  "viewport": "740x360",
+  "vw": 740,
+  "vh": 360,
+  "overflow": 0,
+  "offenders": [],
+  "clipped": [],
+  "overlaps": [],
+  "smallTargets": [
+   {
+    "s": "div.row.small.muted > label(\"Auto-refresh every 30 second\") > input",
+    "w": 211,
+    "h": 30,
+    "inline": false,
+    "note": "via label"
+   },
+   {
+    "s": "button.info-btn.no-print(\"How the students who practised (last 30 days) comparison works\")",
+    "w": 24,
+    "h": 44,
+    "inline": false,
+    "note": ""
+   },
+   {
+    "s": "button.info-btn.no-print(\"How the sessions completed comparison works\")",
+    "w": 24,
+    "h": 44,
+    "inline": false,
+    "note": ""
+   },
+   {
+    "s": "button.info-btn.no-print(\"How the answers submitted comparison works\")",
+    "w": 24,
+    "h": 44,
+    "inline": false,
+    "note": ""
+   },
+   {
+    "s": "details.viz-table > summary(\"Show as a table\")",
+    "w": 686,
+    "h": 20,
+    "inline": false,
+    "note": ""
+   },
+   {
+    "s": "details.viz-table > summary(\"Show the chart data as a tab\")",
+    "w": 686,
+    "h": 20,
+    "inline": false,
+    "note": ""
+   },
+   {
+    "s": "button.btn.small(\"Show learning outcomes for Data representation\")",
+    "w": 28,
+    "h": 44,
+    "inline": false,
+    "note": ""
+   },
+   {
+    "s": "button.btn.small(\"Show learning outcomes for Networking basics\")",
+    "w": 28,
+    "h": 44,
+    "inline": false,
+    "note": ""
+   },
+   {
+    "s": "button.btn.small(\"Show learning outcomes for Cyber hygiene\")",
+    "w": 28,
+    "h": 44,
+    "inline": false,
+    "note": ""
+   },
+   {
+    "s": "button.btn.small(\"Show learning outcomes for Algorithms and flowcharts\")",
+    "w": 28,
+    "h": 44,
+    "inline": false,
+    "note": ""
+   },
+   {
+    "s": "button.btn.small(\"Show learning outcomes for Encryption, hashing and digital signatures in everyday systems\")",
+    "w": 28,
+    "h": 44,
+    "inline": false,
+    "note": ""
+   },
+   {
+    "s": "button.btn.small(\"Show learning outcomes for Databases and SQL\")",
+    "w": 28,
+    "h": 44,
+    "inline": false,
+    "note": ""
+   },
+   {
+    "s": "button.btn.small(\"Show learning outcomes for How the web works\")",
+    "w": 28,
+    "h": 44,
+    "inline": false,
+    "note": ""
+   },
+   {
+    "s": "button.btn.small(\"Show learning outcomes for AI ethics and bias\")",
+    "w": 28,
+    "h": 44,
+    "inline": false,
+    "note": ""
+   },
+   {
+    "s": "button.btn.small(\"Show learning outcomes for Supercalifragilistic_unbroken_identifier_string_for_wrapping_checks_2026\")",
+    "w": 28,
+    "h": 44,
+    "inline": false,
+    "note": ""
+   },
+   {
+    "s": "button.btn.small(\"Show learning outcomes for Hardware and operating systems\")",
+    "w": 28,
+    "h": 44,
+    "inline": false,
+    "note": ""
+   },
+   {
+    "s": "details.small.muted.how-measured > summary(\"How this is measured\")",
+    "w": 686,
+    "h": 20,
+    "inline": false,
+    "note": ""
+   },
+   {
+    "s": "button.btn.small(\"Page 1\")",
+    "w": 32,
+    "h": 44,
+    "inline": false,
+    "note": ""
+   },
+   {
+    "s": "button.btn.small(\"Page 2\")",
+    "w": 32,
+    "h": 44,
+    "inline": false,
+    "note": ""
+   },
+   {
+    "s": "button.btn.small(\"Page 4\")",
+    "w": 32,
+    "h": 44,
+    "inline": false,
+    "note": ""
+   },
+   {
+    "s": "button.btn.small(\"Page 1\")",
+    "w": 32,
+    "h": 44,
+    "inline": false,
+    "note": ""
+   },
+   {
+    "s": "button.btn.small(\"Page 2\")",
+    "w": 32,
+    "h": 44,
+    "inline": false,
+    "note": ""
+   },
+   {
+    "s": "button.btn.small(\"Page 3\")",
+    "w": 32,
+    "h": 44,
+    "inline": false,
+    "note": ""
+   }
+  ],
+  "smallTargetCount": 23,
+  "sticky": {
+   "bars": [
+    "header#top",
+    "nav.dash-nav.compact(\"Dashboard sections\")"
+   ],
+   "total": 113,
+   "share": 0.31
+  },
+  "end": {
+   "ok": true,
+   "bottom": 320,
+   "vh": 360,
+   "covered": null
+  },
+  "anchors": [
+   {
+    "id": "dash-overview",
+    "top": 378,
+    "cover": 321,
+    "ok": true
+   },
+   {
+    "id": "dash-weeks",
+    "top": 1675,
+    "cover": 177,
+    "ok": true
+   },
+   {
+    "id": "dash-trends",
+    "top": 2534,
+    "cover": 208,
+    "ok": true
+   },
+   {
+    "id": "dash-topics",
+    "top": 4416,
+    "cover": 212,
+    "ok": true
+   },
+   {
+    "id": "dash-missed",
+    "top": 7009,
+    "cover": 113,
+    "ok": true
+   },
+   {
+    "id": "dash-quality",
+    "top": 8058,
+    "cover": 113,
+    "ok": true
+   },
+   {
+    "id": "dash-compare",
+    "top": 9417,
+    "cover": 113,
+    "ok": true
+   }
+  ],
+  "focus": [],
+  "log": {
+   "errors": [],
+   "warnings": [],
+   "failed": []
+  },
+  "issues": [
+   "23 tap targets under 44px: div.row.small.muted > label(\"Auto-refresh every 30 second\") > input 211x30; button.info-btn.no-print(\"How the students who practised (last 30 days) comparison works\") 24x44; button.info-btn.no-print(\"How the sessions completed comparison works\") 24x44; button.info-btn.no-print(\"How the answers submitted comparison works\") 24x44; details.viz-table > summary(\"Show as a table\") 686x20; details.viz-table > summary(\"Show the chart data as a tab\") 686x20; button.btn.small(\"Show learning outcomes for Data representation\") 28x44; button.btn.small(\"Show learning outcomes for Networking basics\") 28x44",
+   "sticky bars cover 31% of the height (header#top + nav.dash-nav.compact(\"Dashboard sections\"))"
+  ]
+ },
+ {
+  "tab": "To review",
+  "viewport": "740x360",
+  "vw": 740,
+  "vh": 360,
+  "overflow": 0,
+  "offenders": [],
+  "clipped": [],
+  "overlaps": [],
+  "smallTargets": [],
+  "smallTargetCount": 0,
+  "sticky": {
+   "bars": [
+    "header#top"
+   ],
+   "total": 57,
+   "share": 0.16
+  },
+  "end": {
+   "ok": true,
+   "bottom": 281,
+   "vh": 360,
+   "covered": null
+  },
+  "focus": [],
+  "log": {
+   "errors": [],
+   "warnings": [],
+   "failed": []
+  },
+  "issues": []
+ },
+ {
+  "tab": "Classes & Roster",
+  "viewport": "740x360",
+  "vw": 740,
+  "vh": 360,
+  "overflow": 0,
+  "offenders": [],
+  "clipped": [],
+  "overlaps": [],
+  "smallTargets": [
+   {
+    "s": "div.row > label(\"Show archived classes\") > input",
+    "w": 167,
+    "h": 26,
+    "inline": false,
+    "note": "via label"
+   }
+  ],
+  "smallTargetCount": 1,
+  "sticky": {
+   "bars": [
+    "header#top"
+   ],
+   "total": 57,
+   "share": 0.16
+  },
+  "end": {
+   "ok": true,
+   "bottom": 299,
+   "vh": 360,
+   "covered": null
+  },
+  "focus": [
+   "button(\"+ Create Class\") at 16-60 under top"
+  ],
+  "log": {
+   "errors": [],
+   "warnings": [],
+   "failed": []
+  },
+  "issues": [
+   "1 tap targets under 44px: div.row > label(\"Show archived classes\") > input 167x26",
+   "focus under sticky bar: button(\"+ Create Class\") at 16-60 under top"
+  ]
+ },
+ {
+  "tab": "Question bank",
+  "viewport": "740x360",
+  "vw": 740,
+  "vh": 360,
+  "overflow": 0,
+  "offenders": [],
+  "clipped": [],
+  "overlaps": [],
+  "smallTargets": [
+   {
+    "s": "details.question-provenance > summary(\"Sources & history\")",
+    "w": 686,
+    "h": 20,
+    "inline": false,
+    "note": ""
+   },
+   {
+    "s": "details.question-provenance > summary(\"Sources & history\")",
+    "w": 686,
+    "h": 20,
+    "inline": false,
+    "note": ""
+   },
+   {
+    "s": "details.question-provenance > summary(\"Sources & history\")",
+    "w": 686,
+    "h": 20,
+    "inline": false,
+    "note": ""
+   },
+   {
+    "s": "details.question-provenance > summary(\"Sources & history\")",
+    "w": 686,
+    "h": 20,
+    "inline": false,
+    "note": ""
+   },
+   {
+    "s": "details.question-provenance > summary(\"Sources & history\")",
+    "w": 686,
+    "h": 20,
+    "inline": false,
+    "note": ""
+   },
+   {
+    "s": "details.question-provenance > summary(\"Sources & history\")",
+    "w": 686,
+    "h": 20,
+    "inline": false,
+    "note": ""
+   },
+   {
+    "s": "details.question-provenance > summary(\"Sources & history\")",
+    "w": 686,
+    "h": 20,
+    "inline": false,
+    "note": ""
+   },
+   {
+    "s": "details.question-provenance > summary(\"Sources & history\")",
+    "w": 686,
+    "h": 20,
+    "inline": false,
+    "note": ""
+   },
+   {
+    "s": "details.question-provenance > summary(\"Sources & history\")",
+    "w": 686,
+    "h": 20,
+    "inline": false,
+    "note": ""
+   }
+  ],
+  "smallTargetCount": 9,
+  "sticky": {
+   "bars": [
+    "header#top"
+   ],
+   "total": 57,
+   "share": 0.16
+  },
+  "end": {
+   "ok": true,
+   "bottom": 299,
+   "vh": 360,
+   "covered": null
+  },
+  "focus": [],
+  "log": {
+   "errors": [],
+   "warnings": [],
+   "failed": []
+  },
+  "issues": [
+   "9 tap targets under 44px: details.question-provenance > summary(\"Sources & history\") 686x20; details.question-provenance > summary(\"Sources & history\") 686x20; details.question-provenance > summary(\"Sources & history\") 686x20; details.question-provenance > summary(\"Sources & history\") 686x20; details.question-provenance > summary(\"Sources & history\") 686x20; details.question-provenance > summary(\"Sources & history\") 686x20; details.question-provenance > summary(\"Sources & history\") 686x20; details.question-provenance > summary(\"Sources & history\") 686x20"
+  ]
+ },
+ {
+  "tab": "AI drafting",
+  "viewport": "740x360",
+  "vw": 740,
+  "vh": 360,
+  "overflow": 0,
+  "offenders": [],
+  "clipped": [],
+  "overlaps": [],
+  "smallTargets": [
+   {
+    "s": "details.panel > summary(\"Material library · Notes, im\")",
+    "w": 686,
+    "h": 23,
+    "inline": false,
+    "note": ""
+   }
+  ],
+  "smallTargetCount": 1,
+  "sticky": {
+   "bars": [
+    "header#top"
+   ],
+   "total": 57,
+   "share": 0.16
+  },
+  "end": {
+   "ok": true,
+   "bottom": 298,
+   "vh": 360,
+   "covered": null
+  },
+  "focus": [
+   "select(\"Intro to Computing (demo)Found\") at 16-60 under top"
+  ],
+  "log": {
+   "errors": [],
+   "warnings": [],
+   "failed": []
+  },
+  "issues": [
+   "1 tap targets under 44px: details.panel > summary(\"Material library · Notes, im\") 686x23",
+   "focus under sticky bar: select(\"Intro to Computing (demo)Found\") at 16-60 under top"
+  ]
+ },
+ {
+  "tab": "Evaluation",
+  "viewport": "740x360",
+  "vw": 740,
+  "vh": 360,
+  "overflow": 0,
+  "offenders": [],
+  "clipped": [],
+  "overlaps": [],
+  "smallTargets": [],
+  "smallTargetCount": 0,
+  "sticky": {
+   "bars": [
+    "header#top"
+   ],
+   "total": 57,
+   "share": 0.16
+  },
+  "end": {
+   "ok": true,
+   "bottom": 284,
+   "vh": 360,
+   "covered": null
+  },
+  "focus": [
+   "select(\"Intro to Computing (demo)Found\") at 16-60 under top",
+   "select(\"Intro to Computing (demo)Found\") at 16-60 under top",
+   "select(\"Intro to Computing (demo)Found\") at 16-60 under top",
+   "select(\"Intro to Computing (demo)Found\") at 16-60 under top",
+   "select(\"Intro to Computing (demo)Found\") at 16-60 under top",
+   "select(\"Intro to Computing (demo)Found\") at 16-60 under top",
+   "select(\"Intro to Computing (demo)Found\") at 16-60 under top"
+  ],
+  "log": {
+   "errors": [],
+   "warnings": [],
+   "failed": []
+  },
+  "issues": [
+   "focus under sticky bar: select(\"Intro to Computing (demo)Found\") at 16-60 under top",
+   "focus under sticky bar: select(\"Intro to Computing (demo)Found\") at 16-60 under top",
+   "focus under sticky bar: select(\"Intro to Computing (demo)Found\") at 16-60 under top",
+   "focus under sticky bar: select(\"Intro to Computing (demo)Found\") at 16-60 under top",
+   "focus under sticky bar: select(\"Intro to Computing (demo)Found\") at 16-60 under top",
+   "focus under sticky bar: select(\"Intro to Computing (demo)Found\") at 16-60 under top",
+   "focus under sticky bar: select(\"Intro to Computing (demo)Found\") at 16-60 under top"
+  ]
+ },
+ {
+  "tab": "Settings",
+  "viewport": "740x360",
+  "vw": 740,
+  "vh": 360,
+  "overflow": 0,
+  "offenders": [],
+  "clipped": [],
+  "overlaps": [],
+  "smallTargets": [],
+  "smallTargetCount": 0,
+  "sticky": {
+   "bars": [
+    "header#top"
+   ],
+   "total": 57,
+   "share": 0.16
+  },
+  "end": {
+   "ok": true,
+   "bottom": 289,
+   "vh": 360,
+   "covered": null
+  },
+  "focus": [
+   "select(\"Intro to Computing (demo)Found\") at 16-60 under top"
+  ],
+  "log": {
+   "errors": [],
+   "warnings": [],
+   "failed": []
+  },
+  "issues": [
+   "focus under sticky bar: select(\"Intro to Computing (demo)Found\") at 16-60 under top"
+  ]
+ }
+]
