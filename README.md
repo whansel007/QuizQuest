@@ -51,7 +51,7 @@ With no Supabase configuration, application data is stored in `data/db.json`. Th
 
 | Role | Email | Password |
 |---|---|---|
-| Professor | `prof.a@quizquest.demo` or `prof.b@quizquest.demo` | `quizquest` |
+| Professor | `zhiyang.ho.2025@computing.smu.edu.sg` or `prof.b@quizquest.demo` | `Demo1234!` or `quizquest` |
 | Student | `student01@quizquest.demo` through `student12@quizquest.demo` | `quizquest` |
 
 The **Test accounts** link on the sign-in page lists seeded demo identities. Sign-in is per browser tab. Try two student accounts in separate tabs and open **Campfire Run** to see cooperative play.
