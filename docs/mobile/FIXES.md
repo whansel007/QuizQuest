@@ -261,7 +261,7 @@ mouse-revealed top bar because the probe's pointer sits at the top edge.
 ## F6: Campfire Run scene composition
 
 **Status before:** not fixed. At 1280x800 the campfire sat in the left half. At 960x1440 the
-hero stood about 40 px lower than the campfire and was cut off by the hero selector.
+hero's sprite ran below the campfire's base and under the hero selector.
 
 **Root cause:** in `web/src/student/HeroLabView.vue` (before the fix) the scene is a
 two-column grid (`.forest-scene`, line 545). The two halves are aligned independently:
@@ -314,3 +314,45 @@ hero from its sprite's opaque pixels, then checks:
 - choosing another hero leaves the campfire exactly where it was.
 
 **Screenshots:** `F6-before.png` and `F6-after.png` (960x1440).
+
+---
+
+## F7: login page spacing on tablets
+
+**Status before:** partly fixed. On `main`, a teammate's commit `4e3414e` narrowed the forest
+to 36% below 980 px, which left about 70 px at 768x1024. But the sweep from 700 to 1100 px
+still found a cramped band from 981 to about 1010 px: at 988x1000 the curved edge came within
+about 17 px of the login card. The tablet layout was still a full-bleed scene pinned to the
+page edge.
+
+**Root cause:** `web/src/LoginView.vue:441` (before this fix). `.qq-preview-side` is
+`position: absolute; right: 0; width: 46%`, and its curved edge (`clip-path: ellipse(...)`)
+bulges left at mid-height, which is exactly where the vertically centred card sits. The form
+column's width is a separate `60%` with `padding-inline: clamp(24px, 6vw, 96px)`. Nothing
+relates the two widths, so the gap depends on where the percentages happen to land. The
+`max-width: 980px` override (line 461) only covers part of the tablet range.
+
+**Fix:** for side-by-side tablets (761 to 1100 px) the page is now a two-column grid:
+- outer padding `clamp(24px, 5vw, 64px)`;
+- column gap `clamp(24px, 4vw, 48px)`;
+- the panel at most 420 px wide.
+
+The forest becomes a box of its own, with the same outline as the other cards (3 px ink
+border, storybook radius, 6 px drop shadow) and no curved clip or torn edge. The preview
+canvas already fills its box at any size, and with equal columns the library and the
+strolling heroes stay in view (at 768 px the box is about 330 px wide instead of 240 px).
+Phones (760 px and down, stacked) and 1101 px and up keep the curved design unchanged.
+
+**Hysteresis:** the 761/1100 thresholds are CSS media queries. Nothing measures or
+resizes in response to them, so they cannot loop. The 24 px hysteresis applies to the
+JS-driven toggles (F3 and F6).
+
+**Test:** `tests/mobile/login-tablet.spec.mjs`. At 768x1024, 820x1180, 912x1368, 1024x768
+and 1180x820, and sweeping 700 to 1100 px in 8 px steps, it checks:
+- when side by side, the panel and scene boxes do not intersect and the gap is at least 24 px;
+- the page never scrolls sideways;
+- the layout is side by side above 760 px and stacked below.
+
+On the old code the sweep fails at 988 px.
+
+**Screenshots:** `F7-before.png` and `F7-after.png` (988x1000).
