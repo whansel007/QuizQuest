@@ -454,9 +454,11 @@ const floaters = ['?', '★', '✓', 'A', '+', '!', '◆', '?'];
   }
 }
 @media (max-width: 760px), (max-height: 620px) { .qq-campfire { display: none; } }
+/* tablet: a narrower forest so its curved edge stays clear of the login card
+   (at 768px the card ends ~420px and the curve starts ~490px) */
 @media (max-width: 980px) {
-  .qq-form-side { width: 62%; padding-inline: 32px 40px; }
-  .qq-preview-side { width: 44%; }
+  .qq-form-side { width: 60%; padding-inline: 32px 40px; }
+  .qq-preview-side { width: 36%; }
 }
 /* narrow screens: the form comes first; the forest becomes a short band on top */
 @media (max-width: 760px) {

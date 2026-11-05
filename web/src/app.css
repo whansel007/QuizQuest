@@ -423,7 +423,7 @@ button.btn, .btn {
 .btn.primary:disabled { background: var(--line); border-color: var(--line); color: var(--muted); opacity: 1; }
 
 label { display: block; font-size: 13px; font-weight: 600; color: var(--muted); margin-bottom: 4px; }
-input:not([type]), input[type="text"], input[type="number"], input[type="email"], input[type="password"], select, textarea {
+input:not([type]), input[type="text"], input[type="search"], input[type="number"], input[type="email"], input[type="password"], select, textarea {
   font: inherit;
   width: 100%;
   padding: 8px 10px;
@@ -2929,7 +2929,7 @@ body:has(.teacher-app) { background: var(--bg); }
 .teacher-app .panel h4 { margin: 0 0 8px; font-size: 15px; }
 .teacher-app .btn { border-radius: 8px; }
 .teacher-app .btn.primary:hover:not(:disabled) { filter: brightness(1.06); }
-.teacher-app :is(input:not([type]), input[type="text"], input[type="number"], input[type="email"], input[type="password"], input[type="date"], select, textarea) { border-radius: 8px; }
+.teacher-app :is(input:not([type]), input[type="text"], input[type="search"], input[type="number"], input[type="email"], input[type="password"], input[type="date"], select, textarea) { border-radius: 8px; }
 /* page toolbar: title on the left, the page's pickers and actions on the right */
 .t-toolbar { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 14px; margin: 0 0 18px; }
 .t-toolbar > h2 { flex: 1 1 auto; margin: 0; }
@@ -3206,6 +3206,7 @@ button.attention-card:hover .attention-go, button.attention-card:focus-visible .
   .teacher-app .panel { min-width: 0; padding: 14px; }
   .teacher-app .t-toolbar { align-items: stretch; gap: 8px; margin-bottom: 14px; }
   .teacher-app .t-toolbar > h2 { flex: 1 0 100%; margin-bottom: 2px; }
+  .teacher-app .t-toolbar > .bank-course-picker { margin-inline: auto; }
   .teacher-app .t-toolbar > :is(button, .btn, select, .field, .row) { max-width: 100%; }
   .teacher-app .t-toolbar :is(.btn, select) { min-height: 44px; }
   .teacher-app .t-section { margin-bottom: 22px; }
@@ -3215,7 +3216,7 @@ button.attention-card:hover .attention-go, button.attention-card:focus-visible .
   .teacher-app .row > * { min-width: 0; }
   .teacher-app .row > .field,
   .teacher-app .row > .grow.field { flex-basis: 100%; }
-  .teacher-app :is(input:not([type]), input[type="text"], input[type="number"], input[type="email"], input[type="password"], input[type="date"], select, textarea) {
+  .teacher-app :is(input:not([type]), input[type="text"], input[type="search"], input[type="number"], input[type="email"], input[type="password"], input[type="date"], select, textarea) {
     min-height: 44px;
     max-width: 100%;
     font-size: 16px;
@@ -3373,7 +3374,7 @@ button.attention-card:hover .attention-go, button.attention-card:focus-visible .
 @media (pointer: coarse) {
   .teacher-app button:not(.sort), .teacher-app a.btn { min-height: 44px; touch-action: manipulation; }
   .teacher-app .btn.small { padding: 8px 11px; }
-  .teacher-app :is(input:not([type]), input[type="text"], input[type="number"], input[type="email"], input[type="password"], input[type="date"], select, textarea) {
+  .teacher-app :is(input:not([type]), input[type="text"], input[type="search"], input[type="number"], input[type="email"], input[type="password"], input[type="date"], select, textarea) {
     min-height: 44px;
     font-size: 16px;
   }

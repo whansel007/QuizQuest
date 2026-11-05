@@ -51,7 +51,7 @@ With no Supabase configuration, application data is stored in `data/db.json`. Th
 
 | Role | Email | Password |
 |---|---|---|
-| Professor | `prof.a@quizquest.demo` or `prof.b@quizquest.demo` | `quizquest` |
+| Professor | `zhiyang.ho.2025@computing.smu.edu.sg` or `prof.b@quizquest.demo` | `Demo1234!` or `quizquest` |
 | Student | `student01@quizquest.demo` through `student12@quizquest.demo` | `quizquest` |
 
 The **Test accounts** link on the sign-in page lists seeded demo identities. Sign-in is per browser tab. Try two student accounts in separate tabs and open **Campfire Run** to see cooperative play.
@@ -70,7 +70,7 @@ Copy `.env.example` to `.env`. The file is gitignored. Never commit or expose se
 | `RESEND_API_KEY`, `PASSWORD_RESET_FROM` | Enable password-reset emails; verify the sender domain in Resend first. `EMAIL_FROM` is a fallback sender variable. |
 | `PORT`, `APP_TIMEZONE` | Set the server port and application time zone. The default time zone is `Asia/Singapore`. |
 
-See [`.env.example`](.env.example) for all supported settings and defaults. Gemini quota and reset-day accounting are distinct from the app's `APP_TIMEZONE`; quota tracking is documented in the [codebase guide](docs/CODEBASE_GUIDE.md#16-configuration-gemini-requests-retries-and-quotas). Provider limits and availability can change, so check the provider's current terms for the configured key.
+See [`.env.example`](.env.example) for all supported settings and defaults. Provider limits and availability can change, so check the provider's current terms for the configured key.
 
 ## Supabase setup
 
@@ -203,7 +203,7 @@ public/hero-lab/      Separate Hero Lab game experiment
 public/tag/           Circle Tag client and notes
 test/                 Node and browser-level tests
 e2e/                  Playwright user journeys
-docs/                 Architecture, operations, workflows, audits, and UI guides
+docs/presentation/    Final presentation slides (PDF)
 ```
 
 ## Use of AI tools
@@ -267,14 +267,7 @@ The BM25 ranking in [`src/quiz/retrieval.js`](src/quiz/retrieval.js) follows
 Robertson & Zaragoza, *The Probabilistic Relevance Framework: BM25 and Beyond*
 (2009).
 
-## Documentation
+## Presentation and experiment notes
 
-- [Codebase guide](docs/CODEBASE_GUIDE.md): architecture, workflows, API routes, persistence, security boundaries, and limitations.
-- [Prototype and deployment guide](docs/PROTOTYPE.md): local operation, Supabase, hosting, features, and prototype constraints.
-- [Testing guide](docs/TESTING.md): test suites, browser setup, and isolated test data.
-- [Class enrollment](docs/CLASS_ENROLMENT.md): class membership and join-code workflow.
-- [Student progress and reporting](docs/STUDENT_PROGRESS_REPORTING.md): calculations, report workflow, and implementation map.
-- [Economy](docs/ECONOMY.md): coins, Kingdom resources, daily earning caps, summons, and building upgrades.
-- [Implementation audit](docs/AUDIT.md): findings and known limitations.
-- [UI notes](docs/ui/README.md): design system and screen-specific implementation notes.
+- [Final presentation slides](docs/presentation/QuizQuest%20Project%20slides.pdf).
 - [Circle Tag notes](public/tag/HOW_THIS_WORKS.md): the separate `/tag` experiment.

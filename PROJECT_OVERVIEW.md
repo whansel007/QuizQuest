@@ -125,15 +125,6 @@ Multiple choice, multi-select, true/false and short answer (text or numeric) for
 - **No rate limiting** on public endpoints such as sign-up.
 - **No backups** on the Supabase free tier.
 
-**Roadmap** (from `docs/API_RECOMMENDATIONS.md` and `docs/PROTOTYPE.md`)
-- **Next:** deploy to a long-running host; move the database to per-request Postgres queries with transactions, starting with coins, the shop and trades.
-- **Next:** Supabase Auth with password reset by email; Supabase Storage for uploaded files.
-- **Later:** LMS integration (LTI 1.3, Google Classroom, Microsoft education tools); error tracking and analytics (Sentry, PostHog); bot protection on sign-up (Turnstile).
-
-**Out-of-date documents**
-These conflict with the code; trust this overview or the code instead:
-- `docs/PROTOTYPE.md` and `docs/CODEBASE_GUIDE.md` describe passwordless demo login.
-
 ## 7. Team
 
 | Member | Area |

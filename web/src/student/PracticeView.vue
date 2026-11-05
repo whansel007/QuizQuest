@@ -260,12 +260,19 @@ const onStart = action(() => enterBattle(async () => {
 .practice-topics-count { color: #536A53; font-size: 14px; font-weight: 700; }
 .practice-topics-actions { display: flex; gap: 8px; margin-left: auto; }
 .practice-topic-list { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; margin: 0; padding: 0 0 4px; list-style: none; }
+.practice-topic-list > li { display: flex; min-width: 0; }
+/* every chip is the same size: full column width, fixed height, name on one
+   line and the question count on the next, both truncated rather than wrapped */
 .practice-topic {
   display: grid;
   grid-template-columns: auto minmax(0, 1fr);
+  grid-template-rows: auto auto;
+  align-content: center;
   align-items: center;
   column-gap: 10px;
-  min-height: 52px;
+  box-sizing: border-box;
+  width: 100%;
+  height: 56px;
   margin: 0;
   padding: 8px 11px;
   color: #20382C;
@@ -283,7 +290,7 @@ const onStart = action(() => enterBattle(async () => {
 .practice-topic input { grid-row: span 2; width: 20px; height: 20px; margin: 0; accent-color: #3E6B4A; cursor: inherit; }
 .practice-topic input:focus-visible { outline: 3px solid #D5B96C; outline-offset: 2px; }
 .practice-topic-name { overflow: hidden; font-weight: 700; line-height: 1.25; text-overflow: ellipsis; white-space: nowrap; }
-.practice-topic-meta { color: #536A53; font-size: 12px; font-weight: 600; }
+.practice-topic-meta { overflow: hidden; color: #536A53; font-size: 12px; font-weight: 600; line-height: 1.25; text-overflow: ellipsis; white-space: nowrap; }
 .practice-topic.empty .practice-topic-meta { color: #77816C; }
 .practice-topics-hint { margin: 0; color: #713C36 !important; font-size: 14px; font-weight: 700; }
 @media (max-width: 760px) {
