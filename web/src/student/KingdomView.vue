@@ -14,7 +14,7 @@ import { loadHome } from './home.js';
 import { useOverlay } from '../overlays.js';
 import {
   PHONE_NAV_QUERY, RESOURCES_COLLAPSE_BELOW_PX, RESOURCES_SHEET_BELOW_PX, TOWN_TITLE_COMPACT_BELOW_PX,
-  abbreviateCount, belowWithHysteresis,
+  TOWN_HINT_SHORT_BELOW_PX, TOWN_HINT_TEXT, TOWN_HINT_TEXT_SHORT, abbreviateCount, belowWithHysteresis,
 } from '../mobile-config.js';
 import KingdomTown from './KingdomTown.vue';
 import BuildingIcon from './BuildingIcon.vue';
@@ -108,7 +108,18 @@ watch(topRight, (el, old) => {
   if (el) { topRowObserver?.observe(el); nextTick(layoutTopRow); }
 });
 window.addEventListener('resize', onViewportResize);
+// F9: the touch hint takes whatever the bottom row leaves; its width comes
+// from the row (flex-basis 0), never from its text, so swapping to the short
+// text cannot feed back into the measurement.
+const hintEl = ref(null);
+const hintShort = ref(false);
+const hintObserver = typeof ResizeObserver === 'function' ? new ResizeObserver(([entry]) => {
+  const width = entry.contentRect.width;
+  if (width > 0) hintShort.value = belowWithHysteresis(width, TOWN_HINT_SHORT_BELOW_PX, hintShort.value);
+}) : null;
+watch(hintEl, (el, old) => { if (old) hintObserver?.unobserve(old); if (el) hintObserver?.observe(el); });
 function stopTopRowLayout() {
+  hintObserver?.disconnect();
   topRowObserver?.disconnect();
   window.removeEventListener('resize', onViewportResize);
   phoneMenuQuery?.removeEventListener?.('change', onPhoneMenuChange);
@@ -696,15 +707,16 @@ const castlePanelContext = reactive({
         </div>
       </div>
 
-      <div class="town-hud town-actions">
-        <button class="hud-btn" type="button" title="Emotes (Z)" @click="town?.openEmotes()">Emote <kbd>Z</kbd></button>
-        <button class="hud-btn hud-icon" type="button" :aria-pressed="soundState.muted" :aria-label="soundState.muted ? 'Turn sounds on' : 'Mute sounds'" :title="soundState.muted ? 'Sounds off' : 'Sounds on'" @click="toggleMuted">
+      <div class="town-hud town-actions" data-testid="town-actions">
+        <button class="hud-btn" type="button" title="Emotes (Z)" data-testid="town-emote" @click="town?.openEmotes()">Emote <kbd>Z</kbd></button>
+        <button class="hud-btn hud-icon" type="button" data-testid="town-sound" :aria-pressed="soundState.muted" :aria-label="soundState.muted ? 'Turn sounds on' : 'Mute sounds'" :title="soundState.muted ? 'Sounds off' : 'Sounds on'" @click="toggleMuted">
           <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M3 8h3l4-4v12l-4-4H3Z" /><path v-if="!soundState.muted" d="M13 7c1.4 1.6 1.4 4.4 0 6M15.5 5c2.6 2.8 2.6 7.2 0 10" fill="none" stroke-width="1.8" stroke-linecap="round" /><path v-else d="m13 7 5 6m0-6-5 6" fill="none" stroke-width="1.8" stroke-linecap="round" /></svg>
         </button>
+        <!-- touch screens: the hint shares this row (F9) -->
+        <span ref="hintEl" class="town-hint" data-testid="town-hint">{{ hintShort ? TOWN_HINT_TEXT_SHORT : TOWN_HINT_TEXT }}</span>
       </div>
       <div class="town-hud town-controls-hud">
         <span><kbd>WASD</kbd> walk</span><span><kbd>E</kbd> open / greet</span><span><kbd>Z</kbd> emote</span><span class="north-hint">Battles: walk north-west ↖</span>
-        <span class="touch-controls-hint">Tap the ground to walk · tap a building to open</span>
       </div>
 
       <!-- first-visit tour: a card along the bottom, so the town stays visible -->
@@ -808,7 +820,6 @@ const castlePanelContext = reactive({
 .kingdom-screen .town-controls-hud { right: 18px; bottom: 16px; display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 4px 14px; max-width: min(560px, 60vw); padding: 9px 14px; color: #fff8e4; background: rgb(35 56 47 / 90%); border-radius: 9px; font: 700 .8rem/1.3 Nunito, Trebuchet MS, sans-serif; pointer-events: none; }
 .kingdom-screen .town-controls-hud kbd { padding: 1px 5px; color: #23382f; background: #f2ba55; border: 1px solid #23382f; border-radius: 4px; font: 800 .68rem ui-monospace, monospace; }
 .kingdom-screen .north-hint { color: #f2ba55; }
-.kingdom-screen .touch-controls-hint { display: none; }
 
 .kingdom-screen .town-intro { position: absolute; z-index: 5; left: 18px; bottom: 70px; width: min(430px, calc(100vw - 32px)); padding: 18px 20px 16px; color: #23382f; background: #fbf2d8; background-image: url('/hero-lab/assets/storybook-paper.svg'), linear-gradient(135deg, #fff8e4, #f1e6c7); background-size: 144px 144px, auto; border: 3px solid #23382f; border-radius: 14px 11px 16px 12px; box-shadow: 0 6px 0 #7a6545, 0 14px 30px rgb(16 33 23 / 30%); }
 .kingdom-screen .town-intro h2 { margin: 4px 0 6px; color: #254937; font: 700 24px/1.15 Georgia, "Palatino Linotype", serif; }
@@ -1172,8 +1183,6 @@ const castlePanelContext = reactive({
 }
 @media (pointer: coarse) {
   .kingdom-screen .town-controls-hud { display: flex; right: 10px; bottom: calc(74px + env(safe-area-inset-bottom)); left: 10px; justify-content: center; max-width: none; padding: 7px 10px; font-size: .75rem; text-align: center; }
-  .kingdom-screen .town-controls-hud > span:not(.touch-controls-hint) { display: none; }
-  .kingdom-screen .touch-controls-hint { display: inline; }
   .kingdom-screen .town-actions { bottom: max(10px, env(safe-area-inset-bottom)); }
   .kingdom-screen .town-actions .hud-btn { min-height: 44px; }
   .kingdom-screen .town-title-actions .hud-btn { min-height: 42px; }
@@ -1263,4 +1272,14 @@ const castlePanelContext = reactive({
 .kingdom-screen .town-resources-castle { display: grid; gap: 6px; padding: 10px 2px 0; font: 800 .88rem/1.2 Nunito, Trebuchet MS, sans-serif; }
 .kingdom-screen .town-resources-bar { display: block; height: 6px; overflow: hidden; background: #e4d6b2; border: 1px solid #c5b58e; border-radius: 4px; }
 .kingdom-screen .town-resources-bar i { display: block; height: 100%; background: #f2ba55; }
+/* ---- F9 (docs/mobile/FIXES.md): on touch screens the hint shares the bottom
+   row with the Emote and sound buttons instead of floating on its own; the
+   row lets taps through to the town except on its buttons ---- */
+.kingdom-screen .town-hint { display: none; }
+@media (pointer: coarse) {
+  .kingdom-screen .town-controls-hud { display: none; }
+  .kingdom-screen .town-actions { right: max(8px, env(safe-area-inset-right)); left: max(8px, env(safe-area-inset-left)); bottom: max(10px, env(safe-area-inset-bottom)); flex-wrap: nowrap; align-items: center; justify-content: flex-start; gap: 6px; pointer-events: none; }
+  .kingdom-screen .town-actions .hud-btn { flex: none; pointer-events: auto; }
+  .kingdom-screen .town-hint { display: -webkit-box; flex: 1 1 0; min-width: 0; overflow: hidden; -webkit-box-orient: vertical; -webkit-line-clamp: 2; line-clamp: 2; padding: 6px 12px; color: #fff8e4; background: rgb(35 56 47 / 90%); border-radius: 12px; font: 700 12.5px/1.3 Nunito, Trebuchet MS, sans-serif; text-align: left; pointer-events: none; }
+}
 </style>

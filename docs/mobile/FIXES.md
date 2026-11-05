@@ -411,3 +411,46 @@ truncated on two lines. Three things were still missing:
 - All passed 3 times in a row.
 
 **Screenshots:** `F8-before.png` and `F8-after.png` (topic list at 375 px, touch).
+
+---
+
+## F9: town hint shares the row with the Emote and sound buttons
+
+**Status before:** not fixed. On touch screens the hint was a separate full-width bar,
+floating about 74 px above the Emote and sound buttons.
+
+**Root cause:** in `web/src/student/KingdomView.vue` (before the fix), the touch hint was a
+`<span>` inside the desktop keyboard-hints panel (`.town-controls-hud`, line 707). On touch,
+`@media (pointer: coarse)` (line 1174) re-showed that panel as its own absolutely positioned
+bar at `bottom: calc(74px + safe-area)`, separate from the `.town-actions` row of buttons.
+
+**Fix:**
+- On touch screens the hint is a third item inside `.town-actions`: [Emote][Sound][hint].
+- The hint takes the room left over (`flex: 1 1 0; min-width: 0`), left-aligned, at
+  12.5 px. It is clamped to two lines, vertically centred with the buttons, in the same
+  translucent pill colour.
+- The row spans the safe-area insets and is `pointer-events: none` except on its two
+  buttons, so taps on the hint reach the town.
+- The separate floating hint (and its CSS) is gone. On touch screens the keyboard-hints
+  panel is hidden; desktop keeps it unchanged.
+- `TOWN_HINT_TEXT`, `TOWN_HINT_TEXT_SHORT` and `TOWN_HINT_SHORT_BELOW_PX = 140` live in
+  `web/src/mobile-config.js`.
+- A `ResizeObserver` on the hint picks the short text below 140 px, with 24 px hysteresis.
+  The hint's width comes from the row (flex-basis 0), not from its text, so the swap
+  cannot loop.
+- Building bubbles are drawn on the town canvas, so they cannot overlap a DOM row, and the
+  row lets taps through anyway.
+
+**Test:** `tests/mobile/town-hint.spec.mjs`. At 360x640, 375x667, 412x915, 667x375, 740x360,
+768x1024 and 320x568 it checks:
+- the hint lies to the right of both buttons, vertically centred with them, overlapping
+  neither;
+- it is inside the viewport and at most two lines;
+- the separate hint is gone;
+- `pointer-events: none`, and `elementFromPoint` at its centre reaches the town;
+- it is clear of the virtual stick and its toggle;
+- it uses the short text exactly when it is narrower than 140 px.
+
+On desktop, the keyboard hints stay and the touch hint is hidden. Passed 3 times in a row.
+
+**Screenshots:** `F9-before.png` and `F9-after.png` (375x667).

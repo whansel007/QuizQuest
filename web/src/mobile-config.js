@@ -87,3 +87,10 @@ export const CAMPFIRE_BASE_RATIO = 193 / 220;
 // Quiz topic chips (docs/mobile/FIXES.md, F8): one fixed height for every
 // chip, so a long topic name or count can never stretch one of them.
 export const TOPIC_CHIP_HEIGHT_PX = 64;
+
+// Kingdom town hint on touch screens (docs/mobile/FIXES.md, F9): it shares the
+// bottom row with the Emote and sound buttons and takes the room left over;
+// with less than TOWN_HINT_SHORT_BELOW_PX of room it uses the short text.
+export const TOWN_HINT_TEXT = 'Tap the ground to walk · tap a building to open';
+export const TOWN_HINT_TEXT_SHORT = 'Tap to walk · tap a building';
+export const TOWN_HINT_SHORT_BELOW_PX = 140;
