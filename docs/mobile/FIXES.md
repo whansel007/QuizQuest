@@ -561,3 +561,45 @@ the History sheet, it requires:
 
 It fails on the old History sheet (the "Duplicate (+15 coins)" tag over "Wood"). It passed 3
 times in a row.
+
+---
+
+## Test results (2026-11-05, branch `mobile-fixes`)
+
+| Suite | Before the fixes | After |
+|---|---|---|
+| `npm test` (node:test) | 461 pass, 0 fail, 1 skipped | 461 pass, 0 fail, 1 skipped |
+| `npx vitest run` | 101/101 | 114/114 (13 new: the F2 collision and reachability spec) |
+| `npm run test:mobile:unit` | 19/19 | 25/25 (6 new: the F10 draw order) |
+| `npm run test:mobile` (Playwright, Chromium) | 42 tests | 112/112 on the final run |
+| `npx playwright test` (desktop e2e: Chromium, Firefox, WebKit) | n/a | 138/138 |
+
+**New Playwright specs** (each run 3 times in a row on its own; all passed):
+- `overlays`
+- `kingdom-resources`
+- `town-walk`
+- `summon-theme`
+- `campfire-run`
+- `campfire-scene`
+- `login-tablet`
+- `quiz-topics`
+- `town-hint`
+- `aim-line-layer`
+- `sibling-sweep`
+
+**Flake found and fixed:** in the first two full mobile runs, the F2 desktop door walk
+(`town-walk.e2e.mjs`, 1280x800 keys) failed once each, at a different door each time, while
+passing 6/6 on its own. The cause was the test, not the town: under full-suite load the
+avatar coasted past the small door zone between the arrival sample and the key release.
+The test now walks back in, and the third full run passed 112/112.
+
+In run 1, the same file's diagonal-slide check also failed once. It passed in run 2, 3/3
+on its own, and in run 3, so it can still be sensitive to load.
+
+**Professor side:**
+- No file under `web/src/teacher/` changed, nor the professor shell in `App.vue` (only the
+  student `<header>`, the menu buttons and an import changed there).
+- The one shared stylesheet rule that applies to professor pages (the touch checkbox-label
+  default, F8) keeps its old selector for them.
+- The z-index variables (F1) only replace the student top bar's and drawer's numbers with
+  the same values.
