@@ -703,11 +703,11 @@ const castlePanelContext = reactive({
         </div>
       </section>
       <div v-if="!resourcesCollapsed" ref="topRight" class="town-hud town-economy" data-testid="town-top-right">
-        <div class="town-level">Castle · {{ k.castleLevel }} / {{ BUILDING_LEVEL_CAP }}</div>
         <div class="town-balances" role="group" aria-label="Your coins and Kingdom resources">
           <span class="town-balance" :aria-label="`${coinBalance} coins`" title="Coins">🪙 {{ coinBalance }}</span>
           <span v-for="(resource, id) in R" :key="id" class="town-balance" :aria-label="`${resource.name}: ${k.resources[id] || 0}`" :title="resource.name">{{ resource.emoji }} {{ k.resources[id] || 0 }}</span>
         </div>
+        <div class="town-level">Castle · {{ k.castleLevel }} / {{ BUILDING_LEVEL_CAP }}</div>
       </div>
 
       <div class="town-hud town-actions" data-testid="town-actions">
