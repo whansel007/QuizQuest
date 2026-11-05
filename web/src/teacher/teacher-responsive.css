@@ -130,3 +130,13 @@ html:has(.teacher-app) {
   .teacher-app .retrieved-table > tbody > tr > td { padding: 2px 0; border: 0; overflow-wrap: anywhere; }
   .teacher-app .retrieved-table > tbody > tr > td:first-child { font-weight: 700; }
 }
+
+/* ---------- Settings ---------- */
+/* phones: one field per line, the date pickers full width under their
+   labels (easier to hit and read than inline beside them) */
+@media (max-width: 767.98px) {
+  .teacher-app .semester-dates { flex-direction: column; align-items: stretch; }
+  .teacher-app .semester-dates > label { display: block; }
+  .teacher-app .semester-dates input[type="date"] { display: block; width: 100%; margin-top: 4px; }
+  .teacher-app .semester-dates > .btn { align-self: flex-start; }
+}

@@ -72,7 +72,7 @@ const targetId = useId();
       <div class="panel">
         <h3>Semester dates</h3>
         <p class="small muted">Used by "This semester" on the Analytics dashboard: from the start date to today, or to the end date once the semester is over. Update them at the start of each term.</p>
-        <form class="row" @submit.prevent>
+        <form class="row semester-dates" @submit.prevent>
           <label class="small" style="margin: 0">Semester starts <input v-model="semester.start" type="date" :max="semester.end || undefined" /></label>
           <label class="small" style="margin: 0">Ends (optional) <input v-model="semester.end" type="date" :min="semester.start || undefined" :disabled="!semester.start" /></label>
           <AsyncButton class="btn primary" :run="saveSemester">{{ semester.start ? 'Save dates' : 'Clear dates' }}</AsyncButton>
