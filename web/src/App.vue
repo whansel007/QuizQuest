@@ -6,6 +6,7 @@ import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue';
 import { PHONE_NAV_QUERY } from './mobile-config.js';
 import { S, setTab, restoreSession } from './api.js';
 import { toastState } from './ui.js';
+import { overlayOpen } from './overlays.js';
 import LoginView from './LoginView.vue';
 import ReviewView from './teacher/ReviewView.vue';
 import GenerateView from './teacher/GenerateView.vue';
@@ -248,7 +249,8 @@ onUnmounted(() => {
   <template v-else-if="ready">
   <header
     id="top"
-    :class="{ 'student-immersive-nav': immersiveStudentTab, 'student-nav-hidden': (immersiveStudentTab && (phoneNav || !studentNavVisible)) || gameActive, 'summon-nav': current?.[0] === 'pets', 'practice-nav': current?.[0] === 'practice', 'progress-nav': current?.[0] === 'progress', 'phone-nav': phoneNav }"
+    :class="{ 'student-immersive-nav': immersiveStudentTab, 'student-nav-hidden': (immersiveStudentTab && (phoneNav || !studentNavVisible)) || gameActive, 'summon-nav': current?.[0] === 'pets', 'practice-nav': current?.[0] === 'practice', 'progress-nav': current?.[0] === 'progress', 'phone-nav': phoneNav, 'under-overlay': overlayOpen }"
+    :inert="overlayOpen || undefined"
     @pointerenter="onTopPointerEnter"
     @pointerleave="onTopPointerLeave"
     @focusin="onTopFocusIn"
@@ -327,7 +329,8 @@ onUnmounted(() => {
   <button
     v-if="immersiveStudentTab && !phoneNav && !gameActive"
     class="nav-peek"
-    :class="{ 'is-hidden': studentNavVisible }"
+    :class="{ 'is-hidden': studentNavVisible, 'under-overlay': overlayOpen }"
+    :inert="overlayOpen || undefined"
     type="button"
     aria-label="Show menu"
     title="Show menu"
@@ -339,7 +342,8 @@ onUnmounted(() => {
   <button
     v-if="immersiveStudentTab && phoneNav && !gameActive"
     class="nav-peek nav-peek-phone"
-    :class="{ 'is-hidden': studentDrawerOpen }"
+    :class="{ 'is-hidden': studentDrawerOpen, 'under-overlay': overlayOpen }"
+    :inert="overlayOpen || undefined"
     type="button"
     aria-label="Open menu"
     aria-controls="s-drawer"

@@ -11,6 +11,7 @@ import { GAME_CONFIG } from '../../../public/hero-lab/game-config.js';
 import { SUMMON_SUMMARY_COLUMNS, SUMMON_SUMMARY_SLANT_DEG } from '../../../config/tuning.js';
 import { playCue } from '../sound.js';
 import { wipeState } from '../transitions.js';
+import { useOverlay } from '../overlays.js';
 
 const error = ref('');
 const loading = ref(true);
@@ -30,6 +31,8 @@ const pullTenButton = ref(null);
 const summaryRoot = ref(null);
 const pullError = ref('');
 const activeModal = ref('');
+// F1: while any of these is open the app's top bar and menu button step aside
+useOverlay(() => Boolean(activeModal.value || summaryOpen.value || prize.value));
 const modalRoot = ref(null);
 const closeButton = ref(null);
 const historyButton = ref(null);
@@ -332,11 +335,11 @@ onUnmounted(() => {
       <!-- arriving through the Kingdom telescope: the lens opens onto the sky -->
       <div v-if="lensOpening" class="lens-open" aria-hidden="true"><div class="lens"></div></div>
 
-      <div v-if="activeModal" class="story-modal-shade" @click.self="closeModal">
+      <div v-if="activeModal" class="story-modal-shade" data-testid="summon-modal" @click.self="closeModal">
         <section ref="modalRoot" class="story-modal" role="dialog" aria-modal="true" :aria-labelledby="'modal-' + activeModal + '-title'" tabindex="-1" @keydown="onModalKeydown">
           <header class="story-modal-header">
             <div><p class="modal-kicker">THE SUMMONER'S JOURNAL</p><h2 :id="'modal-' + activeModal + '-title'">{{ activeModal === 'history' ? 'Summon History' : 'Summon Details' }}</h2></div>
-            <button ref="closeButton" type="button" class="modal-close" aria-label="Close" @click="closeModal">×</button>
+            <button ref="closeButton" type="button" class="modal-close" aria-label="Close" data-testid="summon-modal-close" @click="closeModal">×</button>
           </header>
 
           <template v-if="activeModal === 'details'">
@@ -405,9 +408,9 @@ onUnmounted(() => {
         </section>
       </div>
       <PrizeReveal v-if="prize" :result="prize" :resources="resources" :click-to-continue="multiBusy && activeSummaryEggIndex !== null" @close="closePrize" />
-      <div v-if="summaryOpen" ref="summaryRoot" class="summon-summary-shade" role="dialog" aria-modal="true" aria-labelledby="summary-title" tabindex="0" @keydown="summaryKeydown">
+      <div v-if="summaryOpen" ref="summaryRoot" class="summon-summary-shade" data-testid="summon-summary" role="dialog" aria-modal="true" aria-labelledby="summary-title" tabindex="0" @keydown="summaryKeydown" @click.self="closeSummary">
         <section class="summon-summary-panel">
-          <header class="summary-header"><div><p class="modal-kicker">THE ADVENTURER'S NOTES</p><h2 id="summary-title">{{ debugPreview ? 'Preview the haul' : 'Your ten discoveries' }}</h2></div><button type="button" class="modal-close" aria-label="Close results" @click.stop="closeSummary">×</button></header>
+          <header class="summary-header"><div><p class="modal-kicker">THE ADVENTURER'S NOTES</p><h2 id="summary-title">{{ debugPreview ? 'Preview the haul' : 'Your ten discoveries' }}</h2></div><button type="button" class="modal-close" aria-label="Close results" data-testid="summon-summary-close" @click.stop="closeSummary">×</button></header>
           <p class="summary-instruction">All ten discoveries are revealed and added to your traveling tale.</p>
           <div class="summary-grid" :style="{ '--summary-columns': summaryColumns, '--summary-slant': summarySlant + 'deg' }">
             <article v-for="(row, index) in batchResults" :key="row.rollIndex || index" class="summary-card" :class="'rarity-' + row.rarity" :style="{ '--card-index': index }">
@@ -569,7 +572,7 @@ onUnmounted(() => {
 @media (max-width:600px) {
   .story-modal-shade { place-items:stretch; padding:0; }
   .story-modal { display:flex; flex-direction:column; width:100%; height:100%; max-height:none; padding:0 max(12px, env(safe-area-inset-right)) max(14px, env(safe-area-inset-bottom)) max(12px, env(safe-area-inset-left)); border:0; border-radius:0; box-shadow:none; overflow:auto; overscroll-behavior:contain; }
-  .story-modal-header { position:sticky; z-index:2; top:0; margin:0 calc(-1 * max(12px, env(safe-area-inset-left))) 10px; padding:max(10px, env(safe-area-inset-top)) max(12px, env(safe-area-inset-right)) 10px max(12px, env(safe-area-inset-left)); background:#FBF2D8; border-bottom:2px dashed #C5B58E; }
+  .story-modal-header { position:sticky; z-index:2; top:0; margin:0 calc(-1 * max(12px, env(safe-area-inset-left))) 10px; padding:max(12px, env(safe-area-inset-top)) max(12px, env(safe-area-inset-right)) 10px max(12px, env(safe-area-inset-left)); background:#FBF2D8; border-bottom:2px dashed #C5B58E; }
   .story-modal-header h2 { font-size:22px; }
   .modal-close { flex:none; width:44px; height:44px; }
   .history-tabs button,.rarity-filters button { min-height:44px; }

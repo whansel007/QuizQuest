@@ -11,6 +11,23 @@
    so iOS Safari's collapsing toolbar and the soft keyboard are accounted for.
    Pages use 100dvh where supported and fall back to this. */
 :root { --app-vh: 1vh; }
+/* One z-index scale for the student app (docs/mobile/FIXES.md, F1). Page
+   layers stack inside their page; the shell's top bar, menu button and
+   drawer sit above pages; modals, sheets and full-screen panels above all of
+   them. Overlays that live inside a page's own stacking context (the Summon
+   page) cannot outrank the top bar, so while any overlay is open App.vue
+   adds .under-overlay (and inert) to the top bar and the menu button. */
+:root {
+  --z-base: 0;
+  --z-hud: 10;
+  --z-topbar: 100;
+  --z-drawer: 150;
+  --z-popover: 200;
+  --z-modal: 1000;
+  --z-toast: 1100;
+  --z-under-overlay: -1;
+}
+header#top.under-overlay, .nav-peek.under-overlay { z-index: var(--z-under-overlay); pointer-events: none; }
 /* Long unbroken words (URLs, codes, long names) wrap instead of widening the
    page. break-word keeps tables and flex items at their natural width on
    desktop; phones get the stronger "anywhere" below. */
@@ -99,10 +116,10 @@ header#top.phone-nav .s-menu-btn:focus-visible,
 }
 header#top.summon-nav ~ .nav-peek.nav-peek-phone { background: rgb(34 57 94 / 92%); border-color: #8298bb; }
 
-.s-scrim { position: fixed; z-index: 140; inset: 0; background: rgb(10 18 14 / 55%); }
+.s-scrim { position: fixed; z-index: calc(var(--z-drawer) - 10); inset: 0; background: rgb(10 18 14 / 55%); }
 .s-drawer {
   position: fixed;
-  z-index: 150;
+  z-index: var(--z-drawer);
   top: 0;
   right: 0;
   bottom: 0;

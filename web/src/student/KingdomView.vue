@@ -11,6 +11,7 @@ import { soundState, toggleMuted, playCue } from '../sound.js';
 import { wipe, wipeTo } from '../transitions.js';
 import AsyncButton from '../components/AsyncButton.vue';
 import { loadHome } from './home.js';
+import { useOverlay } from '../overlays.js';
 import KingdomTown from './KingdomTown.vue';
 import BuildingIcon from './BuildingIcon.vue';
 import GardenPanel from './kingdom/panels/GardenPanel.vue';
@@ -134,6 +135,7 @@ function wardrobeShortfall(item) {
 const castleInfoOpen = ref(false);
 const upgraders = {};
 const townTarget = ref(null);
+useOverlay(() => Boolean(townTarget.value));
 const listOpen = ref(false);
 const tradeBoard = ref(null);
 const tradeLoading = ref(false);
@@ -595,7 +597,7 @@ const castlePanelContext = reactive({
         </div>
       </section>
 
-      <div v-if="townTarget" class="town-modal-shade" @pointerdown.self="closePanel">
+      <div v-if="townTarget" class="town-modal-shade" data-testid="town-modal" @pointerdown.self="closePanel">
         <section class="town-modal" :class="`theme-${townTarget}`" role="dialog" aria-modal="true" aria-labelledby="town-panel-title">
           <header class="panel-head">
             <div class="panel-title">
@@ -617,7 +619,7 @@ const castlePanelContext = reactive({
               <span v-else class="max-badge">Highest level</span>
             </div>
             <button v-else-if="townTarget === 'castle'" class="castle-info-chip" type="button" :aria-expanded="castleInfoOpen" aria-controls="castle-upgrade-info" @click="castleInfoOpen = !castleInfoOpen"><span aria-hidden="true">i</span> Castle growth</button>
-            <button class="town-modal-close" type="button" aria-label="Close" @click="closePanel">×</button>
+            <button class="town-modal-close" type="button" aria-label="Close" data-testid="town-modal-close" @click="closePanel">×</button>
           </header>
 
           <template v-if="townPlot">
@@ -1088,8 +1090,8 @@ const castlePanelContext = reactive({
    upgrade button, close) stays put and the panel content scrolls under it. */
 @media (max-width: 600px), (pointer: coarse) and (max-height: 500px) {
   .kingdom-screen .town-modal-shade { padding: 0; }
-  .kingdom-screen .town-modal { width: 100%; height: 100%; max-height: none; padding: max(10px, env(safe-area-inset-top)) max(12px, env(safe-area-inset-right)) max(12px, env(safe-area-inset-bottom)) max(12px, env(safe-area-inset-left)); border: 0; border-radius: 0; box-shadow: none; }
-  .kingdom-screen .town-modal-close { top: max(8px, env(safe-area-inset-top)); right: max(8px, env(safe-area-inset-right)); width: 44px; height: 44px; }
+  .kingdom-screen .town-modal { width: 100%; height: 100%; max-height: none; padding: max(12px, env(safe-area-inset-top)) max(12px, env(safe-area-inset-right)) max(12px, env(safe-area-inset-bottom)) max(12px, env(safe-area-inset-left)); border: 0; border-radius: 0; box-shadow: none; }
+  .kingdom-screen .town-modal-close { top: max(12px, env(safe-area-inset-top)); right: max(8px, env(safe-area-inset-right)); width: 44px; height: 44px; }
   .kingdom-screen .panel-content { overscroll-behavior: contain; }
   .kingdom-screen .castle-info-chip { min-height: 44px; }
 }
