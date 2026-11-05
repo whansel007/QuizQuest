@@ -2,7 +2,7 @@
 
 QuizQuest is a gamified learning platform prototype for course question authoring, student practice, progress review, and cooperative class gameplay. Professors manage courses and classes, review and publish questions, and inspect reports and analytics. Students practise from published questions, track topic progress, and use earned rewards in the Kingdom and Campfire Run.
 
-**Deployed app:** [quizquest-4phd.onrender.com](https://quizquest-4phd.onrender.com)
+**Deployed app:** [quizquest-4phd.onrender.com](https://quizquest-4phd.onrender.com). Sign in with the accounts under [Demo sign-in](#demo-sign-in).
 
 **Repository:** [github.com/whansel007/QuizQuest](https://github.com/whansel007/QuizQuest)
 
@@ -27,7 +27,7 @@ QuizQuest is a gamified learning platform prototype for course question authorin
 | Realtime | Socket.IO World (`src/world/`) |
 | Persistence | Local JSON file by default, or Supabase Postgres |
 | AI services | Server-side Gemini for authoring, image transcription, and optional short-answer grading |
-| Document extraction | PDF.js and browser-side PPTX text extraction; source files are not uploaded as files by the standard authoring flow |
+| Document extraction | PDF.js and browser-side PPTX and DOCX text extraction; source files are not uploaded as files by the standard authoring flow |
 
 The server owns authorization, answer keys, grading decisions, timers, and rewards. The browser receives student-safe question views; it does not determine correctness or award coins. The standard lecture-import flow extracts text in the professor's browser and sends that text to the application server. If AI drafting or transcription is enabled, relevant course content or images are sent to the configured AI provider. Review sensitive material before sending it.
 
@@ -95,9 +95,27 @@ Set `SUPABASE_URL` and `SUPABASE_SECRET_KEY` in `.env`, then run `pnpm dev`. On 
 | `pnpm test:unit` | Start Vitest in watch mode; use `pnpm exec vitest run` for a single run |
 | `pnpm test:browser` | Build and run browser-level tests |
 | `pnpm test:e2e` | Run Playwright end-to-end journeys on Chromium, Firefox, and WebKit |
+| `pnpm test:e2e:retry` | Run each end-to-end journey twice, to catch flaky tests |
 | `pnpm check` | Run the JavaScript syntax checks |
 | `pnpm reset-data` | Delete local JSON demo data |
 | `pnpm db:reset --confirm` | Clear and re-seed the configured Supabase project |
+| `pnpm submit` | Build the submission zip and check it against the brief |
+| `pnpm submit:check` | Run the submission checks without building the zip |
+
+### Running the tests
+
+Run the full suite once, from the repository root:
+
+```bash
+pnpm check
+pnpm test
+pnpm exec vitest run
+pnpm test:browser
+pnpm exec playwright install chromium firefox webkit
+pnpm test:e2e
+```
+
+The Playwright install line is only needed the first time.
 
 Playwright browser engines may need installing with `pnpm exec playwright install chromium firefox webkit`. Browser and end-to-end test servers use isolated temporary JSON stores; they do not use your configured Supabase project or `data/db.json`. The GitHub Actions workflow runs syntax, Node, Vitest, browser, and three-engine end-to-end jobs. The tests use synthetic fixtures and do not require live Gemini or Supabase credentials.
 
@@ -139,6 +157,12 @@ e2e/                  Playwright user journeys
 docs/                 Architecture, operations, workflows, audits, and UI guides
 ```
 
+## Use of AI tools
+
+AI tools were used to generate skeleton code and the synthetic demo data
+(seeded users, courses and questions). The team reviewed, adapted and tested
+the AI-generated work, and is responsible for all submitted work.
+
 ## Third-party code and assets
 
 QuizQuest is built on other people's work. Here is all of it, so it can be
@@ -156,14 +180,14 @@ credited properly. QuizQuest's own licence is in [`LICENSE`](LICENSE).
   [`public/hero-lab/game-icons.net.svg/icons/license.txt`](public/hero-lab/game-icons.net.svg/icons/license.txt).
 - **Character sprites** - the 32 cat sprites in
   `public/hero-lab/assets/cat/` are the team's own, produced in **Canva** by
-  William Hansel and Nadya Elena Wahyudi (his sister). Canva's AI was only used to remove the background colour.
+  William Hansel and Nadya Elena Wahyudi. Canva's AI was only used to remove the background colour.
 - **Backgrounds and textures** - the storybook paper
   (`public/hero-lab/assets/storybook-paper.svg`) and the forest clearing
   (`public/hero-lab/assets/forest-clearing.svg`) are the team's own, drawn as
   SVG.
 - **Fonts** - *Nunito* and *Pixelify Sans*, served from Google Fonts, and
-  *Fredoka* and *Nunito* bundled through Fontsource. All four are under the
-  **SIL Open Font License 1.1**. The licence text of the two bundled
+  *Fredoka* and *Nunito* bundled through Fontsource. All three families are
+  under the **SIL Open Font License 1.1**. The licence text of the two bundled
   families is in [`web/public/fonts/`](web/public/fonts) (`OFL-Fredoka.txt`
   and `OFL-Nunito.txt`); the families served from Google Fonts carry their
   licence from Google Fonts.
@@ -201,6 +225,7 @@ Robertson & Zaragoza, *The Probabilistic Relevance Framework: BM25 and Beyond*
 - [Testing guide](docs/TESTING.md): test suites, browser setup, and isolated test data.
 - [Class enrollment](docs/CLASS_ENROLMENT.md): class membership and join-code workflow.
 - [Student progress and reporting](docs/STUDENT_PROGRESS_REPORTING.md): calculations, report workflow, and implementation map.
+- [Economy](docs/ECONOMY.md): coins, Kingdom resources, daily earning caps, summons, and building upgrades.
 - [Implementation audit](docs/AUDIT.md): findings and known limitations.
 - [UI notes](docs/ui/README.md): design system and screen-specific implementation notes.
 - [Circle Tag notes](public/tag/HOW_THIS_WORKS.md): the separate `/tag` experiment.
