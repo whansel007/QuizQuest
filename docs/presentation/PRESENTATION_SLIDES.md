@@ -5,7 +5,7 @@
 > # ⛔ SUPERSEDED — DO NOT PRESENT FROM THIS FILE
 >
 > **The deck that ships is Kai Cong's `QuizQuest Project slides.pdf` — 13 pages**, exported from
-> PowerPoint. It is in the submission zip. **Its page numbers are not the slide numbers below.**
+> PowerPoint. It is in the submission zip. (One PDF, three names: `knowledge/IS216_G1_T7_QuizQuest/FOR SUBMISSION/QuizQuest Project slides.pdf` on your machine, `docs/presentation/QuizQuest-Presentation-Slides.pdf` in the repo, `01-presentation/QuizQuest-Presentation-Slides.pdf` in the zip.) **Its page numbers are not the slide numbers below.**
 >
 > **Use these instead:**
 > - `docs/presentation/PRESENTATION_RUN_OF_SHOW.md` — the timed run sheet, **re-keyed to the
@@ -144,9 +144,9 @@
 - Every card carries its status, type (MCQ / True/False / Short Answer / Multi-select), difficulty, style (Conceptual / Application), version and origin (**AI draft**).
 - Four actions on a card: **Approve & publish**, **Reject**, **Withdraw**, **Publish again** — plus **Edit**, so a professor can write and publish a question by hand.
 - The toasts confirm it: *"Published"*, *"Rejected"*, *"Withdrawn from practice"*, *"Published again"*.
-- The **Regenerate draft** button was removed on 3 Nov — the professor edits the draft by hand instead, which does the job better.
+- The per-question **Regenerate draft** button was removed on 3 Nov — one question is edited by hand — but the **bulk "Rewrite AI drafts" bar still ships**: tick the AI drafts, choose Application or Conceptual, "Rewrite selected", and your originals are kept. **Do not say AI drafts cannot be re-rolled** — that is wrong, and the bar is one click away.
 
-**Speaker note (Jasper Wong, 1:40)** — "The question bank is mine. Five filters — Needs review, Reported, Published, Withdrawn, Rejected — and a topic filter on top. Every card shows its status, type, difficulty, style, version and whether it came from the AI. Four actions: Approve and publish, Reject, Withdraw, Publish again — plus Edit, for a question written by hand. Nothing a student ever sees is anything other than published. One change worth mentioning: the 'Regenerate draft' button is gone. The professor edits the draft by hand instead, which does the job better."
+**Speaker note (Jasper Wong, 1:40)** — "The question bank is mine. Five filters — Needs review, Reported, Published, Withdrawn, Rejected — and a topic filter on top. Every card shows its status, type, difficulty, style, version and whether it came from the AI. Four actions: Approve and publish, Reject, Withdraw, Publish again — plus Edit, for a question written by hand. Nothing a student ever sees is anything other than published. One change worth mentioning: the per-question 'Regenerate draft' button is gone — the professor edits one draft by hand instead — though the bulk rewrite is still there for a set of AI drafts."
 
 **Question we will be asked** — *"Do AI questions go live by themselves?"* — "No. They are stored with status `draft` and no published version; only **Approve & publish** makes them live for students."
 
@@ -255,14 +255,16 @@ In this order, each with exactly one owner.
 
 ### The professor's half, and the two mandatory beats
 
+⛔ **This run sheet is the OLD draft's — the shipping beats are `PRESENTATION_RUN_OF_SHOW.md` §4 (D1–D14).** Two things changed and both matter: **D13, the student-tab 575 px beat, belongs to Kai Cong** (it is his My Progress screen), and **the question-bank beat points at "Approve & publish" but does not press it** — publishing is a one-way door on live data, and **the To review marking queue is empty** on the seeded data, so that beat ends on the **Reported** tab instead.
+
 | Beat | Owner | Time | What the audience should SEE |
 |---|---|---|---|
 | **Classes & Roster** — create a class, generate a join code | Marxel | 0:35 | Land on **Classes & Roster** with the **Console** tab open and empty. Press **+ Create Class** → the "Create New Class Group" modal → **Create Class**. Then **Manage Roster & Codes →** → **Join Codes (N)** → **+ Generate Join Code** → **Generate Code**. The banner appears with the code; then **Student Roster (N)** → **Enrolled Students**. |
 | **Upload** | Marxel | 0:15 | Open the material import, drop in the lecture file, tick **"This is authorised course material without student personal data."**, press **Upload files**. The text lands in the material library. |
-| **Question bank** — approve and publish | Jasper Wong | 0:55 | **Question bank**: the status filter reads **Needs review**. Open the seeded draft, read the stem and its source, press **Approve & publish** — the card turns published and leaves Needs review. Then **To review** and mark one short answer waiting for you. |
+| **Question bank** — approve and publish | Jasper Wong | 0:55 | **Question bank**: the status filter reads **Needs review**. Open the seeded draft, read the stem and its source, and **point at "Approve & publish" — do not press it live**. Then the **Reported** tab: one open student report. (**To review** is empty on the seeded data.) |
 | **Analytics** | Ho Zhi Yang | 0:55 | **Analytics**: the topic table, weakest first. Show **Needs attention**, click a topic to focus it, then press **Print report**. |
 | **575 px + Console** — professor tab (**MANDATORY**) | Marxel | 0:15 | Resize to **575 px**, Console visible. Scroll the class grid so it reflows to one column while the console stays clean. |
-| **575 px + Console** — student tab (**MANDATORY**) | Marxel | 0:10 | On the student tab at **575 px**, **Console** still visible. **My Progress** stacks into one column. The console stays empty. |
+| **575 px + Console** — student tab (**MANDATORY**) | **Kai Cong** | 0:20 | On the student tab at **575 px**, **Console** still visible. **My Progress** stacks into one column. The console stays empty. **This is Kai's screen — he takes this beat.** |
 | **GitHub repository** (**MANDATORY**) | Marxel | 0:20 | Switch to the GitHub tab. The repo page: the README on page one with the deployed-app URL, the folders, the recent commit history. |
 
 **Total for the whole demo: 5:45.**
@@ -322,7 +324,7 @@ Have the recorded video open in another tab and say: *"Let me show you the recor
 
 | Teammate | Slides | Slide s | Demo beats | Beat s | Closing s | Total | Slot |
 |---|---|---|---|---|---|---|---|
-| Marxel Angelo Ramesh | 1, 4a, 4b, 11, 12 | 115 | class mgmt + join code, upload, 575 px ×2, GitHub | 95 | 30 | **240** | 4:00 |
+| Marxel Angelo Ramesh | 1, 4a, 4b, 11, 12 | 115 | class mgmt + join code, upload, 575 px (prof), GitHub | 95 | 30 | **240** | 4:00 |
 | William Hansel | 9, 10 | 115 | Kingdom brief, Summon, Kingdom upgrade, Campfire Run | 95 | — | **210** | 3:30 |
 | Xavier Lee | 3, 5a, 5b | 155 | Quiz select all, Quiz weak topic | 30 | — | **185** | 3:05 |
 | Kai Cong | 2, 7 | 135 | My Progress | 15 | — | **150** | 2:30 |
