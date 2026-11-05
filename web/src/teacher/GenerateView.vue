@@ -133,7 +133,7 @@ const outcomeText = (id) => course.value.topics.flatMap((t) => t.outcomes).find(
               </div>
               <details v-if="result.r.retrieved?.length" class="small" style="margin-bottom: 10px">
                 <summary>Material sent to the drafter ({{ result.r.retrieved.length }} chunk(s))</summary>
-                <table>
+                <table class="retrieved-table" data-testid="retrieved-table">
                   <tbody>
                     <tr v-for="(c, i) in result.r.retrieved" :key="i">
                       <td>{{ c.title }}</td>
@@ -153,7 +153,7 @@ const outcomeText = (id) => course.value.topics.flatMap((t) => t.outcomes).find(
       <div v-if="!course.authoringEnabled" class="panel">
         <h3>Generation log</h3>
         <div v-if="history.length" class="table-wrap">
-          <table>
+          <table class="gen-log sticky-first" data-testid="generation-log">
             <thead><tr><th v-for="h in ['When', 'Outcome', 'Format', 'Drafter', 'Chunks', 'Kept', 'Discarded']" :key="h">{{ h }}</th></tr></thead>
             <tbody>
               <tr v-for="g in history" :key="g.id">

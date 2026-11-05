@@ -70,6 +70,8 @@ html:has(.teacher-app) {
   /* pagination: numbered page buttons, and every small icon-like button
      ("×", "Close", page numbers) is at least as wide as it is tall */
   .teacher-app .btn.small { min-width: 44px; }
+  /* file pickers (material library imports): the whole control is the target */
+  .teacher-app input[type="file"] { width: 100%; min-height: 44px; }
   /* question editor: the correct-option radio/checkbox sits in a 44px label */
   .teacher-app .opt-row .opt-pick { display: inline-flex; flex: none; align-items: center; justify-content: center; width: 44px; height: 44px; margin: 0; }
   .teacher-app .opt-row .opt-pick > input { margin: 0; }
@@ -109,4 +111,22 @@ html:has(.teacher-app) {
     background: var(--panel);
     border-top: 1px solid var(--line);
   }
+}
+
+/* ---------- AI drafting ---------- */
+/* Generation log (a contained scroll region): the date stays on one line
+   and the outcome wraps in a readable column instead of squeezing it. */
+.teacher-app .gen-log td:first-child { white-space: nowrap; }
+.teacher-app .gen-log td:nth-child(2) { min-width: 15em; overflow-wrap: anywhere; }
+/* Material sent to the drafter: on phones each chunk reads as a short
+   stacked card (title, why, score, preview) instead of four squeezed columns
+   that split words. */
+@media (max-width: 575.98px) {
+  .teacher-app .retrieved-table,
+  .teacher-app .retrieved-table > tbody,
+  .teacher-app .retrieved-table > tbody > tr,
+  .teacher-app .retrieved-table > tbody > tr > td { display: block; width: auto; }
+  .teacher-app .retrieved-table > tbody > tr { padding: 8px 0; border-bottom: 1px solid var(--line); }
+  .teacher-app .retrieved-table > tbody > tr > td { padding: 2px 0; border: 0; overflow-wrap: anywhere; }
+  .teacher-app .retrieved-table > tbody > tr > td:first-child { font-weight: 700; }
 }
