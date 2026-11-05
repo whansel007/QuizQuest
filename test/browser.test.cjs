@@ -25,7 +25,8 @@ async function pageFor(t, name, viewport = { width: 1280, height: 900 }, options
   await page.goto(base);
   await unlockTestAccounts(page);
   await page.getByRole('button', { name, exact: false }).click();
-  await page.getByRole('button', { name: 'Log out', exact: true }).waitFor();
+  // signed in: Log out is in the top bar, or (student on a phone) behind the menu button
+  await page.getByRole('button', { name: 'Log out', exact: true }).or(phoneMenuButton(page)).first().waitFor();
   if (name.startsWith('Prof.')) await page.locator('#tabs').getByRole('button', { name: 'Question bank', exact: true }).click();
   else await openStudentTab(page, 'Quiz'); // students land in their Kingdom
   return page;
@@ -35,10 +36,30 @@ async function pageFor(t, name, viewport = { width: 1280, height: 900 }, options
 // The names are the ones the app shows (web/src/App.vue): Kingdom, Quiz, My
 // Progress, Campfire Run, Summon. Renaming a tab in the app means renaming it
 // here too, or every student test times out waiting for a tab that is gone.
+// On a phone (web/src/mobile-config.js PHONE_NAV_QUERY) the tabs and Log out
+// live in a drawer behind the menu button instead, so open it first. On
+// immersive pages (the Kingdom) the top bar is hidden and a small "peek"
+// button opens the drawer; tests/mobile/helpers.mjs uses the same pair.
+const phoneMenuButton = (page) => page.locator('[data-testid="nav-menu"]:visible, [data-testid="nav-peek"]:visible').first();
+async function openStudentDrawer(page) {
+  const menu = phoneMenuButton(page);
+  if (!(await menu.count())) return false;
+  await menu.click();
+  await page.getByTestId('nav-drawer').locator('#tabs').waitFor();
+  return true;
+}
 async function openStudentTab(page, name) {
+  if (await openStudentDrawer(page)) {
+    await page.getByTestId('nav-drawer').locator('#tabs').getByRole('button', { name, exact: true }).click();
+    return;
+  }
   const tab = page.locator('#tabs').getByRole('button', { name, exact: true });
   await tab.focus();
   await tab.click();
+}
+async function logOutStudent(page) {
+  await openStudentDrawer(page);
+  await page.getByRole('button', { name: 'Log out', exact: true }).click();
 }
 // The question counter is on screen while the session is still being
 // fetched, so waiting for it says nothing about the question having
@@ -122,7 +143,7 @@ test('My Progress handles empty history, a failed load and narrow screens', asyn
   await page.route('**/api/student/classes/*/reports', (route) => route.fulfill({
     status: 503, contentType: 'application/json', body: '{"error":"Progress temporarily unavailable."}',
   }), { times: 1 });
-  await page.locator('#tabs').getByRole('button', { name: 'My Progress', exact: true }).click();
+  await openStudentTab(page, 'My Progress');
   await page.getByRole('alert').waitFor();
   await page.getByRole('button', { name: 'Refresh progress', exact: true }).click();
   await page.getByText('No completed practice sessions yet.', { exact: true }).waitFor();
@@ -432,7 +453,7 @@ test('student and teacher screens fit 320px and 390px viewports', async (t) => {
       if (process.env.QA_SCREENSHOTS && width === 320) await page.screenshot({ path: require('node:path').join(process.env.QA_SCREENSHOTS, name.replace(/\W+/g, '-') + '.png'), fullPage: true });
     }
   }
-  await page.getByRole('button', { name: 'Log out', exact: true }).click();
+  await logOutStudent(page);
   await unlockTestAccounts(page);
   await page.getByRole('button', { name: 'Prof. Demo A' }).click();
   await page.setViewportSize({ width: 320, height: 800 });
