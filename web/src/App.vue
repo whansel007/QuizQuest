@@ -178,6 +178,7 @@ function pickViewAnchor() {
   viewAnchor = { el, top: el.getBoundingClientRect().top };
 }
 function onShellScroll() {
+  if (!teacherActive.value) return;
   if (document.documentElement.classList.contains('is-resizing')) return; // anchoring moves, not the reader
   cancelAnimationFrame(anchorFrame);
   anchorFrame = requestAnimationFrame(pickViewAnchor);

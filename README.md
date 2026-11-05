@@ -96,6 +96,10 @@ Set `SUPABASE_URL` and `SUPABASE_SECRET_KEY` in `.env`, then run `pnpm dev`. On 
 | `pnpm test:browser` | Build and run browser-level tests |
 | `pnpm test:e2e` | Run Playwright end-to-end journeys on Chromium, Firefox, and WebKit |
 | `pnpm test:e2e:retry` | Run each end-to-end journey twice, to catch flaky tests |
+| `pnpm test:prof-responsive` | Build and run the professor-workspace responsive tests (375-1200 px) |
+| `pnpm audit:prof-responsive` | Build and run the professor responsive audit (report and screenshots, see below) |
+| `pnpm jitter:prof-responsive` | Build and run the professor resize-jitter sweeps |
+| `pnpm seed:prof-responsive` | Write the dev-only populated professor fixture to `data/prof-responsive.json` |
 | `pnpm check` | Run the JavaScript syntax checks |
 | `pnpm reset-data` | Delete local JSON demo data |
 | `pnpm db:reset --confirm` | Clear and re-seed the configured Supabase project |
@@ -120,6 +124,47 @@ The Playwright install line is only needed the first time.
 Playwright browser engines may need installing with `pnpm exec playwright install chromium firefox webkit`. Browser and end-to-end test servers use isolated temporary JSON stores; they do not use your configured Supabase project or `data/db.json`. The GitHub Actions workflow runs syntax, Node, Vitest, browser, and three-engine end-to-end jobs. The tests use synthetic fixtures and do not require live Gemini or Supabase credentials.
 
 End-to-end cases cover login and signup, practice, question authoring/review, class enrollment, reporting, Kingdom building, and Campfire Run play (see `e2e/`). To run one journey, use `pnpm exec playwright test e2e/login.spec.js`. Add new journeys in `e2e/<feature>.spec.js`; shared login and navigation helpers are in `e2e/helpers.js`.
+
+## Professor workspace responsive design and testing
+
+The professor workspace (Analytics, To review, Classes & Roster, Question bank, AI drafting, Evaluation, Settings) is supported from **375 px** (iPhone 6/SE width) to **1200 px** and wider, in portrait and short landscape (667x375, 740x360). It follows Bootstrap's breakpoints:
+
+- **1200 px and up**: sidebar beside the content
+- **992-1199 px**: the panels stack
+- **below 992 px**: a sticky top bar and an off-canvas navigation drawer
+- **below 768 px**: 44 px touch targets, 16 px inputs, single-column forms and bottom-sheet dialogs
+- **below 576 px**: one-row-per-item tables become stacked cards; wide number grids scroll inside their own box, with the first column pinned
+- **430 px and below**: tighter gutters
+
+The details, the tab-by-tab fixes and the known limits are in [docs/mobile/PROF-NOTES.md](docs/mobile/PROF-NOTES.md).
+
+**Check it in Chrome DevTools.** Open DevTools, turn on the device toolbar (Ctrl+Shift+M), choose *Responsive*, sign in as Prof. Demo A and try these widths: 375, 430, 575/576, 767/768, 991/992, 1199/1200, plus 667x375 and 740x360 for phones on their side. Check both sides of each pair. Open the menu below 992 px, the class dialogs, and the question editor. Drag the width slowly across 992 px with the drawer open: it closes cleanly.
+
+**Populated data.** `pnpm seed:prof-responsive` writes a dev-only demo file, which you then serve with `QUIZ_DATA_FILE=data/prof-responsive.json node server.js`. It contains 2 courses (one with a 61-character title), 4 active classes and 1 archived one, 46 students, 14 topics including a 60-character name and an unbroken string, 80+ questions in every status, answers waiting for marking, a generation log, and survey comments. It refuses to run with `NODE_ENV=production` or `SUPABASE_URL` set, and never touches `data/db.json`.
+
+**Tests.**
+
+- `pnpm test:prof-responsive` (also part of `pnpm test:browser`) checks every tab at every width for:
+  - page overflow, elements off screen, overlaps and tap targets
+  - modal fit at 375x667 and 667x375
+  - sticky bars never covering focus, section jumps or the end of the page
+  - the drawer across 992 px
+  - layout that keeps moving after a resize, and ResizeObserver errors
+  - state kept through a resize sweep
+- `pnpm audit:prof-responsive -- --label after --shots` writes the full report (`docs/mobile/prof-audit-after.md`) and screenshots (`docs/mobile/screenshots/prof/after/`).
+- `pnpm jitter:prof-responsive -- --label after` writes the resize measurements (`docs/mobile/prof-jitter-after.md`).
+
+A ten-minute manual pass on a real phone is in [docs/mobile/PROF-PHONE-CHECKLIST.md](docs/mobile/PROF-PHONE-CHECKLIST.md).
+
+**Approach (for the presentation).** We measured before changing anything. A browser harness signs in as a professor with realistic, deliberately awkward data (long names, an unbroken string, dozens of rows) and inspects all seven tabs at 13 viewport sizes, checking overflow, clipping, overlaps, sticky-bar cover, focus, tap-target size, console errors and the interactive states. The fixes then went in tab by tab, as layout-only CSS scoped to the professor shell, so the calm blue theme and the student pages stay unchanged. The rules include:
+
+- chart legends wrap
+- table headers keep whole words
+- wide grids scroll inside their box with a pinned first column
+- dialogs are bottom sheets with pinned actions
+- 44 px targets throughout
+
+We also measured resize behaviour separately. Nothing kept moving after a resize stopped, but the drawer's slide replayed across 992 px, an open drawer outlived the breakpoint, and the reading position drifted after big reflows. Each of these got a targeted fix, and the harness became the regression test suite. Before/after screenshots are paired in [docs/mobile/PROF-SCREENSHOTS.md](docs/mobile/PROF-SCREENSHOTS.md).
 
 ## AI authoring at a glance
 

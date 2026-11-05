@@ -1,0 +1,5374 @@
+[
+ {
+  "tab": "Analytics",
+  "viewport": "375x667",
+  "vw": 375,
+  "vh": 667,
+  "overflow": 0,
+  "offenders": [],
+  "clipped": [],
+  "overlaps": [],
+  "smallTargets": [],
+  "smallTargetCount": 0,
+  "sticky": {
+   "bars": [
+    "header#top",
+    "nav.dash-nav.compact(\"Dashboard sections\")"
+   ],
+   "total": 113,
+   "share": 0.17
+  },
+  "end": {
+   "ok": true,
+   "bottom": 627,
+   "vh": 667,
+   "covered": null
+  },
+  "anchors": [
+   {
+    "id": "dash-overview",
+    "top": 440,
+    "cover": 327,
+    "ok": true
+   },
+   {
+    "id": "dash-weeks",
+    "top": 2049,
+    "cover": 113,
+    "ok": true
+   },
+   {
+    "id": "dash-trends",
+    "top": 5388,
+    "cover": 314,
+    "ok": true
+   },
+   {
+    "id": "dash-topics",
+    "top": 6949,
+    "cover": 113,
+    "ok": true
+   },
+   {
+    "id": "dash-missed",
+    "top": 14161,
+    "cover": 113,
+    "ok": true
+   },
+   {
+    "id": "dash-quality",
+    "top": 15850,
+    "cover": 113,
+    "ok": true
+   },
+   {
+    "id": "dash-compare",
+    "top": 18621,
+    "cover": 113,
+    "ok": true
+   }
+  ],
+  "focus": [],
+  "log": {
+   "errors": [],
+   "warnings": [],
+   "failed": []
+  },
+  "issues": []
+ },
+ {
+  "tab": "To review",
+  "viewport": "375x667",
+  "vw": 375,
+  "vh": 667,
+  "overflow": 0,
+  "offenders": [],
+  "clipped": [],
+  "overlaps": [],
+  "smallTargets": [],
+  "smallTargetCount": 0,
+  "sticky": {
+   "bars": [
+    "header#top"
+   ],
+   "total": 57,
+   "share": 0.09
+  },
+  "end": {
+   "ok": true,
+   "bottom": 590,
+   "vh": 667,
+   "covered": null
+  },
+  "focus": [],
+  "log": {
+   "errors": [],
+   "warnings": [],
+   "failed": []
+  },
+  "issues": []
+ },
+ {
+  "tab": "Classes & Roster",
+  "viewport": "375x667",
+  "vw": 375,
+  "vh": 667,
+  "overflow": 0,
+  "offenders": [],
+  "clipped": [],
+  "overlaps": [],
+  "smallTargets": [],
+  "smallTargetCount": 0,
+  "sticky": {
+   "bars": [
+    "header#top"
+   ],
+   "total": 57,
+   "share": 0.09
+  },
+  "end": {
+   "ok": true,
+   "bottom": 608,
+   "vh": 667,
+   "covered": null
+  },
+  "focus": [],
+  "log": {
+   "errors": [],
+   "warnings": [],
+   "failed": []
+  },
+  "issues": []
+ },
+ {
+  "tab": "Question bank",
+  "viewport": "375x667",
+  "vw": 375,
+  "vh": 667,
+  "overflow": 0,
+  "offenders": [],
+  "clipped": [],
+  "overlaps": [],
+  "smallTargets": [],
+  "smallTargetCount": 0,
+  "sticky": {
+   "bars": [
+    "header#top"
+   ],
+   "total": 57,
+   "share": 0.09
+  },
+  "end": {
+   "ok": true,
+   "bottom": 608,
+   "vh": 667,
+   "covered": null
+  },
+  "focus": [],
+  "log": {
+   "errors": [],
+   "warnings": [],
+   "failed": []
+  },
+  "issues": []
+ },
+ {
+  "tab": "AI drafting",
+  "viewport": "375x667",
+  "vw": 375,
+  "vh": 667,
+  "overflow": 0,
+  "offenders": [],
+  "clipped": [],
+  "overlaps": [],
+  "smallTargets": [],
+  "smallTargetCount": 0,
+  "sticky": {
+   "bars": [
+    "header#top"
+   ],
+   "total": 57,
+   "share": 0.09
+  },
+  "end": {
+   "ok": true,
+   "bottom": 607,
+   "vh": 667,
+   "covered": null
+  },
+  "focus": [],
+  "log": {
+   "errors": [],
+   "warnings": [],
+   "failed": []
+  },
+  "issues": []
+ },
+ {
+  "tab": "Evaluation",
+  "viewport": "375x667",
+  "vw": 375,
+  "vh": 667,
+  "overflow": 0,
+  "offenders": [],
+  "clipped": [],
+  "overlaps": [],
+  "smallTargets": [],
+  "smallTargetCount": 0,
+  "sticky": {
+   "bars": [
+    "header#top"
+   ],
+   "total": 57,
+   "share": 0.09
+  },
+  "end": {
+   "ok": true,
+   "bottom": 593,
+   "vh": 667,
+   "covered": null
+  },
+  "focus": [],
+  "log": {
+   "errors": [],
+   "warnings": [],
+   "failed": []
+  },
+  "issues": []
+ },
+ {
+  "tab": "Settings",
+  "viewport": "375x667",
+  "vw": 375,
+  "vh": 667,
+  "overflow": 0,
+  "offenders": [],
+  "clipped": [],
+  "overlaps": [],
+  "smallTargets": [],
+  "smallTargetCount": 0,
+  "sticky": {
+   "bars": [
+    "header#top"
+   ],
+   "total": 57,
+   "share": 0.09
+  },
+  "end": {
+   "ok": true,
+   "bottom": 598,
+   "vh": 667,
+   "covered": null
+  },
+  "focus": [],
+  "log": {
+   "errors": [],
+   "warnings": [],
+   "failed": []
+  },
+  "issues": []
+ },
+ {
+  "tab": "state: drawer open",
+  "viewport": "375x667",
+  "state": "drawer open",
+  "vw": 375,
+  "vh": 667,
+  "overflow": 0,
+  "offenders": [],
+  "clipped": [],
+  "overlaps": [],
+  "smallTargets": [],
+  "smallTargetCount": 0,
+  "sticky": {
+   "bars": [
+    "header#top"
+   ],
+   "total": 57,
+   "share": 0.09
+  },
+  "drawer": {
+   "fits": true,
+   "lastReachable": true
+  },
+  "issues": [],
+  "log": {
+   "errors": [],
+   "warnings": [],
+   "failed": []
+  }
+ },
+ {
+  "tab": "state: analytics question dialog",
+  "viewport": "375x667",
+  "state": "analytics question dialog",
+  "vw": 375,
+  "vh": 667,
+  "overflow": 0,
+  "offenders": [],
+  "clipped": [],
+  "overlaps": [],
+  "smallTargets": [],
+  "smallTargetCount": 0,
+  "sticky": {
+   "bars": [
+    "header#top",
+    "nav.dash-nav.compact(\"Dashboard sections\")"
+   ],
+   "total": 113,
+   "share": 0.17
+  },
+  "modal": {
+   "ok": true,
+   "fits": true,
+   "scroller": true,
+   "reachable": true,
+   "closeVisibleAtTop": true,
+   "h": 651,
+   "vh": 667
+  },
+  "issues": [],
+  "log": {
+   "errors": [],
+   "warnings": [],
+   "failed": []
+  }
+ },
+ {
+  "tab": "state: classes create modal",
+  "viewport": "375x667",
+  "state": "classes create modal",
+  "vw": 375,
+  "vh": 667,
+  "overflow": 0,
+  "offenders": [],
+  "clipped": [],
+  "overlaps": [],
+  "smallTargets": [],
+  "smallTargetCount": 0,
+  "sticky": {
+   "bars": [
+    "header#top"
+   ],
+   "total": 57,
+   "share": 0.09
+  },
+  "modal": {
+   "ok": true,
+   "fits": true,
+   "scroller": true,
+   "reachable": true,
+   "closeVisibleAtTop": true,
+   "h": 465,
+   "vh": 667
+  },
+  "issues": [],
+  "log": {
+   "errors": [],
+   "warnings": [],
+   "failed": []
+  }
+ },
+ {
+  "tab": "state: classes rename modal",
+  "viewport": "375x667",
+  "state": "classes rename modal",
+  "vw": 375,
+  "vh": 667,
+  "overflow": 0,
+  "offenders": [],
+  "clipped": [],
+  "overlaps": [],
+  "smallTargets": [],
+  "smallTargetCount": 0,
+  "sticky": {
+   "bars": [
+    "header#top"
+   ],
+   "total": 57,
+   "share": 0.09
+  },
+  "modal": {
+   "ok": true,
+   "fits": true,
+   "scroller": true,
+   "reachable": true,
+   "closeVisibleAtTop": true,
+   "h": 403,
+   "vh": 667
+  },
+  "issues": [],
+  "log": {
+   "errors": [],
+   "warnings": [],
+   "failed": []
+  }
+ },
+ {
+  "tab": "state: classes roster",
+  "viewport": "375x667",
+  "state": "classes roster",
+  "vw": 375,
+  "vh": 667,
+  "overflow": 0,
+  "offenders": [],
+  "clipped": [],
+  "overlaps": [],
+  "smallTargets": [],
+  "smallTargetCount": 0,
+  "sticky": {
+   "bars": [
+    "header#top"
+   ],
+   "total": 57,
+   "share": 0.09
+  },
+  "issues": [],
+  "log": {
+   "errors": [],
+   "warnings": [],
+   "failed": []
+  }
+ },
+ {
+  "tab": "state: classes code modal",
+  "viewport": "375x667",
+  "state": "classes code modal",
+  "vw": 375,
+  "vh": 667,
+  "overflow": 0,
+  "offenders": [],
+  "clipped": [],
+  "overlaps": [],
+  "smallTargets": [],
+  "smallTargetCount": 0,
+  "sticky": {
+   "bars": [
+    "header#top"
+   ],
+   "total": 57,
+   "share": 0.09
+  },
+  "modal": {
+   "ok": true,
+   "fits": true,
+   "scroller": true,
+   "reachable": true,
+   "closeVisibleAtTop": true,
+   "h": 396,
+   "vh": 667
+  },
+  "issues": [],
+  "log": {
+   "errors": [],
+   "warnings": [],
+   "failed": []
+  }
+ },
+ {
+  "tab": "state: classes class settings",
+  "viewport": "375x667",
+  "state": "classes class settings",
+  "vw": 375,
+  "vh": 667,
+  "overflow": 0,
+  "offenders": [],
+  "clipped": [],
+  "overlaps": [],
+  "smallTargets": [],
+  "smallTargetCount": 0,
+  "sticky": {
+   "bars": [
+    "header#top"
+   ],
+   "total": 57,
+   "share": 0.09
+  },
+  "issues": [],
+  "log": {
+   "errors": [],
+   "warnings": [],
+   "failed": []
+  }
+ },
+ {
+  "tab": "state: question bank cards",
+  "viewport": "375x667",
+  "state": "question bank cards",
+  "vw": 375,
+  "vh": 667,
+  "overflow": 0,
+  "offenders": [],
+  "clipped": [],
+  "overlaps": [],
+  "smallTargets": [],
+  "smallTargetCount": 0,
+  "sticky": {
+   "bars": [
+    "header#top"
+   ],
+   "total": 57,
+   "share": 0.09
+  },
+  "issues": [],
+  "log": {
+   "errors": [],
+   "warnings": [],
+   "failed": []
+  }
+ },
+ {
+  "tab": "state: question bank editor",
+  "viewport": "375x667",
+  "state": "question bank editor",
+  "vw": 375,
+  "vh": 667,
+  "overflow": 0,
+  "offenders": [],
+  "clipped": [],
+  "overlaps": [],
+  "smallTargets": [],
+  "smallTargetCount": 0,
+  "sticky": {
+   "bars": [
+    "header#top"
+   ],
+   "total": 57,
+   "share": 0.09
+  },
+  "issues": [],
+  "log": {
+   "errors": [],
+   "warnings": [],
+   "failed": []
+  }
+ },
+ {
+  "tab": "state: ai drafting retrieved material",
+  "viewport": "375x667",
+  "state": "ai drafting retrieved material",
+  "vw": 375,
+  "vh": 667,
+  "overflow": 0,
+  "offenders": [],
+  "clipped": [],
+  "overlaps": [],
+  "smallTargets": [],
+  "smallTargetCount": 0,
+  "sticky": {
+   "bars": [
+    "header#top"
+   ],
+   "total": 57,
+   "share": 0.09
+  },
+  "issues": [],
+  "log": {
+   "errors": [],
+   "warnings": [],
+   "failed": []
+  }
+ },
+ {
+  "tab": "state: ai drafting material library",
+  "viewport": "375x667",
+  "state": "ai drafting material library",
+  "vw": 375,
+  "vh": 667,
+  "overflow": 0,
+  "offenders": [],
+  "clipped": [],
+  "overlaps": [],
+  "smallTargets": [],
+  "smallTargetCount": 0,
+  "sticky": {
+   "bars": [
+    "header#top"
+   ],
+   "total": 57,
+   "share": 0.09
+  },
+  "issues": [],
+  "log": {
+   "errors": [],
+   "warnings": [],
+   "failed": []
+  }
+ },
+ {
+  "tab": "Analytics",
+  "viewport": "430x932",
+  "vw": 430,
+  "vh": 932,
+  "overflow": 0,
+  "offenders": [],
+  "clipped": [],
+  "overlaps": [],
+  "smallTargets": [],
+  "smallTargetCount": 0,
+  "sticky": {
+   "bars": [
+    "header#top",
+    "nav.dash-nav.compact(\"Dashboard sections\")"
+   ],
+   "total": 113,
+   "share": 0.12
+  },
+  "end": {
+   "ok": true,
+   "bottom": 892,
+   "vh": 932,
+   "covered": null
+  },
+  "anchors": [
+   {
+    "id": "dash-overview",
+    "top": 350,
+    "cover": 237,
+    "ok": true
+   },
+   {
+    "id": "dash-weeks",
+    "top": 2186,
+    "cover": 314,
+    "ok": true
+   },
+   {
+    "id": "dash-trends",
+    "top": 3839,
+    "cover": 113,
+    "ok": true
+   },
+   {
+    "id": "dash-topics",
+    "top": 7190,
+    "cover": 113,
+    "ok": true
+   },
+   {
+    "id": "dash-missed",
+    "top": 14338,
+    "cover": 113,
+    "ok": true
+   },
+   {
+    "id": "dash-quality",
+    "top": 16018,
+    "cover": 122,
+    "ok": true
+   },
+   {
+    "id": "dash-compare",
+    "top": 18546,
+    "cover": 297,
+    "ok": true
+   }
+  ],
+  "focus": [],
+  "log": {
+   "errors": [],
+   "warnings": [],
+   "failed": []
+  },
+  "issues": []
+ },
+ {
+  "tab": "To review",
+  "viewport": "430x932",
+  "vw": 430,
+  "vh": 932,
+  "overflow": 0,
+  "offenders": [],
+  "clipped": [],
+  "overlaps": [],
+  "smallTargets": [],
+  "smallTargetCount": 0,
+  "sticky": {
+   "bars": [
+    "header#top"
+   ],
+   "total": 57,
+   "share": 0.06
+  },
+  "end": {
+   "ok": true,
+   "bottom": 855,
+   "vh": 932,
+   "covered": null
+  },
+  "focus": [],
+  "log": {
+   "errors": [],
+   "warnings": [],
+   "failed": []
+  },
+  "issues": []
+ },
+ {
+  "tab": "Classes & Roster",
+  "viewport": "430x932",
+  "vw": 430,
+  "vh": 932,
+  "overflow": 0,
+  "offenders": [],
+  "clipped": [],
+  "overlaps": [],
+  "smallTargets": [],
+  "smallTargetCount": 0,
+  "sticky": {
+   "bars": [
+    "header#top"
+   ],
+   "total": 57,
+   "share": 0.06
+  },
+  "end": {
+   "ok": true,
+   "bottom": 873,
+   "vh": 932,
+   "covered": null
+  },
+  "focus": [],
+  "log": {
+   "errors": [],
+   "warnings": [],
+   "failed": []
+  },
+  "issues": []
+ },
+ {
+  "tab": "Question bank",
+  "viewport": "430x932",
+  "vw": 430,
+  "vh": 932,
+  "overflow": 0,
+  "offenders": [],
+  "clipped": [],
+  "overlaps": [],
+  "smallTargets": [],
+  "smallTargetCount": 0,
+  "sticky": {
+   "bars": [
+    "header#top"
+   ],
+   "total": 57,
+   "share": 0.06
+  },
+  "end": {
+   "ok": true,
+   "bottom": 873,
+   "vh": 932,
+   "covered": null
+  },
+  "focus": [],
+  "log": {
+   "errors": [],
+   "warnings": [],
+   "failed": []
+  },
+  "issues": []
+ },
+ {
+  "tab": "AI drafting",
+  "viewport": "430x932",
+  "vw": 430,
+  "vh": 932,
+  "overflow": 0,
+  "offenders": [],
+  "clipped": [],
+  "overlaps": [],
+  "smallTargets": [],
+  "smallTargetCount": 0,
+  "sticky": {
+   "bars": [
+    "header#top"
+   ],
+   "total": 57,
+   "share": 0.06
+  },
+  "end": {
+   "ok": true,
+   "bottom": 873,
+   "vh": 932,
+   "covered": null
+  },
+  "focus": [],
+  "log": {
+   "errors": [],
+   "warnings": [],
+   "failed": []
+  },
+  "issues": []
+ },
+ {
+  "tab": "Evaluation",
+  "viewport": "430x932",
+  "vw": 430,
+  "vh": 932,
+  "overflow": 0,
+  "offenders": [],
+  "clipped": [],
+  "overlaps": [],
+  "smallTargets": [],
+  "smallTargetCount": 0,
+  "sticky": {
+   "bars": [
+    "header#top"
+   ],
+   "total": 57,
+   "share": 0.06
+  },
+  "end": {
+   "ok": true,
+   "bottom": 858,
+   "vh": 932,
+   "covered": null
+  },
+  "focus": [],
+  "log": {
+   "errors": [],
+   "warnings": [],
+   "failed": []
+  },
+  "issues": []
+ },
+ {
+  "tab": "Settings",
+  "viewport": "430x932",
+  "vw": 430,
+  "vh": 932,
+  "overflow": 0,
+  "offenders": [],
+  "clipped": [],
+  "overlaps": [],
+  "smallTargets": [],
+  "smallTargetCount": 0,
+  "sticky": {
+   "bars": [
+    "header#top"
+   ],
+   "total": 57,
+   "share": 0.06
+  },
+  "end": {
+   "ok": true,
+   "bottom": 863,
+   "vh": 932,
+   "covered": null
+  },
+  "focus": [],
+  "log": {
+   "errors": [],
+   "warnings": [],
+   "failed": []
+  },
+  "issues": []
+ },
+ {
+  "tab": "state: drawer open",
+  "viewport": "430x932",
+  "state": "drawer open",
+  "vw": 430,
+  "vh": 932,
+  "overflow": 0,
+  "offenders": [],
+  "clipped": [],
+  "overlaps": [],
+  "smallTargets": [],
+  "smallTargetCount": 0,
+  "sticky": {
+   "bars": [
+    "header#top"
+   ],
+   "total": 57,
+   "share": 0.06
+  },
+  "drawer": {
+   "fits": true,
+   "lastReachable": true
+  },
+  "issues": [],
+  "log": {
+   "errors": [],
+   "warnings": [],
+   "failed": []
+  }
+ },
+ {
+  "tab": "state: analytics question dialog",
+  "viewport": "430x932",
+  "state": "analytics question dialog",
+  "vw": 430,
+  "vh": 932,
+  "overflow": 0,
+  "offenders": [],
+  "clipped": [],
+  "overlaps": [],
+  "smallTargets": [],
+  "smallTargetCount": 0,
+  "sticky": {
+   "bars": [
+    "header#top",
+    "nav.dash-nav.compact(\"Dashboard sections\")"
+   ],
+   "total": 113,
+   "share": 0.12
+  },
+  "modal": {
+   "ok": true,
+   "fits": true,
+   "scroller": true,
+   "reachable": true,
+   "closeVisibleAtTop": true,
+   "h": 741,
+   "vh": 932
+  },
+  "issues": [],
+  "log": {
+   "errors": [],
+   "warnings": [],
+   "failed": []
+  }
+ },
+ {
+  "tab": "state: classes create modal",
+  "viewport": "430x932",
+  "state": "classes create modal",
+  "vw": 430,
+  "vh": 932,
+  "overflow": 0,
+  "offenders": [],
+  "clipped": [],
+  "overlaps": [],
+  "smallTargets": [],
+  "smallTargetCount": 0,
+  "sticky": {
+   "bars": [
+    "header#top"
+   ],
+   "total": 57,
+   "share": 0.06
+  },
+  "modal": {
+   "ok": true,
+   "fits": true,
+   "scroller": true,
+   "reachable": true,
+   "closeVisibleAtTop": true,
+   "h": 446,
+   "vh": 932
+  },
+  "issues": [],
+  "log": {
+   "errors": [],
+   "warnings": [],
+   "failed": []
+  }
+ },
+ {
+  "tab": "state: classes rename modal",
+  "viewport": "430x932",
+  "state": "classes rename modal",
+  "vw": 430,
+  "vh": 932,
+  "overflow": 0,
+  "offenders": [],
+  "clipped": [],
+  "overlaps": [],
+  "smallTargets": [],
+  "smallTargetCount": 0,
+  "sticky": {
+   "bars": [
+    "header#top"
+   ],
+   "total": 57,
+   "share": 0.06
+  },
+  "modal": {
+   "ok": true,
+   "fits": true,
+   "scroller": true,
+   "reachable": true,
+   "closeVisibleAtTop": true,
+   "h": 384,
+   "vh": 932
+  },
+  "issues": [],
+  "log": {
+   "errors": [],
+   "warnings": [],
+   "failed": []
+  }
+ },
+ {
+  "tab": "state: classes roster",
+  "viewport": "430x932",
+  "state": "classes roster",
+  "vw": 430,
+  "vh": 932,
+  "overflow": 0,
+  "offenders": [],
+  "clipped": [],
+  "overlaps": [],
+  "smallTargets": [],
+  "smallTargetCount": 0,
+  "sticky": {
+   "bars": [
+    "header#top"
+   ],
+   "total": 57,
+   "share": 0.06
+  },
+  "issues": [],
+  "log": {
+   "errors": [],
+   "warnings": [],
+   "failed": []
+  }
+ },
+ {
+  "tab": "state: classes code modal",
+  "viewport": "430x932",
+  "state": "classes code modal",
+  "vw": 430,
+  "vh": 932,
+  "overflow": 0,
+  "offenders": [],
+  "clipped": [],
+  "overlaps": [],
+  "smallTargets": [],
+  "smallTargetCount": 0,
+  "sticky": {
+   "bars": [
+    "header#top"
+   ],
+   "total": 121,
+   "share": 0.13
+  },
+  "modal": {
+   "ok": true,
+   "fits": true,
+   "scroller": true,
+   "reachable": true,
+   "closeVisibleAtTop": true,
+   "h": 354,
+   "vh": 932
+  },
+  "issues": [],
+  "log": {
+   "errors": [],
+   "warnings": [],
+   "failed": []
+  }
+ },
+ {
+  "tab": "state: classes class settings",
+  "viewport": "430x932",
+  "state": "classes class settings",
+  "vw": 430,
+  "vh": 932,
+  "overflow": 0,
+  "offenders": [],
+  "clipped": [],
+  "overlaps": [],
+  "smallTargets": [],
+  "smallTargetCount": 0,
+  "sticky": {
+   "bars": [
+    "header#top"
+   ],
+   "total": 75,
+   "share": 0.08
+  },
+  "issues": [],
+  "log": {
+   "errors": [],
+   "warnings": [],
+   "failed": []
+  }
+ },
+ {
+  "tab": "state: question bank cards",
+  "viewport": "430x932",
+  "state": "question bank cards",
+  "vw": 430,
+  "vh": 932,
+  "overflow": 0,
+  "offenders": [],
+  "clipped": [],
+  "overlaps": [],
+  "smallTargets": [],
+  "smallTargetCount": 0,
+  "sticky": {
+   "bars": [
+    "header#top",
+    "div.cr-decide"
+   ],
+   "total": 129,
+   "share": 0.14
+  },
+  "issues": [],
+  "log": {
+   "errors": [],
+   "warnings": [],
+   "failed": []
+  }
+ },
+ {
+  "tab": "state: question bank editor",
+  "viewport": "430x932",
+  "state": "question bank editor",
+  "vw": 430,
+  "vh": 932,
+  "overflow": 0,
+  "offenders": [],
+  "clipped": [],
+  "overlaps": [],
+  "smallTargets": [],
+  "smallTargetCount": 0,
+  "sticky": {
+   "bars": [
+    "header#top"
+   ],
+   "total": 57,
+   "share": 0.06
+  },
+  "issues": [],
+  "log": {
+   "errors": [],
+   "warnings": [],
+   "failed": []
+  }
+ },
+ {
+  "tab": "state: ai drafting retrieved material",
+  "viewport": "430x932",
+  "state": "ai drafting retrieved material",
+  "vw": 430,
+  "vh": 932,
+  "overflow": 0,
+  "offenders": [],
+  "clipped": [],
+  "overlaps": [],
+  "smallTargets": [],
+  "smallTargetCount": 0,
+  "sticky": {
+   "bars": [
+    "header#top"
+   ],
+   "total": 57,
+   "share": 0.06
+  },
+  "issues": [],
+  "log": {
+   "errors": [],
+   "warnings": [],
+   "failed": []
+  }
+ },
+ {
+  "tab": "state: ai drafting material library",
+  "viewport": "430x932",
+  "state": "ai drafting material library",
+  "vw": 430,
+  "vh": 932,
+  "overflow": 0,
+  "offenders": [],
+  "clipped": [],
+  "overlaps": [],
+  "smallTargets": [],
+  "smallTargetCount": 0,
+  "sticky": {
+   "bars": [
+    "header#top"
+   ],
+   "total": 57,
+   "share": 0.06
+  },
+  "issues": [],
+  "log": {
+   "errors": [],
+   "warnings": [],
+   "failed": []
+  }
+ },
+ {
+  "tab": "Analytics",
+  "viewport": "431x900",
+  "vw": 431,
+  "vh": 900,
+  "overflow": 0,
+  "offenders": [],
+  "clipped": [],
+  "overlaps": [],
+  "smallTargets": [],
+  "smallTargetCount": 0,
+  "sticky": {
+   "bars": [
+    "header#top",
+    "nav.dash-nav.compact(\"Dashboard sections\")"
+   ],
+   "total": 113,
+   "share": 0.13
+  },
+  "end": {
+   "ok": true,
+   "bottom": 860,
+   "vh": 900,
+   "covered": null
+  },
+  "anchors": [
+   {
+    "id": "dash-overview",
+    "top": 444,
+    "cover": 331,
+    "ok": true
+   },
+   {
+    "id": "dash-weeks",
+    "top": 1960,
+    "cover": 113,
+    "ok": true
+   },
+   {
+    "id": "dash-trends",
+    "top": 5307,
+    "cover": 318,
+    "ok": true
+   },
+   {
+    "id": "dash-topics",
+    "top": 6825,
+    "cover": 113,
+    "ok": true
+   },
+   {
+    "id": "dash-missed",
+    "top": 14007,
+    "cover": 113,
+    "ok": true
+   },
+   {
+    "id": "dash-quality",
+    "top": 15698,
+    "cover": 113,
+    "ok": true
+   },
+   {
+    "id": "dash-compare",
+    "top": 18479,
+    "cover": 113,
+    "ok": true
+   }
+  ],
+  "focus": [],
+  "log": {
+   "errors": [],
+   "warnings": [],
+   "failed": []
+  },
+  "issues": []
+ },
+ {
+  "tab": "To review",
+  "viewport": "431x900",
+  "vw": 431,
+  "vh": 900,
+  "overflow": 0,
+  "offenders": [],
+  "clipped": [],
+  "overlaps": [],
+  "smallTargets": [],
+  "smallTargetCount": 0,
+  "sticky": {
+   "bars": [
+    "header#top"
+   ],
+   "total": 57,
+   "share": 0.06
+  },
+  "end": {
+   "ok": true,
+   "bottom": 821,
+   "vh": 900,
+   "covered": null
+  },
+  "focus": [],
+  "log": {
+   "errors": [],
+   "warnings": [],
+   "failed": []
+  },
+  "issues": []
+ },
+ {
+  "tab": "Classes & Roster",
+  "viewport": "431x900",
+  "vw": 431,
+  "vh": 900,
+  "overflow": 0,
+  "offenders": [],
+  "clipped": [],
+  "overlaps": [],
+  "smallTargets": [],
+  "smallTargetCount": 0,
+  "sticky": {
+   "bars": [
+    "header#top"
+   ],
+   "total": 57,
+   "share": 0.06
+  },
+  "end": {
+   "ok": true,
+   "bottom": 839,
+   "vh": 900,
+   "covered": null
+  },
+  "focus": [],
+  "log": {
+   "errors": [],
+   "warnings": [],
+   "failed": []
+  },
+  "issues": []
+ },
+ {
+  "tab": "Question bank",
+  "viewport": "431x900",
+  "vw": 431,
+  "vh": 900,
+  "overflow": 0,
+  "offenders": [],
+  "clipped": [],
+  "overlaps": [],
+  "smallTargets": [],
+  "smallTargetCount": 0,
+  "sticky": {
+   "bars": [
+    "header#top"
+   ],
+   "total": 57,
+   "share": 0.06
+  },
+  "end": {
+   "ok": true,
+   "bottom": 839,
+   "vh": 900,
+   "covered": null
+  },
+  "focus": [],
+  "log": {
+   "errors": [],
+   "warnings": [],
+   "failed": []
+  },
+  "issues": []
+ },
+ {
+  "tab": "AI drafting",
+  "viewport": "431x900",
+  "vw": 431,
+  "vh": 900,
+  "overflow": 0,
+  "offenders": [],
+  "clipped": [],
+  "overlaps": [],
+  "smallTargets": [],
+  "smallTargetCount": 0,
+  "sticky": {
+   "bars": [
+    "header#top"
+   ],
+   "total": 57,
+   "share": 0.06
+  },
+  "end": {
+   "ok": true,
+   "bottom": 839,
+   "vh": 900,
+   "covered": null
+  },
+  "focus": [],
+  "log": {
+   "errors": [],
+   "warnings": [],
+   "failed": []
+  },
+  "issues": []
+ },
+ {
+  "tab": "Evaluation",
+  "viewport": "431x900",
+  "vw": 431,
+  "vh": 900,
+  "overflow": 0,
+  "offenders": [],
+  "clipped": [],
+  "overlaps": [],
+  "smallTargets": [],
+  "smallTargetCount": 0,
+  "sticky": {
+   "bars": [
+    "header#top"
+   ],
+   "total": 57,
+   "share": 0.06
+  },
+  "end": {
+   "ok": true,
+   "bottom": 824,
+   "vh": 900,
+   "covered": null
+  },
+  "focus": [],
+  "log": {
+   "errors": [],
+   "warnings": [],
+   "failed": []
+  },
+  "issues": []
+ },
+ {
+  "tab": "Settings",
+  "viewport": "431x900",
+  "vw": 431,
+  "vh": 900,
+  "overflow": 0,
+  "offenders": [],
+  "clipped": [],
+  "overlaps": [],
+  "smallTargets": [],
+  "smallTargetCount": 0,
+  "sticky": {
+   "bars": [
+    "header#top"
+   ],
+   "total": 57,
+   "share": 0.06
+  },
+  "end": {
+   "ok": true,
+   "bottom": 829,
+   "vh": 900,
+   "covered": null
+  },
+  "focus": [],
+  "log": {
+   "errors": [],
+   "warnings": [],
+   "failed": []
+  },
+  "issues": []
+ },
+ {
+  "tab": "Analytics",
+  "viewport": "575x900",
+  "vw": 575,
+  "vh": 900,
+  "overflow": 0,
+  "offenders": [],
+  "clipped": [],
+  "overlaps": [],
+  "smallTargets": [],
+  "smallTargetCount": 0,
+  "sticky": {
+   "bars": [
+    "header#top",
+    "nav.dash-nav.compact(\"Dashboard sections\")"
+   ],
+   "total": 113,
+   "share": 0.13
+  },
+  "end": {
+   "ok": true,
+   "bottom": 860,
+   "vh": 900,
+   "covered": null
+  },
+  "anchors": [
+   {
+    "id": "dash-overview",
+    "top": 427,
+    "cover": 334,
+    "ok": true
+   },
+   {
+    "id": "dash-weeks",
+    "top": 1756,
+    "cover": 113,
+    "ok": true
+   },
+   {
+    "id": "dash-trends",
+    "top": 5063,
+    "cover": 320,
+    "ok": true
+   },
+   {
+    "id": "dash-topics",
+    "top": 6412,
+    "cover": 113,
+    "ok": true
+   },
+   {
+    "id": "dash-missed",
+    "top": 13141,
+    "cover": 113,
+    "ok": true
+   },
+   {
+    "id": "dash-quality",
+    "top": 14708,
+    "cover": 113,
+    "ok": true
+   },
+   {
+    "id": "dash-compare",
+    "top": 17236,
+    "cover": 113,
+    "ok": true
+   }
+  ],
+  "focus": [],
+  "log": {
+   "errors": [],
+   "warnings": [],
+   "failed": []
+  },
+  "issues": []
+ },
+ {
+  "tab": "To review",
+  "viewport": "575x900",
+  "vw": 575,
+  "vh": 900,
+  "overflow": 0,
+  "offenders": [],
+  "clipped": [],
+  "overlaps": [],
+  "smallTargets": [],
+  "smallTargetCount": 0,
+  "sticky": {
+   "bars": [
+    "header#top"
+   ],
+   "total": 57,
+   "share": 0.06
+  },
+  "end": {
+   "ok": true,
+   "bottom": 821,
+   "vh": 900,
+   "covered": null
+  },
+  "focus": [],
+  "log": {
+   "errors": [],
+   "warnings": [],
+   "failed": []
+  },
+  "issues": []
+ },
+ {
+  "tab": "Classes & Roster",
+  "viewport": "575x900",
+  "vw": 575,
+  "vh": 900,
+  "overflow": 0,
+  "offenders": [],
+  "clipped": [],
+  "overlaps": [],
+  "smallTargets": [],
+  "smallTargetCount": 0,
+  "sticky": {
+   "bars": [
+    "header#top"
+   ],
+   "total": 57,
+   "share": 0.06
+  },
+  "end": {
+   "ok": true,
+   "bottom": 839,
+   "vh": 900,
+   "covered": null
+  },
+  "focus": [],
+  "log": {
+   "errors": [],
+   "warnings": [],
+   "failed": []
+  },
+  "issues": []
+ },
+ {
+  "tab": "Question bank",
+  "viewport": "575x900",
+  "vw": 575,
+  "vh": 900,
+  "overflow": 0,
+  "offenders": [],
+  "clipped": [],
+  "overlaps": [],
+  "smallTargets": [],
+  "smallTargetCount": 0,
+  "sticky": {
+   "bars": [
+    "header#top"
+   ],
+   "total": 57,
+   "share": 0.06
+  },
+  "end": {
+   "ok": true,
+   "bottom": 839,
+   "vh": 900,
+   "covered": null
+  },
+  "focus": [],
+  "log": {
+   "errors": [],
+   "warnings": [],
+   "failed": []
+  },
+  "issues": []
+ },
+ {
+  "tab": "AI drafting",
+  "viewport": "575x900",
+  "vw": 575,
+  "vh": 900,
+  "overflow": 0,
+  "offenders": [],
+  "clipped": [],
+  "overlaps": [],
+  "smallTargets": [],
+  "smallTargetCount": 0,
+  "sticky": {
+   "bars": [
+    "header#top"
+   ],
+   "total": 57,
+   "share": 0.06
+  },
+  "end": {
+   "ok": true,
+   "bottom": 839,
+   "vh": 900,
+   "covered": null
+  },
+  "focus": [],
+  "log": {
+   "errors": [],
+   "warnings": [],
+   "failed": []
+  },
+  "issues": []
+ },
+ {
+  "tab": "Evaluation",
+  "viewport": "575x900",
+  "vw": 575,
+  "vh": 900,
+  "overflow": 0,
+  "offenders": [],
+  "clipped": [],
+  "overlaps": [],
+  "smallTargets": [],
+  "smallTargetCount": 0,
+  "sticky": {
+   "bars": [
+    "header#top"
+   ],
+   "total": 57,
+   "share": 0.06
+  },
+  "end": {
+   "ok": true,
+   "bottom": 824,
+   "vh": 900,
+   "covered": null
+  },
+  "focus": [],
+  "log": {
+   "errors": [],
+   "warnings": [],
+   "failed": []
+  },
+  "issues": []
+ },
+ {
+  "tab": "Settings",
+  "viewport": "575x900",
+  "vw": 575,
+  "vh": 900,
+  "overflow": 0,
+  "offenders": [],
+  "clipped": [],
+  "overlaps": [],
+  "smallTargets": [],
+  "smallTargetCount": 0,
+  "sticky": {
+   "bars": [
+    "header#top"
+   ],
+   "total": 57,
+   "share": 0.06
+  },
+  "end": {
+   "ok": true,
+   "bottom": 829,
+   "vh": 900,
+   "covered": null
+  },
+  "focus": [],
+  "log": {
+   "errors": [],
+   "warnings": [],
+   "failed": []
+  },
+  "issues": []
+ },
+ {
+  "tab": "Analytics",
+  "viewport": "576x900",
+  "vw": 576,
+  "vh": 900,
+  "overflow": 0,
+  "offenders": [],
+  "clipped": [],
+  "overlaps": [],
+  "smallTargets": [],
+  "smallTargetCount": 0,
+  "sticky": {
+   "bars": [
+    "header#top",
+    "nav.dash-nav.compact(\"Dashboard sections\")"
+   ],
+   "total": 113,
+   "share": 0.13
+  },
+  "end": {
+   "ok": true,
+   "bottom": 860,
+   "vh": 900,
+   "covered": null
+  },
+  "anchors": [
+   {
+    "id": "dash-overview",
+    "top": 396,
+    "cover": 334,
+    "ok": true
+   },
+   {
+    "id": "dash-weeks",
+    "top": 1674,
+    "cover": 117,
+    "ok": true
+   },
+   {
+    "id": "dash-trends",
+    "top": 2683,
+    "cover": 298,
+    "ok": true
+   },
+   {
+    "id": "dash-topics",
+    "top": 4001,
+    "cover": 113,
+    "ok": true
+   },
+   {
+    "id": "dash-missed",
+    "top": 7342,
+    "cover": 113,
+    "ok": true
+   },
+   {
+    "id": "dash-quality",
+    "top": 8921,
+    "cover": 113,
+    "ok": true
+   },
+   {
+    "id": "dash-compare",
+    "top": 10721,
+    "cover": 113,
+    "ok": true
+   }
+  ],
+  "focus": [],
+  "log": {
+   "errors": [],
+   "warnings": [],
+   "failed": []
+  },
+  "issues": []
+ },
+ {
+  "tab": "To review",
+  "viewport": "576x900",
+  "vw": 576,
+  "vh": 900,
+  "overflow": 0,
+  "offenders": [],
+  "clipped": [],
+  "overlaps": [],
+  "smallTargets": [],
+  "smallTargetCount": 0,
+  "sticky": {
+   "bars": [
+    "header#top"
+   ],
+   "total": 57,
+   "share": 0.06
+  },
+  "end": {
+   "ok": true,
+   "bottom": 821,
+   "vh": 900,
+   "covered": null
+  },
+  "focus": [],
+  "log": {
+   "errors": [],
+   "warnings": [],
+   "failed": []
+  },
+  "issues": []
+ },
+ {
+  "tab": "Classes & Roster",
+  "viewport": "576x900",
+  "vw": 576,
+  "vh": 900,
+  "overflow": 0,
+  "offenders": [],
+  "clipped": [],
+  "overlaps": [],
+  "smallTargets": [],
+  "smallTargetCount": 0,
+  "sticky": {
+   "bars": [
+    "header#top"
+   ],
+   "total": 57,
+   "share": 0.06
+  },
+  "end": {
+   "ok": true,
+   "bottom": 839,
+   "vh": 900,
+   "covered": null
+  },
+  "focus": [],
+  "log": {
+   "errors": [],
+   "warnings": [],
+   "failed": []
+  },
+  "issues": []
+ },
+ {
+  "tab": "Question bank",
+  "viewport": "576x900",
+  "vw": 576,
+  "vh": 900,
+  "overflow": 0,
+  "offenders": [],
+  "clipped": [],
+  "overlaps": [],
+  "smallTargets": [],
+  "smallTargetCount": 0,
+  "sticky": {
+   "bars": [
+    "header#top"
+   ],
+   "total": 57,
+   "share": 0.06
+  },
+  "end": {
+   "ok": true,
+   "bottom": 839,
+   "vh": 900,
+   "covered": null
+  },
+  "focus": [],
+  "log": {
+   "errors": [],
+   "warnings": [],
+   "failed": []
+  },
+  "issues": []
+ },
+ {
+  "tab": "AI drafting",
+  "viewport": "576x900",
+  "vw": 576,
+  "vh": 900,
+  "overflow": 0,
+  "offenders": [],
+  "clipped": [],
+  "overlaps": [],
+  "smallTargets": [],
+  "smallTargetCount": 0,
+  "sticky": {
+   "bars": [
+    "header#top"
+   ],
+   "total": 57,
+   "share": 0.06
+  },
+  "end": {
+   "ok": true,
+   "bottom": 839,
+   "vh": 900,
+   "covered": null
+  },
+  "focus": [],
+  "log": {
+   "errors": [],
+   "warnings": [],
+   "failed": []
+  },
+  "issues": []
+ },
+ {
+  "tab": "Evaluation",
+  "viewport": "576x900",
+  "vw": 576,
+  "vh": 900,
+  "overflow": 0,
+  "offenders": [],
+  "clipped": [],
+  "overlaps": [],
+  "smallTargets": [],
+  "smallTargetCount": 0,
+  "sticky": {
+   "bars": [
+    "header#top"
+   ],
+   "total": 57,
+   "share": 0.06
+  },
+  "end": {
+   "ok": true,
+   "bottom": 824,
+   "vh": 900,
+   "covered": null
+  },
+  "focus": [],
+  "log": {
+   "errors": [],
+   "warnings": [],
+   "failed": []
+  },
+  "issues": []
+ },
+ {
+  "tab": "Settings",
+  "viewport": "576x900",
+  "vw": 576,
+  "vh": 900,
+  "overflow": 0,
+  "offenders": [],
+  "clipped": [],
+  "overlaps": [],
+  "smallTargets": [],
+  "smallTargetCount": 0,
+  "sticky": {
+   "bars": [
+    "header#top"
+   ],
+   "total": 57,
+   "share": 0.06
+  },
+  "end": {
+   "ok": true,
+   "bottom": 829,
+   "vh": 900,
+   "covered": null
+  },
+  "focus": [],
+  "log": {
+   "errors": [],
+   "warnings": [],
+   "failed": []
+  },
+  "issues": []
+ },
+ {
+  "tab": "Analytics",
+  "viewport": "767x900",
+  "vw": 767,
+  "vh": 900,
+  "overflow": 0,
+  "offenders": [],
+  "clipped": [],
+  "overlaps": [],
+  "smallTargets": [],
+  "smallTargetCount": 0,
+  "sticky": {
+   "bars": [
+    "header#top",
+    "nav.dash-nav.compact(\"Dashboard sections\")"
+   ],
+   "total": 113,
+   "share": 0.13
+  },
+  "end": {
+   "ok": true,
+   "bottom": 860,
+   "vh": 900,
+   "covered": null
+  },
+  "anchors": [
+   {
+    "id": "dash-overview",
+    "top": 396,
+    "cover": 334,
+    "ok": true
+   },
+   {
+    "id": "dash-weeks",
+    "top": 1565,
+    "cover": 117,
+    "ok": true
+   },
+   {
+    "id": "dash-trends",
+    "top": 2573,
+    "cover": 297,
+    "ok": true
+   },
+   {
+    "id": "dash-topics",
+    "top": 3065,
+    "cover": 113,
+    "ok": true
+   },
+   {
+    "id": "dash-missed",
+    "top": 6349,
+    "cover": 113,
+    "ok": true
+   },
+   {
+    "id": "dash-quality",
+    "top": 7846,
+    "cover": 113,
+    "ok": true
+   },
+   {
+    "id": "dash-compare",
+    "top": 9569,
+    "cover": 113,
+    "ok": true
+   }
+  ],
+  "focus": [],
+  "log": {
+   "errors": [],
+   "warnings": [],
+   "failed": []
+  },
+  "issues": []
+ },
+ {
+  "tab": "To review",
+  "viewport": "767x900",
+  "vw": 767,
+  "vh": 900,
+  "overflow": 0,
+  "offenders": [],
+  "clipped": [],
+  "overlaps": [],
+  "smallTargets": [],
+  "smallTargetCount": 0,
+  "sticky": {
+   "bars": [
+    "header#top"
+   ],
+   "total": 57,
+   "share": 0.06
+  },
+  "end": {
+   "ok": true,
+   "bottom": 821,
+   "vh": 900,
+   "covered": null
+  },
+  "focus": [],
+  "log": {
+   "errors": [],
+   "warnings": [],
+   "failed": []
+  },
+  "issues": []
+ },
+ {
+  "tab": "Classes & Roster",
+  "viewport": "767x900",
+  "vw": 767,
+  "vh": 900,
+  "overflow": 0,
+  "offenders": [],
+  "clipped": [],
+  "overlaps": [],
+  "smallTargets": [],
+  "smallTargetCount": 0,
+  "sticky": {
+   "bars": [
+    "header#top"
+   ],
+   "total": 57,
+   "share": 0.06
+  },
+  "end": {
+   "ok": true,
+   "bottom": 839,
+   "vh": 900,
+   "covered": null
+  },
+  "focus": [],
+  "log": {
+   "errors": [],
+   "warnings": [],
+   "failed": []
+  },
+  "issues": []
+ },
+ {
+  "tab": "Question bank",
+  "viewport": "767x900",
+  "vw": 767,
+  "vh": 900,
+  "overflow": 0,
+  "offenders": [],
+  "clipped": [],
+  "overlaps": [],
+  "smallTargets": [],
+  "smallTargetCount": 0,
+  "sticky": {
+   "bars": [
+    "header#top"
+   ],
+   "total": 57,
+   "share": 0.06
+  },
+  "end": {
+   "ok": true,
+   "bottom": 839,
+   "vh": 900,
+   "covered": null
+  },
+  "focus": [],
+  "log": {
+   "errors": [],
+   "warnings": [],
+   "failed": []
+  },
+  "issues": []
+ },
+ {
+  "tab": "AI drafting",
+  "viewport": "767x900",
+  "vw": 767,
+  "vh": 900,
+  "overflow": 0,
+  "offenders": [],
+  "clipped": [],
+  "overlaps": [],
+  "smallTargets": [],
+  "smallTargetCount": 0,
+  "sticky": {
+   "bars": [
+    "header#top"
+   ],
+   "total": 57,
+   "share": 0.06
+  },
+  "end": {
+   "ok": true,
+   "bottom": 839,
+   "vh": 900,
+   "covered": null
+  },
+  "focus": [],
+  "log": {
+   "errors": [],
+   "warnings": [],
+   "failed": []
+  },
+  "issues": []
+ },
+ {
+  "tab": "Evaluation",
+  "viewport": "767x900",
+  "vw": 767,
+  "vh": 900,
+  "overflow": 0,
+  "offenders": [],
+  "clipped": [],
+  "overlaps": [],
+  "smallTargets": [],
+  "smallTargetCount": 0,
+  "sticky": {
+   "bars": [
+    "header#top"
+   ],
+   "total": 57,
+   "share": 0.06
+  },
+  "end": {
+   "ok": true,
+   "bottom": 824,
+   "vh": 900,
+   "covered": null
+  },
+  "focus": [],
+  "log": {
+   "errors": [],
+   "warnings": [],
+   "failed": []
+  },
+  "issues": []
+ },
+ {
+  "tab": "Settings",
+  "viewport": "767x900",
+  "vw": 767,
+  "vh": 900,
+  "overflow": 0,
+  "offenders": [],
+  "clipped": [],
+  "overlaps": [],
+  "smallTargets": [],
+  "smallTargetCount": 0,
+  "sticky": {
+   "bars": [
+    "header#top"
+   ],
+   "total": 65,
+   "share": 0.07
+  },
+  "end": {
+   "ok": true,
+   "bottom": 821,
+   "vh": 900,
+   "covered": null
+  },
+  "focus": [],
+  "log": {
+   "errors": [],
+   "warnings": [],
+   "failed": []
+  },
+  "issues": []
+ },
+ {
+  "tab": "Analytics",
+  "viewport": "768x900",
+  "vw": 768,
+  "vh": 900,
+  "overflow": 0,
+  "offenders": [],
+  "clipped": [],
+  "overlaps": [],
+  "smallTargets": [],
+  "smallTargetCount": 0,
+  "sticky": {
+   "bars": [
+    "header#top",
+    "nav.dash-nav.compact(\"Dashboard sections\")"
+   ],
+   "total": 117,
+   "share": 0.13
+  },
+  "end": {
+   "ok": true,
+   "bottom": 858,
+   "vh": 900,
+   "covered": null
+  },
+  "anchors": [
+   {
+    "id": "dash-overview",
+    "top": 354,
+    "cover": 297,
+    "ok": true
+   },
+   {
+    "id": "dash-weeks",
+    "top": 1379,
+    "cover": 126,
+    "ok": true
+   },
+   {
+    "id": "dash-trends",
+    "top": 2353,
+    "cover": 258,
+    "ok": true
+   },
+   {
+    "id": "dash-topics",
+    "top": 2895,
+    "cover": 117,
+    "ok": true
+   },
+   {
+    "id": "dash-missed",
+    "top": 6085,
+    "cover": 117,
+    "ok": true
+   },
+   {
+    "id": "dash-quality",
+    "top": 7381,
+    "cover": 117,
+    "ok": true
+   },
+   {
+    "id": "dash-compare",
+    "top": 9116,
+    "cover": 117,
+    "ok": true
+   }
+  ],
+  "focus": [],
+  "log": {
+   "errors": [],
+   "warnings": [],
+   "failed": []
+  },
+  "issues": []
+ },
+ {
+  "tab": "To review",
+  "viewport": "768x900",
+  "vw": 768,
+  "vh": 900,
+  "overflow": 0,
+  "offenders": [],
+  "clipped": [],
+  "overlaps": [],
+  "smallTargets": [],
+  "smallTargetCount": 0,
+  "sticky": {
+   "bars": [
+    "header#top"
+   ],
+   "total": 51,
+   "share": 0.06
+  },
+  "end": {
+   "ok": true,
+   "bottom": 809,
+   "vh": 900,
+   "covered": null
+  },
+  "focus": [],
+  "log": {
+   "errors": [],
+   "warnings": [],
+   "failed": []
+  },
+  "issues": []
+ },
+ {
+  "tab": "Classes & Roster",
+  "viewport": "768x900",
+  "vw": 768,
+  "vh": 900,
+  "overflow": 0,
+  "offenders": [],
+  "clipped": [],
+  "overlaps": [],
+  "smallTargets": [],
+  "smallTargetCount": 0,
+  "sticky": {
+   "bars": [
+    "header#top"
+   ],
+   "total": 51,
+   "share": 0.06
+  },
+  "end": {
+   "ok": true,
+   "bottom": 833,
+   "vh": 900,
+   "covered": null
+  },
+  "focus": [],
+  "log": {
+   "errors": [],
+   "warnings": [],
+   "failed": []
+  },
+  "issues": []
+ },
+ {
+  "tab": "Question bank",
+  "viewport": "768x900",
+  "vw": 768,
+  "vh": 900,
+  "overflow": 0,
+  "offenders": [],
+  "clipped": [],
+  "overlaps": [],
+  "smallTargets": [],
+  "smallTargetCount": 0,
+  "sticky": {
+   "bars": [
+    "header#top"
+   ],
+   "total": 51,
+   "share": 0.06
+  },
+  "end": {
+   "ok": true,
+   "bottom": 833,
+   "vh": 900,
+   "covered": null
+  },
+  "focus": [],
+  "log": {
+   "errors": [],
+   "warnings": [],
+   "failed": []
+  },
+  "issues": []
+ },
+ {
+  "tab": "AI drafting",
+  "viewport": "768x900",
+  "vw": 768,
+  "vh": 900,
+  "overflow": 0,
+  "offenders": [],
+  "clipped": [],
+  "overlaps": [],
+  "smallTargets": [],
+  "smallTargetCount": 0,
+  "sticky": {
+   "bars": [
+    "header#top"
+   ],
+   "total": 51,
+   "share": 0.06
+  },
+  "end": {
+   "ok": true,
+   "bottom": 832,
+   "vh": 900,
+   "covered": null
+  },
+  "focus": [],
+  "log": {
+   "errors": [],
+   "warnings": [],
+   "failed": []
+  },
+  "issues": []
+ },
+ {
+  "tab": "Evaluation",
+  "viewport": "768x900",
+  "vw": 768,
+  "vh": 900,
+  "overflow": 0,
+  "offenders": [],
+  "clipped": [],
+  "overlaps": [],
+  "smallTargets": [],
+  "smallTargetCount": 0,
+  "sticky": {
+   "bars": [
+    "header#top"
+   ],
+   "total": 51,
+   "share": 0.06
+  },
+  "end": {
+   "ok": true,
+   "bottom": 818,
+   "vh": 900,
+   "covered": null
+  },
+  "focus": [],
+  "log": {
+   "errors": [],
+   "warnings": [],
+   "failed": []
+  },
+  "issues": []
+ },
+ {
+  "tab": "Settings",
+  "viewport": "768x900",
+  "vw": 768,
+  "vh": 900,
+  "overflow": 0,
+  "offenders": [],
+  "clipped": [],
+  "overlaps": [],
+  "smallTargets": [],
+  "smallTargetCount": 0,
+  "sticky": {
+   "bars": [
+    "header#top"
+   ],
+   "total": 134,
+   "share": 0.15
+  },
+  "end": {
+   "ok": true,
+   "bottom": 740,
+   "vh": 900,
+   "covered": null
+  },
+  "focus": [],
+  "log": {
+   "errors": [],
+   "warnings": [],
+   "failed": []
+  },
+  "issues": []
+ },
+ {
+  "tab": "state: drawer open",
+  "viewport": "768x900",
+  "state": "drawer open",
+  "vw": 768,
+  "vh": 900,
+  "overflow": 0,
+  "offenders": [],
+  "clipped": [],
+  "overlaps": [],
+  "smallTargets": [],
+  "smallTargetCount": 0,
+  "sticky": {
+   "bars": [
+    "header#top"
+   ],
+   "total": 134,
+   "share": 0.15
+  },
+  "drawer": {
+   "fits": true,
+   "lastReachable": true
+  },
+  "issues": [],
+  "log": {
+   "errors": [],
+   "warnings": [],
+   "failed": []
+  }
+ },
+ {
+  "tab": "state: analytics question dialog",
+  "viewport": "768x900",
+  "state": "analytics question dialog",
+  "vw": 768,
+  "vh": 900,
+  "overflow": 0,
+  "offenders": [],
+  "clipped": [],
+  "overlaps": [],
+  "smallTargets": [],
+  "smallTargetCount": 0,
+  "sticky": {
+   "bars": [
+    "header#top",
+    "nav.dash-nav.compact(\"Dashboard sections\")"
+   ],
+   "total": 93,
+   "share": 0.1
+  },
+  "modal": {
+   "ok": true,
+   "fits": true,
+   "scroller": true,
+   "reachable": true,
+   "closeVisibleAtTop": true,
+   "h": 546,
+   "vh": 900
+  },
+  "issues": [],
+  "log": {
+   "errors": [],
+   "warnings": [],
+   "failed": []
+  }
+ },
+ {
+  "tab": "state: classes create modal",
+  "viewport": "768x900",
+  "state": "classes create modal",
+  "vw": 768,
+  "vh": 900,
+  "overflow": 0,
+  "offenders": [],
+  "clipped": [],
+  "overlaps": [],
+  "smallTargets": [],
+  "smallTargetCount": 0,
+  "sticky": {
+   "bars": [
+    "header#top"
+   ],
+   "total": 51,
+   "share": 0.06
+  },
+  "modal": {
+   "ok": true,
+   "fits": true,
+   "scroller": true,
+   "reachable": true,
+   "closeVisibleAtTop": true,
+   "h": 440,
+   "vh": 900
+  },
+  "issues": [],
+  "log": {
+   "errors": [],
+   "warnings": [],
+   "failed": []
+  }
+ },
+ {
+  "tab": "state: classes rename modal",
+  "viewport": "768x900",
+  "state": "classes rename modal",
+  "vw": 768,
+  "vh": 900,
+  "overflow": 0,
+  "offenders": [],
+  "clipped": [],
+  "overlaps": [],
+  "smallTargets": [],
+  "smallTargetCount": 0,
+  "sticky": {
+   "bars": [
+    "header#top"
+   ],
+   "total": 51,
+   "share": 0.06
+  },
+  "modal": {
+   "ok": true,
+   "fits": true,
+   "scroller": true,
+   "reachable": true,
+   "closeVisibleAtTop": true,
+   "h": 382,
+   "vh": 900
+  },
+  "issues": [],
+  "log": {
+   "errors": [],
+   "warnings": [],
+   "failed": []
+  }
+ },
+ {
+  "tab": "state: classes roster",
+  "viewport": "768x900",
+  "state": "classes roster",
+  "vw": 768,
+  "vh": 900,
+  "overflow": 0,
+  "offenders": [],
+  "clipped": [],
+  "overlaps": [],
+  "smallTargets": [],
+  "smallTargetCount": 0,
+  "sticky": {
+   "bars": [
+    "header#top"
+   ],
+   "total": 51,
+   "share": 0.06
+  },
+  "issues": [],
+  "log": {
+   "errors": [],
+   "warnings": [],
+   "failed": []
+  }
+ },
+ {
+  "tab": "state: classes code modal",
+  "viewport": "768x900",
+  "state": "classes code modal",
+  "vw": 768,
+  "vh": 900,
+  "overflow": 0,
+  "offenders": [],
+  "clipped": [],
+  "overlaps": [],
+  "smallTargets": [],
+  "smallTargetCount": 0,
+  "sticky": {
+   "bars": [
+    "header#top"
+   ],
+   "total": 167,
+   "share": 0.19
+  },
+  "modal": {
+   "ok": true,
+   "fits": true,
+   "scroller": true,
+   "reachable": true,
+   "closeVisibleAtTop": true,
+   "h": 348,
+   "vh": 900
+  },
+  "issues": [],
+  "log": {
+   "errors": [],
+   "warnings": [],
+   "failed": []
+  }
+ },
+ {
+  "tab": "state: classes class settings",
+  "viewport": "768x900",
+  "state": "classes class settings",
+  "vw": 768,
+  "vh": 900,
+  "overflow": 0,
+  "offenders": [],
+  "clipped": [],
+  "overlaps": [],
+  "smallTargets": [],
+  "smallTargetCount": 0,
+  "sticky": {
+   "bars": [
+    "header#top"
+   ],
+   "total": 143,
+   "share": 0.16
+  },
+  "issues": [],
+  "log": {
+   "errors": [],
+   "warnings": [],
+   "failed": []
+  }
+ },
+ {
+  "tab": "state: question bank cards",
+  "viewport": "768x900",
+  "state": "question bank cards",
+  "vw": 768,
+  "vh": 900,
+  "overflow": 0,
+  "offenders": [],
+  "clipped": [],
+  "overlaps": [],
+  "smallTargets": [],
+  "smallTargetCount": 0,
+  "sticky": {
+   "bars": [
+    "header#top",
+    "div.cr-actions"
+   ],
+   "total": 123,
+   "share": 0.14
+  },
+  "issues": [],
+  "log": {
+   "errors": [],
+   "warnings": [],
+   "failed": []
+  }
+ },
+ {
+  "tab": "state: question bank editor",
+  "viewport": "768x900",
+  "state": "question bank editor",
+  "vw": 768,
+  "vh": 900,
+  "overflow": 0,
+  "offenders": [],
+  "clipped": [],
+  "overlaps": [],
+  "smallTargets": [],
+  "smallTargetCount": 0,
+  "sticky": {
+   "bars": [
+    "header#top"
+   ],
+   "total": 51,
+   "share": 0.06
+  },
+  "issues": [],
+  "log": {
+   "errors": [],
+   "warnings": [],
+   "failed": []
+  }
+ },
+ {
+  "tab": "state: ai drafting retrieved material",
+  "viewport": "768x900",
+  "state": "ai drafting retrieved material",
+  "vw": 768,
+  "vh": 900,
+  "overflow": 0,
+  "offenders": [],
+  "clipped": [],
+  "overlaps": [],
+  "smallTargets": [],
+  "smallTargetCount": 0,
+  "sticky": {
+   "bars": [
+    "header#top"
+   ],
+   "total": 51,
+   "share": 0.06
+  },
+  "issues": [],
+  "log": {
+   "errors": [],
+   "warnings": [],
+   "failed": []
+  }
+ },
+ {
+  "tab": "state: ai drafting material library",
+  "viewport": "768x900",
+  "state": "ai drafting material library",
+  "vw": 768,
+  "vh": 900,
+  "overflow": 0,
+  "offenders": [],
+  "clipped": [],
+  "overlaps": [],
+  "smallTargets": [],
+  "smallTargetCount": 0,
+  "sticky": {
+   "bars": [
+    "header#top"
+   ],
+   "total": 51,
+   "share": 0.06
+  },
+  "issues": [],
+  "log": {
+   "errors": [],
+   "warnings": [],
+   "failed": []
+  }
+ },
+ {
+  "tab": "Analytics",
+  "viewport": "991x900",
+  "vw": 991,
+  "vh": 900,
+  "overflow": 0,
+  "offenders": [],
+  "clipped": [],
+  "overlaps": [],
+  "smallTargets": [],
+  "smallTargetCount": 0,
+  "sticky": {
+   "bars": [
+    "header#top",
+    "nav.dash-nav(\"Dashboard sections\")"
+   ],
+   "total": 117,
+   "share": 0.13
+  },
+  "end": {
+   "ok": true,
+   "bottom": 858,
+   "vh": 900,
+   "covered": null
+  },
+  "anchors": [
+   {
+    "id": "dash-overview",
+    "top": 291,
+    "cover": 243,
+    "ok": true
+   },
+   {
+    "id": "dash-weeks",
+    "top": 1407,
+    "cover": 236,
+    "ok": true
+   },
+   {
+    "id": "dash-trends",
+    "top": 2121,
+    "cover": 117,
+    "ok": true
+   },
+   {
+    "id": "dash-topics",
+    "top": 4022,
+    "cover": 230,
+    "ok": true
+   },
+   {
+    "id": "dash-missed",
+    "top": 4717,
+    "cover": 117,
+    "ok": true
+   },
+   {
+    "id": "dash-quality",
+    "top": 5953,
+    "cover": 117,
+    "ok": true
+   },
+   {
+    "id": "dash-compare",
+    "top": 7649,
+    "cover": 117,
+    "ok": true
+   }
+  ],
+  "focus": [],
+  "log": {
+   "errors": [],
+   "warnings": [],
+   "failed": []
+  },
+  "issues": []
+ },
+ {
+  "tab": "To review",
+  "viewport": "991x900",
+  "vw": 991,
+  "vh": 900,
+  "overflow": 0,
+  "offenders": [],
+  "clipped": [],
+  "overlaps": [],
+  "smallTargets": [],
+  "smallTargetCount": 0,
+  "sticky": {
+   "bars": [
+    "header#top"
+   ],
+   "total": 61,
+   "share": 0.07
+  },
+  "end": {
+   "ok": true,
+   "bottom": 809,
+   "vh": 900,
+   "covered": null
+  },
+  "focus": [],
+  "log": {
+   "errors": [],
+   "warnings": [],
+   "failed": []
+  },
+  "issues": []
+ },
+ {
+  "tab": "Classes & Roster",
+  "viewport": "991x900",
+  "vw": 991,
+  "vh": 900,
+  "overflow": 0,
+  "offenders": [],
+  "clipped": [],
+  "overlaps": [],
+  "smallTargets": [],
+  "smallTargetCount": 0,
+  "sticky": {
+   "bars": [
+    "header#top"
+   ],
+   "total": 61,
+   "share": 0.07
+  },
+  "end": {
+   "ok": true,
+   "bottom": 833,
+   "vh": 900,
+   "covered": null
+  },
+  "focus": [],
+  "log": {
+   "errors": [],
+   "warnings": [],
+   "failed": []
+  },
+  "issues": []
+ },
+ {
+  "tab": "Question bank",
+  "viewport": "991x900",
+  "vw": 991,
+  "vh": 900,
+  "overflow": 0,
+  "offenders": [],
+  "clipped": [],
+  "overlaps": [],
+  "smallTargets": [],
+  "smallTargetCount": 0,
+  "sticky": {
+   "bars": [
+    "header#top"
+   ],
+   "total": 61,
+   "share": 0.07
+  },
+  "end": {
+   "ok": true,
+   "bottom": 833,
+   "vh": 900,
+   "covered": null
+  },
+  "focus": [],
+  "log": {
+   "errors": [],
+   "warnings": [],
+   "failed": []
+  },
+  "issues": []
+ },
+ {
+  "tab": "AI drafting",
+  "viewport": "991x900",
+  "vw": 991,
+  "vh": 900,
+  "overflow": 0,
+  "offenders": [],
+  "clipped": [],
+  "overlaps": [],
+  "smallTargets": [],
+  "smallTargetCount": 0,
+  "sticky": {
+   "bars": [
+    "header#top"
+   ],
+   "total": 61,
+   "share": 0.07
+  },
+  "end": {
+   "ok": true,
+   "bottom": 833,
+   "vh": 900,
+   "covered": null
+  },
+  "focus": [],
+  "log": {
+   "errors": [],
+   "warnings": [],
+   "failed": []
+  },
+  "issues": []
+ },
+ {
+  "tab": "Evaluation",
+  "viewport": "991x900",
+  "vw": 991,
+  "vh": 900,
+  "overflow": 0,
+  "offenders": [],
+  "clipped": [],
+  "overlaps": [],
+  "smallTargets": [],
+  "smallTargetCount": 0,
+  "sticky": {
+   "bars": [
+    "header#top"
+   ],
+   "total": 61,
+   "share": 0.07
+  },
+  "end": {
+   "ok": true,
+   "bottom": 818,
+   "vh": 900,
+   "covered": null
+  },
+  "focus": [],
+  "log": {
+   "errors": [],
+   "warnings": [],
+   "failed": []
+  },
+  "issues": []
+ },
+ {
+  "tab": "Settings",
+  "viewport": "991x900",
+  "vw": 991,
+  "vh": 900,
+  "overflow": 0,
+  "offenders": [],
+  "clipped": [],
+  "overlaps": [],
+  "smallTargets": [],
+  "smallTargetCount": 0,
+  "sticky": {
+   "bars": [
+    "header#top"
+   ],
+   "total": 152,
+   "share": 0.17
+  },
+  "end": {
+   "ok": true,
+   "bottom": 732,
+   "vh": 900,
+   "covered": null
+  },
+  "focus": [],
+  "log": {
+   "errors": [],
+   "warnings": [],
+   "failed": []
+  },
+  "issues": []
+ },
+ {
+  "tab": "state: drawer open",
+  "viewport": "991x900",
+  "state": "drawer open",
+  "vw": 991,
+  "vh": 900,
+  "overflow": 0,
+  "offenders": [],
+  "clipped": [],
+  "overlaps": [],
+  "smallTargets": [],
+  "smallTargetCount": 0,
+  "sticky": {
+   "bars": [
+    "header#top"
+   ],
+   "total": 152,
+   "share": 0.17
+  },
+  "drawer": {
+   "fits": true,
+   "lastReachable": true
+  },
+  "issues": [],
+  "log": {
+   "errors": [],
+   "warnings": [],
+   "failed": []
+  }
+ },
+ {
+  "tab": "state: analytics question dialog",
+  "viewport": "991x900",
+  "state": "analytics question dialog",
+  "vw": 991,
+  "vh": 900,
+  "overflow": 0,
+  "offenders": [],
+  "clipped": [],
+  "overlaps": [],
+  "smallTargets": [],
+  "smallTargetCount": 0,
+  "sticky": {
+   "bars": [
+    "header#top",
+    "nav.dash-nav(\"Dashboard sections\")"
+   ],
+   "total": 117,
+   "share": 0.13
+  },
+  "modal": {
+   "ok": true,
+   "fits": true,
+   "scroller": true,
+   "reachable": true,
+   "closeVisibleAtTop": true,
+   "h": 566,
+   "vh": 900
+  },
+  "issues": [],
+  "log": {
+   "errors": [],
+   "warnings": [],
+   "failed": []
+  }
+ },
+ {
+  "tab": "state: classes create modal",
+  "viewport": "991x900",
+  "state": "classes create modal",
+  "vw": 991,
+  "vh": 900,
+  "overflow": 0,
+  "offenders": [],
+  "clipped": [],
+  "overlaps": [],
+  "smallTargets": [],
+  "smallTargetCount": 0,
+  "sticky": {
+   "bars": [
+    "header#top"
+   ],
+   "total": 61,
+   "share": 0.07
+  },
+  "modal": {
+   "ok": true,
+   "fits": true,
+   "scroller": true,
+   "reachable": true,
+   "closeVisibleAtTop": true,
+   "h": 453,
+   "vh": 900
+  },
+  "issues": [],
+  "log": {
+   "errors": [],
+   "warnings": [],
+   "failed": []
+  }
+ },
+ {
+  "tab": "state: classes rename modal",
+  "viewport": "991x900",
+  "state": "classes rename modal",
+  "vw": 991,
+  "vh": 900,
+  "overflow": 0,
+  "offenders": [],
+  "clipped": [],
+  "overlaps": [],
+  "smallTargets": [],
+  "smallTargetCount": 0,
+  "sticky": {
+   "bars": [
+    "header#top"
+   ],
+   "total": 61,
+   "share": 0.07
+  },
+  "modal": {
+   "ok": true,
+   "fits": true,
+   "scroller": true,
+   "reachable": true,
+   "closeVisibleAtTop": true,
+   "h": 391,
+   "vh": 900
+  },
+  "issues": [],
+  "log": {
+   "errors": [],
+   "warnings": [],
+   "failed": []
+  }
+ },
+ {
+  "tab": "state: classes roster",
+  "viewport": "991x900",
+  "state": "classes roster",
+  "vw": 991,
+  "vh": 900,
+  "overflow": 0,
+  "offenders": [],
+  "clipped": [],
+  "overlaps": [],
+  "smallTargets": [],
+  "smallTargetCount": 0,
+  "sticky": {
+   "bars": [
+    "header#top"
+   ],
+   "total": 61,
+   "share": 0.07
+  },
+  "issues": [],
+  "log": {
+   "errors": [],
+   "warnings": [],
+   "failed": []
+  }
+ },
+ {
+  "tab": "state: classes code modal",
+  "viewport": "991x900",
+  "state": "classes code modal",
+  "vw": 991,
+  "vh": 900,
+  "overflow": 0,
+  "offenders": [],
+  "clipped": [],
+  "overlaps": [],
+  "smallTargets": [],
+  "smallTargetCount": 0,
+  "sticky": {
+   "bars": [
+    "header#top"
+   ],
+   "total": 156,
+   "share": 0.17
+  },
+  "modal": {
+   "ok": true,
+   "fits": true,
+   "scroller": true,
+   "reachable": true,
+   "closeVisibleAtTop": true,
+   "h": 361,
+   "vh": 900
+  },
+  "issues": [],
+  "log": {
+   "errors": [],
+   "warnings": [],
+   "failed": []
+  }
+ },
+ {
+  "tab": "state: classes class settings",
+  "viewport": "991x900",
+  "state": "classes class settings",
+  "vw": 991,
+  "vh": 900,
+  "overflow": 0,
+  "offenders": [],
+  "clipped": [],
+  "overlaps": [],
+  "smallTargets": [],
+  "smallTargetCount": 0,
+  "sticky": {
+   "bars": [
+    "header#top"
+   ],
+   "total": 136,
+   "share": 0.15
+  },
+  "issues": [],
+  "log": {
+   "errors": [],
+   "warnings": [],
+   "failed": []
+  }
+ },
+ {
+  "tab": "state: question bank cards",
+  "viewport": "991x900",
+  "state": "question bank cards",
+  "vw": 991,
+  "vh": 900,
+  "overflow": 0,
+  "offenders": [],
+  "clipped": [],
+  "overlaps": [],
+  "smallTargets": [],
+  "smallTargetCount": 0,
+  "sticky": {
+   "bars": [
+    "header#top",
+    "div.cr-actions"
+   ],
+   "total": 133,
+   "share": 0.15
+  },
+  "issues": [],
+  "log": {
+   "errors": [],
+   "warnings": [],
+   "failed": []
+  }
+ },
+ {
+  "tab": "state: question bank editor",
+  "viewport": "991x900",
+  "state": "question bank editor",
+  "vw": 991,
+  "vh": 900,
+  "overflow": 0,
+  "offenders": [],
+  "clipped": [],
+  "overlaps": [],
+  "smallTargets": [],
+  "smallTargetCount": 0,
+  "sticky": {
+   "bars": [
+    "header#top"
+   ],
+   "total": 61,
+   "share": 0.07
+  },
+  "issues": [],
+  "log": {
+   "errors": [],
+   "warnings": [],
+   "failed": []
+  }
+ },
+ {
+  "tab": "state: ai drafting retrieved material",
+  "viewport": "991x900",
+  "state": "ai drafting retrieved material",
+  "vw": 991,
+  "vh": 900,
+  "overflow": 0,
+  "offenders": [],
+  "clipped": [],
+  "overlaps": [],
+  "smallTargets": [],
+  "smallTargetCount": 0,
+  "sticky": {
+   "bars": [
+    "header#top"
+   ],
+   "total": 61,
+   "share": 0.07
+  },
+  "issues": [],
+  "log": {
+   "errors": [],
+   "warnings": [],
+   "failed": []
+  }
+ },
+ {
+  "tab": "state: ai drafting material library",
+  "viewport": "991x900",
+  "state": "ai drafting material library",
+  "vw": 991,
+  "vh": 900,
+  "overflow": 0,
+  "offenders": [],
+  "clipped": [],
+  "overlaps": [],
+  "smallTargets": [],
+  "smallTargetCount": 0,
+  "sticky": {
+   "bars": [
+    "header#top"
+   ],
+   "total": 61,
+   "share": 0.07
+  },
+  "issues": [],
+  "log": {
+   "errors": [],
+   "warnings": [],
+   "failed": []
+  }
+ },
+ {
+  "tab": "Analytics",
+  "viewport": "992x900",
+  "vw": 992,
+  "vh": 900,
+  "overflow": 0,
+  "offenders": [],
+  "clipped": [],
+  "overlaps": [],
+  "smallTargets": [],
+  "smallTargetCount": 0,
+  "sticky": {
+   "bars": [
+    "div.dash-toolbar.no-print"
+   ],
+   "total": 201,
+   "share": 0.22
+  },
+  "end": {
+   "ok": true,
+   "bottom": 850,
+   "vh": 900,
+   "covered": null
+  },
+  "anchors": [
+   {
+    "id": "dash-overview",
+    "top": 276,
+    "cover": 217,
+    "ok": true
+   },
+   {
+    "id": "dash-weeks",
+    "top": 1619,
+    "cover": 212,
+    "ok": true
+   },
+   {
+    "id": "dash-trends",
+    "top": 2307,
+    "cover": 201,
+    "ok": true
+   },
+   {
+    "id": "dash-topics",
+    "top": 4293,
+    "cover": 204,
+    "ok": true
+   },
+   {
+    "id": "dash-missed",
+    "top": 6936,
+    "cover": 201,
+    "ok": true
+   },
+   {
+    "id": "dash-quality",
+    "top": 7752,
+    "cover": 205,
+    "ok": true
+   },
+   {
+    "id": "dash-compare",
+    "top": 8985,
+    "cover": 201,
+    "ok": true
+   }
+  ],
+  "focus": [],
+  "log": {
+   "errors": [],
+   "warnings": [],
+   "failed": []
+  },
+  "issues": []
+ },
+ {
+  "tab": "To review",
+  "viewport": "992x900",
+  "vw": 992,
+  "vh": 900,
+  "overflow": 0,
+  "offenders": [],
+  "clipped": [],
+  "overlaps": [],
+  "smallTargets": [],
+  "smallTargetCount": 0,
+  "sticky": {
+   "bars": [],
+   "total": 0,
+   "share": 0
+  },
+  "end": {
+   "ok": true,
+   "bottom": 801,
+   "vh": 900,
+   "covered": null
+  },
+  "focus": [],
+  "log": {
+   "errors": [],
+   "warnings": [],
+   "failed": []
+  },
+  "issues": []
+ },
+ {
+  "tab": "Classes & Roster",
+  "viewport": "992x900",
+  "vw": 992,
+  "vh": 900,
+  "overflow": 0,
+  "offenders": [],
+  "clipped": [],
+  "overlaps": [],
+  "smallTargets": [],
+  "smallTargetCount": 0,
+  "sticky": {
+   "bars": [],
+   "total": 0,
+   "share": 0
+  },
+  "end": {
+   "ok": true,
+   "bottom": 825,
+   "vh": 900,
+   "covered": null
+  },
+  "focus": [],
+  "log": {
+   "errors": [],
+   "warnings": [],
+   "failed": []
+  },
+  "issues": []
+ },
+ {
+  "tab": "Question bank",
+  "viewport": "992x900",
+  "vw": 992,
+  "vh": 900,
+  "overflow": 0,
+  "offenders": [],
+  "clipped": [],
+  "overlaps": [],
+  "smallTargets": [],
+  "smallTargetCount": 0,
+  "sticky": {
+   "bars": [],
+   "total": 0,
+   "share": 0
+  },
+  "end": {
+   "ok": true,
+   "bottom": 825,
+   "vh": 900,
+   "covered": null
+  },
+  "focus": [],
+  "log": {
+   "errors": [],
+   "warnings": [],
+   "failed": []
+  },
+  "issues": []
+ },
+ {
+  "tab": "AI drafting",
+  "viewport": "992x900",
+  "vw": 992,
+  "vh": 900,
+  "overflow": 0,
+  "offenders": [],
+  "clipped": [],
+  "overlaps": [],
+  "smallTargets": [],
+  "smallTargetCount": 0,
+  "sticky": {
+   "bars": [],
+   "total": 0,
+   "share": 0
+  },
+  "end": {
+   "ok": true,
+   "bottom": 824,
+   "vh": 900,
+   "covered": null
+  },
+  "focus": [],
+  "log": {
+   "errors": [],
+   "warnings": [],
+   "failed": []
+  },
+  "issues": []
+ },
+ {
+  "tab": "Evaluation",
+  "viewport": "992x900",
+  "vw": 992,
+  "vh": 900,
+  "overflow": 0,
+  "offenders": [],
+  "clipped": [],
+  "overlaps": [],
+  "smallTargets": [],
+  "smallTargetCount": 0,
+  "sticky": {
+   "bars": [],
+   "total": 0,
+   "share": 0
+  },
+  "end": {
+   "ok": true,
+   "bottom": 810,
+   "vh": 900,
+   "covered": null
+  },
+  "focus": [],
+  "log": {
+   "errors": [],
+   "warnings": [],
+   "failed": []
+  },
+  "issues": []
+ },
+ {
+  "tab": "Settings",
+  "viewport": "992x900",
+  "vw": 992,
+  "vh": 900,
+  "overflow": 0,
+  "offenders": [],
+  "clipped": [],
+  "overlaps": [],
+  "smallTargets": [],
+  "smallTargetCount": 0,
+  "sticky": {
+   "bars": [],
+   "total": 0,
+   "share": 0
+  },
+  "end": {
+   "ok": true,
+   "bottom": 614,
+   "vh": 900,
+   "covered": null
+  },
+  "focus": [],
+  "log": {
+   "errors": [],
+   "warnings": [],
+   "failed": []
+  },
+  "issues": []
+ },
+ {
+  "tab": "state: analytics question dialog",
+  "viewport": "992x900",
+  "state": "analytics question dialog",
+  "vw": 992,
+  "vh": 900,
+  "overflow": 0,
+  "offenders": [],
+  "clipped": [],
+  "overlaps": [],
+  "smallTargets": [],
+  "smallTargetCount": 0,
+  "sticky": {
+   "bars": [
+    "div.dash-toolbar.no-print"
+   ],
+   "total": 201,
+   "share": 0.22
+  },
+  "modal": {
+   "ok": true,
+   "fits": true,
+   "scroller": true,
+   "reachable": true,
+   "closeVisibleAtTop": true,
+   "h": 546,
+   "vh": 900
+  },
+  "issues": [],
+  "log": {
+   "errors": [],
+   "warnings": [],
+   "failed": []
+  }
+ },
+ {
+  "tab": "state: classes create modal",
+  "viewport": "992x900",
+  "state": "classes create modal",
+  "vw": 992,
+  "vh": 900,
+  "overflow": 0,
+  "offenders": [],
+  "clipped": [],
+  "overlaps": [],
+  "smallTargets": [],
+  "smallTargetCount": 0,
+  "sticky": {
+   "bars": [],
+   "total": 0,
+   "share": 0
+  },
+  "modal": {
+   "ok": true,
+   "fits": true,
+   "scroller": true,
+   "reachable": true,
+   "closeVisibleAtTop": true,
+   "h": 440,
+   "vh": 900
+  },
+  "issues": [],
+  "log": {
+   "errors": [],
+   "warnings": [],
+   "failed": []
+  }
+ },
+ {
+  "tab": "state: classes rename modal",
+  "viewport": "992x900",
+  "state": "classes rename modal",
+  "vw": 992,
+  "vh": 900,
+  "overflow": 0,
+  "offenders": [],
+  "clipped": [],
+  "overlaps": [],
+  "smallTargets": [],
+  "smallTargetCount": 0,
+  "sticky": {
+   "bars": [],
+   "total": 0,
+   "share": 0
+  },
+  "modal": {
+   "ok": true,
+   "fits": true,
+   "scroller": true,
+   "reachable": true,
+   "closeVisibleAtTop": true,
+   "h": 382,
+   "vh": 900
+  },
+  "issues": [],
+  "log": {
+   "errors": [],
+   "warnings": [],
+   "failed": []
+  }
+ },
+ {
+  "tab": "state: classes roster",
+  "viewport": "992x900",
+  "state": "classes roster",
+  "vw": 992,
+  "vh": 900,
+  "overflow": 0,
+  "offenders": [],
+  "clipped": [],
+  "overlaps": [],
+  "smallTargets": [],
+  "smallTargetCount": 0,
+  "sticky": {
+   "bars": [],
+   "total": 0,
+   "share": 0
+  },
+  "issues": [],
+  "log": {
+   "errors": [],
+   "warnings": [],
+   "failed": []
+  }
+ },
+ {
+  "tab": "state: classes code modal",
+  "viewport": "992x900",
+  "state": "classes code modal",
+  "vw": 992,
+  "vh": 900,
+  "overflow": 0,
+  "offenders": [],
+  "clipped": [],
+  "overlaps": [],
+  "smallTargets": [],
+  "smallTargetCount": 0,
+  "sticky": {
+   "bars": [],
+   "total": 0,
+   "share": 0
+  },
+  "modal": {
+   "ok": true,
+   "fits": true,
+   "scroller": true,
+   "reachable": true,
+   "closeVisibleAtTop": true,
+   "h": 348,
+   "vh": 900
+  },
+  "issues": [],
+  "log": {
+   "errors": [],
+   "warnings": [],
+   "failed": []
+  }
+ },
+ {
+  "tab": "state: classes class settings",
+  "viewport": "992x900",
+  "state": "classes class settings",
+  "vw": 992,
+  "vh": 900,
+  "overflow": 0,
+  "offenders": [],
+  "clipped": [],
+  "overlaps": [],
+  "smallTargets": [],
+  "smallTargetCount": 0,
+  "sticky": {
+   "bars": [],
+   "total": 0,
+   "share": 0
+  },
+  "issues": [],
+  "log": {
+   "errors": [],
+   "warnings": [],
+   "failed": []
+  }
+ },
+ {
+  "tab": "state: question bank cards",
+  "viewport": "992x900",
+  "state": "question bank cards",
+  "vw": 992,
+  "vh": 900,
+  "overflow": 0,
+  "offenders": [],
+  "clipped": [],
+  "overlaps": [],
+  "smallTargets": [],
+  "smallTargetCount": 0,
+  "sticky": {
+   "bars": [],
+   "total": 0,
+   "share": 0
+  },
+  "issues": [],
+  "log": {
+   "errors": [],
+   "warnings": [],
+   "failed": []
+  }
+ },
+ {
+  "tab": "state: question bank editor",
+  "viewport": "992x900",
+  "state": "question bank editor",
+  "vw": 992,
+  "vh": 900,
+  "overflow": 0,
+  "offenders": [],
+  "clipped": [],
+  "overlaps": [],
+  "smallTargets": [],
+  "smallTargetCount": 0,
+  "sticky": {
+   "bars": [],
+   "total": 0,
+   "share": 0
+  },
+  "issues": [],
+  "log": {
+   "errors": [],
+   "warnings": [],
+   "failed": []
+  }
+ },
+ {
+  "tab": "state: ai drafting retrieved material",
+  "viewport": "992x900",
+  "state": "ai drafting retrieved material",
+  "vw": 992,
+  "vh": 900,
+  "overflow": 0,
+  "offenders": [],
+  "clipped": [],
+  "overlaps": [],
+  "smallTargets": [],
+  "smallTargetCount": 0,
+  "sticky": {
+   "bars": [],
+   "total": 0,
+   "share": 0
+  },
+  "issues": [],
+  "log": {
+   "errors": [],
+   "warnings": [],
+   "failed": []
+  }
+ },
+ {
+  "tab": "state: ai drafting material library",
+  "viewport": "992x900",
+  "state": "ai drafting material library",
+  "vw": 992,
+  "vh": 900,
+  "overflow": 0,
+  "offenders": [],
+  "clipped": [],
+  "overlaps": [],
+  "smallTargets": [],
+  "smallTargetCount": 0,
+  "sticky": {
+   "bars": [],
+   "total": 0,
+   "share": 0
+  },
+  "issues": [],
+  "log": {
+   "errors": [],
+   "warnings": [],
+   "failed": []
+  }
+ },
+ {
+  "tab": "Analytics",
+  "viewport": "1199x900",
+  "vw": 1199,
+  "vh": 900,
+  "overflow": 0,
+  "offenders": [],
+  "clipped": [],
+  "overlaps": [],
+  "smallTargets": [],
+  "smallTargetCount": 0,
+  "sticky": {
+   "bars": [
+    "div.dash-toolbar.no-print"
+   ],
+   "total": 151,
+   "share": 0.17
+  },
+  "end": {
+   "ok": true,
+   "bottom": 850,
+   "vh": 900,
+   "covered": null
+  },
+  "anchors": [
+   {
+    "id": "dash-overview",
+    "top": 209,
+    "cover": 167,
+    "ok": true
+   },
+   {
+    "id": "dash-weeks",
+    "top": 1499,
+    "cover": 164,
+    "ok": true
+   },
+   {
+    "id": "dash-trends",
+    "top": 2185,
+    "cover": 151,
+    "ok": true
+   },
+   {
+    "id": "dash-topics",
+    "top": 4030,
+    "cover": 154,
+    "ok": true
+   },
+   {
+    "id": "dash-missed",
+    "top": 6654,
+    "cover": 151,
+    "ok": true
+   },
+   {
+    "id": "dash-quality",
+    "top": 7405,
+    "cover": 155,
+    "ok": true
+   },
+   {
+    "id": "dash-compare",
+    "top": 8613,
+    "cover": 151,
+    "ok": true
+   }
+  ],
+  "focus": [],
+  "log": {
+   "errors": [],
+   "warnings": [],
+   "failed": []
+  },
+  "issues": []
+ },
+ {
+  "tab": "To review",
+  "viewport": "1199x900",
+  "vw": 1199,
+  "vh": 900,
+  "overflow": 0,
+  "offenders": [],
+  "clipped": [],
+  "overlaps": [],
+  "smallTargets": [],
+  "smallTargetCount": 0,
+  "sticky": {
+   "bars": [],
+   "total": 0,
+   "share": 0
+  },
+  "end": {
+   "ok": true,
+   "bottom": 801,
+   "vh": 900,
+   "covered": null
+  },
+  "focus": [],
+  "log": {
+   "errors": [],
+   "warnings": [],
+   "failed": []
+  },
+  "issues": []
+ },
+ {
+  "tab": "Classes & Roster",
+  "viewport": "1199x900",
+  "vw": 1199,
+  "vh": 900,
+  "overflow": 0,
+  "offenders": [],
+  "clipped": [],
+  "overlaps": [],
+  "smallTargets": [],
+  "smallTargetCount": 0,
+  "sticky": {
+   "bars": [],
+   "total": 0,
+   "share": 0
+  },
+  "end": {
+   "ok": true,
+   "bottom": 825,
+   "vh": 900,
+   "covered": null
+  },
+  "focus": [],
+  "log": {
+   "errors": [],
+   "warnings": [],
+   "failed": []
+  },
+  "issues": []
+ },
+ {
+  "tab": "Question bank",
+  "viewport": "1199x900",
+  "vw": 1199,
+  "vh": 900,
+  "overflow": 0,
+  "offenders": [],
+  "clipped": [],
+  "overlaps": [],
+  "smallTargets": [],
+  "smallTargetCount": 0,
+  "sticky": {
+   "bars": [],
+   "total": 0,
+   "share": 0
+  },
+  "end": {
+   "ok": true,
+   "bottom": 825,
+   "vh": 900,
+   "covered": null
+  },
+  "focus": [],
+  "log": {
+   "errors": [],
+   "warnings": [],
+   "failed": []
+  },
+  "issues": []
+ },
+ {
+  "tab": "AI drafting",
+  "viewport": "1199x900",
+  "vw": 1199,
+  "vh": 900,
+  "overflow": 0,
+  "offenders": [],
+  "clipped": [],
+  "overlaps": [],
+  "smallTargets": [],
+  "smallTargetCount": 0,
+  "sticky": {
+   "bars": [],
+   "total": 0,
+   "share": 0
+  },
+  "end": {
+   "ok": true,
+   "bottom": 825,
+   "vh": 900,
+   "covered": null
+  },
+  "focus": [],
+  "log": {
+   "errors": [],
+   "warnings": [],
+   "failed": []
+  },
+  "issues": []
+ },
+ {
+  "tab": "Evaluation",
+  "viewport": "1199x900",
+  "vw": 1199,
+  "vh": 900,
+  "overflow": 0,
+  "offenders": [],
+  "clipped": [],
+  "overlaps": [],
+  "smallTargets": [],
+  "smallTargetCount": 0,
+  "sticky": {
+   "bars": [],
+   "total": 0,
+   "share": 0
+  },
+  "end": {
+   "ok": true,
+   "bottom": 810,
+   "vh": 900,
+   "covered": null
+  },
+  "focus": [],
+  "log": {
+   "errors": [],
+   "warnings": [],
+   "failed": []
+  },
+  "issues": []
+ },
+ {
+  "tab": "Settings",
+  "viewport": "1199x900",
+  "vw": 1199,
+  "vh": 900,
+  "overflow": 0,
+  "offenders": [],
+  "clipped": [],
+  "overlaps": [],
+  "smallTargets": [],
+  "smallTargetCount": 0,
+  "sticky": {
+   "bars": [],
+   "total": 0,
+   "share": 0
+  },
+  "end": {
+   "ok": true,
+   "bottom": 575,
+   "vh": 900,
+   "covered": null
+  },
+  "focus": [],
+  "log": {
+   "errors": [],
+   "warnings": [],
+   "failed": []
+  },
+  "issues": []
+ },
+ {
+  "tab": "Analytics",
+  "viewport": "1200x900",
+  "vw": 1200,
+  "vh": 900,
+  "overflow": 0,
+  "offenders": [],
+  "clipped": [],
+  "overlaps": [],
+  "smallTargets": [],
+  "smallTargetCount": 0,
+  "sticky": {
+   "bars": [
+    "div.dash-toolbar.no-print"
+   ],
+   "total": 151,
+   "share": 0.17
+  },
+  "end": {
+   "ok": true,
+   "bottom": 850,
+   "vh": 900,
+   "covered": null
+  },
+  "anchors": [
+   {
+    "id": "dash-overview",
+    "top": 209,
+    "cover": 167,
+    "ok": true
+   },
+   {
+    "id": "dash-weeks",
+    "top": 1162,
+    "cover": 164,
+    "ok": true
+   },
+   {
+    "id": "dash-trends",
+    "top": 1841,
+    "cover": 151,
+    "ok": true
+   },
+   {
+    "id": "dash-topics",
+    "top": 3409,
+    "cover": 153,
+    "ok": true
+   },
+   {
+    "id": "dash-missed",
+    "top": 6047,
+    "cover": 154,
+    "ok": true
+   },
+   {
+    "id": "dash-quality",
+    "top": 6772,
+    "cover": 151,
+    "ok": true
+   },
+   {
+    "id": "dash-compare",
+    "top": 8005,
+    "cover": 155,
+    "ok": true
+   }
+  ],
+  "focus": [],
+  "log": {
+   "errors": [],
+   "warnings": [],
+   "failed": []
+  },
+  "issues": []
+ },
+ {
+  "tab": "To review",
+  "viewport": "1200x900",
+  "vw": 1200,
+  "vh": 900,
+  "overflow": 0,
+  "offenders": [],
+  "clipped": [],
+  "overlaps": [],
+  "smallTargets": [],
+  "smallTargetCount": 0,
+  "sticky": {
+   "bars": [],
+   "total": 0,
+   "share": 0
+  },
+  "end": {
+   "ok": true,
+   "bottom": 801,
+   "vh": 900,
+   "covered": null
+  },
+  "focus": [],
+  "log": {
+   "errors": [],
+   "warnings": [],
+   "failed": []
+  },
+  "issues": []
+ },
+ {
+  "tab": "Classes & Roster",
+  "viewport": "1200x900",
+  "vw": 1200,
+  "vh": 900,
+  "overflow": 0,
+  "offenders": [],
+  "clipped": [],
+  "overlaps": [],
+  "smallTargets": [],
+  "smallTargetCount": 0,
+  "sticky": {
+   "bars": [],
+   "total": 0,
+   "share": 0
+  },
+  "end": {
+   "ok": true,
+   "bottom": 825,
+   "vh": 900,
+   "covered": null
+  },
+  "focus": [],
+  "log": {
+   "errors": [],
+   "warnings": [],
+   "failed": []
+  },
+  "issues": []
+ },
+ {
+  "tab": "Question bank",
+  "viewport": "1200x900",
+  "vw": 1200,
+  "vh": 900,
+  "overflow": 0,
+  "offenders": [],
+  "clipped": [],
+  "overlaps": [],
+  "smallTargets": [],
+  "smallTargetCount": 0,
+  "sticky": {
+   "bars": [],
+   "total": 0,
+   "share": 0
+  },
+  "end": {
+   "ok": true,
+   "bottom": 825,
+   "vh": 900,
+   "covered": null
+  },
+  "focus": [],
+  "log": {
+   "errors": [],
+   "warnings": [],
+   "failed": []
+  },
+  "issues": []
+ },
+ {
+  "tab": "AI drafting",
+  "viewport": "1200x900",
+  "vw": 1200,
+  "vh": 900,
+  "overflow": 0,
+  "offenders": [],
+  "clipped": [],
+  "overlaps": [],
+  "smallTargets": [],
+  "smallTargetCount": 0,
+  "sticky": {
+   "bars": [],
+   "total": 0,
+   "share": 0
+  },
+  "end": {
+   "ok": true,
+   "bottom": 825,
+   "vh": 900,
+   "covered": null
+  },
+  "focus": [],
+  "log": {
+   "errors": [],
+   "warnings": [],
+   "failed": []
+  },
+  "issues": []
+ },
+ {
+  "tab": "Evaluation",
+  "viewport": "1200x900",
+  "vw": 1200,
+  "vh": 900,
+  "overflow": 0,
+  "offenders": [],
+  "clipped": [],
+  "overlaps": [],
+  "smallTargets": [],
+  "smallTargetCount": 0,
+  "sticky": {
+   "bars": [],
+   "total": 0,
+   "share": 0
+  },
+  "end": {
+   "ok": true,
+   "bottom": 810,
+   "vh": 900,
+   "covered": null
+  },
+  "focus": [],
+  "log": {
+   "errors": [],
+   "warnings": [],
+   "failed": []
+  },
+  "issues": []
+ },
+ {
+  "tab": "Settings",
+  "viewport": "1200x900",
+  "vw": 1200,
+  "vh": 900,
+  "overflow": 0,
+  "offenders": [],
+  "clipped": [],
+  "overlaps": [],
+  "smallTargets": [],
+  "smallTargetCount": 0,
+  "sticky": {
+   "bars": [],
+   "total": 0,
+   "share": 0
+  },
+  "end": {
+   "ok": true,
+   "bottom": 575,
+   "vh": 900,
+   "covered": null
+  },
+  "focus": [],
+  "log": {
+   "errors": [],
+   "warnings": [],
+   "failed": []
+  },
+  "issues": []
+ },
+ {
+  "tab": "Analytics",
+  "viewport": "667x375",
+  "vw": 667,
+  "vh": 375,
+  "overflow": 0,
+  "offenders": [],
+  "clipped": [],
+  "overlaps": [],
+  "smallTargets": [],
+  "smallTargetCount": 0,
+  "sticky": {
+   "bars": [
+    "header#top"
+   ],
+   "total": 53,
+   "share": 0.14
+  },
+  "end": {
+   "ok": true,
+   "bottom": 335,
+   "vh": 375,
+   "covered": null
+  },
+  "anchors": [
+   {
+    "id": "dash-overview",
+    "top": 392,
+    "cover": 53,
+    "ok": true
+   },
+   {
+    "id": "dash-weeks",
+    "top": 1749,
+    "cover": 53,
+    "ok": true
+   },
+   {
+    "id": "dash-trends",
+    "top": 2661,
+    "cover": 53,
+    "ok": true
+   },
+   {
+    "id": "dash-topics",
+    "top": 4662,
+    "cover": 53,
+    "ok": true
+   },
+   {
+    "id": "dash-missed",
+    "top": 7447,
+    "cover": 53,
+    "ok": true
+   },
+   {
+    "id": "dash-quality",
+    "top": 8620,
+    "cover": 53,
+    "ok": true
+   },
+   {
+    "id": "dash-compare",
+    "top": 9823,
+    "cover": 53,
+    "ok": true
+   }
+  ],
+  "focus": [],
+  "log": {
+   "errors": [],
+   "warnings": [],
+   "failed": []
+  },
+  "issues": []
+ },
+ {
+  "tab": "To review",
+  "viewport": "667x375",
+  "vw": 667,
+  "vh": 375,
+  "overflow": 0,
+  "offenders": [],
+  "clipped": [],
+  "overlaps": [],
+  "smallTargets": [],
+  "smallTargetCount": 0,
+  "sticky": {
+   "bars": [
+    "header#top"
+   ],
+   "total": 53,
+   "share": 0.14
+  },
+  "end": {
+   "ok": true,
+   "bottom": 296,
+   "vh": 375,
+   "covered": null
+  },
+  "focus": [],
+  "log": {
+   "errors": [],
+   "warnings": [],
+   "failed": []
+  },
+  "issues": []
+ },
+ {
+  "tab": "Classes & Roster",
+  "viewport": "667x375",
+  "vw": 667,
+  "vh": 375,
+  "overflow": 0,
+  "offenders": [],
+  "clipped": [],
+  "overlaps": [],
+  "smallTargets": [],
+  "smallTargetCount": 0,
+  "sticky": {
+   "bars": [
+    "header#top"
+   ],
+   "total": 53,
+   "share": 0.14
+  },
+  "end": {
+   "ok": true,
+   "bottom": 314,
+   "vh": 375,
+   "covered": null
+  },
+  "focus": [],
+  "log": {
+   "errors": [],
+   "warnings": [],
+   "failed": []
+  },
+  "issues": []
+ },
+ {
+  "tab": "Question bank",
+  "viewport": "667x375",
+  "vw": 667,
+  "vh": 375,
+  "overflow": 0,
+  "offenders": [],
+  "clipped": [],
+  "overlaps": [],
+  "smallTargets": [],
+  "smallTargetCount": 0,
+  "sticky": {
+   "bars": [
+    "header#top"
+   ],
+   "total": 53,
+   "share": 0.14
+  },
+  "end": {
+   "ok": true,
+   "bottom": 314,
+   "vh": 375,
+   "covered": null
+  },
+  "focus": [],
+  "log": {
+   "errors": [],
+   "warnings": [],
+   "failed": []
+  },
+  "issues": []
+ },
+ {
+  "tab": "AI drafting",
+  "viewport": "667x375",
+  "vw": 667,
+  "vh": 375,
+  "overflow": 0,
+  "offenders": [],
+  "clipped": [],
+  "overlaps": [],
+  "smallTargets": [],
+  "smallTargetCount": 0,
+  "sticky": {
+   "bars": [
+    "header#top"
+   ],
+   "total": 53,
+   "share": 0.14
+  },
+  "end": {
+   "ok": true,
+   "bottom": 313,
+   "vh": 375,
+   "covered": null
+  },
+  "focus": [],
+  "log": {
+   "errors": [],
+   "warnings": [],
+   "failed": []
+  },
+  "issues": []
+ },
+ {
+  "tab": "Evaluation",
+  "viewport": "667x375",
+  "vw": 667,
+  "vh": 375,
+  "overflow": 0,
+  "offenders": [],
+  "clipped": [],
+  "overlaps": [],
+  "smallTargets": [],
+  "smallTargetCount": 0,
+  "sticky": {
+   "bars": [
+    "header#top"
+   ],
+   "total": 53,
+   "share": 0.14
+  },
+  "end": {
+   "ok": true,
+   "bottom": 299,
+   "vh": 375,
+   "covered": null
+  },
+  "focus": [],
+  "log": {
+   "errors": [],
+   "warnings": [],
+   "failed": []
+  },
+  "issues": []
+ },
+ {
+  "tab": "Settings",
+  "viewport": "667x375",
+  "vw": 667,
+  "vh": 375,
+  "overflow": 0,
+  "offenders": [],
+  "clipped": [],
+  "overlaps": [],
+  "smallTargets": [],
+  "smallTargetCount": 0,
+  "sticky": {
+   "bars": [
+    "header#top"
+   ],
+   "total": 53,
+   "share": 0.14
+  },
+  "end": {
+   "ok": true,
+   "bottom": 304,
+   "vh": 375,
+   "covered": null
+  },
+  "focus": [],
+  "log": {
+   "errors": [],
+   "warnings": [],
+   "failed": []
+  },
+  "issues": []
+ },
+ {
+  "tab": "state: drawer open",
+  "viewport": "667x375",
+  "state": "drawer open",
+  "vw": 667,
+  "vh": 375,
+  "overflow": 0,
+  "offenders": [],
+  "clipped": [],
+  "overlaps": [],
+  "smallTargets": [],
+  "smallTargetCount": 0,
+  "sticky": {
+   "bars": [
+    "header#top"
+   ],
+   "total": 53,
+   "share": 0.14
+  },
+  "drawer": {
+   "fits": true,
+   "lastReachable": true
+  },
+  "issues": [],
+  "log": {
+   "errors": [],
+   "warnings": [],
+   "failed": []
+  }
+ },
+ {
+  "tab": "state: analytics question dialog",
+  "viewport": "667x375",
+  "state": "analytics question dialog",
+  "vw": 667,
+  "vh": 375,
+  "overflow": 0,
+  "offenders": [],
+  "clipped": [],
+  "overlaps": [],
+  "smallTargets": [],
+  "smallTargetCount": 0,
+  "sticky": {
+   "bars": [
+    "header#top"
+   ],
+   "total": 53,
+   "share": 0.14
+  },
+  "modal": {
+   "ok": true,
+   "fits": true,
+   "scroller": true,
+   "reachable": true,
+   "closeVisibleAtTop": true,
+   "h": 327,
+   "vh": 375
+  },
+  "issues": [],
+  "log": {
+   "errors": [],
+   "warnings": [],
+   "failed": []
+  }
+ },
+ {
+  "tab": "state: classes create modal",
+  "viewport": "667x375",
+  "state": "classes create modal",
+  "vw": 667,
+  "vh": 375,
+  "overflow": 0,
+  "offenders": [],
+  "clipped": [],
+  "overlaps": [],
+  "smallTargets": [],
+  "smallTargetCount": 0,
+  "sticky": {
+   "bars": [
+    "header#top"
+   ],
+   "total": 53,
+   "share": 0.14
+  },
+  "modal": {
+   "ok": true,
+   "fits": true,
+   "scroller": true,
+   "reachable": true,
+   "closeVisibleAtTop": true,
+   "h": 359,
+   "vh": 375
+  },
+  "issues": [],
+  "log": {
+   "errors": [],
+   "warnings": [],
+   "failed": []
+  }
+ },
+ {
+  "tab": "state: classes rename modal",
+  "viewport": "667x375",
+  "state": "classes rename modal",
+  "vw": 667,
+  "vh": 375,
+  "overflow": 0,
+  "offenders": [],
+  "clipped": [],
+  "overlaps": [],
+  "smallTargets": [],
+  "smallTargetCount": 0,
+  "sticky": {
+   "bars": [
+    "header#top"
+   ],
+   "total": 53,
+   "share": 0.14
+  },
+  "modal": {
+   "ok": true,
+   "fits": true,
+   "scroller": true,
+   "reachable": true,
+   "closeVisibleAtTop": true,
+   "h": 359,
+   "vh": 375
+  },
+  "issues": [],
+  "log": {
+   "errors": [],
+   "warnings": [],
+   "failed": []
+  }
+ },
+ {
+  "tab": "state: classes roster",
+  "viewport": "667x375",
+  "state": "classes roster",
+  "vw": 667,
+  "vh": 375,
+  "overflow": 0,
+  "offenders": [],
+  "clipped": [],
+  "overlaps": [],
+  "smallTargets": [],
+  "smallTargetCount": 0,
+  "sticky": {
+   "bars": [
+    "header#top"
+   ],
+   "total": 53,
+   "share": 0.14
+  },
+  "issues": [],
+  "log": {
+   "errors": [],
+   "warnings": [],
+   "failed": []
+  }
+ },
+ {
+  "tab": "state: classes code modal",
+  "viewport": "667x375",
+  "state": "classes code modal",
+  "vw": 667,
+  "vh": 375,
+  "overflow": 0,
+  "offenders": [],
+  "clipped": [],
+  "overlaps": [],
+  "smallTargets": [],
+  "smallTargetCount": 0,
+  "sticky": {
+   "bars": [
+    "header#top"
+   ],
+   "total": 53,
+   "share": 0.14
+  },
+  "modal": {
+   "ok": true,
+   "fits": true,
+   "scroller": true,
+   "reachable": true,
+   "closeVisibleAtTop": true,
+   "h": 354,
+   "vh": 375
+  },
+  "issues": [],
+  "log": {
+   "errors": [],
+   "warnings": [],
+   "failed": []
+  }
+ },
+ {
+  "tab": "state: classes class settings",
+  "viewport": "667x375",
+  "state": "classes class settings",
+  "vw": 667,
+  "vh": 375,
+  "overflow": 0,
+  "offenders": [],
+  "clipped": [],
+  "overlaps": [],
+  "smallTargets": [],
+  "smallTargetCount": 0,
+  "sticky": {
+   "bars": [
+    "header#top"
+   ],
+   "total": 53,
+   "share": 0.14
+  },
+  "issues": [],
+  "log": {
+   "errors": [],
+   "warnings": [],
+   "failed": []
+  }
+ },
+ {
+  "tab": "state: question bank cards",
+  "viewport": "667x375",
+  "state": "question bank cards",
+  "vw": 667,
+  "vh": 375,
+  "overflow": 0,
+  "offenders": [],
+  "clipped": [],
+  "overlaps": [],
+  "smallTargets": [],
+  "smallTargetCount": 0,
+  "sticky": {
+   "bars": [
+    "header#top",
+    "div.cr-decide"
+   ],
+   "total": 105,
+   "share": 0.28
+  },
+  "issues": [],
+  "log": {
+   "errors": [],
+   "warnings": [],
+   "failed": []
+  }
+ },
+ {
+  "tab": "state: question bank editor",
+  "viewport": "667x375",
+  "state": "question bank editor",
+  "vw": 667,
+  "vh": 375,
+  "overflow": 0,
+  "offenders": [],
+  "clipped": [],
+  "overlaps": [],
+  "smallTargets": [],
+  "smallTargetCount": 0,
+  "sticky": {
+   "bars": [
+    "header#top"
+   ],
+   "total": 53,
+   "share": 0.14
+  },
+  "issues": [],
+  "log": {
+   "errors": [],
+   "warnings": [],
+   "failed": []
+  }
+ },
+ {
+  "tab": "state: ai drafting retrieved material",
+  "viewport": "667x375",
+  "state": "ai drafting retrieved material",
+  "vw": 667,
+  "vh": 375,
+  "overflow": 0,
+  "offenders": [],
+  "clipped": [],
+  "overlaps": [],
+  "smallTargets": [],
+  "smallTargetCount": 0,
+  "sticky": {
+   "bars": [
+    "header#top"
+   ],
+   "total": 53,
+   "share": 0.14
+  },
+  "issues": [],
+  "log": {
+   "errors": [],
+   "warnings": [],
+   "failed": []
+  }
+ },
+ {
+  "tab": "state: ai drafting material library",
+  "viewport": "667x375",
+  "state": "ai drafting material library",
+  "vw": 667,
+  "vh": 375,
+  "overflow": 0,
+  "offenders": [],
+  "clipped": [],
+  "overlaps": [],
+  "smallTargets": [],
+  "smallTargetCount": 0,
+  "sticky": {
+   "bars": [
+    "header#top"
+   ],
+   "total": 53,
+   "share": 0.14
+  },
+  "issues": [],
+  "log": {
+   "errors": [],
+   "warnings": [],
+   "failed": []
+  }
+ },
+ {
+  "tab": "Analytics",
+  "viewport": "740x360",
+  "vw": 740,
+  "vh": 360,
+  "overflow": 0,
+  "offenders": [],
+  "clipped": [],
+  "overlaps": [],
+  "smallTargets": [],
+  "smallTargetCount": 0,
+  "sticky": {
+   "bars": [
+    "header#top"
+   ],
+   "total": 53,
+   "share": 0.15
+  },
+  "end": {
+   "ok": true,
+   "bottom": 320,
+   "vh": 360,
+   "covered": null
+  },
+  "anchors": [
+   {
+    "id": "dash-overview",
+    "top": 390,
+    "cover": 53,
+    "ok": true
+   },
+   {
+    "id": "dash-weeks",
+    "top": 1740,
+    "cover": 53,
+    "ok": true
+   },
+   {
+    "id": "dash-trends",
+    "top": 2659,
+    "cover": 53,
+    "ok": true
+   },
+   {
+    "id": "dash-topics",
+    "top": 4633,
+    "cover": 53,
+    "ok": true
+   },
+   {
+    "id": "dash-missed",
+    "top": 7352,
+    "cover": 53,
+    "ok": true
+   },
+   {
+    "id": "dash-quality",
+    "top": 8464,
+    "cover": 53,
+    "ok": true
+   },
+   {
+    "id": "dash-compare",
+    "top": 9793,
+    "cover": 53,
+    "ok": true
+   }
+  ],
+  "focus": [],
+  "log": {
+   "errors": [],
+   "warnings": [],
+   "failed": []
+  },
+  "issues": []
+ },
+ {
+  "tab": "To review",
+  "viewport": "740x360",
+  "vw": 740,
+  "vh": 360,
+  "overflow": 0,
+  "offenders": [],
+  "clipped": [],
+  "overlaps": [],
+  "smallTargets": [],
+  "smallTargetCount": 0,
+  "sticky": {
+   "bars": [
+    "header#top"
+   ],
+   "total": 53,
+   "share": 0.15
+  },
+  "end": {
+   "ok": true,
+   "bottom": 281,
+   "vh": 360,
+   "covered": null
+  },
+  "focus": [],
+  "log": {
+   "errors": [],
+   "warnings": [],
+   "failed": []
+  },
+  "issues": []
+ },
+ {
+  "tab": "Classes & Roster",
+  "viewport": "740x360",
+  "vw": 740,
+  "vh": 360,
+  "overflow": 0,
+  "offenders": [],
+  "clipped": [],
+  "overlaps": [],
+  "smallTargets": [],
+  "smallTargetCount": 0,
+  "sticky": {
+   "bars": [
+    "header#top"
+   ],
+   "total": 53,
+   "share": 0.15
+  },
+  "end": {
+   "ok": true,
+   "bottom": 299,
+   "vh": 360,
+   "covered": null
+  },
+  "focus": [],
+  "log": {
+   "errors": [],
+   "warnings": [],
+   "failed": []
+  },
+  "issues": []
+ },
+ {
+  "tab": "Question bank",
+  "viewport": "740x360",
+  "vw": 740,
+  "vh": 360,
+  "overflow": 0,
+  "offenders": [],
+  "clipped": [],
+  "overlaps": [],
+  "smallTargets": [],
+  "smallTargetCount": 0,
+  "sticky": {
+   "bars": [
+    "header#top"
+   ],
+   "total": 53,
+   "share": 0.15
+  },
+  "end": {
+   "ok": true,
+   "bottom": 299,
+   "vh": 360,
+   "covered": null
+  },
+  "focus": [],
+  "log": {
+   "errors": [],
+   "warnings": [],
+   "failed": []
+  },
+  "issues": []
+ },
+ {
+  "tab": "AI drafting",
+  "viewport": "740x360",
+  "vw": 740,
+  "vh": 360,
+  "overflow": 0,
+  "offenders": [],
+  "clipped": [],
+  "overlaps": [],
+  "smallTargets": [],
+  "smallTargetCount": 0,
+  "sticky": {
+   "bars": [
+    "header#top"
+   ],
+   "total": 53,
+   "share": 0.15
+  },
+  "end": {
+   "ok": true,
+   "bottom": 299,
+   "vh": 360,
+   "covered": null
+  },
+  "focus": [],
+  "log": {
+   "errors": [],
+   "warnings": [],
+   "failed": []
+  },
+  "issues": []
+ },
+ {
+  "tab": "Evaluation",
+  "viewport": "740x360",
+  "vw": 740,
+  "vh": 360,
+  "overflow": 0,
+  "offenders": [],
+  "clipped": [],
+  "overlaps": [],
+  "smallTargets": [],
+  "smallTargetCount": 0,
+  "sticky": {
+   "bars": [
+    "header#top"
+   ],
+   "total": 53,
+   "share": 0.15
+  },
+  "end": {
+   "ok": true,
+   "bottom": 284,
+   "vh": 360,
+   "covered": null
+  },
+  "focus": [],
+  "log": {
+   "errors": [],
+   "warnings": [],
+   "failed": []
+  },
+  "issues": []
+ },
+ {
+  "tab": "Settings",
+  "viewport": "740x360",
+  "vw": 740,
+  "vh": 360,
+  "overflow": 0,
+  "offenders": [],
+  "clipped": [],
+  "overlaps": [],
+  "smallTargets": [],
+  "smallTargetCount": 0,
+  "sticky": {
+   "bars": [
+    "header#top"
+   ],
+   "total": 53,
+   "share": 0.15
+  },
+  "end": {
+   "ok": true,
+   "bottom": 289,
+   "vh": 360,
+   "covered": null
+  },
+  "focus": [],
+  "log": {
+   "errors": [],
+   "warnings": [],
+   "failed": []
+  },
+  "issues": []
+ }
+]
