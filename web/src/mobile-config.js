@@ -41,3 +41,30 @@ export function canvasDpr() {
   const cores = navigator.hardwareConcurrency || MOBILE_LOW_END_CORES;
   return Math.min(raw, cores < MOBILE_LOW_END_CORES ? MOBILE_LOW_END_DPR : MOBILE_MAX_DPR);
 }
+
+// Kingdom resources (docs/mobile/FIXES.md, F3). Below this width the floating
+// coin, resource and Castle chips collapse into one "resources" chip beside
+// the menu button; it opens a popover, or a bottom sheet under
+// RESOURCES_SHEET_BELOW_PX. Both width toggles use the hysteresis band so a
+// window resized across the line does not flip back and forth.
+export const RESOURCES_COLLAPSE_BELOW_PX = 1024;
+export const RESOURCES_SHEET_BELOW_PX = 600;
+export const WIDTH_TOGGLE_HYSTERESIS_PX = 24;
+// The Kingdom title card drops the "Buildings" label (keeping its icon and
+// accessible name) when it has less room than this.
+export const TOWN_TITLE_COMPACT_BELOW_PX = 190;
+
+// Hysteresis for a width-based on/off: once on (below `limit`), it turns off
+// only at `limit + band` and up.
+export function belowWithHysteresis(width, limit, wasBelow, band = WIDTH_TOGGLE_HYSTERESIS_PX) {
+  return wasBelow ? width < limit + band : width < limit;
+}
+
+// "9,999", then "10.4k" from 10,000 and "1.2M" from a million (rounded down,
+// so the chip never shows more than the student has).
+export function abbreviateCount(value) {
+  const n = Math.max(0, Math.floor(Number(value) || 0));
+  if (n >= 1e6) return `${Math.floor(n / 1e5) / 10}M`;
+  if (n >= 1e4) return `${Math.floor(n / 100) / 10}k`;
+  return n.toLocaleString('en-US');
+}

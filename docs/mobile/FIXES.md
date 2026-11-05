@@ -76,3 +76,74 @@ It also checks Esc and the backdrop. The test fails without the fix: at 375x667 
 lands on the menu button's `path`.
 
 **Screenshots:** `screenshots/fixes/F1-before.png` and `F1-after.png` (Summon History at 375x667).
+
+---
+
+## F3: Kingdom header overlap and floating resource chips
+
+**Status before:** not fixed. At 768x1024 the "Your Kingdom" card (left 18, about 403 px wide)
+ran under the Castle chip and the balance chips (right 18). On phones the chips floated in a
+second row at `top: 130px`.
+
+**Root cause:** `web/src/student/KingdomView.vue:660` and `:681` (before this fix). The title
+card and the economy row are two separate `position: absolute` boxes, pinned to opposite
+corners with fixed offsets. Neither knows the other's width. Once the title (about 400 px)
+plus the chips (about 350 px) are wider than the viewport, they overlap. The phone rules
+(`@media (max-width: 600px)` and the coarse-portrait block) moved the chips down to
+`top: 130px`, which is the "floating" look.
+
+**Fix:**
+- **Config:** `web/src/mobile-config.js` has `RESOURCES_COLLAPSE_BELOW_PX = 1024`,
+  `RESOURCES_SHEET_BELOW_PX = 600`, `WIDTH_TOGGLE_HYSTERESIS_PX = 24`,
+  `TOWN_TITLE_COMPACT_BELOW_PX = 190`, `belowWithHysteresis()` and `abbreviateCount()`.
+- **Collapse:** below 1024 px, the Castle chip and the four balance chips become one
+  resources chip. It shows the coin icon, the coin count ("9,999", then "10.4k" from 10,000,
+  rounded down) and a chevron. It is 44 px tall, on the menu button's row, 8 px to its left.
+  - The width toggles have 24 px hysteresis: once collapsed, the chips come back only at
+    1048 px or wider. The sheet/popover switch works the same way.
+  - Where there is no phone menu button (901 to 1023 px with a mouse), the chip takes the
+    corner the chips used.
+- **No overlap at any width:** a `ResizeObserver` on the right-hand group (the chip, or the
+  chips at 1024 and up) sets the title card's `max-width` to the room left of that group,
+  minus 12 px.
+  - The right group never depends on the title, so this cannot loop.
+  - The title truncates with an ellipsis, and the Buildings and "?" buttons stay on one row.
+  - When the card has less than 190 px (320 px phones), the Buildings label is visually
+    hidden but keeps its accessible name and icon.
+  - On desktop, nothing changes unless the title card would otherwise overlap.
+- **Panel:** "Your resources" (`role="dialog"`, labelled by its title, `aria-expanded` on
+  the chip).
+  - From 600 px up it is a 300 px popover under the chip, aligned to its right edge, with a
+    pointer.
+  - Below 600 px it is a bottom sheet with rounded top corners, safe-area padding and a
+    backdrop.
+  - Rows are 44 px or taller: Coins ("Spend on Summon pulls"), then Wood, Crystal and Herb,
+    with amounts right-aligned in tabular figures with thousands separators. Below them is
+    "Castle level N / 3" with a thin bar.
+  - Values are reactive, so they update while the panel is open.
+  - It closes on the × (44x44), Esc, an outside tap and a route change, and focus returns to
+    the chip.
+  - It scrolls inside itself when short (667x375).
+  - The sheet registers with the F1 overlay registry.
+- **Assumption:** the brief's "Herb (subline 'Used for building upgrades')" is read as the
+  subline for all three building resources (Wood, Crystal, Herb).
+- **Assumption:** the chip's accessible name is "Resources: N coins".
+
+**Tests:** `tests/mobile/kingdom-resources.spec.mjs`.
+- **Width sweep:** from 320 to 1440 px in 8 px steps (touch and mouse), then shrinking back.
+  At every width it checks:
+  - no box overlaps between the title card, the right-hand group, each chip and the menu
+    button;
+  - every chip is inside the viewport;
+  - collapsed below 1024 (plus the 24 px band when growing);
+  - the chip is the menu button's height, on its row, with an 8 px gap.
+- **Fresh loads:** at 667x375, 740x360, 1024x768 and 768x1024.
+- **Panel test:** at 375x667 and 320x568 (sheet) and 768x1024 and 667x375 (popover):
+  - role and label, 4 rows, whole amounts, the panel inside the viewport;
+  - the close button topmost;
+  - a live update (Wood shows 12,345 with the panel open);
+  - closing by ×, Esc, outside tap and route change, with focus back on the chip.
+- The suite and F1 passed 3 times in a row (57/57).
+
+**Screenshots:** `F3-before.png` (768x1024), `F3-after.png`, `F3-after-panel-popover.png`
+(768x1024) and `F3-after-panel-sheet.png` (375x667).

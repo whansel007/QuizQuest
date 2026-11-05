@@ -9,8 +9,13 @@ export function deviceFor(w, h) {
   return { viewport: { width: w, height: h }, deviceScaleFactor: 1, isMobile: touch && w < 1024, hasTouch: touch, reducedMotion: 'reduce' };
 }
 
-export async function newStudentPage(browser, w, h) {
-  const context = await browser.newContext(deviceFor(w, h));
+export async function newStudentPage(browser, w, h, device = {}) {
+  const context = await browser.newContext({ ...deviceFor(w, h), ...device });
+  // the first-visit Kingdom tour opens a moment after the town loads and
+  // would take the first Esc; mark it seen so every test starts the same way
+  await context.addInitScript((email) => {
+    try { for (const id of ['s-01', email]) localStorage.setItem(`qq-kingdom-intro-seen:${id}`, '1'); } catch { /* storage blocked */ }
+  }, STUDENT.email);
   const page = await context.newPage();
   await page.goto('/');
   await page.getByRole('textbox', { name: 'Email' }).fill(STUDENT.email);
@@ -36,7 +41,9 @@ export async function openStudentTab(page, name) {
     await toggle.click();
     await expect(page.getByTestId('nav-drawer')).toBeVisible();
   }
-  await tab.click();
+  await tab.click({ timeout: 8000 });
+  // the drawer closes on a choice
+  if (await page.getByTestId('nav-drawer').count()) await expect(page.getByTestId('nav-drawer')).toBeHidden();
 }
 
 // Fonts loaded and two frames painted.

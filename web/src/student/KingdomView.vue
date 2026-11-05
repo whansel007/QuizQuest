@@ -4,7 +4,7 @@
 // HUD, building panels, the first-visit tour and the telescope
 // hand-off to Hero Summon. The map itself lives in KingdomTown.
 // ============================================================
-import { ref, computed, reactive, nextTick, onMounted, onUnmounted } from 'vue';
+import { ref, computed, reactive, nextTick, onMounted, onUnmounted, watch } from 'vue';
 import { S, api, retryablePost } from '../api.js';
 import { fmtBundle, toast } from '../ui.js';
 import { soundState, toggleMuted, playCue } from '../sound.js';
@@ -12,6 +12,10 @@ import { wipe, wipeTo } from '../transitions.js';
 import AsyncButton from '../components/AsyncButton.vue';
 import { loadHome } from './home.js';
 import { useOverlay } from '../overlays.js';
+import {
+  PHONE_NAV_QUERY, RESOURCES_COLLAPSE_BELOW_PX, RESOURCES_SHEET_BELOW_PX, TOWN_TITLE_COMPACT_BELOW_PX,
+  abbreviateCount, belowWithHysteresis,
+} from '../mobile-config.js';
 import KingdomTown from './KingdomTown.vue';
 import BuildingIcon from './BuildingIcon.vue';
 import GardenPanel from './kingdom/panels/GardenPanel.vue';
@@ -56,6 +60,80 @@ onUnmounted(() => {
   window.removeEventListener('qq-debug-kingdom-updated', onDebugKingdomUpdated);
   window.removeEventListener('qq-replay-kingdom-intro', replayFirstIntro);
   clearTimeout(radioTimer);
+  stopTopRowLayout();
+});
+
+// ---- F3 (docs/mobile/FIXES.md): the top row of the town ----
+// Below RESOURCES_COLLAPSE_BELOW_PX the coin, resource and Castle chips
+// become one "resources" chip left of the app's menu button. The title card
+// is given exactly the room left of whatever sits on the right (the chips or
+// the one chip), so the two can never overlap at any width.
+const resourcesCollapsed = ref(belowWithHysteresis(window.innerWidth, RESOURCES_COLLAPSE_BELOW_PX, false));
+const resourcesAsSheet = ref(belowWithHysteresis(window.innerWidth, RESOURCES_SHEET_BELOW_PX, false));
+const resourcesOpen = ref(false);
+const resourcesChip = ref(null);
+const resourcesPanel = ref(null);
+const topRight = ref(null);
+const titleHud = ref(null);
+const titleMax = ref(null);
+const titleCompact = ref(false);
+const phoneMenuQuery = window.matchMedia?.(PHONE_NAV_QUERY);
+const besideMenu = ref(Boolean(phoneMenuQuery?.matches));
+const onPhoneMenuChange = (event) => { besideMenu.value = event.matches; nextTick(layoutTopRow); };
+phoneMenuQuery?.addEventListener?.('change', onPhoneMenuChange);
+useOverlay(() => resourcesOpen.value && resourcesAsSheet.value);
+const coinCount = computed(() => Number(homeData.value?.wallet?.balance || 0));
+const coinShort = computed(() => abbreviateCount(coinCount.value));
+const fmtAmount = (n) => Number(n || 0).toLocaleString('en-US');
+function layoutTopRow() {
+  const right = topRight.value?.getBoundingClientRect();
+  const title = titleHud.value?.getBoundingClientRect();
+  if (!right || !title || !right.width) { titleMax.value = null; return; }
+  const room = Math.floor(right.left - title.left - 12);
+  titleMax.value = room;
+  titleCompact.value = belowWithHysteresis(room, TOWN_TITLE_COMPACT_BELOW_PX, titleCompact.value);
+}
+function onViewportResize() {
+  const w = window.innerWidth;
+  const collapsed = belowWithHysteresis(w, RESOURCES_COLLAPSE_BELOW_PX, resourcesCollapsed.value);
+  if (collapsed !== resourcesCollapsed.value) { resourcesCollapsed.value = collapsed; resourcesOpen.value = false; }
+  resourcesAsSheet.value = belowWithHysteresis(w, RESOURCES_SHEET_BELOW_PX, resourcesAsSheet.value);
+  nextTick(layoutTopRow);
+}
+// The right-hand group never depends on the title's width, so measuring it
+// cannot feed back into itself.
+const topRowObserver = typeof ResizeObserver === 'function' ? new ResizeObserver(() => layoutTopRow()) : null;
+watch(topRight, (el, old) => {
+  if (old) topRowObserver?.unobserve(old);
+  if (el) { topRowObserver?.observe(el); nextTick(layoutTopRow); }
+});
+window.addEventListener('resize', onViewportResize);
+function stopTopRowLayout() {
+  topRowObserver?.disconnect();
+  window.removeEventListener('resize', onViewportResize);
+  phoneMenuQuery?.removeEventListener?.('change', onPhoneMenuChange);
+  document.removeEventListener('pointerdown', onResourcesOutside, true);
+}
+async function openResources() {
+  listOpen.value = false;
+  resourcesOpen.value = true;
+  await nextTick();
+  resourcesPanel.value?.querySelector('[data-testid="resources-close"]')?.focus({ preventScroll: true });
+}
+function closeResources({ restoreFocus = true } = {}) {
+  if (!resourcesOpen.value) return;
+  resourcesOpen.value = false;
+  if (restoreFocus) resourcesChip.value?.focus({ preventScroll: true });
+}
+function toggleResources() { if (resourcesOpen.value) closeResources(); else openResources(); }
+// a tap anywhere outside the chip and the panel closes it
+function onResourcesOutside(event) {
+  if (resourcesPanel.value?.contains(event.target) || resourcesChip.value?.contains(event.target)) return;
+  closeResources({ restoreFocus: false });
+}
+watch(resourcesOpen, (open) => {
+  if (open) document.addEventListener('pointerdown', onResourcesOutside, true);
+  else document.removeEventListener('pointerdown', onResourcesOutside, true);
 });
 
 const R = computed(() => k.value.catalog.resources);
@@ -309,7 +387,8 @@ function closePanel() {
 }
 function onTownKeydown(event) {
   if (event.key !== 'Escape') return;
-  if (introOpen.value) { closeIntro(); event.stopPropagation(); }
+  if (resourcesOpen.value) { closeResources(); event.stopPropagation(); }
+  else if (introOpen.value) { closeIntro(); event.stopPropagation(); }
   else if (archiveOpen.value) { closeArchiveBook(); event.stopPropagation(); }
   else if (townTarget.value) { closePanel(); event.stopPropagation(); }
   else if (listOpen.value) { listOpen.value = false; event.stopPropagation(); }
@@ -544,13 +623,13 @@ const castlePanelContext = reactive({
         @interact="onTownInteract"
       />
 
-      <div class="town-hud town-title-hud">
+      <div ref="titleHud" class="town-hud town-title-hud" :class="{ compact: titleCompact }" :style="titleMax ? { maxWidth: `${titleMax}px` } : null" data-testid="town-title-hud">
         <span class="scene-kicker">WELCOME HOME</span>
         <h1 class="town-title"><span>Your Kingdom</span><span class="town-title-dot" aria-hidden="true"> · </span><span>Storybook Town</span></h1>
         <div class="town-title-actions">
-          <button class="hud-btn" type="button" :aria-expanded="listOpen" aria-controls="town-building-list" @click="listOpen = !listOpen">
+          <button class="hud-btn" type="button" :aria-expanded="listOpen" aria-controls="town-building-list" aria-label="Buildings" @click="listOpen = !listOpen">
             <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M3 17V8l7-5 7 5v9h-5v-5H8v5H3Z" /></svg>
-            Buildings
+            <span class="hud-btn-label">Buildings</span>
           </button>
           <button class="hud-btn hud-icon" type="button" :aria-label="'Replay the kingdom tour'" title="Kingdom tour" @click="openIntro">?</button>
         </div>
@@ -566,7 +645,50 @@ const castlePanelContext = reactive({
           <em :class="{ ready: p.affordable }">Lv {{ p.lvl }}/{{ buildingCap(p.id) }}<template v-if="p.affordable"> · ready</template></em>
         </button>
       </section>
-      <div class="town-hud town-economy">
+      <!-- narrow screens: one chip beside the menu button opens the resources panel -->
+      <div v-if="resourcesCollapsed" ref="topRight" class="town-hud town-resources" :class="{ 'beside-menu': besideMenu }" data-testid="town-top-right">
+        <button ref="resourcesChip" type="button" class="town-resources-chip" data-testid="resources-chip" aria-haspopup="dialog" :aria-expanded="resourcesOpen" aria-controls="town-resources-panel" :aria-label="`Resources: ${coinBalance} coins`" @click="toggleResources">
+          <span class="town-resources-coin" aria-hidden="true">🪙</span>
+          <span class="town-resources-count">{{ coinShort }}</span>
+          <svg class="town-resources-chevron" :class="{ open: resourcesOpen }" viewBox="0 0 12 12" aria-hidden="true"><path d="m3 4.5 3 3 3-3" /></svg>
+        </button>
+      </div>
+      <div v-if="resourcesOpen && resourcesAsSheet" class="town-resources-backdrop" aria-hidden="true"></div>
+      <section
+        v-if="resourcesOpen"
+        id="town-resources-panel"
+        ref="resourcesPanel"
+        class="town-resources-panel"
+        :class="[resourcesAsSheet ? 'as-sheet' : 'as-popover', { 'beside-menu': besideMenu }]"
+        role="dialog"
+        :aria-modal="resourcesAsSheet ? 'true' : null"
+        aria-labelledby="town-resources-title"
+        data-testid="resources-panel"
+      >
+        <div class="town-resources-body">
+        <header class="town-resources-head">
+          <h2 id="town-resources-title">Your resources</h2>
+          <button type="button" class="town-resources-close" aria-label="Close resources" data-testid="resources-close" @click="closeResources()">×</button>
+        </header>
+        <ul class="town-resources-rows">
+          <li data-testid="resources-row">
+            <span class="town-resources-icon" aria-hidden="true">🪙</span>
+            <span class="town-resources-name">Coins<small>Spend on Summon pulls</small></span>
+            <span class="town-resources-amount">{{ fmtAmount(coinCount) }}</span>
+          </li>
+          <li v-for="(resource, id) in R" :key="id" data-testid="resources-row">
+            <span class="town-resources-icon" aria-hidden="true">{{ resource.emoji }}</span>
+            <span class="town-resources-name">{{ resource.name }}<small>Used for building upgrades</small></span>
+            <span class="town-resources-amount">{{ fmtAmount(k.resources[id]) }}</span>
+          </li>
+        </ul>
+        <div class="town-resources-castle">
+          <span>Castle level {{ k.castleLevel }} / {{ BUILDING_LEVEL_CAP }}</span>
+          <span class="town-resources-bar" role="progressbar" aria-label="Castle level" :aria-valuenow="k.castleLevel" aria-valuemin="0" :aria-valuemax="BUILDING_LEVEL_CAP"><i :style="{ width: `${Math.min(100, (k.castleLevel / BUILDING_LEVEL_CAP) * 100)}%` }"></i></span>
+        </div>
+        </div>
+      </section>
+      <div v-if="!resourcesCollapsed" ref="topRight" class="town-hud town-economy" data-testid="town-top-right">
         <div class="town-level">Castle · {{ k.castleLevel }} / {{ BUILDING_LEVEL_CAP }}</div>
         <div class="town-balances" role="group" aria-label="Your coins and Kingdom resources">
           <span class="town-balance" :aria-label="`${coinBalance} coins`" title="Coins">🪙 {{ coinBalance }}</span>
@@ -1102,4 +1224,43 @@ const castlePanelContext = reactive({
 @media (pointer: coarse) {
   .kingdom-screen .town-title-actions .hud-btn { min-height: 44px; min-width: 44px; }
 }
+/* ---- F3 (docs/mobile/FIXES.md): the title card never runs under the chips ----
+   KingdomView measures the room left of the right-hand group and sets the
+   card's max-width; the title truncates and the buttons stay whole. */
+.kingdom-screen .town-title-hud { min-width: 0; box-sizing: border-box; }
+.kingdom-screen .town-title, .kingdom-screen .town-title > span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.kingdom-screen .town-title-actions { flex-wrap: nowrap; }
+.kingdom-screen .town-title-hud.compact .hud-btn-label { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+.kingdom-screen .town-title-hud.compact .town-title-actions .hud-btn { justify-content: center; min-width: 44px; padding-inline: 8px; }
+/* the one resources chip: same row and height as the app's menu button */
+.kingdom-screen .town-resources { top: 18px; right: 18px; }
+.kingdom-screen .town-resources.beside-menu { top: max(8px, env(safe-area-inset-top)); right: calc(max(8px, env(safe-area-inset-right)) + 52px); }
+.kingdom-screen .town-resources-chip { display: inline-flex; align-items: center; gap: 6px; box-sizing: border-box; height: 44px; padding: 0 10px 0 9px; color: #23382f; background: rgb(251 242 216 / 96%); border: 2px solid #23382f; border-radius: 10px; box-shadow: 0 3px 0 #7a6545; font: 900 .95rem/1 Nunito, Trebuchet MS, sans-serif; font-variant-numeric: tabular-nums; white-space: nowrap; cursor: pointer; }
+.kingdom-screen .town-resources-chip:hover, .kingdom-screen .town-resources-chip:focus-visible { outline: 3px solid #f2ba55; outline-offset: 2px; }
+.kingdom-screen .town-resources-coin { font-size: 1.05rem; }
+.kingdom-screen .town-resources-chevron { width: 12px; height: 12px; fill: none; stroke: #23382f; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+.kingdom-screen .town-resources-chevron.open { transform: rotate(180deg); }
+/* the panel: a popover under the chip, or a bottom sheet on narrow screens */
+.kingdom-screen .town-resources-panel { position: absolute; z-index: var(--z-popover); display: flex; flex-direction: column; box-sizing: border-box; color: #23382f; background: #fbf2d8; background-image: url('/hero-lab/assets/storybook-paper.svg'), linear-gradient(135deg, #fff8e4, #f1e6c7); background-size: 144px 144px, auto; border: 2px solid #23382f; }
+.kingdom-screen .town-resources-body { min-height: 0; padding: 0 14px 14px; overflow-y: auto; overscroll-behavior: contain; border-radius: inherit; }
+.kingdom-screen .town-resources-panel.as-popover { top: calc(18px + 44px + 10px); right: 18px; width: 300px; max-width: calc(100% - 16px); max-height: calc(100% - 18px - 44px - 10px - 8px); border-radius: 10px; box-shadow: 0 4px 0 #7a6545, 0 14px 30px rgb(16 33 23 / 30%); }
+/* the small pointer up to the chip */
+.kingdom-screen .town-resources-panel.as-popover::before { content: ""; position: absolute; top: -9px; right: 26px; width: 14px; height: 14px; background: #fbf2d8; border-top: 2px solid #23382f; border-left: 2px solid #23382f; transform: rotate(45deg); }
+.kingdom-screen .town-resources-panel.as-popover.beside-menu { top: calc(max(8px, env(safe-area-inset-top)) + 44px + 10px); right: calc(max(8px, env(safe-area-inset-right)) + 52px); max-height: calc(100% - max(8px, env(safe-area-inset-top)) - 44px - 10px - max(8px, env(safe-area-inset-bottom))); }
+.kingdom-screen .town-resources-panel.as-sheet { position: fixed; z-index: var(--z-modal); right: 0; bottom: 0; left: 0; max-height: 85svh; border-width: 2px 0 0; border-radius: 16px 16px 0 0; box-shadow: 0 -6px 24px rgb(16 33 23 / 30%); }
+.kingdom-screen .town-resources-panel.as-sheet .town-resources-body { padding: 0 max(16px, env(safe-area-inset-right)) max(16px, env(safe-area-inset-bottom)) max(16px, env(safe-area-inset-left)); }
+.kingdom-screen .town-resources-backdrop { position: fixed; z-index: calc(var(--z-modal) - 1); inset: 0; background: rgb(22 36 27 / 45%); }
+.kingdom-screen .town-resources-head { position: sticky; z-index: 1; top: 0; display: flex; align-items: center; justify-content: space-between; gap: 12px; margin: 0 -2px 4px; padding: 10px 0 8px; background: #fbf2d8; border-bottom: 2px dashed #c5b58e; }
+.kingdom-screen .town-resources-head h2 { margin: 0; min-width: 0; color: #254937; font: 700 20px/1.15 Georgia, "Palatino Linotype", serif; }
+.kingdom-screen .town-resources-close { flex: none; width: 44px; height: 44px; padding: 0; color: #23382f; background: #fff8e4; border: 2px solid #23382f; border-radius: 8px; box-shadow: 0 3px 0 #7a6545; font-size: 24px; line-height: 1; cursor: pointer; }
+.kingdom-screen .town-resources-close:hover, .kingdom-screen .town-resources-close:focus-visible { outline: 3px solid #f2ba55; outline-offset: 2px; }
+.kingdom-screen .town-resources-rows { margin: 0; padding: 0; list-style: none; }
+.kingdom-screen .town-resources-rows li { display: grid; grid-template-columns: 28px minmax(0, 1fr) auto; align-items: center; gap: 10px; min-height: 44px; padding: 6px 2px; border-bottom: 1px dashed #c5b58e; }
+.kingdom-screen .town-resources-icon { font-size: 1.25rem; text-align: center; }
+.kingdom-screen .town-resources-name { min-width: 0; font: 800 .95rem/1.2 Nunito, Trebuchet MS, sans-serif; }
+.kingdom-screen .town-resources-name small { display: block; color: #5f6d58; font: 700 .72rem/1.25 Nunito, Trebuchet MS, sans-serif; }
+.kingdom-screen .town-resources-amount { font: 900 1rem/1 Nunito, Trebuchet MS, sans-serif; font-variant-numeric: tabular-nums; text-align: right; white-space: nowrap; }
+.kingdom-screen .town-resources-castle { display: grid; gap: 6px; padding: 10px 2px 0; font: 800 .88rem/1.2 Nunito, Trebuchet MS, sans-serif; }
+.kingdom-screen .town-resources-bar { display: block; height: 6px; overflow: hidden; background: #e4d6b2; border: 1px solid #c5b58e; border-radius: 4px; }
+.kingdom-screen .town-resources-bar i { display: block; height: 100%; background: #f2ba55; }
 </style>
