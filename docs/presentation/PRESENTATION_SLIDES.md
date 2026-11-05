@@ -1,6 +1,27 @@
-# IS216 Final Presentation — Slide Deck (TEXT DRAFT)
+# IS216 Final Presentation — Slide Deck (TEXT DRAFT) — SUPERSEDED
 
 **QuizQuest (team Prince William's Quest)** · Monday 16 Nov 2026 · a text deck, not a design file.
+
+> # ⛔ SUPERSEDED — DO NOT PRESENT FROM THIS FILE
+>
+> **The deck that ships is Kai Cong's `QuizQuest Project slides.pdf` — 13 pages**, exported from
+> PowerPoint. It is in the submission zip. **Its page numbers are not the slide numbers below.**
+>
+> **Use these instead:**
+> - `docs/presentation/PRESENTATION_RUN_OF_SHOW.md` — the timed run sheet, **re-keyed to the
+>   13-page PDF** (every "page N" there is a PDF page).
+> - `docs/presentation/QA_PREP.md` — the Q&A pack.
+>
+> This file is kept only as the working draft the deck grew out of, and as the source of the
+> facts (tab names, button labels, test counts, demo steps) that the PDF and the run sheet both
+> quote. **Do not read a number off it in the room.**
+>
+> **Its timings are stale as well.** The per-slide and per-member tables below are the old
+> 12-slide script's and they no longer match the run of show's 13-page split — use the run
+> of show's §1 tables, not these.
+>
+> The one thing the PDF no longer carries is a **testing page** and a **live-demo page** — the
+> demo runs as one block between PDF pages 10 and 11, and the test counts are spoken at beat D12.
 
 > **DRAFT — for the team to adapt.** Every line below is a suggestion, not a law. Reword it, cut a bullet, change the order. What is *not* a suggestion is the set of facts: the tab names, the button labels, the test counts and the demo steps are all quoted from the code and must stay accurate.
 >
@@ -28,7 +49,7 @@
 
 - **QuizQuest** — a gamified learning platform for university classes: professors author and publish questions, students practise where they are weak, and both sides get a game on top.
 - Team **Prince William's Quest** — Section 7, group G7.
-- **Demo video: {{VIDEO_LINK}}** — YouTube, unlisted or public, 12 minutes maximum, at least 720p.
+- **Demo video: https://youtu.be/A6CSirXZbDQ** — YouTube, public, 12 minutes maximum, at least 720p. **Measured 5 Nov: 11:54 (714 s), 720p and 1080p — but that was the pre-music upload, and a re-upload with background music is expected, so re-measure it before the room.**
 - Live app: **https://quizquest-4phd.onrender.com** (big text on the slide).
 
 **Speaker note (Marxel, 0:20)** — "Hi, we're team Prince William's Quest, and this is QuizQuest — a quiz platform for university classes. The link to our demo video is on this slide, and the app is live at quizquest-4phd.onrender.com."
@@ -175,7 +196,7 @@
 
 - **Vue 3 + Vite** in the browser · a dependency-free **Node HTTP server** that serves the API, the sockets and the built SPA from one process · **Socket.IO** for the live Campfire Run · **Bootstrap** for the utility classes · **PDF.js + fflate** to read lecture files in the browser · **Playwright** for the end-to-end tests.
 - One process, one origin: a student session, a professor session and the real-time arena all come from the same address, so there is no CORS or proxy in production.
-- Third-party code is credited **by name and licence** in `README.md` — Vue, Vite, Socket.IO, Bootstrap and Playwright (MIT), PDF.js and PGlite (Apache 2.0), fflate (MIT), Fontsource fonts (OFL 1.1), game-icons.net icons (CC BY 3.0).
+- Third-party code is credited **by name and licence** in `README.md` — Vue, Vite, Socket.IO, Bootstrap and fflate (MIT), PDF.js, Playwright and PGlite (Apache 2.0), Fontsource fonts (OFL 1.1), game-icons.net icons (CC BY 3.0). **Playwright is Apache 2.0, not MIT.**
 - Data is **one JSON file** by default, or **Supabase Postgres** when `SUPABASE_URL` is set — one store behind one interface, with row-level security on for every table and no policies.
 
 **Speaker note (William Hansel, 0:50)** — "The stack in one line: Vue and Vite in the browser, a dependency-free Node server that serves the API, the sockets and the built app from one process, Socket.IO for the live Campfire Run, Bootstrap for the utility classes, PDF.js and fflate to read lecture files in the browser, and Playwright for the end-to-end tests. One process, one origin — a student session, a professor session and the real-time arena all come from the same address, so there is no CORS or proxy in production. And all of it is credited by name and licence in the README. We haven't presented anyone else's library as our work."
@@ -265,9 +286,9 @@ Have the recorded video open in another tab and say: *"Let me show you the recor
 
 ## Speaker script, slide by slide
 
-The words below are the script; the times are the budget. Total **18:15 of speaking** — 12:00 of slides, 5:45 of live demo, 0:30 of closing — plus **3:00 of Q&A at the front**, so the whole thing is **21:15**. There is no slack in that, which is why the cut list at the bottom exists. Every owner should time their own slides out loud and write `<OWNER: confirm the time>` next to anything they have not yet run.
+⛔ **These are the OLD 12-slide script's words and budgets. They are not the numbers we present with.** The shipping deck is Kai's exported 13-page PDF and the authoritative script is `PRESENTATION_RUN_OF_SHOW.md`; its budget is **20:50 in all** — **3:00 of Q&A, then 17:50 of speaking** (9:55 of pages and the transition, 7:25 of live-demo beats, 0:30 of closing). The totals in this file are the old draft's: 18:15 of speaking, a 5:45 demo and a 720-second slide block. **Do not read a time off this file.** Every owner should time their own blocks out loud against the run of show and write `<OWNER: confirm the time>` next to anything they have not yet run.
 
-**Where the live demo sits:** the slides are numbered in the order they are shown. Slides 1–9 play first, then the **live demo** (the run sheet below, 5:45), then slides 10–12, then the closing. That is the same order as `PRESENTATION_RUN_OF_SHOW.md`: the feature tour, then the app running, then how we tested and what it is built on.
+**Where the live demo sits (this is the OLD 12-slide script's order — it is not the order we present in):** slides 1–9, then the **live demo** (the run sheet below, 5:45), then slides 10–12, then the closing. **The shipping order is different, and it is the one in `PRESENTATION_RUN_OF_SHOW.md`:** Kai's exported 13-page deck has no demo page, so the demo now runs as **one block between page 10 and page 11**. This file is a historical draft — do not take its order, its timings or its slide numbers from it.
 
 | Slide | Who speaks | Budgeted |
 |---|---|---|
@@ -309,11 +330,11 @@ The words below are the script; the times are the budget. Total **18:15 of speak
 | Ho Zhi Yang | 8 | 100 | Analytics | 55 | — | **155** | 2:35 |
 | **Total** | | **720** | | **345** | **30** | **1095** | **18:15** |
 
-**Check the arithmetic:** 720 s of slides + 345 s of live-demo beats + 30 s of closing = **1095 s = 18:15 of speaking**. Add the **3:00 of Q&A at the front** (the professor's rule — Q&A is before the demo, not after) and the whole thing is **1275 s = 21:15**.
+**Check the arithmetic (this is the old draft's own arithmetic — the shipping budget is in the run of show):** 720 s of slides + 345 s of live-demo beats + 30 s of closing = **1095 s = 18:15 of speaking**. Add the **3:00 of Q&A at the front** (the professor's rule — Q&A is before the demo, not after) and the whole thing is **1275 s = 21:15**.
 
 Every row sits between **2:30 and 4:00**. Marxel has the longest slot because he is the repository owner and carries the title slide, both of his own feature slides and all three mandatory beats. **Four minutes of demo per member for six members is not achievable** — the demo is **5:45 in total**, and the seven student steps inside it are **2:20**.
 
-This is the same table as `PRESENTATION_RUN_OF_SHOW.md` — same per-member totals, same total. The two differences are deliberate: the per-class-settings slide is folded into the class-management half-slide (it is the first thing to cut if you are over), and the demo is 5:45 rather than 6:50 because Xavier is right that seven steps cannot carry four minutes each. **If the run of show changes, this table changes with it — do not let the two drift apart.**
+⛔ **This is NOT the same table as `PRESENTATION_RUN_OF_SHOW.md`, and the numbers differ.** These are the old draft's per-member slots (Marxel 4:00, William 3:30, Xavier 3:05, Kai 2:30, Jasper 2:35, Zhi Yang 2:35) against a 5:45 demo. The authoritative table is in `PRESENTATION_RUN_OF_SHOW.md` §1: **20:50 in all — 3:00 of Q&A, then 17:50 of speaking (9:55 of pages and the transition, 7:25 of demo, 0:30 of closing)** — with per-member slots from Marxel 4:40 down to Zhi Yang and Jasper 1:45. **If you need your slot, read it from the run of show, never from here.**
 
 | | Seconds | |
 |---|---|---|
@@ -323,6 +344,8 @@ This is the same table as `PRESENTATION_RUN_OF_SHOW.md` — same per-member tota
 | Closing | 30 | 0:30 |
 | **Total** | **1275** | **21:15** |
 
+⛔ **Superseded figures.** The shipping budget is in `PRESENTATION_RUN_OF_SHOW.md` §1: **Q&A 180 s + pages and transition 595 s + live demo 445 s + closing 30 s = 1250 s = 20:50** — 17:50 of speaking, a 7:25 demo and a 13-page deck, not a 5:45 demo and 12 slides.
+
 ### If you are running over
 
 Cut in this order, and never touch a teammate's feature slide: (1) slide 12's repository bullets, (2) slide 2, the problem, (3) slide 3, the tour map, (4) slide 11's testing half — the numbers are in `QA_PREP.md` if you need to say them instead of reading them. Never cut slides 4a, 4b, 5a, 5b, 6, 7, 8 or 9: each one is a teammate's own feature, and the professor wants about one meaningful feature per person.
@@ -331,7 +354,7 @@ Cut in this order, and never touch a teammate's feature slide: (1) slide 12's re
 
 ## Placeholders to fill before the room
 
-- [ ] **Slide 1 — demo video link:** the deck carries `{{VIDEO_LINK}}` until the video is uploaded. `pnpm submit --video-link "<url>"` swaps the real URL in, and it refuses to build if slide 1 has no link.
+- [ ] **Slide 1 — demo video link:** the deck carries the real link — `https://youtu.be/A6CSirXZbDQ` — on slide 1 of `QuizQuest Project slides.pdf`. `pnpm submit --video-link "<url>"` **verifies** it: the packer reads slide 1 of the PDF back with PDF.js and **fails the build** if the link is not on the slide. It does **not** write the link into the deck, so the deck has to carry it by hand. **If the video is re-uploaded with the music, the new URL must replace it on the slide before you build.**
 - [ ] **Slide 1 — confirm the live URL still resolves** and that the instance wakes; check for a 503 with a `Retry-After` header before you walk in.
 - [ ] **Slide 4a — screenshot:** paste the **Classes & Roster** grid, at least two class cards visible, so the card shows the student count, the join-code count and the three actions — **Manage Roster & Codes →**, **Settings**, **Rename**. The *Rename Class* modal open on top of it is the better shot: it is the newest button on that card.
 - [ ] **Slide 4b — screenshot:** paste the **upload panel** with the **"This is authorised course material without student personal data."** checkbox ticked. If there is room, a second shot of the **Material Library** row with **Edit metadata**, **Archive passage** and the **Show archived material** checkbox visible is worth more than the upload panel alone.
