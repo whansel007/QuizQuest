@@ -40,8 +40,15 @@ export async function openStudentTab(page, name) {
   if (!(await tab.isVisible()) && await toggle.count()) {
     await toggle.click();
     await expect(page.getByTestId('nav-drawer')).toBeVisible();
+  } else if (await page.locator('header#top.student-nav-hidden').count()) {
+    // the wide-screen top bar is tucked away: a pointer at the top edge brings it back
+    await page.mouse.move(page.viewportSize().width / 2, 4);
+    await expect(page.locator('header#top.student-nav-hidden')).toHaveCount(0);
   }
+  const revealed = await page.locator('header#top.student-immersive-nav:not(.student-nav-hidden)').count();
   await tab.click({ timeout: 8000 });
+  // a pointer left at the top edge would hold the top bar open on the next page
+  if (revealed) { const { width, height } = page.viewportSize(); await page.mouse.move(width / 2, height / 2); }
   // the drawer closes on a choice
   if (await page.getByTestId('nav-drawer').count()) await expect(page.getByTestId('nav-drawer')).toBeHidden();
 }

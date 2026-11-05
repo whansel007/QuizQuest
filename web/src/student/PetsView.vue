@@ -585,7 +585,9 @@ onUnmounted(() => {
   .story-modal-header h2 { font-size:22px; }
   .modal-close { flex:none; width:44px; height:44px; }
   .history-tabs button,.rarity-filters button { min-height:44px; }
-  .summon-history-list,.ledger-history ol { max-height:none; }
+  /* F11: the sheet itself scrolls; a shrinking list squashed its rows so each
+     row's NEW / Duplicate tag spilled over the next row's name */
+  .summon-history-list,.ledger-history ol { flex:none; max-height:none; overflow:visible; }
   .history-pagination { position:sticky; bottom:0; padding:8px 0; background:#FBF2D8; }
 }
 </style>

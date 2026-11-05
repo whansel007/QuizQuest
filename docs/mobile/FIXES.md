@@ -489,3 +489,75 @@ guide was already under the sprite.
   54 such pixels; after, 0.
 
 **Screenshots:** `F10-before.png` and `F10-after.png`.
+
+---
+
+## F11: sweep for sibling bugs
+
+**Method:** one scan (kept as `tests/mobile/sibling-sweep.spec.mjs`) runs on every student
+page (Kingdom, Quiz, My Progress, Campfire Run, Summon) and the Summon History sheet, at
+360x640, 375x667, 412x915, 667x375, 740x360, 768x1024, 820x1180 and 960x1440. During the
+sweep it also ran at 1024x768 and 1280x800. It lists:
+- every visible control whose centre is covered by another element (`elementFromPoint`);
+- every pair of controls or text boxes that intersect (not nested);
+- every row of same-class siblings with uneven heights;
+- the computed html, body and page backgrounds.
+
+### Found and fixed
+
+1. **Summon History: the NEW and Duplicate tags overlapped the next row's name** (phones,
+   600 px and below).
+   - **Root cause:** `web/src/student/PetsView.vue:576` (before the fix). In the full-screen
+     sheet (a flex column), the history list keeps `overflow: auto`. That makes its
+     automatic minimum height 0, so the flex column shrank it. Its grid rows were squashed
+     to 61 px, but a row with a tag needs about 93 px (the tag wraps to a second line), so
+     each tag spilled over the row below.
+   - **Fix:** the list is `flex: none; overflow: visible` in the sheet. The sheet itself
+     already scrolls.
+   - **Screenshots:** `F11-before.png` and `F11-after.png` (375x667).
+2. **Campfire Run: "← Back to Kingdom" ran under the corner menu button** (phones, 360 to
+   667 px).
+   - **Root cause:** the button was stretched to the full grid width
+     (`HeroLabView.vue:458`, `.kingdom-return`), so its box ran under the fixed menu
+     button.
+   - **Fix:** `justify-self: start`, so it is only as wide as its text.
+3. **Kingdom and Campfire Run: the app's light grey (`#f6f5f1`) behind the scene.** Same
+   class as F4.
+   - **Root cause:** both pages fill `100svh` but leave html and body on the app default.
+     So the grey shows on overscroll, below the scene once a phone's toolbar collapses
+     (100svh is less than the visible height), and mid-resize.
+   - **Fix:** `web/src/route-theme.js` (`useRouteTheme`) adds a class to `<html>` while the
+     page is mounted. `mobile.css` paints html and body in the page's own colour: the
+     town's green `#2f5e3e` and the clearing's `#32533e`. Leaving the page restores the
+     default. Practice and Progress already theme their body.
+4. **Checkbox labels on touch overrode component layouts.** This was found while fixing F8,
+   and fixed there: `mobile.css`'s `#app :where(label:has(> input[type=checkbox]))`
+   carried ID specificity.
+
+### Checked, nothing to fix
+
+- **Other overlays under a fixed element:** none. All registered overlays now step the top
+  bar aside (F1).
+  - The 960 px tablet's top bar shows for 1.6 s on arrival and then tucks away. That is
+    the existing design, and the test waits for it.
+- **Town colliders:** fixed in F2. That audit also covered rocks, houses, the well and the
+  sign post.
+- **Arena obstacles:** the only solid one is the server's campfire circle, slightly bigger
+  than its stone ring. It is gameplay geometry, so it was left alone (see `fixes/F2.md`).
+- **Chips, cards and tiles of uneven size:** none after F8. The only flag was the Campfire
+  Run panels at 1280 px, which differ in height on purpose (different grid rows).
+- **Decorative dividers or pseudo-elements behind controls:** none besides F5. The
+  absolutely positioned pseudo-elements in the student app are speech-bubble tails, the
+  resources popover pointer, the emote wheel disc and planet rings, none of which sits
+  under a control.
+- **Overlaps at 768x1024, 820x1180 and 960x1440:** none, by bounding-box intersection.
+
+**Test:** `tests/mobile/sibling-sweep.spec.mjs`. At each viewport above, on every page and
+the History sheet, it requires:
+- no covered control;
+- no overlapping boxes;
+- no uneven siblings in a row;
+- the themed html and body behind Kingdom, Campfire Run and Summon.
+
+It fails on the old History sheet (the "Duplicate (+15 coins)" tag over "Wood"). It passed 3
+times in a row.

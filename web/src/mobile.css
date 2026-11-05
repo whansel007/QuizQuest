@@ -30,6 +30,9 @@
 /* F4: the Summon route paints the page itself in the night sky's indigo */
 html.qq-summon-route, html.qq-summon-route body { background-color: #1b3154; }
 html.qq-summon-route main#main.main-summon { background: linear-gradient(180deg, #1b3154, #2c4d7c 53%, #4d6e9e); }
+/* F11: the same for the Kingdom town and the Campfire Run clearing (route-theme.js) */
+html.qq-kingdom-route, html.qq-kingdom-route body { background-color: #2f5e3e; }
+html.qq-world-route, html.qq-world-route body { background-color: #32533e; }
 header#top.under-overlay, .nav-peek.under-overlay { z-index: var(--z-under-overlay); pointer-events: none; }
 /* Long unbroken words (URLs, codes, long names) wrap instead of widening the
    page. break-word keeps tables and flex items at their natural width on

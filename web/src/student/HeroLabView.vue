@@ -10,6 +10,7 @@ import HeroIcon from './HeroIcon.vue';
 import { loadHome } from './home.js';
 import { api, S } from '../api.js';
 import { wipeTo } from '../transitions.js';
+import { useRouteTheme } from '../route-theme.js';
 import { HERO_TYPE_ICON } from './hero-type.js';
 import TalentBadge from './TalentBadge.vue';
 import { GAME_CONFIG } from '../../../public/hero-lab/game-config.js';
@@ -198,6 +199,8 @@ onMounted(async () => {
 // (less SCENE_SELECTOR_GAP_PX). The campfire is centred in S on its ground
 // line; the hero stands on the same baseline beside it, or in front of it when
 // S is narrower than SCENE_FRONT_BELOW_PX. The hero never moves the campfire.
+// F11: the document behind the clearing is the forest's green
+useRouteTheme('qq-world-route');
 const sidesEl = ref(null);
 const sceneEl = ref(null);
 const selectorEl = ref(null);
@@ -538,7 +541,8 @@ onUnmounted(() => {
    border-bottom sat under the input and JOIN once the block was squeezed) */
 .room-or { display: flex; align-items: center; gap: 10px; margin: 16px 0; color: #8a7d5c; font: 800 .66rem/1 Nunito, Trebuchet MS, sans-serif; letter-spacing: .08em; text-transform: uppercase; }
 .room-or::before, .room-or::after { content: ''; flex: 1 1 0; border-top: 2px dashed #a79773; }
-.kingdom-return { align-self: flex-start; margin: 0 0 6px; padding: 2px 0; color: var(--camp-pine); background: none; border: 0; font: 800 .8rem Nunito, Trebuchet MS, sans-serif; text-decoration: underline; cursor: pointer; }
+/* F11: as wide as its text, so on phones it stays clear of the corner menu button */
+.kingdom-return { align-self: flex-start; justify-self: start; margin: 0 0 6px; padding: 2px 0; color: var(--camp-pine); background: none; border: 0; font: 800 .8rem Nunito, Trebuchet MS, sans-serif; text-decoration: underline; cursor: pointer; }
 .kingdom-return:focus-visible { outline: 3px solid #8062a9; outline-offset: 2px; }
 .room-title { margin: 0; color: var(--camp-pine); font-family: Georgia, "Palatino Linotype", serif; font-size: clamp(19px, 1.55vw, 23px); font-weight: 700; letter-spacing: -.02em; line-height: 1; }
 .room-intro { margin: 0; color: #66745d; font-size: .68rem; line-height: 1.15; }

@@ -12,6 +12,7 @@ import { wipe, wipeTo } from '../transitions.js';
 import AsyncButton from '../components/AsyncButton.vue';
 import { loadHome } from './home.js';
 import { useOverlay } from '../overlays.js';
+import { useRouteTheme } from '../route-theme.js';
 import {
   PHONE_NAV_QUERY, RESOURCES_COLLAPSE_BELOW_PX, RESOURCES_SHEET_BELOW_PX, TOWN_TITLE_COMPACT_BELOW_PX,
   TOWN_HINT_SHORT_BELOW_PX, TOWN_HINT_TEXT, TOWN_HINT_TEXT_SHORT, abbreviateCount, belowWithHysteresis,
@@ -225,6 +226,8 @@ const castleInfoOpen = ref(false);
 const upgraders = {};
 const townTarget = ref(null);
 useOverlay(() => Boolean(townTarget.value));
+// F11: the document behind the town is the town's green, never the app's light grey
+useRouteTheme('qq-kingdom-route');
 const listOpen = ref(false);
 const tradeBoard = ref(null);
 const tradeLoading = ref(false);
