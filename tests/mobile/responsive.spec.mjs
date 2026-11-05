@@ -199,7 +199,8 @@ const ROUTES = {
       if (!(await toggle.count())) throw new Error('desktop nav: no drawer at this width');
       await toggle.click();
       await expect(page.getByTestId('nav-drawer')).toBeVisible();
-      await expect(page.locator('#s-drawer nav#tabs button').first()).toBeFocused();
+      // focus moves into the drawer, onto the current page's tab
+      await expect(page.locator('#s-drawer nav#tabs button[aria-current="page"]')).toBeFocused();
     } },
     { name: 'student-progress', setup: async (page) => { await openStudentTab(page, 'My Progress'); await expect(page.locator('main#main.main-progress')).toBeVisible(); } },
     { name: 'student-world', setup: async (page) => {

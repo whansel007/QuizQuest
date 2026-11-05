@@ -1279,7 +1279,13 @@
   "route": "student-nav-drawer",
   "viewport": "375x667",
   "touch": true,
-  "skipped": "\u001b[2mexpect(\u001b[22m\u001b[31mlocator\u001b[39m\u001b[2m).\u001b[22mtoBeFocused\u001b[2m(\u001b[22m\u001b[2m)\u001b[22m failed"
+  "vw": 375,
+  "scrollWidth": 375,
+  "clientWidth": 375,
+  "overflow": [],
+  "overflowCount": 0,
+  "clipped": [],
+  "small": []
  },
  {
   "route": "student-nav-drawer",

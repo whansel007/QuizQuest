@@ -123,7 +123,15 @@ async function openStudentDrawer() {
   studentDrawerOpen.value = true;
   clearStudentNavTimer();
   await nextTick();
-  studentDrawer.value?.querySelector('nav#tabs button[aria-current="page"], nav#tabs button')?.focus();
+  focusWhenVisible(() => studentDrawer.value?.querySelector('nav#tabs button[aria-current="page"]') || studentDrawer.value?.querySelector('nav#tabs button'));
+}
+// A control can only take focus once it is visible; buttons inside the
+// drawer inherit its visibility through their own short transition, so try
+// each frame (for up to ~half a second) until the focus lands.
+function focusWhenVisible(find, frames = 30) {
+  const el = find();
+  if (el) el.focus({ preventScroll: true });
+  if ((!el || document.activeElement !== el) && frames > 0) requestAnimationFrame(() => focusWhenVisible(find, frames - 1));
 }
 function closeStudentDrawer({ restoreFocus = true } = {}) {
   if (!studentDrawerOpen.value) return;
@@ -183,7 +191,7 @@ function onShellKey(event) {
 watch(drawerOpen, async (open) => {
   if (!open) return;
   await nextTick();
-  document.querySelector('#t-sidebar nav#tabs button[aria-current="page"], #t-sidebar nav#tabs button')?.focus();
+  focusWhenVisible(() => document.querySelector('#t-sidebar nav#tabs button[aria-current="page"]') || document.querySelector('#t-sidebar nav#tabs button'));
 });
 document.addEventListener('keydown', onShellKey);
 
