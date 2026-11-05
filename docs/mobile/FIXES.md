@@ -147,3 +147,74 @@ plus the chips (about 350 px) are wider than the viewport, they overlap. The pho
 
 **Screenshots:** `F3-before.png` (768x1024), `F3-after.png`, `F3-after-panel-popover.png`
 (768x1024) and `F3-after-panel-sheet.png` (375x667).
+
+---
+
+## F2: town hitbox (the avatar could not walk up beside the BATTLES sign)
+
+The fix was done in a separate worktree and cherry-picked. The full write-up is in
+[`fixes/F2.md`](fixes/F2.md).
+
+**Status before:** not fixed. Reproduced at 412x915 with touch: the avatar stopped at about
+(438..441, 40.7).
+
+**Root cause:** `web/src/student/kingdom/town-scene.js:42` (before the fix) had
+`TOWN_GAP = { x: 386, w: 48 }`. The walkable gap in the north tree line was x 386..434, but
+the drawn opening is x 374..474. That left an invisible 40 px wall on open grass above the
+sign. A second blocker was the sign-post collider, a circle of radius 7 centred above the
+post's foot (`KingdomTown.vue:72`), which was wider than the drawn post.
+
+**Fix:**
+- The gap is now measured from the trees on either side.
+- Collision code moved unchanged into `web/src/student/kingdom/town-collision.js`, the one
+  shared grid for keys, stick and tap-to-move.
+- `TOWN_PROP_COLLIDER_RATIOS` lives in `config/tuning.js`, the town's own config, because it
+  applies on desktop too. Trees block 40% x 20% at the base.
+- Rocks, houses, the well and the sign post were also bigger than their drawings, and now
+  match them.
+- `?debug=colliders` shows a debug overlay of the colliders.
+- **Arena audit:** the server's campfire circle is slightly bigger than its drawing. It was
+  left alone because it is gameplay geometry.
+
+**Tests:**
+- `web/src/student/kingdom/__tests__/town-collision.spec.js` (vitest): a BFS from the spawn
+  to every door and every open or path tile.
+- `tests/mobile/town-walk.e2e.mjs`: stick and key walks, failing on any stall over 0.5 s,
+  including the camera clamp at the top edge.
+
+**Screenshots:** `F2-before.png` and `F2-after.png`.
+
+---
+
+## F4: Summon page showed green instead of the blue sky
+
+**Status before:** not fixed. At 412x968 the area round History, Details and the Summon
+buttons was dark green.
+
+**Root cause:** `web/src/student/PetsView.vue:540` (before the fix). Below 900 px, the sticky
+bottom bar's background was `linear-gradient(0deg, #254937 80%, transparent)`, and `#254937`
+is the Kingdom's forest green. Two more things could show through around it:
+- The sky (`SummonSky.vue`) was `position: absolute` inside the page, so on phones (where
+  the page scrolls) it only covered the page box.
+- `html` and `body` kept the app's light `--bg`, which shows on overscroll and on tall
+  screens.
+
+**Fix:**
+- The bottom bar uses the sky's indigo, `rgb(27 49 84 / 96%)`, fading to transparent.
+- On the Summon page the sky is a fixed layer: `top/left/right: 0`, `height: 100vh` with a
+  `100dvh` override. The Garden panel's sky inside the Kingdom is not affected.
+- While Summon is mounted, `PetsView` adds `html.qq-summon-route`. That paints `html` and
+  `body` `#1b3154` and gives `main.main-summon` the sky gradient. The class is removed when
+  the student leaves, which restores the previous background.
+
+**Test:** `tests/mobile/summon-theme.spec.mjs`. At 360x640, 375x667, 412x915, 412x968,
+667x375, 768x1024, 960x1440 and 1280x800 it checks:
+- the computed html and body backgrounds are set and not green, and the page root has the
+  gradient;
+- screenshot pixels at the four corners and the bottom bar's centre, at the top and when
+  scrolled to the bottom, are not green (hue 70 to 170 degrees, saturation above 25%);
+- the class is gone after leaving.
+
+The test fails on the old code.
+
+**Screenshots:** `F4-before.png` and `F4-after.png` (full page, 412x968).

@@ -27,6 +27,9 @@
   --z-toast: 1100;
   --z-under-overlay: -1;
 }
+/* F4: the Summon route paints the page itself in the night sky's indigo */
+html.qq-summon-route, html.qq-summon-route body { background-color: #1b3154; }
+html.qq-summon-route main#main.main-summon { background: linear-gradient(180deg, #1b3154, #2c4d7c 53%, #4d6e9e); }
 header#top.under-overlay, .nav-peek.under-overlay { z-index: var(--z-under-overlay); pointer-events: none; }
 /* Long unbroken words (URLs, codes, long names) wrap instead of widening the
    page. break-word keeps tables and flex items at their natural width on

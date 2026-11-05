@@ -255,13 +255,19 @@ try {
   }
 } catch { /* storage blocked: no lens, the page opens as usual */ }
 
+// F4: while Summon is on screen the page itself (html, body) takes the night
+// sky's indigo, so no other colour shows through on overscroll, on tall
+// screens or mid-resize; leaving the route restores the app background.
+const SUMMON_ROUTE_CLASS = 'qq-summon-route';
 onMounted(async () => {
+  document.documentElement.classList.add(SUMMON_ROUTE_CLASS);
   try { await loadHome(); }
   catch (err) { if (alive) error.value = err.message; }
   finally { if (alive) loading.value = false; }
 });
 onUnmounted(() => {
   alive = false;
+  document.documentElement.classList.remove(SUMMON_ROUTE_CLASS);
   clearTimeout(lensOpeningTimer);
   document.body.style.overflow = '';
 });
@@ -432,6 +438,9 @@ onUnmounted(() => {
 </template>
 
 <style scoped>
+/* F4: the sky is a fixed layer the size of the visible viewport, so it
+   covers the whole page at any height and while the page scrolls under it */
+.summon-page > .summon-sky { position:fixed; top:0; right:0; bottom:auto; left:0; height:100vh; height:100dvh; }
 .summon-page { position:fixed; z-index:1; inset:0; display:grid; grid-template-rows:64px minmax(0,1fr) 76px; padding:0 clamp(14px,2vw,30px); overflow:hidden; color:#FBF2D8; font-family:Nunito,Trebuchet MS,system-ui,sans-serif; }
 .summon-topbar,.summon-content,.summon-bottom-bar,.summon-error,.summon-toast,.story-modal-shade { position:relative; z-index:1; }
 .summon-topbar { display:flex; align-items:center; justify-content:space-between; border-bottom:1px solid rgb(251 242 216 / 22%); }
@@ -537,7 +546,7 @@ onUnmounted(() => {
 @media (max-width:899px) {
   .summary-grid { grid-template-columns:repeat(2,minmax(0,1fr)); }.summary-card { min-height:175px; }
   .summon-page { position:relative; min-height:100svh; height:auto; grid-template-rows:64px auto auto; padding:0 14px 12px; overflow:auto; }
-  .summon-content { padding:14px 0; }.summon-banner { min-height:0; max-height:none; width:100%; }.featured-row { grid-template-columns:1fr; }.featured-hero { min-height:230px; }.roster-strip { grid-template-columns:repeat(2,minmax(0,1fr)); }.summon-bottom-bar { position:sticky; bottom:0; z-index:4; padding:8px 0; background:linear-gradient(0deg,#254937 80%,transparent); }
+  .summon-content { padding:14px 0; }.summon-banner { min-height:0; max-height:none; width:100%; }.featured-row { grid-template-columns:1fr; }.featured-hero { min-height:230px; }.roster-strip { grid-template-columns:repeat(2,minmax(0,1fr)); }.summon-bottom-bar { position:sticky; bottom:0; z-index:4; padding:8px 0; background:linear-gradient(0deg,rgb(27 49 84 / 96%) 80%,rgb(27 49 84 / 0%)); }
 }
 @media (max-width:1050px) {
   .summon-bottom-bar { justify-content:space-between; flex-wrap:wrap; }
