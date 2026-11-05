@@ -40,7 +40,7 @@ const change = (r) => (r.meanAccuracyChange === null ? '-' : `${r.meanAccuracyCh
       <div class="panel">
         <h3>Question drafting: acceptance and editing</h3>
         <div class="table-wrap">
-          <table>
+          <table class="sticky-first eval-table" data-testid="eval-drafting">
             <thead><tr><th v-for="h in ['Source', 'Total', 'Pending', 'Approved', 'Rejected', 'Acceptance', 'Edited before approval', 'Discarded by checks', 'Median review time']" :key="h">{{ h }}</th></tr></thead>
             <tbody>
               <tr v-for="d in ev.drafting" :key="d.origin">
@@ -62,7 +62,7 @@ const change = (r) => (r.meanAccuracyChange === null ? '-' : `${r.meanAccuracyCh
         <h3>Preparation time</h3>
         <p class="small muted">Time with the question editor open (capped at 1 hour per save). Hand-written baseline in the demo data is synthetic.</p>
         <div class="table-wrap">
-          <table>
+          <table class="sticky-first eval-table" data-testid="eval-prep">
             <thead><tr><th v-for="h in ['Source', 'Questions timed', 'Total minutes', 'Median per question', 'Minutes per published question']" :key="h">{{ h }}</th></tr></thead>
             <tbody>
               <tr v-for="p in ev.prep" :key="p.origin">

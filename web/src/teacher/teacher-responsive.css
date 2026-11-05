@@ -140,3 +140,15 @@ html:has(.teacher-app) {
   .teacher-app .semester-dates input[type="date"] { display: block; width: 100%; margin-top: 4px; }
   .teacher-app .semester-dates > .btn { align-self: flex-start; }
 }
+
+/* ---------- Evaluation ---------- */
+/* The metrics tables are contained scroll regions (shadow on the side with
+   more to see, the source column pinned): every number column keeps a
+   readable minimum width and its header wraps between words only. */
+.teacher-app .eval-table th { white-space: normal; vertical-align: bottom; }
+.teacher-app .eval-table :is(th, td):not(:first-child) { min-width: 6.5em; }
+/* two tiles per row on phones: an odd last tile (the ratings) takes the whole
+   row, so "😕 13 · 😐 11 · 🙂 16" reads on one line */
+@media (max-width: 767.98px) {
+  .teacher-app .panel > .tiles > .tile:last-child:nth-child(odd) { grid-column: 1 / -1; }
+}
