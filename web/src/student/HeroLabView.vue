@@ -197,8 +197,10 @@ onMounted(async () => {
 // ---- F6 (docs/mobile/FIXES.md): compose the campfire scene from measured sizes ----
 // S is the clearing between the panels above the scene and the hero selector
 // (less SCENE_SELECTOR_GAP_PX). The campfire is centred in S on its ground
-// line; the hero stands on the same baseline beside it, or in front of it when
-// S is narrower than SCENE_FRONT_BELOW_PX. The hero never moves the campfire.
+// line; the hero stands on the same baseline beside it. When S is narrower
+// than SCENE_FRONT_BELOW_PX (phones in portrait, e.g. an iPhone 6 at 375 px)
+// there is no room for both, so the campfire is hidden and the hero stands
+// alone, centred. The hero never moves the campfire.
 // F11: the document behind the clearing is the forest's green
 useRouteTheme('qq-world-route');
 const sidesEl = ref(null);
@@ -378,19 +380,20 @@ onUnmounted(() => {
           <div class="campfire-spotlight" data-testid="scene-campfire">
             <div class="campfire-glow" aria-hidden="true"></div>
             <svg class="campfire-art" viewBox="0 0 220 220" role="img" aria-label="A small animated campfire">
-              <ellipse cx="110" cy="193" rx="77" ry="14" fill="#122b24" opacity=".42"/>
+              <ellipse cx="110" cy="193" rx="74" ry="13" fill="#122b24" opacity=".42"/>
+              <!-- logs and flames are drawn symmetric about x = 110, the middle of the viewBox -->
               <g class="campfire-logs">
-                <path d="M48 164c19-17 91-26 128-4 8 5 9 14 2 19-31 20-101 20-132 4-8-4-7-14 2-19Z" fill="#874a2f" stroke="#452c25" stroke-width="5"/>
-                <path d="M51 175c31-15 90-20 127-5M63 162l12 19m76-22-14 24" fill="none" stroke="#d28a4d" stroke-width="4" stroke-linecap="round"/>
-                <path d="M57 148c22-9 36-5 42 6l-2 29c-11 13-31 16-44 4-10-10-8-27 4-39Zm106 0c-22-9-36-5-42 6l2 29c11 13 31 16 44 4 10-10 8-27-4-39Z" fill="#b86b3a" stroke="#603629" stroke-width="5"/>
-                <path d="M58 158c12 9 24 16 39 20m-38-8 20-12m85 0c-12 9-24 16-39 20m38-8-20-12" fill="none" stroke="#e7a05b" stroke-width="3" stroke-linecap="round"/>
+                <path d="M44 163c22-15 110-15 132 0 7 5 7 13 0 18-26 15-106 15-132 0-7-5-7-13 0-18Z" fill="#874a2f" stroke="#452c25" stroke-width="5"/>
+                <path d="M50 172c32-10 88-10 120 0" fill="none" stroke="#d28a4d" stroke-width="4" stroke-linecap="round"/>
+                <path d="M50 150c20-8 38-4 50 8l-2 22c-12 11-34 13-48 3-12-9-12-25 0-33Zm120 0c-20-8-38-4-50 8l2 22c12 11 34 13 48 3 12-9 12-25 0-33Z" fill="#b86b3a" stroke="#603629" stroke-width="5"/>
+                <path d="M54 160c13 9 26 14 40 17m-37-6 20-11M166 160c-13 9-26 14-40 17m37-6-20-11" fill="none" stroke="#e7a05b" stroke-width="3" stroke-linecap="round"/>
               </g>
               <g class="campfire-flames">
-                <path d="M109 160c-34-17-48-43-27-77 3 19 11 23 16 29-2-41 26-58 37-91 16 27 7 44 22 64 12 17 23 34 13 55-9 18-35 28-61 20Z" fill="#ef7137"/>
-                <path d="M110 160c-23-15-26-34-12-56 2 13 8 16 12 21 0-27 18-38 22-58 11 18 3 31 15 46 12 16 12 34-2 46-10 8-23 8-35 1Z" fill="#ffc34f"/>
-                <path d="M112 160c-11-11-10-24-1-34 3 8 7 10 9 14 2-12 9-18 10-27 8 13 13 24 6 38-5 11-16 15-24 9Z" fill="#fff0a2"/>
+                <path d="M110 168C79 168 60 150 62 124 63 106 72 94 80 82 82 98 88 106 95 110 92 86 100 64 110 42 120 64 128 86 125 110 132 106 138 98 140 82 148 94 157 106 158 124 160 150 141 168 110 168Z" fill="#ef7137"/>
+                <path d="M110 166C88 166 76 152 78 134 79 122 85 113 91 106 93 116 97 121 102 123 101 106 104 90 110 74 116 90 119 106 118 123 123 121 127 116 129 106 135 113 141 122 142 134 144 152 132 166 110 166Z" fill="#ffc34f"/>
+                <path d="M110 164C98 164 91 156 92 145 93 136 99 128 104 120 107 127 109 131 110 132 111 131 113 127 116 120 121 128 127 136 128 145 129 156 122 164 110 164Z" fill="#fff0a2"/>
               </g>
-              <g class="fire-sparks" fill="#ffe28a"><circle cx="72" cy="88" r="3"/><circle cx="151" cy="73" r="2.5"/><circle cx="131" cy="47" r="2"/></g>
+              <g class="fire-sparks" fill="#ffe28a"><circle cx="76" cy="70" r="3"/><circle cx="146" cy="62" r="2.5"/><circle cx="122" cy="34" r="2"/></g>
             </svg>
           </div>
           <div class="hero-spotlight" data-testid="scene-hero">
@@ -660,7 +663,7 @@ onUnmounted(() => {
   animation: ember-glow 3s ease-in-out infinite alternate;
 }
 .campfire-art { position: relative; z-index: 1; width: clamp(220px, 20vw, 300px); max-height: 92%; overflow: visible; filter: drop-shadow(0 12px 12px rgb(15 30 22 / 35%)); }
-.campfire-flames { transform-origin: 110px 164px; animation: fire-flicker 1.15s ease-in-out infinite alternate; }
+.campfire-flames { transform-origin: 110px 168px; animation: fire-flicker 1.15s ease-in-out infinite alternate; }
 .fire-sparks { animation: spark-rise 1.8s ease-in-out infinite; }
 .hero-spotlight { align-content: center; padding: 0; margin-left: -5%; }
 .hero-halo {
@@ -846,6 +849,8 @@ onUnmounted(() => {
 .forest-scene.composed .campfire-glow { bottom: 0; width: calc(var(--fire-w) * 1.4); }
 .forest-scene.composed .hero-spotlight { position: absolute; top: var(--hero-top); left: var(--hero-left); display: block; width: var(--hero-w); height: var(--hero-h); margin: 0; padding: 0; }
 .forest-scene.composed.hero-in-front .hero-spotlight { z-index: 2; }
+/* phones: no room for the hero beside the fire, so the hero stands alone */
+.forest-scene.composed.hero-in-front .campfire-spotlight { display: none; }
 .forest-scene.composed .hero-halo { top: auto; bottom: 0; width: calc(var(--hero-h) * 1.3); height: var(--hero-h); }
 .forest-scene.composed .hero-preview-art { position: absolute; inset: 0; display: flex; align-items: flex-end; justify-content: center; width: 100%; height: 100%; max-width: none; transform: none; }
 .forest-scene.composed .hero-preview-art > canvas.hero-icon { width: auto !important; height: 100% !important; max-width: none; transform: none; }
