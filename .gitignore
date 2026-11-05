@@ -4,6 +4,8 @@ data/
 dist/
 dist-*/
 tmp/
+scratch/
+/*.log
 knowledge/
 # Playwright output
 test-results/
