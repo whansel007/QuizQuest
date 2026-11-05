@@ -1417,7 +1417,7 @@ dialog.insight::backdrop { background: rgba(10, 12, 20, 0.45); }
   body .teacher-app {
     --bg: #ffffff; --panel: #ffffff; --ink: #111111; --muted: #555555; --line: #d8d8d8;
     --accent: #3343b8; --accent-ink: #ffffff; --accent-soft: #eef0fb; --shadow: none;
-    display: block; min-height: 0; background: #fff;
+    display: block; min-height: 0; background: #fff; color-scheme: light;
   }
   .teacher-app .t-sidebar, .teacher-app .t-scrim, .teacher-app header#top.t-topbar { display: none !important; }
   .teacher-app .t-sidebar, .teacher-app .t-scrim, .teacher-app header#top.t-topbar { display: none !important; }
@@ -2868,6 +2868,8 @@ main#main.main-practice .quiz-battle-stage {
   --t-side-bg: #FFFFFF;
   --t-side-line: #DCE3EE;
   --t-section: #EEF3FC;
+  /* native controls (date pickers, scrollbars, checkboxes) follow the shell */
+  color-scheme: light;
   display: grid;
   grid-template-columns: var(--t-side) minmax(0, 1fr);
   min-height: 100vh;
@@ -2888,6 +2890,7 @@ main#main.main-practice .quiz-battle-stage {
     --t-side-bg: #141B28;
     --t-side-line: #283246;
     --t-section: #172238;
+    color-scheme: dark;
   }
 }
 body:has(.teacher-app) { background: var(--bg); }
@@ -2930,6 +2933,10 @@ body:has(.teacher-app) { background: var(--bg); }
 .teacher-app .btn { border-radius: 8px; }
 .teacher-app .btn.primary:hover:not(:disabled) { filter: brightness(1.06); }
 .teacher-app :is(input:not([type]), input[type="text"], input[type="search"], input[type="number"], input[type="email"], input[type="password"], input[type="date"], select, textarea) { border-radius: 8px; }
+/* date fields take the shell's field colours (the base field rule leaves them
+   out, so they kept the browser's white box in dark mode) */
+.teacher-app input[type="date"] { max-width: 100%; padding: 8px 10px; font: inherit; color: var(--ink); background: var(--bg); border: 1px solid var(--line); }
+.teacher-app input[type="date"]:disabled { opacity: .6; }
 /* page toolbar: title on the left, the page's pickers and actions on the right */
 .t-toolbar { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 14px; margin: 0 0 18px; }
 .t-toolbar > h2 { flex: 1 1 auto; margin: 0; }

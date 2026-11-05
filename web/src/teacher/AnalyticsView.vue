@@ -895,7 +895,7 @@ function missedCsv() {
                         <button class="linklike" @click="openQuestion(q.questionId)">{{ q.stem }}</button>
                         <span class="badge plain">{{ q.type }}</span>
                       </td>
-                      <td class="label small" data-label="Group"><span v-if="q.zone === 'reread'" class="badge draft">⚠ {{ ZONES[q.zone].label }}</span><template v-else>{{ ZONES[q.zone].label }}</template></td>
+                      <td class="label small" data-label="Group"><span v-if="q.zone === 'reread'" class="badge draft text-nowrap">⚠ {{ ZONES[q.zone].label }}</span><template v-else>{{ ZONES[q.zone].label }}</template></td>
                       <td class="label" data-label="Topic">{{ q.topic }}</td>
                       <td class="num" data-label="Students">{{ q.students }}</td>
                       <td class="num" data-label="Answers">{{ q.n }}</td>

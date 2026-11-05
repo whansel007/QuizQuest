@@ -90,7 +90,7 @@ const change = (r) => (r.meanAccuracyChange === null ? '-' : `${r.meanAccuracyCh
         <div class="tiles">
           <div class="tile"><div class="v">{{ pct(ev.usability.completionRate) }}</div><div class="l">sessions completed ({{ ev.usability.completed }}/{{ ev.usability.started }})</div></div>
           <div class="tile"><div class="v">{{ ev.usability.medianMinutes === null ? '-' : `${n(ev.usability.medianMinutes)} min` }}</div><div class="l">median session length</div></div>
-          <div class="tile"><div class="v">{{ `😕 ${ev.usability.ratings[1]} · 😐 ${ev.usability.ratings[2]} · 🙂 ${ev.usability.ratings[3]}` }}</div><div class="l">end-of-session ratings (n={{ totalRatings(ev.usability) }})</div></div>
+          <div class="tile"><div class="v"><!-- each face keeps its count: a narrow tile breaks only between the groups --><span class="text-nowrap">😕 {{ ev.usability.ratings[1] }}</span> · <span class="text-nowrap">😐 {{ ev.usability.ratings[2] }}</span> · <span class="text-nowrap">🙂 {{ ev.usability.ratings[3] }}</span></div><div class="l">end-of-session ratings (n={{ totalRatings(ev.usability) }})</div></div>
         </div>
         <div v-if="ev.usability.comments.length">
           <b class="small">Recent comments (anonymous)</b>
