@@ -545,4 +545,27 @@ onUnmounted(() => {
   .summon-summary-shade { padding:8px; }.summon-summary-panel { max-height:calc(100svh - 16px); padding:13px 10px; }.summary-grid { gap:6px; }.summary-card { min-height:150px; padding:9px 5px; }.summary-card :deep(canvas) { width:68px!important; height:auto!important; }.summary-name { font-size:13px; }.summary-status { font-size:9px; }
   .summon-page { padding:0 10px 8px; }.summon-topbar { height:58px; }.summon-page-title h1 { font-size:25px; }.summon-banner { padding:13px 10px; }.featured-hero { gap:8px; padding:9px 6px; }.featured-art { flex-basis:115px; }.featured-art :deep(canvas) { width:115px!important; height:auto!important; }.featured-info h3 { font-size:24px; }.roster-strip { grid-template-columns:1fr 1fr; gap:6px; }.roster-hero { flex-wrap:wrap; justify-content:center; text-align:center; }.roster-hero :deep(canvas) { width:44px!important; height:auto!important; }.summon-bottom-bar { gap:6px; flex-wrap:wrap; justify-content:space-between; }.summon-secondary-actions,.summon-actions { gap:6px; }.summon-secondary-actions { margin-right:auto; }.summon-actions { margin-left:auto; }.story-button { min-width:105px; min-height:47px; padding:5px 8px; font-size:12px; }.ghost-button { min-width:80px; }.detail-rates { grid-template-columns:1fr; }.history-summary { grid-template-columns:1fr 1fr; }.summon-history-row { grid-template-columns:75px 40px minmax(80px,1fr); }.summon-history-row .result-tag { grid-column:3; justify-self:start; }.ledger-history li { grid-template-columns:75px 1fr; }.ledger-history li strong { grid-column:2; justify-self:start; }.story-modal { padding:15px 12px; }
 }
+/* ---- phones and small tablets (docs/mobile/NOTES.md, Stage 1) ---- */
+/* room for the app's corner menu button beside the coin balance */
+@media (max-width:900px), (pointer:coarse) and (max-height:520px) { .summon-topbar { padding-right:56px; } }
+/* the 10-pull results: 2 columns in portrait, 5 in landscape */
+@media (max-width:899px) and (orientation:landscape) { .summary-grid { grid-template-columns:repeat(var(--summary-columns),minmax(0,1fr)); } }
+/* narrow screens: the two pull buttons share the bottom row at full width */
+@media (max-width:520px) {
+  .summon-bottom-bar { padding-bottom:max(8px, env(safe-area-inset-bottom)); }
+  .summon-actions { display:grid; grid-template-columns:1fr 1fr; width:100%; margin-left:0; }
+  .summon-actions .story-button { width:100%; min-width:0; }
+  .summon-secondary-actions .story-button { min-height:44px; }
+}
+/* History and Details: a full-screen sheet with a sticky header and its own scroll */
+@media (max-width:600px) {
+  .story-modal-shade { place-items:stretch; padding:0; }
+  .story-modal { display:flex; flex-direction:column; width:100%; height:100%; max-height:none; padding:0 max(12px, env(safe-area-inset-right)) max(14px, env(safe-area-inset-bottom)) max(12px, env(safe-area-inset-left)); border:0; border-radius:0; box-shadow:none; overflow:auto; overscroll-behavior:contain; }
+  .story-modal-header { position:sticky; z-index:2; top:0; margin:0 calc(-1 * max(12px, env(safe-area-inset-left))) 10px; padding:max(10px, env(safe-area-inset-top)) max(12px, env(safe-area-inset-right)) 10px max(12px, env(safe-area-inset-left)); background:#FBF2D8; border-bottom:2px dashed #C5B58E; }
+  .story-modal-header h2 { font-size:22px; }
+  .modal-close { flex:none; width:44px; height:44px; }
+  .history-tabs button,.rarity-filters button { min-height:44px; }
+  .summon-history-list,.ledger-history ol { max-height:none; }
+  .history-pagination { position:sticky; bottom:0; padding:8px 0; background:#FBF2D8; }
+}
 </style>

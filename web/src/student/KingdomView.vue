@@ -190,7 +190,7 @@ const INTRO_STEPS = [
   { highlight: 'castle', title: 'Welcome home!', body: 'This is your kingdom. The castle in the middle is your home, and it grows as your town does.' },
   { highlight: 'buildings', title: 'Four buildings', body: 'Garden to the north, Tower to the south, Library to the west and Workshop to the east. Upgrade them with the wood, crystal and herbs you earn to power up your heroes.' },
   { highlight: 'north', title: 'Adventure lies north', body: 'Walk up through the gap in the trees by the BATTLES sign, north-west of the castle. Out there you can start a Duel quiz battle or join a Campfire Run with friends.' },
-  { highlight: null, title: 'Getting around', body: 'Use WASD or the arrow keys, or click to walk. Press E at a door or beside a hero, and Z for emotes. The Buildings button opens any building from anywhere.' },
+  { highlight: null, title: 'Getting around', body: window.matchMedia?.('(pointer: coarse)').matches ? 'Tap the ground to walk, or drag the stick. Tap a door or a hero to open it, and Emote to wave. The Buildings button opens any building from anywhere. Pinch to zoom.' : 'Use WASD or the arrow keys, or click to walk. Press E at a door or beside a hero, and Z for emotes. The Buildings button opens any building from anywhere.' },
 ];
 const introStep = ref(-1);
 const introOpen = computed(() => introStep.value >= 0);
@@ -1082,5 +1082,22 @@ const castlePanelContext = reactive({
   .kingdom-screen .panel-head { padding-bottom: 8px; }
   .kingdom-screen .panel-title h2 { font-size: 23px; }
   .kingdom-screen .panel-purpose { margin: 8px 0; }
+}
+/* ---- phones (docs/mobile/NOTES.md, Stage 1) ---- */
+/* Building panels become a full-screen sheet: the header (title, level,
+   upgrade button, close) stays put and the panel content scrolls under it. */
+@media (max-width: 600px), (pointer: coarse) and (max-height: 500px) {
+  .kingdom-screen .town-modal-shade { padding: 0; }
+  .kingdom-screen .town-modal { width: 100%; height: 100%; max-height: none; padding: max(10px, env(safe-area-inset-top)) max(12px, env(safe-area-inset-right)) max(12px, env(safe-area-inset-bottom)) max(12px, env(safe-area-inset-left)); border: 0; border-radius: 0; box-shadow: none; }
+  .kingdom-screen .town-modal-close { top: max(8px, env(safe-area-inset-top)); right: max(8px, env(safe-area-inset-right)); width: 44px; height: 44px; }
+  .kingdom-screen .panel-content { overscroll-behavior: contain; }
+  .kingdom-screen .castle-info-chip { min-height: 44px; }
+}
+/* landscape phones: the coin row makes room for the app's corner menu button */
+@media (max-width: 900px) and (orientation: landscape), (pointer: coarse) and (orientation: landscape) and (max-height: 520px) {
+  .kingdom-screen .town-economy { right: calc(max(8px, env(safe-area-inset-right)) + 54px); }
+}
+@media (pointer: coarse) {
+  .kingdom-screen .town-title-actions .hud-btn { min-height: 44px; min-width: 44px; }
 }
 </style>

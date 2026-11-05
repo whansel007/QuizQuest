@@ -4,11 +4,11 @@
 //
 // Layout: the pre-lobby World page is a forest clearing with camp controls,
 // a highlighted hero beside an animated campfire, and the roster below.
-import { computed, nextTick, onMounted, onUnmounted, ref } from 'vue';
+import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue';
 import BuildingIcon from './BuildingIcon.vue';
 import HeroIcon from './HeroIcon.vue';
 import { loadHome } from './home.js';
-import { api } from '../api.js';
+import { api, S } from '../api.js';
 import { wipeTo } from '../transitions.js';
 import { HERO_TYPE_ICON } from './hero-type.js';
 import TalentBadge from './TalentBadge.vue';
@@ -189,7 +189,12 @@ onMounted(async () => {
   catch { kingdomLevels.value = {}; }
   applyInitialHero();
 });
-onUnmounted(() => window.removeEventListener('message', returnToSelection));
+// The app shell hides its own nav while the game is on screen.
+watch(inGame, (playing) => { S.gameActive = playing; }, { immediate: true });
+onUnmounted(() => {
+  window.removeEventListener('message', returnToSelection);
+  S.gameActive = false;
+});
 </script>
 
 <template>
@@ -209,7 +214,7 @@ onUnmounted(() => window.removeEventListener('message', returnToSelection));
           <div class="room-join-block">
             <button class="kingdom-return" type="button" @click="wipeTo('kingdom')"><span aria-hidden="true">←</span> Back to Kingdom</button>
             <h1 class="room-title">Campfire Run</h1>
-            <p class="room-intro">Choose a hero and defend the campfire. Move with WASD; E is your skill and Q your ultimate.</p>
+            <p class="room-intro">Choose a hero and defend the campfire. <span class="hint-keys">Move with WASD; E is your skill and Q your ultimate.</span><span class="hint-touch-controls">Drag the left stick to move; tap an ability to cast it, or hold and drag to aim.</span></p>
             <span class="panel-kicker">JOIN A PARTY</span>
             <div class="room-actions">
               <label class="sr-only" for="room-code-input">Room code</label>
@@ -710,6 +715,21 @@ onUnmounted(() => window.removeEventListener('message', returnToSelection));
 @media (max-width: 380px) {
   .hero-preview-art > .hero-icon { transform: translate(var(--preview-emoji-x, 0), var(--preview-emoji-y, 0)) scale(.32); }
 }
+/* Phones: size the preview art to its own box instead of scaling the 512 px
+   sprite with transform. A scaled box keeps its full layout size, so the
+   sprite slid under the roster panel (412 px) or off the right edge (375 px,
+   emoji fallback). Height-driven sizing keeps the sprite's aspect ratio. */
+/* Tablets: the ten heroes would squeeze into one row of ~70 px chips. The row
+   scrolls sideways instead, snapping chip by chip. */
+@media (min-width: 701px) and (max-width: 1100px) {
+  .hero-roster-grid { grid-template-columns: none; grid-auto-flow: column; grid-auto-columns: minmax(184px, 1fr); overflow-x: auto; overscroll-behavior-inline: contain; scroll-snap-type: x mandatory; scrollbar-width: thin; padding-bottom: 6px; }
+  .hero-chip { scroll-snap-align: start; }
+}
+@media (max-width: 1100px) {
+  .hero-preview-art { height: var(--hero-art-size); max-width: 100%; }
+  .hero-preview-art > canvas.hero-icon { width: auto !important; height: 100% !important; max-width: 100%; transform: translate(var(--preview-emoji-x, 0), var(--preview-emoji-y, 0)); }
+  .hero-preview-art > .hero-emoji { font-size: calc(var(--hero-art-size) * .7) !important; transform: translate(var(--preview-emoji-x, 0), var(--preview-emoji-y, 0)); }
+}
 @media (prefers-reduced-motion: reduce) {
   .hero-lab-page *, .hero-lab-page *::before, .hero-lab-page *::after {
     scroll-behavior: auto !important;
@@ -719,4 +739,7 @@ onUnmounted(() => window.removeEventListener('message', returnToSelection));
   }
 }
 .hero-lab-frame { position: fixed; z-index: 10; inset: 0; display: block; width: 100vw; height: 100vh; height: 100dvh; border: 0; border-radius: 0; background: #70a94f; }
+/* touch screens read the touch controls instead of the keyboard ones */
+.hint-touch-controls { display: none; }
+@media (pointer: coarse) { .hint-keys { display: none; } .hint-touch-controls { display: inline; } }
 </style>
