@@ -10,24 +10,24 @@
 //      with an index page reachable at "/"
 //
 // This script does the packaging and then checks the three rules, so the
-// footguns (missing slides, a stray scratch/ folder, the PDF, or a missing
-// deployed URL) are caught before the zip is sent.
+// footguns (the source tree instead of the build, a stray scratch/ folder, a
+// missing video link, a missing deployed URL) are caught before the zip is sent.
 //
 // Usage:
-//   node scripts/build-submission.mjs --slides "<path>" --video-link "<url>" [--deployed-url "<url>"]
+//   node scripts/build-submission.mjs --video-link "<url>" [--deployed-url "<url>"] [--deck "<path>"] [--out "<file.zip>"]
 //   node scripts/build-submission.mjs --check          # check only, build nothing
 //
 // The zip is written to submission/QuizQuest-submission.zip (gitignored).
+// --out writes it somewhere else, so a fresh build never overwrites a zip
+// that has already been validated or uploaded.
 
-import { readFileSync, existsSync, readdirSync, statSync, writeFileSync, mkdirSync, rmSync, copyFileSync } from 'node:fs';
+import { readFileSync, existsSync, readdirSync, statSync, writeFileSync, mkdirSync } from 'node:fs';
 import { zipSync } from 'fflate';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const outDir = path.join(root, 'submission');
-const zipName = 'QuizQuest-submission.zip';
-
 const args = process.argv.slice(2);
 const flag = (name) => {
   const i = args.indexOf(`--${name}`);
@@ -37,6 +37,9 @@ const videoLink = flag('video-link');
 const slidesArg = flag('slides');
 const deployedUrl = flag('deployed-url');
 const checkOnly = args.includes('--check');
+// --out writes the zip somewhere else, so a fresh build never overwrites one
+// that has already been validated or uploaded.
+const zipName = flag('out') || 'QuizQuest-submission.zip';
 
 const problems = [];
 const notes = [];
@@ -67,27 +70,97 @@ const addTree = (zipPath, diskDir) => {
 
 addFile('index.html', path.join(distDir, 'index.html'));
 addTree('assets', path.join(distDir, 'assets'));
+addTree('fonts', path.join(distDir, 'fonts'));
+// index.html links /manifest.webmanifest and /icons/apple-touch-icon.png, and
+// the deployed root serves both out of dist/. Ship them so the packaged app
+// behaves like the site the graders open.
+addFile('manifest.webmanifest', path.join(distDir, 'manifest.webmanifest'));
+addTree('icons', path.join(distDir, 'icons'));
 addTree('hero-lab', path.join(root, 'public', 'hero-lab'));
 addTree('tag', path.join(root, 'public', 'tag'));
+// public/hero-lab/*.js are served raw (not bundled), and world.js, game-config.js,
+// perf-profiler.js and talent-badge.js import '../../config/tuning.js' - which the
+// browser resolves to /config/tuning.js. server.js serves that path from the
+// repo's config/ folder, so the packaged root has to carry it too.
+addFile('config/tuning.js', path.join(root, 'config', 'tuning.js'));
 // The tag page loads "client.js" relative to "/", so the deployed root carries a
 // copy at the top level as well as inside tag/.
 addFile('client.js', path.join(root, 'public', 'tag', 'client.js'));
 
 // ------------------------------------------------------------------- item 1
-// Package the finished slides in their native format. Only the path and file
-// size are checked here; the team reviews slide content visually.
-const slideFiles = new Map();
-const defaultSlidesPath = path.join(root, 'docs', 'presentation', 'QuizQuest Project slides.pdf');
-const slidesPath = path.resolve(slidesArg || defaultSlidesPath);
-if (!existsSync(slidesPath) || !statSync(slidesPath).isFile()) {
-  problems.push(`Slide file not found: ${slidesPath}`);
-} else if (statSync(slidesPath).size === 0) {
-  problems.push(`Slide file is empty: ${slidesPath}`);
+// The deck that ships is the team's slide deck as a PDF. The brief asks for
+// PPTX or PDF, and the first slide has to carry the demo-video link - so the
+// link is verified inside the PDF itself, not in a side-car file.
+//
+// docs/presentation/PRESENTATION_SLIDES.md is the working script for the
+// presentation (speaker notes, run of show, Q&A prep). It is deliberately NOT
+// shipped: two decks in one folder is how the wrong one gets presented.
+const presentationDir = path.join(root, 'docs', 'presentation');
+// The deck is authored outside the repository. Two names are in circulation:
+// the copy the packer is pointed at, and the tracked original the team
+// committed. Use whichever is on disk.
+const deckNames = ['QuizQuest-Presentation-Slides.pdf', 'QuizQuest Project slides.pdf'];
+const defaultDeck = deckNames
+  .map((n) => path.join('docs', 'presentation', n))
+  .find((p) => existsSync(path.join(root, p)));
+const deckPath = path.resolve(root, flag('deck') || slidesArg || defaultDeck || path.join('docs', 'presentation', deckNames[0]));
+const deckName = path.basename(deckPath);
+
+// Other material the brief explicitly allows next to the slides: the script the
+// demo video was recorded from.
+const extraPresentationFiles = ['DEMO_VIDEO_SCRIPT.md'];
+
+if (!existsSync(deckPath)) {
+  problems.push(
+    `The slide deck is missing: ${path.relative(root, deckPath)}. ` +
+      `Copy the team's deck (PDF or PPTX) into docs/presentation/ so the packer can pick it up, ` +
+      `or point at it with --deck "<path>". The submission needs the deck with the video link on slide 1.`,
+  );
 } else {
-  slideFiles.set(path.basename(slidesPath), slidesPath);
+  const deckBytes = readFileSync(deckPath);
+  if (deckBytes.length === 0) {
+    problems.push(`${path.relative(root, deckPath)} is empty - it would ship as a 0-byte file.`);
+  }
+  const lower = deckName.toLowerCase();
+  if (!lower.endsWith('.pdf') && !lower.endsWith('.pptx')) {
+    problems.push(`${deckName} is not a PDF or PPTX. The brief accepts only those two formats for the slides.`);
+  }
+  for (const name of extraPresentationFiles) {
+    const p = path.join(presentationDir, name);
+    if (!existsSync(p)) {
+      notes.push(`Optional material not found, skipping: docs/presentation/${name}`);
+      continue;
+    }
+    if (statSync(p).size === 0) {
+      problems.push(`01-presentation/${name} is empty - it would ship as a 0-byte file.`);
+    }
+  }
+
+  // The link has to be ON slide 1. Read the deck back and look for it there.
+  if (videoLink && lower.endsWith('.pdf')) {
+    try {
+      const pdfjs = await import('pdfjs-dist/legacy/build/pdf.mjs');
+      const doc = await pdfjs.getDocument({ data: new Uint8Array(deckBytes), useSystemFonts: true }).promise;
+      const first = await doc.getPage(1);
+      const items = (await first.getTextContent()).items.map((i) => i.str);
+      const flat = items.join(' ').replace(/\s+/g, '');
+      const wanted = videoLink.replace(/\s+/g, '');
+      if (!flat.includes(wanted)) {
+        problems.push(
+          `Slide 1 of ${deckName} does not carry the video link (${videoLink}). ` +
+            `The brief says the link has to be on the FIRST slide.`,
+        );
+      } else {
+        notes.push(`Slide 1 of ${deckName} carries the video link.`);
+      }
+    } catch (err) {
+      problems.push(`Could not read ${deckName} to check slide 1 for the video link: ${err.message}`);
+    }
+  }
 }
 if (!videoLink) {
-  problems.push('No --video-link was given.');
+  problems.push('No --video-link was given, so the deck cannot be checked against the recorded video.');
+
 } else if (!/^https?:\/\//.test(videoLink)) {
   problems.push(`--video-link does not look like a URL: ${videoLink}`);
 }
@@ -113,14 +186,59 @@ if (!existsSync(readmePath)) {
 // ------------------------------------------------------------------- item 3
 if (!appFiles.size) problems.push('The app folder came out empty.');
 if (!appFiles.has('index.html')) problems.push('The app folder has no index.html at its root, so "/" would 404.');
+const appKeys = [...appFiles.keys()];
+if (!appKeys.some((k) => k.startsWith('assets/'))) {
+  problems.push('The app folder has no assets/ folder, so the built JavaScript and CSS are missing.');
+}
+
+// Every root-absolute URL the app asks for has to be in the app folder, or the
+// packaged app opens with broken references. Two sources:
+//   - index.html's own src/href attributes (the manifest and the icons);
+//   - the raw ES modules under public/hero-lab, which the browser loads
+//     directly and which import '../../config/tuning.js' - a path that
+//     resolves to /config/tuning.js at runtime.
+// This is the check that catches a packaged app that looks right but 404s.
+if (appFiles.has('index.html')) {
+  const referenced = new Set();
+  let currentUrl = 'index.html';
+  const scan = (text) => {
+    for (const m of text.matchAll(/(?:src|href)="(\/[^"]+)"/g)) {
+      if (/^(?:https?:)?\/\//.test(m[1]) || m[1].startsWith('//')) continue; // off-site
+      referenced.add(m[1].slice(1));
+    }
+    for (const m of text.matchAll(/from\s+'([^']+)'/g)) {
+      const spec = m[1];
+      if (!spec.startsWith('.')) continue; // a bare specifier is bundled
+      // Resolve the import the way the browser will: relative to the URL of
+      // the file that contains it. A file at hero-lab/world.js is served at
+      // /hero-lab/world.js, so '../../config/tuning.js' is /config/tuning.js.
+      const dir = path.posix.dirname('/' + currentUrl);
+      const resolved = path.posix.normalize(path.posix.join(dir, spec));
+      if (resolved.startsWith('/')) referenced.add(resolved.slice(1));
+    }
+  };
+  scan(readFileSync(path.join(distDir, 'index.html'), 'utf8'));
+  for (const [zipPath, diskPath] of appFiles) {
+    if (!zipPath.endsWith('.js')) continue;
+    if (!zipPath.startsWith('hero-lab/') && zipPath !== 'client.js') continue;
+    currentUrl = zipPath;
+    scan(readFileSync(diskPath, 'utf8'));
+  }
+  const missingRefs = [...referenced].filter((p) => !appFiles.has(p));
+  if (missingRefs.length) {
+    problems.push(
+      `The app references ${missingRefs.length} file(s) that are not in the app folder: ${missingRefs.join(', ')}. ` +
+        `The app folder must mirror the deployed root exactly.`,
+    );
+  }
+}
 
 // ------------------------------------------------------- anything we must not ship
+// The source tree, the AI prompts and the scratch folder are not part of the
+// deployed root and must never reach the grader.
 const forbidden = [];
 for (const [zipPath] of appFiles) {
   if (zipPath.startsWith('scratch/') || zipPath.includes('Pandas.pdf')) forbidden.push(zipPath);
-}
-for (const name of slideFiles.keys()) {
-  if (name.includes('Pandas.pdf')) forbidden.push(`01-presentation/${name}`);
 }
 if (forbidden.length) problems.push(`Forbidden files would ship: ${forbidden.join(', ')}`);
 
@@ -138,22 +256,31 @@ if (problems.length) {
 }
 
 // ------------------------------------------------------------------- build
-rmSync(outDir, { recursive: true, force: true });
 mkdirSync(outDir, { recursive: true });
 
 const files = {};
 for (const [zipPath, diskPath] of appFiles) {
+  // Buffer, not utf8: a PDF or a font read as utf8 comes back as a string and
+  // then ships as corrupt bytes. The old read-and-read-as-text loop had
+  // exactly that bug.
   files[`03-app/${zipPath}`] = new Uint8Array(readFileSync(diskPath));
 }
-for (const [name, slidesPath] of slideFiles) {
-  files[`01-presentation/${name}`] = new Uint8Array(readFileSync(slidesPath));
+
+// Item 1: the deck (the PDF as-is) plus the video's source material.
+files[`01-presentation/${deckName}`] = new Uint8Array(readFileSync(deckPath));
+for (const name of extraPresentationFiles) {
+  const p = path.join(presentationDir, name);
+  if (existsSync(p)) files[`01-presentation/${name}`] = new Uint8Array(readFileSync(p));
 }
 files['01-presentation/DEMO-VIDEO.txt'] = new Uint8Array(
   Buffer.from(
     `Demo video link\n${'='.repeat(16)}\n\n${videoLink}\n\n` +
-      `Add this link to slide 1 of the deck and confirm it is visible.\n`,
+      `This is the link that goes on SLIDE 1 of the deck. Slide 1 of\n` +
+      `${deckName} in this folder already carries it.\n`,
   ),
 );
+
+// Item 2: the README.
 files['02-README.md'] = new Uint8Array(readFileSync(readmePath));
 
 // A stray copy of the PDF or the scratch folder must never reach the zip.
@@ -162,7 +289,8 @@ for (const key of Object.keys(files)) {
 }
 
 const zipped = zipSync(files, { level: 6 });
-const zipPath = path.join(outDir, zipName);
+const zipPath = path.isAbsolute(zipName) ? zipName : path.join(outDir, zipName);
+mkdirSync(path.dirname(zipPath), { recursive: true });
 writeFileSync(zipPath, zipped);
 
 const bytes = zipped.length;
@@ -170,3 +298,16 @@ console.log(`\nWrote ${path.relative(root, zipPath)} (${(bytes / 1024 / 1024).to
 console.log('  01-presentation/  slides + materials + the demo video link');
 console.log('  02-README.md      the README');
 console.log('  03-app/           the deployed app root - index.html is at "/"');
+
+// ------------------------------------------------- the zip holds three items
+const tops = new Set(Object.keys(files).map((k) => k.split('/')[0]));
+const expected = ['01-presentation', '02-README.md', '03-app'];
+const wrong = [...tops].filter((t) => !expected.includes(t));
+const missing = expected.filter((t) => !tops.has(t));
+if (wrong.length || missing.length) {
+  console.error(
+    `\nFAILED the three-item rule. unexpected: [${wrong.join(', ')}] missing: [${missing.join(', ')}]`,
+  );
+  process.exit(1);
+}
+console.log(`\nThree items confirmed: ${[...tops].sort().join(', ')}`);
