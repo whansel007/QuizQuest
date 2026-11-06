@@ -71,6 +71,11 @@ const addTree = (zipPath, diskDir) => {
 addFile('index.html', path.join(distDir, 'index.html'));
 addTree('assets', path.join(distDir, 'assets'));
 addTree('fonts', path.join(distDir, 'fonts'));
+// index.html links /manifest.webmanifest and /icons/apple-touch-icon.png, and
+// the deployed root serves both out of dist/. Ship them so the packaged app
+// behaves like the site the graders open.
+addFile('manifest.webmanifest', path.join(distDir, 'manifest.webmanifest'));
+addTree('icons', path.join(distDir, 'icons'));
 addTree('hero-lab', path.join(root, 'public', 'hero-lab'));
 addTree('tag', path.join(root, 'public', 'tag'));
 // The tag page loads "client.js" relative to "/", so the deployed root carries a
@@ -179,6 +184,26 @@ if (!appFiles.has('index.html')) problems.push('The app folder has no index.html
 const appKeys = [...appFiles.keys()];
 if (!appKeys.some((k) => k.startsWith('assets/'))) {
   problems.push('The app folder has no assets/ folder, so the built JavaScript and CSS are missing.');
+}
+
+// Every root-absolute URL index.html asks for has to be in the app folder, or
+// the packaged app opens with broken references. This is the check that would
+// have caught the missing manifest.webmanifest and icons/.
+if (appFiles.has('index.html')) {
+  const html = readFileSync(path.join(distDir, 'index.html'), 'utf8');
+  const referenced = new Set();
+  for (const m of html.matchAll(/(?:src|href)="(\/[^"]+)"/g)) {
+    const url = m[1];
+    if (/^(?:https?:)?\/\//.test(url) || url.startsWith('//')) continue; // off-site
+    referenced.add(url.slice(1));
+  }
+  const missingRefs = [...referenced].filter((p) => !appFiles.has(p));
+  if (missingRefs.length) {
+    problems.push(
+      `index.html references ${missingRefs.length} file(s) that are not in the app folder: ${missingRefs.join(', ')}. ` +
+        `The app folder must mirror the deployed root exactly.`,
+    );
+  }
 }
 
 // ------------------------------------------------------- anything we must not ship
