@@ -14,10 +14,12 @@
 // missing video link, a missing deployed URL) are caught before the zip is sent.
 //
 // Usage:
-//   node scripts/build-submission.mjs --video-link "<url>" [--deployed-url "<url>"]
+//   node scripts/build-submission.mjs --video-link "<url>" [--deployed-url "<url>"] [--deck "<path>"] [--out "<file.zip>"]
 //   node scripts/build-submission.mjs --check          # check only, build nothing
 //
 // The zip is written to submission/QuizQuest-submission.zip (gitignored).
+// --out writes it somewhere else, so a fresh build never overwrites a zip
+// that has already been validated or uploaded.
 
 import { readFileSync, existsSync, readdirSync, statSync, writeFileSync, mkdirSync } from 'node:fs';
 import { zipSync } from 'fflate';
@@ -26,16 +28,18 @@ import { fileURLToPath } from 'node:url';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const outDir = path.join(root, 'submission');
-const zipName = 'QuizQuest-submission.zip';
-
 const args = process.argv.slice(2);
 const flag = (name) => {
   const i = args.indexOf(`--${name}`);
   return i === -1 ? '' : args[i + 1] || '';
 };
 const videoLink = flag('video-link');
+const slidesArg = flag('slides');
 const deployedUrl = flag('deployed-url');
 const checkOnly = args.includes('--check');
+// --out writes the zip somewhere else, so a fresh build never overwrites one
+// that has already been validated or uploaded.
+const zipName = flag('out') || 'QuizQuest-submission.zip';
 
 const problems = [];
 const notes = [];
@@ -82,7 +86,14 @@ addFile('client.js', path.join(root, 'public', 'tag', 'client.js'));
 // presentation (speaker notes, run of show, Q&A prep). It is deliberately NOT
 // shipped: two decks in one folder is how the wrong one gets presented.
 const presentationDir = path.join(root, 'docs', 'presentation');
-const deckPath = path.resolve(root, flag('deck') || path.join('docs', 'presentation', 'QuizQuest-Presentation-Slides.pdf'));
+// The deck is authored outside the repository. Two names are in circulation:
+// the copy the packer is pointed at, and the tracked original the team
+// committed. Use whichever is on disk.
+const deckNames = ['QuizQuest-Presentation-Slides.pdf', 'QuizQuest Project slides.pdf'];
+const defaultDeck = deckNames
+  .map((n) => path.join('docs', 'presentation', n))
+  .find((p) => existsSync(path.join(root, p)));
+const deckPath = path.resolve(root, flag('deck') || slidesArg || defaultDeck || path.join('docs', 'presentation', deckNames[0]));
 const deckName = path.basename(deckPath);
 
 // Other material the brief explicitly allows next to the slides: the script the
@@ -139,10 +150,10 @@ if (!existsSync(deckPath)) {
 }
 if (!videoLink) {
   problems.push('No --video-link was given, so the deck cannot be checked against the recorded video.');
+
 } else if (!/^https?:\/\//.test(videoLink)) {
   problems.push(`--video-link does not look like a URL: ${videoLink}`);
 }
-
 // ------------------------------------------------------------------- item 2
 const readmePath = path.join(root, 'README.md');
 if (!existsSync(readmePath)) {
@@ -226,7 +237,8 @@ for (const key of Object.keys(files)) {
 }
 
 const zipped = zipSync(files, { level: 6 });
-const zipPath = path.join(outDir, zipName);
+const zipPath = path.isAbsolute(zipName) ? zipName : path.join(outDir, zipName);
+mkdirSync(path.dirname(zipPath), { recursive: true });
 writeFileSync(zipPath, zipped);
 
 const bytes = zipped.length;

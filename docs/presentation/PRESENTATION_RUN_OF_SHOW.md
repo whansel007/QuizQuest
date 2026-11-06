@@ -45,10 +45,11 @@ The live bundle does carry **PR #51, #56, #59 and #60** — the class card's **R
 | Live bundle contains "Class Management", "Classes & Roster", "To review", "Campfire Run" | yes | same curl |
 | Live bundle contains "Search classes by name or course" and "Class settings" | **yes — 1 and 2 occurrences** | same curl, 4 Nov 2026 |
 | Live bundle contains "Rename Class", "Archive passage", "Show archived material" and "Edit metadata" | **yes — 1 hit each** | live bundle grep, 4 Nov 2026 22:00 |
-| **Live bundle vs a fresh build of `main`** | **`index-ClFWelFb.js` (live) vs `index-DDS_r2q_.js` (fresh) — different builds; a redeploy is needed** | both curls, 5 Nov 2026 |
+| **Live bundle vs a fresh build of `main`** | live serves `index-9pU4odWE.js` (re-measured 6 Nov 10:41). **The bundle name is not a fact — it changes on every redeploy**, so the live build is not pinned to any commit. Re-measure on the day | live curl, 6 Nov 2026 |
 | Per-class settings move + class search bar | commit `2781e75` ("Move the per-class settings to the class management page"), **merged to main as PR #51** (merge commit `22fcf74`) — in the code **and live** | `git log --oneline -1 origin/main -- web/src/teacher/ClassManagementView.vue` |
-| Live teacher account | `prof.b@quizquest.demo` only — `prof.a` returns 401 and is absent from `/api/demo-users` | live check, 4 Nov 2026 |
-| Live data under that account | 1 course ("Intro to Statistics (demo)"), 1 class ("Statistics - Tutorial Group B"), 2 students, 0 active join codes, **0 drafts and 0 open student reports in the Question bank** | live `GET /api/teacher/courses` + `GET /api/classes`, 4 Nov 2026 |
+| **Live teacher accounts — there are TWO, and they are complementary** | **`zhiyang.ho.2025@computing.smu.edu.sg` / `Demo1234!`** (this is `t-a` — Ho Zhi Yang's own account) **and** `prof.b@quizquest.demo` / `quizquest` (`t-b`). **`prof.a@quizquest.demo` is dead** — 401 with both passwords, absent from `/api/demo-users` | live `POST /api/login` + `/api/demo-users`, 6 Nov 2026 |
+| **Live data under `zhiyang.ho` (`t-a`)** | `c-comp` "Intro to Computing (demo)", `cl-a` "Computing - Tutorial Group A", `cl-c` "Computing - Tutorial Group C" — **the Computing course, its two classes and its question bank** | live `GET /api/teacher/courses` + `GET /api/classes`, 6 Nov 2026 |
+| **Live data under `prof.b` (`t-b`)** | `c-stats` "Intro to Statistics (demo)", "Statistics - Tutorial Group B", 2 students, 0 active join codes, **0 drafts and 0 open student reports in the Question bank** | live `GET /api/teacher/courses` + `GET /api/classes`, 4 Nov 2026 |
 | Gemini on the live instance | `geminiEnabled: true`, `authoringEnabled: true`, `gemini-3.5-flash-lite` | live `GET /api/teacher/courses`, 4 Nov 2026 |
 
 Do **not** grep for "Trading on" — the template interpolates `'on'`/`'off'`, so that string never appears in a bundle. The valid markers are "Search classes by name or course", "Class settings", "Rename Class", "Archive passage", "Show archived material" and "Edit metadata".
@@ -63,70 +64,65 @@ Then search that bundle for `Class settings`. That one command decides which ver
 
 **Consequence for the run of show:** the class search box and the Class Settings tab are on the live build, so beat D1 plays the search-and-Settings clicks. Everything else in the script is on `main` and is safe to say on the record — but if the redeploy has not landed by Monday, do not claim the live site is running current `main` (rule 9 in §5).
 
-Fix the data **before Friday 6 Nov, not on the day**. There are two ways, and they are
-not equally safe:
+### ✅ The data move is DONE — nothing to change in the database before Monday
 
-**Option 1 — move the content (preferred).** The demo material already exists on the
-live project, but it sits under `t-a`, and `t-a` is no longer a demo account: it is
-**Ho Zhi Yang's own account**, with his real email address and his own password.
-Reassigning that course and its two classes to `t-b` (`prof.b@quizquest.demo`, which
-still works) is a **data change, not a code change**, it is reversible, and it takes
-nobody's login away.
+**Do not run any SQL. Do not reseed. The data is already right.**
 
-**How to do it — the Supabase SQL editor.** `scripts/fix-demo-teacher.js` **cannot**
-do this move: its only write is `.from('users').update({ extra: nextExtra }).eq('id',
-'t-a')` — it rewrites one field on the `t-a` **user** row (the email, and optionally
-the password hash). It never touches `courses.teacher_ids` or `classes.teacher_ids`.
-Keep that script for exactly one job — **restoring `prof.a`'s email** if Option 2
-puts it back — and only with Ho Zhi Yang's nod.
+The move the team discussed on 5 Nov already happened: the Computing material stayed
+with `t-a` — which is **Ho Zhi Yang's own account** — and the README was updated to
+publish his real email so a presenter can sign in as him (`origin/main` README, "Demo
+sign-in"). Verified live on 6 Nov, 11:05 AM:
 
-The move itself is two statements in the **Supabase SQL editor** (`teacher_ids` holds
-a JSON array; `src/db/schema.js:28,41` maps it to `teacherIds`):
+| Sign-in | Works? | Owns |
+|---|---|---|
+| `zhiyang.ho.2025@computing.smu.edu.sg` / `Demo1234!` | ✅ yes | `c-comp` "Intro to Computing (demo)", `cl-a` "Computing - Tutorial Group A", `cl-c` "Computing - Tutorial Group C" — **and the Computing question bank** |
+| `prof.b@quizquest.demo` / `quizquest` | ✅ yes | `c-stats` "Intro to Statistics (demo)", "Statistics - Tutorial Group B" — **the second teacher account** |
+| `prof.a@quizquest.demo` | ❌ **dead** — "Email or password is incorrect" with both `quizquest` and `Demo1234!` | — |
+
+**The two accounts are complementary, not alternatives.** `zhiyang.ho` owns everything
+the Computing beats (D2 upload, D3 question bank, D4 classes and analytics) need.
+`prof.b` is the second, seeded professor account and owns only the Statistics course.
+
+**🚫 Do NOT run these two statements.** They are the old plan and they are now wrong —
+running them would **move the Computing course and both classes off `t-a` and onto
+`t-b`**, undoing the ownership that is already correct:
 
 ```sql
 UPDATE courses SET teacher_ids = '["t-b"]' WHERE id = 'c-comp';
 UPDATE classes SET teacher_ids = '["t-b"]' WHERE id IN ('cl-a', 'cl-c');
 ```
 
-Check it with `GET /api/teacher/courses` and `GET /api/classes` while signed in as
-`prof.b@quizquest.demo`: both courses and all three classes should be listed, and
-`prof.a` must still be able to sign in with his own login. **Nothing about Ho Zhi
-Yang's account changes.**
+`scripts/fix-demo-teacher.js` is not a way to move content either: its only write is
+`.from('users').update({ extra: nextExtra }).eq('id', 't-a')` — one field on the `t-a`
+**user** row (the email, and optionally the password hash). It never touches
+`courses.teacher_ids` or `classes.teacher_ids`.
 
-**What is missing under `prof.b` until that move lands** (checked against
-`src/quiz/seed.js` on 5 Nov):
+**One check still open before Monday** — beat D3 needs a draft in "Needs review" and one
+open report under "Reported", and both live on questions inside `c-comp`. Course
+ownership is confirmed; **whether the draft and the report are visible under
+`zhiyang.ho` was not confirmed**, because the read against the live question bank was
+blocked. Open the Question bank as `zhiyang.ho` before the presentation and confirm
+"Needs review" and "Reported" are not empty. If they are empty, the beat still works —
+show the published questions and the approval gate, and say the seeded draft was left
+there for the class to write.
 
-| What | Under `prof.b` today | After the move |
-|---|---|---|
-| Courses | 1 — "Intro to Statistics (demo)" | 2 — plus "Intro to Computing (demo)" |
-| Classes | 1 — "Statistics - Tutorial Group B" | 3 — plus "Computing - Tutorial Group A" and "… Group C" |
-| Students | 2 | 12 across the three classes (6 in Group A, 4 in Group C, 2 in Group B) |
-| **Question bank → Needs review** | **empty** — the only seeded draft (`q-draft1`) is in `c-comp` | the draft appears — **beat D3 depends on this** |
-| **Question bank → Reported** | **empty** — the only open student report is on `q-n2`, which is in `c-comp` | one open report — the second half of beat D3 |
-| To review → Answers to mark | empty | **still empty** — the marking queue only fills when a student answers a free-response question, and no seeded attempt does (`api.js:478` sets `needsReview` only on a provisional grade; `api.js:1647` filters on it). **Beat D3 does not use it.** |
-| Analytics | "No answers yet" | the seeded practice history fills it |
-
-**Beat D3 is not safe to play until the move lands.** Without it the professor opens
-the Question bank, sees two published questions and no draft, and the beat meant to
-prove the approval gate has nothing to point at.
-
-**Option 2 — a full reseed (heavier).** `pnpm db:reset --confirm` is a **local**
-script — run it from a machine that has the live project's `SUPABASE_URL` and
-`SUPABASE_SECRET_KEY` in `.env`, with the Render service stopped, then redeploy so
-the server reloads the reseeded data. Confirm afterwards with
+**Option 2 — a full reseed (heavier, and NOT needed).** `pnpm db:reset --confirm` is a
+**local** script — run it from a machine that has the live project's `SUPABASE_URL` and
+`SUPABASE_SECRET_KEY` in `.env`, with the Render service stopped, then redeploy so the
+server reloads the reseeded data. Confirm afterwards with
 `GET /api/teacher/courses` that "Intro to Computing (demo)" and its three topics are
 back. It re-seeds the demo and restores Prof. Demo A with that course and **two
 classes** — "Computing - Tutorial Group A" with **six** students (s-01 to s-06) and
 "Computing - Tutorial Group C" with **four** (s-09 to s-12) — plus the practice
 history that fills the Analytics dashboard (`src/quiz/seed.js:97-140`, and the seeded
-sessions/attempts at `src/quiz/seed.js:177-206`). Without one of these the roster is
-two students and the Analytics page reads "No answers yet".
+sessions/attempts at `src/quiz/seed.js:177-206`).
 
-**A reseed takes `t-a` back from whoever owns it now** — it reverts any demo
-password changed since the seed and overwrites the account's email — so it would
-leave Ho Zhi Yang unable to sign in with his own login. It also **deletes every row
-in the project** and cannot be undone. If it is going to be used, it needs **Ho Zhi
-Yang's explicit nod first**, and the sign-in has to be re-checked afterwards.
+**🚫 Do not reseed. The data is fine and a reseed would only make it worse.** A reseed
+takes `t-a` back from whoever owns it now — it reverts any demo password changed since
+the seed and overwrites the account's email — so it would leave Ho Zhi Yang unable to
+sign in with his own login. It also **deletes every row in the project** and cannot be
+undone. If it is ever going to be used, it needs **Ho Zhi Yang's explicit nod first**,
+and the sign-in has to be re-checked afterwards.
 
 ---
 
@@ -400,8 +396,8 @@ Everything below happens with the app already signed in. **The sign-in page must
 
 ### Before you press start (not part of the 7:25)
 
-- Sign the professor in in the tab you will present from — `prof.b@quizquest.demo` (Prof. Demo B). **After the data move (§0) that account owns "Intro to Computing (demo)", the two Computing classes, the question bank and the analytics.** If you reseeded instead, that account is `prof.a@quizquest.demo` — check `GET /api/teacher/courses` before the room, because the seed decides which one works.
-- **The password is `quizquest`, and it is published on purpose** — it sits in the README's **Demo sign-in** table (`README.md:50-57`) and in the submission zip, because the professor is meant to be able to sign in and try the app. There is nothing to hide and nothing to read aloud; rule 13 below is about not *reading a credential off the screen*, not about this password.
+- Sign the professor in in the tab you will present from — **`zhiyang.ho.2025@computing.smu.edu.sg` / `Demo1234!`**. That is `t-a`, Ho Zhi Yang's own account, and **it owns "Intro to Computing (demo)", the two Computing classes, the question bank and the analytics** — everything beats D2, D3 and D4 need. `prof.b@quizquest.demo` / `quizquest` is the **second** teacher account and owns only "Intro to Statistics (demo)"; use it only if the Computing course is ever missing. **`prof.a@quizquest.demo` no longer signs in.** Check `GET /api/teacher/courses` before the room, not in front of the class.
+- **The demo passwords are published on purpose** — `Demo1234!` for the professor account, `quizquest` for the students and for `prof.b`. They sit in the README's **Demo sign-in** table and in the submission zip, because the professor is meant to be able to sign in and try the app. There is nothing to hide and nothing to read aloud; rule 13 below is about not *reading a credential off the screen*, not about these passwords.
 - Sign a **student** in in a second tab — `student02@quizquest.demo`. That student is on "Computing - Tutorial Group A", carries the seeded practice history, so My progress has real numbers and Networking basics is the weak topic. The seven student steps all happen in that tab.
 - If you can, sign a **second student** in a third tab — the Campfire Run lobby needs two players to be worth showing.
 - Put **one lecture file** on the Desktop for beat D2 — `week3-networking.txt` with three or four lines of lecture notes is enough, and a `.pptx` is better if you have one. The importer takes `.pdf`, `.pptx`, `.docx`, `.txt`, `.md` and `.csv`.
@@ -505,8 +501,8 @@ Rehearse in the order the room hears it: the **Q&A answers first** — they open
 ### Pre-flight on the day (do these in order, 20 minutes before)
 
 - [ ] **Confirm the slot and the room.** The presentation is **Monday 16 Nov 2026**; the make-up slot is **Monday 23 Nov 2026**. Check the time and the venue with the teaching team before the room.
-- [ ] **Data check — do this before Friday 6 Nov, not on the day.** You need more than one class, a roster with students in it, **and a draft in the Question bank** — beat D3 has nothing to point at without it. **Preferred:** move the "Intro to Computing (demo)" course and its two classes from `t-a` to `t-b` — the material is already on the live project, `t-b` still works, and this is a reversible **data** change that takes nobody's login away. **Do it in the Supabase SQL editor** — the script older drafts of this file named cannot move courses or classes, it only rewrites one field on the `t-a` user row: `UPDATE courses SET teacher_ids = '["t-b"]' WHERE id = 'c-comp';` and `UPDATE classes SET teacher_ids = '["t-b"]' WHERE id IN ('cl-a','cl-c');`. **Heavier alternative:** `pnpm db:reset --confirm` is a **local** script, not a remote one: run it from a machine that has the live project's `SUPABASE_URL` and `SUPABASE_SECRET_KEY` in `.env`, with the Render service stopped, then redeploy so the server reloads the reseeded data. A reseed **deletes every row** and takes `t-a` back from whoever owns it now — that is Ho Zhi Yang's own account — so it needs **his** nod first, and the sign-in has to be re-checked afterwards.
-- [ ] **Confirm which professor account you are signed in as**, and open `GET /api/teacher/courses` to see which course it lists. **After the data move, `prof.b@quizquest.demo` is the account that works and it should list both courses** — "Intro to Computing (demo)" with its three topics and the two Computing classes, and "Intro to Statistics (demo)". **After a reseed instead, the account is `prof.a@quizquest.demo`**, which owns the Computing course and the two Computing classes. Check it before the room, not in front of the class.
+- [ ] **Data check — DONE 6 Nov, nothing to run.** The demo data is already in the right shape: `zhiyang.ho.2025@computing.smu.edu.sg` / `Demo1234!` owns "Intro to Computing (demo)", both Computing classes and their students, and the question bank. **Do not move any course, do not run any SQL, do not reseed.** All that is left is a look, not a change: sign in as `zhiyang.ho` and confirm the Question bank shows a draft under **Needs review** and one open report under **Reported** (beat D3 points at both), and that the roster in each Computing class has students in it. If either is empty, the beat still works — show the published questions and the approval gate instead.
+- [ ] **Confirm which professor account you are signed in as**, and open `GET /api/teacher/courses` to see which course it lists. **`zhiyang.ho.2025@computing.smu.edu.sg` / `Demo1234!` is the account that works** — it lists "Intro to Computing (demo)" with its three topics and the two Computing classes. `prof.b@quizquest.demo` / `quizquest` lists only "Intro to Statistics (demo)". `prof.a@quizquest.demo` is dead. Check it before the room, not in front of the class.
 - [ ] **Check the live app URL on the README's page one** — `https://quizquest-4phd.onrender.com`. Open it in a **fresh tab**, sign in, and confirm you land on **Classes & Roster** — a fresh tab lands on the sign-in page first, that is expected. If it 404s or shows the old build, stop and fix it before the room.
 - [ ] **Put one lecture file on the Desktop for beat D2** — `week3-networking.txt` with three or four lines of lecture notes is enough, and a `.pptx` is better if you have one. The importer takes `.pdf`, `.pptx`, `.docx`, `.txt`, `.md` and `.csv`.
 - [ ] Wake the instance: open the site several minutes early. The free instance sleeps.

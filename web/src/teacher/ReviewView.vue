@@ -167,7 +167,7 @@ async function rewriteSelected() {
     <template v-else>
       <div class="t-toolbar">
         <h2>Question bank</h2>
-        <CoursePicker :courses="courses" />
+        <CoursePicker class="bank-course-picker" :courses="courses" />
         <div class="bank-modes" role="group" aria-label="Review mode">
           <button class="btn" type="button" :aria-pressed="S.qReviewMode !== 'cards' ? 'true' : 'false'" @click="setMode('list')">List</button>
           <button class="btn" type="button" :aria-pressed="S.qReviewMode === 'cards' ? 'true' : 'false'" @click="setMode('cards')">Review as cards ({{ cardQueue.length }})</button>

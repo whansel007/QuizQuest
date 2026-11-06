@@ -216,5 +216,3 @@ The humor should come from each character's perspective and choices, not from mo
 Use short screen wipes to connect Kingdom rooms and related game screens. The motion should communicate entering, leaving, or receiving a response, and must not show a blank frame or trap controls. Add only a few intentional sound cues—such as a soft whoosh, radio tuning, a quiz impact, or a Summon reveal—behind a shared mute control. Sound and motion remain optional and honor reduced-motion preferences.
 
 Keep upgraded building artwork inside its camera and canvas bounds at every supported size. Remove unexplained yellow scene borders and clipping marks while preserving purposeful selection accents and keyboard focus. Login and sign-up previews should showcase the complete, fully upgraded sample Kingdom with heroes walking through it; pan the view to reveal the place without letting buildings or characters crop. Balance the composition around the form with a restrained detail, such as a small campfire, rather than adding visual noise.
-
-For the complete implementation brief and acceptance criteria, see [KINGDOM_UI_UPGRADE_PROMPT.xml](docs/KINGDOM_UI_UPGRADE_PROMPT.xml).

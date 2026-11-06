@@ -7,8 +7,10 @@ import { ref } from 'vue';
 import { S, api, rerender } from '../api.js';
 import { store, loadHome } from './home.js';
 import { toast, action } from '../ui.js';
+import { useOverlay } from '../overlays.js';
 
 const showJoinModal = ref(false);
+useOverlay(showJoinModal);
 const joinCode = ref('');
 const loading = ref(false);
 
@@ -50,7 +52,7 @@ const handleJoin = action(async () => {
 
   <!-- Join Class Modal -->
   <Teleport to="body">
-    <div v-if="showJoinModal" class="join-class-overlay" @click.self="showJoinModal = false">
+    <div v-if="showJoinModal" class="join-class-overlay" data-testid="join-class-modal" @click.self="showJoinModal = false" @keydown.esc="showJoinModal = false">
       <div class="join-class-card" role="dialog" aria-modal="true" aria-labelledby="join-class-title">
         <h3 id="join-class-title">Join a Class</h3>
         <p class="small muted">Enter the enrolment code given by your professor (e.g. QQ-7K4M2X9PQWTB).</p>
@@ -69,7 +71,7 @@ const handleJoin = action(async () => {
           </div>
 
           <div class="join-class-actions">
-            <button type="button" class="btn join-class-cancel" @click="showJoinModal = false">Cancel</button>
+            <button type="button" class="btn join-class-cancel" data-testid="join-class-cancel" @click="showJoinModal = false">Cancel</button>
             <button type="submit" class="btn primary join-class-submit" :disabled="loading">
               {{ loading ? 'Joining…' : 'Join Class' }}
             </button>

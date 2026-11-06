@@ -454,9 +454,25 @@ const floaters = ['?', '★', '✓', 'A', '+', '!', '◆', '?'];
   }
 }
 @media (max-width: 760px), (max-height: 620px) { .qq-campfire { display: none; } }
+/* tablet: a narrower forest so its curved edge stays clear of the login card
+   (at 768px the card ends ~420px and the curve starts ~490px) */
 @media (max-width: 980px) {
-  .qq-form-side { width: 62%; padding-inline: 32px 40px; }
-  .qq-preview-side { width: 44%; }
+  .qq-form-side { width: 60%; padding-inline: 32px 40px; }
+  .qq-preview-side { width: 36%; }
+}
+/* F7 (docs/mobile/FIXES.md): tablets side by side. The forest leaves the
+   page edge and becomes a card of its own beside the login card, with a real
+   gutter between them; at 761-1100 px the curved full-bleed edge reached
+   within ~15 px of the card (981-1010 px). Phones (stacked) and 1101 px and
+   up keep the curved forest. */
+@media (min-width: 761px) and (max-width: 1100px) {
+  .qq-split { box-sizing: border-box; grid-template-columns: repeat(2, minmax(0, 1fr)); column-gap: clamp(24px, 4vw, 48px); padding: clamp(24px, 5vw, 64px); }
+  .qq-form-side { width: auto; min-height: 0; padding: 0; }
+  .qq-form-col { width: 100%; max-width: 420px; }
+  .qq-preview-side { position: relative; inset: auto; z-index: 1; width: auto; min-height: 0; overflow: hidden; filter: none; border: 3px solid var(--qq-ink); border-radius: 16px 13px 17px 14px; box-shadow: 0 6px 0 #7A6545; }
+  .qq-preview-clip { clip-path: none; }
+  .qq-preview-clip::after { box-shadow: none; }
+  .qq-campfire { left: calc(210px - clamp(75px, 10vw, 105px)); bottom: 0; }
 }
 /* narrow screens: the form comes first; the forest becomes a short band on top */
 @media (max-width: 760px) {

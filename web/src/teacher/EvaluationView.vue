@@ -35,12 +35,12 @@ const change = (r) => (r.meanAccuracyChange === null ? '-' : `${r.meanAccuracyCh
   <template v-else-if="loaded">
     <p v-if="!course">You have no assigned courses.</p>
     <template v-else>
-      <Heading title="Evaluation"><CoursePicker :courses="courses" /></Heading>
+      <Heading title="Evaluation" data-testid="evaluation-page"><CoursePicker :courses="courses" /></Heading>
       <div class="note small">The measures the proposal commits to. All descriptive: small samples and no control group, so none of this shows that learning improved.</div>
       <div class="panel">
         <h3>Question drafting: acceptance and editing</h3>
         <div class="table-wrap">
-          <table>
+          <table class="sticky-first eval-table" data-testid="eval-drafting">
             <thead><tr><th v-for="h in ['Source', 'Total', 'Pending', 'Approved', 'Rejected', 'Acceptance', 'Edited before approval', 'Discarded by checks', 'Median review time']" :key="h">{{ h }}</th></tr></thead>
             <tbody>
               <tr v-for="d in ev.drafting" :key="d.origin">
@@ -62,7 +62,7 @@ const change = (r) => (r.meanAccuracyChange === null ? '-' : `${r.meanAccuracyCh
         <h3>Preparation time</h3>
         <p class="small muted">Time with the question editor open (capped at 1 hour per save). Hand-written baseline in the demo data is synthetic.</p>
         <div class="table-wrap">
-          <table>
+          <table class="sticky-first eval-table" data-testid="eval-prep">
             <thead><tr><th v-for="h in ['Source', 'Questions timed', 'Total minutes', 'Median per question', 'Minutes per published question']" :key="h">{{ h }}</th></tr></thead>
             <tbody>
               <tr v-for="p in ev.prep" :key="p.origin">
@@ -90,7 +90,7 @@ const change = (r) => (r.meanAccuracyChange === null ? '-' : `${r.meanAccuracyCh
         <div class="tiles">
           <div class="tile"><div class="v">{{ pct(ev.usability.completionRate) }}</div><div class="l">sessions completed ({{ ev.usability.completed }}/{{ ev.usability.started }})</div></div>
           <div class="tile"><div class="v">{{ ev.usability.medianMinutes === null ? '-' : `${n(ev.usability.medianMinutes)} min` }}</div><div class="l">median session length</div></div>
-          <div class="tile"><div class="v">{{ `😕 ${ev.usability.ratings[1]} · 😐 ${ev.usability.ratings[2]} · 🙂 ${ev.usability.ratings[3]}` }}</div><div class="l">end-of-session ratings (n={{ totalRatings(ev.usability) }})</div></div>
+          <div class="tile"><div class="v"><!-- each face keeps its count: a narrow tile breaks only between the groups --><span class="text-nowrap">😕 {{ ev.usability.ratings[1] }}</span> · <span class="text-nowrap">😐 {{ ev.usability.ratings[2] }}</span> · <span class="text-nowrap">🙂 {{ ev.usability.ratings[3] }}</span></div><div class="l">end-of-session ratings (n={{ totalRatings(ev.usability) }})</div></div>
         </div>
         <div v-if="ev.usability.comments.length">
           <b class="small">Recent comments (anonymous)</b>

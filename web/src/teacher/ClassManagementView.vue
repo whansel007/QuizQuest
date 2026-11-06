@@ -656,9 +656,9 @@ function copyToClipboard(text) {
                 <td>{{ c.usageCount }} / {{ c.usageLimit ? c.usageLimit : '∞' }}</td>
                 <td class="small muted">{{ c.expiresAt ? new Date(c.expiresAt).toLocaleDateString() : 'Never' }}</td>
                 <td>
-                  <span v-if="c.revoked" class="badge bad">Revoked</span>
-                  <span v-else-if="c.isExpired" class="badge warn">Expired</span>
-                  <span v-else class="badge good">Active</span>
+                  <span v-if="c.revoked" class="badge bad text-nowrap">Revoked</span>
+                  <span v-else-if="c.isExpired" class="badge warn text-nowrap">Expired</span>
+                  <span v-else class="badge good text-nowrap">Active</span>
                 </td>
                 <td style="text-align: right;">
                   <button
@@ -732,7 +732,7 @@ function copyToClipboard(text) {
                   <td class="small muted">{{ when(t.createdAt) }}</td>
                   <td>{{ t.from }}</td>
                   <td>{{ `${fmtBundle(t.give, RES)} for ${fmtBundle(t.want, RES)}` }}</td>
-                  <td><span :class="statusClass(t)">{{ t.status }}</span></td>
+                  <td><span class="text-nowrap" :class="statusClass(t)">{{ t.status }}</span></td>
                   <td>{{ t.acceptedByName || '' }}</td>
                 </tr>
               </tbody>
