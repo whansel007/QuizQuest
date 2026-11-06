@@ -78,6 +78,11 @@ addFile('manifest.webmanifest', path.join(distDir, 'manifest.webmanifest'));
 addTree('icons', path.join(distDir, 'icons'));
 addTree('hero-lab', path.join(root, 'public', 'hero-lab'));
 addTree('tag', path.join(root, 'public', 'tag'));
+// public/hero-lab/*.js are served raw (not bundled), and world.js, game-config.js,
+// perf-profiler.js and talent-badge.js import '../../config/tuning.js' - which the
+// browser resolves to /config/tuning.js. server.js serves that path from the
+// repo's config/ folder, so the packaged root has to carry it too.
+addFile('config/tuning.js', path.join(root, 'config', 'tuning.js'));
 // The tag page loads "client.js" relative to "/", so the deployed root carries a
 // copy at the top level as well as inside tag/.
 addFile('client.js', path.join(root, 'public', 'tag', 'client.js'));
@@ -186,21 +191,43 @@ if (!appKeys.some((k) => k.startsWith('assets/'))) {
   problems.push('The app folder has no assets/ folder, so the built JavaScript and CSS are missing.');
 }
 
-// Every root-absolute URL index.html asks for has to be in the app folder, or
-// the packaged app opens with broken references. This is the check that would
-// have caught the missing manifest.webmanifest and icons/.
+// Every root-absolute URL the app asks for has to be in the app folder, or the
+// packaged app opens with broken references. Two sources:
+//   - index.html's own src/href attributes (the manifest and the icons);
+//   - the raw ES modules under public/hero-lab, which the browser loads
+//     directly and which import '../../config/tuning.js' - a path that
+//     resolves to /config/tuning.js at runtime.
+// This is the check that catches a packaged app that looks right but 404s.
 if (appFiles.has('index.html')) {
-  const html = readFileSync(path.join(distDir, 'index.html'), 'utf8');
   const referenced = new Set();
-  for (const m of html.matchAll(/(?:src|href)="(\/[^"]+)"/g)) {
-    const url = m[1];
-    if (/^(?:https?:)?\/\//.test(url) || url.startsWith('//')) continue; // off-site
-    referenced.add(url.slice(1));
+  let currentUrl = 'index.html';
+  const scan = (text) => {
+    for (const m of text.matchAll(/(?:src|href)="(\/[^"]+)"/g)) {
+      if (/^(?:https?:)?\/\//.test(m[1]) || m[1].startsWith('//')) continue; // off-site
+      referenced.add(m[1].slice(1));
+    }
+    for (const m of text.matchAll(/from\s+'([^']+)'/g)) {
+      const spec = m[1];
+      if (!spec.startsWith('.')) continue; // a bare specifier is bundled
+      // Resolve the import the way the browser will: relative to the URL of
+      // the file that contains it. A file at hero-lab/world.js is served at
+      // /hero-lab/world.js, so '../../config/tuning.js' is /config/tuning.js.
+      const dir = path.posix.dirname('/' + currentUrl);
+      const resolved = path.posix.normalize(path.posix.join(dir, spec));
+      if (resolved.startsWith('/')) referenced.add(resolved.slice(1));
+    }
+  };
+  scan(readFileSync(path.join(distDir, 'index.html'), 'utf8'));
+  for (const [zipPath, diskPath] of appFiles) {
+    if (!zipPath.endsWith('.js')) continue;
+    if (!zipPath.startsWith('hero-lab/') && zipPath !== 'client.js') continue;
+    currentUrl = zipPath;
+    scan(readFileSync(diskPath, 'utf8'));
   }
   const missingRefs = [...referenced].filter((p) => !appFiles.has(p));
   if (missingRefs.length) {
     problems.push(
-      `index.html references ${missingRefs.length} file(s) that are not in the app folder: ${missingRefs.join(', ')}. ` +
+      `The app references ${missingRefs.length} file(s) that are not in the app folder: ${missingRefs.join(', ')}. ` +
         `The app folder must mirror the deployed root exactly.`,
     );
   }
