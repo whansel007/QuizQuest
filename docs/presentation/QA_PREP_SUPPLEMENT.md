@@ -509,17 +509,50 @@ No — nothing in the game changes an answer's mark or the professor's analytics
 
 ---
 
-## 6. Marxel — small additions
+## 6. Marxel — accounts, classes, upload *(CHECKED 9 Nov 2026 — Marxel)*
 
-Marxel's section in `QA_PREP.md` is already thorough. Three linking answers only:
+Marxel's section in `QA_PREP.md` is already thorough. These are the linking answers, each one verified
+against the code. The file paths are given in full because `api.js` exists twice in the repo — the
+server's is `src/quiz/api.js`, the browser's is `web/src/api.js`. Kai's line numbers were re-checked on
+9 Nov: `src/quiz/api.js`, `reporting.js`, `analytics.js` and `playwright.config.js` have not moved
+since his 6 Nov pass, so his citations still hold.
 
-- **"How does enrolment protect the other features?"** Every student route for a class first checks
-  enrolment and answers 404 if not (`api.js:238-241`) — progress, reports and practice all sit behind it.
-- **"A removed student — what happens to their progress and reports?"** Their answers stay in the data,
-  but they lose access to the class's routes immediately (`api.js:244-248` comment).
-  *Marxel: confirm the professor-side view of a removed student's history.*
-- **"Professor deletes a class?"** Classes are archived, not deleted, so progress and report history
-  stay intact (already in the pack, Q7).
+- ✅ **"How does enrolment protect the other features?"** Every student route for a class first checks
+  enrolment and answers 404 if not (`src/quiz/api.js:238-241`, `studentClass`) — progress, reports and
+  practice all sit behind it. A session id is not a second key: `studentSession`
+  (`src/quiz/api.js:242-250`) re-checks the enrolment too, so a removed student cannot keep answering
+  through a session they still hold.
+- ✅ **"A removed student — what happens to their progress and reports?"** Their answers stay in the
+  data, but they lose access to the class's routes immediately (`src/quiz/api.js:242-250`).
+- ✅ **"Professor deletes a class?"** Classes are archived, not deleted, so progress and report history
+  stay intact (already in the pack, Q7). There is no delete route for a class at all — only
+  `POST /api/classes/:classId/archive` (`src/quiz/api.js:936-942`), which toggles `archivedAt` and
+  leaves the attempts alone.
+
+**The professor-side view of a removed student** — the part Kai asked Marxel to confirm, and the
+honest answer is not just "the data stays":
+
+Removal deletes the enrolment row and nothing else (`src/quiz/api.js:964-971`). The student's answers
+and attempts stay in the data, so re-enrolling them brings that history back into the class view. But
+the professor's live views are computed from the enrolment list, not from the attempt history — so the
+removed student disappears from them:
+
+- **The class roster** (`GET /api/classes/:classId/members`, `src/quiz/api.js:944-962`) is built from
+  `db.enrolments`, so the student is gone from Classes & Roster, along with their attempts count and
+  last-active date for that class.
+- **Class analytics** filter the class's attempts through the enrolled set
+  (`src/quiz/analytics.js:96`, `:125`, `:396`, `:405`), so their answers drop out of the class charts,
+  the participation list and the "Needs attention" list.
+- **The marking queue** skips them too (`src/quiz/api.js:1637-1649`, `isEnrolled`): "someone who left
+  keeps their old attempts, but the professor should not mark answers for a class they are no longer
+  enrolled in."
+- **Their question reports still need answering.** The To-review queue is filtered by question and
+  class context, not by enrolment (`src/quiz/reporting.js:34-40`, `:47-75`), and a report never names
+  who sent it — so an open report from a removed student still shows and still has to be resolved.
+
+*If a professor asks "can I still see what a removed student did?" — the honest line is: "their
+answers are still in the data, but our roster, our class analytics and our marking queue all read the
+enrolment list, so they drop out of the class view. Enrol them again and the history comes back."*
 
 ---
 
