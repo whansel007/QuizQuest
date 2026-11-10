@@ -63,6 +63,8 @@
 | Change town movement speed | `config/tuning.js`: `TOWN_WALK_SPEED` | “Set town player speed to X px/s and preserve delta-time collision/path movement.” |
 | Change Summon stars/meteors | `config/tuning.js`: `SUMMON_STAR_COUNT`, `SUMMON_METEOR_INTERVAL_*` | “Adjust Summon sky stars/meteor frequency; keep 30 FPS cap and visibility/reduced-motion handling.” |
 | Change ability cooldown/ready glow | `config/tuning.js`: `COOLDOWN_RING_TRANSITION_MS`, `READY_GLOW_PERIOD_MS`; arena `game-config.js` | “Change arena ready glow/cooldown ring timing and keep the HUD CSS variables connected to config.” |
+| Change the Analytics auto-refresh interval | `web/src/teacher/AnalyticsView.vue`: `REFRESH_MS` | “Set the Analytics dashboard auto-refresh to X seconds; keep the visible-tab check and back-off from the last attempt.” |
+| Change what the dashboard flags as confusing or commonly missed | `src/quiz/analytics.js`: `CONFUSING`, `MIN_N`, `LOW_N` | “Change the Analytics threshold X to Y; keep `charts/time-zones.mjs` labels and the client in step, and keep every figure class-level.” |
 
 ## Student-side architecture
 
