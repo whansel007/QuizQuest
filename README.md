@@ -257,6 +257,11 @@ AI tools were used to generate skeleton code and the synthetic demo data
 (seeded users, courses and questions). The team reviewed, adapted and tested
 the AI-generated work, and is responsible for all submitted work.
 
+The product design is the team's own: the visual direction of the interface,
+the gameplay design of the Kingdom and the Campfire Run, the storybook art
+direction, and the character sprites. AI tools were used to assist with code
+and to remove the background colour from that art, not to create it.
+
 ## Third-party code and assets
 
 QuizQuest is built on other people's work. Here is all of it, so it can be
