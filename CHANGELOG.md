@@ -80,8 +80,22 @@ this file is informal and human-edited.
 - **`studentXX@quizquest.edu` login alias** — students can log in via
   `student01@quizquest.edu` / `Password123!` (matches test guide), not just
   `s-01@quizquest.edu`.
+- **The submitted slide deck** — the packer now takes the team's deck as a
+  PDF (or PPTX) from `docs/presentation/`, or from `--deck "<path>"`. The deck
+  is authored outside the repository and copied in, so it is not tracked; the
+  packer reads it back and checks the video link is on slide 1.
 
 ### Changed
+- **The submission packer ships the real deck.** `pnpm submit` copies
+  `docs/presentation/QuizQuest-Presentation-Slides.pdf` into `01-presentation/`
+  rather than the Markdown script, reads every file as bytes (the old loop read
+  them as UTF-8 and would have shipped a corrupt PDF), and reads the PDF back
+  with PDF.js to confirm the video link really is on **slide 1** before it
+  writes the zip. After writing, it checks the zip against the brief's
+  exactly-three-items rule.
+- **The README credits the team's own design work** in the "Use of AI tools"
+  section, alongside the existing third-party credits.
+
 - **Package manager is pnpm.** `packageManager: "pnpm@12.4.1"` set in
   [package.json](package.json); [README.md](README.md) Quick Start + Commands
   table now use `pnpm`; [PROTOTYPE.md](PROTOTYPE.md) updated for pnpm.
@@ -96,6 +110,10 @@ this file is informal and human-edited.
   thing in it that was not already in the arena — the "Test AI" handler — is
   now `public/hero-lab/test-ai.js`, which stays inert until the page has a
   `#test-ai-btn` element.
+- **`scratch/` and the stray test log are no longer tracked.** `scratch/` held
+  debug scripts and throwaway screenshots, and `.economy-test-final2.log` was
+  captured test output. Both are ignored now; the files stay on disk for
+  whoever still needs them.
 
 ---
 
