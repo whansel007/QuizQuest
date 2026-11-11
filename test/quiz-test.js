@@ -475,11 +475,15 @@ test('hero summon guarantees, owned heroes, refunds, resources, and retry safety
     assert.equal(duplicate.body.inventory.heroDupes.bombardier, 1);
   } finally { R.drawHeroSummon = draw; }
 
-  const pity = { totalPulls: 4, sinceHero: 4, sinceEpic: 4 };
+  const beforePity = R.drawHeroSummon({ totalPulls: 8, sinceHero: 8, sinceEpic: 8 }, () => 0);
+  assert.equal(beforePity.prize.kind, 'resource', 'the 9th pull can still be common');
+  const pity = { totalPulls: 9, sinceHero: 9, sinceEpic: 9 };
   const guaranteed = R.drawHeroSummon(pity, (n) => n > 1 ? 0 : 0);
-  assert.equal(guaranteed.prize.kind, 'hero', 'the 5th pull guarantees a hero');
-  const epic = R.drawHeroSummon({ totalPulls: 19, sinceHero: 19, sinceEpic: 19 }, () => 0);
-  assert.equal(epic.prize.rarity, 'epic', 'the 20th-pull 5-star guarantee takes priority');
+  assert.equal(guaranteed.prize.kind, 'hero', 'the 10th pull guarantees a hero');
+  const beforeEpicPity = R.drawHeroSummon({ totalPulls: 48, sinceHero: 8, sinceEpic: 48 }, () => 100);
+  assert.equal(beforeEpicPity.prize.kind, 'resource', 'the 49th pull is not forced to be a 5-star');
+  const epic = R.drawHeroSummon({ totalPulls: 49, sinceHero: 9, sinceEpic: 49 }, () => 100);
+  assert.equal(epic.prize.rarity, 'epic', 'the 50th-pull 5-star guarantee takes priority');
   const common = R.drawHeroSummon({ totalPulls: 0, sinceHero: 0, sinceEpic: 0 }, () => 0);
   assert.equal(common.prize.kind, 'resource');
   assert.equal(common.prize.amount, home.catalog.heroSummon.commonResourceAmount);
