@@ -72,7 +72,7 @@ const oddsRows = computed(() => {
   const total = Object.values(odds).reduce((sum, value) => sum + value, 0);
   return Object.entries(odds).map(([rarity, weight]) => ({
     rarity,
-    stars: rarity === 'common' ? 0 : (GAME_CONFIG.arenaTuning.gachaReveal.rarityStars[rarity] || 0),
+    stars: GAME_CONFIG.arenaTuning.gachaReveal.rarityStars[rarity] || 0,
     percent: Math.round(weight * 100 / total),
     heroes: catalog.value.heroes.filter((hero) => hero.rarity === rarity),
   }));
