@@ -319,5 +319,4 @@ Robertson & Zaragoza, *The Probabilistic Relevance Framework: BM25 and Beyond*
 
 ## Presentation and experiment notes
 
-- [Final presentation slides](docs/presentation/QuizQuest%20Project%20slides.pdf).
-- [Circle Tag notes](public/tag/HOW_THIS_WORKS.md): the separate `/tag` experiment.
+- [Final presentation slides](docs/QuizQuest%20Project%20slides.pdf).
