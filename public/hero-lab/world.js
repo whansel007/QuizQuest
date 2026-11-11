@@ -51,6 +51,7 @@ import { preloadHeroSprites, drawCachedHero, getHeroSpriteUrl } from './hero-vis
 import { cosmeticArt, drawCosmeticIcon } from './avatar-cosmetic-art.js';
 
 const canvas = document.querySelector('#world');
+const ALPHABETIZED_HEROES = [...HEROES].sort((a, b) => a.name.localeCompare(b.name, undefined, { sensitivity: 'base' }));
 const ARENA_WIDTH = GAME_CONFIG.arena.width;
 const ARENA_HEIGHT = GAME_CONFIG.arena.height;
 const touchViewport = matchMedia('(pointer: coarse)');
@@ -1548,7 +1549,7 @@ qualitySetting.addEventListener('change', () => {
 muteSetting.addEventListener('change', () => { settings.muted = muteSetting.checked; saveSettings(); });
 volumeSetting.addEventListener('input', () => { settings.masterVolume = Number(volumeSetting.value); saveSettings(); });
 
-lobbyHero.replaceChildren(...HEROES.map((hero) => {
+lobbyHero.replaceChildren(...ALPHABETIZED_HEROES.map((hero) => {
   const option = document.createElement('option');
   option.value = hero.id;
   option.textContent = heroOptionText(hero);
@@ -1558,6 +1559,7 @@ lobbyHero.value = activeHeroId;
 syncHeroMenuIcons();
 lobbyHero.addEventListener('change', () => {
   syncHeroMenuIcons();
+  if (touchMode) lobbyHero.blur();
   if (!socket.connected) return;
   pendingHeroSwap = lobbyHero.value;
   pendingHeroSwapAt = performance.now();
@@ -3633,7 +3635,7 @@ function heroOptionText(hero) {
 }
 function syncHeroMenus() {
   const selectedLobbyHero = lobbyHero.value || activeHeroId;
-  lobbyHero.replaceChildren(...HEROES.map((hero) => {
+  lobbyHero.replaceChildren(...ALPHABETIZED_HEROES.map((hero) => {
     const option = document.createElement('option'); option.value = hero.id; option.textContent = heroOptionText(hero); return option;
   }));
   lobbyHero.value = HEROES.some((hero) => hero.id === selectedLobbyHero) ? selectedLobbyHero : activeHeroId;
@@ -4593,17 +4595,28 @@ function drawRangerAimGuides() {
   if (!player || player.heroId !== 'ranger' || player.downed || !window.lastPointerWorld) return;
   const config = GAME_CONFIG.heroes.ranger.ranger;
   const progress = Math.max(0, Math.min(1, player.rangerChargeT || 0));
+  const touchGesture = touchMode ? abilityTouches.get(primaryPointerId) : null;
+  // The world pointer is only a snapshot. While a mobile charge is held, use
+  // its current direction so movement and the preview cannot drift apart.
+  const touchDirection = touchGesture?.slot === 'primary' ? touchGesture.aim?.dir : null;
   let range, width, color;
   if (player.rangerCharging) {
     range = config.rangeMin + (config.rangeMax - config.rangeMin) * progress;
     width = config.feedback.aimLineWidthMinPx + progress * config.feedback.aimLineWidthMaxPx;
     color = HERO_FX_SECONDARY.ranger;
   } else if (player.deadAimArrows > 0) {
+    // Dead Aim's guide is useful only after the player has started aiming.
+    // In particular, don't leave a full-range guide on screen just for
+    // having Dead Aim charges available on mobile.
+    if (touchMode && !(touchGesture?.slot === 'primary' && touchGesture.dragged && touchGesture.aim)) return;
     range = config.ultRange;
     width = 1.5;
     color = HERO_FX_SECONDARY.ranger;
   } else return;
-  const end = rangerAimEndpoint(player, range);
+  const target = touchDirection
+    ? { x: player.x + touchDirection.x * range, y: player.y + touchDirection.y * range }
+    : window.lastPointerWorld;
+  const end = rangerAimEndpoint(player, range, target);
   context.save(); context.globalAlpha = player.deadAimArrows > 0 ? 0.5 : 0.48; context.lineCap = 'round';
   context.strokeStyle = '#303728'; context.lineWidth = width + 3;
   context.beginPath(); context.moveTo(player.x, player.y); context.lineTo(end.x, end.y); context.stroke();
@@ -4715,8 +4728,13 @@ function drawRangerCombatFeedback(player, now) {
       context.fillStyle = HERO_FX_SECONDARY.ranger; context.fill();
     }
     context.restore();
-    if (player.id === me && window.lastPointerWorld) {
-      const end = rangerAimEndpoint(player, config.ultRange);
+    const touchGesture = touchMode ? abilityTouches.get(primaryPointerId) : null;
+    const touchAiming = touchGesture?.slot === 'primary' && touchGesture.dragged && touchGesture.aim;
+    if (player.id === me && window.lastPointerWorld && (!touchMode || touchAiming)) {
+      const target = touchMode
+        ? { x: player.x + touchGesture.aim.dir.x * config.ultRange, y: player.y + touchGesture.aim.dir.y * config.ultRange }
+        : window.lastPointerWorld;
+      const end = rangerAimEndpoint(player, config.ultRange, target);
       context.save(); context.globalAlpha = 1; context.strokeStyle = '#303728'; context.lineWidth = 6;
       context.beginPath(); context.arc(end.x, end.y, 21, 0, Math.PI * 2); context.stroke();
       context.strokeStyle = HERO_FX_SECONDARY.ranger; context.lineWidth = 3;
@@ -6177,6 +6195,18 @@ function moveStick(event) {
   if (v.magnitude > 0) {
     const length = Math.hypot(v.x, v.y);
     lastMoveDir = { x: v.x / length, y: v.y / length };
+    const player = localPlayer();
+    const heldRangerPrimary = primaryPointerId !== null ? abilityTouches.get(primaryPointerId) : null;
+    // If the player is holding primary but hasn't dragged that finger to aim,
+    // steer the shot with the movement stick. A manual aim drag always wins.
+    if (player?.heroId === 'ranger' && heldRangerPrimary?.slot === 'primary' && !heldRangerPrimary.dragged) {
+      heldRangerPrimary.aim = { dir: lastMoveDir, distance: heldRangerPrimary.spec.range || 300 };
+      window.lastPointerWorld = clampToArena({
+        x: player.x + lastMoveDir.x * heldRangerPrimary.aim.distance,
+        y: player.y + lastMoveDir.y * heldRangerPrimary.aim.distance,
+      });
+      sendAimVector(lastMoveDir.x, lastMoveDir.y);
+    }
     // Guardian's Unbreakable Charge runs along the aim: the stick steers it,
     // with the same 'aim' message the mouse sends.
     if (localPlayer()?.guardianCharging) sendAimVector(v.x, v.y);
@@ -6295,6 +6325,7 @@ function onTouchAbilityDown(event) {
     // Press = fire now with auto-aim, then hold to keep firing (Ranger: the
     // press starts the charge and the release fires, as the server defines).
     const auto = autoAimFor(player, gesture.spec.range);
+    if (player.heroId === 'ranger') gesture.aim = { dir: auto.dir, distance: Math.min(gesture.spec.range || 300, auto.distance) };
     sendAimVector(auto.dir.x, auto.dir.y, true);
     window.lastPointerWorld = clampToArena({ x: player.x + auto.dir.x * Math.min(gesture.spec.range || 300, auto.distance), y: player.y + auto.dir.y * Math.min(gesture.spec.range || 300, auto.distance) });
     fireWeapon('primary');

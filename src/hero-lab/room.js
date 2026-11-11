@@ -1633,18 +1633,6 @@ function createRoom({ io, services = null, id, code = null, isDefault = false, m
     else if (direction.x < 0) allowed = Math.min(allowed, (margin - player.x) / direction.x);
     if (direction.y > 0) allowed = Math.min(allowed, (ARENA_CONFIG.height - margin - player.y) / direction.y);
     else if (direction.y < 0) allowed = Math.min(allowed, (margin - player.y) / direction.y);
-
-    // The campfire is the arena's existing solid obstacle. Stop before its
-    // collision radius, matching the push helper's obstruction rule.
-    const obstacleRadius = campfire.radius + margin;
-    const ox = player.x - campfire.x, oy = player.y - campfire.y;
-    const c = ox * ox + oy * oy - obstacleRadius * obstacleRadius;
-    const b = 2 * (ox * direction.x + oy * direction.y);
-    const discriminant = b * b - 4 * c;
-    if (c > 0 && discriminant >= 0) {
-      const entry = (-b - Math.sqrt(discriminant)) / 2;
-      if (entry >= 0) allowed = Math.min(allowed, Math.max(0, entry - 0.5));
-    }
     return Math.max(0, allowed);
   }
 
