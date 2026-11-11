@@ -393,7 +393,6 @@ const statsPanel = document.querySelector('#stats-panel');
 const infoCloseButton = document.querySelector('#info-close');
 const emoteButton = document.querySelector('#emote-button');
 const emoteMenu = document.querySelector('#emote-menu');
-const emoteClose = document.querySelector('#emote-close');
 const emoteChoices = [...document.querySelectorAll('.emote-choice[data-emote]')];
 const buffVote = document.querySelector('#buff-vote');
 const buffCards = document.querySelector('#buff-cards');
@@ -3273,8 +3272,9 @@ function onPointerMove(event) {
   }, delay);
 }
 
-function openEmoteMenu() {
-  if (!me || !emoteMenu.hidden) return;
+function toggleEmoteMenu() {
+  if (!me) return;
+  if (!emoteMenu.hidden) { closeEmoteMenu(); return; }
   releaseKeys();
   emoteMenu.hidden = false;
   emoteButton.setAttribute('aria-expanded', 'true');
@@ -3317,7 +3317,7 @@ function onEmoteMenuKeyDown(event) {
     return;
   }
   if (event.code === 'Tab') {
-    const focusables = [...emoteChoices, emoteClose];
+    const focusables = emoteChoices;
     const currentIndex = focusables.indexOf(document.activeElement);
     const nextIndex = event.shiftKey
       ? (currentIndex <= 0 ? focusables.length - 1 : currentIndex - 1)
@@ -3327,8 +3327,7 @@ function onEmoteMenuKeyDown(event) {
   }
 }
 
-emoteButton.addEventListener('click', openEmoteMenu);
-emoteClose.addEventListener('click', closeEmoteMenu);
+emoteButton.addEventListener('click', toggleEmoteMenu);
 emoteMenu.addEventListener('click', (event) => { if (event.target === emoteMenu) closeEmoteMenu(); });
 emoteChoices.forEach((choice) => choice.addEventListener('click', () => sendEmote(choice.dataset.emote)));
 
@@ -3348,7 +3347,7 @@ function onKeyDown(event) {
     activateAbility('ultimate');
   } else if (event.code === 'KeyZ' && !event.repeat) {
     event.preventDefault();
-    openEmoteMenu();
+    toggleEmoteMenu();
   } else if (event.code === 'KeyI' && !event.repeat) {
     toggleStats();
   } else if (event.code === 'Escape' && !event.repeat) {

@@ -155,7 +155,7 @@ onUnmounted(() => {
           </div>
           <p v-if="isHero" class="prize-move">{{ formatHeroType(item.type) }} hero · {{ item.weapon }}</p>
           <p v-else class="prize-move">Added to your kingdom resources</p>
-          <p class="prize-move pity-line">{{ result.pity.totalPulls }} total pulls · pity {{ result.pity.sinceHero }} / {{ result.pity.sinceEpic }}</p>
+          <p class="prize-move pity-line">{{ result.pity.totalPulls }} total pulls · 5-star pity: {{ result.pity.sinceEpic }} pulls since your last 5-star</p>
       <div class="prize-actions" @click.stop>
             <button ref="collectBtn" type="button" class="btn primary" data-testid="prize-continue" @click="emit('close')">{{ skipToSummary ? 'View all results' : 'Continue' }}</button>
           </div>

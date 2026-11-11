@@ -105,7 +105,8 @@ function inventory(db, studentId) {
   inv.heroes = Array.isArray(inv.heroes) ? inv.heroes : [HERO_SUMMON.starterHero];
   if (!inv.heroes.includes(HERO_SUMMON.starterHero)) inv.heroes.unshift(HERO_SUMMON.starterHero);
   inv.heroDupes = inv.heroDupes && typeof inv.heroDupes === 'object' ? inv.heroDupes : {};
-  inv.heroPity = { totalPulls: 0, sinceHero: 0, sinceEpic: 0, ...(inv.heroPity || {}) };
+  inv.heroPity = { totalPulls: 0, sinceEpic: 0, ...(inv.heroPity || {}) };
+  delete inv.heroPity.sinceHero; // discard the retired 4-star pity counter
   return inv;
 }
 
@@ -124,19 +125,17 @@ function drawPet(rand = (n) => crypto.randomInt(n)) {
   return pool[rand(pool.length)];
 }
 
-// Pity counts reset on the corresponding prize: any hero resets hero pity;
-// only a 5-star resets 5-star pity. Fresh heroes are preferred within a
-// rarity until that pool is complete, then duplicates use rarity refunds.
+// A single 5-star pity counter resets only on a 5-star. Fresh heroes are
+// preferred within a rarity until that pool is complete, then duplicates use
+// rarity refunds.
 function drawHeroSummon(pity, rand = (n) => crypto.randomInt(n), ownedHeroes = []) {
   const odds = HERO_SUMMON.odds;
   const next = {
     totalPulls: pity.totalPulls + 1,
-    sinceHero: pity.sinceHero + 1,
     sinceEpic: pity.sinceEpic + 1,
   };
   let rarity;
   if (next.sinceEpic >= HERO_SUMMON.epicPityPulls) rarity = 'epic';
-  else if (next.sinceHero >= HERO_SUMMON.heroPityPulls) rarity = rand(odds.rare + odds.epic) < odds.epic ? 'epic' : 'rare';
   else {
     const roll = rand(Object.values(odds).reduce((sum, weight) => sum + weight, 0));
     let cursor = roll;
@@ -146,7 +145,6 @@ function drawHeroSummon(pity, rand = (n) => crypto.randomInt(n), ownedHeroes = [
     const resource = ['wood', 'crystal', 'herb'][rand(3)];
     return { prize: { kind: 'resource', rarity, resource, amount: HERO_SUMMON.commonResourceAmount }, pity: next };
   }
-  next.sinceHero = 0;
   if (rarity === 'epic') next.sinceEpic = 0;
   const pool = HERO_CATALOG.filter((hero) => hero.rarity === rarity);
   const owned = new Set(ownedHeroes);

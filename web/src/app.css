@@ -179,6 +179,13 @@ main#main.main-world {
   padding: 0;
   overflow: hidden;
 }
+main#main.main-world:fullscreen {
+  width: 100vw;
+  height: 100vh;
+  height: 100dvh;
+  min-height: 100vh;
+  min-height: 100dvh;
+}
 main#main.main-kingdom {
   width: 100%;
   height: 100vh;

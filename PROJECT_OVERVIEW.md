@@ -38,9 +38,9 @@ The prototype is built around one course at a time, with synthetic demo data (no
 ### For students (5 tabs)
 - **Practice**: sessions of 5, 8, 10 or 15 questions; optional timer (30/60/90 s) with 1.5× or 2× extra time for accommodation; sessions resume after a refresh; questions can be reported to the professor.
 - **My Progress**: a practice indicator per topic, recent sessions, and replies to their question reports.
-- **World**: *Campfire Defense*, a real-time co-op survival game for up to 4 players per room. Six heroes; the student's kingdom upgrades boost attack and campfire health.
+- **World**: *Campfire Defense*, a real-time co-op survival game for up to 4 players per room. Ten heroes; the student's kingdom upgrades boost attack and campfire health.
 - **Kingdom**: an isometric 3D kingdom with 4 buildings × 3 levels, built with resources earned by practising, plus a class market for trading resources.
-- **Pets & shop**: *Hero Summon*, with published odds (62% common / 30% rare / 8% epic), a hero guaranteed after 10 pulls without one, and a 5-star guaranteed after 50 pulls without one.
+- **Pets & shop**: *Hero Summon*, with published odds (62% common / 30% rare / 8% epic) and a 5-star guaranteed after 50 pulls without one.
 
 ### Question formats
 Multiple choice, multi-select, true/false and short answer (text or numeric) for new questions. Numeric and parameterised maths questions, which give each student different numbers, remain supported for existing content.

@@ -279,9 +279,8 @@ pulls of that rarity refund coins. Cost, refund fractions, resource amount,
 rates, hero rarities, welcome gift, and pity thresholds are in `game-config.js`.
 
 The server owns summon RNG, coin spending/refunds, resource rewards, hero
-ownership, and pity counters. A hero is guaranteed at least every 10 pulls,
-and a 5-star is guaranteed by pull 50. The 5-star guarantee takes priority
-when both are due. Any hero resets the hero counter; a 5-star resets both.
+ownership, and one pity counter. A 5-star is guaranteed by pull 50 without
+another 5-star. Only a 5-star resets the counter.
 Pull history and owned heroes persist with the student's inventory. World
 validates ownership again when the student joins, so the client cannot select
 a locked hero.
@@ -301,9 +300,8 @@ server. Its endpoint refuses requests when `NODE_ENV=production` or
 3. Summon repeatedly. Check that common results add the shown resource amount,
    new hero results unlock a collection card, and duplicate heroes refund the
    configured amount.
-4. Confirm pity counters survive page reloads. The 10th pull since the last
-   hero must be a hero; the 50th pull since the last 5-star must be 5-star.
-   If both counters reach their threshold together, the result must be epic.
+4. Confirm the 5-star pity counter survives page reloads. The 50th pull since
+   the last 5-star must be a 5-star.
 5. Open **World**. Confirm only owned heroes can be selected and that a newly
    summoned hero becomes selectable. Check kingdom bonuses still apply.
 6. Switch **History** between Coins and Resources and confirm summon charges,
