@@ -188,7 +188,7 @@
 
 **Speaker note (William Hansel, 1:05)** — "The game side is mine. The Kingdom is a castle in the middle with four buildings around it — Garden north, Tower south, Library west, Workshop east — and you upgrade them with the wood, crystal and herbs you earn from answering. WASD to walk, E to open a door or greet a hero, Z for emotes. Summon is the gacha: one pull costs fifty coins, ten costs five hundred, and the stars under the name are the rarity. And Campfire Run is the shared lobby — host a lobby, a four-character room code, and two students in one room on one server."
 
-**Question we will be asked** — *"Is there a raid boss?"* — "There is no raid screen. The tab that used to be called World is now Campfire Run, and the co-op raid is exercised at the socket level in the end-to-end tests, because its UI was never wired up."
+**Question we will be asked** — *"Is there a raid boss?"* — "No. The co-op raid boss was removed; Campfire Run is the class co-op game."
 
 ---
 
@@ -379,7 +379,7 @@ Cut in this order, and never touch a teammate's feature slide: (1) slide 12's re
 Straight from the professor's rules, applied to these slides:
 
 1. **Do not demo or describe logging in, signing up, logging out or registration.** None of it goes on the projector, and none of it is claimed as a feature — the rules call it plumbing. The app is signed in before you present.
-2. **Do not promise a raid boss screen.** There is no raid screen in the shipped app. The tab that used to be called World is now **Campfire Run**; the co-op raid is exercised at the socket level in `e2e/raid-boss.spec.js`, because its UI was never wired up.
+2. **The co-op raid boss was removed.** Do not describe it as an available feature; the student co-op game is **Campfire Run**.
 3. **Do not use the old tab names.** The student tabs are **Kingdom, Quiz, My Progress, Campfire Run, Summon**. The professor tabs are **Analytics, To review, Classes & Roster, Question bank, AI drafting, Evaluation, Settings**. There is no "Practice" tab and no "World" tab, and there is no screen called Campfire Defense.
 4. **Do not say "70% of your questions were the ones you got wrong".** It is **70% general coverage and 30% focused on weak topics** — the other way round is an easy catch.
 5. **Do not claim the deployed site is always instantly up.** It is a free Render instance that sleeps; the first request can be a 503.

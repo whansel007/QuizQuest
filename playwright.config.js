@@ -6,7 +6,6 @@
 // approved in each browser. The servers stop when the tests finish.
 // See the report afterwards with `pnpm exec playwright show-report`.
 import { defineConfig, devices } from '@playwright/test';
-import os from 'node:os';
 import path from 'node:path';
 
 const run = Date.now();
@@ -75,7 +74,10 @@ export default defineConfig({
     timeout: 120 * 1000,
     env: {
       PORT: String(b.port),
-      QUIZ_DATA_FILE: path.join(os.tmpdir(), `quizquest-e2e-${run}-${b.name}.json`),
+      // Keep Playwright's mutable demo data inside the workspace. On Windows
+      // sandboxed runners, the OS temp directory can reject the store's
+      // write-then-rename when it atomically replaces this file.
+      QUIZ_DATA_FILE: path.join(process.cwd(), 'tmp', `quizquest-e2e-${run}-${b.name}.json`),
       SUPABASE_URL: '',
       NODE_ENV: 'test',
     },

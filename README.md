@@ -15,7 +15,7 @@ QuizQuest is a gamified learning platform prototype for course question authorin
 - **AI-assisted authoring:** extract text from lecture materials in the browser, create and edit a saved knowledge report, draft questions from that report, and review candidates before publishing. AI output remains a draft until a professor approves it.
 - **Student learning:** adaptive practice, session resume, feedback, topic progress, and reports awaiting professor review. Unconfirmed short-answer grades do not count as confirmed progress.
 - **Professor tools:** marking, question and class analytics, evaluation views, and optional participation points.
-- **Class game and rewards:** a real-time cooperative Campfire Run, plus pets, a class market, and a buildable Kingdom. The co-op raid boss has no screen of its own; it is exercised at the protocol level in the end-to-end tests.
+- **Class game and rewards:** a real-time cooperative Campfire Run, plus pets, a class market, and a buildable Kingdom.
 - **Experiments:** `/hero-lab` is a separate real-time game prototype; `/tag` is the original Circle Tag experiment.
 
 ## Architecture
