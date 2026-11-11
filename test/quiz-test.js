@@ -452,7 +452,7 @@ test('hero summon guarantees, owned heroes, refunds, resources, and retry safety
   const R = require('../src/quiz/rewards');
   const token = await login('s-06');
   const home = (await call(token, 'GET', '/api/student/home')).body;
-  assert.deepEqual(home.catalog.heroSummon.odds, { common: 620, rare: 300, epic: 80 });
+  assert.deepEqual(home.catalog.heroSummon.odds, { common: 750, rare: 200, epic: 50 });
   assert.ok(home.inventory.heroes.includes('sheriff') && home.inventory.heroes.includes('electromancer'), 'new students start with Sheriff and Electromancer');
   R.inventory(db(), 's-06').resources = { wood: 0, crystal: 0, herb: 0 };
   db().ledger.push({ id: 'hero-summon-funds', studentId: 's-06', kind: 'refund', amount: 500, refKey: 'hero-summon-funds', at: Date.now() });

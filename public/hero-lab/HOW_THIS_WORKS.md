@@ -272,7 +272,7 @@ starts with Sheriff and Electromancer and receives a one-time 500-coin welcome
 gift. Each summon costs 50 coins. A resource result gives 5 units of one
 kingdom resource; 4-star heroes are Guardian, Sheriff, Bubbles, Electromancer,
 Samurai, and Ranger; 5-star heroes are Pilot, Bombardier, Fairy, and Engineer.
-Odds are 62% resources, 30% 4-star, and 8% 5-star. Hero pulls skip owned
+Odds are 75% resources, 20% 4-star, and 5% 5-star. Hero pulls skip owned
 heroes while that star pool has new heroes. Duplicate 4-star and 5-star heroes
 refund 30% and 60% of a pull, respectively. Once a star pool is complete,
 pulls of that rarity refund coins. Cost, refund fractions, resource amount,

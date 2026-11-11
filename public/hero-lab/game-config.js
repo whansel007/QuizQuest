@@ -603,7 +603,7 @@ export const GAME_CONFIG = Object.freeze({
     duplicateRefundFraction: { rare: 0.3, epic: 0.6 },
     commonResourceAmount: 5,
     welcomeGiftCoins: 500,
-    odds: { common: 620, rare: 300, epic: 80 },
+    odds: { common: 750, rare: 200, epic: 50 },
     epicPityPulls: 50,
     starterHero: 'sheriff',
     rarities: { sheriff: 'rare', guardian: 'rare', bubbles: 'rare', electromancer: 'rare', samurai: 'rare', ranger: 'rare', pilot: 'epic', bombardier: 'epic', fairy: 'epic', engineer: 'epic' },
