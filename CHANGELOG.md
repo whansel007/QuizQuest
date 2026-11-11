@@ -188,6 +188,6 @@ For commits before 2026-10-17, see `git log`. The notable shipped items:
 - Quiz bank + manual authoring (Task 3, Jasper)
 - AI drafting + adaptive sessions (Tasks 4 + 5, Xavier / Zhi Yang)
 - Analytics dashboard with custom ranges, CSV export, activity grid, class comparison (Task 8, Zhi Yang)
-- Gamification: pets, gacha eggs, kingdom, raid boss, hero-lab, multiplayer World (Task 9, William)
+- Gamification: pets, gacha eggs, kingdom, hero-lab, multiplayer World (Task 9, William)
 - Supabase integration + JSON file fallback
 - Demo seed: 2 courses, 3 classes, 14 users, 24 AI drafts

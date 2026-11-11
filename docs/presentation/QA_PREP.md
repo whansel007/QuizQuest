@@ -108,12 +108,12 @@ the professor says the team name out loud. There is also **no student tab named
 | Question | Short answer | Who answers |
 |---|---|---|
 | "What is the gamification actually made of?" | A castle in the middle with **four buildings** around it — Garden to the north, Tower to the south, Library to the west, Workshop to the east — plus coins, a Summon gacha (one pull is 50 coins, a ten-pull 500) and the Campfire Run arena. | William |
-| "Is there a raid boss?" | Honest answer: there is no raid screen. The tab that used to be called World is now Campfire Run; the co-op quiz raid is exercised only at the socket level, because its UI was never wired up. Do not describe a screen that does not exist. | William |
+| "Is there a raid boss?" | No. The co-op raid boss was removed; Campfire Run is the class co-op game. | William |
 | "How is it deployed?" | Vite builds `web/` into `dist/`; one Node process serves `dist/`, the API and the sockets on `PORT` (default 3000). Render runs `pnpm install --frozen-lockfile && pnpm run build` then `pnpm start`. Live: `https://quizquest-4phd.onrender.com`. | William |
 | "The site took ages to open — why?" | The Render free instance sleeps. The first request returned 503 with `Retry-After: 5` and the warm-up took about 55 seconds, so we wake it before recording. | William |
 | "Which external APIs do you call?" | Two, both server-side only: Google Gemini (`generativelanguage.googleapis.com`, key in the `x-goog-api-key` header, two Flash-Lite model IDs allowed) for drafting and image description, and Resend for the password-reset email when it is configured. | William (hand the AI questions to Xavier) |
 
-**Evidence:** `web/src/student/KingdomView.vue:556-566` (the building list: Castle, Garden, Tower, Library, Workshop), `web/src/student/PetsView.vue:315-319` (**Summon ×1** and **×10** with their coin costs) and `:311` (the **History** button), `web/src/App.vue:31` and `web/src/student/HeroLabView.vue:211` (the tab is Campfire Run), `e2e/raid-boss.spec.js:7-12`, `vite.config.mjs:9-13`, `server.js:322`/`:330` (one process listening on `PORT`, default 3000), `docs/PROTOTYPE.md:83`, `src/quiz/gemini.js:4` and `:152`.
+**Evidence:** `web/src/student/KingdomView.vue:556-566` (the building list: Castle, Garden, Tower, Library, Workshop), `web/src/student/PetsView.vue:315-319` (**Summon ×1** and **×10** with their coin costs) and `:311` (the **History** button), `web/src/App.vue:31` and `web/src/student/HeroLabView.vue:211` (the tab is Campfire Run), `vite.config.mjs:9-13`, `server.js:322`/`:330` (one process listening on `PORT`, default 3000), `docs/PROTOTYPE.md:83`, `src/quiz/gemini.js:4` and `:152`.
 
 ### Xavier — AI drafting, adaptive quiz
 

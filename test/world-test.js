@@ -5,7 +5,7 @@
 //   - no token / teacher token -> refused at the handshake
 //   - joining another class's world is refused
 //   - challenges never carry answer keys
-//   - gathering and raid damage only happen on correct answers
+//   - resource gathering only happens on correct answers
 // Movement is server-authoritative, so to stand next to a node the
 // test places the player directly in the server's world state.
 // ============================================================
@@ -252,51 +252,6 @@ test('gathering: question has no answer key; wrong = nothing, right = resources'
   s.close();
 });
 
-test('raid: correct answers damage the shared boss; victory pays every contributor once', async () => {
-  const a = connect(await login('s-03'));
-  const b = connect(await login('s-04'));
-  await Promise.all([connected(a), connected(b)]);
-  a.emit('join', { classId: 'cl-a' });
-  b.emit('join', { classId: 'cl-a' });
-  const [wa, wb] = await Promise.all([once(a, 'welcome'), once(b, 'welcome')]);
-  const world = srv.world.worlds.get('cl-a');
-  const boss = world.boss;
-  boss.hp = 20; // two hits from victory
-  boss.maxHp = 20;
-  const coins = (id) => db().ledger.filter((t) => t.studentId === id).reduce((n, t) => n + t.amount, 0);
-  const c3 = coins('s-03');
-  const c4 = coins('s-04');
-
-  for (const [sock, w] of [[a, wa], [b, wb]]) {
-    const p = world.players.get(w.you);
-    Object.assign(p, { x: boss.x + 80, y: boss.y, lastInteract: 0 });
-    srv.world.cooldowns.clear();
-    world.nodes.length = 0; // make sure the boss is the nearest target
-    sock.emit('interact');
-    const ch = await once(sock, 'challenge');
-    assert.equal(ch.kind, 'attack');
-    const won = sock === b ? once(a, 'raidWon') : null;
-    const pushed = sock === b ? once(a, 'balances') : null; // a's badges update even though b landed the final hit
-    sock.emit('answer', { id: ch.id, submission: rightAnswer(p.challenge) });
-    const r = await once(sock, 'result');
-    assert.equal(r.correct, true);
-    if (won) {
-      const msg = await won;
-      assert.deepEqual(msg.heroes.sort(), ['Student 03', 'Student 04']);
-      const bal = await pushed;
-      assert.equal(bal.resources.crystal, db().inventory.find((i) => i.studentId === 's-03').resources.crystal);
-    }
-  }
-  assert.equal(boss.alive, false);
-  // each got the raid reward (25) on top of any first-correct coins
-  assert.ok(db().ledger.some((t) => t.studentId === 's-03' && t.refKey === `raid:${boss.raidId}:s-03`));
-  assert.ok(db().ledger.some((t) => t.studentId === 's-04' && t.refKey === `raid:${boss.raidId}:s-04`));
-  assert.ok(coins('s-03') >= c3 + 25 || db().ledger.find((t) => t.refKey === `raid:${boss.raidId}:s-03`).reason.includes('cap'));
-  assert.ok(coins('s-04') >= c4);
-  a.close();
-  b.close();
-});
-
 test('a second tab takes over cleanly, even when alone in the world', async () => {
   const token = await login('s-05');
   const tab1 = connect(token);
@@ -333,8 +288,8 @@ test('leaving with an open question keeps the cooldown (no re-rolling)', async (
   const world = srv.world.worlds.get('cl-a');
   const p = world.players.get(w.you);
   srv.world.cooldowns.clear();
-  Object.assign(p, { x: world.boss.x + 80, y: world.boss.y });
-  world.nodes.length = 0;
+  const node = world.nodes[0];
+  Object.assign(p, { x: node.x, y: node.y });
   s.emit('interact');
   await once(s, 'challenge');
 
@@ -352,8 +307,8 @@ test('leaving with an open question keeps the cooldown (no re-rolling)', async (
   again.emit('join', { classId: 'cl-a' });
   const w2 = await once(again, 'welcome');
   const world2 = srv.world.worlds.get('cl-a');
-  Object.assign(world2.players.get(w2.you), { x: world2.boss.x + 80, y: world2.boss.y });
-  world2.nodes.length = 0;
+  const node2 = world2.nodes[0];
+  Object.assign(world2.players.get(w2.you), { x: node2.x, y: node2.y });
   again.emit('interact');
   assert.match(await once(again, 'notice'), /breath/);
   again.close();

@@ -38,9 +38,9 @@ The prototype is built around one course at a time, with synthetic demo data (no
 ### For students (5 tabs)
 - **Practice**: sessions of 5, 8, 10 or 15 questions; optional timer (30/60/90 s) with 1.5× or 2× extra time for accommodation; sessions resume after a refresh; questions can be reported to the professor.
 - **My Progress**: a practice indicator per topic, recent sessions, and replies to their question reports.
-- **World**: *Campfire Defense*, a real-time co-op survival game for up to 4 players per room. Six heroes; the student's kingdom upgrades boost attack and campfire health.
+- **World**: *Campfire Defense*, a real-time co-op survival game for up to 4 players per room. Ten heroes; the student's kingdom upgrades boost attack and campfire health.
 - **Kingdom**: an isometric 3D kingdom with 4 buildings × 3 levels, built with resources earned by practising, plus a class market for trading resources.
-- **Pets & shop**: *Hero Summon*, with published odds (60% common / 30% rare / 10% epic) and guaranteed heroes within 10 pulls.
+- **Pets & shop**: *Hero Summon*, with published odds (75% common / 20% 4-star / 5% 5-star) and a 5-star guaranteed after 50 pulls without one.
 
 ### Question formats
 Multiple choice, multi-select, true/false and short answer (text or numeric) for new questions. Numeric and parameterised maths questions, which give each student different numbers, remain supported for existing content.
@@ -117,7 +117,7 @@ Multiple choice, multi-select, true/false and short answer (text or numeric) for
 - **Deployment**: no hosting is set up. The plan is a single long-running instance in Singapore, such as Render (`pnpm build`, then `pnpm start`).
 - **Forgot password**: the reset-by-code flow on the login page needs a mail service (`RESEND_API_KEY` and `PASSWORD_RESET_FROM`); without those the page says recovery by email is unavailable and asks the user to contact the project team. There is still no teacher-side reset, so an instance with real accounts still needs a way to reset a forgotten password by hand.
 - **Live Gemini testing**: the AI features have only been tested with simulated responses.
-- **Leftover features without screens**: the class raid boss (server only, since the World tab became Campfire Defense) and the pet shop and eggs (server only, since the tab became Hero Summon).
+- **Leftover features without screens**: the pet shop and eggs (server only, since the tab became Hero Summon).
 
 **Known limitations of the prototype**
 - **Single server process:** the whole database is held in memory, so it runs as one instance only.

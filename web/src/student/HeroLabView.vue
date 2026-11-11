@@ -129,6 +129,7 @@ function enterRoom(mode) {
   roomError.value = '';
   if (!selectedHero.value) { roomError.value = 'Pick a hero first.'; return; }
   if (mode === 'join' && roomCode.value.length !== 4) { roomError.value = 'Enter the 4-letter room code.'; return; }
+  requestCampfireFullscreen();
   const params = new URLSearchParams({ heroId: selectedHero.value.id, embedded: '1' });
   if (mode === 'create') params.set('create', '1');
   else params.set('room', roomCode.value);
@@ -147,6 +148,30 @@ function reloadIntoRoom(hero, code) {
   frameKey.value += 1;
   inGame.value = true;
   nextTick(focusGame);
+}
+
+let campfireFullscreenTarget = null;
+function requestCampfireFullscreen() {
+  const target = document.querySelector('main#main.main-world');
+  if (!target?.requestFullscreen || document.fullscreenElement) return;
+  campfireFullscreenTarget = target;
+  target.requestFullscreen().then(() => {
+    // A fast join error can return to the picker before the browser finishes
+    // entering fullscreen. Do not leave the picker trapped in fullscreen.
+    if (!inGame.value || campfireFullscreenTarget !== target) {
+      if (document.fullscreenElement === target) document.exitFullscreen?.().catch(() => {});
+    }
+  }).catch(() => {
+    if (campfireFullscreenTarget === target) campfireFullscreenTarget = null;
+  });
+}
+
+function exitCampfireFullscreen() {
+  const target = campfireFullscreenTarget;
+  campfireFullscreenTarget = null;
+  if (target && document.fullscreenElement === target) {
+    document.exitFullscreen?.().catch(() => {});
+  }
 }
 
 function returnToSelection(event) {
@@ -277,10 +302,14 @@ window.addEventListener('resize', layoutScene);
 onUnmounted(() => { sceneObserver?.disconnect(); window.removeEventListener('resize', layoutScene); aspectFrames = 0; });
 
 // The app shell hides its own nav while the game is on screen.
-watch(inGame, (playing) => { S.gameActive = playing; }, { immediate: true });
+watch(inGame, (playing) => {
+  S.gameActive = playing;
+  if (!playing) exitCampfireFullscreen();
+}, { immediate: true });
 onUnmounted(() => {
   window.removeEventListener('message', returnToSelection);
   S.gameActive = false;
+  exitCampfireFullscreen();
 });
 </script>
 

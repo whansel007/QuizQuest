@@ -7,8 +7,6 @@
 //   - sign-in required: the socket handshake carries the same token
 //     as the REST API, checked before anything else happens
 //   - resource nodes: walk up, press E, answer a question -> resources
-//   - a co-op raid boss: answer questions near it to deal damage;
-//     everyone who landed a hit shares the victory reward
 // Questions come from the class's published bank and are graded by
 // the SAME services as practice sessions (src/quiz/api.js), so answer
 // keys never reach the browser and coin rules (first correct per
@@ -20,7 +18,6 @@ const crypto = require('crypto');
 const { RESOURCES } = require('../quiz/economy');
 
 const W = { w: 960, h: 576, tile: 48, radius: 18, speed: 220, tickHz: 30 };
-const BOSS = { radius: 46, range: 125, baseHp: 60, hpPerPlayer: 40, damage: 10, respawnMs: 30000, rewardCoins: 25, rewardRes: { crystal: 2 } };
 const NODES = { count: 7, range: 48, respawnMs: 15000, yield: 3 };
 const CHALLENGE_TTL = 60000;
 const WRONG_COOLDOWN = 4000;
@@ -50,10 +47,9 @@ function attachWorld(io, services) {
     next();
   });
 
-  function randomSpot(world, minFromBoss, minFromNodes) {
+  function randomSpot(world, minFromNodes) {
     for (let i = 0; i < 100; i++) {
       const p = { x: 40 + Math.random() * (W.w - 80), y: 40 + Math.random() * (W.h - 80) };
-      if (dist(p, world.boss) < minFromBoss) continue;
       if (world.nodes.some((n) => dist(n, p) < minFromNodes)) continue;
       return p;
     }
@@ -62,19 +58,13 @@ function attachWorld(io, services) {
 
   function spawnNode(world) {
     const types = Object.keys(RESOURCES);
-    world.nodes.push({ id: rid(), type: types[Math.floor(Math.random() * types.length)], ...randomSpot(world, 170, 90), claimedBy: null });
-  }
-
-  function spawnBoss(world) {
-    const hp = Math.max(BOSS.baseHp, BOSS.hpPerPlayer * world.players.size);
-    Object.assign(world.boss, { hp, maxHp: hp, alive: true, respawnAt: null, raidId: rid(), contributors: new Set() });
+    world.nodes.push({ id: rid(), type: types[Math.floor(Math.random() * types.length)], ...randomSpot(world, 90), claimedBy: null });
   }
 
   function getWorld(classId) {
     let w = worlds.get(classId);
     if (!w) {
-      w = { classId, players: new Map(), nodes: [], timers: [], boss: { x: W.w / 2, y: W.h / 2 } };
-      spawnBoss(w);
+      w = { classId, players: new Map(), nodes: [], timers: [] };
       for (let i = 0; i < NODES.count; i++) spawnNode(w);
       worlds.set(classId, w);
     }
@@ -149,12 +139,12 @@ function attachWorld(io, services) {
       leave(socket);
       const world = getWorld(classId);
       const look = services.look(user.id);
-      const spot = randomSpot(world, 170, 0);
+      const spot = randomSpot(world, 0);
       world.players.set(socket.id, { socketId: socket.id, userId: user.id, name: user.name, pet: look.pet.emoji, petName: look.pet.name, move: look.pet.move, item: look.item?.emoji || null, avatarVisual: services.avatarVisual?.(user) || null, ...spot, keys: {}, challenge: null, lastInteract: 0, emote: null });
       socket.data.classId = classId;
       socket.join('class:' + classId);
       world.dirty = true; // make sure the newcomer gets a snapshot even if nothing moved
-      socket.emit('welcome', { you: socket.id, arena: { w: W.w, h: W.h }, tile: W.tile, radius: W.radius, boss: { radius: BOSS.radius, range: BOSS.range }, nodeRange: NODES.range, resources: RESOURCES, emotes: EMOTES });
+      socket.emit('welcome', { you: socket.id, arena: { w: W.w, h: W.h }, tile: W.tile, radius: W.radius, nodeRange: NODES.range, resources: RESOURCES, emotes: EMOTES });
     }));
 
     socket.on('input', (keys) => {
@@ -168,7 +158,7 @@ function attachWorld(io, services) {
       if (p && EMOTES.includes(e)) p.emote = { e, until: Date.now() + 2500 };
     });
 
-    // Press E near a node or the boss -> get a question
+    // Press E near a resource node to get a question.
     socket.on('interact', safe(() => {
       if (!stillSignedIn()) return;
       const world = worlds.get(socket.data.classId);
@@ -185,15 +175,14 @@ function attachWorld(io, services) {
       let node = null;
       node = world.nodes.filter((n) => !n.claimedBy && dist(n, p) <= NODES.range).sort((a, b) => dist(a, p) - dist(b, p))[0];
       if (node) kind = 'gather';
-      else if (world.boss.alive && dist(world.boss, p) <= BOSS.range) kind = 'attack';
-      if (!kind) return notice('Walk up to a resource or the boss, then press E.');
+      if (!kind) return notice('Walk up to a resource, then press E.');
 
       const cls = services.classOf(world.classId);
       const pick = services.pickChallenge(user, cls);
       if (!pick) return notice('Your class has no auto-graded questions published yet.');
       const id = rid();
       if (node) node.claimedBy = user.id;
-      const label = kind === 'gather' ? `Gather ${RESOURCES[node.type].emoji} ${RESOURCES[node.type].name}` : `${p.petName} attacks!`;
+      const label = `Gather ${RESOURCES[node.type].emoji} ${RESOURCES[node.type].name}`;
       p.challenge = { id, kind, nodeId: node?.id || null, q: pick.q, v: pick.v, instance: pick.instance, servedAt: t, public: { id, kind, label, question: pick.view, ttlMs: CHALLENGE_TTL } };
       socket.emit('challenge', p.challenge.public);
     }));
@@ -238,27 +227,6 @@ function attachWorld(io, services) {
             world.timers.push(h);
           } else node.claimedBy = null;
         }
-      } else if (ch.kind === 'attack' && result.correct && world.boss.alive) {
-        const b = world.boss;
-        b.hp = Math.max(0, b.hp - BOSS.damage);
-        b.contributors.add(user.id);
-        effect.damage = BOSS.damage;
-        nsp.to('class:' + world.classId).emit('hit', { by: p.name, pet: p.pet, move: p.move, dmg: BOSS.damage });
-        if (b.hp === 0) {
-          b.alive = false;
-          b.respawnAt = Date.now() + BOSS.respawnMs;
-          const names = [];
-          for (const uid of b.contributors) {
-            services.award(uid, BOSS.rewardCoins, 'Raid victory: Fog of Confusion', `raid:${b.raidId}:${uid}`);
-            services.grantResources(uid, BOSS.rewardRes, 'Raid victory', `raidres:${b.raidId}:${uid}`);
-            names.push(services.userName(uid));
-            // tell each hero's screen its new totals
-            for (const other of world.players.values()) {
-              if (other.userId === uid) nsp.sockets.get(other.socketId)?.emit('balances', services.balances(uid));
-            }
-          }
-          nsp.to('class:' + world.classId).emit('raidWon', { heroes: names, coins: BOSS.rewardCoins, resources: BOSS.rewardRes });
-        }
       }
       if (!result.correct) cooldown(user.id);
       services.save({ classId: world.classId });
@@ -282,13 +250,6 @@ function attachWorld(io, services) {
           const len = Math.hypot(dx, dy); // normalise so diagonal isn't faster
           p.x = Math.min(W.w - W.radius, Math.max(W.radius, p.x + (dx / len) * step));
           p.y = Math.min(W.h - W.radius, Math.max(W.radius, p.y + (dy / len) * step));
-          // the boss is solid: push players back out of its body
-          const d = dist(p, world.boss);
-          const min = BOSS.radius + W.radius;
-          if (world.boss.alive && d < min && d > 0) {
-            p.x = world.boss.x + ((p.x - world.boss.x) / d) * min;
-            p.y = world.boss.y + ((p.y - world.boss.y) / d) * min;
-          }
         }
         if (p.challenge && t - p.challenge.servedAt > CHALLENGE_TTL + 3000) {
           release(world, p);
@@ -296,15 +257,9 @@ function attachWorld(io, services) {
         }
         if (p.emote && p.emote.until < t) p.emote = null;
       }
-      if (!world.boss.alive && world.boss.respawnAt <= t) {
-        spawnBoss(world);
-        nsp.to('class:' + world.classId).emit('notice', 'The Fog of Confusion has returned!');
-      }
       const snapshot = {
         players: [...world.players.values()].map((p) => ({ id: p.socketId, name: p.name, pet: p.pet, item: p.item, avatarVisual: p.avatarVisual, x: Math.round(p.x), y: Math.round(p.y), emote: p.emote?.e || null, busy: !!p.challenge })),
         nodes: world.nodes.map((n) => ({ id: n.id, type: n.type, x: Math.round(n.x), y: Math.round(n.y), claimed: !!n.claimedBy })),
-        // respawn countdown in whole seconds, so an idle world's snapshot really is unchanged
-        boss: { x: world.boss.x, y: world.boss.y, hp: world.boss.hp, maxHp: world.boss.maxHp, alive: world.boss.alive, respawnIn: world.boss.alive ? 0 : Math.ceil(Math.max(0, world.boss.respawnAt - t) / 1000) * 1000 },
       };
       // Nothing moved or changed since the last tick? Don't resend it.
       // (Newcomers still get a snapshot: joining marks the world dirty.)
@@ -326,4 +281,4 @@ function attachWorld(io, services) {
   };
 }
 
-module.exports = { attachWorld, W, BOSS, NODES };
+module.exports = { attachWorld, W, NODES };

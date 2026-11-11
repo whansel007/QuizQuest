@@ -130,7 +130,9 @@ jobs:
 
   e2e:
     name: End-to-end tests (Chromium, Firefox, WebKit)
-    runs-on: ubuntu-latest
+    # The WebKit bundle in Playwright 1.62 needs ICU 74. Pin the Linux image
+    # that ships that runtime; ubuntu-latest can advance to a newer ICU ABI.
+    runs-on: ubuntu-24.04
     timeout-minutes: 45
 
     steps:

@@ -546,7 +546,7 @@ test('kingdom builds drop new blocks in place and the summon reveal hands over t
   const draw = R.drawHeroSummon;
   R.drawHeroSummon = (pity) => ({
     prize: { kind: 'hero', rarity: 'epic', hero: R.HERO_CATALOG.find((h) => h.id === 'bubbles') },
-    pity: { totalPulls: pity.totalPulls + 1, sinceHero: 0, sinceEpic: 0 },
+    pity: { totalPulls: pity.totalPulls + 1, sinceEpic: 0 },
   });
   t.after(() => { R.drawHeroSummon = draw; });
   // The Kingdom is immersive, so the tab bar slides out of reach a moment

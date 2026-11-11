@@ -19,7 +19,7 @@ function diff(row) {
 
 <template>
   <div>
-    <p class="small muted">Accuracy in practice sessions compared with answers given in the World (gathering and the raid boss). A big gap can mean the game setting helps, or distracts. World questions are timed, so expect some difference.</p>
+    <p class="small muted">Accuracy in practice sessions compared with answers given in the World while gathering resources. A big gap can mean the game setting helps, or distracts. World questions are timed, so expect some difference.</p>
     <p v-if="!contexts.world.n" class="note small">No World answers in this period yet, so there is nothing to compare. Practice accuracy: <b>{{ frac(contexts.practice) }}</b>.</p>
     <div v-else class="table-wrap">
       <table class="dash-table stack">

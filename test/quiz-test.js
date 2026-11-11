@@ -452,13 +452,13 @@ test('hero summon guarantees, owned heroes, refunds, resources, and retry safety
   const R = require('../src/quiz/rewards');
   const token = await login('s-06');
   const home = (await call(token, 'GET', '/api/student/home')).body;
-  assert.deepEqual(home.catalog.heroSummon.odds, { common: 620, rare: 300, epic: 80 });
+  assert.deepEqual(home.catalog.heroSummon.odds, { common: 750, rare: 200, epic: 50 });
   assert.ok(home.inventory.heroes.includes('sheriff') && home.inventory.heroes.includes('electromancer'), 'new students start with Sheriff and Electromancer');
   R.inventory(db(), 's-06').resources = { wood: 0, crystal: 0, herb: 0 };
   db().ledger.push({ id: 'hero-summon-funds', studentId: 's-06', kind: 'refund', amount: 500, refKey: 'hero-summon-funds', at: Date.now() });
 
   const draw = R.drawHeroSummon;
-  R.drawHeroSummon = (pity) => ({ prize: { kind: 'hero', rarity: 'epic', hero: { ...R.HERO_CATALOG.find((hero) => hero.id === 'bombardier') } }, pity: { totalPulls: pity.totalPulls + 1, sinceHero: 0, sinceEpic: 0 } });
+  R.drawHeroSummon = (pity) => ({ prize: { kind: 'hero', rarity: 'epic', hero: { ...R.HERO_CATALOG.find((hero) => hero.id === 'bombardier') } }, pity: { totalPulls: pity.totalPulls + 1, sinceEpic: 0 } });
   try {
     const requestId = 'hero-summon-0001';
     const a = await call(token, 'POST', '/api/student/hero-summon', { requestId });
@@ -475,12 +475,16 @@ test('hero summon guarantees, owned heroes, refunds, resources, and retry safety
     assert.equal(duplicate.body.inventory.heroDupes.bombardier, 1);
   } finally { R.drawHeroSummon = draw; }
 
-  const pity = { totalPulls: 4, sinceHero: 4, sinceEpic: 4 };
-  const guaranteed = R.drawHeroSummon(pity, (n) => n > 1 ? 0 : 0);
-  assert.equal(guaranteed.prize.kind, 'hero', 'the 5th pull guarantees a hero');
-  const epic = R.drawHeroSummon({ totalPulls: 19, sinceHero: 19, sinceEpic: 19 }, () => 0);
-  assert.equal(epic.prize.rarity, 'epic', 'the 20th-pull 5-star guarantee takes priority');
-  const common = R.drawHeroSummon({ totalPulls: 0, sinceHero: 0, sinceEpic: 0 }, () => 0);
+  const beforePity = R.drawHeroSummon({ totalPulls: 8, sinceEpic: 8 }, () => 0);
+  assert.equal(beforePity.prize.kind, 'resource', 'the 9th pull can be common');
+  const noHeroPity = R.drawHeroSummon({ totalPulls: 9, sinceEpic: 9 }, () => 0);
+  assert.equal(noHeroPity.prize.kind, 'resource', 'there is no separate 10-pull hero guarantee');
+  const boundedRoll = (max) => Math.min(100, max - 1);
+  const beforeEpicPity = R.drawHeroSummon({ totalPulls: 48, sinceEpic: 48 }, boundedRoll);
+  assert.equal(beforeEpicPity.prize.kind, 'resource', 'the 49th pull is not forced to be a 5-star');
+  const epic = R.drawHeroSummon({ totalPulls: 49, sinceEpic: 49 }, boundedRoll);
+  assert.equal(epic.prize.rarity, 'epic', 'the 50th-pull 5-star guarantee takes priority');
+  const common = R.drawHeroSummon({ totalPulls: 0, sinceEpic: 0 }, () => 0);
   assert.equal(common.prize.kind, 'resource');
   assert.equal(common.prize.amount, home.catalog.heroSummon.commonResourceAmount);
 });

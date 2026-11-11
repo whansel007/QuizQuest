@@ -55,7 +55,6 @@ const coinBalance = computed(() => home.value?.wallet?.balance || 0);
 const pullCost = computed(() => summonConfig.value?.pullCost || 0);
 const multiDiscount = computed(() => summonConfig.value?.multiDiscount ?? 0);
 const tenPullCost = computed(() => Math.floor(pullCost.value * 10 * (1 - multiDiscount.value)));
-const pullsToHero = computed(() => Math.max(1, (summonConfig.value?.heroPityPulls || 1) - (inv.value?.heroPity?.sinceHero || 0)));
 const pullsToEpic = computed(() => Math.max(1, (summonConfig.value?.epicPityPulls || 1) - (inv.value?.heroPity?.sinceEpic || 0)));
 const resources = computed(() => catalog.value?.resources || {});
 const rarityStars = (hero) => GAME_CONFIG.arenaTuning.gachaReveal.rarityStars[hero.rarity] || 3;
@@ -73,7 +72,7 @@ const oddsRows = computed(() => {
   const total = Object.values(odds).reduce((sum, value) => sum + value, 0);
   return Object.entries(odds).map(([rarity, weight]) => ({
     rarity,
-    stars: rarity === 'common' ? 0 : (GAME_CONFIG.arenaTuning.gachaReveal.rarityStars[rarity] || 0),
+    stars: GAME_CONFIG.arenaTuning.gachaReveal.rarityStars[rarity] || 0,
     percent: Math.round(weight * 100 / total),
     heroes: catalog.value.heroes.filter((hero) => hero.rarity === rarity),
   }));
@@ -289,7 +288,7 @@ onUnmounted(() => {
             <div class="banner-kicker">A TALE IN THE MAKING</div>
             <h2 id="banner-title">{{ summonConfig.bannerTitle }}</h2>
             <p>{{ summonConfig.bannerSubtitle }}</p>
-            <p class="pity-progress">4-star hero in {{ pullsToHero }} pull{{ pullsToHero === 1 ? '' : 's' }} guaranteed · 5-star hero in {{ pullsToEpic }} pull{{ pullsToEpic === 1 ? '' : 's' }} guaranteed</p>
+            <p class="pity-progress">5-star pity: {{ inv?.heroPity?.sinceEpic || 0 }} / {{ summonConfig.epicPityPulls }} pulls · guaranteed in {{ pullsToEpic }}</p>
           </div>
 
           <div class="featured-row" :class="{ 'featured-many': featuredHeroes.length > 3 }">
@@ -357,7 +356,7 @@ onUnmounted(() => {
             </div>
             <p class="detail-copy">Each summon costs {{ pullCost }} coins. A common result adds {{ summonConfig.commonResourceAmount }} units of one kingdom resource.</p>
             <div class="detail-rules">
-              <p>A 4-star or 5-star hero is guaranteed at least every {{ summonConfig.heroPityPulls }} pulls. A 5-star hero is guaranteed by pull {{ summonConfig.epicPityPulls }}.</p>
+              <p>A 5-star hero is guaranteed within {{ summonConfig.epicPityPulls }} pulls without another 5-star.</p>
               <p>Hero pulls skip heroes you already own while that star pool has new heroes. A duplicate 4-star refunds {{ Math.floor(pullCost * summonConfig.duplicateRefundFraction.rare) }} coins; a duplicate 5-star refunds {{ Math.floor(pullCost * summonConfig.duplicateRefundFraction.epic) }} coins.</p>
               <p>After you own every hero, hero results still refund coins. Your first visit includes a one-time {{ summonConfig.welcomeGiftCoins }}-coin gift.</p>
             </div>
@@ -369,7 +368,7 @@ onUnmounted(() => {
               <div><strong>{{ summary.common }}</strong><span>resource results</span></div>
               <div><strong>{{ summary.rare }}</strong><span>{{ GAME_CONFIG.arenaTuning.gachaReveal.rarityStars.rare }}-star results</span></div>
               <div><strong>{{ summary.epic }}</strong><span>{{ GAME_CONFIG.arenaTuning.gachaReveal.rarityStars.epic }}-star results</span></div>
-              <p v-if="inv?.heroPity">Since your last 4-star: {{ inv.heroPity.sinceHero }} pulls · Since your last 5-star: {{ inv.heroPity.sinceEpic }} pulls</p>
+              <p v-if="inv?.heroPity">5-star pity: {{ inv.heroPity.sinceEpic }} / {{ summonConfig.epicPityPulls }} pulls since your last 5-star</p>
             </div>
 
             <div class="history-tabs" role="group" aria-label="History type">

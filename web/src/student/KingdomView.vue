@@ -36,9 +36,38 @@ const loaded = ref(false);
 const k = ref(null);
 const homeData = ref(null);
 const town = ref(null);
+const kingdomScreen = ref(null);
+const kingdomFullscreen = ref(false);
+const fullscreenSupported = Boolean(document.fullscreenEnabled && document.documentElement.requestFullscreen);
+let kingdomFullscreenTarget = null;
 let alive = true;
 
+function onKingdomFullscreenChange() {
+  kingdomFullscreen.value = document.fullscreenElement === kingdomScreen.value;
+  if (!document.fullscreenElement) kingdomFullscreenTarget = null;
+}
+
+async function toggleKingdomFullscreen() {
+  if (!fullscreenSupported || !kingdomScreen.value) return;
+  if (document.fullscreenElement === kingdomScreen.value) {
+    try { await document.exitFullscreen(); } catch { /* browser may already have exited */ }
+    return;
+  }
+  if (document.fullscreenElement) return;
+  const target = kingdomScreen.value;
+  kingdomFullscreenTarget = target;
+  try {
+    await target.requestFullscreen();
+    if ((!alive || kingdomFullscreenTarget !== target) && document.fullscreenElement === target) {
+      await document.exitFullscreen().catch(() => {});
+    }
+  } catch {
+    if (kingdomFullscreenTarget === target) kingdomFullscreenTarget = null;
+  }
+}
+
 onMounted(async () => {
+  document.addEventListener('fullscreenchange', onKingdomFullscreenChange);
   window.addEventListener('keydown', onTownKeydown);
   window.addEventListener('qq-debug-kingdom-updated', onDebugKingdomUpdated);
   window.addEventListener('qq-replay-kingdom-intro', replayFirstIntro);
@@ -57,6 +86,11 @@ onMounted(async () => {
 });
 onUnmounted(() => {
   alive = false;
+  document.removeEventListener('fullscreenchange', onKingdomFullscreenChange);
+  if (kingdomFullscreenTarget && document.fullscreenElement === kingdomFullscreenTarget) {
+    document.exitFullscreen?.().catch(() => {});
+  }
+  kingdomFullscreenTarget = null;
   window.removeEventListener('keydown', onTownKeydown);
   window.removeEventListener('qq-debug-kingdom-updated', onDebugKingdomUpdated);
   window.removeEventListener('qq-replay-kingdom-intro', replayFirstIntro);
@@ -612,7 +646,7 @@ const castlePanelContext = reactive({
 </script>
 
 <template>
-  <div class="kingdom-screen">
+  <div ref="kingdomScreen" class="kingdom-screen">
     <div v-if="error" class="scene-note scene-error" role="alert">{{ error }}</div>
     <template v-else-if="loaded && !S.classId">
       <div class="scene-note">
@@ -641,6 +675,21 @@ const castlePanelContext = reactive({
         <span class="scene-kicker">WELCOME HOME</span>
         <h1 class="town-title"><span>Your Kingdom</span><span class="town-title-dot" aria-hidden="true"> · </span><span>Storybook Town</span></h1>
         <div class="town-title-actions">
+          <button
+            class="hud-btn hud-icon"
+            type="button"
+            :disabled="!fullscreenSupported"
+            :aria-label="kingdomFullscreen ? 'Exit fullscreen' : 'Enter fullscreen'"
+            :aria-pressed="kingdomFullscreen"
+            :title="fullscreenSupported ? (kingdomFullscreen ? 'Exit fullscreen' : 'Enter fullscreen') : 'Fullscreen is not supported by this browser'"
+            data-testid="kingdom-fullscreen"
+            @click="toggleKingdomFullscreen"
+          >
+            <svg viewBox="0 0 20 20" aria-hidden="true">
+              <path v-if="!kingdomFullscreen" d="M3 8V3h5M12 3h5v5M17 12v5h-5M8 17H3v-5" />
+              <path v-else d="M8 3v5H3M17 8h-5V3M12 17v-5h5M3 12h5v5" />
+            </svg>
+          </button>
           <button class="hud-btn" type="button" :aria-expanded="listOpen" aria-controls="town-building-list" aria-label="Buildings" @click="listOpen = !listOpen">
             <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M3 17V8l7-5 7 5v9h-5v-5H8v5H3Z" /></svg>
             <span class="hud-btn-label">Buildings</span>
@@ -781,6 +830,7 @@ const castlePanelContext = reactive({
 <style>
 /* Root-scoped global rules also style the building panel child components. */
 .kingdom-screen { position: relative; width: 100%; height: 100%; min-height: 100%; overflow: hidden; background: #2f5e3e; }
+.kingdom-screen:fullscreen { width: 100vw; height: 100vh; height: 100dvh; min-height: 100vh; min-height: 100dvh; }
 .kingdom-screen .scene-note { position: absolute; inset: 50% auto auto 50%; width: min(90vw, 440px); padding: 30px; transform: translate(-50%, -50%); color: #23382f; background: #fbf2d8; border: 4px solid #23382f; border-radius: 14px 11px 16px 12px; box-shadow: 0 8px 0 #7a6545; text-align: center; }
 .kingdom-screen .scene-note h1 { margin: 8px 0; color: #254937; font: 700 32px/1.1 Georgia, "Palatino Linotype", serif; }
 .kingdom-screen .scene-note p { margin: 0; }

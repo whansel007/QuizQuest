@@ -471,7 +471,7 @@ Have the recorded video open in another tab as the fallback, and say: "Let me sh
 
 **From what we verified in the code:**
 
-10. Do not show a raid boss. There is no raid screen in the shipped app — the Campfire Run tab is the arena, and the raid is exercised only at the socket level (`e2e/raid-boss.spec.js:7-12`). If asked, the honest line is "the raid is a shared-server mechanic behind the Campfire Run lobby".
+10. Do not show or describe a raid boss; the co-op raid feature was removed. Campfire Run is the class co-op game.
 11. Do not narrate the old tab names. On screen they are **Kingdom, Quiz, My Progress, Campfire Run, Summon** and, for professors, **Analytics, To review, Classes & Roster, Question bank, AI drafting, Evaluation, Settings** (`web/src/App.vue:29-32`).
 12. Do not restart the deployed app. The brief says to leave it running and not restart unless the teaching team contacts you.
 13. Do not read a credential aloud from the screen. The professor account is a seeded demo account; the password lives in the group chat.

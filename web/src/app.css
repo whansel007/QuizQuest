@@ -179,6 +179,13 @@ main#main.main-world {
   padding: 0;
   overflow: hidden;
 }
+main#main.main-world:fullscreen {
+  width: 100vw;
+  height: 100vh;
+  height: 100dvh;
+  min-height: 100vh;
+  min-height: 100dvh;
+}
 main#main.main-kingdom {
   width: 100%;
   height: 100vh;
@@ -1341,7 +1348,7 @@ button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible
 .qcard.flash:focus { outline: 3px solid var(--accent); }
 
 /* question detail dialog */
-dialog.insight { width: min(720px, calc(100vw - 32px)); max-height: calc(100vh - 48px); padding: 0; border: 1px solid var(--line); border-radius: var(--radius); background: var(--panel); color: var(--ink); box-shadow: 0 10px 40px rgba(0, 0, 0, 0.25); }
+dialog.insight { width: min(720px, calc(100vw - 32px)); max-height: calc(100vh - 48px); overflow-y: auto; overscroll-behavior: contain; padding: 0; border: 1px solid var(--line); border-radius: var(--radius); background: var(--panel); color: var(--ink); box-shadow: 0 10px 40px rgba(0, 0, 0, 0.25); }
 dialog.insight::backdrop { background: rgba(10, 12, 20, 0.45); }
 .insight-body { padding: 18px 20px; overflow-wrap: anywhere; }
 .insight-body h4 { margin: 14px 0 6px; font-size: 14px; }

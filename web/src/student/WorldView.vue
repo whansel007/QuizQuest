@@ -5,16 +5,16 @@
 // The Circle Tag client grown up. Same two loops:
 //   input loop  - held keys are sent on change; the server moves you
 //   render loop - requestAnimationFrame paints the latest snapshot
-// Plus: press E near a resource node or the boss to get a question.
+// Plus: press E near a resource node to get a question.
 // The question arrives WITHOUT its answer; the server grades it.
 // ============================================================
 import { ref, nextTick, onMounted, onUnmounted } from 'vue';
 import { io } from 'socket.io-client';
 import { S } from '../api.js';
-import { toast, fmtBundle } from '../ui.js';
+import { toast } from '../ui.js';
 import { TOWN_AVATAR_DEFAULT_COLOR } from '../../../config/tuning.js';
 import Heading from '../components/Heading.vue';
-import { store, loadHome, updateBalances } from './home.js';
+import { loadHome, updateBalances } from './home.js';
 import ClassPicker from './ClassPicker.vue';
 import WalletBadge from './WalletBadge.vue';
 import ResourceBadge from './ResourceBadge.vue';
@@ -31,7 +31,7 @@ const feed = ref([]); // newest first, max 8
 const emotes = ref([]);
 const interactDisabled = ref(false);
 // the side panel: intro text, a question, or a message
-const panelMsg = ref('Walk up to a resource (🪵 💎 🌿) or the boss and press E. Correct answers gather supplies or damage the boss for everyone.');
+const panelMsg = ref('Walk up to a resource (🪵 💎 🌿) and press E to answer a question and gather supplies.');
 const challenge = ref(null); // { id, label, question, result: null | { r, extra } }
 const challengeKey = ref(0);
 const form = ref(null);
@@ -41,10 +41,9 @@ let socket = null;
 let formActive = false; // a question is on screen and not yet answered
 let challengeId = null;
 let world = null; // welcome message: arena, ranges, catalog
-let state = { players: [], nodes: [], boss: null };
+let state = { players: [], nodes: [] };
 let me = null;
 let playerVisuals = null;
-let floaters = []; // floating damage numbers
 let raf = 0;
 let feedSeq = 0;
 const keys = { up: false, down: false, left: false, right: false };
@@ -98,7 +97,7 @@ function connect() {
   });
   socket.on('disconnect', () => {
     me = null;
-    state = { players: [], nodes: [], boss: null };
+    state = { players: [], nodes: [] };
     releaseKeys();
     challengeId = null;
     interactDisabled.value = true;
@@ -115,14 +114,6 @@ function connect() {
   socket.on('state', (s) => (state = s));
   socket.on('notice', (t) => toast(t));
   socket.on('kicked', (t) => (status.value = t));
-  socket.on('hit', (h) => {
-    log(`${h.pet} ${h.by} used ${h.move}: -${h.dmg}`);
-    if (state.boss) floaters.push({ x: state.boss.x + (Math.random() * 40 - 20), y: state.boss.y - 40, text: `-${h.dmg}`, born: performance.now() });
-  });
-  socket.on('raidWon', (r) => {
-    log(`🎉 Raid won by ${r.heroes.join(', ')}!`);
-    toast(`Raid victory! Everyone who landed a hit gets ${r.coins} 🪙 + ${fmtBundle(r.resources, store.home.catalog.resources)}`);
-  });
   socket.on('expired', () => showMessage('That question timed out. Press E to try again.'));
 
   // A question for me: render it with the shared question UI
@@ -136,7 +127,7 @@ function connect() {
     formActive = true;
     challengeId = ch.id;
   });
-  socket.on('balances', updateBalances); // e.g. after a raid victory
+  socket.on('balances', updateBalances);
   socket.on('result', (r) => {
     updateBalances(r.balances);
     if (!formActive || r.id !== challengeId || !challenge.value) return; // a result for a question no longer on screen
@@ -150,7 +141,7 @@ function connect() {
   });
 }
 const answer = (id) => (submission) => socket.emit('answer', { id, submission });
-const closeResult = () => showMessage('Press E near a resource or the boss for another question.');
+const closeResult = () => showMessage('Press E near a resource for another question.');
 
 // --- render loop ---
 const near = (a, b, r) => Math.hypot(a.x - b.x, a.y - b.y) <= r;
@@ -237,33 +228,6 @@ function draw() {
     }
   }
 
-  // the boss
-  const b = state.boss;
-  if (b) {
-    if (b.alive) {
-      if (self && near(self, b, world.boss.range)) {
-        ctx.fillStyle = 'rgba(255,255,255,0.08)';
-        ctx.beginPath();
-        ctx.arc(b.x, b.y, world.boss.range, 0, Math.PI * 2);
-        ctx.fill();
-      }
-      ctx.font = '84px serif';
-      ctx.fillText('👾', b.x, b.y);
-      const bw = 140;
-      ctx.fillStyle = 'rgba(0,0,0,0.5)';
-      ctx.fillRect(b.x - bw / 2, b.y - 70, bw, 10);
-      ctx.fillStyle = '#e5484d';
-      ctx.fillRect(b.x - bw / 2, b.y - 70, (bw * b.hp) / b.maxHp, 10);
-      ctx.fillStyle = '#fff';
-      ctx.font = `bold ${txt(12)}px system-ui, sans-serif`;
-      ctx.fillText(`Fog of Confusion ${b.hp}/${b.maxHp}`, b.x, b.y - 74 - txt(8));
-    } else {
-      ctx.fillStyle = '#fff';
-      ctx.font = `bold ${txt(14)}px system-ui, sans-serif`;
-      ctx.fillText(`Boss returns in ${Math.ceil(b.respawnIn / 1000)}s`, b.x, b.y);
-    }
-  }
-
   // players
   for (const p of state.players) {
     if (p.id === me) {
@@ -283,23 +247,10 @@ function draw() {
     }
   }
 
-  // floating damage numbers
-  const t = performance.now();
-  floaters = floaters.filter((f) => t - f.born < 900);
-  for (const f of floaters) {
-    const k = (t - f.born) / 900;
-    ctx.globalAlpha = 1 - k;
-    ctx.fillStyle = '#ffd166';
-    ctx.font = 'bold 22px system-ui, sans-serif';
-    ctx.fillText(f.text, f.x, f.y - k * 40);
-    ctx.globalAlpha = 1;
-  }
-
   // context hint
   if (self) {
     const nodeNear = state.nodes.some((n) => !n.claimed && near(self, n, world.nodeRange));
-    const bossNear = b?.alive && near(self, b, world.boss.range);
-    const hint = nodeNear ? 'Press E to gather' : bossNear ? 'Press E to attack' : '';
+    const hint = nodeNear ? 'Press E to gather' : '';
     interactDisabled.value = !hint || formActive; // no re-render unless it changes
     if (hint) {
       ctx.fillStyle = 'rgba(0,0,0,0.55)';
@@ -395,7 +346,7 @@ onUnmounted(() => {
               <li v-for="f in feed" :key="f.id">{{ f.text }}</li>
             </ul>
           </div>
-          <p class="small muted">Everyone here is in your class. Co-op only: answer correctly near the boss to help defeat it together. Coins follow the usual rules (first correct answer per question, daily cap).</p>
+          <p class="small muted">Everyone here is in your class. Answer questions at resource nodes to gather supplies. Coins follow the usual rules (first correct answer per question, daily cap).</p>
         </div>
       </div>
     </template>

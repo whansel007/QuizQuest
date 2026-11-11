@@ -185,7 +185,7 @@ Planned runtime **4:24** (264 s) inside the brief's 12-minute cap. Timecodes are
 - **Never** mention login, sign-up, registration, password, role, token or session.
 - **Never** name a file, a table, an endpoint, a model or an environment variable on camera.
 - **Never** say "Supabase Auth" — there is no Supabase Auth; the honest line if asked is on file in `docs/presentation/QA_PREP.md`.
-- **Never** promise a raid-boss screen. There is no raid screen in the shipped app — the World tab is Campfire Run (`e2e/raid-boss.spec.js:7-12`).
+- The co-op raid boss was removed; do not describe it as an available feature.
 
 ---
 
