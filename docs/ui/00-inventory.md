@@ -16,6 +16,10 @@ This is a single-page Vue application: the address bar does not have separate st
 | Summon banner, single pull reveal, ten-pull summary, history/details dialogs | Student tab `pets` (label “Summon”) | `PetsView.vue`, `SummonSky.vue`, `gacha/PrizeReveal.vue`, `HeroIcon.vue` | DOM/CSS plus ambient sky canvas and hero icon canvases |
 | Student account menu, debug menu, sound toggle, global toast, screen wipe | Shared shell | `AccountMenu.vue`, `DebugMenu.vue`, `SoundToggle.vue`, `ScreenWipe.vue`, `ui.js` | DOM/CSS; wipe is a CSS animated DOM overlay |
 
+### Teacher screens
+
+Teachers get a different tab list from `TABS.teacher` in `App.vue`: Analytics, To review, Classes & Roster, Question bank, AI drafting, Evaluation and Settings. Only the first, the **Analytics dashboard** (`web/src/teacher/AnalyticsView.vue` plus `teacher/dashboard/*.vue` and `teacher/charts/*.vue`, DOM/CSS with hand-built SVG charts), is documented here; see [10-teacher-analytics-dashboard.md](10-teacher-analytics-dashboard.md).
+
 ### Not found or not wired as an ordinary tab
 
 - No standalone student “settings” page is in `TABS` in `App.vue`. Student preferences appear in controls (sound, shake setting in the arena, avatar wardrobe); exact completeness of settings is **unverified** outside those components.

@@ -1,6 +1,6 @@
 # Student UI guide
 
-These pages explain the student-facing screens from the code that currently exists. The main entry point is `web/src/App.vue`; it selects the student tab and mounts its view. The Kingdom town and game scenes use canvas for fast custom drawing, while navigation, forms, panels and most overlays are ordinary HTML styled with CSS.
+These pages explain the student-facing screens (plus the teacher Analytics dashboard in page 10) from the code that currently exists. The main entry point is `web/src/App.vue`; it selects the student tab and mounts its view. The Kingdom town and game scenes use canvas for fast custom drawing, while navigation, forms, panels and most overlays are ordinary HTML styled with CSS.
 
 ## Reading order
 
@@ -14,5 +14,6 @@ These pages explain the student-facing screens from the code that currently exis
 8. [07-game-ui-and-hud.md](07-game-ui-and-hud.md) covers quiz/game screens and HUDs.
 9. [08-world-lobby-summon.md](08-world-lobby-summon.md) covers Campfire Run, Summon and page-level features.
 10. [09-glossary-and-cheatsheet.md](09-glossary-and-cheatsheet.md) is the glossary, change guide, overview and risk list.
+11. [10-teacher-analytics-dashboard.md](10-teacher-analytics-dashboard.md) covers the professor-facing Analytics dashboard: filters, auto-refresh, sections, charts, exports and how the numbers are counted.
 
 Claims name source paths and the relevant component/function/config. Values reflect the checked-in source at the time these notes were written. If this document says **unverified**, the named source did not establish the behavior conclusively.
