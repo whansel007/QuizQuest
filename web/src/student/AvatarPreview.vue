@@ -1,6 +1,7 @@
 <script setup>
 import { onMounted, onUnmounted, ref, watch } from 'vue';
 import { COSMETIC_HEADROOM, drawAvatarCosmetics, loadPlayerVisuals, tintedPlayerFrames } from './avatar.js';
+import { canvasDpr } from '../mobile-config.js';
 
 const props = defineProps({
   color: { type: String, required: true },
@@ -23,7 +24,10 @@ function draw(time = performance.now(), force = false) {
     : (clip[Math.floor((time / 1000) * fps) % clip.length] || 'open');
   const rect = canvas.value.getBoundingClientRect();
   if (!rect.width || !rect.height) return;
-  const dpr = Math.min(3, Math.max(1, window.devicePixelRatio || 1));
+  // Keep the frequently redrawn avatar canvas within the same mobile backing
+  // store budget as the other student canvases. High-DPR phones were creating
+  // oversized filtered canvas layers, which can show GPU tile corruption.
+  const dpr = Math.min(3, canvasDpr());
   const backingWidth = Math.max(1, Math.round(rect.width * dpr));
   const backingHeight = Math.max(1, Math.round(rect.height * dpr));
   const resized = canvas.value.width !== backingWidth || canvas.value.height !== backingHeight;

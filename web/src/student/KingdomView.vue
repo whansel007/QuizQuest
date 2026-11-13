@@ -316,7 +316,8 @@ const haveText = computed(() => {
 // it, so a different browser or cleared storage shows the tour once more.
 const INTRO_STEPS = [
   { highlight: 'castle', title: 'Welcome home!', body: 'This is your kingdom. The castle in the middle is your home, and it grows as your town does.' },
-  { highlight: 'buildings', title: 'Four buildings', body: 'Garden to the north, Tower to the south, Library to the west and Workshop to the east. Upgrade them with the wood, crystal and herbs you earn to power up your heroes.' },
+  { highlight: 'buildings', title: 'Every building has a purpose', body: 'The Garden improves Campfire HP, the Tower strengthens team buff cards, the Library boosts magic heroes, and the Workshop boosts physical heroes. Upgrade them with resources; your Castle grows as all four rise together.' },
+  { highlight: 'garden', title: 'Summon more heroes', body: 'Visit the Garden’s telescope and spend coins to summon more heroes. Grow your team, then try them in Duels and Campfire Runs.' },
   { highlight: 'north', title: 'Adventure lies north', body: 'Walk up through the gap in the trees by the BATTLES sign, north-west of the castle. Out there you can start a Duel quiz battle or join a Campfire Run with friends.' },
   { highlight: null, title: 'Getting around', body: window.matchMedia?.('(pointer: coarse)').matches ? 'Tap the ground to walk (or turn on the 🕹️ stick). Tap a door or a hero to open it, and Emote to wave. The Buildings button opens any building from anywhere. Pinch to zoom.' : 'Use WASD or the arrow keys, or click to walk. Press E at a door or beside a hero, and Z for emotes. The Buildings button opens any building from anywhere.' },
 ];
@@ -978,7 +979,7 @@ const castlePanelContext = reactive({
 .kingdom-screen .tower-offer-desk { align-self: stretch; padding: 18px 15px; overflow: auto; background: repeating-linear-gradient(0deg,#fff8e4 0 29px,#e9d9b5 30px 31px); border: 2px solid #513b29; box-shadow: 3px 4px #513b29; }
 .kingdom-screen .tower-offer-desk h3 { margin-top: 8px; font-size: 23px; }.kingdom-screen .tower-offer-desk > p { font-size: .88rem; }
 .kingdom-screen .offer-paper { background: rgb(255 248 228 / 80%); }
-.kingdom-screen .trade-columns { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+.kingdom-screen .trade-columns { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 210px), 1fr)); gap: 10px; }
 .kingdom-screen .trade-columns fieldset { display: grid; gap: 7px; margin: 0; padding: 10px; border: 1.5px solid #c5b58e; border-radius: 7px; }
 .kingdom-screen .trade-columns legend { padding: 0 5px; font-weight: 900; }
 .kingdom-screen .trade-columns label { display: flex; align-items: center; justify-content: space-between; gap: 8px; font-weight: 700; }
@@ -1239,6 +1240,7 @@ const castlePanelContext = reactive({
   .kingdom-screen .town-actions { bottom: max(10px, env(safe-area-inset-bottom)); }
   .kingdom-screen .town-actions .hud-btn { min-height: 44px; }
   .kingdom-screen .town-title-actions .hud-btn { min-height: 42px; }
+  .kingdom-screen .town-title-actions .hud-btn[aria-label="Buildings"] { box-sizing: border-box; min-width: 120px; justify-content: center; white-space: nowrap; }
   .kingdom-screen .town-modal-shade { padding: max(8px, env(safe-area-inset-top)) max(8px, env(safe-area-inset-right)) max(8px, env(safe-area-inset-bottom)) max(8px, env(safe-area-inset-left)); }
   .kingdom-screen .town-modal { width: 100%; height: 100%; max-height: 100%; }
 }

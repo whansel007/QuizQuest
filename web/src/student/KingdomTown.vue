@@ -793,6 +793,10 @@ function drawHighlight(g, time) {
   const pulse = reducedMotion ? 0 : Math.sin(time / 260) * 4;
   const rings = [];
   if (props.highlight === 'castle') rings.push([640, 360, 150, 105]);
+  if (props.highlight === 'garden') {
+    const b = BUILDING_LAYOUT.garden;
+    rings.push([b.x + b.w / 2, b.y + b.h / 2, b.w / 2 + 26, b.h / 2 + 26]);
+  }
   if (props.highlight === 'buildings') for (const id of ['garden', 'tower', 'library', 'workshop']) {
     const b = BUILDING_LAYOUT[id];
     rings.push([b.x + b.w / 2, b.y + b.h / 2, b.w / 2 + 26, b.h / 2 + 26]);
