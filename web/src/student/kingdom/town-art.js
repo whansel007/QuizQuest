@@ -253,12 +253,12 @@ export function drawTrailSign(g, W, H) {
   const cx = W / 2; const gy = H - 4;
   groundShadow(g, cx, gy, 14, 4);
   stroke(g, [[cx, gy], [cx, gy - 52]], DARK_WOOD, 5);
-  poly(g, [[cx - 30, gy - 60], [cx + 18, gy - 60], [cx + 30, gy - 49], [cx + 18, gy - 38], [cx - 30, gy - 38]], '#C9A66B');
+  rect(g, cx - 26, gy - 60, 52, 24, '#C9A66B', 0, 2.5);
   g.fillStyle = INK;
   g.font = '800 10px Nunito, Trebuchet MS, sans-serif';
   g.textAlign = 'center'; g.textBaseline = 'middle';
-  g.fillText('BATTLES', cx - 4, gy - 49);
-  // the arrow points north toward the clearing
+  g.fillText('BATTLES', cx, gy - 48);
+  // the small marker points north toward the battlements
   poly(g, [[cx - 6, gy - 70], [cx, gy - 80], [cx + 6, gy - 70]], GOLD, 2);
 }
 
@@ -285,20 +285,31 @@ export function drawDuelCamp(g, W, H) {
   const gy = H - 10;
   ellipse(g, W / 2, gy - 18, W * 0.46, 26, '#C9A66B', 0);
   signBoard(g, CAMP_SIGN_X, gy - 30, 'Duel', 'A one-on-one quiz battle', CAMP_SIGN_W);
-  // the travel pack resting on a stump, to the right of the sign
+  // A travel backpack sits on a separate, short stump to the right of the sign.
   const px = CAMP_SIGN_W + 45;
-  ellipse(g, px, gy - 6, 26, 8, '#9E6238');
-  rect(g, px - 26, gy - 22, 52, 18, '#B57A48', 4);
-  rect(g, px - 20, gy - 84, 40, 62, '#B96448', 12);
-  rect(g, px - 22, gy - 92, 44, 26, '#9E4E36', 10);
-  rect(g, px - 18, gy - 108, 36, 14, BLUE, 7);
-  stroke(g, [[px - 12, gy - 66], [px - 12, gy - 26]], '#6B3A26', 3);
-  stroke(g, [[px + 12, gy - 66], [px + 12, gy - 26]], '#6B3A26', 3);
-  rect(g, px - 6, gy - 50, 12, 14, '#E3B862', 3, 2);
-  circle(g, px, gy - 70, 3, GOLD, 1.5);
-  // a rolled quiz scroll leaning on the pack
-  g.save(); g.translate(px + 32, gy - 34); g.rotate(0.35);
-  rect(g, -5, -20, 10, 40, '#F7E7B5', 4, 2);
+  rect(g, px - 23, gy - 24, 46, 22, '#9E6238', 5, 2.5);
+  ellipse(g, px, gy - 24, 23, 7, '#C08A53', 2.5);
+  stroke(g, [[px - 11, gy - 16], [px - 12, gy - 5]], '#6B3A26', 2);
+  stroke(g, [[px + 10, gy - 16], [px + 11, gy - 5]], '#6B3A26', 2);
+
+  // Draw the handle first so it rises clearly above the rounded pack.
+  stroke(g, [[px - 8, gy - 81], [px - 8, gy - 91], [px + 8, gy - 91], [px + 8, gy - 81]], '#6B3A26', 5);
+  stroke(g, [[px - 8, gy - 81], [px - 8, gy - 89], [px + 8, gy - 89], [px + 8, gy - 81]], '#C08A53', 2);
+  rect(g, px - 20, gy - 79, 40, 55, '#B96448', 11, 2.5);
+  rect(g, px - 21, gy - 84, 42, 17, '#9E4E36', 8, 2.5);
+  stroke(g, [[px - 15, gy - 67], [px + 15, gy - 67]], '#6B3A26', 2);
+  rect(g, px - 12, gy - 58, 6, 32, '#D0935B', 2, 1.5);
+  rect(g, px + 6, gy - 58, 6, 32, '#D0935B', 2, 1.5);
+  rect(g, px - 5, gy - 49, 10, 12, '#E3B862', 3, 2);
+  circle(g, px, gy - 75, 3, GOLD, 1.5);
+
+  // A rolled quiz scroll leans against the pack; the curled ends make it read
+  // as parchment instead of a loose plank.
+  g.save(); g.translate(px + 22, gy - 27); g.rotate(0.32);
+  rect(g, -6, -23, 12, 46, '#F7E7B5', 5, 2);
+  ellipse(g, 0, -22, 6, 3, '#E3D19C', 1.5);
+  ellipse(g, 0, 22, 6, 3, '#E3D19C', 1.5);
+  stroke(g, [[0, -12], [0, 12]], '#B99A62', 1.5);
   g.restore();
 }
 

@@ -1,11 +1,30 @@
 <script setup>
 import { computed, toRefs } from 'vue';
 import HeroIcon from '../../HeroIcon.vue';
+import { ABILITY_ICONS, GAME_CONFIG } from '../../../../../public/hero-lab/game-config.js';
+import { HERO_ABILITY_GUIDE } from '../hero-ability-guide.js';
 
 
 const props = defineProps({ context: { type: Object, required: true } });
 const { workshopHeroes, workshopHero, previewWorkshopHero, workshopConfig, ownedHeroIds, heroesOfType, heroStars, trialStarting, startWorkshopTrial } = toRefs(props.context);
 const orderedWorkshopHeroes = computed(() => [...workshopHeroes.value].sort((a, b) => a.name.localeCompare(b.name, undefined, { sensitivity: 'base' })));
+const workshopAbilities = computed(() => {
+  const hero = workshopHero.value;
+  if (!hero) return [];
+  const config = GAME_CONFIG.heroes[hero.id] || {};
+  const icons = ABILITY_ICONS[hero.id] || {};
+  const guide = HERO_ABILITY_GUIDE[hero.id] || {};
+  return [
+    { key: 'primary', label: 'Primary', name: hero.weapon || 'Heroic strike', icon: icons.primary, mechIcon: icons.mechPrimary, mechName: config.mech?.weaponName },
+    { key: 'skill', label: 'Skill', name: hero.skill || 'Signature skill', icon: icons.skill, mechIcon: icons.mechSkill, mechName: config.mech?.skillName },
+    { key: 'ultimate', label: 'Ultimate', name: hero.ultimate || 'Ultimate power', icon: icons.ultimate },
+  ].map((ability) => ({
+    ...ability,
+    description: guide[ability.key] || 'Use this ability to help defend the campfire.',
+    iconUrl: ability.icon ? `/hero-lab/${ability.icon}` : '',
+    mechIconUrl: ability.mechIcon ? `/hero-lab/${ability.mechIcon}` : '',
+  }));
+});
 </script>
 
 <template>
@@ -48,8 +67,17 @@ const orderedWorkshopHeroes = computed(() => [...workshopHeroes.value].sort((a, 
                       <div class="form-line"><span>Class</span><b>{{ heroStars(workshopHero) }}-star {{ workshopHero.type }} hero</b></div>
                       <div class="form-line"><span>Kit</span><b>{{ workshopHero.weapon || 'A practiced strike' }} · {{ workshopHero.skill || 'Signature skill' }} · {{ workshopHero.ultimate || 'Ultimate' }}</b></div>
                       <dl class="hero-book-stats"><div class="stat-hp"><dt>HP</dt><dd>{{ workshopHero.hp }}</dd></div><div class="stat-atk"><dt>Attack</dt><dd>{{ workshopHero.attack }}</dd></div><div class="stat-def"><dt>Defense</dt><dd>{{ workshopHero.defense }}</dd></div><div class="stat-spd"><dt>Speed</dt><dd>{{ workshopHero.speed }}</dd></div></dl>
-                      <dl class="trial-cooldowns"><div><dt>Primary</dt><dd>{{ ((workshopConfig?.weaponCooldownMs || 0) / 1000).toFixed(1) }}s</dd></div><div><dt>Skill</dt><dd>{{ ((workshopConfig?.skillCooldownMs || 0) / 1000).toFixed(1) }}s</dd></div><div><dt>Ultimate</dt><dd>{{ ((workshopConfig?.ultimateCooldownMs || 0) / 1000).toFixed(1) }}s</dd></div></dl>
-                      <p v-if="workshopConfig?.talent" class="trial-talent"><b>{{ workshopConfig.talent.name }}</b> · {{ workshopConfig.talent.description }}</p>
+                      <section class="workshop-ability-notes" aria-label="Ability and talent details">
+                        <h4>Ability field notes</h4>
+                        <article v-for="ability in workshopAbilities" :key="ability.key" class="workshop-ability-note">
+                          <header><img v-if="ability.iconUrl" :src="ability.iconUrl" :alt="`${ability.name} icon`"><span>{{ ability.label }}</span><strong>{{ ability.name }}</strong></header>
+                          <p>{{ ability.description }} <span v-if="ability.mechIconUrl" class="workshop-mech-note"><img :src="ability.mechIconUrl" :alt="`${ability.mechName} icon`"><span>Mech form · {{ ability.mechName }}</span></span></p>
+                        </article>
+                        <article v-if="workshopConfig?.talent" class="workshop-talent-note">
+                          <h5><img v-if="workshopConfig.talent.icon" :src="`/hero-lab/${workshopConfig.talent.icon}`" alt=""><span>Talent · {{ workshopConfig.talent.name }}</span></h5>
+                          <p>{{ workshopConfig.talent.description }}</p>
+                        </article>
+                      </section>
                       <div class="form-sign"><span>Signed by coach</span><b>Lepurr James</b></div>
                     </div>
                   </div>

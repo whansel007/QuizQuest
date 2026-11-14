@@ -26,7 +26,7 @@
   --hud-serif: Georgia, 'Palatino Linotype', serif;
   --hud-mono: 'Cascadia Code', ui-monospace, Consolas, monospace;
 }
-html, body { width: 100%; height: 100%; margin: 0; overflow: hidden; background: #2F5E3E; font: 15px/1.4 Nunito, 'Trebuchet MS', system-ui, sans-serif; }
+html, body { width: 100%; height: 100%; margin: 0; overflow: hidden; background-color: #2F5E3E; background-image: url('/hero-lab/assets/forest-canopy.svg'); background-repeat: repeat; background-size: 180px 180px; font: 15px/1.4 Nunito, 'Trebuchet MS', system-ui, sans-serif; }
 #world { position: fixed; top: 50%; left: 50%; display: block; width: min(100vw, 177.78svh); height: auto; aspect-ratio: 16 / 9; transform: translate(-50%, -50%); touch-action: none; user-select: none; -webkit-user-select: none; }
 .sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
 .hud-kicker { color: var(--hud-gold); font: 800 .62rem/1.2 var(--hud-mono); letter-spacing: .14em; }
@@ -179,6 +179,7 @@ body[data-mode="workshop-trial"] #waiting-banner { display: none !important; }
 /* ---- Bottom left: buffs, settings, information --------------------------- */
 #bottom-left-hud { position: fixed; z-index: 1; bottom: 1rem; left: 1rem; display: grid; justify-items: start; gap: .45rem; color: var(--hud-text); }
 #bottom-left-tools { display: flex; align-items: center; gap: .5rem; max-width: min(80vw, 520px); }
+#bottom-left-chips { display: flex; align-items: center; gap: .45rem; max-width: calc(100vw - 2rem); }
 #settings-hud { position: relative; display: flex; align-items: center; }
 #settings-button { display: grid; place-items: center; width: 2.2rem; height: 2.2rem; padding: 0; background: var(--hud-panel); border: 2px solid var(--hud-ink); border-radius: 50%; box-shadow: 0 3px 0 var(--hud-ink); cursor: pointer; }
 #settings-button svg { width: 18px; height: 18px; fill: none; stroke: var(--hud-text); stroke-width: 1.6; stroke-linejoin: round; }
@@ -475,6 +476,7 @@ body[data-mode="workshop-trial"] #waiting-banner { display: none !important; }
   #ability-hud { right: .5rem; bottom: .55rem; }
   #bottom-left-hud { bottom: .55rem; left: .55rem; }
   #bottom-left-tools { max-width: calc(100vw - 1rem); gap: .35rem; }
+  #bottom-left-chips { gap: .3rem; max-width: calc(100vw - 1.1rem); }
   #buff-vote-panel { width: calc(100vw - 16px); max-height: calc(100svh - 16px); padding: 16px 12px; }
   #buff-cards { grid-template-columns: 1fr; gap: 9px; }
   .buff-card { grid-template-columns: 52px minmax(0, 1fr); grid-template-rows: auto auto auto auto; justify-items: start; align-items: center; min-height: 0; padding: 11px; text-align: left; }
@@ -482,6 +484,20 @@ body[data-mode="workshop-trial"] #waiting-banner { display: none !important; }
   .buff-card > strong, .buff-card > span, .buff-card > small { grid-column: 2; }
   .session-summary-card { min-height: 250px; padding: 24px 18px; }
 }
+@media (max-width: 480px) {
+  #bottom-left-chips { gap: .25rem; }
+  #bottom-left-chips :is(#kingdom-exit, #info-button, #emote-button) { gap: .25rem; min-height: 34px; padding: .2rem .45rem; font-size: .7rem; white-space: nowrap; }
+  #settings-button { width: 2rem; height: 2rem; }
+  #info-button .info-circle { --btn-size: 24px; }
+}
+@media (max-width: 320px) {
+  #bottom-left-chips { gap: .15rem; }
+  #bottom-left-chips :is(#kingdom-exit, #info-button, #emote-button) { gap: .15rem; min-height: 30px; padding: .1rem .2rem; font-size: .52rem; white-space: nowrap; }
+  #kingdom-exit > span:first-child { width: 1.15rem; height: 1.15rem; font-size: .8rem; }
+  #info-button .info-circle { --btn-size: 22px; }
+  #emote-button > span:first-child { font-size: .95rem; }
+}
+
 /* ==== Touch mode (docs/mobile/NOTES.md, Stages 3-4) =========================
    html.touch-mode is set by world.js when touch controls are on: a coarse
    pointer (Settings: Auto), Settings: On, or ?touch=1. Desktop never gets it,
@@ -572,7 +588,7 @@ html.touch-mode .virtual-stick.active .virtual-stick-label { display: none; }
 
 /* bottom right: the ability cluster (same layout, colours, icons, cooldown
    fills; scaled by MOBILE_BUTTON_SCALE; hit areas +8 px past the circle) */
-html.touch-mode #ability-hud { right: max(.7rem, calc(env(safe-area-inset-right) + .4rem)); bottom: max(.45rem, env(safe-area-inset-bottom)); display: grid; grid-template-columns: var(--touch-btn-primary, 55px) var(--touch-btn-ult, 71px); column-gap: 12px; row-gap: 4px; }
+html.touch-mode #ability-hud { right: max(2rem, calc(env(safe-area-inset-right) + 1.5rem)); bottom: max(.45rem, env(safe-area-inset-bottom)); display: grid; grid-template-columns: var(--touch-btn-primary, 55px) var(--touch-btn-ult, 71px); column-gap: 12px; row-gap: 4px; }
 html.touch-mode .ability { padding: var(--touch-hit-slop, 8px); margin: calc(-1 * var(--touch-hit-slop, 8px)); touch-action: none; }
 html.touch-mode .ability[data-ability="weapon"] { --btn-size: var(--touch-btn-primary, 55px); }
 html.touch-mode .ability[data-ability="skill"] { --btn-size: var(--touch-btn-skill, 62px); }

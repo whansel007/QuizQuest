@@ -196,7 +196,6 @@ const selectedArchiveHero = computed(() => archiveHero.value || archiveHeroes.va
 const heroStars = (hero) => GAME_CONFIG.arenaTuning.gachaReveal.rarityStars[hero?.rarity] || 0;
 const selectedHeroLore = computed(() => selectedArchiveHero.value && HERO_LORE[selectedArchiveHero.value.id]);
 const archiveOpen = ref(false);
-const bookBackButton = ref(null);
 let archiveReturnFocus = null;
 // Three shelves of three bays each. Spines stay inside a narrow size range so
 // the case reads as furniture; each bay keeps a purposeful gap for a curio.
@@ -318,7 +317,8 @@ const INTRO_STEPS = [
   { highlight: 'castle', title: 'Welcome home!', body: 'This is your kingdom. The castle in the middle is your home, and it grows as your town does.' },
   { highlight: 'buildings', title: 'Every building has a purpose', body: 'The Garden improves Campfire HP, the Tower strengthens team buff cards, the Library boosts magic heroes, and the Workshop boosts physical heroes. Upgrade them with resources; your Castle grows as all four rise together.' },
   { highlight: 'garden', title: 'Summon more heroes', body: 'Visit the Garden’s telescope and spend coins to summon more heroes. Grow your team, then try them in Duels and Campfire Runs.' },
-  { highlight: 'north', title: 'Adventure lies north', body: 'Walk up through the gap in the trees by the BATTLES sign, north-west of the castle. Out there you can start a Duel quiz battle or join a Campfire Run with friends.' },
+  { highlight: 'north', title: 'Adventure lies north', body: 'Walk up through the gap in the trees by the BATTLES sign, north-west of the castle. In a Duel, answer quiz questions to win the battle. In Campfire Run, play as one of your heroes with friends to defend the campfire.' },
+  { highlight: null, title: 'More ways to learn and grow', body: 'Quiz is for solo practice. My Progress helps you review your answers, and Summon lets you grow your hero team.' },
   { highlight: null, title: 'Getting around', body: window.matchMedia?.('(pointer: coarse)').matches ? 'Tap the ground to walk (or turn on the 🕹️ stick). Tap a door or a hero to open it, and Emote to wave. The Buildings button opens any building from anywhere. Pinch to zoom.' : 'Use WASD or the arrow keys, or click to walk. Press E at a door or beside a hero, and Z for emotes. The Buildings button opens any building from anywhere.' },
 ];
 const introStep = ref(-1);
@@ -396,21 +396,14 @@ async function claimWardrobeCosmetic(item) {
   } catch (err) { wardrobeError.value = err.message; }
   finally { wardrobeClaiming.value = null; }
 }
-async function openArchiveBook(hero, event) {
+function openArchiveBook(hero, event) {
   archiveHero.value = hero;
   archiveReturnFocus = event?.currentTarget || null;
   archiveOpen.value = true;
-  await nextTick();
-  bookBackButton.value?.focus();
 }
 function closeArchiveBook() {
   archiveOpen.value = false;
   nextTick(() => archiveReturnFocus?.focus?.());
-}
-function trapBookDialog(event) {
-  if (event.key !== 'Tab') return;
-  event.preventDefault();
-  bookBackButton.value?.focus();
 }
 function onTownInteract(id) {
   if (id === 'duel') { wipeTo('practice'); return; }
@@ -632,7 +625,7 @@ const towerPanelContext = reactive({
 });
 const libraryPanelContext = reactive({
   libraryShelves, archiveOpen, archiveHero, selectedArchiveHero, openArchiveBook, closeArchiveBook,
-  bookBackButton, trapBookDialog, heroStars, selectedHeroLore, GAME_CONFIG,
+  heroStars, selectedHeroLore,
 });
 const workshopPanelContext = reactive({
   workshopHeroes, workshopHero, previewWorkshopHero, workshopConfig, ownedHeroIds,
@@ -674,7 +667,7 @@ const castlePanelContext = reactive({
 
       <div ref="titleHud" class="town-hud town-title-hud" :class="{ compact: titleCompact }" :style="titleMax ? { maxWidth: `${titleMax}px` } : null" data-testid="town-title-hud">
         <span class="scene-kicker">WELCOME HOME</span>
-        <h1 class="town-title"><span>Your Kingdom</span><span class="town-title-dot" aria-hidden="true"> · </span><span>Storybook Town</span></h1>
+        <h1 class="town-title">Your Kingdom</h1>
         <div class="town-title-actions">
           <button
             class="hud-btn hud-icon"
@@ -691,9 +684,8 @@ const castlePanelContext = reactive({
               <path v-else d="M8 3v5H3M17 8h-5V3M12 17v-5h5M3 12h5v5" />
             </svg>
           </button>
-          <button class="hud-btn" type="button" :aria-expanded="listOpen" aria-controls="town-building-list" aria-label="Buildings" @click="listOpen = !listOpen">
+          <button class="hud-btn hud-icon" type="button" :aria-expanded="listOpen" aria-controls="town-building-list" aria-label="Buildings" @click="listOpen = !listOpen">
             <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M3 17V8l7-5 7 5v9h-5v-5H8v5H3Z" /></svg>
-            <span class="hud-btn-label">Buildings</span>
           </button>
           <button class="hud-btn hud-icon" type="button" :aria-label="'Replay the kingdom tour'" title="Kingdom tour" @click="openIntro">?</button>
         </div>
@@ -848,7 +840,6 @@ const castlePanelContext = reactive({
 .kingdom-screen .town-title-hud { top: 18px; left: 18px; padding: 11px 14px 12px; color: #fff8e4; background: rgb(35 56 47 / 90%); border: 2px solid #23382f; border-radius: 12px 10px 14px 9px; box-shadow: 0 4px 0 rgb(35 56 47 / 45%); }
 .kingdom-screen .town-title-hud .scene-kicker { color: #f2ba55; }
 .kingdom-screen .town-title { margin: 3px 0 9px; color: #fff8e4; font: 700 22px/1.15 Georgia, "Palatino Linotype", serif; }
-.kingdom-screen .town-title-dot { color: #f2ba55; }
 .kingdom-screen .town-title-actions { display: flex; gap: 6px; }
 .kingdom-screen .hud-btn { display: inline-flex; align-items: center; gap: 6px; min-height: 36px; padding: 6px 12px; color: #23382f; background: #fbf2d8; border: 2px solid #23382f; border-radius: 8px; box-shadow: 0 3px 0 #7a6545; font: 800 .84rem Nunito, Trebuchet MS, sans-serif; cursor: pointer; }
 .kingdom-screen .hud-btn svg { width: 17px; height: 17px; fill: #23382f; stroke: #23382f; }
@@ -1013,9 +1004,9 @@ const castlePanelContext = reactive({
 .kingdom-screen .archive-plaque .scene-kicker { color: #5a3d27; }
 .kingdom-screen .archive-plaque h3 { margin: 2px 0 0; color: #23382f; }
 .kingdom-screen .library-magic-note { max-width: 46ch; margin: 0 !important; color: #f6e7c4; font-size: .85rem; font-weight: 700; }
-.kingdom-screen .bookcase { display: grid; flex: 1; min-height: 0; grid-template-rows: repeat(3,minmax(112px,1fr)); gap: 0; }
+.kingdom-screen .bookcase { display: grid; flex: 1; min-height: 0; grid-template-rows: repeat(3,minmax(174px,1fr)); gap: 0; }
 .kingdom-screen .shelf-row { display: grid; grid-template-columns: repeat(3,minmax(0,1fr)); min-width: 0; min-height: 0; background: linear-gradient(180deg,#2e2016 0,#3c2a1d 22%,#3c2a1d 100%); border-bottom: 12px solid #7a5534; box-shadow: inset 0 -3px 0 #2e2016, 0 3px 0 #a8774a; }
-.kingdom-screen .shelf-bay { display: flex; min-width: 0; align-items: flex-end; justify-content: center; gap: 2px; padding: 8px 10px 0; overflow: hidden; }
+.kingdom-screen .shelf-bay { display: flex; min-width: 0; align-items: flex-end; justify-content: center; gap: 2px; padding: 0 10px; overflow: hidden; }
 .kingdom-screen .shelf-bay + .shelf-bay { border-left: 10px solid #6b4a31; box-shadow: inset 2px 0 0 #2e2016; }
 .kingdom-screen .spine { display: block; flex: 0 0 auto; padding: 0; border: 2px solid #23382f; border-bottom: 0; border-radius: 3px 3px 0 0; }
 .kingdom-screen .decorative-spine { width: var(--spine-w); height: var(--spine-h); background: linear-gradient(180deg,transparent 0 12%,rgb(35 56 47 / 35%) 12% 15%,transparent 15% 82%,rgb(35 56 47 / 35%) 82% 85%,transparent 85%), var(--book-color); box-shadow: inset 3px 0 rgb(255 255 255 / 14%), inset -3px 0 rgb(0 0 0 / 22%); filter: saturate(.72) brightness(.88); }
@@ -1024,38 +1015,23 @@ const castlePanelContext = reactive({
 .kingdom-screen .book-stack i { display: block; width: 74px; height: 15px; margin-top: -2px; background: linear-gradient(90deg,transparent 0 8%,rgb(35 56 47 / 35%) 8% 11%,transparent 11%), var(--book-color); border: 2px solid #23382f; border-radius: 2px 4px 4px 2px; filter: saturate(.72) brightness(.88); }
 .kingdom-screen .book-stack i:nth-child(2) { width: 66px; transform: translateX(4px); }
 .kingdom-screen .book-stack i:nth-child(3) { width: 70px; transform: translateX(-3px); }
-.kingdom-screen .hero-spine { position: relative; width: 36px; height: 100px; color: #fff3cf; background: linear-gradient(180deg,transparent 0 4%,#e8c57c 4% 7%,transparent 7% 93%,#e8c57c 93% 96%,transparent 96%), var(--book-color); box-shadow: inset 4px 0 rgb(255 255 255 / 20%), inset -4px 0 rgb(0 0 0 / 22%); cursor: pointer; transition: transform .14s ease; }
-.kingdom-screen .hero-spine > span { display: block; max-height: 84px; margin: auto; overflow: hidden; font: 800 .64rem/1 Georgia,"Palatino Linotype",serif; letter-spacing: .02em; text-overflow: ellipsis; text-shadow: 0 1px #23382f; white-space: nowrap; writing-mode: vertical-rl; transform: rotate(180deg); }
-.kingdom-screen .hero-spine.long-title > span { font-size: .6rem; white-space: normal; overflow-wrap: anywhere; }
+.kingdom-screen .hero-volume { position: relative; display: block; flex: 0 0 auto; width: 54px; height: 162px; padding: 0; color: inherit; background: transparent; border: 0; border-radius: 0; font: inherit; cursor: pointer; transition: transform .14s ease; }
+.kingdom-screen .hero-volume-portrait { position: absolute; z-index: 1; top: 0; left: 50%; display: grid; width: 54px; height: 54px; place-items: center; overflow: hidden; background: linear-gradient(#cfe2e8,#eef3e6 70%); border: 3px solid #23382f; border-radius: 50%; box-shadow: 0 2px 0 #7a6545; transform: translateX(-50%); }
+.kingdom-screen .hero-volume-portrait .hero-icon { max-width: 42px; max-height: 42px; }
+.kingdom-screen .hero-spine { position: absolute; bottom: 0; left: 50%; display: grid; place-items: center; width: 36px; height: 100px; color: #fff3cf; background: linear-gradient(180deg,transparent 0 4%,#e8c57c 4% 7%,transparent 7% 93%,#e8c57c 93% 96%,transparent 96%), var(--book-color); border: 2px solid #23382f; border-bottom: 0; border-radius: 3px 3px 0 0; box-shadow: inset 4px 0 rgb(255 255 255 / 20%), inset -4px 0 rgb(0 0 0 / 22%); transform: translateX(-50%); }
+.kingdom-screen .hero-spine > span { display: block; max-height: 84px; margin: 0; overflow: hidden; font: 800 .64rem/1 Georgia,"Palatino Linotype",serif; letter-spacing: .02em; text-overflow: ellipsis; text-shadow: 0 1px #23382f; white-space: nowrap; writing-mode: vertical-rl; transform: rotate(180deg); }
+.kingdom-screen .hero-volume.long-title .hero-spine > span { font-size: .6rem; white-space: normal; overflow-wrap: anywhere; }
 .kingdom-screen .hero-spine::after { position: absolute; bottom: -9px; left: 9px; width: 6px; height: 14px; background: #d86f6b; border: 1px solid #23382f; clip-path: polygon(0 0,100% 0,100% 100%,50% 75%,0 100%); content: ''; }
-.kingdom-screen .hero-spine:hover { transform: translateY(-6px); }
-.kingdom-screen .hero-spine:focus-visible { outline: 3px solid #b9a3e3; outline-offset: 2px; transform: translateY(-6px); }
-.kingdom-screen .hero-spine.selected { transform: translateY(-10px); }
+.kingdom-screen .hero-volume:hover { transform: translateY(-6px); }
+.kingdom-screen .hero-volume:focus-visible { outline: 3px solid #b9a3e3; outline-offset: 2px; transform: translateY(-6px); }
+.kingdom-screen .hero-volume.selected { transform: translateY(-10px); }
 .hero-name-bubble { position: fixed; z-index: 10000; display: grid; min-width: 156px; max-width: calc(100vw - 32px); min-height: 50px; place-items: center; padding: 10px 18px; color: #254937; background: #fbf2d8 url('/hero-lab/assets/storybook-paper.svg'); background-size: 144px; border: 3px solid #23382f; border-radius: 10px 12px 9px 11px; box-shadow: 0 5px 0 #7a6545, 0 9px 18px rgb(0 0 0 / 30%); font: 900 1rem Nunito, sans-serif; text-align: center; white-space: nowrap; pointer-events: none; transform: translate(-50%, calc(-100% - 13px)); }
 .hero-name-bubble::after { position: absolute; bottom: -9px; left: 50%; width: 12px; height: 12px; background: #fbf2d8; border-right: 3px solid #23382f; border-bottom: 3px solid #23382f; content: ''; transform: translateX(-50%) rotate(45deg); }
 .kingdom-screen .shelf-curio { flex: 0 0 auto; width: 74px; height: 90px; margin: 0 14px; }
+.kingdom-screen .shelf-curio .library-prop { transform: translateY(5px); }
 .kingdom-screen .curio-portrait { width: 74px; height: 100px; align-self: center; }
 .kingdom-screen .curio-skull, .kingdom-screen .curio-stones { width: 80px; height: 82px; }
-.kingdom-screen .storybook-overlay { position: absolute; z-index: 8; inset: 0; display: grid; place-items: center; padding: clamp(10px,2vw,28px); overflow: auto; background: rgb(28 20 14 / 74%); }
-.kingdom-screen .storybook-spread { position: relative; display: grid; width: min(1080px,100%); max-height: 100%; grid-template-columns: minmax(0,1fr) minmax(0,.86fr); overflow: auto; padding: 12px; background: #6b3f2a; border: 3px solid #23382f; border-radius: 10px 12px 10px 12px; box-shadow: 0 8px 0 #2e2016,0 18px 44px rgb(0 0 0 / 50%); }
-.kingdom-screen .storybook-page { padding: clamp(16px,2.2vw,34px); background: #fff8e4 url('/hero-lab/assets/storybook-paper.svg'); background-size: 144px; }
-.kingdom-screen .story-left { border-radius: 6px 0 0 6px; box-shadow: inset -22px 0 24px -18px rgb(80 55 30 / 55%); }
-.kingdom-screen .story-right { display: flex; flex-direction: column; gap: 12px; border-radius: 0 6px 6px 0; box-shadow: inset 22px 0 24px -18px rgb(80 55 30 / 55%); }
-.kingdom-screen .book-back { display: block; margin: 0 0 14px; padding: 4px 0; color: #254937; background: none; border: 0; font: 800 .85rem Nunito, sans-serif; text-decoration: underline; cursor: pointer; }
-.kingdom-screen .book-back:focus-visible { outline: 3px solid #8062a9; outline-offset: 2px; }
 .kingdom-screen .story-kicker { display: block; color: #6b5847; font: 800 .68rem ui-monospace,monospace; letter-spacing: .08em; text-transform: uppercase; }
-.kingdom-screen .storybook-page .story-title { margin: 6px 0 4px; color: #254937; font-size: clamp(24px,2.4vw,32px); }
-.kingdom-screen .hero-personality { color: #4a3d63; font: italic 700 1.02rem Georgia,serif; }
-.kingdom-screen .storybook-page .story-copy { max-width: 60ch; font-size: 1.02rem; line-height: 1.65; }
-.kingdom-screen .story-copy::first-letter { float: left; margin: 4px 8px 0 0; color: #8062a9; font: 700 3.1em/.8 Georgia,serif; }
-.kingdom-screen .field-note { margin: 12px 0; padding: 8px 10px; background: #f3e4c4; border-left: 3px solid #8062a9; font-size: .88rem; }
-.kingdom-screen .story-portrait { display: grid; justify-items: center; gap: 6px; margin: 0; }
-.kingdom-screen .portrait-frame { display: grid; width: min(132px,100%); aspect-ratio: 5 / 6; place-items: center; overflow: hidden; background: linear-gradient(#cfe2e8,#eef3e6 70%); border: 8px solid #b98a3e; border-radius: 50% 50% 46% 46% / 40% 40% 36% 36%; box-shadow: 0 0 0 2px #23382f, inset 0 0 0 2px #23382f, 0 4px 0 #7a6545; }
-.kingdom-screen .story-portrait figcaption { color: #57412f; font: 700 .95rem Georgia,serif; }
-.kingdom-screen .hero-abilities { display: grid; gap: 6px; margin: 10px 0 0; }
-.kingdom-screen .hero-abilities div { display: grid; grid-template-columns: 105px 1fr; gap: 8px; padding: 5px 8px; background: #f3e4c4; border-radius: 5px; }
-.kingdom-screen .hero-abilities dt { color: #5f6d58; font-size: .76rem; font-weight: 900; }
-.kingdom-screen .hero-abilities dd { margin: 0; font-weight: 800; }
 .kingdom-screen .hero-book-stats { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; margin: 12px 0 0; }
 .kingdom-screen .hero-book-stats div { padding: 7px; background: #e8f0de; border-radius: 5px; }
 .kingdom-screen .hero-book-stats dt { color: #5f6d58; font: 800 .62rem ui-monospace, monospace; text-transform: uppercase; }
@@ -1098,11 +1074,19 @@ const castlePanelContext = reactive({
 .kingdom-screen .form-foot { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 16px; margin-top: auto; padding-top: 10px; border-top: 1px dashed #9d8962; }
 .kingdom-screen .form-foot .trial-start { margin-left: auto; }
 .kingdom-screen .trial-note { flex: 1 1 320px; margin: 0 !important; color: #5f4a2e; font-size: .86rem; }
-.kingdom-screen .trial-cooldowns { display: flex; flex-wrap: wrap; gap: 7px; margin: 8px 0; }
-.kingdom-screen .trial-cooldowns div { display: flex; gap: 5px; padding: 4px 8px; background: #f3e4c4; border-radius: 99px; }
-.kingdom-screen .trial-cooldowns dt { color: #5f6d58; font-size: .7rem; font-weight: 900; }
-.kingdom-screen .trial-cooldowns dd { margin: 0; font-size: .75rem; font-weight: 900; }
-.kingdom-screen .trial-talent { margin: 8px 0 0 !important; font-size: .86rem; }
+.kingdom-screen .workshop-ability-notes { display: grid; gap: 5px; margin-top: 4px; padding-top: 8px; border-top: 1px dashed #b9a57c; }
+.kingdom-screen .workshop-ability-notes h4 { margin: 0 0 1px; color: #254937; font: 900 .68rem ui-monospace,monospace; letter-spacing: .08em; text-transform: uppercase; }
+.kingdom-screen .workshop-ability-note { padding: 5px 8px; background: rgb(243 228 196 / 72%); border-left: 3px solid #8062a9; border-radius: 2px 5px 5px 2px; }
+.kingdom-screen .workshop-ability-note header { display: flex; align-items: center; gap: 6px; min-height: 22px; }
+.kingdom-screen .workshop-ability-note header img { flex: 0 0 21px; width: 21px; height: 21px; object-fit: contain; }
+.kingdom-screen .workshop-ability-note header span { color: #5f6d58; font: 900 .58rem ui-monospace,monospace; text-transform: uppercase; }
+.kingdom-screen .workshop-ability-note header strong { color: #254937; font-size: .78rem; }
+.kingdom-screen .workshop-ability-note p, .kingdom-screen .workshop-talent-note p { margin: 2px 0 0 !important; font-size: .76rem; line-height: 1.35; }
+.kingdom-screen .workshop-mech-note { display: inline-flex; vertical-align: middle; align-items: center; gap: 4px; margin-left: 5px; color: #5f462d; font-size: .7rem; font-weight: 800; }
+.kingdom-screen .workshop-mech-note img { width: 18px; height: 18px; object-fit: contain; }
+.kingdom-screen .workshop-talent-note { padding: 7px 9px; background: #e8f0de; border-left: 3px solid #4f7a3c; border-radius: 2px 5px 5px 2px; }
+.kingdom-screen .workshop-talent-note h5 { display: flex; align-items: center; gap: 5px; margin: 0; color: #315b45; font: 900 .72rem Nunito,sans-serif; }
+.kingdom-screen .workshop-talent-note h5 img { width: 20px; height: 20px; object-fit: contain; }
 .kingdom-screen .gym-roster { display: flex; flex-wrap: wrap; gap: 6px; margin: 0 0 10px; padding: 0; list-style: none; }
 .kingdom-screen .gym-roster li { padding: 5px 11px; background: #fff8e4; border: 2px solid #23382f; border-radius: 999px 999px 999px 6px; font-weight: 800; }
 .kingdom-screen .gym-roster li.empty { border-style: dashed; color: #5f4a2e; }
@@ -1190,8 +1174,6 @@ const castlePanelContext = reactive({
 @media (max-width: 600px) {
   .kingdom-screen .town-title-hud { top: 10px; left: 10px; right: auto; padding: 8px 10px; }
   .kingdom-screen .town-title { font-size: 17px; margin-bottom: 7px; }
-  .kingdom-screen .town-title span:last-child { display: block; font-size: 14px; }
-  .kingdom-screen .town-title-dot { display: none; }
   .kingdom-screen .town-list { top: 118px; left: 10px; }
   .kingdom-screen .town-economy { top: 130px; right: 10px; left: 10px; flex-wrap: wrap; justify-content: flex-end; gap: 4px; }
   .kingdom-screen .town-level { padding: 6px 9px; font-size: .78rem; }
@@ -1215,13 +1197,9 @@ const castlePanelContext = reactive({
   .kingdom-screen .bookcase { grid-template-rows: none; }
   .kingdom-screen .shelf-row { grid-template-columns: minmax(0,1fr); }
   .kingdom-screen .decorative-spine.extra, .kingdom-screen .book-stack { display: none; }
-  .kingdom-screen .shelf-bay { min-height: 116px; }
+  .kingdom-screen .shelf-bay { min-height: 174px; }
   .kingdom-screen .shelf-bay + .shelf-bay { border-top: 8px solid #6b4a31; border-left: 0; box-shadow: none; }
   .kingdom-screen .shelf-curio { width: 60px; height: 74px; margin: 0 8px; }
-  .kingdom-screen .storybook-spread { grid-template-columns: 1fr; }
-  .kingdom-screen .storybook-overlay { padding: 7px; }
-  .kingdom-screen .storybook-page { min-height: 300px; }
-  .kingdom-screen .story-right { border-top: 2px solid #c5b58e; border-left: 0; }
   .kingdom-screen .wardrobe-feature { flex: 0 0 auto; grid-template-columns: 1fr; overflow: visible; }
   .kingdom-screen .wardrobe-preview { min-height: 250px; }
   .kingdom-screen .wardrobe-selection-grid { grid-template-columns: 1fr; }
@@ -1240,7 +1218,6 @@ const castlePanelContext = reactive({
   .kingdom-screen .town-actions { bottom: max(10px, env(safe-area-inset-bottom)); }
   .kingdom-screen .town-actions .hud-btn { min-height: 44px; }
   .kingdom-screen .town-title-actions .hud-btn { min-height: 42px; }
-  .kingdom-screen .town-title-actions .hud-btn[aria-label="Buildings"] { box-sizing: border-box; min-width: 120px; justify-content: center; white-space: nowrap; }
   .kingdom-screen .town-modal-shade { padding: max(8px, env(safe-area-inset-top)) max(8px, env(safe-area-inset-right)) max(8px, env(safe-area-inset-bottom)) max(8px, env(safe-area-inset-left)); }
   .kingdom-screen .town-modal { width: 100%; height: 100%; max-height: 100%; }
 }
@@ -1248,7 +1225,6 @@ const castlePanelContext = reactive({
   .kingdom-screen .town-title-hud { top: max(8px, env(safe-area-inset-top)); left: max(8px, env(safe-area-inset-left)); padding: 7px 9px; }
   .kingdom-screen .town-title-hud .scene-kicker { font-size: .58rem; }
   .kingdom-screen .town-title { font-size: 16px; }
-  .kingdom-screen .town-title span:last-child { display: none; }
   .kingdom-screen .town-economy { top: max(130px, calc(env(safe-area-inset-top) + 122px)); right: max(8px, env(safe-area-inset-right)); left: max(8px, env(safe-area-inset-left)); }
   .kingdom-screen .town-level { padding: 5px 8px; }
   .kingdom-screen .town-actions { right: max(8px, env(safe-area-inset-right)); left: max(8px, env(safe-area-inset-left)); justify-content: center; gap: 6px; }
@@ -1288,11 +1264,33 @@ const castlePanelContext = reactive({
 @media (pointer: coarse) {
   .kingdom-screen .town-title-actions .hud-btn { min-height: 44px; min-width: 44px; }
 }
+/* Smaller touch layouts: keep building sheets readable without letting their
+   headings, effect cards, and hero roster consume the whole phone viewport. */
+@media (pointer: coarse) and (max-width: 900px) {
+  .kingdom-screen .town-modal { padding: max(14px, env(safe-area-inset-top)) max(14px, env(safe-area-inset-right)) max(14px, env(safe-area-inset-bottom)) max(14px, env(safe-area-inset-left)); }
+  .kingdom-screen .panel-head { gap: 8px 12px; padding-bottom: 10px; }
+  .kingdom-screen .panel-title h2 { font-size: 22px; }
+  .kingdom-screen .panel-purpose { margin: 10px 0 8px; font-size: .92rem; }
+  .kingdom-screen .panel-effect { gap: 6px; }
+  .kingdom-screen .panel-effect div { padding: 7px 9px; font-size: .92rem; }
+  .kingdom-screen .panel-content { margin-top: 10px; }
+  .kingdom-screen .panel-content h3 { font-size: 18px; }
+  .kingdom-screen .panel-content p { margin-bottom: 8px; }
+  .kingdom-screen .workshop-feature { grid-template-columns: 1fr; gap: 10px; padding: 10px; }
+  .kingdom-screen .workshop-roster { max-height: 240px; padding: 22px 8px 8px; }
+  .kingdom-screen .roster-title { font-size: 18px; }
+  .kingdom-screen .roster-sub { margin-bottom: 5px !important; }
+  .kingdom-screen .workshop-hero { grid-template-columns: 20px 32px minmax(0,1fr) auto; min-height: 46px; gap: 0 6px; padding: 4px; }
+  .kingdom-screen .workshop-hero .hero-icon { width: 30px !important; height: 30px !important; }
+  .kingdom-screen .workshop-detail { gap: 9px; padding: 12px; }
+  .kingdom-screen .form-head h3 { font-size: 22px; }
+  .kingdom-screen .workshop-preview-stage { min-height: 180px; }
+}
 /* ---- F3 (docs/mobile/FIXES.md): the title card never runs under the chips ----
    KingdomView measures the room left of the right-hand group and sets the
    card's max-width; the title truncates and the buttons stay whole. */
 .kingdom-screen .town-title-hud { min-width: 0; box-sizing: border-box; }
-.kingdom-screen .town-title, .kingdom-screen .town-title > span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.kingdom-screen .town-title { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .kingdom-screen .town-title-actions { flex-wrap: nowrap; }
 .kingdom-screen .town-title-hud.compact .hud-btn-label { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
 .kingdom-screen .town-title-hud.compact .town-title-actions .hud-btn { justify-content: center; min-width: 44px; padding-inline: 8px; }

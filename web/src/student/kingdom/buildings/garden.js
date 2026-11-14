@@ -116,6 +116,9 @@ function gardenStage3(g, W, H) {
   rect(g, -4, -5, 26, 10, '#C8963E', 3, 2);
   g.restore();
   archWindow(g, ox, gy - 120, 14, 24, '#FFE7A3');
+  // Bring the rear hedge back over the pavilion so the observatory reads as
+  // sitting behind the hedge instead of being pasted on top of it.
+  rect(g, cx - 84, gy - 98, 168, 22, GARDEN.hedge, 8);
   for (const x of [cx - 76, cx + 76]) starLantern(g, x, gy - 92);
   for (const x of [cx - 76, cx + 76]) starLantern(g, x, gy - 6, 34);
   flowerBed(g, cx - 50, gy - 66, 30);

@@ -39,7 +39,12 @@ export class Pilot extends Hero {
     const mech = this.mechUntil > now, s = mech ? this.spec.mech.dash : this.spec.retreatDash;
     return { type: 'dash', direction: { ...this.aim }, ...s };
   }
-  ultimate(now) { this.mechUntil = now + this.spec.mech.durationMs; this.refreshForm(now); return { type: 'activate' }; }
+  ultimate(now) {
+    this.mechUntil = now + this.spec.mech.durationMs;
+    this.refreshForm(now);
+    this.hp = this.maxHp;
+    return { type: 'activate' };
+  }
   update(now) { this.refreshForm(now); }
 }
 

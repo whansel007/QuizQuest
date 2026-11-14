@@ -1430,6 +1430,17 @@ function createRoom({ io, services = null, id, code = null, isDefault = false, m
     return { code, phase, hostId, maxPlayers: ROOM_MAX_PLAYERS, mode, ...(workshopTrial ? { expiresAt, heroId } : {}) };
   }
 
+  function selectableHeroIds(user) {
+    if (workshopTrial) return initialTrialHeroId ? [initialTrialHeroId] : [];
+    if (!user) return Object.keys(HERO_CLASSES);
+    const owned = services?.unlockedHeroIds?.(user.id);
+    if (!Array.isArray(owned)) return Object.keys(HERO_CLASSES);
+    const available = [...new Set(owned.filter((heroId) => Object.hasOwn(HERO_CLASSES, heroId)))];
+    if (available.length) return available;
+    const starters = GAME_CONFIG.arenaTuning.progression.newPlayerHeroes || [];
+    return starters.filter((heroId) => Object.hasOwn(HERO_CLASSES, heroId));
+  }
+
   // Every phase change is logged once, so a session can be replayed from the
   // server log: created -> joined -> waiting -> spawned -> left -> destroyed.
   function setPhase(next) {
@@ -1445,6 +1456,7 @@ function createRoom({ io, services = null, id, code = null, isDefault = false, m
       arena: { width: ARENA_CONFIG.width, height: ARENA_CONFIG.height },
       room: roomInfo(),
       waiting: isWaiting,
+      availableHeroIds: selectableHeroIds(socket.data.user),
     };
   }
 
@@ -1824,8 +1836,8 @@ function createRoom({ io, services = null, id, code = null, isDefault = false, m
 
   function join(socket, payload) {
     const now = Date.now();
-    const heroId = payload?.heroId;
-    if (!Object.hasOwn(HERO_CLASSES, heroId)) return { ok: false, code: 'invalid_hero', message: 'Choose a valid hero to join the field.' };
+    const requestedHeroId = payload?.heroId;
+    if (!Object.hasOwn(HERO_CLASSES, requestedHeroId)) return { ok: false, code: 'invalid_hero', message: 'Choose a valid hero to join the field.' };
     if (gameEnded) return { ok: false, code: 'ended', message: 'The campfire has gone out. The run is over.' };
 
     const user = socket.data.user;
@@ -1833,6 +1845,10 @@ function createRoom({ io, services = null, id, code = null, isDefault = false, m
       socket.disconnect(true);
       return { ok: false, code: 'auth', message: 'Please sign in again.' };
     }
+    const availableHeroIds = selectableHeroIds(user);
+    const heroId = workshopTrial || !user || availableHeroIds.includes(requestedHeroId)
+      ? requestedHeroId
+      : (availableHeroIds[0] || requestedHeroId);
 
     // Already in this room on this connection: nothing to do.
     if (players.has(socket.id)) {
@@ -1933,6 +1949,12 @@ function createRoom({ io, services = null, id, code = null, isDefault = false, m
     if (!Object.hasOwn(HERO_CLASSES, heroId)) return { ok: false, code: 'invalid_hero' };
     const now = Date.now();
     const entry = waiting.get(socket.id);
+    const player = players.get(socket.id);
+    const user = entry?.user || player?.user;
+    if (!entry && !player) return { ok: false, code: 'not_in_room' };
+    if (!selectableHeroIds(user).includes(heroId)) {
+      return { ok: false, code: 'hero_locked', message: 'Summon this hero before choosing it.' };
+    }
     if (entry) {
       const preview = new HERO_CLASSES[heroId]();
       entry.heroId = heroId;
@@ -1941,8 +1963,6 @@ function createRoom({ io, services = null, id, code = null, isDefault = false, m
       broadcastState(now);
       return { ok: true, waiting: true };
     }
-    const player = players.get(socket.id);
-    if (!player) return { ok: false, code: 'not_in_room' };
     if (player.heroId === heroId) return { ok: true };
     resetSamuraiState(player, now);
     removeOwnerWolf(player.id);

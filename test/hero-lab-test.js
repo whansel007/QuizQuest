@@ -179,7 +179,7 @@ async function joinClient(client, heroId, { start = true } = {}) {
   return info;
 }
 
-test('Hero Lab lets signed-in players select heroes they have not summoned', async (t) => {
+test('Hero Lab limits signed-in players to heroes they have summoned', async (t) => {
   const services = server.quiz.services;
   assert.deepEqual(services.kingdomBuildings('s-01'), {
     library: 0, workshop: 0, garden: 0, tower: 0,
@@ -200,11 +200,22 @@ test('Hero Lab lets signed-in players select heroes they have not summoned', asy
   });
   t.after(() => client.disconnect());
 
+  const unlockedHeroIds = services.unlockedHeroIds('s-01');
+  const allHeroIds = Object.keys(require('../public/hero-lab/hero-list.js').HERO_CLASSES);
+  const lockedHeroId = allHeroIds.find((id) => !unlockedHeroIds.includes(id));
+  assert.ok(lockedHeroId, 'the test account has at least one unsummoned hero');
+
   const welcomePromise = new Promise((resolve) => client.once('welcome', resolve));
-  client.emit('join', { heroId: 'electromancer' });
-  const { you: clientId } = await welcomePromise;
+  client.emit('join', { heroId: lockedHeroId });
+  const welcome = await welcomePromise;
+  const clientId = welcome.you;
+  assert.deepEqual(new Set(welcome.availableHeroIds), new Set(unlockedHeroIds));
   const state = await nextState(client, (snapshot) => snapshot.players.some((player) => player.id === clientId));
-  assert.equal(state.players.find((player) => player.id === clientId).heroId, 'electromancer');
+  assert.ok(unlockedHeroIds.includes(state.players.find((player) => player.id === clientId).heroId), 'a locked join choice falls back to an unlocked hero');
+
+  const rejectedSwap = new Promise((resolve) => client.once('swap_rejected', resolve));
+  client.emit('swap_hero', lockedHeroId);
+  assert.equal((await rejectedSwap).code, 'hero_locked');
   const accountList = await fetch(base + '/api/demo-users');
   assert.equal(accountList.status, 200, 'joining the game must not terminate the API process');
 });

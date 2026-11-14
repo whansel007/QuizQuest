@@ -679,7 +679,7 @@ export const GAME_CONFIG = Object.freeze({
       talent: {
         name: 'Adrenaline',
         icon: ABILITY_ICONS.pilot.talent,
-        description: `Kills cut Mech Suit's cooldown by ${PILOT_MECH_COOLDOWN_CUT_S}s (max ${PILOT_MECH_CYCLE_CAP_PCT}% per cycle).`,
+        description: `Kills cut Mech Suit cooldown by ${PILOT_MECH_COOLDOWN_CUT_S}s, up to ${PILOT_MECH_CYCLE_CAP_PCT}% per cycle.`,
         linkedSlot: ['ultimate'],
       },
       kills: {},
@@ -757,7 +757,7 @@ export const GAME_CONFIG = Object.freeze({
       skillCooldownMs: ENGINEER_SKILL_COOLDOWN_S * 1000, ultimateCooldownMs: ENGINEER_ULTIMATE_COOLDOWN_S * 1000,
       talent: {
         name: 'Refueling', icon: ABILITY_ICONS.engineer.talent,
-        description: `Your kills refuel each living turret, restoring ${ENGINEER_KILL_HEAL_PCT * 100}% max HP and extending its life by ${ENGINEER_KILL_TURRET_LIFETIME_BONUS_MS / 1000} s. Wrench hits mark enemies for ${ENGINEER_WRENCH_MARK_DURATION_MS / 1000} s, making your turret deal double damage to them and letting it trigger Refueling when it kills them.`,
+        description: `Kills restore ${ENGINEER_KILL_HEAL_PCT * 100}% HP and ${ENGINEER_KILL_TURRET_LIFETIME_BONUS_MS / 1000} s to living turrets. Wrench-marked enemies take double turret damage; turret kills also trigger this bonus.`,
         linkedSlot: ['skill'],
       },
       wrench: { speed: ENGINEER_WRENCH_SPEED, range: ENGINEER_WRENCH_RANGE, damageMultiplier: ENGINEER_WRENCH_DAMAGE_MULT,

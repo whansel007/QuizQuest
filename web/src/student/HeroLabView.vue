@@ -13,6 +13,8 @@ import { wipeTo } from '../transitions.js';
 import { useRouteTheme } from '../route-theme.js';
 import { HERO_TYPE_ICON } from './hero-type.js';
 import TalentBadge from './TalentBadge.vue';
+import HeroBook from './kingdom/HeroBook.vue';
+import { HERO_LORE } from './kingdom/hero-lore.js';
 import { GAME_CONFIG } from '../../../public/hero-lab/game-config.js';
 import { talentKeyLabel, talentKeyTooltip } from '../../../public/hero-lab/talent-badge.js';
 import {
@@ -43,6 +45,8 @@ try { debugUnlockedHeroes.value = JSON.parse(localStorage.getItem('hero-lab-debu
 // previewHero drives the preview panel AND the kingdom tile highlight: it
 // follows the hovered hero and snaps back to the selection on mouse leave.
 const previewHero = ref(null);
+const heroDetailsOpen = ref(false);
+let heroDetailsReturnFocus = null;
 const rosterError = ref('');
 const loadingRoster = ref(true);
 const heroes = computed(() => roster.value?.catalog.heroes || []);
@@ -109,6 +113,16 @@ function heroRarityColor(hero) { return RARITY_COLOR[heroRarity(hero)] || RARITY
 
 function previewHeroOn(hero) { previewHero.value = hero; }
 function previewHeroOff() { previewHero.value = selectedHero.value; }
+
+function openHeroDetails(event) {
+  heroDetailsReturnFocus = event.currentTarget;
+  heroDetailsOpen.value = true;
+}
+
+function closeHeroDetails() {
+  heroDetailsOpen.value = false;
+  nextTick(() => heroDetailsReturnFocus?.focus?.());
+}
 
 function applyInitialHero() {
   const list = heroes.value;
@@ -383,7 +397,10 @@ onUnmounted(() => {
         <section v-if="previewHero" class="panel hero-preview" aria-label="Selected hero stats and talent">
           <div class="hero-basic-stats">
             <span class="panel-kicker">BASIC HERO STATS</span>
-            <strong class="hero-preview-name">{{ previewHero.name }}</strong>
+            <div class="hero-preview-title-row">
+              <strong class="hero-preview-name">{{ previewHero.name }}</strong>
+              <button class="hero-details-button" type="button" :aria-label="`Read ${previewHero.name} details`" :title="`Read ${previewHero.name} details`" @click="openHeroDetails"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 6.5C9.8 4.8 6.9 4.5 3 5v13c3.9-.5 6.8-.2 9 1.5m0-13c2.2-1.7 5.1-2 9-1.5v13c-3.9-.5-6.8-.2-9 1.5m0-13v13" /></svg></button>
+            </div>
             <span class="hero-preview-type">{{ HERO_TYPE_ICON[String(previewHero.type).toLowerCase()] }} {{ previewHero.type }} · {{ heroStars(previewHero) }}-star</span>
             <div class="hero-stat-grid">
               <span class="stat-hp"><b>{{ previewHero.hp }}</b><small>HP</small></span>
@@ -464,6 +481,7 @@ onUnmounted(() => {
           </div>
         </section>
       </div>
+      <HeroBook v-if="heroDetailsOpen && previewHero" :hero="previewHero" :lore="HERO_LORE[previewHero.id]" :stars="heroStars(previewHero)" @close="closeHeroDetails" />
     </template>
 
     <template v-else>
@@ -614,7 +632,7 @@ onUnmounted(() => {
 }
 .hero-lab-page :deep(input:focus-visible), .hero-lab-page :deep(select:focus-visible),
 .hero-lab-page :deep(.btn:focus-visible), .hero-lab-page .btn:focus-visible,
-.hero-lab-page .hero-chip:focus-visible { outline: 3px solid #f2ba55; outline-offset: 3px; }
+.hero-lab-page .hero-chip:focus-visible, .hero-lab-page .hero-details-button:focus-visible { outline: 3px solid #f2ba55; outline-offset: 3px; }
 .kingdom-preview { display: grid; align-content: stretch; gap: 7px; }
 /* A tile name is a single word ("Library", "Workshop"): 70px is the narrowest
    track that still holds the longest name beside the 40px icon, so a narrow
@@ -666,6 +684,10 @@ onUnmounted(() => {
 .talent-name { color: #304b38; font-size: 1.15rem; line-height: 1.2; }
 .talent-desc { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; line-clamp: 2; overflow: hidden; color: #637064; font-size: .86rem; line-height: 1.3; }
 .talent-key { display: grid; place-items: center; justify-self: end; align-self: center; min-width: 32px; min-height: 32px; padding: 4px 8px; color: #fff7df; background: #456b53; border: 1px solid #2d4937; border-radius: 7px; font-size: .75rem; font-weight: 900; }
+.hero-preview-title-row { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.hero-details-button { display: grid; flex: 0 0 34px; width: 34px; height: 32px; place-items: center; padding: 0; color: #456b53; background: #e1efdd; border: 1px solid #a7bf9c; border-radius: 7px; box-shadow: 0 2px 0 #b7c5a3; cursor: pointer; transition: transform .12s ease, background .12s ease; }
+.hero-details-button svg { width: 19px; height: 19px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+.hero-details-button:hover { background: #d3e5cd; transform: translateY(-1px); }
 .forest-scene {
   position: relative;
   z-index: 0;

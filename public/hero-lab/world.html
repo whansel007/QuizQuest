@@ -73,6 +73,37 @@
   </section>
   <aside id="bottom-left-hud">
     <div id="bottom-left-tools">
+      <div id="buff-icons" aria-label="Run buffs"></div>
+    </div>
+    <section id="stats-panel" hidden aria-label="Hero information" data-testid="stats-panel">
+      <section id="howto-card" class="info-card" aria-label="How to play">
+        <div class="info-card-head">
+          <strong>How to play</strong>
+          <button id="info-close" type="button" aria-label="Close information" title="Close (I or Esc)">✕</button>
+        </div>
+        <p id="howto-lead">Defend the campfire!</p>
+        <div class="briefing-tip"><span aria-hidden="true">🟢</span><span>Stand in the green ring to heal.</span></div>
+        <div class="briefing-tip"><span aria-hidden="true">🏃</span><span>Keep moving: +20% damage while you move.</span></div>
+        <div class="briefing-tip"><span aria-hidden="true">🎮</span><span class="desktop-input-help">Click fire | E skill | Q ultimate | WASD move | Z emotes</span><span class="touch-input-help"><strong>On mobile:</strong><span>Move: drag the left virtual stick.</span><span>Attack or use an ability: tap its on-screen button to activate. To aim, hold the button, drag toward the target, then release.</span><span>Bombardier ultimate: hold Ultimate, drag to choose a target, then release or tap the arena to confirm. Use the on-screen Cancel button to back out.</span><span>Emote: tap the 👋 button and choose an emote. Tap it again to close.</span><span>Zoom: pinch the arena.</span></span></div>
+      </section>
+      <section id="stats-card" class="info-card" aria-label="Current hero stats">
+        <strong>Current stats</strong>
+        <span>Health <b id="stat-health">--</b></span>
+        <span>Attack <b id="stat-attack">--</b></span>
+        <span>Defense <b id="stat-defense">--</b></span>
+        <span>Speed <b id="stat-speed">--</b></span>
+        <span id="building-bonus-stat" title="Kingdom upgrades applied to this hero">🏰 Upgrades</span>
+        <ul id="building-bonus-list" class="stat-list"><li>None</li></ul>
+        <span id="momentum-stat" title="Moving: +20% damage" aria-label="Moving: plus 20 percent damage">🏃 Momentum <b id="momentum-status">Inactive</b></span>
+        <span title="Live link to the arena server">🔌 Connection <b id="connection-status" role="status">Connecting…</b></span>
+        <span class="talent-info">
+          <span id="stat-talent-badge" class="talent-badge-host"></span>
+          <span class="talent-info-text"><em id="stat-talent-name">Talent</em><b id="stat-talent-description">--</b></span>
+          <span id="stat-talent-key" class="talent-key">--</span>
+        </span>
+      </section>
+    </section>
+    <div id="bottom-left-chips" aria-label="Run controls">
       <aside id="settings-hud">
         <button id="settings-button" type="button" aria-expanded="false" aria-controls="settings-panel" aria-label="Arena settings" title="Settings"><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M8.6 2h2.8l.4 2.2 1.6.9 2.1-.8 1.4 2.4-1.7 1.5v1.6l1.7 1.5-1.4 2.4-2.1-.8-1.6.9-.4 2.2H8.6l-.4-2.2-1.6-.9-2.1.8-1.4-2.4 1.7-1.5V8.2L3.1 6.7l1.4-2.4 2.1.8 1.6-.9Z" /><circle cx="10" cy="10" r="2.6" /></svg></button>
         <section id="settings-panel" hidden aria-label="Arena settings" data-testid="settings-panel">
@@ -114,43 +145,14 @@
           </details>
         </section>
       </aside>
-      <div id="buff-icons" aria-label="Run buffs"></div>
+      <button id="kingdom-exit" type="button" title="Return to Kingdom"><span aria-hidden="true">⌂</span><span>Back to Kingdom</span></button>
+      <button id="info-button" type="button" aria-expanded="false" aria-controls="stats-panel">
+        <span class="ability-circle info-circle">I</span><span>Information</span>
+      </button>
+      <button id="emote-button" type="button" aria-haspopup="dialog" aria-expanded="false" aria-controls="emote-menu" title="Choose an emote (Z)" data-testid="touch-emote">
+        <span aria-hidden="true">👋</span><span>Emote <kbd>Z</kbd></span>
+      </button>
     </div>
-    <button id="kingdom-exit" type="button" title="Return to Kingdom"><span aria-hidden="true">⌂</span><span>Back to Kingdom</span></button>
-    <button id="info-button" type="button" aria-expanded="false" aria-controls="stats-panel">
-      <span class="ability-circle info-circle">I</span><span>Information</span>
-    </button>
-    <button id="emote-button" type="button" aria-haspopup="dialog" aria-expanded="false" aria-controls="emote-menu" title="Choose an emote (Z)" data-testid="touch-emote">
-      <span aria-hidden="true">👋</span><span>Emote <kbd>Z</kbd></span>
-    </button>
-    <section id="stats-panel" hidden aria-label="Hero information" data-testid="stats-panel">
-      <section id="howto-card" class="info-card" aria-label="How to play">
-        <div class="info-card-head">
-          <strong>How to play</strong>
-          <button id="info-close" type="button" aria-label="Close information" title="Close (I or Esc)">✕</button>
-        </div>
-        <p id="howto-lead">Defend the campfire!</p>
-        <div class="briefing-tip"><span aria-hidden="true">🟢</span><span>Stand in the green ring to heal.</span></div>
-        <div class="briefing-tip"><span aria-hidden="true">🏃</span><span>Keep moving: +20% damage while you move.</span></div>
-        <div class="briefing-tip"><span aria-hidden="true">🎮</span><span class="desktop-input-help">Click fire | E skill | Q ultimate | WASD move | Z emotes</span><span class="touch-input-help"><strong>On mobile:</strong><span>Move: drag the left virtual stick.</span><span>Attack or use an ability: tap its on-screen button to activate. To aim, hold the button, drag toward the target, then release.</span><span>Bombardier ultimate: hold Ultimate, drag to choose a target, then release or tap the arena to confirm. Use the on-screen Cancel button to back out.</span><span>Emote: tap the 👋 button and choose an emote. Tap it again to close.</span><span>Zoom: pinch the arena.</span></span></div>
-      </section>
-      <section id="stats-card" class="info-card" aria-label="Current hero stats">
-        <strong>Current stats</strong>
-        <span>Health <b id="stat-health">--</b></span>
-        <span>Attack <b id="stat-attack">--</b></span>
-        <span>Defense <b id="stat-defense">--</b></span>
-        <span>Speed <b id="stat-speed">--</b></span>
-        <span id="building-bonus-stat" title="Kingdom upgrades applied to this hero">🏰 Upgrades</span>
-        <ul id="building-bonus-list" class="stat-list"><li>None</li></ul>
-        <span id="momentum-stat" title="Moving: +20% damage" aria-label="Moving: plus 20 percent damage">🏃 Momentum <b id="momentum-status">Inactive</b></span>
-        <span title="Live link to the arena server">🔌 Connection <b id="connection-status" role="status">Connecting…</b></span>
-        <span class="talent-info">
-          <span id="stat-talent-badge" class="talent-badge-host"></span>
-          <span class="talent-info-text"><em id="stat-talent-name">Talent</em><b id="stat-talent-description">--</b></span>
-          <span id="stat-talent-key" class="talent-key">--</span>
-        </span>
-      </section>
-    </section>
     <strong id="kill-streak" hidden aria-live="polite"></strong>
   </aside>
   <section id="buff-vote" hidden aria-label="Choose a team wave buff">

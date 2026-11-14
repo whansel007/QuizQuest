@@ -1,0 +1,58 @@
+.hero-book-host { position: absolute; z-index: 8; inset: 0; }
+.hero-book-host .storybook-overlay { position: absolute; z-index: 8; inset: 0; display: grid; place-items: center; padding: clamp(10px,2vw,28px); overflow: auto; background: rgb(28 20 14 / 74%); }
+.hero-book-host .storybook-spread { position: relative; display: grid; width: min(1080px,100%); max-height: 100%; grid-template-columns: minmax(0,1fr) minmax(0,.86fr); overflow: visible; padding: 12px; background: #6b3f2a; border: 3px solid #23382f; border-radius: 10px 12px 10px 12px; box-shadow: 0 8px 0 #2e2016,0 18px 44px rgb(0 0 0 / 50%); }
+.hero-book-host .storybook-page { position: relative; z-index: 1; padding: clamp(16px,2.2vw,34px); background: #fff8e4 url('/hero-lab/assets/storybook-paper.svg'); background-size: 144px; }
+.hero-book-host .story-left { display: grid; grid-template-columns: minmax(0,1fr) minmax(112px,.42fr); align-content: start; column-gap: 14px; border-radius: 6px 0 0 6px; box-shadow: inset -22px 0 24px -18px rgb(80 55 30 / 55%); }
+.hero-book-host .story-left .story-copy, .hero-book-host .story-left .field-note { grid-column: 1 / -1; }
+.hero-book-host .story-left .story-kicker, .hero-book-host .story-left .story-title, .hero-book-host .story-left .hero-personality { grid-column: 1; }
+.hero-book-host .story-left .story-portrait-left { grid-column: 2; grid-row: 2 / span 3; align-self: start; }
+.hero-book-host .story-right { display: flex; flex-direction: column; gap: 12px; border-radius: 0 6px 6px 0; box-shadow: inset 22px 0 24px -18px rgb(80 55 30 / 55%); }
+.hero-book-host .storybook-page .story-title { margin: 6px 0 4px; color: #254937; font-size: clamp(24px,2.4vw,32px); }
+.hero-book-host .hero-personality { color: #4a3d63; font: italic 700 1.02rem Georgia,serif; }
+.hero-book-host .storybook-page .story-copy { max-width: 60ch; font-size: 1.02rem; line-height: 1.65; }
+.hero-book-host .story-copy::first-letter { float: left; margin: 4px 8px 0 0; color: #8062a9; font: 700 3.1em/.8 Georgia,serif; }
+.hero-book-host .field-note { margin: 12px 0; padding: 8px 10px; background: #f3e4c4; border-left: 3px solid #8062a9; font-size: .88rem; }
+.hero-book-host .story-portrait { display: grid; justify-items: center; gap: 6px; margin: 0; }
+.hero-book-host .portrait-frame { display: grid; width: min(132px,100%); aspect-ratio: 5 / 6; place-items: center; overflow: hidden; background: linear-gradient(#cfe2e8,#eef3e6 70%); border: 8px solid #b98a3e; border-radius: 50% 50% 46% 46% / 40% 40% 36% 36%; box-shadow: 0 0 0 2px #23382f, inset 0 0 0 2px #23382f, 0 4px 0 #7a6545; }
+.hero-book-host .story-portrait figcaption { color: #57412f; font: 700 .95rem Georgia,serif; }
+.hero-book-host .hero-abilities { display: grid; gap: 6px; margin: 10px 0 0; }
+.hero-book-host .hero-abilities div { display: grid; grid-template-columns: 105px 1fr; gap: 8px; padding: 5px 8px; background: #f3e4c4; border-radius: 5px; }
+.hero-book-host .hero-abilities dt { color: #5f6d58; font-size: .76rem; font-weight: 900; }
+.hero-book-host .hero-abilities dd { margin: 0; font-weight: 800; }
+.hero-book-host .hero-ability-entry dt, .hero-book-host .hero-talent-entry dt { display: flex; align-items: center; gap: 7px; }
+.hero-book-host .hero-ability-icon { flex: 0 0 24px; width: 24px; height: 24px; object-fit: contain; }
+.hero-book-host .hero-ability-entry dd, .hero-book-host .hero-talent-entry dd { display: grid; gap: 4px; }
+.hero-book-host .hero-ability-entry dd p, .hero-book-host .hero-talent-entry dd p { margin: 0; font-weight: 500; line-height: 1.35; }
+.hero-book-host .hero-ability-cooldown { color: #5f6d58; font: 800 .68rem ui-monospace,monospace; }
+.hero-book-host .hero-mech-ability { display: flex; align-items: center; gap: 6px; color: #5f462d; font-size: .76rem; }
+.hero-book-host .hero-mech-ability img { width: 20px; height: 20px; object-fit: contain; }
+.hero-book-host .hero-book-stats { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; margin: 12px 0 0; }
+.hero-book-host .hero-book-stats div { padding: 7px; background: #e8f0de; border-radius: 5px; }
+.hero-book-host .hero-book-stats .stat-hp { background: #e3efd6; }
+.hero-book-host .hero-book-stats .stat-atk { background: #f8e2d2; }
+.hero-book-host .hero-book-stats .stat-def { background: #dbeaf0; }
+.hero-book-host .hero-book-stats .stat-spd { background: #e9e1f3; }
+.hero-book-host .hero-book-stats dt { color: #5f6d58; font: 800 .62rem ui-monospace, monospace; text-transform: uppercase; }
+.hero-book-host .hero-book-stats dd { margin: 2px 0 0; font-weight: 900; }
+.hero-book-host .book-back-bookmark { position: absolute; z-index: 0; top: -24px; left: 30px; display: flex; width: 46px; height: 60px; justify-content: center; padding: 4px 0 0; color: #fff8e4; background: #8062a9; border: 2px solid #23382f; clip-path: polygon(0 0,100% 0,100% 100%,50% 82%,0 100%); cursor: pointer; }
+.hero-book-host .book-back-bookmark svg { width: 22px; height: 22px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+.hero-book-host .book-back-bookmark:focus-visible { outline: 3px solid #f2ba55; outline-offset: 3px; }
+@media (min-width: 601px) and (max-height: 800px) {
+  .hero-book-host .hero-pilot .storybook-page { padding: 14px 18px; }
+  .hero-book-host .hero-pilot .story-right { gap: 6px; }
+  .hero-book-host .hero-pilot .hero-book-stats { margin-top: 4px; }
+  .hero-book-host .hero-pilot .hero-abilities { gap: 3px; margin-top: 4px; }
+  .hero-book-host .hero-pilot .hero-abilities > div { grid-template-columns: 92px minmax(0,1fr); gap: 5px; padding: 3px 6px; }
+  .hero-book-host .hero-pilot .hero-ability-entry dd { gap: 2px; }
+  .hero-book-host .hero-pilot .hero-ability-entry dd p { line-height: 1.2; }
+  .hero-book-host .hero-pilot .hero-mech-ability { line-height: 1.15; }
+}
+@media (max-width: 600px) {
+  .hero-book-host .storybook-spread { grid-template-columns: 1fr; }
+  .hero-book-host .storybook-overlay { padding: 7px; }
+  .hero-book-host .storybook-page { min-height: 300px; }
+  .hero-book-host .story-left { display: block; }
+  .hero-book-host .story-left .story-portrait-left { float: right; width: min(120px,36%); margin: 0 0 10px 12px; }
+  .hero-book-host .story-right { border-top: 2px solid #c5b58e; border-left: 0; }
+  .hero-book-host .hero-book-stats { grid-template-columns: repeat(2, 1fr); }
+}

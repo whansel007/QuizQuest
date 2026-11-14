@@ -12,7 +12,7 @@ import { drawAvatarCosmetics, loadOwnedHeroVisuals, loadPlayerVisuals, tintedPla
 import { INK, drawFlame } from './kingdom/town-art.js';
 import {
   PALETTE, TOWN_BUILDINGS, TOWN_CAMPS, TOWN_MAP_PROPS, TOWN_SIGN_SPOT, TOWN_TRAILS, TOWN_VIEW_TOP, TOWN_WALK_ZONES,
-  WORLD_TOP, buildTownObjects, createForestPattern, createGroundLayer, makeEdgeTrees,
+  GROUND_BLEED, WORLD_TOP, buildTownObjects, createForestPattern, createGroundLayer, makeEdgeTrees,
 } from './kingdom/town-scene.js';
 import { TOWN_SPAWN, buildGrid, canStandAt, findPath, inZone, makeTownObstacles } from './kingdom/town-collision.js';
 import { EMOTES, heroLine } from './kingdom/town-voices.js';
@@ -365,6 +365,7 @@ function screenOf(x, y) {
 
 async function openWheel() {
   if (props.paused) return;
+  if (wheelOpen.value) { closeWheel(); return; }
   keys.clear();
   player.path = [];
   const at = screenOf(player.x, player.y - TOWN_AVATAR_RADIUS * 1.6);
@@ -730,8 +731,8 @@ function drawEmote(g, time) {
 function targetPrompt(t) {
   if (t.kind === 'destination') {
     return t.id === 'duel'
-      ? { title: 'Duel', line: 'Press E or click to start a quiz battle' }
-      : { title: 'Campfire Run', line: 'Press E or click to defend the campfire' };
+      ? { title: 'Duel', line: 'Press E or click to start a quiz battle—answer questions to win' }
+      : { title: 'Campfire Run', line: 'Press E or click to play as a hero and defend the campfire with friends' };
   }
   const plot = props.buildings.find((p) => p.id === t.id);
   const name = plot?.def.name || NAMES[t.id] || t.id;
@@ -935,7 +936,7 @@ function tick(time) {
   const v = visibleWorld();
   ctx.fillStyle = forestPattern || PALETTE.forest;
   ctx.fillRect(v.x - 4, v.y - 4, v.w + 8, v.h + 8);
-  if (groundLayer) ctx.drawImage(groundLayer, 0, WORLD_TOP);
+  if (groundLayer) ctx.drawImage(groundLayer, -GROUND_BLEED, WORLD_TOP - GROUND_BLEED);
   drawHighlight(ctx, time);
 
   const drawables = [

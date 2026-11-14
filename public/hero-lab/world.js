@@ -481,6 +481,10 @@ const selectedHero = HEROES.find((hero) => hero.id === heroId);
 if (!selectedHero) location.replace('/hero-lab');
 // The hero this client is playing. Lobby swaps change it without a reload.
 let activeHeroId = selectedHero.id;
+const starterHeroIds = GAME_CONFIG.arenaTuning.progression.newPlayerHeroes || ['sheriff'];
+let availableHeroIds = new Set(workshopTrial
+  ? [heroId]
+  : embedded ? starterHeroIds : HEROES.map((hero) => hero.id));
 
 // The room this client is attached to. Set from the URL, then kept from the
 // server's welcome so a socket reconnect rejoins the same room instead of
@@ -1455,7 +1459,7 @@ function showRunResult(result) {
     item.append(marker, text); return item;
   }));
   document.querySelector('#run-result-teaser-text').textContent = `The Brute King awaits at wave ${result.nextBossWave || ARENA_TUNING.run.bossTeaserWave}.`;
-  runAgainHero.replaceChildren(...HEROES.map((hero) => {
+  runAgainHero.replaceChildren(...selectableHeroes().map((hero) => {
     const option = document.createElement('option'); option.value = hero.id; option.textContent = heroOptionText(hero);
     option.selected = hero.id === (result.heroId || activeHeroId); return option;
   }));
@@ -1549,7 +1553,7 @@ qualitySetting.addEventListener('change', () => {
 muteSetting.addEventListener('change', () => { settings.muted = muteSetting.checked; saveSettings(); });
 volumeSetting.addEventListener('input', () => { settings.masterVolume = Number(volumeSetting.value); saveSettings(); });
 
-lobbyHero.replaceChildren(...ALPHABETIZED_HEROES.map((hero) => {
+lobbyHero.replaceChildren(...selectableHeroes(true).map((hero) => {
   const option = document.createElement('option');
   option.value = hero.id;
   option.textContent = heroOptionText(hero);
@@ -2061,6 +2065,14 @@ socket.on('disconnect', () => {
 socket.on('welcome', (welcome) => {
   me = welcome.you;
   joinFailed = false;
+  if (Array.isArray(welcome.availableHeroIds)) {
+    const allowed = welcome.availableHeroIds.filter((id) => HEROES.some((hero) => hero.id === id));
+    if (allowed.length) availableHeroIds = new Set(allowed);
+    const local = state.players?.find((player) => player.id === me);
+    if (local && availableHeroIds.has(local.heroId)) activeHeroId = local.heroId;
+    else if (!availableHeroIds.has(activeHeroId)) activeHeroId = allowed[0] || activeHeroId;
+    syncHeroMenus();
+  }
   if (welcome.room?.code) activeRoomCode = welcome.room.code;
   if (workshopTrial) {
     if (welcome.room?.mode !== 'workshop_trial') { exitWorkshopTrial(); return; }
@@ -2081,6 +2093,14 @@ socket.on('join_error', ({ code, message } = {}) => {
   if (embedded) window.parent.postMessage({ type: 'hero-lab-join-error', code, message }, location.origin);
   else showBanner(message || 'Could not join the room');
   if (workshopTrial && code === 'trial_expired') setTimeout(exitWorkshopTrial, 900);
+});
+socket.on('swap_rejected', ({ code, message } = {}) => {
+  pendingHeroSwap = null;
+  const local = state.players?.find((player) => player.id === me);
+  if (local) activeHeroId = local.heroId;
+  lobbyHero.value = availableHeroIds.has(activeHeroId) ? activeHeroId : (selectableHeroes()[0]?.id || '');
+  syncHeroMenuIcons();
+  if (code === 'hero_locked') showToast(message || 'Summon this hero before choosing it.');
 });
 socket.on('trial_expired', () => {
   const expiry = document.querySelector('#trial-expiry');
@@ -3633,21 +3653,23 @@ function createHeroImage(heroId, emoji, sizePx = 24) {
 function heroOptionText(hero) {
   return heroSpriteConfig?.HERO_VISUALS?.[hero.id] && !heroSpritesDisabled ? hero.name : `${hero.emoji} ${hero.name}`;
 }
+function selectableHeroes(alphabetical = false) {
+  return (alphabetical ? ALPHABETIZED_HEROES : HEROES).filter((hero) => availableHeroIds.has(hero.id));
+}
 function syncHeroMenus() {
-  const selectedLobbyHero = lobbyHero.value || activeHeroId;
-  lobbyHero.replaceChildren(...ALPHABETIZED_HEROES.map((hero) => {
+  const allowed = selectableHeroes();
+  const currentSelection = lobbyHero.value;
+  lobbyHero.replaceChildren(...selectableHeroes(true).map((hero) => {
     const option = document.createElement('option'); option.value = hero.id; option.textContent = heroOptionText(hero); return option;
   }));
-  lobbyHero.value = HEROES.some((hero) => hero.id === selectedLobbyHero) ? selectedLobbyHero : activeHeroId;
+  lobbyHero.value = allowed.some((hero) => hero.id === currentSelection) ? currentSelection
+    : allowed.some((hero) => hero.id === activeHeroId) ? activeHeroId : (allowed[0]?.id || '');
   syncHeroMenuIcons();
-  if (runAgainHero.options.length) {
-    const selected = runAgainHero.value;
-    for (const option of runAgainHero.options) {
-      const hero = HEROES.find((candidate) => candidate.id === option.value);
-      if (hero) option.textContent = heroOptionText(hero);
-    }
-    runAgainHero.value = selected;
-  }
+  const selectedRunHero = runAgainHero.value || activeHeroId;
+  runAgainHero.replaceChildren(...allowed.map((hero) => {
+    const option = document.createElement('option'); option.value = hero.id; option.textContent = heroOptionText(hero); return option;
+  }));
+  runAgainHero.value = allowed.some((hero) => hero.id === selectedRunHero) ? selectedRunHero : (allowed[0]?.id || '');
 }
 function syncHeroMenuIcons() {
   const selectedLobbyHero = HEROES.find((hero) => hero.id === lobbyHero.value);
@@ -5678,9 +5700,9 @@ function paintHeroesLayer({ currentTime, dt }) {
 
     if (player.id === me) {
       context.strokeStyle = '#1683ff';
-      context.lineWidth = 2;
+      context.lineWidth = 3;
       context.beginPath();
-      context.arc(center.x, center.y, 23, 0, Math.PI * 2);
+      context.arc(center.x, center.y, 29, 0, Math.PI * 2);
       context.stroke();
     }
     if (heroDebugHitboxes) {

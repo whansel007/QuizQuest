@@ -591,6 +591,7 @@ attemptId: attempt.id,
     pickChallenge,
     classOf: (id) => db.classes.find((c) => c.id === id),
     kingdomBuildings: (studentId) => E.kingdom(db, studentId).buildings,
+    unlockedHeroIds: (studentId) => [...R.inventory(db, studentId).heroes],
     avatarVisual: avatarAppearance,
     // Same gate the debug menu uses: only seeded synthetic demo accounts.
     isDebugUser: isSeededDemoUser,

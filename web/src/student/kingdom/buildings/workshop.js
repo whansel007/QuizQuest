@@ -86,7 +86,6 @@ function workshopStage3(g, W, H) {
   stroke(g, [[8, gy - 112], [cx - 66, gy - 112]], '#6F8288', 6);
   stroke(g, [[12, gy - 70], [cx - 72, gy - 104]], '#8E9EA6', 2.5);
   stroke(g, [[30, gy - 112], [30, gy - 92]], INK, 2);
-  poly(g, [[22, gy - 92], [38, gy - 92], [42, gy - 80], [34, gy - 84], [26, gy - 84], [18, gy - 80]], '#C9D3D6', 2);
   stroke(g, [[cx - 94, gy - 112], [cx - 94, gy - 86]], INK, 2);
   rect(g, cx - 103, gy - 86, 18, 36, ROSE, 8);
   fence(g, 10, cx - 76, gy - 2);

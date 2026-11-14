@@ -21,6 +21,14 @@ function turret(g, x, gy, h, roofed) {
 export function draw(g, stage, W, H) {
   const cx = W / 2; const gy = H - 8;
   groundShadow(g, cx, gy, 112, 10);
+  if (stage >= 3) {
+    // Draw the upper tower first so the keep's square parapet sits in front
+    // of its base instead of the tower appearing pasted on top of it.
+    rect(g, cx - 20, gy - 200, 40, 52, CASTLE.wall, 3);
+    cone(g, cx, gy - 200, 40, 36, CASTLE.roof);
+    archWindow(g, cx, gy - 190, 12, 18, '#FFE7A3');
+    flag(g, cx, gy - 236, GOLD, 30);
+  }
   // the keep behind the curtain wall grows with the castle level
   const keepH = stage >= 2 ? 150 : 120;
   rect(g, cx - 42, gy - keepH, 84, keepH - 60, CASTLE.wall, 3);
@@ -28,12 +36,6 @@ export function draw(g, stage, W, H) {
   if (stage >= 2) {
     archWindow(g, cx - 20, gy - keepH + 14, 12, 18, '#FFE7A3');
     archWindow(g, cx + 20, gy - keepH + 14, 12, 18, '#FFE7A3');
-  }
-  if (stage >= 3) {
-    rect(g, cx - 20, gy - 200, 40, 52, CASTLE.wall, 3);
-    cone(g, cx, gy - 200, 40, 36, CASTLE.roof);
-    archWindow(g, cx, gy - 190, 12, 18, '#FFE7A3');
-    flag(g, cx, gy - 236, GOLD, 30);
   }
   const towerH = stage >= 2 ? 128 : 100;
   for (const side of [-1, 1]) turret(g, cx + side * 92, gy, towerH, stage >= 1);

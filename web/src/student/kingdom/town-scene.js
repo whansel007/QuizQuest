@@ -16,6 +16,9 @@ import { BUILDING_LAYOUT, drawBuilding } from './buildings/index.js';
 
 export const WORLD_TOP = -TOWN_NORTH_HEIGHT;
 export const WORLD_HEIGHT = TOWN_HEIGHT + TOWN_NORTH_HEIGHT;
+// Extra floor beyond the logical town bounds gives the forest border room to
+// blend out without fading the walkable kingdom itself.
+export const GROUND_BLEED = 180;
 // Object art is drawn at 2x so it stays crisp when scaled up.
 export const ART_RES = 2;
 // Extra canvas height above every building and the castle. The tuning art
@@ -105,6 +108,13 @@ export function makeEdgeTrees() {
     add(x + 20 + random() * 10, TOWN_HEIGHT + 34 + random() * 6, random() < 0.4 ? 'pine' : 'round');
     add(x + random() * 10, WORLD_TOP + 118 + random() * 6, 'pine');
   }
+  // A staggered layer behind the northern border makes the forest feel deep
+  // without closing the trail north out of town.
+  for (let x = -20; x <= TOWN_WIDTH + 20; x += 44) {
+    const northX = x + 22 + random() * 8;
+    if (northX > GAP_X - 112 && northX < GAP_X + 112) continue;
+    add(northX, TOWN_ZONE_TOP - 34 + random() * 4, random() < 0.55 ? 'pine' : 'round');
+  }
   for (let y = WORLD_TOP + 150; y <= TOWN_HEIGHT + 20; y += 48) {
     const inClearing = y < 0;
     add(inClearing ? 120 + random() * 10 : 4 + random() * 8, y, random() < 0.6 ? 'pine' : 'round');
@@ -154,24 +164,26 @@ export function createForestPattern(ctx) {
   return ctx.createPattern(tile, 'repeat');
 }
 
-// The lawn, clearing, trails, roads and plaza, drawn once. The layer's
-// top-left is world (0, WORLD_TOP).
+// The lawn, clearing, trails, roads and plaza, drawn once. The layer includes
+// a visual-only margin beyond the logical town bounds for the forest fade.
 export function createGroundLayer() {
-  const layer = offscreen(TOWN_WIDTH, WORLD_HEIGHT);
+  const width = TOWN_WIDTH + GROUND_BLEED * 2;
+  const height = WORLD_HEIGHT + GROUND_BLEED * 2;
+  const layer = offscreen(width, height);
   const g = layer.getContext('2d');
-  g.translate(0, -WORLD_TOP);
+  g.translate(GROUND_BLEED, -WORLD_TOP + GROUND_BLEED);
   g.fillStyle = PALETTE.grass;
-  g.fillRect(0, 0, TOWN_WIDTH, TOWN_HEIGHT);
+  g.fillRect(-GROUND_BLEED, 0, width, TOWN_HEIGHT + GROUND_BLEED);
   g.fillStyle = PALETTE.clearing;
-  g.fillRect(0, WORLD_TOP, TOWN_WIDTH, TOWN_NORTH_HEIGHT);
+  g.fillRect(-GROUND_BLEED, WORLD_TOP - GROUND_BLEED, width, TOWN_NORTH_HEIGHT + GROUND_BLEED);
   // A light scattering of tiny grass tufts gives the lawn texture without
   // making the walkable paths busy. The fixed seed keeps the map calm.
   let grassSeed = 0x51a7;
   const grassRandom = () => { grassSeed = (grassSeed * 1664525 + 1013904223) >>> 0; return grassSeed / 0x100000000; };
   const bladeColors = ['#5F984C', '#6EA451', '#A2C66B', '#B4CC70'];
-  for (let tuft = 0; tuft < 620; tuft += 1) {
-    const x = 8 + grassRandom() * (TOWN_WIDTH - 16);
-    const y = WORLD_TOP + 8 + grassRandom() * (WORLD_HEIGHT - 16);
+  for (let tuft = 0; tuft < 1060; tuft += 1) {
+    const x = -GROUND_BLEED + 8 + grassRandom() * (width - 16);
+    const y = WORLD_TOP - GROUND_BLEED + 8 + grassRandom() * (height - 16);
     const bladeCount = 2 + Math.floor(grassRandom() * 3);
     g.globalAlpha = 0.28 + grassRandom() * 0.26;
     for (let blade = 0; blade < bladeCount; blade += 1) {
@@ -222,6 +234,35 @@ export function createGroundLayer() {
       }
     });
   }
+  // Let the forest pattern underneath show through at the town's outer edge,
+  // so the kingdom floor blends into the woods instead of ending abruptly.
+  const fade = 96;
+  const left = -GROUND_BLEED;
+  const right = TOWN_WIDTH + GROUND_BLEED;
+  const top = WORLD_TOP - GROUND_BLEED;
+  const bottom = TOWN_HEIGHT + GROUND_BLEED;
+  g.globalCompositeOperation = 'destination-out';
+  const horizontalFade = (x0, x1, reverse = false) => {
+    const gradient = g.createLinearGradient(x0, 0, x1, 0);
+    gradient.addColorStop(reverse ? 0 : 1, 'rgba(0,0,0,0)');
+    gradient.addColorStop(reverse ? 1 : 0, 'rgba(0,0,0,1)');
+    return gradient;
+  };
+  const verticalFade = (y0, y1, reverse = false) => {
+    const gradient = g.createLinearGradient(0, y0, 0, y1);
+    gradient.addColorStop(reverse ? 0 : 1, 'rgba(0,0,0,0)');
+    gradient.addColorStop(reverse ? 1 : 0, 'rgba(0,0,0,1)');
+    return gradient;
+  };
+  g.fillStyle = horizontalFade(left, left + fade);
+  g.fillRect(left, top, fade, height);
+  g.fillStyle = horizontalFade(right - fade, right, true);
+  g.fillRect(right - fade, top, fade, height);
+  g.fillStyle = verticalFade(top, top + fade);
+  g.fillRect(left, top, width, fade);
+  g.fillStyle = verticalFade(bottom - fade, bottom, true);
+  g.fillRect(left, bottom - fade, width, fade);
+  g.globalCompositeOperation = 'source-over';
   return layer;
 }
 
