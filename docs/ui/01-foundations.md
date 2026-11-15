@@ -2,7 +2,7 @@
 
 ## 1. WHAT THE PLAYER SEES
 
-QuizQuest opens as a sign-in page when no valid account is restored. A signed-in student sees a shared top bar and one student view; the Kingdom, World selector and Summon tabs use an immersive layout that can tuck the bar away. The shell is Vue; the town and a few ambient scenes are drawn into canvases.
+QuizQuest opens as a sign-in page when no valid account is restored. A signed-in student sees one student view at a time. On immersive tabs (Kingdom, Campfire Run and Summon), desktop navigation can tuck away and reappear when the pointer reaches the top edge; on phones and portrait tablets, a menu button opens a tab drawer. Quiz and My Progress keep the regular navigation visible. Campfire Run hides the outer navigation during an active touch game, which has its own in-game menu. The shell is Vue; the town and a few ambient scenes are drawn into canvases.
 
 ## 2. HOW IT WORKS
 

@@ -16,4 +16,4 @@ These pages explain the student-facing screens (plus the teacher Analytics dashb
 10. [09-glossary-and-cheatsheet.md](09-glossary-and-cheatsheet.md) is the glossary, change guide, overview and risk list.
 11. [10-teacher-analytics-dashboard.md](10-teacher-analytics-dashboard.md) covers the professor-facing Analytics dashboard: filters, auto-refresh, sections, charts, exports and how the numbers are counted.
 
-Claims name source paths and the relevant component/function/config. Values reflect the checked-in source at the time these notes were written. If this document says **unverified**, the named source did not establish the behavior conclusively.
+Claims name source paths and the relevant component/function/config. This guide was checked against the checked-in UI on 15 November 2026. Values can change with source updates; if a page says **unverified**, the named source did not establish the behavior conclusively.

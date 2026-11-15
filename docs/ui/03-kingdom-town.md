@@ -2,7 +2,7 @@
 
 ## 1. WHAT THE PLAYER SEES
 
-The Kingdom is a walkable top-down town with a castle, upgrade buildings, roads, trees and a north trail to Duel and Campfire Run. The player moves with keys or clicks, can approach doors to interact, and sees owned heroes wander and greet them. Building panels, trade, Castle wardrobe and tour UI sit above the scene as DOM dialogs; the town corner controls are for emotes and sound.
+The Kingdom is a walkable top-down town with a castle, upgrade buildings, roads, trees and a north trail to Duel and Campfire Run. The player moves with keys or clicks, can approach doors to interact, and sees owned heroes wander and greet them. Building panels, trade, Castle wardrobe and tour UI sit above the scene as DOM dialogs; the town corner controls are for emotes and sound. The Library is a magical archive: choose a hero's gold-titled volume to open a two-page storybook with lore, personality, field note, basic stats, ability descriptions and cooldowns, and talent details. The Workshop has a selectable hero roster and training card with the same ability/talent explanations; **Start Test** opens a private practice run that grants no rewards or progress. The Kingdom tour introduces building roles and points students to the Garden telescope for Summon.
 
 ## 2. HOW IT WORKS
 
@@ -38,6 +38,9 @@ Wandering heroes are capped at `TOWN_MAX_HEROES=10`. `initializeWanderers()` loa
 - Static art/cache: `web/src/student/kingdom/town-scene.js` (`buildTownObjects`, `createGroundLayer`, `artFor`, `drawnTop`) and `town-art.js`.
 - Upgrade stages: `web/src/student/kingdom/buildings/index.js` and `castle.js`, `garden.js`, `library.js`, `tower.js`, `workshop.js`.
 - Panels and upgrade data: `KingdomView.vue`, `kingdom/panels/*.vue`, `config/tuning.js` (`BUILDING_BONUS_PER_LEVEL=0.1`, cap 3).
+- Library archive and hero details: `kingdom/panels/LibraryPanel.vue`, `kingdom/HeroBook.vue`, `kingdom/hero-lore.js`, and `kingdom/hero-ability-guide.js`. Lore is student-facing copy; ability names, icons and cooldowns come from the shared arena config.
+- Workshop roster, hero ability/talent notes and no-reward practice entry: `kingdom/panels/WorkshopPanel.vue`, `KingdomView.vue` (`startWorkshopTrial`), and the `/api/student/workshop/trial` route.
+- First-visit tour: `KingdomView.vue` (`INTRO_STEPS`, `maybeStartIntro`, `replayFirstIntro`). It is remembered per student in local storage and can be replayed from the `?` town control.
 
 ## 4. DATA AND TIMING
 
@@ -57,4 +60,5 @@ Kingdom view loads account/home data and passes `buildings`, `castleLevel`, `ava
 - The town is 1280×720 logical space and includes negative Y for the north clearing; do not assume every visible coordinate starts at zero.
 - Hero visuals load asynchronously; failed sprite loading logs a warning and may leave fallback/no art while town behavior continues.
 - The isometric SVG kingdom and the walkable canvas town are separate renderers; changing one does not automatically change the other.
+- The Library hero book and Workshop training card share hero ability descriptions, but their context differs: reading a book has no gameplay effect, and Workshop trials are practice-only with no rewards or progress.
 - “Upgrade confetti” was not found as a KingdomTown effect; the confirmed celebration is the SVG block drop in `IsoKingdom.vue`.

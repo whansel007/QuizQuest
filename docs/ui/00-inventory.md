@@ -8,13 +8,14 @@ This is a single-page Vue application: the address bar does not have separate st
 |---|---|---|---|
 | Sign-in, sign-up, demo-account picker and hidden version/debug dialog | Signed-out state in `App.vue` | `web/src/LoginView.vue`; `web/src/components/LoginPreview.vue`; `LoginCampfire.vue` | DOM/CSS plus a canvas town preview and SVG campfire |
 | Kingdom home/town | Student tab `kingdom` | `web/src/student/KingdomView.vue`, `KingdomTown.vue`, `kingdom/town-scene.js`, `kingdom/town-art.js` | Both: DOM header/menus/dialogs, canvas town |
-| Kingdom tour, avatar color panel, castle info, building panels, trade board, archive/hero book, wardrobe | States within Kingdom | `KingdomView.vue`, `kingdom/panels/*.vue`, `AvatarPreview.vue`, `CosmeticIcon.vue` | DOM/CSS, some canvas previews/icons |
+| Kingdom tour, avatar color panel, castle info, building panels, trade board, magical archive/hero books, wardrobe | States within Kingdom | `KingdomView.vue`, `kingdom/panels/*.vue`, `kingdom/HeroBook.vue`, `AvatarPreview.vue`, `CosmeticIcon.vue` | DOM/CSS, some canvas previews/icons |
 | Quiz selection, resume/start, in-run quiz, results/summary, report-question form, leave confirmation | Student tab label **Quiz** (`practice`) | `PracticeView.vue`, `QuizRunner.vue`, `QuestionForm.vue`, `ReportForm.vue`, `ResultBlock.vue` | DOM/CSS; battle art includes CSS/DOM sprites; no canvas in the inspected runner component |
 | My Progress | Student tab `progress` | `ProgressView.vue`, `ResultBlock.vue` | DOM/CSS |
-| Campfire Run hero selector / co-op room lobby / embedded arena | Student tab label **Campfire Run** (`world`) maps to `HeroLabView.vue` | `HeroLabView.vue`, `HeroIcon.vue`; arena source in `public/hero-lab/` | DOM/CSS, hero icon canvases, arena runs in an iframe |
+| Campfire Run hero selector / hero details book / co-op room lobby / embedded arena | Student tab label **Campfire Run** (`world`) maps to `HeroLabView.vue` | `HeroLabView.vue`, `kingdom/HeroBook.vue`, `HeroIcon.vue`; arena source in `public/hero-lab/` | DOM/CSS, hero icon canvases, arena runs in an iframe |
 | Separate class world | No tab mapping found in `App.vue`; `WorldView.vue` exists | `web/src/student/WorldView.vue`, server namespace `/world` | DOM/CSS plus a 960×576 canvas and Socket.IO |
 | Summon banner, single pull reveal, ten-pull summary, history/details dialogs | Student tab `pets` (label “Summon”) | `PetsView.vue`, `SummonSky.vue`, `gacha/PrizeReveal.vue`, `HeroIcon.vue` | DOM/CSS plus ambient sky canvas and hero icon canvases |
 | Student account menu, debug menu, sound toggle, global toast, screen wipe | Shared shell | `AccountMenu.vue`, `DebugMenu.vue`, `SoundToggle.vue`, `ScreenWipe.vue`, `ui.js` | DOM/CSS; wipe is a CSS animated DOM overlay |
+| Student navigation | Shared shell in `App.vue` | `App.vue`, `mobile-config.js`, `app.css` | Desktop immersive tabs can tuck away; phone/portrait layouts use a menu button and tab drawer; the Campfire Run iframe has its own in-game menu |
 
 ### Teacher screens
 

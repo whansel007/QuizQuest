@@ -2,7 +2,11 @@
 
 QuizQuest is a gamified learning platform prototype for course question authoring, student practice, progress review, and cooperative class gameplay. Professors manage courses and classes, review and publish questions, and inspect reports and analytics. Students practise from published questions, track topic progress, and use earned rewards in the Kingdom and Campfire Run.
 
-**Deployed app:** [quizquest-4phd.onrender.com](https://quizquest-4phd.onrender.com). Sign in with the accounts under [Demo sign-in](#demo-sign-in).
+**Deployed app:** 
+- [quizquest-4phd.onrender.com (primary)](https://quizquest-4phd.onrender.com). 
+- [quizquest-livm.onrender.com (backup)](https://quizquest-livm.onrender.com). 
+
+Sign in with the accounts under [Demo sign-in](#demo-sign-in).
 
 **Repository:** [github.com/whansel007/QuizQuest](https://github.com/whansel007/QuizQuest)
 

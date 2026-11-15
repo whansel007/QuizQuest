@@ -19,6 +19,7 @@ Wardrobe state in `KingdomView.vue` includes `wardrobeCatalog`, `wardrobeOwnedId
 - Sprite loading/tint/cache: `web/src/student/avatar.js`: `loadPlayerVisuals`, frame creation, `tintedPlayerFrames`, `drawCosmeticIcon`.
 - Town player rendering: `web/src/student/KingdomTown.vue` (props `avatarColor`, `avatarVisual`; `playerFrames`).
 - Preview: `web/src/student/AvatarPreview.vue` and `CosmeticIcon.vue`.
+- Touch-device canvas backing-store limits: `web/src/mobile-config.js` (`canvasDpr`, `MOBILE_MAX_DPR`, `MOBILE_LOW_END_DPR`).
 - Player cosmetic art: `web/src/student/kingdom/avatar-cosmetics.js`, definitions in `config/avatar-cosmetics.js` and `config/avatar-cosmetics-data.json`.
 - Castle wardrobe panel and saving: `web/src/student/KingdomView.vue`: `loadWardrobe`, `saveWardrobeLook`, `claimWardrobeCosmetic`.
 - Server validation/persistence: `src/quiz/avatar.js`, routes `POST /api/student/avatar/color`, `GET /api/student/castle/wardrobe`, `POST /api/student/castle/wardrobe/purchase`, `PUT /api/student/castle/wardrobe/loadout` in `src/quiz/api.js`, persistence layer in `src/quiz/store.js` / database adapter.
@@ -26,7 +27,7 @@ Wardrobe state in `KingdomView.vue` includes `wardrobeCatalog`, `wardrobeOwnedId
 
 ## 4. DATA AND TIMING
 
-`AvatarPreview.vue` uses a canvas with CSS display size 132×132, intrinsic width/height 144×144, and device-pixel backing up to 3×. It redraws when color or equipped cosmetics change and uses a timeout based on visual `IDLE_FPS` (fallback 5) for blinking unless reduced motion is requested. Color change invalidates/selects a tint-cache entry; it is not a CSS filter transition. Saved color and cosmetics are account data; preview selection is local Vue state until save succeeds.
+`AvatarPreview.vue` uses a canvas with CSS display size 132×132 and intrinsic width/height 144×144. Its device-pixel backing follows `canvasDpr()` in `mobile-config.js`: desktop can use the device ratio up to 3×, while touch devices cap at 2× (1.5× on low-core devices) to limit large filtered canvas layers. It redraws when color or equipped cosmetics change and uses a timeout based on visual `IDLE_FPS` (fallback 5) for blinking unless reduced motion is requested. Color change invalidates/selects a tint-cache entry; it is not a CSS filter transition. Saved color and cosmetics are account data; preview selection is local Vue state until save succeeds.
 
 ## 5. HOW TO CHANGE IT
 
