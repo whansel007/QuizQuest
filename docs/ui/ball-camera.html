@@ -1,0 +1,91 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Ball and Camera</title>
+  <style>
+    body { margin: 32px auto; padding: 0 16px; max-width: 680px; font: 16px/1.5 system-ui, sans-serif; color: #24352b; background: #f5f1e4; }
+    h1 { font-size: 1.5rem; }
+    canvas { display: block; width: 100%; max-width: 400px; height: auto; border: 2px solid #315b40; background: white; }
+    button { margin: 12px 8px 0 0; min-width: 48px; min-height: 44px; font: inherit; font-weight: 700; }
+    #info { margin-top: 12px; font-family: ui-monospace, monospace; white-space: pre-line; }
+  </style>
+</head>
+<body>
+  <h1>Player, ball, camera</h1>
+  <p>Move right. The ball stays in the same place in the world. The camera follows the player.</p>
+
+  <canvas id="screen" width="400" height="200" aria-label="Player and ball on a scrolling canvas"></canvas>
+  <button id="left" type="button">← Left</button>
+  <button id="right" type="button">Right →</button>
+  <button id="reset" type="button">Reset</button>
+  <div id="info"></div>
+
+  <script>
+    const canvas = document.querySelector('#screen');
+    const ctx = canvas.getContext('2d');
+
+    const player = { x: 100, y: 100, radius: 14 };
+    const ball = { x: 600, y: 100, radius: 18 };
+    let cameraX = 0;
+
+    function draw() {
+      // The camera follows the player, but stops at the start of the world.
+      cameraX = Math.max(0, player.x - canvas.width / 2);
+
+      // Clear the visible canvas before drawing this frame.
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+      // Draw a world ground line. Subtract cameraX to get screen position.
+      ctx.fillStyle = '#e9f1df';
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+      ctx.strokeStyle = '#78906a';
+      ctx.lineWidth = 3;
+      ctx.beginPath();
+      ctx.moveTo(-cameraX, 150);
+      ctx.lineTo(1000 - cameraX, 150);
+      ctx.stroke();
+
+      // Map x becomes screen x by subtracting the camera's world position.
+      const playerScreenX = player.x - cameraX;
+      const ballScreenX = ball.x - cameraX;
+
+      // This draw call happens even while the ball is offscreen.
+      // The canvas clips the part that falls outside its 0..400 pixel width.
+      ctx.fillStyle = '#d89a35';
+      ctx.beginPath();
+      ctx.arc(ballScreenX, ball.y, ball.radius, 0, Math.PI * 2);
+      ctx.fill();
+
+      // Draw the player.
+      ctx.fillStyle = '#3974c6';
+      ctx.beginPath();
+      ctx.arc(playerScreenX, player.y, player.radius, 0, Math.PI * 2);
+      ctx.fill();
+
+      document.querySelector('#info').textContent =
+        `Player map x: ${player.x}\nCamera map x: ${cameraX}\nBall map x: ${ball.x}\nBall screen x: ${ballScreenX}`;
+    }
+
+    function movePlayer(amount) {
+      player.x = Math.max(20, Math.min(980, player.x + amount));
+      draw();
+    }
+
+    document.querySelector('#left').addEventListener('click', () => movePlayer(-30));
+    document.querySelector('#right').addEventListener('click', () => movePlayer(30));
+    document.querySelector('#reset').addEventListener('click', () => {
+      player.x = 100;
+      draw();
+    });
+
+    window.addEventListener('keydown', (event) => {
+      if (event.key === 'ArrowRight') { event.preventDefault(); movePlayer(10); }
+      if (event.key === 'ArrowLeft') { event.preventDefault(); movePlayer(-10); }
+    });
+
+    draw();
+  </script>
+</body>
+</html>

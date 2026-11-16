@@ -2,6 +2,10 @@
 
 These pages explain the student-facing screens (plus the teacher Analytics dashboard in page 10) from the code that currently exists. The main entry point is `web/src/App.vue`; it selects the student tab and mounts its view. The Kingdom town and game scenes use canvas for fast custom drawing, while navigation, forms, panels and most overlays are ordinary HTML styled with CSS.
 
+For the key architecture, student flows, source files and change-safety rules in one short read, start with the [80/20 quick guide](80-20-quick-guide.md).
+
+For a hands-on explanation of canvas drawing, the camera and hidden cached drawings, open the [canvas demo](canvas.html) in a browser.
+
 ## Reading order
 
 1. [00-inventory.md](00-inventory.md) maps screens to components and entry points.

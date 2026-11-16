@@ -9,6 +9,7 @@
 
 const { award, inventory, REWARDS } = require('./rewards');
 const { grantResources, createTrade } = require('./economy');
+const ADDITIONAL_TOPICS = require('./additional-topics');
 
 // Practice sessions award three supplies, with each unit drawn independently
 // so different runs produce bundles students can trade.
@@ -74,6 +75,7 @@ const PASSAGES = [
     'Multi-factor authentication is a login method that requires two or more independent proofs of identity. A password manager is a tool that generates and stores unique passwords for each account. Patching is the process of applying updates that fix known security vulnerabilities. A backup is a copy of data stored separately so it can be restored after loss or attack. The principle of least privilege means giving each user only the access they need to do their job.'],
   ['p-stats-1', 'c-stats', 'tp-stats', 'lo-stats-1', 'Measures of centre',
     'The mean is the sum of values divided by the number of values. The median is the middle value when the data are ordered. The mode is the most frequent value. The range is the difference between the largest and smallest values.'],
+  ...ADDITIONAL_TOPICS.passages,
 ];
 
 // How likely each synthetic student is to get each topic right.
@@ -126,6 +128,7 @@ function seed(now = Date.now()) {
         { id: 'lo-sec-2', text: 'Apply basic protective practices' }] },
       { id: 'tp-stats', courseId: 'c-stats', name: 'Descriptive statistics', week: 1, outcomes: [
         { id: 'lo-stats-1', text: 'Compute and compare measures of centre' }] },
+      ...ADDITIONAL_TOPICS.topics,
     ],
     classes: [
       { id: 'cl-a', courseId: 'c-comp', name: 'Computing - Tutorial Group A', teacherIds: ['t-a'], settings: { tradingEnabled: true, participation: { enabled: false } } },
@@ -161,7 +164,7 @@ function seed(now = Date.now()) {
     editCount: 0, prepSeconds: 240 + Math.floor(rand() * 480), reviewedAt: now - 30 * DAY, reviewedBy: by,
     versions: [{ v: 1, warnings: [], editedAt: now - 30 * DAY, editedBy: by, publishedAt: now - 30 * DAY, ...version }],
   });
-  for (const [id, topicId, outcomeId, difficulty, stem, options, answerIndex, explanation, src] of QUESTIONS) {
+  for (const [id, topicId, outcomeId, difficulty, stem, options, answerIndex, explanation, src] of [...QUESTIONS, ...ADDITIONAL_TOPICS.questions]) {
     const courseId = topicId === 'tp-stats' ? 'c-stats' : 'c-comp';
     const by = courseId === 'c-comp' ? 't-a' : 't-b';
     db.questions.push(published(id, courseId, topicId, outcomeId, by, { type: 'mcq', stem, options, answerIndex, explanation, difficulty, sourceIds: [src] }));
