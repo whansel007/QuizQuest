@@ -34,7 +34,7 @@ test('the Campfire Run tab picks a hero and opens a lobby with a room code', asy
 test('the Kingdom tab shows the town and its buildings', async ({ page }) => {
   await signIn(page, STUDENT);
   await openTab(page, 'Kingdom');
-  await expect(page.getByRole('heading', { name: /Your Kingdom.*Storybook Town/ })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Your Kingdom', exact: true })).toBeVisible();
 
   // Dismiss the first-visit tour before opening the town's building list.
   const skipTour = page.getByRole('button', { name: 'Skip', exact: true });

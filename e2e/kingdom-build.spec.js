@@ -46,7 +46,7 @@ async function setResources(page, balances) {
 // building list is opened.
 async function openKingdom(page) {
   await openTab(page, 'Kingdom');
-  await expect(page.getByRole('heading', { name: /Your Kingdom.*Storybook Town/ })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Your Kingdom', exact: true })).toBeVisible();
   const skip = page.getByRole('button', { name: 'Skip', exact: true });
   if (await skip.isVisible()) await skip.click();
 }
