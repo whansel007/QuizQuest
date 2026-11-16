@@ -1,0 +1,2 @@
+1. The prof was expecting "Gamification" to litterally mean learning as you game not this to be separated
+2. The user onboarding was not there, thus fatal in getting users to understand what's happening
